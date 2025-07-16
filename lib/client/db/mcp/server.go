@@ -29,12 +29,18 @@ import (
 	mcpserver "github.com/mark3labs/mcp-go/server"
 
 	"github.com/gravitational/teleport"
+	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
 )
 
-// listDatabasesTool is the MCP tool that list all databases being served
-// (from all protocols).
-var listDatabasesTool = mcp.NewTool(listDatabasesToolName,
-	mcp.WithDescription("List database resources available to be used with Teleport tools."),
+var (
+	// listDatabasesTool is the MCP tool that list all databases being served
+	// (from all protocols).
+	listDatabasesTool = mcp.NewTool(listDatabasesToolName,
+		mcp.WithDescription("List database resources available to be used with Teleport tools."),
+	)
+
+	// listDatabasesTool is the list databases tool name.
+	listDatabasesToolName = clientmcp.ToolName("list_databases")
 )
 
 // RootServer database access root MCP server. It includes common MCP tools and
@@ -51,7 +57,7 @@ type RootServer struct {
 // NewRootServer initializes a new root MCP server.
 func NewRootServer(logger *slog.Logger) *RootServer {
 	server := &RootServer{
-		MCPServer:          mcpserver.NewMCPServer(serverName, teleport.Version),
+		MCPServer:          mcpserver.NewMCPServer(clientmcp.ServerName("databases"), teleport.Version),
 		logger:             logger,
 		availableDatabases: make(map[string]*Database),
 	}
@@ -149,10 +155,6 @@ func encodeDatabaseResource(db *Database) (string, error) {
 }
 
 const (
-	// serverName is the database MCP server name.
-	serverName = "teleport_databases"
-	// listDatabasesTool is the list databases tool name.
-	listDatabasesToolName = ToolPrefix + "list_databases"
 	// databaseResourceMIMEType is the MIME type of the database resources.
 	databaseResourceMIMEType = "application/yaml"
 )

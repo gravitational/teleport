@@ -29,6 +29,9 @@ var (
 	clusterURITemplate = urlpath.New("/clusters/:cluster/*")
 	// databaseURITemplate template used to parse database resource URIs.
 	databaseURITemplate = urlpath.New("/clusters/:cluster/databases/:dbName")
+	// accessRequestURITemplate templated used to parse access request resource
+	// URIs.
+	accessRequestURITemplate = urlpath.New("/clusters/:cluster/access-requests/:accessRequestID")
 )
 
 const (
@@ -126,6 +129,23 @@ func NewDatabaseResourceURI(cluster string, databaseName string, opts ...databas
 	}
 }
 
+// NewAccessRequestResourceURI creates a new access request resource URI.
+func NewAccessRequestResourceURI(cluster string, id string) ResourceURI {
+	pathWithHost, _ := accessRequestURITemplate.Build(urlpath.Match{
+		Params: map[string]string{
+			"cluster":         cluster,
+			"accessRequestID": id,
+		},
+	})
+
+	return ResourceURI{
+		url: url.URL{
+			Scheme: resourceScheme,
+			Path:   strings.TrimPrefix(pathWithHost, "/"),
+		},
+	}
+}
+
 // GetDatabaseServiceName returns the Teleport cluster name.
 func (u ResourceURI) GetClusterName() string {
 	if match, ok := clusterURITemplate.Match(u.path()); ok {
@@ -157,9 +177,24 @@ func (u ResourceURI) GetDatabaseName() string {
 	return u.url.Query().Get(databaseNameQueryParamName)
 }
 
+// GetAccessRequestID returns the access request ID param of the resource.
+// Returns empty if the resource is not an access request.
+func (u ResourceURI) GetAccessRequestID() string {
+	if match, ok := accessRequestURITemplate.Match(u.path()); ok {
+		return match.Params["accessRequestID"]
+	}
+
+	return ""
+}
+
 // IsDatabase returns true if the resource is a database.
 func (u ResourceURI) IsDatabase() bool {
 	return u.GetDatabaseServiceName() != ""
+}
+
+// IsAccessRequest returns true if the resource is an access request.
+func (u ResourceURI) IsAccessRequest() bool {
+	return u.GetAccessRequestID() != ""
 }
 
 // String returns the string representation of the resource URI.

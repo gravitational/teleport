@@ -17,7 +17,6 @@
 package mcp
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -90,12 +89,60 @@ func TestDatabaseResourceURI(t *testing.T) {
 			}
 
 			require.NotNil(t, uri)
-			fmt.Println(tc.uri)
 			require.Equal(t, tc.expectedDatabase, IsDatabaseResourceURI(tc.uri))
 			require.Equal(t, tc.expectedDatabase, uri.IsDatabase())
 			require.Equal(t, tc.expectedServiceName, uri.GetDatabaseServiceName())
 			require.Equal(t, tc.expectedDatabaseName, uri.GetDatabaseName())
 			require.Equal(t, tc.expectedDatabaseUser, uri.GetDatabaseUser())
+			require.Equal(t, tc.expectedClusterName, uri.GetClusterName())
+		})
+	}
+}
+
+func TestAccessRequestResourceURI(t *testing.T) {
+	for name, tc := range map[string]struct {
+		uri                     string
+		expectError             bool
+		expectedAccessRequest   bool
+		expectedAccessRequestID string
+		expectedClusterName     string
+	}{
+		"valid access request uri": {
+			uri:                     "teleport://clusters/clustername/access-requests/00000000-0000-0000-0000-000000000000",
+			expectedAccessRequest:   true,
+			expectedAccessRequestID: "00000000-0000-0000-0000-000000000000",
+			expectedClusterName:     "clustername",
+		},
+		"generated access request uri": {
+			uri:                     NewAccessRequestResourceURI("clustername", "00000000-0000-0000-0000-000000000000").String(),
+			expectedAccessRequest:   true,
+			expectedAccessRequestID: "00000000-0000-0000-0000-000000000000",
+			expectedClusterName:     "clustername",
+		},
+		"random resource": {
+			uri:                     "teleport://clusters/clustername/random/random-resource",
+			expectedAccessRequest:   false,
+			expectedAccessRequestID: "",
+			expectedClusterName:     "clustername",
+		},
+		"invalid schema": {
+			uri:         "http://databases/database",
+			expectError: true,
+		},
+		"invalid uri": {
+			uri:         "random-value",
+			expectError: true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			uri, err := ParseResourceURI(tc.uri)
+			if tc.expectError {
+				require.Error(t, err)
+				return
+			}
+
+			require.Equal(t, tc.expectedAccessRequest, uri.IsAccessRequest())
+			require.Equal(t, tc.expectedAccessRequestID, uri.GetAccessRequestID())
 			require.Equal(t, tc.expectedClusterName, uri.GetClusterName())
 		})
 	}
