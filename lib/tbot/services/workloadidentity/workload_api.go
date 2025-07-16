@@ -77,9 +77,7 @@ func WorkloadAPIServiceBuilder(
 			crlCache:                  crlCache,
 			clientBuilder:             deps.ClientBuilder,
 		}
-		svc.log = deps.Logger.With(
-			teleport.ComponentKey, teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
-		)
+		svc.log = deps.LoggerForService(svc)
 		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
 		return bot.NewServicePair(svc, sidecar), nil
 	}
