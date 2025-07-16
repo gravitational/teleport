@@ -597,6 +597,7 @@ type Global struct {
 	// v3
 	AuthServer  string `yaml:"auth_server,omitempty"`
 	ProxyServer string `yaml:"proxy_server,omitempty"`
+	RelayServer string `yaml:"relay_server,omitempty"`
 
 	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
 	Logger      Log              `yaml:"log,omitempty"`
@@ -2867,7 +2868,31 @@ type Relay struct {
 	// enabled.
 	RelayGroup string `yaml:"relay_group"`
 
+	// TargetConnectionCount is the connection count that agents are supposed to
+	// maintain when connecting to the Relay group of this instance.
+	TargetConnectionCount int `yaml:"target_connection_count"`
+
+	// ShutdownDelay is a minimum time to wait after a shutdown signal is
+	// received and the terminating status is advertised in heartbeats and to
+	// the connected agents but before stopping listeners and tunnels. Can be
+	// used to give enough time to the agents connected to this Relay service to
+	// connect to other Relay instances and advertise their connectivity. If not
+	// set to a positive value, no delay is applied.
+	ShutdownDelay types.Duration `yaml:"shutdown_delay"`
+
 	// APIPublicHostnames is the list of DNS names and IP addresses that the
 	// Relay service credentials should be authoritative for.
 	APIPublicHostnames []string `yaml:"api_public_hostnames"`
+
+	// APIListenAddr is the listen address for the API listener, in addr:port
+	// format. The default port used by the client if unspecified is 3040.
+	APIListenAddr string `yaml:"api_listen_addr"`
+
+	// TunnelListenAddr is the listen address for the tunnel listener, in
+	// addr:port format. There is no default port expected by clients, but port
+	// 3042 is the intended default.
+	TunnelListenAddr string `yaml:"tunnel_listen_addr"`
+	// TunnelPublicAddr is the address that will be used by agents to connect to
+	// the tunnel service load balancer.
+	TunnelPublicAddr string `yaml:"tunnel_public_addr"`
 }
