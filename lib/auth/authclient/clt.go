@@ -1432,7 +1432,7 @@ type ClientI interface {
 	services.DynamicAccess
 	services.DynamicAccessOracle
 	services.Restrictions
-	services.Apps
+	services.Applications
 	services.Databases
 	services.DatabaseServices
 	services.Kubernetes
