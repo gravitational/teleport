@@ -51,10 +51,7 @@ func ServiceBuilder(cfg *UnstableConfig, credentialLifetime bot.CredentialLifeti
 			reloadCh:           deps.ReloadCh,
 			identityGenerator:  deps.IdentityGenerator,
 		}
-		svc.log = deps.Logger.With(
-			teleport.ComponentKey,
-			teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
-		)
+		svc.log = deps.LoggerForService(svc)
 		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
 		return svc, nil
 	}
@@ -73,10 +70,7 @@ func NewSidecar(deps bot.ServiceDependencies, credentialLifetime bot.CredentialL
 		identityGenerator:  deps.IdentityGenerator,
 		statusReporter:     readyz.NoopReporter(),
 	}
-	svc.log = deps.Logger.With(
-		teleport.ComponentKey,
-		teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
-	)
+	svc.log = deps.LoggerForService(svc)
 	return svc, cfg
 }
 
