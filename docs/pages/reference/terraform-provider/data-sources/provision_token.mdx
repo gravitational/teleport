@@ -285,10 +285,10 @@ Optional:
 
 Optional:
 
-- `caller_id` (String) CallerID is the ID of the caller, ie. the stack or module that generated the run.
+- `caller_id` (String) CallerID is the ID of the caller, ie. the stack or module that generated the run.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
 - `caller_type` (String) CallerType is the type of the caller, ie. the entity that owns the run - either `stack` or `module`.
 - `scope` (String) Scope is the scope of the token - either `read` or `write`. See https://docs.spacelift.io/integrations/cloud-providers/oidc/#about-scopes
-- `space_id` (String) SpaceID is the ID of the space in which the run that owns the token was executed.
+- `space_id` (String) SpaceID is the ID of the space in which the run that owns the token was executed.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
 
 
 

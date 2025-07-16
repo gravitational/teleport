@@ -1650,7 +1650,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 						"allow": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"caller_id": {
-									Description: "CallerID is the ID of the caller, ie. the stack or module that generated the run.",
+									Description: "CallerID is the ID of the caller, ie. the stack or module that generated the run.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -1665,7 +1665,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"space_id": {
-									Description: "SpaceID is the ID of the space in which the run that owns the token was executed.",
+									Description: "SpaceID is the ID of the space in which the run that owns the token was executed.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
