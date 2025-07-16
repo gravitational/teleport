@@ -87,6 +87,14 @@ const (
 	// proxy peering is enabled.
 	ProxyPeeringListenPort = 3021
 
+	// RelayAPIListenPort is the default port used by the Relay API service.
+	RelayAPIListenPort = defaults.RelayAPIListenPort
+	// RelayPeerListenPort is the default port used by Relay peering.
+	RelayPeerListenPort = 3041
+	// RelayTunnelListenPort is the default port used by the Relay tunnel
+	// service.
+	RelayTunnelListenPort = 3042
+
 	// RDPListenPort is the standard port for RDP servers.
 	RDPListenPort = 3389
 
@@ -338,6 +346,9 @@ const (
 
 	// ProxyQueueSize is proxy service queue size
 	ProxyQueueSize = 8192
+
+	// RelayQueueSize is the watcher queue size for the relay cache.
+	RelayQueueSize = 8192
 
 	// UnifiedResourcesQueueSize is the unified resource watcher queue size
 	UnifiedResourcesQueueSize = 8192
