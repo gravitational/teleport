@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 )
 
 func TestWorkloadIdentityX509Command(t *testing.T) {
@@ -43,7 +44,7 @@ func TestWorkloadIdentityX509Command(t *testing.T) {
 				require.Len(t, cfg.Services, 1)
 
 				svc := cfg.Services[0]
-				wis, ok := svc.(*config.WorkloadIdentityX509Service)
+				wis, ok := svc.(*workloadidentity.X509OutputConfig)
 				require.True(t, ok)
 				require.True(t, wis.IncludeFederatedTrustBundles)
 
@@ -73,7 +74,7 @@ func TestWorkloadIdentityX509Command(t *testing.T) {
 				require.Len(t, cfg.Services, 1)
 
 				svc := cfg.Services[0]
-				wis, ok := svc.(*config.WorkloadIdentityX509Service)
+				wis, ok := svc.(*workloadidentity.X509OutputConfig)
 				require.True(t, ok)
 				require.True(t, wis.IncludeFederatedTrustBundles)
 

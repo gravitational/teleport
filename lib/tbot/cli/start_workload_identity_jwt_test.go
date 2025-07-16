@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 )
 
 func TestWorkloadIdentityJWTCommand(t *testing.T) {
@@ -43,7 +44,7 @@ func TestWorkloadIdentityJWTCommand(t *testing.T) {
 				require.Len(t, cfg.Services, 1)
 
 				svc := cfg.Services[0]
-				wis, ok := svc.(*config.WorkloadIdentityJWTService)
+				wis, ok := svc.(*workloadidentity.JWTOutputConfig)
 				require.True(t, ok)
 
 				dir, ok := wis.Destination.(*destination.Directory)
@@ -75,7 +76,7 @@ func TestWorkloadIdentityJWTCommand(t *testing.T) {
 				require.Len(t, cfg.Services, 1)
 
 				svc := cfg.Services[0]
-				wis, ok := svc.(*config.WorkloadIdentityJWTService)
+				wis, ok := svc.(*workloadidentity.JWTOutputConfig)
 				require.True(t, ok)
 
 				dir, ok := wis.Destination.(*destination.Directory)

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package config
+package workloadidentity
 
 import (
 	"github.com/gravitational/trace"
@@ -25,15 +25,10 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
 
-const WorkloadIdentityAPIServiceType = "workload-identity-api"
+const WorkloadAPIServiceType = "workload-identity-api"
 
-var (
-	_ ServiceConfig = &WorkloadIdentityAPIService{}
-)
-
-// WorkloadIdentityAPIService is the configuration for the
-// WorkloadIdentityAPIService
-type WorkloadIdentityAPIService struct {
+// WorkloadAPIConfig is the configuration for the Workload Identity API service.
+type WorkloadAPIConfig struct {
 	// Name of the service for logs and the /readyz endpoint.
 	Name string `yaml:"name,omitempty"`
 	// Listen is the address on which the SPIFFE Workload API server should
@@ -51,7 +46,7 @@ type WorkloadIdentityAPIService struct {
 }
 
 // CheckAndSetDefaults checks the SPIFFESVIDOutput values and sets any defaults.
-func (o *WorkloadIdentityAPIService) CheckAndSetDefaults() error {
+func (o *WorkloadAPIConfig) CheckAndSetDefaults() error {
 	if o.Listen == "" {
 		return trace.BadParameter("listen: should not be empty")
 	}
@@ -65,32 +60,32 @@ func (o *WorkloadIdentityAPIService) CheckAndSetDefaults() error {
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
-func (o *WorkloadIdentityAPIService) GetName() string {
+func (o *WorkloadAPIConfig) GetName() string {
 	return o.Name
 }
 
 // Type returns the type of the service.
-func (o *WorkloadIdentityAPIService) Type() string {
-	return WorkloadIdentityAPIServiceType
+func (o *WorkloadAPIConfig) Type() string {
+	return WorkloadAPIServiceType
 }
 
 // MarshalYAML marshals the WorkloadIdentityOutput into YAML.
-func (o *WorkloadIdentityAPIService) MarshalYAML() (any, error) {
-	type raw WorkloadIdentityAPIService
-	return encoding.WithTypeHeader((*raw)(o), WorkloadIdentityAPIServiceType)
+func (o *WorkloadAPIConfig) MarshalYAML() (any, error) {
+	type raw WorkloadAPIConfig
+	return encoding.WithTypeHeader((*raw)(o), WorkloadAPIServiceType)
 }
 
 // UnmarshalYAML unmarshals the WorkloadIdentityOutput from YAML.
-func (o *WorkloadIdentityAPIService) UnmarshalYAML(node *yaml.Node) error {
+func (o *WorkloadAPIConfig) UnmarshalYAML(node *yaml.Node) error {
 	// Alias type to remove UnmarshalYAML to avoid recursion
-	type raw WorkloadIdentityAPIService
+	type raw WorkloadAPIConfig
 	if err := node.Decode((*raw)(o)); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func (o *WorkloadIdentityAPIService) GetCredentialLifetime() bot.CredentialLifetime {
+func (o *WorkloadAPIConfig) GetCredentialLifetime() bot.CredentialLifetime {
 	lt := o.CredentialLifetime
 	lt.SkipMaxTTLValidation = true
 	return lt

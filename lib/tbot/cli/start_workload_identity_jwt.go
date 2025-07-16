@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 )
 
 // WorkloadIdentityJWTCommand implements `tbot start workload-identity-jwt` and
@@ -83,7 +84,7 @@ func (c *WorkloadIdentityJWTCommand) ApplyConfig(cfg *config.BotConfig, l *slog.
 		return trace.Wrap(err)
 	}
 
-	svc := &config.WorkloadIdentityJWTService{
+	svc := &workloadidentity.JWTOutputConfig{
 		Destination: dest,
 		Audiences:   c.Audiences,
 	}

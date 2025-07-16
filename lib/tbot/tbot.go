@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
 	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
+	workloadidentitysvc "github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -236,12 +237,12 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, clientcredentials.ServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *application.TunnelConfig:
 			services = append(services, application.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
-		case *config.WorkloadIdentityX509Service:
-			services = append(services, WorkloadIdentityX509ServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache(), setupCRLCache()))
-		case *config.WorkloadIdentityJWTService:
-			services = append(services, WorkloadIdentityJWTServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache()))
-		case *config.WorkloadIdentityAPIService:
-			services = append(services, WorkloadIdentityAPIServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache(), setupCRLCache()))
+		case *workloadidentitysvc.X509OutputConfig:
+			services = append(services, workloadidentitysvc.X509OutputServiceBuilder(svcCfg, setupTrustBundleCache(), setupCRLCache(), b.cfg.CredentialLifetime))
+		case *workloadidentitysvc.JWTOutputConfig:
+			services = append(services, workloadidentitysvc.JWTOutputServiceBuilder(svcCfg, setupTrustBundleCache(), b.cfg.CredentialLifetime))
+		case *workloadidentitysvc.WorkloadAPIConfig:
+			services = append(services, workloadidentitysvc.WorkloadAPIServiceBuilder(svcCfg, setupTrustBundleCache(), setupCRLCache(), b.cfg.CredentialLifetime))
 		case *awsra.Config:
 			services = append(services, awsra.ServiceBuilder(svcCfg))
 		default:
