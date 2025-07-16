@@ -16,7 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { ToastNotification } from './ToastNotification';
+export * from './ToastNotification';
+export * from './ToastNotifications';
+export * from './ToastNotificationContext';
 export type {
   ToastNotificationItem,
   ToastNotificationItemContent,

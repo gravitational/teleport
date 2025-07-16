@@ -51,7 +51,7 @@ interface ToastNotificationProps extends BoxProps {
   isAutoRemovable?: boolean;
 }
 
-const autoRemoveDurationMs = 5_000; // 5s
+export const autoRemoveDurationMs = 5_000; // 5s
 
 export function ToastNotification(props: ToastNotificationProps) {
   const {
@@ -94,6 +94,7 @@ export function ToastNotification(props: ToastNotificationProps) {
 
   return (
     <Container
+      data-testid={`toast-note-${item.id}`}
       py={3}
       // We use a custom value to offset the default padding by the width of the
       // left border.
