@@ -1,0 +1,2 @@
+NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+      You can watch its status by running 'kubectl get --namespace {{ .Release.Namespace }} svc -w {{ include "teleport-relay.fullname" . }}'
