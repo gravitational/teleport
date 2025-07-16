@@ -42,11 +42,12 @@ import (
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestKubernetesAttestor_Attest(t *testing.T) {
 	t.Parallel()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 	ctx := context.Background()
 
 	mockToken := "FOOBARBUZZ"

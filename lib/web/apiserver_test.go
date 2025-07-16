@@ -143,6 +143,7 @@ import (
 	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
 	utilsaws "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
@@ -174,7 +175,7 @@ type WebSuite struct {
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise, it will run tests as normal.
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	modules.SetInsecureTestMode(true)
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
@@ -8250,13 +8251,13 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		ServerID:       proxyID,
 		Emitter:        client,
 		EmitterContext: ctx,
-		Logger:         utils.NewSlogLoggerForTests(),
+		Logger:         logtest.NewLogger(),
 	})
 	require.NoError(t, err)
 
 	transportService, err := transportv1.NewService(transportv1.ServerConfig{
 		FIPS:   false,
-		Logger: utils.NewSlogLoggerForTests(),
+		Logger: logtest.NewLogger(),
 		Dialer: router,
 		SignerFn: func(authzCtx *authz.Context, clusterName string) agentless.SignerCreator {
 			return agentless.SignerFromAuthzContext(authzCtx, client, clusterName)
@@ -10656,7 +10657,7 @@ func TestWebSocketClosedBeforeSSHSessionCreated(t *testing.T) {
 	// not yet established.
 	stream := terminal.NewStream(ctx, terminal.StreamConfig{
 		WS:     ws,
-		Logger: utils.NewSlogLoggerForTests(),
+		Logger: logtest.NewLogger(),
 		Handlers: map[string]terminal.WSHandlerFunc{
 			defaults.WebsocketSessionMetadata: func(ctx context.Context, envelope terminal.Envelope) {
 				if envelope.Type != defaults.WebsocketSessionMetadata {
