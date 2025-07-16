@@ -19,8 +19,10 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
@@ -34,12 +36,12 @@ import (
 
 const (
 	// configFileVersion identifies the version of the configuration file
-	// might be used for future migrations
+	// might be used for future migrations.
 	configFileVersion = "v1"
 	// lockFileName is file used for locking update process in parallel.
 	lockFileName = ".lock"
 	// configFileName is the configuration file used to store versions for known hosts
-	// and installed client tool versions.
+	// and the installed versions of client tools.
 	configFileName  = ".config.json"
 	configFilePerms = 0o644
 	// defaultSizeStoredVersion defines how many versions will be stored in the tools
@@ -156,7 +158,9 @@ func getToolsConfig(toolsDir string) (ctc *ClientToolsConfig, err error) {
 	}
 	if data != nil {
 		if err := json.Unmarshal(data, ctc); err != nil {
-			return nil, trace.Wrap(err)
+			// If the configuration file content is corrupted, tools execution should not fail.
+			// Instead, we should proceed and re-install the required version.
+			slog.WarnContext(context.Background(), "failed to unmarshal config file", "error", err)
 		}
 	}
 
@@ -184,7 +188,9 @@ func updateToolsConfig(toolsDir string, update func(ctc *ClientToolsConfig) erro
 	}
 	if data != nil {
 		if err := json.Unmarshal(data, ctc); err != nil {
-			return trace.Wrap(err)
+			// If the configuration file content is corrupted, tools execution should not fail.
+			// Instead, we should proceed and re-install the required version.
+			slog.WarnContext(context.Background(), "failed to unmarshal config file", "error", err)
 		}
 	}
 
@@ -195,7 +201,7 @@ func updateToolsConfig(toolsDir string, update func(ctc *ClientToolsConfig) erro
 
 	jsonData, err := json.Marshal(ctc)
 	if err != nil {
-		return trace.NewAggregate(err, unlock())
+		return trace.Wrap(err)
 	}
 	return trace.Wrap(
 		os.WriteFile(filepath.Join(toolsDir, configFileName), jsonData, configFilePerms),
