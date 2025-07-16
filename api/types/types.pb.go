@@ -5588,9 +5588,17 @@ var xxx_messageInfo_ProvisionTokenSpecV2Spacelift proto.InternalMessageInfo
 type ProvisionTokenSpecV2Spacelift_Rule struct {
 	// SpaceID is the ID of the space in which the run that owns the token was
 	// executed.
+	//
+	// This field supports "glob-style" matching:
+	// - Use '*' to match zero or more characters.
+	// - Use '?' to match any single character.
 	SpaceID string `protobuf:"bytes,1,opt,name=SpaceID,proto3" json:"space_id,omitempty"`
 	// CallerID is the ID of the caller, ie. the stack or module that generated
 	// the run.
+	//
+	// This field supports "glob-style" matching:
+	// - Use '*' to match zero or more characters.
+	// - Use '?' to match any single character.
 	CallerID string `protobuf:"bytes,2,opt,name=CallerID,proto3" json:"caller_id,omitempty"`
 	// CallerType is the type of the caller, ie. the entity that owns the run -
 	// either `stack` or `module`.
