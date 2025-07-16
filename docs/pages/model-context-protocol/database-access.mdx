@@ -7,18 +7,19 @@ This guide explains how to expose your **PostgreSQL** Teleport databases as MCP 
 
 ### Prerequisites
 
-- A running Teleport cluster. If you want to get started with Teleport, [sign
-  up](https://goteleport.com/signup) for a free trial or [set up a demo
-  environment](../linux-demo.mdx).
-
-- The `tsh` client tool. Visit [Installation](../installation/installation.mdx) for instructions
-  on downloading `tsh`. See the [Using Teleport Connect](../connect-your-client/teleport-connect.mdx)
-  guide for a graphical desktop client that includes `tsh`.
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - Teleport Database Service with a PostgreSQL database enrolled. See our [guides](../enroll-resources/database-access/database-access.mdx)
   for options on how to set up Database Access for PostgreSQL databases, such as
   the [AWS RDS PostgreSQL](../enroll-resources/database-access/enroll-aws-databases/rds.mdx)
   and [self-hosted PostgreSQL](../enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted.mdx) guides.
+
+### Security considerations
+
+Since language models can execute any query on your database, we advise creating
+a database user with only the permissions you want the models to have. Setting
+up a user with read-only permissions will help prevent accidental changes to
+your database.
 
 ### Step 1/2. Installation
 
@@ -212,13 +213,6 @@ example of testing the connection and retrieving the database version using
 Claude Desktop:
 
 ![Database access usage example](../../img/model-context-protocol/usage-example-database-access.png)
-
-### Security considerations
-
-Since language models can execute any query on your database, we advise creating
-a database user with only the permissions you want the models to have. Setting
-up a user with read-only permissions will help prevent accidental changes to
-your database.
 
 ### Troubleshooting
 
