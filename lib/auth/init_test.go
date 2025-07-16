@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -1011,7 +1012,7 @@ func TestPresets(t *testing.T) {
 	})
 
 	t.Run("Enterprise", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestBuildType: modules.BuildEnterprise,
 		})
 
@@ -1103,13 +1104,13 @@ func TestPresets(t *testing.T) {
 
 func TestGetPresetUsers(t *testing.T) {
 	// no preset users for OSS
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildOSS,
 	})
 	require.Empty(t, getPresetUsers())
 
 	// preset user @teleport-access-approval-bot on enterprise
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 	})
 	require.Equal(t, []types.User{

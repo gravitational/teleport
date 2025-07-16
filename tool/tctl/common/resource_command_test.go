@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
@@ -2074,7 +2075,7 @@ version: v1
 // The tests are grouped to amortize the cost of creating and auth server since
 // that is the most expensive part of testing editing the resource.
 func TestCreateEnterpriseResources(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{

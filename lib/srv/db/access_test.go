@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -1105,7 +1106,7 @@ func TestMongoDBMaxMessageSize(t *testing.T) {
 
 // TestAccessDisabled makes sure database access can be disabled via modules.
 func TestAccessDisabled(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.DB: {Enabled: false},

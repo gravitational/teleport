@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
@@ -410,7 +411,7 @@ func TestAccessLists(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			modules.SetTestModules(t, &modules.TestModules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				TestBuildType: modules.BuildEnterprise,
 				TestFeatures: modules.Features{
 					Cloud: test.cloud,

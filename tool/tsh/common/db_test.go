@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -73,8 +74,8 @@ func TestTshDB(t *testing.T) {
 	// will fail. The fake engine registered are not functional. But other
 	// Enterprise features like Access Request can still be tested.
 	registerFakeEnterpriseDBEngines(t)
-	modules.SetTestModules(t,
-		&modules.TestModules{
+	modulestest.SetTestModules(t,
+		modulestest.Modules{
 			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
 				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{

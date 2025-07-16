@@ -88,6 +88,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -200,7 +201,7 @@ func TestIntegrations(t *testing.T) {
 
 // testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
 func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
@@ -7752,7 +7753,7 @@ func isNilOrEOFErr(t *testing.T, err error) {
 }
 
 func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 	})
 
@@ -8487,7 +8488,7 @@ func TestProxySSHPortMultiplexing(t *testing.T) {
 // can/cannot be established with an existing certificate
 // based on cluster configuration or roles.
 func TestConnectivityWithoutAuth(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	tests := []struct {
 		name         string
@@ -8852,7 +8853,7 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 }
 
 func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	const password = "supersecretpassword"
 	inputReader := prompt.NewFakeReader().
