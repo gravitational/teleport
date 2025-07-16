@@ -924,8 +924,8 @@ func newMockSolver(t *testing.T, pubKey string) *mockSolver {
 	}
 }
 
-func testExtractBotParamsFromCerts(t *testing.T, certs *proto.Certs) (string, uint64) {
-	t.Helper()
+func testExtractBotParamsFromCerts(t require.TestingT, certs *proto.Certs) (string, uint64) {
+	// note: can't use t.Helper(): https://github.com/stretchr/testify/issues/1422
 
 	parsed, err := tlsca.ParseCertificatePEM(certs.TLS)
 	require.NoError(t, err)
@@ -1022,7 +1022,7 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 		}
 	}
 
-	withBotParamsFromIdent := func(t *testing.T, certs *proto.Certs) func(r *proto.RegisterUsingBoundKeypairInitialRequest) {
+	withBotParamsFromIdent := func(t require.TestingT, certs *proto.Certs) func(r *proto.RegisterUsingBoundKeypairInitialRequest) {
 		id, gen := testExtractBotParamsFromCerts(t, certs)
 
 		return func(r *proto.RegisterUsingBoundKeypairInitialRequest) {
@@ -1086,27 +1086,50 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 	_, err = client.Ping(ctx)
 	require.NoError(t, err)
 
-	// Provide an incorrect generation counter value.
-	response, err = auth.RegisterUsingBoundKeypairMethod(
-		ctx,
-		makeInitReq(
-			withJoinState(response.JoinState),
-			withBotParamsFromIdent(t, response.Certs),
-			func(r *proto.RegisterUsingBoundKeypairInitialRequest) {
-				r.JoinRequest.BotGeneration = 1
-			},
-		),
-		solver.solver(),
-	)
-	require.Nil(t, response)
-	require.ErrorContains(t, err, "renewable cert generation mismatch")
+	// Provide an incorrect generation counter value several times.
+	for range 3 {
+		nextResponse, err := auth.RegisterUsingBoundKeypairMethod(
+			ctx,
+			makeInitReq(
+				withJoinState(response.JoinState),
+				withBotParamsFromIdent(t, response.Certs),
+				func(r *proto.RegisterUsingBoundKeypairInitialRequest) {
+					r.JoinRequest.BotGeneration = 1
+				},
+			),
+			solver.solver(),
+		)
+		require.Nil(t, nextResponse)
+		require.Error(t, err)
+	}
+
+	// Try again, but this time with require.Eventually(). A different branch
+	// will be triggered once the lock is actually enforced, producing different
+	// error messages; we'll check for the eventually correct variant (lock is
+	// being enforced.). We also need to be guaranteed to try more than twice to
+	// ensure only one lock is generated, so this is duplicated from above.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		nextResponse, err := auth.RegisterUsingBoundKeypairMethod(
+			ctx,
+			makeInitReq(
+				withJoinState(response.JoinState),
+				withBotParamsFromIdent(t, response.Certs),
+				func(r *proto.RegisterUsingBoundKeypairInitialRequest) {
+					r.JoinRequest.BotGeneration = 1
+				},
+			),
+			solver.solver(),
+		)
+		require.Nil(t, nextResponse)
+		require.ErrorContains(t, err, "have been locked due to a certificate generation mismatch")
+	}, 5*time.Second, 100*time.Millisecond)
 
 	// The token should now be locked.
 	locks, err := srv.Auth().GetLocks(ctx, true, types.LockTarget{
 		JoinToken: "bound-keypair-test",
 	})
 	require.NoError(t, err)
-	require.Len(t, locks, 1)
+	require.Len(t, locks, 1, "only one lock should be generated")
 	require.Contains(t, locks[0].Message(), "certificate generation mismatch")
 
 	// Using the previously working client, make sure API calls no longer work.
@@ -1225,21 +1248,38 @@ func TestServer_RegisterUsingBoundKeypairMethod_JoinStateFailure(t *testing.T) {
 	_, err = client.Ping(ctx)
 	require.NoError(t, err)
 
-	// Try once more, but this time with the first join state.
-	thirdResponse, err := auth.RegisterUsingBoundKeypairMethod(
-		ctx,
-		makeInitReq(withJoinState(firstResponse.JoinState)),
-		solver.solver(),
-	)
-	require.Nil(t, thirdResponse)
-	require.ErrorContains(t, err, "join state verification failed")
+	// Try several more times, but this time with the first join state.
+	for range 3 {
+		nextResponse, err := auth.RegisterUsingBoundKeypairMethod(
+			ctx,
+			makeInitReq(withJoinState(firstResponse.JoinState)),
+			solver.solver(),
+		)
+		require.Nil(t, nextResponse)
+		require.Error(t, err)
+	}
 
-	// The token should now be locked.
+	// Repeat the above but with an Eventually() to consistently check the error
+	// message. Depending on exact timing / cache propagation / etc the lock may
+	// or may not be in force, but we also need to be absolutely certain to try
+	// to generate at least 2 locking events.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		nextResponse, err := auth.RegisterUsingBoundKeypairMethod(
+			ctx,
+			makeInitReq(withJoinState(firstResponse.JoinState)),
+			solver.solver(),
+		)
+		require.Nil(t, nextResponse)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "a client failed to verify its join state")
+	}, 5*time.Second, 100*time.Millisecond)
+
+	// The token should now be locked - but only once.
 	locks, err := srv.Auth().GetLocks(ctx, true, types.LockTarget{
 		JoinToken: "bound-keypair-test",
 	})
 	require.NoError(t, err)
-	require.Len(t, locks, 1)
+	require.Len(t, locks, 1, "only one lock should be generated")
 	require.Contains(t, locks[0].Message(), "failed to verify its join state")
 
 	// The previously working client should be locked.
