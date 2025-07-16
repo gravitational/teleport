@@ -1,0 +1,10 @@
+.version: &version "19.0.0-dev"
+
+name: teleport-relay
+apiVersion: v2
+version: *version
+appVersion: *version
+description: This chart deploys the Teleport Relay service.
+icon: https://goteleport.com/static/teleport-symbol-bimi.svg
+keywords:
+  - Teleport
