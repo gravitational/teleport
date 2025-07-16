@@ -32,10 +32,11 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
+	apistream "github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/typical"
@@ -63,25 +64,27 @@ func NewPresenceService(b backend.Backend) *PresenceService {
 }
 
 // GetServerInfos returns a stream of ServerInfos.
-func (s *PresenceService) GetServerInfos(ctx context.Context) stream.Stream[types.ServerInfo] {
+func (s *PresenceService) GetServerInfos(ctx context.Context) apistream.Stream[types.ServerInfo] {
 	startKey := backend.ExactKey(serverInfoPrefix)
 	endKey := backend.RangeEnd(startKey)
-	items := backend.StreamRange(ctx, s, startKey, endKey, apidefaults.DefaultChunkSize)
-	return stream.FilterMap(items, func(item backend.Item) (types.ServerInfo, bool) {
-		si, err := services.UnmarshalServerInfo(
-			item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision),
-		)
-		if err != nil {
-			s.logger.WarnContext(ctx, "Failed to unmarshal server info",
-				"key", item.Key,
-				"error", err,
+	return stream.IntoLegacy(stream.FilterMap(
+		s.Backend.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey}),
+		func(item backend.Item) (types.ServerInfo, bool) {
+			si, err := services.UnmarshalServerInfo(
+				item.Value,
+				services.WithExpires(item.Expires),
+				services.WithRevision(item.Revision),
 			)
-			return nil, false
-		}
-		return si, true
-	})
+			if err != nil {
+				s.logger.WarnContext(ctx, "Failed to unmarshal server info",
+					"key", item.Key,
+					"error", err,
+				)
+				return nil, false
+			}
+			return si, true
+		},
+	))
 }
 
 // GetServerInfo returns a ServerInfo by name.
