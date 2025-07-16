@@ -69,16 +69,22 @@ func (b *CRLSet) Stale() <-chan struct{} {
 	return b.stale
 }
 
+// NewCRLCacheFacade creates a new TrustBundleCacheFacade.
 func NewCRLCacheFacade() *CRLCacheFacade {
 	return &CRLCacheFacade{ready: make(chan struct{})}
 }
 
+// CRLCacheFacade wraps a CRLCache to provide lazy initialization using its
+// BuildService method. It allows you to create a cache and pass it to service
+// builders before it has been initialized by running the bot.
 type CRLCacheFacade struct {
 	mu       sync.Mutex
 	ready    chan struct{}
 	crlCache *CRLCache
 }
 
+// BuildService implements bot.ServiceBuilder to build the CRLCache once when the
+// bot starts up.
 func (f *CRLCacheFacade) BuildService(deps bot.ServiceDependencies) (bot.Service, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

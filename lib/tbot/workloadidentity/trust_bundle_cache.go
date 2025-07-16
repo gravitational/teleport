@@ -205,16 +205,22 @@ type TrustBundleCacheConfig struct {
 	StatusReporter     readyz.Reporter
 }
 
+// TrustBundleCacheFacade wraps a TrustBundleCache to provide lazy initialization
+// using its BuildService method. It allows you to create a cache and pass it to
+// service builders before it has been initialized by running the bot.
 type TrustBundleCacheFacade struct {
 	mu          sync.Mutex
 	ready       chan struct{}
 	bundleCache *TrustBundleCache
 }
 
+// NewTrustBundleCacheFacade creates a new TrustBundleCacheFacade.
 func NewTrustBundleCacheFacade() *TrustBundleCacheFacade {
 	return &TrustBundleCacheFacade{ready: make(chan struct{})}
 }
 
+// BuildService implements bot.ServiceBuilder to build the TrustBundleCache once
+// when the bot starts up.
 func (f *TrustBundleCacheFacade) BuildService(deps bot.ServiceDependencies) (bot.Service, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
