@@ -31,7 +31,10 @@ fs             Filesystem MCP Server                      stdio env=prod
 mcp-everything This MCP server attempts to exercise al... stdio env=dev,sandbox=true
 ```
 
-The MCP clients configuration can be generated using `tsh mcp login` command. You can select which servers to configure by using the `--labels` flag to filter by labels or by providing `--all` which will configure all MCP servers you have access to.
+The MCP client configuration can be created using the `tsh mcp login` command.
+You can choose which servers to configure by using the `—labels` flag to filter
+by labels or by specifying `—all`, which will configure all MCP servers you have
+access to.
 
 This command can either generate a configuration file (using the `mcpServers`
 format) for manual MCP client updates or automatically update the MCP client
@@ -190,7 +193,12 @@ You can now use the MCP servers as usual. Here is an example of using the
 
 #### Server is running but it has an empty list of tools
 
-Ensure your user has permissions to the exposed MCP tools.
+Besides accessing the MCP servers, you also need permissions for the MCP tools
+they provide. You can see which tools are available for you by running
+`tsh mcp ls -v`.
+
+If you're missing tool permissions, reach out to your Teleport administrator to
+have them properly configured.
 
 #### Expired `tsh` session
 
