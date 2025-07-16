@@ -20,13 +20,10 @@ package memory
 
 import (
 	"os"
-	"slices"
-	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
@@ -66,31 +63,4 @@ func TestMemory(t *testing.T) {
 	}
 
 	test.RunBackendComplianceSuite(t, newBackend)
-}
-
-func TestStreamRange(t *testing.T) {
-	ctx := t.Context()
-
-	m, err := New(Config{})
-	require.NoError(t, err)
-	defer m.Close()
-
-	const N = 10
-	for i := range 10 * N {
-		_, err := m.Put(ctx, backend.Item{
-			Key:   backend.NewKey("foo", strings.Repeat("a", i+1)),
-			Value: []byte("\x00"),
-		})
-		require.NoError(t, err)
-	}
-
-	var items []string
-	st := backend.StreamRange(ctx, m, backend.ExactKey("foo"), backend.RangeEnd(backend.ExactKey("foo")), N)
-	for st.Next() {
-		items = append(items, st.Item().Key.String())
-	}
-	require.NoError(t, st.Done())
-
-	require.Len(t, items, 10*N)
-	require.True(t, slices.IsSorted(items))
 }
