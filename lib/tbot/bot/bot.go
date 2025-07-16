@@ -20,6 +20,7 @@ package bot
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -45,7 +46,10 @@ var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/bot")
 
 // Bot runs a collection of services/outputs to generate and renew credentials
 // on behalf of non-human actors (i.e. machines and workloads).
-type Bot struct{ cfg Config }
+type Bot struct {
+	cfg     Config
+	started atomic.Bool
+}
 
 // New creates a Bot with the given configuration. Call Run to run the bot in
 // long-running "daemon" mode, or OneShot to generate outputs once and then exit.
@@ -60,6 +64,10 @@ func New(cfg Config) (*Bot, error) {
 func (b *Bot) Run(ctx context.Context) (err error) {
 	ctx, span := tracer.Start(ctx, "Bot/Run")
 	defer func() { apitracing.EndSpan(span, err) }()
+
+	if b.checkStarted(); err != nil {
+		return trace.Wrap(err)
+	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -99,6 +107,10 @@ func (b *Bot) OneShot(ctx context.Context) (err error) {
 	ctx, span := tracer.Start(ctx, "Bot/OneShot")
 	defer func() { apitracing.EndSpan(span, err) }()
 
+	if b.checkStarted(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -133,6 +145,13 @@ func (b *Bot) OneShot(ctx context.Context) (err error) {
 		})
 	}
 	return group.Wait()
+}
+
+func (b *Bot) checkStarted() error {
+	if b.started.CompareAndSwap(false, true) {
+		return nil
+	}
+	return trace.BadParameter("bot has already been started")
 }
 
 func (b *Bot) buildServices(ctx context.Context) ([]Service, func(), error) {
