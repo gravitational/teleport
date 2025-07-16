@@ -466,7 +466,7 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 		return trace.Wrap(err, "determining absolute path for destination")
 	}
 	muxListenerAddr := url.URL{Scheme: "unix", Path: filepath.Join(absPath, sshMuxSocketName)}
-	muxListener, err := createListener(
+	muxListener, err := internal.CreateListener(
 		ctx,
 		s.log,
 		muxListenerAddr.String(),
@@ -477,7 +477,7 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 	defer muxListener.Close()
 
 	agentListenerAddr := url.URL{Scheme: "unix", Path: filepath.Join(absPath, agentSocketName)}
-	agentListener, err := createListener(
+	agentListener, err := internal.CreateListener(
 		ctx,
 		s.log,
 		agentListenerAddr.String(),

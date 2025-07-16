@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
@@ -314,26 +315,26 @@ func (s *WorkloadIdentityX509Service) render(
 	}
 
 	privPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  pemPrivateKey,
+		Type:  internal.PEMBlockTypePrivateKey,
 		Bytes: privBytes,
 	})
 
-	if err := s.cfg.Destination.Write(ctx, config.SVIDKeyPEMPath, privPEM); err != nil {
+	if err := s.cfg.Destination.Write(ctx, internal.SVIDKeyPEMPath, privPEM); err != nil {
 		return trace.Wrap(err, "writing svid key")
 	}
 
 	var certPEM bytes.Buffer
 	pem.Encode(&certPEM, &pem.Block{
-		Type:  pemCertificate,
+		Type:  internal.PEMBlockTypeCertificate,
 		Bytes: x509Cred.GetX509Svid().GetCert(),
 	})
 	for _, c := range x509Cred.GetX509Svid().GetChain() {
 		pem.Encode(&certPEM, &pem.Block{
-			Type:  pemCertificate,
+			Type:  internal.PEMBlockTypeCertificate,
 			Bytes: c,
 		})
 	}
-	if err := s.cfg.Destination.Write(ctx, config.SVIDPEMPath, certPEM.Bytes()); err != nil {
+	if err := s.cfg.Destination.Write(ctx, internal.SVIDPEMPath, certPEM.Bytes()); err != nil {
 		return trace.Wrap(err, "writing svid certificate")
 	}
 
@@ -353,14 +354,14 @@ func (s *WorkloadIdentityX509Service) render(
 	}
 
 	if err := s.cfg.Destination.Write(
-		ctx, config.SVIDTrustBundlePEMPath, trustBundleBytes,
+		ctx, internal.SVIDTrustBundlePEMPath, trustBundleBytes,
 	); err != nil {
 		return trace.Wrap(err, "writing svid trust bundle")
 	}
 
 	crlBytes := crlSet.Marshal()
 	if len(crlBytes) > 0 {
-		if err := s.cfg.Destination.Write(ctx, config.SVIDCRLPemPath, crlBytes); err != nil {
+		if err := s.cfg.Destination.Write(ctx, internal.SVIDCRLPemPath, crlBytes); err != nil {
 			return trace.Wrap(err, "writing CRL")
 		}
 	}

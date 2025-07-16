@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
 	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
+	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -205,12 +206,12 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	for _, svcCfg := range b.cfg.Services {
 		// Convert the service config into the actual service type.
 		switch svcCfg := svcCfg.(type) {
-		case *config.SPIFFEWorkloadAPIService:
+		case *legacyspiffe.WorkloadAPIConfig:
 			b.log.WarnContext(
 				ctx,
 				"The 'spiffe-workload-api' service is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
 			)
-			services = append(services, SPIFFEWorkloadAPIServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache()))
+			services = append(services, legacyspiffe.WorkloadAPIServiceBuilder(svcCfg, setupTrustBundleCache(), b.cfg.CredentialLifetime))
 		case *database.TunnelConfig:
 			services = append(services, database.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
 		case *config.ExampleService:
@@ -221,8 +222,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, KubernetesOutputServiceBuilder(b.cfg, svcCfg))
 		case *config.KubernetesV2Output:
 			services = append(services, KubernetesV2OutputServiceBuilder(b.cfg, svcCfg))
-		case *config.SPIFFESVIDOutput:
-			services = append(services, SPIFFESVIDOutputServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache()))
+		case *legacyspiffe.SVIDOutputConfig:
+			services = append(services, legacyspiffe.SVIDOutputServiceBuilder(svcCfg, setupTrustBundleCache(), b.cfg.CredentialLifetime))
 		case *config.SSHHostOutput:
 			services = append(services, SSHHostOutputServiceBuilder(b.cfg, svcCfg))
 		case *application.OutputConfig:

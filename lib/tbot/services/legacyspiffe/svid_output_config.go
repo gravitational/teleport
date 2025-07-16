@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package legacyspiffe
 
 import (
 	"context"
@@ -29,19 +29,11 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
-const SPIFFESVIDOutputType = "spiffe-svid"
-
-// Based on the default paths listed in
-// https://github.com/spiffe/spiffe-helper/blob/main/README.md
-const (
-	SVIDPEMPath            = "svid.pem"
-	SVIDKeyPEMPath         = "svid_key.pem"
-	SVIDTrustBundlePEMPath = "svid_bundle.pem"
-	SVIDCRLPemPath         = "svid_crl.pem"
-)
+const SVIDOutputServiceType = "spiffe-svid"
 
 // SVIDRequestSANs is the configuration for the SANs of a single SVID request.
 type SVIDRequestSANs struct {
@@ -92,11 +84,6 @@ func (o *SVIDRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
-var (
-	_ ServiceConfig = &SPIFFESVIDOutput{}
-	_ Initable      = &SPIFFESVIDOutput{}
-)
-
 // JWTSVID the configuration for a single JWT SVID request as part of the SPIFFE
 // SVID output.
 type JWTSVID struct {
@@ -116,9 +103,9 @@ func (o JWTSVID) CheckAndSetDefaults() error {
 	return nil
 }
 
-// SPIFFESVIDOutput is the configuration for the SPIFFE SVID output.
+// SVIDOutputConfig is the configuration for the SPIFFE SVID output.
 // Emulates the output of https://github.com/spiffe/spiffe-helper
-type SPIFFESVIDOutput struct {
+type SVIDOutputConfig struct {
 	// Name of the service for logs and the /readyz endpoint.
 	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
@@ -135,27 +122,30 @@ type SPIFFESVIDOutput struct {
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
-func (o *SPIFFESVIDOutput) GetName() string {
+func (o *SVIDOutputConfig) GetName() string {
 	return o.Name
 }
 
 // Init initializes the destination.
-func (o *SPIFFESVIDOutput) Init(ctx context.Context) error {
+func (o *SVIDOutputConfig) Init(ctx context.Context) error {
 	return trace.Wrap(o.Destination.Init(ctx, []string{}))
 }
 
 // GetDestination returns the destination.
-func (o *SPIFFESVIDOutput) GetDestination() destination.Destination {
+func (o *SVIDOutputConfig) GetDestination() destination.Destination {
 	return o.Destination
 }
 
 // CheckAndSetDefaults checks the SPIFFESVIDOutput values and sets any defaults.
-func (o *SPIFFESVIDOutput) CheckAndSetDefaults() error {
+func (o *SVIDOutputConfig) CheckAndSetDefaults() error {
 	if err := o.SVID.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err, "validating svid")
 	}
-	if err := validateOutputDestination(o.Destination); err != nil {
-		return trace.Wrap(err)
+	if o.Destination == nil {
+		return trace.BadParameter("no destination configured for output")
+	}
+	if err := o.Destination.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating destination")
 	}
 	for i, jwt := range o.JWTs {
 		if err := jwt.CheckAndSetDefaults(); err != nil {
@@ -166,16 +156,16 @@ func (o *SPIFFESVIDOutput) CheckAndSetDefaults() error {
 }
 
 // Describe returns the file descriptions for the SPIFFE SVID output.
-func (o *SPIFFESVIDOutput) Describe() []bot.FileDescription {
+func (o *SVIDOutputConfig) Describe() []bot.FileDescription {
 	fds := []bot.FileDescription{
 		{
-			Name: SVIDPEMPath,
+			Name: internal.SVIDPEMPath,
 		},
 		{
-			Name: SVIDKeyPEMPath,
+			Name: internal.SVIDKeyPEMPath,
 		},
 		{
-			Name: SVIDTrustBundlePEMPath,
+			Name: internal.SVIDTrustBundlePEMPath,
 		},
 	}
 	for _, jwt := range o.JWTs {
@@ -184,24 +174,27 @@ func (o *SPIFFESVIDOutput) Describe() []bot.FileDescription {
 	return nil
 }
 
-func (o *SPIFFESVIDOutput) Type() string {
-	return SPIFFESVIDOutputType
+func (o *SVIDOutputConfig) Type() string {
+	return SVIDOutputServiceType
 }
 
 // MarshalYAML marshals the SPIFFESVIDOutput into YAML.
-func (o *SPIFFESVIDOutput) MarshalYAML() (any, error) {
-	type raw SPIFFESVIDOutput
-	return encoding.WithTypeHeader((*raw)(o), SPIFFESVIDOutputType)
+func (o *SVIDOutputConfig) MarshalYAML() (any, error) {
+	type raw SVIDOutputConfig
+	return encoding.WithTypeHeader((*raw)(o), SVIDOutputServiceType)
 }
 
-// UnmarshalYAML unmarshals the SPIFFESVIDOutput from YAML.
-func (o *SPIFFESVIDOutput) UnmarshalYAML(node *yaml.Node) error {
-	dest, err := extractOutputDestination(node)
+func (o *SVIDOutputConfig) UnmarshalYAML(*yaml.Node) error {
+	return trace.NotImplemented("unmarshaling %T with UnmarshalYAML is not supported, use UnmarshalConfig instead", o)
+}
+
+func (o *SVIDOutputConfig) UnmarshalConfig(ctx bot.UnmarshalConfigContext, node *yaml.Node) error {
+	dest, err := internal.ExtractOutputDestination(ctx, node)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Alias type to remove UnmarshalYAML to avoid recursion
-	type raw SPIFFESVIDOutput
+	// Alias type to remove UnmarshalYAML to avoid getting our "not implemented" error
+	type raw SVIDOutputConfig
 	if err := node.Decode((*raw)(o)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -209,6 +202,6 @@ func (o *SPIFFESVIDOutput) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (o *SPIFFESVIDOutput) GetCredentialLifetime() bot.CredentialLifetime {
+func (o *SVIDOutputConfig) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }
