@@ -20,16 +20,16 @@ import { createContext, useCallback, useContext, useState } from 'react';
 import styled from 'styled-components';
 
 import {
-  Notification,
-  NotificationItem,
-  NotificationItemContent,
-  NotificationSeverity,
-} from 'shared/components/Notification';
+  ToastNotification,
+  ToastNotificationItem,
+  ToastNotificationItemContent,
+  ToastNotificationSeverity,
+} from 'shared/components/ToastNotification';
 
 interface NotificationContextType {
   addNotification: (
-    severity: NotificationSeverity,
-    content: NotificationItemContent
+    severity: ToastNotificationSeverity,
+    content: ToastNotificationItemContent
   ) => void;
 }
 
@@ -42,7 +42,7 @@ const AddNotificationContext = createContext<
 // Internal context for rendering notification component.
 interface NotificationContext extends NotificationContextType {
   removeNotification: (id: string) => void;
-  notifications: NotificationItem[];
+  notifications: ToastNotificationItem[];
 }
 const NotificationContext = createContext<NotificationContext | undefined>(
   undefined
@@ -65,10 +65,15 @@ interface NotificationProviderProps {
 export const NotificationProvider = ({
   children,
 }: NotificationProviderProps) => {
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [notifications, setNotifications] = useState<ToastNotificationItem[]>(
+    []
+  );
 
   const addNotification = useCallback(
-    (severity: NotificationSeverity, content: NotificationItemContent) => {
+    (
+      severity: ToastNotificationSeverity,
+      content: ToastNotificationItemContent
+    ) => {
       setNotifications(n => [
         ...n,
         {
@@ -112,7 +117,7 @@ export const NotificationOutlet = () => {
   return (
     <NotificationContainer>
       {notifications.map(item => (
-        <Notification
+        <ToastNotification
           mb={3}
           key={item.id}
           item={item}

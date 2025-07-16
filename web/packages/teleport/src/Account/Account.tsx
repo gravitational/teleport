@@ -23,7 +23,7 @@ import styled from 'styled-components';
 import { Flex } from 'design';
 import { Danger } from 'design/Alert';
 import { ArrowBack } from 'design/Icon';
-import { NotificationSeverity } from 'shared/components/Notification';
+import { ToastNotificationSeverity } from 'shared/components/ToastNotification';
 import { useStore } from 'shared/libs/stores';
 
 import {
@@ -50,7 +50,10 @@ import { SideNav } from './SideNav';
 export interface EnterpriseComponentProps {
   // TODO(bl-nero): Consider moving the notifications to its own store and
   // unifying them between this screen and the unified resources screen.
-  addNotification: (severity: NotificationSeverity, content: string) => void;
+  addNotification: (
+    severity: ToastNotificationSeverity,
+    content: string
+  ) => void;
 }
 
 export interface AccountPageProps {
