@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal/diagnostics"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
+	"github.com/gravitational/teleport/lib/tbot/services/database"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -209,8 +210,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				"The 'spiffe-workload-api' service is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
 			)
 			services = append(services, SPIFFEWorkloadAPIServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache()))
-		case *config.DatabaseTunnelService:
-			services = append(services, DatabaseTunnelServiceBuilder(b.cfg, svcCfg))
+		case *database.TunnelConfig:
+			services = append(services, database.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
 		case *config.ExampleService:
 			services = append(services, bot.LiteralService(&ExampleService{cfg: svcCfg}))
 		case *config.SSHMultiplexerService:
@@ -225,8 +226,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, SSHHostOutputServiceBuilder(b.cfg, svcCfg))
 		case *application.OutputConfig:
 			services = append(services, application.OutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
-		case *config.DatabaseOutput:
-			services = append(services, DatabaseOutputServiceBuider(b.cfg, svcCfg))
+		case *database.OutputConfig:
+			services = append(services, database.OutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *config.IdentityOutput:
 			services = append(services, IdentityOutputServiceBuilder(b.cfg, svcCfg, alpnUpgradeCache))
 		case *config.UnstableClientCredentialOutput:

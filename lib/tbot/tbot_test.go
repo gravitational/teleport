@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
+	"github.com/gravitational/teleport/lib/tbot/services/database"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -326,13 +327,13 @@ func TestBot(t *testing.T) {
 		Destination: &destination.Memory{},
 		AppName:     appName,
 	}
-	dbOutput := &config.DatabaseOutput{
+	dbOutput := &database.OutputConfig{
 		Destination: &destination.Memory{},
 		Service:     databaseServiceName,
 		Database:    databaseName,
 		Username:    databaseUsername,
 	}
-	dbDiscoveredNameOutput := &config.DatabaseOutput{
+	dbDiscoveredNameOutput := &database.OutputConfig{
 		Destination: &destination.Memory{},
 		Service:     databaseServiceDiscoveredName,
 		Database:    databaseName,
@@ -861,63 +862,9 @@ func TestBot_InsecureViaProxy(t *testing.T) {
 	require.NoError(t, firstBot.Run(ctx))
 }
 
-func TestChooseOneResource(t *testing.T) {
+func TestChooseOneKubeCluster(t *testing.T) {
 	t.Parallel()
-	t.Run("database", testChooseOneDatabase)
-	t.Run("kube cluster", testChooseOneKubeCluster)
-}
 
-func testChooseOneDatabase(t *testing.T) {
-	t.Parallel()
-	fooDB1 := newMockDiscoveredDB(t, "foo-rds-us-west-1-123456789012", "foo")
-	fooDB2 := newMockDiscoveredDB(t, "foo-rds-us-west-2-123456789012", "foo")
-	barDB := newMockDiscoveredDB(t, "bar-rds-us-west-1-123456789012", "bar")
-	tests := []struct {
-		desc      string
-		databases []types.Database
-		dbSvc     string
-		wantDB    types.Database
-		wantErr   string
-	}{
-		{
-			desc:      "by exact name match",
-			databases: []types.Database{fooDB1, fooDB2, barDB},
-			dbSvc:     "bar-rds-us-west-1-123456789012",
-			wantDB:    barDB,
-		},
-		{
-			desc:      "by unambiguous discovered name match",
-			databases: []types.Database{fooDB1, fooDB2, barDB},
-			dbSvc:     "bar",
-			wantDB:    barDB,
-		},
-		{
-			desc:      "ambiguous discovered name matches is an error",
-			databases: []types.Database{fooDB1, fooDB2, barDB},
-			dbSvc:     "foo",
-			wantErr:   `"foo" matches multiple auto-discovered databases`,
-		},
-		{
-			desc:      "no match is an error",
-			databases: []types.Database{fooDB1, fooDB2, barDB},
-			dbSvc:     "xxx",
-			wantErr:   `database "xxx" not found`,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			gotDB, err := chooseOneDatabase(test.databases, test.dbSvc)
-			if test.wantErr != "" {
-				require.ErrorContains(t, err, test.wantErr)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, test.wantDB, gotDB)
-		})
-	}
-}
-
-func testChooseOneKubeCluster(t *testing.T) {
 	fooKube1 := newMockDiscoveredKubeCluster(t, "foo-eks-us-west-1-123456789012", "foo")
 	fooKube2 := newMockDiscoveredKubeCluster(t, "foo-eks-us-west-2-123456789012", "foo")
 	barKube := newMockDiscoveredKubeCluster(t, "bar-eks-us-west-1-123456789012", "bar")
@@ -1053,7 +1000,7 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
 	botConfig := defaultBotConfig(
 		t, process, onboarding, config.ServiceConfigs{
-			&config.DatabaseTunnelService{
+			&database.TunnelConfig{
 				Listener: botListener,
 				Service:  "test-database",
 				Database: "mydb",
