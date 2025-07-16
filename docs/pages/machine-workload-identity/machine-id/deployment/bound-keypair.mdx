@@ -3,10 +3,10 @@ title: Deploying Machine ID with Bound Keypair Joining
 description: "How to install and configure Machine ID with Bound Keypair Joining"
 ---
 
-In this guide, you will install Machine ID's agent, `tbot`, on an arbitrary
-host using Bound Keypair Joining. This host could be a bare-metal machine, a
-VM, a container, or any other host - the only requirement is that the host has
-persistent storage.
+In this guide, you will install Machine & Workload Identity's agent, `tbot`, on
+an arbitrary host using Bound Keypair Joining. This host could be a bare-metal
+machine, a VM, a container, or any other host - the only requirement is that the
+host has persistent storage.
 
 Bound Keypair Joining is an improved alternative to
 [secret-based join methods][secret] and can function as a drop-in replacement.
@@ -21,9 +21,9 @@ full list of options.
 
 ## How it works
 
-With Bound Keypair Joining, Machine ID bots generate a unique keypair which is
-persistently stored in their internal data directory. Teleport is
-then configured to trust this public key for future joining attempts.
+With Bound Keypair Joining, Machine & Workload Identity bots generate a unique
+keypair which is persistently stored in their internal data directory. Teleport
+is then configured to trust this public key for future joining attempts.
 
 Later, when the bot attempts to join the cluster, Teleport issues it a challenge
 that can only be completed using its private key. The bot returns the solved
