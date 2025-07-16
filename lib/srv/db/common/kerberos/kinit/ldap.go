@@ -208,7 +208,7 @@ func (s *ldapConnector) tlsConfigForLDAP(ctx context.Context, clusterName string
 		ClusterName:        clusterName,
 		Domain:             s.ldapConfig.domain,
 		ActiveDirectorySID: s.ldapConfig.serviceAccountSID,
-		OmitCDP:            true,
+		OmitCDP:            false,
 	}
 
 	certPEM, keyPEM, caCerts, err := winpki.DatabaseCredentials(ctx, s.authClient, req)
