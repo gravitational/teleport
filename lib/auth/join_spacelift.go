@@ -71,18 +71,28 @@ func (a *Server) checkSpaceliftJoinRequest(
 }
 
 func checkSpaceliftAllowRules(token *types.ProvisionTokenV2, claims *spacelift.IDTokenClaims) error {
+	globCheck := func(want string, got string) (bool, error) {
+		if token.Spec.Spacelift.EnableGlobMatching {
+			return joinRuleGlobMatch(want, got)
+		}
+		if want == "" {
+			return true, nil
+		}
+		return want == got, nil
+	}
+
 	// If a single rule passes, accept the IDToken
 	for i, rule := range token.Spec.Spacelift.Allow {
 		// Please consider keeping these field validators in the same order they
 		// are defined within the ProvisionTokenSpecV2Spacelift proto spec.
-		spaceIDMatch, err := joinRuleGlobMatch(rule.SpaceID, claims.SpaceID)
+		spaceIDMatch, err := globCheck(rule.SpaceID, claims.SpaceID)
 		if err != nil {
 			return trace.Wrap(err, "evaluating rule (%d) space_id glob match", i)
 		}
 		if !spaceIDMatch {
 			continue
 		}
-		callerIDMatch, err := joinRuleGlobMatch(rule.CallerID, claims.CallerID)
+		callerIDMatch, err := globCheck(rule.CallerID, claims.CallerID)
 		if err != nil {
 			return trace.Wrap(err, "evaluating rule (%d) caller_id glob match", i)
 		}

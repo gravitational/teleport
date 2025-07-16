@@ -139,7 +139,8 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 				JoinMethod: types.JoinMethodSpacelift,
 				Roles:      []types.SystemRole{types.RoleNode},
 				Spacelift: &types.ProvisionTokenSpecV2Spacelift{
-					Hostname: "example.app.spacelift.io",
+					Hostname:           "example.app.spacelift.io",
+					EnableGlobMatching: true,
 					Allow: []*types.ProvisionTokenSpecV2Spacelift_Rule{
 						allowRule(func(rule *types.ProvisionTokenSpecV2Spacelift_Rule) {
 							rule.SpaceID = "ro??"
@@ -158,10 +159,31 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 				JoinMethod: types.JoinMethodSpacelift,
 				Roles:      []types.SystemRole{types.RoleNode},
 				Spacelift: &types.ProvisionTokenSpecV2Spacelift{
-					Hostname: "example.app.spacelift.io",
+					Hostname:           "example.app.spacelift.io",
+					EnableGlobMatching: true,
 					Allow: []*types.ProvisionTokenSpecV2Spacelift_Rule{
 						allowRule(func(rule *types.ProvisionTokenSpecV2Spacelift_Rule) {
 							rule.CallerID = "wahoo-spacelift-*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name:          "fail with disabled glob",
+			setEnterprise: true,
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodSpacelift,
+				Roles:      []types.SystemRole{types.RoleNode},
+				Spacelift: &types.ProvisionTokenSpecV2Spacelift{
+					Hostname:           "example.app.spacelift.io",
+					EnableGlobMatching: false,
+					Allow: []*types.ProvisionTokenSpecV2Spacelift_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2Spacelift_Rule) {
+							rule.SpaceID = "ro??"
+							rule.CallerID = "machineid-spacelift-*"
 						}),
 					},
 				},
