@@ -18,6 +18,9 @@ package top
 
 import (
 	"context"
+	"net"
+	"net/http"
+	"path/filepath"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -38,14 +41,43 @@ type Command struct {
 	top           *kingpin.CmdClause
 	diagURL       string
 	refreshPeriod time.Duration
+	forceURL      bool
 }
 
 // Initialize sets up the "tctl top" command.
 func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 	c.top = app.Command("top", "Report diagnostic information.")
-	c.top.Arg("diag-addr", "Diagnostic HTTP URL").Default("http://127.0.0.1:3000").StringVar(&c.diagURL)
+	c.top.Arg("diag-addr", "Diagnostic HTTP URL").Default("http://127.0.0.1:3000").Action(func(*kingpin.ParseContext) error {
+		// kingpin does not support checking if a positional argument was set explicitly, that is limited to flags.
+		c.forceURL = true
+		return nil
+	}).StringVar(&c.diagURL)
 	c.top.Arg("refresh", "Refresh period").Default("5s").DurationVar(&c.refreshPeriod)
+}
+
+func (c *Command) newDiagClient(ctx context.Context) (*roundtrip.Client, error) {
+	if c.forceURL {
+		// Note that explicitly passing a socket path URI here is not supported.
+		return roundtrip.NewClient(c.diagURL, "")
+	}
+
+	clientCfgs := []ClientConfig{
+		{
+			addr: "http://unix",
+			opts: []roundtrip.ClientParam{roundtrip.HTTPClient(&http.Client{
+				// A custom transport is required for unix socket connection.
+				Transport: &http.Transport{
+					DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+						return (&net.Dialer{}).DialContext(ctx, "unix", filepath.Join(c.config.DataDir, "debug.sock"))
+					}}})},
+		},
+		{
+			addr: c.diagURL,
+		},
+	}
+
+	return tryNewClient(ctx, clientCfgs...)
 }
 
 // TryRun attempts to run subcommands.
@@ -54,7 +86,7 @@ func (c *Command) TryRun(ctx context.Context, cmd string, _ commonclient.InitFun
 		return false, nil
 	}
 
-	diagClient, err := roundtrip.NewClient(c.diagURL, "")
+	diagClient, err := c.newDiagClient(ctx)
 	if err != nil {
 		return true, trace.Wrap(err)
 	}
