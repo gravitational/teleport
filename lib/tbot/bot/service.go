@@ -22,6 +22,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
@@ -93,6 +94,14 @@ type ServiceDependencies struct {
 	// StatusRegistry is the registry the service can register itself with to
 	// report service health.
 	StatusRegistry *readyz.Registry
+}
+
+// LoggerForService returns a logger with the service's name as its component.
+func (deps ServiceDependencies) LoggerForService(svc Service) *slog.Logger {
+	return deps.Logger.With(
+		teleport.ComponentKey,
+		teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
+	)
 }
 
 // ServiceBuilder will be called by the bot to create a service.
