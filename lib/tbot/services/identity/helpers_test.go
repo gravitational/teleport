@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,13 +16,48 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package identity
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
+
+type testYAMLCase[T any] struct {
+	name string
+	in   T
+}
+
+func testYAML[T any](t *testing.T, tests []testYAMLCase[T]) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := bytes.NewBuffer(nil)
+			encoder := yaml.NewEncoder(b)
+			encoder.SetIndent(2)
+			require.NoError(t, encoder.Encode(&tt.in))
+
+			if golden.ShouldSet() {
+				golden.Set(t, b.Bytes())
+			}
+			require.Equal(
+				t,
+				string(golden.Get(t)),
+				b.String(),
+				"results of marshal did not match golden file, rerun tests with GOLDEN_UPDATE=1",
+			)
+
+			unmarshaled, err := internal.UnmarshalYAMLConfig[T](b)
+			require.NoError(t, err)
+			require.Equal(t, tt.in, *unmarshaled, "unmarshaling did not result in same object as input")
+		})
+	}
+}
 
 type checkAndSetDefaulter interface {
 	CheckAndSetDefaults() error
