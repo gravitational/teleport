@@ -1043,6 +1043,11 @@
       "source": "/admin-guides/management/export-audit-events/splunk/",
       "destination": "/zero-trust-access/export-audit-events/splunk/",
       "permanent": true
+    },
+    {
+      "source": "/model-context-preview/",
+      "destination": "/model-context-protocol/",
+      "permanent": true
     }
   ]
 }
