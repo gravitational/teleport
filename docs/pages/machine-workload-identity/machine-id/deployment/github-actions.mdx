@@ -195,12 +195,14 @@ jobs:
     - name: Fetch Teleport binaries
       uses: teleport-actions/setup@v1
       with:
-        version: (=teleport.version=)
+        version: auto
+        # Use the address of the proxy server for your own cluster.
+        proxy: example.teleport.sh:443
     - name: Fetch credentials using Machine ID
       id: auth
       uses: teleport-actions/auth@v2
       with:
-        # Use the address of the auth/proxy server for your own cluster.
+        # Use the address of the proxy server for your own cluster.
         proxy: example.teleport.sh:443
         # Use the name of the join token resource you created in step 1.
         token: example-bot
@@ -313,11 +315,13 @@ jobs:
     - name: Fetch Teleport binaries
       uses: teleport-actions/setup@v1
       with:
-        version: (=teleport.version=)
+        version: auto
+        # Use the address of the proxy server for your own cluster.
+        proxy: example.teleport.sh:443
     - name: Fetch credentials using Machine ID
       uses: teleport-actions/auth-k8s@v2
       with:
-        # Use the address of the auth/proxy server for your own cluster.
+        # Use the address of the proxy server for your own cluster.
         proxy: example.teleport.sh:443
         # Use the name of the join token resource you created in step 1.
         token: example-bot
@@ -409,7 +413,9 @@ jobs:
     - name: Fetch Teleport binaries
       uses: teleport-actions/setup@v1
       with:
-        version: (=teleport.version=)
+        version: auto
+        # Use the address of the proxy server for your own cluster.
+        proxy: example.teleport.sh:443
     - name: Execute Machine ID
       env:
         # TELEPORT_ANONYMOUS_TELEMETRY enables the submission of anonymous
