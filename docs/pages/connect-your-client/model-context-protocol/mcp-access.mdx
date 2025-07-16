@@ -76,7 +76,7 @@ before using the newly added MCPs.
 Teleport's configuration:
 
 ```code
-$ tsh mcp login --all --config-client=claude
+$ tsh mcp login --all --config-client=cursor
 Found MCP servers:
 fs
 mcp-everything
@@ -95,58 +95,7 @@ restart your client after logging in a new tsh session.
 You can also update a Cursor project MCP servers by providing the path to the
 file:
 ```code
-$ tsh mcp db config --db-user=postgres --db-name=employees --config-client=/path/to/project/.cursor/mcp.json postgres-dev
-```
-</TabItem>
-
-
-<TabItem label="VS Code">
-Currently, `tsh` doesn't support generating the configuration for VS Code.
-However, you can still use the config command to create the command and update
-it to match VS Code format.
-
-First, generate the configuration example for your MCP servers:
-
-```code
-$ tsh mcp login --all
-Found MCP servers:
-fs
-mcp-everything
-
-Here is a sample JSON configuration for launching Teleport MCP servers:
-{
-  "mcpServers": {
-    "teleport-mcp-fs": {
-      "command": "/path/to/tsh",
-      "args": ["mcp", "connect", "fs"]
-    },
-    "teleport-mcp-mcp-everything": {
-      "command": "/path/to/tsh",
-      "args": ["mcp", "connect", "mcp-everything"]
-    }
-  }
-}
-```
-
-With that, you can access your MCP server configuration within your project,
-usually found at `/path/to/project/.vscode/mcp.json`, and copy the
-`teleport-` servers definitions.
-
-```diff
-{
-  "mcp": {
-    "servers": {
-+     "teleport-mcp-fs": {
-+       "command": "/path/to/tsh",
-+       "args": ["mcp", "connect", "fs"]
-+     },
-+     "teleport-mcp-mcp-everything": {
-+       "command": "/path/to/tsh",
-+       "args": ["mcp", "connect", "mcp-everything"]
-+     }
-    }
-  }
-}
+$ tsh mcp login --all --config-client=/path/to/project/.cursor/mcp.jsonclaude
 ```
 </TabItem>
 
@@ -166,11 +115,11 @@ Here is a sample JSON configuration for launching Teleport MCP servers:
 {
   "mcpServers": {
     "teleport-mcp-fs": {
-      "command": "/path/to/tsh",
+      "command": "tsh",
       "args": ["mcp", "connect", "fs"]
     },
     "teleport-mcp-mcp-everything": {
-      "command": "/path/to/tsh",
+      "command": "tsh",
       "args": ["mcp", "connect", "mcp-everything"]
     }
   }
