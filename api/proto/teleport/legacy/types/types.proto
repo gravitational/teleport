@@ -952,6 +952,11 @@ message ServerSpecV2 {
   // GitHub organization.
   GitHubServerMetadata git_hub = 15 [(gogoproto.jsontag) = "github,omitempty"];
 
+  // the name of the Relay group that the server is connected to
+  string relay_group = 16;
+  // the list of Relay host IDs that the server is connected to
+  repeated string relay_ids = 17;
+
   reserved 8;
   reserved 10;
   reserved "KubernetesClusters";
