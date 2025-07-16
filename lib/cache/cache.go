@@ -271,6 +271,22 @@ func ForProxy(cfg Config) Config {
 	return cfg
 }
 
+func ForRelay(cfg Config) Config {
+	cfg.target = "relay"
+	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindCertAuthority, Filter: makeAllKnownCAsFilter().IntoMap()},
+		{Kind: types.KindClusterAuthPreference},
+		{Kind: types.KindClusterNetworkingConfig},
+		{Kind: types.KindNode},
+		{Kind: types.KindRelayServer},
+		{Kind: types.KindRole},
+		{Kind: types.KindSessionRecordingConfig},
+		{Kind: types.KindUser},
+	}
+	cfg.QueueSize = defaults.RelayQueueSize
+	return cfg
+}
+
 // ForRemoteProxy sets up watch configuration for remote proxies.
 func ForRemoteProxy(cfg Config) Config {
 	cfg.target = "remote-proxy"
