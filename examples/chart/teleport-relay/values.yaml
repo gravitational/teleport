@@ -1,0 +1,119 @@
+# Default values for teleport-relay.
+# This is a YAML-formatted file.
+
+proxyAddr: '' # example.teleport.sh:443
+
+joinParams: {}
+#  method: iam
+#  token_name: foobar
+
+relayGroup: '' # foo-staging
+targetConnectionCount: 2
+shutdownDelay: '0s'
+
+publicHostnames: []
+#  - 'relay-staging.example.com'
+
+transportProxyProtocol: false
+tunnelProxyProtocol: false
+
+# This sets the container image
+# https://kubernetes.io/docs/concepts/containers/images/
+image:
+  repository: public.ecr.aws/gravitational/teleport-ent-distroless
+  # This sets the pull policy for images.
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ''
+
+imagePullSecrets: []
+
+# This is to override the chart name.
+nameOverride: ''
+fullnameOverride: ''
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ''
+  # Annotations to add to the service account
+  annotations: {}
+
+deploymentSpec:
+  replicas: 2
+  minReadySeconds: 30
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: '100%'
+      maxUnavailable: 0
+
+podAnnotations: {}
+podLabels: {}
+
+terminationGracePeriodSeconds: 30
+
+serviceType: LoadBalancer
+
+serviceSpec: {}
+#  allocateLoadBalancerNodePorts: false
+#  loadBalancerClass: service.k8s.aws/nlb
+
+serviceAnnotations: {}
+#  service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: diagnostics
+  failureThreshold: 6
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 5
+
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: diagnostics
+  failureThreshold: 12
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 5
+
+podSecurityContext: {}
+#  fsGroup: 2000
+
+securityContext: {}
+#  capabilities:
+#    drop:
+#      - ALL
+#  readOnlyRootFilesystem: true
+#  runAsNonRoot: true
+#  runAsUser: 1000
+
+resources: {}
+#  limits:
+#    cpu: '1'
+#    memory: '1Gi'
+#  requests:
+#    cpu: '2'
+#    memory: '250Mi'
+
+extraVolumes: []
+#  - name: foo
+#    secret:
+#      secretName: mysecret
+#      optional: false
+
+extraVolumeMounts: []
+#  - mountPath: "/etc/foo"
+#    name: foo
+#    readOnly: true
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
