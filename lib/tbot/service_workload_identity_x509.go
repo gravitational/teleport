@@ -28,17 +28,45 @@ import (
 	"math"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
+
+func WorkloadIdentityX509ServiceBuilder(
+	botCfg *config.BotConfig,
+	cfg *config.WorkloadIdentityX509Service,
+	trustBundleCache TrustBundleGetter,
+	crlCache CRLGetter,
+) bot.ServiceBuilder {
+	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+		svc := &WorkloadIdentityX509Service{
+			botAuthClient:     deps.Client,
+			botCfg:            botCfg,
+			cfg:               cfg,
+			getBotIdentity:    deps.BotIdentity,
+			identityGenerator: deps.IdentityGenerator,
+			clientBuilder:     deps.ClientBuilder,
+			trustBundleCache:  trustBundleCache,
+			crlCache:          crlCache,
+		}
+		svc.log = deps.Logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
+		)
+		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
+		return svc, nil
+	}
+}
 
 // WorkloadIdentityX509Service is a service that retrieves X.509 certificates
 // for WorkloadIdentity resources.
@@ -51,8 +79,8 @@ type WorkloadIdentityX509Service struct {
 	statusReporter readyz.Reporter
 	// trustBundleCache is the cache of trust bundles. It only needs to be
 	// provided when running in daemon mode.
-	trustBundleCache  *workloadidentity.TrustBundleCache
-	crlCache          *workloadidentity.CRLCache
+	trustBundleCache  TrustBundleGetter
+	crlCache          CRLGetter
 	identityGenerator *identity.Generator
 	clientBuilder     *client.Builder
 }
@@ -108,10 +136,6 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 	renewalInterval := cmp.Or(
 		s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime,
 	).RenewalInterval
-
-	if s.statusReporter == nil {
-		s.statusReporter = readyz.NoopReporter()
-	}
 
 	jitter := retryutils.DefaultJitter
 	var x509Cred *workloadidentityv1pb.Credential

@@ -378,7 +378,7 @@ func TestBot(t *testing.T) {
 	t.Run("bot identity", func(t *testing.T) {
 		// Some rough checks to ensure the bot identity used follows our
 		// expected rules for bot identities.
-		botIdent := b.BotIdentity()
+		botIdent := b.getBotIdentity()
 		tlsIdent, err := tlsca.FromSubject(
 			botIdent.X509Cert.Subject, botIdent.X509Cert.NotAfter,
 		)
@@ -699,7 +699,7 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 	// Wait for the client to be available.
 	var client *client.Client
 	require.Eventually(t, func() bool {
-		client = thirdBot.Client()
+		client = thirdBot.getClient()
 		return client != nil
 	}, 5*time.Second, 100*time.Millisecond, "timeout waiting for client to become available")
 

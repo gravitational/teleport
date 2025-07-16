@@ -23,33 +23,24 @@ import (
 	"errors"
 	"log/slog"
 	"sync"
-	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
-	"golang.org/x/sync/errgroup"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/webclient"
-	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
-	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
-	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
-	"github.com/gravitational/teleport/lib/tbot/internal/carotation"
 	"github.com/gravitational/teleport/lib/tbot/internal/diagnostics"
-	"github.com/gravitational/teleport/lib/tbot/internal/heartbeat"
-	internalidentity "github.com/gravitational/teleport/lib/tbot/internal/identity"
-	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -61,39 +52,15 @@ var clientMetrics = metrics.CreateGRPCClientMetrics(
 	prometheus.Labels{},
 )
 
-const componentTBot = "tbot"
-
-// Service is a long-running sub-component of tbot.
-type Service interface {
-	// String returns a human-readable name for the service that can be used
-	// in logging. It should identify the type of the service and any top
-	// level configuration that could distinguish it from a same-type service.
-	String() string
-	// Run starts the service and blocks until the service exits. It should
-	// return a nil error if the service exits successfully and an error
-	// if it is unable to proceed. It should exit gracefully if the context
-	// is canceled.
-	Run(ctx context.Context) error
-}
-
-// OneShotService is a [Service] that offers a mode in which it runs a single
-// time and then exits. This aligns with the `--oneshot` mode of tbot.
-type OneShotService interface {
-	Service
-	// OneShot runs the service once and then exits. It should return a nil
-	// error if the service exits successfully and an error if it is unable
-	// to proceed. It should exit gracefully if the context is canceled.
-	OneShot(ctx context.Context) error
-}
-
 type Bot struct {
 	cfg     *config.BotConfig
 	log     *slog.Logger
 	modules modules.Modules
 
-	mu             sync.Mutex
-	started        bool
-	botIdentitySvc *internalidentity.Service
+	mu       sync.Mutex
+	started  bool
+	identity getBotIdentityFn
+	client   *client.Client
 }
 
 func New(cfg *config.BotConfig, log *slog.Logger) *Bot {
@@ -122,28 +89,27 @@ func (b *Bot) markStarted() error {
 
 type getBotIdentityFn func() *identity.Identity
 
-// BotIdentity returns the bot's own identity. This will return nil if the bot
-// has not been started.
-func (b *Bot) BotIdentity() *identity.Identity {
+// getBotIdentity returns the bot's own identity. This will return nil if the
+// bot has not been started.
+func (b *Bot) getBotIdentity() *identity.Identity {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	return b.botIdentitySvc.GetIdentity()
+	return b.identity()
 }
 
-// Client returns the bot's API client. This will return nil if the bot has not
-// been started.
-func (b *Bot) Client() *apiclient.Client {
+// getClient returns the bot's API client. This will return nil if the bot has
+// not been started.
+func (b *Bot) getClient() *apiclient.Client {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	return b.botIdentitySvc.GetClient()
+	return b.client
 }
 
 func (b *Bot) Run(ctx context.Context) (err error) {
 	ctx, span := tracer.Start(ctx, "Bot/Run")
 	defer func() { apitracing.EndSpan(span, err) }()
-	startedAt := time.Now()
 
 	if err := metrics.RegisterPrometheusCollectors(
 		metrics.BuildCollector(),
@@ -174,229 +140,61 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		return trace.Wrap(err)
 	}
 
-	connCfg := b.cfg.ConnectionConfig()
-	var resolver reversetunnelclient.Resolver
-	if connCfg.StaticProxyAddress {
-		if connCfg.AddressKind != connection.AddressKindProxy {
-			return trace.BadParameter("TBOT_USE_PROXY_ADDR requires that a proxy address is set using --proxy-server or proxy_server")
-		}
-		// If the user has indicated they want tbot to prefer using the proxy
-		// address they have configured, we use a static resolver set to this
-		// address. We also assume that they have TLS routing/multiplexing
-		// enabled, since otherwise we'd need them to manually configure an
-		// an entry for each kind of address.
-		resolver = reversetunnelclient.StaticResolver(
-			connCfg.Address, types.ProxyListenerMode_Multiplex,
-		)
-	} else {
-		resolver, err = reversetunnelclient.CachingResolver(
-			ctx,
-			reversetunnelclient.WebClientResolver(&webclient.Config{
-				Context:   ctx,
-				ProxyAddr: connCfg.Address,
-				Insecure:  connCfg.Insecure,
-			}),
-			nil /* clock */)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	clientBuilder, err := client.NewBuilder(client.BuilderConfig{
-		Connection: b.cfg.ConnectionConfig(),
-		Resolver:   resolver,
-		Logger: b.log.With(
-			teleport.ComponentKey,
-			teleport.Component(componentTBot, "client"),
-		),
-		Metrics: clientMetrics,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Create an error group to manage all the services lifetimes.
-	eg, egCtx := errgroup.WithContext(ctx)
-	var services []Service
-
-	// ReloadBroadcaster allows multiple entities to trigger a reload of
-	// all services. This allows os signals and other events such as CA
-	// rotations to trigger appropriate renewals.
-	reloadBroadcaster := internal.NewChannelBroadcaster()
-	// Trigger reloads from an configured reload channel.
-	if b.cfg.ReloadCh != nil {
-		// We specifically do not use the error group here as we do not want
-		// this goroutine to block the bot from exiting.
-		go func() {
-			for {
-				select {
-				case <-egCtx.Done():
-					return
-				case <-b.cfg.ReloadCh:
-					reloadBroadcaster.Broadcast()
-				}
-			}
-		}()
-	}
-
-	statusRegistry := readyz.NewRegistry()
-
-	identityReloadCh, unsubscribeIdentityReload := reloadBroadcaster.Subscribe()
-	defer unsubscribeIdentityReload()
-
-	idSvc, err := internalidentity.NewService(internalidentity.Config{
-		Connection:      connCfg,
-		Onboarding:      b.cfg.Onboarding,
-		Destination:     b.cfg.Storage.Destination,
-		TTL:             b.cfg.CredentialLifetime.TTL,
-		RenewalInterval: b.cfg.CredentialLifetime.RenewalInterval,
-		FIPS:            b.cfg.FIPS,
-		ReloadCh:        identityReloadCh,
-		ClientBuilder:   clientBuilder,
-		Logger: b.log.With(
-			teleport.ComponentKey,
-			teleport.Component(teleport.ComponentTBot, "identity"),
-		),
-		StatusReporter: statusRegistry.AddService("identity"),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	b.mu.Lock()
-	b.botIdentitySvc = idSvc
-	b.mu.Unlock()
-
-	// Initialize bot's own identity. This will load from disk, or fetch a new
-	// identity, and perform an initial renewal if necessary.
-	if err := b.botIdentitySvc.Initialize(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-	defer func() {
-		if err := b.botIdentitySvc.Close(); err != nil {
-			b.log.ErrorContext(
-				ctx,
-				"Failed to close bot identity service",
-				"error", err,
-			)
-		}
-	}()
-	services = append(services, b.botIdentitySvc)
-
-	identityGenerator, err := b.botIdentitySvc.GetGenerator()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	proxyPinger, err := internal.NewCachingProxyPinger(internal.CachingProxyPingerConfig{
-		Connection: connCfg,
-		Client:     b.botIdentitySvc.GetClient(),
-		Logger: b.log.With(
-			teleport.ComponentKey,
-			teleport.Component(teleport.ComponentTBot, "proxy-pinger"),
-		),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	alpnUpgradeCache := internal.NewALPNUpgradeCache(b.log)
 
-	// Setup all other services
+	var services []bot.ServiceBuilder
+
 	if b.cfg.DiagAddr != "" {
-		diagSvc, err := diagnostics.NewService(diagnostics.Config{
-			Address:        b.cfg.DiagAddr,
-			PProfEnabled:   b.cfg.Debug,
-			StatusRegistry: statusRegistry,
-			Logger: b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "diagnostics"),
-			),
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		services = append(services, diagSvc)
+		services = append(services,
+			diagnostics.ServiceBuilder(diagnostics.Config{
+				Address: b.cfg.DiagAddr,
+				Logger: b.log.With(
+					teleport.ComponentKey,
+					teleport.Component(teleport.ComponentTBot, "diagnostics"),
+				),
+				PProfEnabled: b.cfg.Debug,
+			}),
+		)
 	}
 
-	heartbeatSvc, err := heartbeat.NewService(heartbeat.Config{
-		Interval:   time.Minute * 30,
-		RetryLimit: 5,
-		Client: machineidv1pb.NewBotInstanceServiceClient(
-			b.botIdentitySvc.GetClient().GetConnection(),
-		),
-		JoinMethod:         b.cfg.Onboarding.JoinMethod,
-		StartedAt:          startedAt,
-		BotIdentityReadyCh: b.botIdentitySvc.Ready(),
-		StatusReporter:     statusRegistry.AddService("heartbeat"),
-		Logger: b.log.With(
-			teleport.ComponentKey, teleport.Component(componentTBot, "heartbeat"),
-		),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	services = append(services, heartbeatSvc)
+	// This faux service allows us to get the bot's internal identity and client
+	// for tests, without exposing them on the core bot.Bot struct.
+	services = append(services, func(deps bot.ServiceDependencies) (bot.Service, error) {
+		b.mu.Lock()
+		defer b.mu.Unlock()
 
-	caRotationSvc, err := carotation.NewService(carotation.Config{
-		BroadcastFn:        reloadBroadcaster.Broadcast,
-		Client:             b.botIdentitySvc.GetClient(),
-		GetBotIdentityFn:   b.botIdentitySvc.GetIdentity,
-		BotIdentityReadyCh: b.botIdentitySvc.Ready(),
-		StatusReporter:     statusRegistry.AddService("ca-rotation"),
-		Logger: b.log.With(
-			teleport.ComponentKey, teleport.Component(componentTBot, "ca-rotation"),
-		),
+		b.identity = deps.BotIdentity
+		b.client = deps.Client
+
+		return bot.NewNopService("client-fetcher"), nil
 	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	services = append(services, caRotationSvc)
 
 	// We only want to create this service if it's needed by a dependent
 	// service.
-	var trustBundleCache *workloadidentity.TrustBundleCache
-	setupTrustBundleCache := func() (*workloadidentity.TrustBundleCache, error) {
+	var trustBundleCache *workloadidentity.TrustBundleCacheFacade
+	setupTrustBundleCache := func() *workloadidentity.TrustBundleCacheFacade {
+		if b.cfg.Oneshot {
+			return nil
+		}
 		if trustBundleCache != nil {
-			return trustBundleCache, nil
+			return trustBundleCache
 		}
-
-		var err error
-		trustBundleCache, err = workloadidentity.NewTrustBundleCache(workloadidentity.TrustBundleCacheConfig{
-			FederationClient:   b.botIdentitySvc.GetClient().SPIFFEFederationServiceClient(),
-			TrustClient:        b.botIdentitySvc.GetClient().TrustClient(),
-			EventsClient:       b.botIdentitySvc.GetClient(),
-			ClusterName:        b.botIdentitySvc.GetIdentity().ClusterName,
-			BotIdentityReadyCh: b.botIdentitySvc.Ready(),
-			Logger: b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "spiffe-trust-bundle-cache"),
-			),
-			StatusReporter: statusRegistry.AddService("spiffe-trust-bundle-cache"),
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		services = append(services, trustBundleCache)
-		return trustBundleCache, nil
+		trustBundleCache = workloadidentity.NewTrustBundleCacheFacade()
+		services = append(services, trustBundleCache.BuildService)
+		return trustBundleCache
 	}
-	var crlCache *workloadidentity.CRLCache
-	setupCRLCache := func() (*workloadidentity.CRLCache, error) {
-		if crlCache != nil {
-			return crlCache, nil
-		}
 
-		var err error
-		crlCache, err = workloadidentity.NewCRLCache(workloadidentity.CRLCacheConfig{
-			RevocationsClient: b.botIdentitySvc.GetClient().WorkloadIdentityRevocationServiceClient(),
-			Logger: b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "crl-cache"),
-			),
-			StatusReporter: statusRegistry.AddService("crl-cache"),
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
+	var crlCache *workloadidentity.CRLCacheFacade
+	setupCRLCache := func() *workloadidentity.CRLCacheFacade {
+		if b.cfg.Oneshot {
+			return nil
 		}
-		services = append(services, crlCache)
-		return crlCache, nil
+		if crlCache != nil {
+			return crlCache
+		}
+		crlCache = workloadidentity.NewCRLCacheFacade()
+		services = append(services, crlCache.BuildService)
+		return crlCache
 	}
 
 	// Append any services configured by the user
@@ -408,389 +206,64 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				ctx,
 				"The 'spiffe-workload-api' service is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
 			)
-			clientCredential := &config.UnstableClientCredentialOutput{}
-			svcIdentity := &ClientCredentialOutputService{
-				botAuthClient:      b.botIdentitySvc.GetClient(),
-				botIdentityReadyCh: b.botIdentitySvc.Ready(),
-				botCfg:             b.cfg,
-				cfg:                clientCredential,
-				getBotIdentity:     b.botIdentitySvc.GetIdentity,
-				reloadBroadcaster:  reloadBroadcaster,
-				identityGenerator:  identityGenerator,
-			}
-			svcIdentity.log = b.log.With(
-				teleport.ComponentKey, teleport.Component(
-					componentTBot, "svc", svcIdentity.String(),
-				),
-			)
-			services = append(services, svcIdentity)
-
-			tbCache, err := setupTrustBundleCache()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			svc := &SPIFFEWorkloadAPIService{
-				svcIdentity:      clientCredential,
-				botCfg:           b.cfg,
-				cfg:              svcCfg,
-				trustBundleCache: tbCache,
-				clientBuilder:    clientBuilder,
-			}
-			svc.log = b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
-			)
-			svc.statusReporter = statusRegistry.AddService(svc.String())
-			services = append(services, svc)
+			services = append(services, SPIFFEWorkloadAPIServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache()))
 		case *config.DatabaseTunnelService:
-			svc := &DatabaseTunnelService{
-				getBotIdentity:     b.botIdentitySvc.GetIdentity,
-				botIdentityReadyCh: b.botIdentitySvc.Ready(),
-				proxyPinger:        proxyPinger,
-				botClient:          b.botIdentitySvc.GetClient(),
-				botCfg:             b.cfg,
-				cfg:                svcCfg,
-				identityGenerator:  identityGenerator,
-				clientBuilder:      clientBuilder,
-			}
-			svc.log = b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
-			)
-			svc.statusReporter = statusRegistry.AddService(svc.String())
-			services = append(services, svc)
+			services = append(services, DatabaseTunnelServiceBuilder(b.cfg, svcCfg))
 		case *config.ExampleService:
-			services = append(services, &ExampleService{
-				cfg: svcCfg,
-			})
+			services = append(services, bot.LiteralService(&ExampleService{cfg: svcCfg}))
 		case *config.SSHMultiplexerService:
-			svc := &SSHMultiplexerService{
-				alpnUpgradeCache:   alpnUpgradeCache,
-				botAuthClient:      b.botIdentitySvc.GetClient(),
-				botIdentityReadyCh: b.botIdentitySvc.Ready(),
-				botCfg:             b.cfg,
-				cfg:                svcCfg,
-				getBotIdentity:     b.botIdentitySvc.GetIdentity,
-				proxyPinger:        proxyPinger,
-				reloadBroadcaster:  reloadBroadcaster,
-				identityGenerator:  identityGenerator,
-				clientBuilder:      clientBuilder,
-			}
-			svc.log = b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
-			)
-			svc.statusReporter = statusRegistry.AddService(svc.String())
-			services = append(services, svc)
+			services = append(services, SSHMultiplexerServiceBuilder(b.cfg, svcCfg, alpnUpgradeCache))
 		case *config.KubernetesOutput:
-			svc := &KubernetesOutputService{
-				botAuthClient:      b.botIdentitySvc.GetClient(),
-				botIdentityReadyCh: b.botIdentitySvc.Ready(),
-				botCfg:             b.cfg,
-				cfg:                svcCfg,
-				getBotIdentity:     b.botIdentitySvc.GetIdentity,
-				proxyPinger:        proxyPinger,
-				reloadBroadcaster:  reloadBroadcaster,
-				executablePath:     autoupdate.StableExecutable,
-				identityGenerator:  identityGenerator,
-				clientBuilder:      clientBuilder,
-			}
-			svc.log = b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
-			)
-			svc.statusReporter = statusRegistry.AddService(svc.String())
-			services = append(services, svc)
+			services = append(services, KubernetesOutputServiceBuilder(b.cfg, svcCfg))
 		case *config.KubernetesV2Output:
-			svc := &KubernetesV2OutputService{
-				botAuthClient:      b.botIdentitySvc.GetClient(),
-				botIdentityReadyCh: b.botIdentitySvc.Ready(),
-				botCfg:             b.cfg,
-				cfg:                svcCfg,
-				getBotIdentity:     b.botIdentitySvc.GetIdentity,
-				proxyPinger:        proxyPinger,
-				reloadBroadcaster:  reloadBroadcaster,
-				executablePath:     autoupdate.StableExecutable,
-				identityGenerator:  identityGenerator,
-				clientBuilder:      clientBuilder,
-			}
-			svc.log = b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
-			)
-			svc.statusReporter = statusRegistry.AddService(svc.String())
-			services = append(services, svc)
+			services = append(services, KubernetesV2OutputServiceBuilder(b.cfg, svcCfg))
 		case *config.SPIFFESVIDOutput:
-			b.log.WarnContext(
-				ctx,
-				"The 'spiffe-svid' service is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
-			)
-			svc := &SPIFFESVIDOutputService{
-				botAuthClient:     b.botIdentitySvc.GetClient(),
-				botCfg:            b.cfg,
-				cfg:               svcCfg,
-				getBotIdentity:    b.botIdentitySvc.GetIdentity,
-				identityGenerator: identityGenerator,
-				clientBuilder:     clientBuilder,
-			}
-			svc.log = b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
-			)
-			svc.statusReporter = statusRegistry.AddService(svc.String())
-			if !b.cfg.Oneshot {
-				tbCache, err := setupTrustBundleCache()
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				svc.trustBundleCache = tbCache
-			}
-			services = append(services, svc)
+			services = append(services, SPIFFESVIDOutputServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache()))
 		case *config.SSHHostOutput:
-			svc := &SSHHostOutputService{
-				botAuthClient:      b.botIdentitySvc.GetClient(),
-				botIdentityReadyCh: b.botIdentitySvc.Ready(),
-				botCfg:             b.cfg,
-				cfg:                svcCfg,
-				getBotIdentity:     b.botIdentitySvc.GetIdentity,
-				reloadBroadcaster:  reloadBroadcaster,
-				identityGenerator:  identityGenerator,
-				clientBuilder:      clientBuilder,
-			}
-			svc.log = b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
-			)
-			svc.statusReporter = statusRegistry.AddService(svc.String())
-			services = append(services, svc)
+			services = append(services, SSHHostOutputServiceBuilder(b.cfg, svcCfg))
 		case *config.ApplicationOutput:
-			svc := &ApplicationOutputService{
-				botAuthClient:      b.botIdentitySvc.GetClient(),
-				botIdentityReadyCh: b.botIdentitySvc.Ready(),
-				botCfg:             b.cfg,
-				cfg:                svcCfg,
-				getBotIdentity:     b.botIdentitySvc.GetIdentity,
-				reloadBroadcaster:  reloadBroadcaster,
-				identityGenerator:  identityGenerator,
-				clientBuilder:      clientBuilder,
-			}
-			svc.log = b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
-			)
-			svc.statusReporter = statusRegistry.AddService(svc.String())
-			services = append(services, svc)
+			services = append(services, ApplicationOutputServiceBuilder(b.cfg, svcCfg))
 		case *config.DatabaseOutput:
-			svc := &DatabaseOutputService{
-				botAuthClient:      b.botIdentitySvc.GetClient(),
-				botIdentityReadyCh: b.botIdentitySvc.Ready(),
-				botCfg:             b.cfg,
-				cfg:                svcCfg,
-				getBotIdentity:     b.botIdentitySvc.GetIdentity,
-				reloadBroadcaster:  reloadBroadcaster,
-				identityGenerator:  identityGenerator,
-				clientBuilder:      clientBuilder,
-			}
-			svc.log = b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
-			)
-			svc.statusReporter = statusRegistry.AddService(svc.String())
-			services = append(services, svc)
+			services = append(services, DatabaseOutputServiceBuider(b.cfg, svcCfg))
 		case *config.IdentityOutput:
-			svc := &IdentityOutputService{
-				botAuthClient:      b.botIdentitySvc.GetClient(),
-				botIdentityReadyCh: b.botIdentitySvc.Ready(),
-				botCfg:             b.cfg,
-				cfg:                svcCfg,
-				getBotIdentity:     b.botIdentitySvc.GetIdentity,
-				reloadBroadcaster:  reloadBroadcaster,
-				executablePath:     autoupdate.StableExecutable,
-				alpnUpgradeCache:   alpnUpgradeCache,
-				proxyPinger:        proxyPinger,
-				identityGenerator:  identityGenerator,
-				clientBuilder:      clientBuilder,
-			}
-			svc.log = b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
-			)
-			svc.statusReporter = statusRegistry.AddService(svc.String())
-			services = append(services, svc)
+			services = append(services, IdentityOutputServiceBuilder(b.cfg, svcCfg, alpnUpgradeCache))
 		case *config.UnstableClientCredentialOutput:
-			svc := &ClientCredentialOutputService{
-				botAuthClient:      b.botIdentitySvc.GetClient(),
-				botIdentityReadyCh: b.botIdentitySvc.Ready(),
-				botCfg:             b.cfg,
-				cfg:                svcCfg,
-				getBotIdentity:     b.botIdentitySvc.GetIdentity,
-				reloadBroadcaster:  reloadBroadcaster,
-				identityGenerator:  identityGenerator,
-			}
-			svc.log = b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
-			)
-			svc.statusReporter = statusRegistry.AddService(svc.String())
-			services = append(services, svc)
+			services = append(services, ClientCredentialOutputServiceBuilder(b.cfg, svcCfg))
 		case *config.ApplicationTunnelService:
-			svc := &ApplicationTunnelService{
-				getBotIdentity:     b.botIdentitySvc.GetIdentity,
-				botIdentityReadyCh: b.botIdentitySvc.Ready(),
-				proxyPinger:        proxyPinger,
-				botClient:          b.botIdentitySvc.GetClient(),
-				botCfg:             b.cfg,
-				cfg:                svcCfg,
-				identityGenerator:  identityGenerator,
-				clientBuilder:      clientBuilder,
-			}
-			svc.log = b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
-			)
-			svc.statusReporter = statusRegistry.AddService(svc.String())
-			services = append(services, svc)
+			services = append(services, ApplicationTunnelServiceBuilder(b.cfg, svcCfg))
 		case *config.WorkloadIdentityX509Service:
-			svc := &WorkloadIdentityX509Service{
-				botAuthClient:     b.botIdentitySvc.GetClient(),
-				botCfg:            b.cfg,
-				cfg:               svcCfg,
-				getBotIdentity:    b.botIdentitySvc.GetIdentity,
-				identityGenerator: identityGenerator,
-				clientBuilder:     clientBuilder,
-			}
-			svc.log = b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
-			)
-			svc.statusReporter = statusRegistry.AddService(svc.String())
-			if !b.cfg.Oneshot {
-				tbCache, err := setupTrustBundleCache()
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				svc.trustBundleCache = tbCache
-				crlCache, err := setupCRLCache()
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				svc.crlCache = crlCache
-			}
-			services = append(services, svc)
+			services = append(services, WorkloadIdentityX509ServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache(), setupCRLCache()))
 		case *config.WorkloadIdentityJWTService:
-			svc := &WorkloadIdentityJWTService{
-				botAuthClient:     b.botIdentitySvc.GetClient(),
-				botCfg:            b.cfg,
-				cfg:               svcCfg,
-				getBotIdentity:    b.botIdentitySvc.GetIdentity,
-				identityGenerator: identityGenerator,
-				clientBuilder:     clientBuilder,
-			}
-			svc.log = b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
-			)
-			svc.statusReporter = statusRegistry.AddService(svc.String())
-			if !b.cfg.Oneshot {
-				tbCache, err := setupTrustBundleCache()
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				svc.trustBundleCache = tbCache
-			}
-			services = append(services, svc)
+			services = append(services, WorkloadIdentityJWTServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache()))
 		case *config.WorkloadIdentityAPIService:
-			clientCredential := &config.UnstableClientCredentialOutput{}
-			svcIdentity := &ClientCredentialOutputService{
-				botAuthClient:      b.botIdentitySvc.GetClient(),
-				botIdentityReadyCh: b.botIdentitySvc.Ready(),
-				botCfg:             b.cfg,
-				cfg:                clientCredential,
-				getBotIdentity:     b.botIdentitySvc.GetIdentity,
-				reloadBroadcaster:  reloadBroadcaster,
-				identityGenerator:  identityGenerator,
-			}
-			svcIdentity.log = b.log.With(
-				teleport.ComponentKey, teleport.Component(
-					componentTBot, "svc", svcIdentity.String(),
-				),
-			)
-			services = append(services, svcIdentity)
-
-			tbCache, err := setupTrustBundleCache()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			crlCache, err := setupCRLCache()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			svc := &WorkloadIdentityAPIService{
-				svcIdentity:      clientCredential,
-				botCfg:           b.cfg,
-				cfg:              svcCfg,
-				trustBundleCache: tbCache,
-				crlCache:         crlCache,
-				clientBuilder:    clientBuilder,
-			}
-			svc.log = b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
-			)
-			svc.statusReporter = statusRegistry.AddService(svc.String())
-			services = append(services, svc)
+			services = append(services, WorkloadIdentityAPIServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache(), setupCRLCache()))
 		case *config.WorkloadIdentityAWSRAService:
-			svc := &WorkloadIdentityAWSRAService{
-				botCfg:             b.cfg,
-				cfg:                svcCfg,
-				botAuthClient:      b.botIdentitySvc.GetClient(),
-				botIdentityReadyCh: b.botIdentitySvc.Ready(),
-				getBotIdentity:     b.botIdentitySvc.GetIdentity,
-				reloadBroadcaster:  reloadBroadcaster,
-				identityGenerator:  identityGenerator,
-				clientBuilder:      clientBuilder,
-			}
-			svc.log = b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
-			)
-			svc.statusReporter = statusRegistry.AddService(svc.String())
-			services = append(services, svc)
+			services = append(services, WorkloadIdentityAWSRAServiceBuilder(b.cfg, svcCfg))
 		default:
 			return trace.BadParameter("unknown service type: %T", svcCfg)
 		}
 	}
 
-	b.log.InfoContext(ctx, "Initialization complete. Starting services")
-	// Start services
-	for _, svc := range services {
-		log := b.log.With("service", svc.String())
-
-		if b.cfg.Oneshot {
-			svc, ok := svc.(OneShotService)
-			// We ignore services with no one-shot implementation
-			if !ok {
-				log.InfoContext(
-					ctx,
-					"Service does not support oneshot mode, it will not run",
-				)
-				continue
-			}
-			eg.Go(func() error {
-				log.InfoContext(ctx, "Running service in oneshot mode")
-				err := svc.OneShot(egCtx)
-				if err != nil {
-					log.ErrorContext(
-						egCtx, "Service exited with error", "error", err,
-					)
-					return trace.Wrap(err, "service(%s)", svc.String())
-				}
-				log.InfoContext(ctx, "Service finished")
-				return nil
-			})
-		} else {
-			eg.Go(func() error {
-				log.InfoContext(ctx, "Starting service")
-				err := svc.Run(egCtx)
-				if err != nil {
-					log.ErrorContext(
-						egCtx, "Service exited with error", "error", err,
-					)
-					return trace.Wrap(err, "service(%s)", svc.String())
-				}
-				log.InfoContext(ctx, "Service exited")
-				return nil
-			})
-		}
+	bt, err := bot.New(bot.Config{
+		Connection:         b.cfg.ConnectionConfig(),
+		Onboarding:         b.cfg.Onboarding,
+		InternalStorage:    b.cfg.Storage.Destination,
+		CredentialLifetime: b.cfg.CredentialLifetime,
+		FIPS:               b.cfg.FIPS,
+		Logger:             b.log,
+		ReloadCh:           b.cfg.ReloadCh,
+		Services:           services,
+		ClientMetrics:      clientMetrics,
+	})
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	return eg.Wait()
+	if b.cfg.Oneshot {
+		return bt.OneShot(ctx)
+	} else {
+		return bt.Run(ctx)
+	}
 }
 
 // preRunChecks returns an unlock function which must be deferred.
