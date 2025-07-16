@@ -315,7 +315,7 @@ func renderCommon(report *Report, width int) string {
 	runtimeContent := boxedView("Go Runtime Stats", runtimeTable, columnWidth)
 
 	serviceKeys := slices.Sorted(maps.Keys(report.Service))
-	serviceCounts := []string{}
+	serviceCounts := make([]string, 0, len(serviceKeys))
 	for _, k := range serviceKeys {
 		serviceCounts = append(serviceCounts, humanize.FormatFloat("#.", report.Service[k]))
 	}
@@ -346,10 +346,14 @@ func renderCommon(report *Report, width int) string {
 				clusterContent,
 				processContent,
 				runtimeContent,
+			),
+		),
+		style.Render(
+			lipgloss.JoinVertical(lipgloss.Left,
+				certLatencyContent,
 				servicesContent,
 			),
 		),
-		style.Render(certLatencyContent),
 	)
 }
 
