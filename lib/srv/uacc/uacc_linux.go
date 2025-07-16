@@ -337,17 +337,22 @@ func decodeUnknownError(status int, rawUaccPathErr [uaccPathErrMaxLength]C.char)
 	return trace.Errorf("unknown error with code %d", status)
 }
 
+// checkSpuriousENOENT runs a C function and checks if a returned ENOENT error
+// is valid.
 func checkSpuriousENOENT(target string, f func() (C.int, error)) (C.int, error) {
+	// For reasons beyond me, updwtmp() returns ENOENT even when it's completely
+	// successful. When that happens, this function checks if f's target file was
+	// modified. If it was, assume that the ENOENT is spurious.
 	beforeStat, statErr := os.Stat(target)
 	status, err := f()
 	if statErr != nil {
 		return status, err
 	}
-	afterStat, err := os.Stat(target)
-	if err != nil {
+	if status != C.UACC_UTMP_PATH_DOES_NOT_EXIST {
 		return status, err
 	}
-	if status != C.UACC_UTMP_PATH_DOES_NOT_EXIST {
+	afterStat, err := os.Stat(target)
+	if err != nil {
 		return status, err
 	}
 	if afterStat.ModTime().After(beforeStat.ModTime()) {
