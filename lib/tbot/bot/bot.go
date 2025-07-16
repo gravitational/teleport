@@ -73,11 +73,10 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	defer cancel()
 
 	services, closer, err := b.buildServices(ctx)
+	defer closer()
 	if err != nil {
-		closer()
 		return trace.Wrap(err)
 	}
-	defer closer()
 
 	b.cfg.Logger.InfoContext(ctx, "Initialization complete. Starting services")
 
@@ -115,11 +114,10 @@ func (b *Bot) OneShot(ctx context.Context) (err error) {
 	defer cancel()
 
 	services, closer, err := b.buildServices(ctx)
+	defer closer()
 	if err != nil {
-		closer()
 		return trace.Wrap(err)
 	}
-	defer closer()
 
 	group, groupCtx := errgroup.WithContext(ctx)
 	for _, service := range services {
