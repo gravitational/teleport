@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package diagnostics
 
 import (
 	"context"
@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 
+	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -32,20 +33,54 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
-// diagnosticsService is a [bot.Service] that exposes diagnostics endpoints.
-// It's only started when a --diag-addr is provided.
-type diagnosticsService struct {
+// Config contains configuration for the diagnostics service.
+type Config struct {
+	Address        string
+	PProfEnabled   bool
+	StatusRegistry *readyz.Registry
+	Logger         *slog.Logger
+}
+
+func (cfg *Config) CheckAndSetDefaults() error {
+	if cfg.Address == "" {
+		return trace.BadParameter("Address is required")
+	}
+	if cfg.StatusRegistry == nil {
+		return trace.BadParameter("StatusRegistry is required")
+	}
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
+	}
+	return nil
+}
+
+// NewService creates a new diagnostics service.
+func NewService(cfg Config) (*Service, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &Service{
+		log:            cfg.Logger,
+		diagAddr:       cfg.Address,
+		pprofEnabled:   cfg.PProfEnabled,
+		statusRegistry: cfg.StatusRegistry,
+	}, nil
+}
+
+// Service is a [bot.Service] that exposes diagnostics endpoints. It's only
+// started when a --diag-addr is provided.
+type Service struct {
 	log            *slog.Logger
 	diagAddr       string
 	pprofEnabled   bool
 	statusRegistry *readyz.Registry
 }
 
-func (s *diagnosticsService) String() string {
+func (s *Service) String() string {
 	return "diagnostics"
 }
 
-func (s *diagnosticsService) Run(ctx context.Context) error {
+func (s *Service) Run(ctx context.Context) error {
 	s.log.InfoContext(
 		ctx,
 		"diagnostics service will be starting",
