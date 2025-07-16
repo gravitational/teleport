@@ -22,7 +22,7 @@ Because of that, the IaC approach to Access List membership was not provided so 
 have a good way to introduce it for the Access Lists in their current form.
 
 Manual management of Access List membership doesn't always scale. There are ways of proper
-structuring teams as Access Lists and them using the nested Access List concept to assign teams to
+structuring teams as Access Lists and then using the nested Access List concept to assign teams to
 resources, but that doesn't work when users are managed externally.
 
 The concept of dynamically assigning users to Access Lists (something like membership criteria)
@@ -31,10 +31,9 @@ Entra ID won't display any groups in SAML assertion [if the user is assigned to 
 groups](https://learn.microsoft.com/en-us/entra/identity/hybrid/connect/how-to-connect-fed-group-claims).
 
 A new concept, a ***static Access Lists***, is introduced to overcome the outlined limitations. The
-idea is to have Access List with a *sub_kind* set to "static". Creating the Access List with the
-new *sub_kind* will disable the dynamic features of the *static* Access List (like reviews,
-expiration, or eligibility criteria). This will make it possible to manage such Access Lists using
-IaC tools. 
+idea is to have Access List with a *spec.type* set to "static". Creating the Access List with the
+new type will disable the dynamic features of the *static* Access List (like reviews, expiration,
+or eligibility criteria). This will make it possible to manage such Access Lists using IaC tools. 
 
 ## Details
 
@@ -246,8 +245,9 @@ The API should be similar to the existing *non-Static* endpoints. E.g. for
 ```protobuf
 service AccessListService {
   ...
-  // UpsertStaticAccessListMember creates or updates an access_list_member resource. It fails if
-  // the target access_list is not static (i.e. does't have "static" subkind).
+  // UpsertStaticAccessListMember creates or updates an access_list_member resource. It returns
+  // error and does nothing if the target access_list is not of type static. This API is there for
+  // the IaC tools to prevent them from making changes to members of dynamic access lists.
   rpc UpsertStaticAccessListMember(UpsertStaticAccessListMemberRequest) returns (UpsertStaticAccessListMemberResponse);
   ...
 }
