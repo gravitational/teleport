@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "teleport-relay.fullname" . }}
+  labels:
+    {{- include "teleport-relay.labels" . | nindent 4 }}
+data:
+  teleport.yaml: |2
+    version: v3
+    teleport:
+      log:
+        severity: DEBUG
+        format:
+          output: json
+      diag_addr: "0.0.0.0:3000"
+      proxy_server: {{ .Values.proxyAddr | quote }}
+      {{- with .Values.joinParams }}
+      join_params:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      shutdown_delay: {{ .Values.shutdownDelay | quote }}
+    auth_service:
+      enabled: false
+    proxy_service:
+      enabled: false
+    ssh_service:
+      enabled: false
+    relay_service:
+      enabled: true
+      relay_group: {{ .Values.relayGroup | quote }}
+      target_connection_count: {{ .Values.targetConnectionCount }}
+      {{- with .Values.publicHostnames }}
+      public_hostnames:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      transport_listen_addr: "0.0.0.0:3040"
+      transport_proxy_protocol: {{ .Values.transportProxyProtocol }}
+      peer_listen_addr: "0.0.0.0:3041"
+      tunnel_listen_addr: "0.0.0.0:3042"
+      tunnel_proxy_protocol: {{ .Values.tunnelProxyProtocol }}
