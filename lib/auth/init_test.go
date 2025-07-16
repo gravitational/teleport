@@ -63,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -202,7 +203,7 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 		assert.Equal(t, suiteName(expected), suiteName(actual))
 	}
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.HSM: {Enabled: true},
@@ -283,7 +284,7 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 				for desc, tc := range testCases {
 					t.Run(desc, func(t *testing.T) {
 						if tc.cloud {
-							modules.SetTestModules(t, &modules.TestModules{
+							modulestest.SetTestModules(t, modulestest.Modules{
 								TestFeatures: modules.Features{
 									Cloud: true,
 									Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -364,7 +365,7 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 		for desc, tc := range testCases {
 			t.Run(desc, func(t *testing.T) {
 				if tc.cloud {
-					modules.SetTestModules(t, &modules.TestModules{
+					modulestest.SetTestModules(t, modulestest.Modules{
 						TestFeatures: modules.Features{
 							Cloud: true,
 							Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -1257,7 +1258,7 @@ func TestPresets(t *testing.T) {
 	})
 
 	t.Run("Enterprise", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestBuildType: modules.BuildEnterprise,
 		})
 
@@ -1350,13 +1351,13 @@ func TestPresets(t *testing.T) {
 
 func TestGetPresetUsers(t *testing.T) {
 	// no preset users for OSS
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildOSS,
 	})
 	require.Empty(t, getPresetUsers())
 
 	// preset user @teleport-access-approval-bot on enterprise
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 	})
 	require.Equal(t, []types.User{
