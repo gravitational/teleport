@@ -924,8 +924,15 @@ func newMockSolver(t *testing.T, pubKey string) *mockSolver {
 	}
 }
 
+type tHelper interface {
+	Helper()
+}
+
 func testExtractBotParamsFromCerts(t require.TestingT, certs *proto.Certs) (string, uint64) {
-	// note: can't use t.Helper(): https://github.com/stretchr/testify/issues/1422
+	// we might not have .Helper() available for require.CollectT
+	if h, ok := t.(tHelper); ok {
+		h.Helper()
+	}
 
 	parsed, err := tlsca.ParseCertificatePEM(certs.TLS)
 	require.NoError(t, err)
