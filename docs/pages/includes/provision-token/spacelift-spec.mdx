@@ -18,10 +18,18 @@ spec:
     # granted access. Those not matching any allow rule will be denied.
     allow:
       # space_id identifies the space that the module or stack resides within.
+      #
+      # This field supports glob-style matching:
+      # - Use '*' to match zero or more characters.
+      # - Use '?' to match any single character.
     - space_id: root
       # caller_type is the type of caller_id. This must be `stack` or `module`.
       caller_type: stack
       # caller_id is the id of the caller. e.g the name of the stack or module.
+      #
+      # This field supports glob-style matching:
+      # - Use '*' to match zero or more characters.
+      # - Use '?' to match any single character.
       caller_id: my-stack
       # scope is the scope of the token - either `read` or `write`.
       # See https://docs.spacelift.io/integrations/cloud-providers/oidc/#about-scopes
