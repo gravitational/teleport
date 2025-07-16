@@ -159,6 +159,14 @@ message LockTarget {
 
   // ServerID is the host id of the Teleport instance.
   string server_id = 8;
+
+  // BotInstanceID is the bot instance ID if this is a bot identity.
+  string bot_instance_id = 9;
+
+  // JoinToken is the name of the join token used when this identity originally
+  // joined. This only applies to bot identities, and cannot be used to target
+  // bots that joined via the `token` join method.
+  string join_token = 10;
 }
 
 // HostUserMode determines how host users should be created.
