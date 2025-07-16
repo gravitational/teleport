@@ -69,6 +69,12 @@ func sessionName(sid session.ID) string {
 	return sid.String()
 }
 
+// summaryName returns the name of the blob that contains the summary for a
+// given session.
+func summaryName(sid session.ID) string {
+	return sid.String() + ".summary.json"
+}
+
 // uploadMarkerPrefix is the prefix of the names of the upload marker blobs.
 // Listing blobs with this prefix will return an empty blob for each upload.
 const uploadMarkerPrefix = "upload/"
@@ -251,6 +257,11 @@ func (h *Handler) sessionBlob(sessionID session.ID) *blockblob.Client {
 	return h.session.NewBlockBlobClient(sessionName(sessionID))
 }
 
+// summaryBlob returns a BlockBlobClient for the blob of the session summary.
+func (h *Handler) summaryBlob(sessionID session.ID) *blockblob.Client {
+	return h.session.NewBlockBlobClient(summaryName(sessionID))
+}
+
 // uploadMarkerBlob returns a BlockBlobClient for the marker blob of the stream
 // upload.
 func (h *Handler) uploadMarkerBlob(upload events.StreamUpload) *blockblob.Client {
@@ -263,30 +274,46 @@ func (h *Handler) partBlob(upload events.StreamUpload, partNumber int64) *blockb
 	return h.inprogress.NewBlockBlobClient(partName(upload, partNumber))
 }
 
-// Upload implements [events.UploadHandler].
+// Upload implements [events.UploadHandler] and uploads a session recording.
 func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	sessionBlob := h.sessionBlob(sessionID)
+	return h.uploadBlob(ctx, sessionID, h.sessionBlob(sessionID), reader)
+}
 
-	if _, err := cErr(sessionBlob.UploadStream(ctx, reader, &blockblob.UploadStreamOptions{
+// Upload implements [events.UploadHandler] and uploads a session summary.
+func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return h.uploadBlob(ctx, sessionID, h.summaryBlob(sessionID), reader)
+}
+
+func (h *Handler) uploadBlob(ctx context.Context, sessionID session.ID, blob *blockblob.Client, reader io.Reader) (string, error) {
+	if _, err := cErr(blob.UploadStream(ctx, reader, &blockblob.UploadStreamOptions{
 		AccessConditions: &blobDoesNotExist,
 	})); err != nil {
 		return "", trace.Wrap(err)
 	}
-	h.log.DebugContext(ctx, "Uploaded session.", fieldSessionID, sessionID)
+	h.log.DebugContext(ctx, "Blob uploaded.", fieldSessionID, sessionID)
 
-	return sessionBlob.URL(), nil
+	return blob.URL(), nil
 }
 
-// Download implements [events.UploadHandler].
+// Download implements [events.UploadHandler] and downloads a session recording.
 func (h *Handler) Download(ctx context.Context, sessionID session.ID, writerAt io.WriterAt) error {
-	resp, err := cErr(h.sessionBlob(sessionID).DownloadStream(ctx, nil))
+	return h.downloadBlob(ctx, sessionID, h.sessionBlob(sessionID), writerAt)
+}
+
+// DownloadSummary implements [events.UploadHandler] and downloads a session summary.
+func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writerAt io.WriterAt) error {
+	return h.downloadBlob(ctx, sessionID, h.summaryBlob(sessionID), writerAt)
+}
+
+func (h *Handler) downloadBlob(ctx context.Context, sessionID session.ID, blob *blockblob.Client, writerAt io.WriterAt) error {
+	resp, err := cErr(blob.DownloadStream(ctx, nil))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			h.log.WarnContext(ctx, "Error closing downloaded session blob.", "error", err, fieldSessionID, sessionID)
+			h.log.WarnContext(ctx, "Error closing downloaded blob.", "error", err, fieldSessionID, sessionID)
 		}
 	}()
 
@@ -299,7 +326,7 @@ func (h *Handler) Download(ctx context.Context, sessionID session.ID, writerAt i
 		return trace.ConvertSystemError(cErr0(err))
 	}
 
-	h.log.DebugContext(ctx, "Downloaded session.", fieldSessionID, sessionID)
+	h.log.DebugContext(ctx, "Blob downloaded.", fieldSessionID, sessionID)
 	return nil
 }
 
