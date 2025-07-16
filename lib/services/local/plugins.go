@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const pluginsPrefix = "plugins"
@@ -170,7 +172,9 @@ func (s *PluginsService) ListPlugins(ctx context.Context, limit int, startKey st
 	for _, item := range result.Items {
 		plugin, err := services.UnmarshalPlugin(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
-			return nil, "", trace.Wrap(err)
+			// unmarshal errors are logged and skipped
+			slog.WarnContext(ctx, "skipping resource due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
+			continue
 		}
 		if !withSecrets {
 			plugin = plugin.WithoutSecrets().(types.Plugin)
