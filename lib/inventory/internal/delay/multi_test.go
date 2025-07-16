@@ -17,6 +17,7 @@
 package delay
 
 import (
+	"context"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -116,6 +117,8 @@ func TestMultiJitter(t *testing.T) {
 func TestMultiVariable(t *testing.T) {
 	t.Parallel()
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	t.Cleanup(cancel)
 	clock := clockwork.NewFakeClock()
 	start := clock.Now()
 
@@ -131,13 +134,18 @@ func TestMultiVariable(t *testing.T) {
 		Jitter: func(d time.Duration) time.Duration {
 			return d / 2
 		},
+		// deterministic reset jitter, always 8/7 of the time
+		ResetJitter: func(d time.Duration) time.Duration {
+			return d + d/7
+		},
 		clock: clock,
 	})
 	defer multi.Stop()
 
-	multi.Add(1)
+	key := 1
+	multi.Add(key)
 
-	clock.BlockUntil(1)
+	clock.BlockUntilContext(ctx, 1)
 	clock.Advance(time.Minute)
 
 	// this is enough to saturate the VariableDuration, so we are going to hit
@@ -148,10 +156,16 @@ func TestMultiVariable(t *testing.T) {
 	multi.Tick(ts)
 	require.Equal(t, start.Add(time.Minute), ts)
 
-	clock.BlockUntil(1)
+	clock.BlockUntilContext(ctx, 1)
 	clock.Advance(2 * time.Minute)
 
 	ts = <-multi.Elapsed()
 	multi.Tick(ts)
 	require.Equal(t, start.Add(3*time.Minute), ts)
+
+	multi.Reset(key, 7*time.Minute)
+	clock.BlockUntilContext(ctx, 1)
+	clock.Advance(8 * time.Minute)
+	ts = <-multi.Elapsed()
+	require.Equal(t, start.Add(11*time.Minute), ts)
 }

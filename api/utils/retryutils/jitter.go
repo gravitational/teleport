@@ -110,3 +110,20 @@ func SeventhJitter(d time.Duration) time.Duration {
 
 	return d - frac + rand.N(frac)
 }
+
+// AdditiveSeventhJitter returns a jitter on the range [d, 8d/7).
+// Not suitable for use with things that enforce a max duration (like [Linear]).
+// Prefer this when jittering a rate-limit delay, to ensure that the caller
+// will not be rate-limited again.
+func AdditiveSeventhJitter(d time.Duration) time.Duration {
+	if d < 1 {
+		return 0
+	}
+
+	frac := d / 7
+	if frac < 1 {
+		return d
+	}
+
+	return d + rand.N(frac)
+}
