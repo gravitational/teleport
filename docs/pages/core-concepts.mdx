@@ -27,7 +27,7 @@ host](linux-demo.mdx).
 The **Teleport Auth Service** manages **local users** and **configuration
 resources** within a **Teleport cluster**. It maintains certificate authorities
 that enable users and services to authenticate to your cluster. The Auth Service
-issues certificates to clients and maintains an audit log. 
+issues certificates to clients and maintains an audit log.
 
 The Auth Service is the only component of a cluster that has to be connected to
 a backend, which it uses to store cluster state and the certificate authorities'
@@ -48,8 +48,7 @@ infrastructure from the public internet without the need for a VPN.
 It establishes reverse tunnels to the **Teleport Auth Service** and **Teleport
 Services**, which can run in private networks. This means that, in the Proxy
 Service's minimal configuration, you can expose only port `443` to the internet
-and run the rest of your infrastructure in private networks. You can also configure clients 
-to bypass Proxy Service instances and connect to resources with Teleport-issued certificates directly. 
+and run the rest of your infrastructure in private networks.
 
 As a key component of the Teleport control plane, the Proxy Service handles secure routing and session recording 
 for all incoming connections. For Teleport Cloud users, the Proxy Service is fully managed and hosted by Teleport.
@@ -61,9 +60,8 @@ Read our guide to [how the Teleport Proxy Service works](reference/architecture/
 A **Teleport service** manages access to resources in your infrastructure, such
 as Kubernetes clusters, Windows desktops, internal web applications, etc.
 
-Each Teleport process can run one or more services. Different services enable different Teleport functions. For example, the `ssh_service` provides SSH access
-to a resource, and the `database_service` proxies connections to databases. Read about all subcommands of `teleport` in our [CLI Reference](./reference/cli/teleport.mdx). 
-The **"Enabled by Default"** column indicates whether each service is active by default when you run `teleport start` without specifying services.
+Each Teleport process can run one or more services. Different services enable different Teleport functions. For example, the SSH Service provides SSH access
+to a resource, and the Database Service proxies connections to databases. Read about all subcommands of `teleport` in our [CLI Reference](./reference/cli/teleport.mdx). 
 
 ### Teleport SSH Service
 
@@ -121,16 +119,15 @@ their access control strategy, ensuring only trusted devices are allowed to conn
 
 ### Teleport Debug Service
 
-Provides internal diagnostics, exposing metrics, performance profiling tools, and debugging endpoints. It is designed for development and troubleshooting scenarios, enabling operators and developers to inspect the internal state of Teleport services. 
-This can be helpful for performance tuning, analyzing bottlenecks, or diagnosing unexpected behavior in a controlled environment. The debug service is enabled by default.
+Provides internal diagnostics, exposing metrics, performance profiling tools, and debugging endpoints. 
+It is designed for measuring performance, troubleshooting scenarios, and enabling operators to change the logging level without restarting teleport. 
+This can be helpful for analyzing bottlenecks, or diagnosing unexpected behavior in a controlled environment. The debug service is exposed locally by default.
 [Read more about the Debug Service](./admin-guides/management/admin/troubleshooting.mdx#step-13-enable-verbose-logging).
 
 ## Agent
 
-An instance of a **Teleport service** is called an **agent**. For all Teleport
-services besides the **Teleport SSH Service**, an agent can enable access to
-multiple resources, and can run on a separate host from the resources it enables
-access to. All agents must run in the same network as their target resources.
+A Teleport instance that runs one or more services to provide access to infrastructure resources. 
+It can be hosted separately from the resources it manages, but all agents must run within the same network as their target resources.
 
 ## Machine ID
 
@@ -144,6 +141,11 @@ vulnerable to attacks the longer they remain in use.
 
 Unlike other **Teleport services**, Machine ID runs via the `tbot` binary,
 rather than the `teleport` binary.
+
+### `tbot`
+
+`tbot` is a lightweight agent designed to provision short-lived credentials to workloads and automation systems like CI/CD pipelines. 
+It enables secure machine and workload authentication without relying on long-lived secrets. This makes it ideal for infrastructure automation and Zero Trust deployments.
 
 Read more in our [Machine ID guide](machine-workload-identity/machine-id/introduction.mdx).
 
@@ -257,15 +259,20 @@ It supports SSH, Kubernetes, databases, and applications. This tool is commonly 
 `tctl` is the administrative command-line interface for managing a Teleport cluster. It allows administrators to configure roles, manage users, and work with resources such as tokens, trusted clusters, and audit logs. 
 It's typically used during initial cluster setup and for ongoing administrative tasks.
 
-### `tbot`
-
-`tbot` is a lightweight agent designed to provision short-lived credentials to workloads and automation systems like CI/CD pipelines. 
-It enables secure machine and workload authentication without relying on long-lived secrets. This makes it ideal for infrastructure automation and Zero Trust deployments.
-
 ### Teleport Connect
 
 **Teleport Connect** is a graphical desktop application that provides an intuitive interface for accessing infrastructure resources such as 
 servers, databases, applications, and desktops. It's ideal for engineers who prefer GUI-based access for their day-to-day tasks, offering the same secure, certificate-based access as other Teleport clients.
+
+### Teleport Kubernetes Operator
+
+The Teleport Kubernetes Operator is a controller that runs in your Kubernetes cluster to automate the configuration of Teleport resources, 
+such as users, roles, and access requests, using Kubernetes custom resources.
+
+### Teleport Terraform Provider
+
+The Teleport Terraform Provider allows you to manage Teleport resources such as users, roles, and connectors using Terraform. 
+It enables infrastructure-as-code workflows for configuring access and automating resource provisioning in Teleport.
 
 Further reading:
 - [Introduction to Teleport clients](./connect-your-client/connect-your-client.mdx) Authenticate to Teleport and access protected resources. Designed for end users with links to additional documentation.
