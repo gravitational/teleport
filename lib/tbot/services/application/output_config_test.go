@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package application
 
 import (
 	"testing"
@@ -28,10 +28,10 @@ import (
 
 func TestApplicationOutput_YAML(t *testing.T) {
 	dest := &destination.Memory{}
-	tests := []testYAMLCase[ApplicationOutput]{
+	tests := []testYAMLCase[OutputConfig]{
 		{
 			name: "full",
-			in: ApplicationOutput{
+			in: OutputConfig{
 				Destination: dest,
 				Roles:       []string{"access"},
 				AppName:     "my-app",
@@ -43,7 +43,7 @@ func TestApplicationOutput_YAML(t *testing.T) {
 		},
 		{
 			name: "minimal",
-			in: ApplicationOutput{
+			in: OutputConfig{
 				Destination: dest,
 				AppName:     "my-app",
 			},
@@ -53,11 +53,11 @@ func TestApplicationOutput_YAML(t *testing.T) {
 }
 
 func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*ApplicationOutput]{
+	tests := []testCheckAndSetDefaultsCase[*OutputConfig]{
 		{
 			name: "valid",
-			in: func() *ApplicationOutput {
-				return &ApplicationOutput{
+			in: func() *OutputConfig {
+				return &OutputConfig{
 					Destination: destination.NewMemory(),
 					Roles:       []string{"access"},
 					AppName:     "app",
@@ -66,8 +66,8 @@ func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing destination",
-			in: func() *ApplicationOutput {
-				return &ApplicationOutput{
+			in: func() *OutputConfig {
+				return &OutputConfig{
 					Destination: nil,
 					AppName:     "app",
 				}
@@ -76,8 +76,8 @@ func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing app_name",
-			in: func() *ApplicationOutput {
-				return &ApplicationOutput{
+			in: func() *OutputConfig {
+				return &OutputConfig{
 					Destination: destination.NewMemory(),
 				}
 			},

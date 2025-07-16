@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/diagnostics"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -222,16 +223,16 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, SPIFFESVIDOutputServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache()))
 		case *config.SSHHostOutput:
 			services = append(services, SSHHostOutputServiceBuilder(b.cfg, svcCfg))
-		case *config.ApplicationOutput:
-			services = append(services, ApplicationOutputServiceBuilder(b.cfg, svcCfg))
+		case *application.OutputConfig:
+			services = append(services, application.OutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *config.DatabaseOutput:
 			services = append(services, DatabaseOutputServiceBuider(b.cfg, svcCfg))
 		case *config.IdentityOutput:
 			services = append(services, IdentityOutputServiceBuilder(b.cfg, svcCfg, alpnUpgradeCache))
 		case *config.UnstableClientCredentialOutput:
 			services = append(services, ClientCredentialOutputServiceBuilder(b.cfg, svcCfg))
-		case *config.ApplicationTunnelService:
-			services = append(services, ApplicationTunnelServiceBuilder(b.cfg, svcCfg))
+		case *application.TunnelConfig:
+			services = append(services, application.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
 		case *config.WorkloadIdentityX509Service:
 			services = append(services, WorkloadIdentityX509ServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache(), setupCRLCache()))
 		case *config.WorkloadIdentityJWTService:

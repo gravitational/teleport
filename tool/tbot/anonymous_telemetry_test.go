@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -75,7 +76,7 @@ func TestSendTelemetry(t *testing.T) {
 				&config.KubernetesOutput{
 					Destination: &destination.Directory{},
 				},
-				&config.ApplicationOutput{
+				&application.OutputConfig{
 					Destination: &destination.Directory{},
 				},
 				&config.DatabaseOutput{

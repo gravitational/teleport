@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
@@ -282,7 +283,7 @@ func TestBotConfig_YAML(t *testing.T) {
 							RenewalInterval: 15 * time.Second,
 						},
 					},
-					&ApplicationTunnelService{
+					&application.TunnelConfig{
 						Listen:  "tcp://127.0.0.1:123",
 						Roles:   []string{"access"},
 						AppName: "my-app",
@@ -499,7 +500,7 @@ func TestBotConfig_Base64(t *testing.T) {
 					TokenValue: "my-token",
 				},
 				Services: []ServiceConfig{
-					&ApplicationTunnelService{
+					&application.TunnelConfig{
 						Listen:  "tcp://127.0.0.1:8080",
 						AppName: "testapp",
 					},
@@ -517,7 +518,7 @@ func TestBotConfig_Base64(t *testing.T) {
 					TokenValue: "my-token",
 				},
 				Services: []ServiceConfig{
-					&ApplicationTunnelService{
+					&application.TunnelConfig{
 						Listen:  "tcp://127.0.0.1:8080",
 						AppName: "testapp",
 					},

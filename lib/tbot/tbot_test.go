@@ -67,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -321,7 +322,7 @@ func TestBot(t *testing.T) {
 		Destination:  &destination.Memory{},
 		AllowReissue: true,
 	}
-	appOutput := &config.ApplicationOutput{
+	appOutput := &application.OutputConfig{
 		Destination: &destination.Memory{},
 		AppName:     appName,
 	}

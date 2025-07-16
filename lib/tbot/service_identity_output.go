@@ -111,7 +111,7 @@ func (s *IdentityOutputService) Run(ctx context.Context) error {
 		Name:            "output-renewal",
 		F:               s.generate,
 		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
-		RetryLimit:      renewalRetryLimit,
+		RetryLimit:      internal.RenewalRetryLimit,
 		Log:             s.log,
 		ReloadCh:        s.reloadCh,
 		IdentityReadyCh: s.botIdentityReadyCh,
@@ -224,16 +224,16 @@ func (s *IdentityOutputService) render(
 	)
 	defer span.End()
 
-	keyRing, err := NewClientKeyRing(id, hostCAs)
+	keyRing, err := internal.NewClientKeyRing(id, hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := writeTLSCAs(ctx, s.cfg.Destination, hostCAs, userCAs, databaseCAs); err != nil {
+	if err := internal.WriteTLSCAs(ctx, s.cfg.Destination, hostCAs, userCAs, databaseCAs); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := writeIdentityFile(ctx, s.log, keyRing, s.cfg.Destination); err != nil {
+	if err := internal.WriteIdentityFile(ctx, s.log, keyRing, s.cfg.Destination); err != nil {
 		return trace.Wrap(err, "writing identity file")
 	}
 	if err := identity.SaveIdentity(
