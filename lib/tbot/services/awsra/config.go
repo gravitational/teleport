@@ -158,8 +158,9 @@ func (o *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Describe returns the file descriptions for the WorkloadIdentityJWTService.
+// Describe returns the file descriptions for the service.
 func (o *Config) Describe() []bot.FileDescription {
+	// TODO: this is wrong/has been copy pasted from the JWT-SVID output.
 	fds := []bot.FileDescription{
 		{
 			Name: internal.JWTSVIDPath,
