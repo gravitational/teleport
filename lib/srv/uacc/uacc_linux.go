@@ -112,7 +112,10 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 	accountDb.Lock()
 	defer accountDb.Unlock()
 	var uaccPathErr [uaccPathErrMaxLength]C.char
-	status, errno := C.uacc_add_utmp_entry(cUtmpPath, cWtmpPath, cUsername, cHostname, &cIP[0], cTtyName, cIDName, secondsElapsed, microsFraction, &uaccPathErr[0])
+	status, errno := checkSpuriousENOENT(wtmpPath, func() (C.int, error) {
+		status, err := C.uacc_add_utmp_entry(cUtmpPath, cWtmpPath, cUsername, cHostname, &cIP[0], cTtyName, cIDName, secondsElapsed, microsFraction, &uaccPathErr[0])
+		return status, err
+	})
 
 	switch status {
 	case C.UACC_UTMP_MISSING_PERMISSIONS:
@@ -163,7 +166,10 @@ func Close(utmpPath, wtmpPath string, tty *os.File) error {
 	accountDb.Lock()
 	defer accountDb.Unlock()
 	var uaccPathErr [uaccPathErrMaxLength]C.char
-	status, errno := C.uacc_mark_utmp_entry_dead(cUtmpPath, cWtmpPath, cTtyName, secondsElapsed, microsFraction, &uaccPathErr[0])
+	status, errno := checkSpuriousENOENT(wtmpPath, func() (C.int, error) {
+		status, err := C.uacc_mark_utmp_entry_dead(cUtmpPath, cWtmpPath, cTtyName, secondsElapsed, microsFraction, &uaccPathErr[0])
+		return status, err
+	})
 
 	switch status {
 	case C.UACC_UTMP_MISSING_PERMISSIONS:
@@ -278,7 +284,10 @@ func LogFailedLogin(btmpPath, username, hostname string, remote [4]int32) error 
 	accountDb.Lock()
 	defer accountDb.Unlock()
 	var uaccPathErr [uaccPathErrMaxLength]C.char
-	status, errno := C.uacc_add_btmp_entry(cBtmpPath, cUsername, cHostname, &cIP[0], secondsElapsed, microsFraction, &uaccPathErr[0])
+	status, errno := checkSpuriousENOENT(btmpPath, func() (C.int, error) {
+		status, err := C.uacc_add_btmp_entry(cBtmpPath, cUsername, cHostname, &cIP[0], secondsElapsed, microsFraction, &uaccPathErr[0])
+		return status, err
+	})
 	switch status {
 	case C.UACC_UTMP_MISSING_PERMISSIONS:
 		return trace.AccessDenied("missing permissions to write to btmp")
@@ -326,4 +335,23 @@ func decodeUnknownError(status int, rawUaccPathErr [uaccPathErrMaxLength]C.char)
 	}
 
 	return trace.Errorf("unknown error with code %d", status)
+}
+
+func checkSpuriousENOENT(target string, f func() (C.int, error)) (C.int, error) {
+	beforeStat, statErr := os.Stat(target)
+	status, err := f()
+	if statErr != nil {
+		return status, err
+	}
+	afterStat, err := os.Stat(target)
+	if err != nil {
+		return status, err
+	}
+	if status != C.UACC_UTMP_PATH_DOES_NOT_EXIST {
+		return status, err
+	}
+	if afterStat.ModTime().After(beforeStat.ModTime()) {
+		return 0, nil
+	}
+	return status, err
 }
