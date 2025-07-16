@@ -77,7 +77,7 @@ $ curl -u elastic:your_elasticsearch_password -X POST "https://elasticsearch.exa
 <details>
 <summary>Role Mapping with wildcards</summary>
 
-In a scenario where Teleport is using [single sign-on](../../../admin-guides/access-controls/sso/sso.mdx) you may want to define a mapping for all users to a role:
+In a scenario where Teleport is using [single sign-on](../../../zero-trust-access/sso/sso.mdx) you may want to define a mapping for all users to a role:
 
 ```code
 $ curl -u elastic:your_elasticsearch_password -X POST "https://elasticsearch.example.com:9200/_security/role_mapping/mapping1?pretty" -H 'Content-Type: application/json' -d'
