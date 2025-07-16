@@ -91,12 +91,10 @@ func replaceTarGz(archivePath string, extractDir string, execNames []string) (ma
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			defer destFile.Close()
-
 			if _, err := io.Copy(destFile, tarReader); err != nil {
-				return trace.Wrap(err)
+				return trace.NewAggregate(err, destFile.Close())
 			}
-			return nil
+			return trace.Wrap(destFile.Close())
 		}(header); err != nil {
 			return nil, trace.Wrap(err)
 		}

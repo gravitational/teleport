@@ -32,26 +32,32 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const (
+	// migrationFilePerms defines the permissions for files created during the migration process.
+	migrationFilePerms = 0o755
+)
+
 // migrateV1AndUpdateConfig launches migration process and add migrated
 // tools to configuration file.
 func migrateV1AndUpdateConfig(toolsDir string, tools []string) error {
-	migratedTools, err := migrateV1(toolsDir, tools)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if len(migratedTools) == 0 {
+	if err := updateToolsConfig(toolsDir, func(ctc *ClientToolsConfig) error {
+		migratedTools, err := migrateV1(toolsDir, tools)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(migratedTools) == 0 {
+			return nil
+		}
+
+		for _, tool := range migratedTools {
+			ctc.AddTool(tool)
+		}
 		return nil
-	}
-
-	ctc, save, err := newClientToolsConfig(toolsDir)
-	if err != nil {
+	}); err != nil {
 		return trace.Wrap(err)
 	}
-	for _, tool := range migratedTools {
-		ctc.AddTool(tool)
-	}
 
-	return trace.Wrap(save())
+	return nil
 }
 
 // migrateV1 verifies the tool binary located in the tool's directory.
@@ -103,28 +109,30 @@ func migrateV1(toolsDir string, tools []string) (map[string]Tool, error) {
 					PathMap: map[string]string{tool: filepath.Join(newPkg, relPath)},
 				}
 			}
+			continue
+		}
+
+		// Create new toolVersion of the package and move tools to new destination.
+		if t, ok := migratedTools[toolVersion]; ok {
+			newPath := filepath.Join(toolsDir, newPkg, tool)
+			if err := utils.CopyFile(path, newPath, migrationFilePerms); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			t.PathMap[tool] = filepath.Join(newPkg, tool)
 		} else {
-			// Create new toolVersion of the package and move tools to new destination.
-			if t, ok := migratedTools[toolVersion]; ok {
-				newPath := filepath.Join(toolsDir, newPkg, tool)
-				if err := utils.CopyFile(path, newPath, 0o755); err != nil {
-					return nil, trace.Wrap(err)
-				}
-				t.PathMap[tool] = filepath.Join(newPkg, tool)
-			} else {
-				if err := os.Mkdir(filepath.Join(toolsDir, newPkg), 0o755); err != nil {
-					return nil, trace.Wrap(err)
-				}
-				newPath := filepath.Join(toolsDir, newPkg, tool)
-				if err := utils.CopyFile(path, newPath, 0o755); err != nil {
-					return nil, trace.Wrap(err)
-				}
-				migratedTools[toolVersion] = Tool{
-					Version: toolVersion,
-					PathMap: map[string]string{tool: filepath.Join(newPkg, tool)},
-				}
+			if err := os.Mkdir(filepath.Join(toolsDir, newPkg), migrationFilePerms); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			newPath := filepath.Join(toolsDir, newPkg, tool)
+			if err := utils.CopyFile(path, newPath, migrationFilePerms); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			migratedTools[toolVersion] = Tool{
+				Version: toolVersion,
+				PathMap: map[string]string{tool: filepath.Join(newPkg, tool)},
 			}
 		}
+
 	}
 
 	return migratedTools, nil

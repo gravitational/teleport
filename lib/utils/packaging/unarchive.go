@@ -123,10 +123,8 @@ func replaceZip(archivePath string, extractDir string, execNames []string) (map[
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			defer destFile.Close()
-
 			if _, err := io.Copy(destFile, file); err != nil {
-				return trace.Wrap(err)
+				return trace.NewAggregate(err, destFile.Close())
 			}
 			return trace.Wrap(destFile.Close())
 		}(zipFile); err != nil {

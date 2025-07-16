@@ -162,11 +162,11 @@ func GetReExecFromVersion(ctx context.Context) string {
 func CleanUp(toolsDir string, tools []string) error {
 	var aggErr []error
 	for _, tool := range tools {
-		if err := os.RemoveAll(filepath.Join(toolsDir, tool)); err != nil {
+		if err := os.Remove(filepath.Join(toolsDir, tool)); err != nil && !os.IsNotExist(err) {
 			aggErr = append(aggErr, err)
 		}
 	}
-	if err := os.RemoveAll(filepath.Join(toolsDir, configFileName)); err != nil {
+	if err := os.Remove(filepath.Join(toolsDir, configFileName)); err != nil && !os.IsNotExist(err) {
 		aggErr = append(aggErr, err)
 	}
 	if err := packaging.RemoveWithSuffix(toolsDir, updatePackageSuffix, nil); err != nil {

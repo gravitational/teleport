@@ -117,7 +117,10 @@ type ClusterConfig struct {
 
 // Tool stores tools path per version, each tool might be stored in different path.
 type Tool struct {
-	Version string            `json:"version"`
+	// Version is the version of the tools (tsh, tctl) as defined in the PathMap.
+	Version string `json:"version"`
+	// PathMap stores the relative path (within the tools directory) for each tool binary.
+	// For example: {"tctl": "package-id/tctl"}.
 	PathMap map[string]string `json:"path"`
 }
 
@@ -133,40 +136,68 @@ func (c *Tool) PackageNames() []string {
 	return packageNames
 }
 
-// newClientToolsConfig creates or opens the configuration file for client tools managed updates,
-// and acquires a filesystem lock until the configuration is written and closed.
-func newClientToolsConfig(toolsDir string) (ctc *ClientToolsConfig, save func() error, err error) {
+// getToolsConfig reads the configuration file for client tools managed updates,
+// and acquires a filesystem lock until the configuration is read and deserialized.
+func getToolsConfig(toolsDir string) (ctc *ClientToolsConfig, err error) {
 	unlock, err := utils.FSWriteLock(filepath.Join(toolsDir, lockFileName))
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer func() {
-		if err != nil {
-			err = trace.NewAggregate(err, unlock())
-		}
+		err = trace.NewAggregate(err, unlock())
 	}()
 
 	ctc = &ClientToolsConfig{
+		Configs: make(map[string]*ClusterConfig),
+	}
+	data, err := os.ReadFile(filepath.Join(toolsDir, configFileName))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, trace.Wrap(err)
+	}
+	if data != nil {
+		if err := json.Unmarshal(data, ctc); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return ctc, nil
+}
+
+// updateToolsConfig creates or opens the configuration file for client tools managed updates,
+// and acquires a filesystem lock until the configuration is written and closed.
+func updateToolsConfig(toolsDir string, update func(ctc *ClientToolsConfig) error) (err error) {
+	unlock, err := utils.FSWriteLock(filepath.Join(toolsDir, lockFileName))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer func() {
+		err = trace.NewAggregate(err, unlock())
+	}()
+
+	ctc := &ClientToolsConfig{
 		Version: configFileVersion,
 		Configs: make(map[string]*ClusterConfig),
 	}
 	data, err := os.ReadFile(filepath.Join(toolsDir, configFileName))
-	if err == nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return trace.Wrap(err)
+	}
+	if data != nil {
 		if err := json.Unmarshal(data, ctc); err != nil {
-			return nil, nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return nil, nil, trace.Wrap(err)
 	}
 
-	return ctc, func() error {
-		jsonData, err := json.Marshal(ctc)
-		if err != nil {
-			return trace.NewAggregate(err, unlock())
-		}
-		return trace.NewAggregate(
-			os.WriteFile(filepath.Join(toolsDir, configFileName), jsonData, configFilePerms),
-			unlock(),
-		)
-	}, nil
+	// Perform update values before configuration file is going to be written.
+	if err := update(ctc); err != nil {
+		return trace.Wrap(err)
+	}
+
+	jsonData, err := json.Marshal(ctc)
+	if err != nil {
+		return trace.NewAggregate(err, unlock())
+	}
+	return trace.Wrap(
+		os.WriteFile(filepath.Join(toolsDir, configFileName), jsonData, configFilePerms),
+	)
 }

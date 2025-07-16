@@ -516,20 +516,22 @@ func FormatAlert(alert types.ClusterAlert) string {
 	return buf.String()
 }
 
-// FilterArguments finds specific argument and filter out others.
+// FilterArguments filters the input arguments, keeping only those defined in the provided `kingpin.ApplicationModel`.
+// For example, if the model defines only one boolean flag `--insecure`, all other arguments in `args`
+// will be excluded, and only the `--insecure` flag will remain.
 func FilterArguments(args []string, model *kingpin.ApplicationModel) []string {
 	var result []string
 	for _, flag := range model.Flags {
-		for i := range len(args) {
+		for i := range args {
 			if strings.HasPrefix(args[i], fmt.Sprint("--", flag.Name, "=")) {
-				result = append(result, args[i:i+1]...)
+				result = append(result, args[i])
 				break
 			}
 			if args[i] == fmt.Sprint("--", flag.Name) {
-				if flag.IsBoolFlag() && i+1 <= len(args) {
-					result = append(result, args[i:i+1]...)
+				if flag.IsBoolFlag() {
+					result = append(result, args[i])
 				} else if i+2 <= len(args) {
-					result = append(result, args[i:i+2]...)
+					result = append(result, args[i], args[i+1])
 				}
 				break
 			}

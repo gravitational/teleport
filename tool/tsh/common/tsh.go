@@ -829,7 +829,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	var proxyArg string
 	muApp := utils.InitCLIParser("tsh", "")
 	muApp.Flag("proxy", "Teleport proxy address").Envar(proxyEnvVar).Hidden().StringVar(&proxyArg)
-	muApp.Flag("check-update", "Check managed update.").Envar(toolsCheckUpdateEnvVar).Hidden().BoolVar(&cf.checkManagedUpdates)
+	muApp.Flag("check-update", "Check for availability of managed update.").Envar(toolsCheckUpdateEnvVar).Hidden().BoolVar(&cf.checkManagedUpdates)
 
 	if _, err := muApp.Parse(utils.FilterArguments(args, muApp.Model())); err != nil {
 		slog.WarnContext(ctx, "can't identify current profile", "error", err)
@@ -920,7 +920,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		StringVar(&cf.MlockMode)
 	app.HelpFlag.Short('h')
 	app.Flag("piv-slot", "Specify a PIV slot key to use for Hardware Key support instead of the default. Ex: \"9d\".").Envar("TELEPORT_PIV_SLOT").StringVar(&cf.PIVSlot)
-	app.Flag("check-update", "Check managed update.").Envar(toolsCheckUpdateEnvVar).Hidden().BoolVar(&cf.checkManagedUpdates)
+	app.Flag("check-update", "Check for availability of managed update.").Envar(toolsCheckUpdateEnvVar).Hidden().BoolVar(&cf.checkManagedUpdates)
 
 	ver := app.Command("version", "Print the tsh client and Proxy server versions for the current context.")
 	ver.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)

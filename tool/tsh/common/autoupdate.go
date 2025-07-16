@@ -57,14 +57,15 @@ func (c *managedUpdatesUpdateCommand) run(cf *CLIConf) error {
 		if err := tools.CleanUp(toolsDir, tools.DefaultClientTools()); err != nil {
 			return trace.Wrap(err)
 		}
-	} else {
-		tc, err := makeClient(cf)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := tools.DownloadUpdate(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
-			return trace.Wrap(err)
-		}
+		return nil
+	}
+
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := tools.DownloadUpdate(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
