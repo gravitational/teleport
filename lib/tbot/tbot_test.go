@@ -1292,7 +1292,7 @@ func TestBotJoiningURI(t *testing.T) {
 
 	// Perform some cursory checks on the identity to make sure a cert bundle
 	// was actually produced.
-	id := bot.BotIdentity()
+	id := bot.getBotIdentity()
 	tlsIdent, err := tlsca.FromSubject(
 		id.X509Cert.Subject, id.X509Cert.NotAfter,
 	)

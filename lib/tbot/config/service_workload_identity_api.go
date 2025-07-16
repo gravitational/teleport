@@ -43,7 +43,7 @@ type WorkloadIdentityAPIService struct {
 	Attestors workloadattest.Config `yaml:"attestors"`
 	// Selector is the selector for the WorkloadIdentity resource that
 	// will be used to issue WICs.
-	Selector WorkloadIdentitySelector `yaml:"selector"`
+	Selector bot.WorkloadIdentitySelector `yaml:"selector"`
 
 	// CredentialLifetime contains configuration for how long X.509 SVIDs will
 	// last and the frequency at which they'll be renewed.
