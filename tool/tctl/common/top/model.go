@@ -350,8 +350,8 @@ func renderCommon(report *Report, width int) string {
 		),
 		style.Render(
 			lipgloss.JoinVertical(lipgloss.Left,
-				certLatencyContent,
 				servicesContent,
+				certLatencyContent,
 			),
 		),
 	)
