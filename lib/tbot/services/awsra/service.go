@@ -62,10 +62,7 @@ func ServiceBuilder(cfg *Config) bot.ServiceBuilder {
 			identityGenerator:  deps.IdentityGenerator,
 			clientBuilder:      deps.ClientBuilder,
 		}
-		svc.log = deps.Logger.With(
-			teleport.ComponentKey,
-			teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
-		)
+		svc.log = deps.LoggerForService(svc)
 		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
 		return svc, nil
 	}
