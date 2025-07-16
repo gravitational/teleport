@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestProxyWithoutLicense(t *testing.T) {
@@ -30,7 +31,7 @@ func TestProxyWithoutLicense(t *testing.T) {
 			Enabled:    false,
 			Preference: authPreference,
 		},
-		Logger: utils.NewSlogLoggerForTests().With("test", t.Name()),
+		Logger: logtest.With("test", t.Name()),
 	}
 
 	config.SetAuthServerAddress(*utils.MustParseAddr("tcp://127.0.0.1:8080"))
@@ -67,7 +68,7 @@ func TestModulesSetBeforeAuth(t *testing.T) {
 			LicenseFile:  "testdata/license-all-features.pem",
 		},
 		Hostname: "localhost",
-		Logger:   utils.NewSlogLoggerForTests().With("test", t.Name()),
+		Logger:   logtest.With("test", t.Name()),
 	}
 
 	config.SetAuthServerAddress(*utils.MustParseAddr("tcp://127.0.0.1:8080"))
@@ -100,7 +101,7 @@ func TestMissingLicenseError(t *testing.T) {
 			ListenAddr:   *utils.MustParseAddr("tcp://127.0.0.1:0"),
 		},
 		Hostname: "localhost",
-		Logger:   utils.NewSlogLoggerForTests().With("test", t.Name()),
+		Logger:   logtest.With("test", t.Name()),
 	}
 
 	config.SetAuthServerAddress(*utils.MustParseAddr("tcp://127.0.0.1:8080"))

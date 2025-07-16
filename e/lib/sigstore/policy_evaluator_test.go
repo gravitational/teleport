@@ -12,7 +12,7 @@ import (
 
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/e/lib/sigstore"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 var (
@@ -331,7 +331,7 @@ func TestPolicyEvaluator(t *testing.T) {
 						policyName: {Spec: tc.policy},
 					},
 				},
-				Logger: utils.NewSlogLoggerForTests(),
+				Logger: logtest.NewLogger(),
 			})
 			require.NoError(t, err)
 

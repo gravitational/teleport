@@ -11,7 +11,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestConfigureLicense(t *testing.T) {
@@ -88,7 +88,7 @@ func TestConfigureLicense(t *testing.T) {
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			tc.cfg.Logger = utils.NewSlogLoggerForTests()
+			tc.cfg.Logger = logtest.NewLogger()
 			file, err := configureLicense(tc.cfg)
 			tc.assert(t, file, err)
 		})

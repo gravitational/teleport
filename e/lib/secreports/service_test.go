@@ -30,8 +30,8 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/clocki"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestListReportStates(t *testing.T) {
@@ -137,7 +137,7 @@ func TestListReportStates(t *testing.T) {
 
 			svc := Service{
 				backend:    m,
-				log:        utils.NewSlogLoggerForTests(),
+				log:        logtest.NewLogger(),
 				authorizer: test.authorizer,
 				semaphore:  &mockSemaphore{},
 				clock:      clock,
@@ -209,7 +209,7 @@ func TestService(t *testing.T) {
 	}
 	svc := Service{
 		backend: m,
-		log:     utils.NewSlogLoggerForTests(),
+		log:     logtest.NewLogger(),
 		authorizer: &mockAuthorizer{
 			checker: &mockChecker{
 				rules: []types.Rule{
@@ -482,7 +482,7 @@ func TestUpsertSecurityReport(t *testing.T) {
 	require.NoError(t, err)
 	svc := Service{
 		backend:   m,
-		log:       utils.NewSlogLoggerForTests(),
+		log:       logtest.NewLogger(),
 		semaphore: &mockSemaphore{},
 		storage:   store,
 		clock:     clockwork.NewFakeClock(),
@@ -796,7 +796,7 @@ func newSuite(t *testing.T) *suite {
 	svc := Service{
 		backend:   m,
 		Scheduler: sched,
-		log:       utils.NewSlogLoggerForTests(),
+		log:       logtest.NewLogger(),
 		authorizer: &mockAuthorizer{
 			checker: &mockChecker{
 				rules: []types.Rule{{Resources: []string{"security_report"}, Verbs: []string{"read", "list", "use"}}},

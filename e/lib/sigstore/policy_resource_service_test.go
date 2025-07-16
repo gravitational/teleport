@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func Test_PolicyResourceService_CreateSigstorePolicy(t *testing.T) {
@@ -416,7 +416,7 @@ func testService(t *testing.T) (*sigstore.PolicyResourceService, *testPack) {
 				AdminActionAuthState: pack.adminActionAuthState,
 			}, nil
 		}),
-		Logger:  utils.NewSlogLoggerForTests(),
+		Logger:  logtest.NewLogger(),
 		Emitter: pack.emitter,
 	})
 	require.NoError(t, err)

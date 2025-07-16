@@ -23,7 +23,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 const clusterName = "test-cluster"
@@ -170,7 +170,7 @@ func setup(t *testing.T, ops ...option) env {
 
 	serviceNew, err := NewService(ServiceConfig{
 		Authorizer:  authorizer,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 		Client:      testFake,
 		Storage:     svc,
 		ClusterName: clusterName,

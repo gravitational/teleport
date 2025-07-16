@@ -6,11 +6,11 @@ import (
 
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	modules.SetInsecureTestMode(true)
 	cryptosuites.PrecomputeRSATestKeys(m)
 	os.Exit(m.Run())

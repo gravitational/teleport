@@ -15,7 +15,7 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // fakeDirectoryReconciler is a no-op reconciler that returns the given error.
@@ -59,7 +59,7 @@ func TestServiceRetryAndCancelation(t *testing.T) {
 
 	svc := &Service{
 		clock:                   clock,
-		log:                     utils.NewSlogLoggerForTests(),
+		log:                     logtest.NewLogger(),
 		pluginStatusSink:        &integration.FakeStatusSink{},
 		semaphoreSvc:            semaphoreSvc,
 		hostID:                  "foo",
@@ -113,7 +113,7 @@ func TestDirectoryReconcilerStatus(t *testing.T) {
 
 	svc := &Service{
 		clock:                   clock,
-		log:                     utils.NewSlogLoggerForTests(),
+		log:                     logtest.NewLogger(),
 		pluginStatusSink:        statusSink,
 		semaphoreSvc:            semaphoreSvc,
 		hostID:                  "foo",

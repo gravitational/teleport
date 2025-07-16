@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -302,7 +303,7 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 	s.webServerURL = serverURL
 
 	samlIdP, err := saml.New(s.ctx, saml.Config{
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 		Clock:       s.webPlugin.Clock,
 		Client:      s.webPlugin.GetProxyClient(),
 		AccessPoint: s.webPlugin.GetAccessPoint(),

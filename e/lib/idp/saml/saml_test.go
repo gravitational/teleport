@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // tEnvWithSAMLService is a combined testenv.TEnv (sets auth service dependencies)
@@ -65,7 +65,7 @@ func newTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, ba
 		KeyStore:         svcs.KeyStore,
 		Authorizer:       svcs.Authorizer,
 		MFAAuthenticator: &fakeMFAAuthenticator{},
-		Logger:           utils.NewSlogLoggerForTests(),
+		Logger:           logtest.NewLogger(),
 	})
 	require.NoError(t, err)
 
@@ -81,7 +81,7 @@ func newTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, ba
 	}
 
 	samlIdPService, err := New(ctx, Config{
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 		Clock:       clock,
 		Client:      ntclient,
 		AccessPoint: ntclient,

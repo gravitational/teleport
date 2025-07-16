@@ -13,8 +13,8 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
-	libutils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/clocki"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func getParamString(t *testing.T) string {
@@ -26,7 +26,7 @@ func getParamString(t *testing.T) string {
 }
 
 func TestMain(m *testing.M) {
-	libutils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 

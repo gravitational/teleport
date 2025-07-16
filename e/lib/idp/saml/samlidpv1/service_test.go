@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // tEnv is a TEnv for samlidpv1
@@ -44,7 +44,7 @@ func newTEnv(t *testing.T, clock clockwork.Clock) *tEnv {
 		KeyStore:         env.KeyStore,
 		Authorizer:       env.Authorizer,
 		MFAAuthenticator: &fakeMFAAuthenticator{},
-		Logger:           utils.NewSlogLoggerForTests(),
+		Logger:           logtest.NewLogger(),
 	})
 	require.NoError(t, err)
 

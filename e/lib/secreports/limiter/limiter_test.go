@@ -13,7 +13,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestLimiter(t *testing.T) {
@@ -37,7 +37,7 @@ func TestLimiter(t *testing.T) {
 		Store:              store,
 		Semaphore:          &mockSemaphore{},
 		Name:               name,
-		Logger:             utils.NewSlogLoggerForTests(),
+		Logger:             logtest.NewLogger(),
 		Clock:              clock,
 		TotalLimit:         totalLimit,
 		PreAllocationValue: preAllocationValue,

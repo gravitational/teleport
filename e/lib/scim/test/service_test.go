@@ -21,7 +21,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func enableOktaSCIMEntitlement(t *testing.T) {
@@ -349,7 +349,7 @@ func TestListSCIMResourcesUserPredicate(t *testing.T) {
 	ctx := context.Background()
 	sut, err := service.NewService(&scimcommon.Config{
 		Authorizer:          &authMock{},
-		Logger:              utils.NewSlogLoggerForTests(),
+		Logger:              logtest.NewLogger(),
 		UsersService:        &userMock{users: users},
 		RolesService:        &mockRoleService{},
 		PluginsService:      &pluginMock{plugin: plugin},

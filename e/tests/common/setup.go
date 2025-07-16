@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // SUT is a system under test.
@@ -159,7 +159,7 @@ func newInstanceConfig(t *testing.T) helpers.InstanceConfig {
 		NodeName:    host,
 		Priv:        priv,
 		Pub:         pub,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	}
 }
 
