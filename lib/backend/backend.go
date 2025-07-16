@@ -150,33 +150,6 @@ func New(ctx context.Context, backend string, params Params) (Backend, error) {
 	return bk, nil
 }
 
-// IterateRange is a helper for stepping over a range
-func IterateRange(ctx context.Context, bk Backend, startKey, endKey Key, limit int, fn func([]Item) (stop bool, err error)) error {
-	if limit == 0 || limit > 10_000 {
-		limit = 10_000
-	}
-	for {
-		// we load an extra item here so that we can be certain we have a correct
-		// start key for the next range.
-		rslt, err := bk.GetRange(ctx, startKey, endKey, limit+1)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		end := limit
-		if len(rslt.Items) < end {
-			end = len(rslt.Items)
-		}
-		stop, err := fn(rslt.Items[0:end])
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if stop || len(rslt.Items) <= limit {
-			return nil
-		}
-		startKey = rslt.Items[limit].Key
-	}
-}
-
 // StreamRange constructs a Stream for the given key range. This helper just
 // uses standard pagination under the hood, lazily loading pages as needed. Streams
 // are currently only used for periodic operations, but if they become more widely
