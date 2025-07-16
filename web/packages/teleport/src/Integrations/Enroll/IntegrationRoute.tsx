@@ -18,12 +18,19 @@
 
 import { Route } from 'teleport/components/Router';
 import cfg from 'teleport/config';
+import { AwsConsoleSetup } from 'teleport/Integrations/Enroll/AwsConsole/AwsConsoleSetUp';
 import { IntegrationKind } from 'teleport/services/integrations';
 
 import { AwsOidc } from './AwsOidc';
 
 export function getRoutesToEnrollIntegrations() {
   return [
+    <Route
+      key={IntegrationKind.AwsConsole}
+      exact
+      path={cfg.routes.integrationEnrollChild}
+      component={AwsConsoleSetup}
+    />,
     <Route
       key={IntegrationKind.AwsOidc}
       exact

@@ -92,7 +92,9 @@ export function AwsOidcDashboard() {
             summary={awseks}
           />
         </Flex>
-        <ConsoleCard />
+        <Flex>
+          <ConsoleCard name={integration.name} />
+        </Flex>
       </FeatureBox>
     </>
   );

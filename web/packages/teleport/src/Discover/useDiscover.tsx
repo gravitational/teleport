@@ -613,12 +613,17 @@ export type SamlMeta = BaseMeta & {
   samlMicrosoftEntraId?: SamlMicrosoftEntraId;
 };
 
+export type AwsRolesAnywhereMeta = BaseMeta & {
+  todo?: string; // todo mberg
+};
+
 export type AgentMeta =
   | DbMeta
   | NodeMeta
   | KubeMeta
   | EksMeta
   | SamlMeta
-  | AppMeta;
+  | AppMeta
+  | AwsRolesAnywhereMeta;
 
 export type State = ReturnType<typeof useDiscover>;
