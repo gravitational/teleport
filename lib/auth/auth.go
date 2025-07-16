@@ -5904,6 +5904,43 @@ func (a *Server) GetAccessCapabilities(ctx context.Context, req types.AccessCapa
 	return caps, nil
 }
 
+func (a *Server) GetRemoteAccessCapabilites(ctx context.Context, req types.AccessCapabilitiesRequest, localUser types.User, remoteIdentity tlsca.Identity) (*types.AccessCapabilities, error) {
+	a.logger.InfoContext(ctx, "Handling GetRemoteAccessCapabilites")
+
+	localIdentityGetter, err := authz.UserFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	caps, err := services.CalculateAccessCapabilitiesForUser(ctx, a.clock, a, localUser, localIdentityGetter.GetIdentity(), req)
+	if err != nil {
+		a.logger.ErrorContext(ctx, "failed calculating local capabilities", "error", err)
+		return nil, trace.Wrap(err)
+	}
+
+	remoteCluster, err := a.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.UserCA,
+		DomainName: remoteIdentity.RouteToCluster,
+	}, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.logger.InfoContext(ctx, "local access capabilities",
+		"local_roles", caps.ApplicableRolesForResources,
+		"remote_search_as_roles", req.RemoteSearchAsRoles,
+	)
+
+	caps.ApplicableRolesForResources, err = services.UnmapRoles(req.RemoteSearchAsRoles, caps.ApplicableRolesForResources, remoteCluster.CombinedMapping())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.logger.InfoContext(ctx, "remote access capabilities", "roles", caps.ApplicableRolesForResources)
+
+	return caps, nil
+}
+
 func (a *Server) getCache() (c *cache.Cache, ok bool) {
 	c, ok = a.Cache.(*cache.Cache)
 	return

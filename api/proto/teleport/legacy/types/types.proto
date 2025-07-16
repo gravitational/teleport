@@ -3179,6 +3179,8 @@ message AccessCapabilities {
   // AutoRequest indicates whether the request strategy indicates that a
   // request should be automatically generated on login.
   bool AutoRequest = 6 [(gogoproto.jsontag) = "auto_request,omitempty"];
+
+  repeated string SearchAsRoles = 7 [(gogoproto.jsontag) = "search_as_roles,omitempty"];
 }
 
 // AccessCapabilitiesRequest encodes parameters for the GetAccessCapabilities method.
@@ -3204,6 +3206,13 @@ message AccessCapabilitiesRequest {
   // list of roles that the user can request should be filtered to only include
   // roles that allow access to the provided ResourceIDs.
   bool FilterRequestableRolesByResource = 6 [(gogoproto.jsontag) = "filter_requestable_roles_by_resource,omitempty"];
+
+  // RemoteSearchAsRoles lists the roles available to the user on a remotr cluster. Used whan mapping
+  // roles from a rusted cluster back to the request's cluster of origin.
+  repeated string RemoteSearchAsRoles = 7 [(gogoproto.jsontag) = "remote_search_as_roles,omitempty"];
+
+  //
+  bool SearchAsRoles = 8;
 }
 
 // RequestKubernetesResource is the Kubernetes resource identifier used
