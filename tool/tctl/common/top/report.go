@@ -714,7 +714,7 @@ func getServices(family *dto.MetricFamily) Services {
 		return nil
 	}
 
-	var out = make(Services)
+	out := make(Services)
 	for _, metric := range family.Metric {
 		if metric.Gauge == nil || metric.Gauge.Value == nil {
 			continue
