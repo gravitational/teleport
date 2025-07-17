@@ -351,8 +351,8 @@ func checkSpuriousENOENT(target string, f func() (C.int, error)) (C.int, error) 
 	if status != C.UACC_UTMP_PATH_DOES_NOT_EXIST {
 		return status, err
 	}
-	afterStat, err := os.Stat(target)
-	if err != nil {
+	afterStat, statErr := os.Stat(target)
+	if statErr != nil {
 		return status, err
 	}
 	if afterStat.ModTime().After(beforeStat.ModTime()) {
