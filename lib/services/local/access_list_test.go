@@ -722,7 +722,7 @@ func TestAccessListReviewCRUD(t *testing.T) {
 
 	// Create a couple access lists.
 	accessList1 := newAccessList(t, "accessList1", clock)
-	accessList2 := newAccessList(t, "accessList2", clock)
+	accessList2 := newAccessList(t, "accessList2", clock, withType(accesslist.DeprecatedDynamic))
 
 	accessList1OrigDate := accessList1.Spec.Audit.NextAuditDate
 	accessList2OrigDate := accessList2.Spec.Audit.NextAuditDate
