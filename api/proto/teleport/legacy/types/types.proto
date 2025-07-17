@@ -586,12 +586,18 @@ message DocumentDB {
   string EndpointType = 3 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
 }
 
-// GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.
+// GCPCloudSQL contains parameters specific to GCP Cloud SQL and AlloyDB databases.
 message GCPCloudSQL {
   // ProjectID is the GCP project ID the Cloud SQL instance resides in.
   string ProjectID = 1 [(gogoproto.jsontag) = "project_id,omitempty"];
   // InstanceID is the Cloud SQL instance ID.
   string InstanceID = 2 [(gogoproto.jsontag) = "instance_id,omitempty"];
+  // Region is the GCP region. Required for AlloyDB databases.
+  string Region = 3 [(gogoproto.jsontag) = "region,omitempty"];
+  // ClusterID is the ID of the cluster. Required for AlloyDB databases.
+  string ClusterID = 4 [(gogoproto.jsontag) = "cluster_id,omitempty"];
+  // IsAlloyDB is true if the database is an AlloyDB server.
+  bool IsAlloyDB = 5 [(gogoproto.jsontag) = "is_alloy_db,omitempty"];
 }
 
 // Azure contains Azure specific database metadata.
