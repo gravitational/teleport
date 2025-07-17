@@ -19,8 +19,9 @@ package summarizerv1
 import (
 	"context"
 
-	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/trace"
+
+	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 )
 
 // NewResourcesService creates a new OSS version of the SummarizerService. It
