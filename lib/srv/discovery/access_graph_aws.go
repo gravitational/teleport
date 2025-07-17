@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -58,7 +59,7 @@ const (
 	// request to the access graph service.
 	batchSize = 500
 	// defaultPollInterval is the default interval between polling for access graph resources
-	defaultPollInterval = 15 * time.Minute
+	defaultPollInterval = 2 * time.Minute
 	// Configure health check service to monitor access graph service and
 	// automatically reconnect if the connection is lost without
 	// relying on new events from the auth server to trigger a reconnect.
@@ -397,6 +398,7 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	if len(supportedKinds) == 0 {
 		return trace.BadParameter("access graph service did not return supported kinds")
 	}
+	fmt.Println("💚🔑 supported kinds:", supportedKinds)
 	features := aws_sync.BuildFeatures(supportedKinds...)
 
 	// Start a goroutine to watch the access graph service connection state.
@@ -498,7 +500,7 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 				// We will wait for the config to change and re-evaluate the fetchers
 				// before starting the sync.
 				if len(allFetchers) == 0 {
-					s.Log.DebugContext(ctx, "No AWS sync fetchers configured. Access graph sync will not be enabled.")
+					s.Log.DebugContext(ctx, "💚No AWS sync fetchers configured. Access graph sync will not be enabled.")
 					select {
 					case <-ctx.Done():
 						return
@@ -530,7 +532,7 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 				// We will wait for the config to change and re-evaluate the fetchers
 				// before starting the sync.
 				if len(allFetchers) == 0 {
-					s.Log.DebugContext(ctx, "No AWS sync fetchers configured. Access graph sync will not be enabled.")
+					s.Log.DebugContext(ctx, "No AWS sync fetchers with trail enabled configured. Access graph sync will not be enabled.")
 					select {
 					case <-ctx.Done():
 						return
