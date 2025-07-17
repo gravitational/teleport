@@ -24,10 +24,19 @@ import { Alert } from 'design/Alert/Alert';
 import Box from 'design/Box/Box';
 import { ButtonSecondary } from 'design/Button/Button';
 import ButtonIcon from 'design/ButtonIcon/ButtonIcon';
-import Flex from 'design/Flex/Flex';
+import Flex, { Stack } from 'design/Flex/Flex';
+import { AmazonAws } from 'design/Icon/Icons/AmazonAws';
 import { ArrowLeft } from 'design/Icon/Icons/ArrowLeft';
+import { FingerprintSimple } from 'design/Icon/Icons/FingerprintSimple';
+import { GitHub } from 'design/Icon/Icons/GitHub';
+import { Key } from 'design/Icon/Icons/Key';
+import { Keypair } from 'design/Icon/Icons/Keypair';
+import { Kubernetes } from 'design/Icon/Icons/Kubernetes';
+import { Memory } from 'design/Icon/Icons/Memory';
+import { NewTab } from 'design/Icon/Icons/NewTab';
 import { Pencil } from 'design/Icon/Icons/Pencil';
 import { Question } from 'design/Icon/Icons/Question';
+import { UserCheck } from 'design/Icon/Icons/UserCheck';
 import { Indicator } from 'design/Indicator/Indicator';
 import { Outline } from 'design/Label/Label';
 import Text from 'design/Text';
@@ -41,11 +50,13 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout/Layout';
+import cfg from 'teleport/config';
+import { isAdminActionRequiresMfaError } from 'teleport/services/api/api';
 import useTeleport from 'teleport/useTeleport';
 
 import { EditDialog } from '../Edit/EditDialog';
 import { formatDuration } from '../formatDuration';
-import { useGetBot } from '../hooks';
+import { useGetBot, useListBotTokens } from '../hooks';
 import { InfoGuide } from '../InfoGuide';
 import { Panel } from './Panel';
 
@@ -76,6 +87,10 @@ export function BotDetails() {
 
   const handleEditSuccess = () => {
     setEditing(false);
+  };
+
+  const handleViewAllTokensClicked = () => {
+    history.push(cfg.getJoinTokensRoute());
   };
 
   return (
@@ -112,18 +127,16 @@ export function BotDetails() {
         <Alert kind="danger">Error: {error.message}</Alert>
       ) : undefined}
 
-      {isSuccess && data === null && (
+      {isSuccess && data === null ? (
         <Alert kind="warning">Bot {params.botName} does not exist</Alert>
-      )}
+      ) : undefined}
 
-      {!hasReadPermission && (
+      {!hasReadPermission ? (
         <Alert kind="info">
-          <Flex gap={2}>
-            You do not have permission to view this bot. Missing role
-            permissions: <code>bots.read</code>
-          </Flex>
+          You do not have permission to view this bot. Missing role permissions:{' '}
+          <code>bots.read</code>
         </Alert>
-      )}
+      ) : undefined}
 
       {hasReadPermission && isSuccess && data ? (
         <Container>
@@ -133,7 +146,7 @@ export function BotDetails() {
               action={{
                 label: 'Edit',
                 onClick: handleEdit,
-                icon: <Pencil size={'medium'} />,
+                iconLeft: <Pencil size={'medium'} />,
                 disabled: !hasEditPermission,
               }}
             />
@@ -141,7 +154,7 @@ export function BotDetails() {
 
             <Panel title="Metadata" isSubPanel>
               <Grid>
-                <GridLabel>Botname</GridLabel>
+                <GridLabel>Bot name</GridLabel>
                 <Flex inline alignItems={'center'} gap={1} mr={0}>
                   <MonoText>{data.name}</MonoText>
                   <CopyButton name={data.name} />
@@ -159,11 +172,9 @@ export function BotDetails() {
 
             <Panel title="Roles" isSubPanel>
               {data.roles.length ? (
-                <Flex>
+                <Flex gap={1} flexWrap={'wrap'}>
                   {data.roles.toSorted().map(r => (
-                    <Outline mr="1" key={r}>
-                      {r}
-                    </Outline>
+                    <Outline key={r}>{r}</Outline>
                   ))}
                 </Flex>
               ) : (
@@ -183,15 +194,13 @@ export function BotDetails() {
                         <GridLabel>
                           <Trait traitName={r.name} />
                         </GridLabel>
-                        <div>
+                        <Flex gap={1} flexWrap={'wrap'}>
                           {r.values.length > 0
-                            ? r.values.toSorted().map(v => (
-                                <Outline mr="1" key={v}>
-                                  {v}
-                                </Outline>
-                              ))
+                            ? r.values
+                                .toSorted()
+                                .map(v => <Outline key={v}>{v}</Outline>)
                             : 'no values'}
-                        </div>
+                        </Flex>
                       </React.Fragment>
                     ))}
                 </Grid>
@@ -202,7 +211,10 @@ export function BotDetails() {
 
             <Divider />
 
-            <Panel title="Join Tokens">Coming soon</Panel>
+            <JoinTokens
+              botName={data.name}
+              onViewAllClicked={handleViewAllTokensClicked}
+            />
           </ColumnContainer>
           <ColumnContainer>
             <Panel title="Active Instances">Coming soon</Panel>
@@ -243,9 +255,11 @@ const PaddedDivider = styled(Divider)`
   margin-right: ${props => props.theme.space[3]}px;
 `;
 
-const Grid = styled.div`
+const Grid = styled(Box)`
+  align-self: flex-start;
   display: grid;
   grid-template-columns: repeat(2, auto);
+  gap: ${props => props.theme.space[2]}px;
 `;
 
 const GridLabel = styled(Text)`
@@ -300,3 +314,164 @@ function Trait(props: { traitName: string }) {
     props.traitName
   );
 }
+
+function JoinTokens(props: { botName: string; onViewAllClicked: () => void }) {
+  const { botName, onViewAllClicked } = props;
+
+  const ctx = useTeleport();
+  const flags = ctx.getFeatureFlags();
+  const hasListPermission = flags.listTokens;
+
+  const [skipAuthnRetry, setSkipAuthnRetry] = useState(true);
+
+  const { data, error, isSuccess, isError, isLoading } = useListBotTokens(
+    { botName, skipAuthnRetry },
+    {
+      enabled: hasListPermission,
+      staleTime: 30_000, // Keep data in the cache for 30 seconds
+    }
+  );
+
+  const requiresMfa = isError && isAdminActionRequiresMfaError(error);
+
+  const handleVerifyClick = () => {
+    setSkipAuthnRetry(false);
+  };
+
+  return (
+    <Panel
+      title="Join Tokens"
+      isSubPanel
+      action={{
+        label: 'View All',
+        onClick: onViewAllClicked,
+        iconRight: <NewTab size={'medium'} />,
+        disabled: !hasListPermission,
+      }}
+    >
+      {isLoading ? (
+        <Box data-testid="loading" textAlign="center" m={10}>
+          <Indicator />
+        </Box>
+      ) : undefined}
+
+      {!hasListPermission ? (
+        <Alert kind="info">
+          You do not have permission to view join tokens. Missing role
+          permissions: <code>tokens.list</code>
+        </Alert>
+      ) : undefined}
+
+      {requiresMfa ? (
+        <MfaContainer>
+          <MfaText fontWeight={'regular'}>
+            MFA authentication is required to view join tokens
+          </MfaText>
+          <MfaVerifyButton onClick={handleVerifyClick}>
+            <FingerprintSimple size="medium" /> Authenticate
+          </MfaVerifyButton>
+        </MfaContainer>
+      ) : undefined}
+
+      {isError && !requiresMfa ? (
+        <Alert
+          kind="danger"
+          primaryAction={
+            requiresMfa
+              ? {
+                  content: 'Verify',
+                  onClick: handleVerifyClick,
+                }
+              : undefined
+          }
+        >
+          Error: {error.message}
+        </Alert>
+      ) : undefined}
+
+      {isSuccess ? (
+        <>
+          {data.items.length ? (
+            <Flex gap={1} flexWrap={'wrap'}>
+              {data.items
+                .toSorted((a, b) => a.safeName.localeCompare(b.safeName))
+                .map(t => {
+                  const Icon = iconForMethod(t.method);
+                  return (
+                    <Outline key={t.id}>
+                      <HoverTooltip placement="top" tipContent={t.method}>
+                        <Flex alignItems={'center'} gap={1}>
+                          <Icon size="small" />
+                          {t.safeName}
+                        </Flex>
+                      </HoverTooltip>
+                    </Outline>
+                  );
+                })}
+            </Flex>
+          ) : (
+            'No join tokens'
+          )}
+        </>
+      ) : undefined}
+    </Panel>
+  );
+}
+
+const MfaContainer = styled(Stack)`
+  align-items: center;
+  gap: ${props => props.theme.space[2]}px;
+  background-color: ${props => props.theme.colors.interactive.tonal.neutral[0]};
+  padding: ${props => props.theme.space[4]}px;
+  border: ${props => props.theme.borders[1]}
+    ${props => props.theme.colors.interactive.tonal.neutral[0]};
+  border-radius: ${props => props.theme.radii[2]}px;
+`;
+
+const MfaText = styled(Text)`
+  max-width: 216px;
+  text-align: center;
+`;
+
+const MfaVerifyButton = styled(ButtonSecondary)`
+  gap: ${props => props.theme.space[2]}px;
+`;
+
+const iconForMethod = (method: string) => {
+  switch (method) {
+    case 'token':
+      return Key;
+    case 'ec2':
+      return AmazonAws;
+    case 'iam':
+      return UserCheck;
+    case 'github':
+      return GitHub;
+    case 'circleci':
+      return Key; // Needs an icon created
+    case 'kubernetes':
+      return Kubernetes;
+    case 'azure':
+      return Key; // Needs an icon created
+    case 'gitlab':
+      return Key; // Needs an icon created
+    case 'gcp':
+      return Key; // Needs an icon created
+    case 'spacelift':
+      return Key; // Needs an icon created
+    case 'tpm':
+      return Memory;
+    case 'terraform_cloud':
+      return Key; // Needs an icon created
+    case 'bitbucket':
+      return Key; // Needs an icon created
+    case 'oracle':
+      return Key; // Needs an icon created
+    case 'azure_devops':
+      return Key; // Needs an icon created
+    case 'bound_keypair':
+      return Keypair;
+    default:
+      return Key;
+  }
+};
