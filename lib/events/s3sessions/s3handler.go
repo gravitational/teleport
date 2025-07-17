@@ -357,18 +357,18 @@ func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader)
 // Download downloads a session recording from an S3 bucket and writes the
 // result into a writer. Returns trace.NotFound error if the recording is not
 // found.
-func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	return h.downloadFile(ctx, h.recordingPath(sessionID), writer)
 }
 
 // DownloadSummary downloads a session summary from an S3 bucket and writes the
 // results into a writer. Returns trace.NotFound error if the summary is not
 // found.
-func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	return h.downloadFile(ctx, h.summaryPath(sessionID), writer)
 }
 
-func (h *Handler) downloadFile(ctx context.Context, path string, writer io.WriterAt) error {
+func (h *Handler) downloadFile(ctx context.Context, path string, writer events.RandomAccessWriter) error {
 	// Get the oldest version of this object. This has to be done because S3
 	// allows overwriting objects in a bucket. To prevent corruption of recording
 	// data, get all versions and always return the first.
