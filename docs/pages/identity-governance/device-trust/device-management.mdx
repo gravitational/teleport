@@ -160,7 +160,7 @@ metadata:
 spec:
   # ...
   device_trust:
-    mode: "required"
+    mode: "required-human"
 +   auto_enroll: true
 ```
 
@@ -254,7 +254,7 @@ metadata:
 spec:
   ...
   device_trust:
-    mode: "required" # add this line
+    mode: "required-human" # add this line
 +    ekcert_allowed_cas:
 +      # The CA is configured inline within the resource:
 +      - |
