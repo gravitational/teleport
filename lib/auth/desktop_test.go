@@ -27,12 +27,13 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 // TestDesktopAccessDisabled makes sure desktop access can be disabled via modules.
 // Since desktop connections require a cert, this is mediated via the cert generating function.
 func TestDesktopAccessDisabled(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.Desktop: {Enabled: false}, // Explicitly turn off desktop access.
