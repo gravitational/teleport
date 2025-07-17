@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/app/common"
-	libmcp "github.com/gravitational/teleport/lib/srv/mcp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 )
@@ -59,8 +58,6 @@ import (
 // It allows to make the entire cluster set up once, instead of per test,
 // which speeds things up significantly.
 func TestAppAccess(t *testing.T) {
-	t.Setenv(libmcp.InMemoryServerEnvVar, "true")
-
 	pack := Setup(t)
 
 	t.Run("Forward", bind(pack, testForward))

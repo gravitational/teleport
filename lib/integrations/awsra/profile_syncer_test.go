@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 /*
@@ -207,7 +207,7 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 			KeyStoreManager:   keyStoreManager,
 			Cache:             serverClient,
 			AppServerUpserter: serverClient,
-			Logger:            utils.NewSlogLoggerForTests(),
+			Logger:            logtest.NewLogger(),
 			createSession:     mockCreateSession,
 		}
 	}
