@@ -44,7 +44,7 @@ more critically, difficult to get setup on day 1.
 ## Goals
 
 - Discourage the use of `kubernetes_groups` and `kubernetes_users` fields from
-role with custom values in favor of a preset cluster-admin one.
+role with custom values in favor of a wildcard (mapping to a new config value).
 - Clarify / Improve documentation for the various ways to setup Kubernetes in
   Teleport.
 
@@ -72,17 +72,58 @@ Given this, as RBAC has already been simplified quite a lot, a scoped down
 version of the proposal would be to focus on new installs without impacting
 existing customers.
 
+### Wildcard `kubernetes_groups`
+
+To streamline the role setup and management, we will implement a new special
+value, a wildcard `*` for the `kubernetes_groups` field in Teleport roles.
+This role will map to a configuration value and will fallback to
+`system:masters` in case it is not set. This will allow the vast majority of
+users to access all features.
+
+Examples:
+
+- Configured cluster admin set to `teleport-cluster-admin`
+- `kubernetes_groups` set to `['*']` in the role
+- The user will be impersonated as `teleport-cluster-admin` when
+  accessing the cluster.
+
+- No configuration set
+- `kubernetes_groups` set to `['*']` in the role
+- The user will be impersonated as `system:masters` when accessing the cluster.
+
+- Configured cluster admin set to `teleport-cluster-admin`
+- `kubernetes_groups` set to `['privileged-group']` in the role
+- The user will be impersonated as `privileged-group` when accessing the cluster.
+
 ### Authoritative RBAC Documentation
 
 To simplify initial setup and long-term management, we'll update the
-documentation to encourage users to use a cluster-wide admin group that will be
-created by provisioning scripts or auto-discovery.
+documentation to encourage users to use the wildcard for `kubernetes_groups` that
+will be map to a configuration value.
+That configuration value will be a cluster admin group created by provisioning
+scripts or auto-discovery.
 This will allow users to avoid the complexity of managing RBAC in multiple
 places, avoid confusion around the `exec` subresource.
 While we won't change or remove the `kubernetes_groups` and `kubernetes_users`
 fields, we will discourage their use, allowing existing customers as well as
 advanced users to continue leveraging the underlying Kubernetes RBAC for more
 special use cases.
+
+### Configuration
+
+To know which group to use when mapping the wildcard `*` `kubernetes_groups`,
+we will introduce a new configuration value, `cluster_admin_group`.
+
+This value will default to `system:masters` if not set.
+
+Example:
+
+```yaml
+kubernetes_service:
+  enabled: true
+  cluster_admin_group: teleport-cluster-admin
+  listen_addr: 0.0.0.0:3026
+```
 
 ### Provisioning
 
@@ -107,6 +148,9 @@ rbac:
   adminClusterRoleBindingName: teleport-agent-cluster-admin
   adminGroupName: teleport-agent-cluster-admin
 ```
+
+The helm chart will populate the configmap with the new configuration value to
+map the wildcard `kubernetes_groups` to the provided group name.
 
 #### Provision Script
 
@@ -175,7 +219,7 @@ initial custom setups that skipped the provided provisioning scripts.
 To help onboarding, as currently no preset role grants Kubernetes access,
 a new preset role will be added, `kube-editor`, which will have wildcard access
 to Kubernetes resources as well as the predefined `kubernetes_groups` mapping
-to the cluster admin group.
+to the cluster admin group from the configuration using a wildcard.
 
 ```yaml
 kind: role
@@ -185,7 +229,7 @@ metadata:
 spec:
   allow:
     kubernetes_groups:
-      - teleport-cluster-admin
+      - '*'
     kubernetes_labels:
       '*': '*'
     kubernetes_resources:
