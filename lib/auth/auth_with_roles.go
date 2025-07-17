@@ -2332,7 +2332,7 @@ func (a *ServerWithRoles) ListProvisionTokens(ctx context.Context, pageSize int,
 		return nil, "", trace.Wrap(err)
 	}
 
-	return a.authServer.ListProvisionTokens(ctx, pageSize, pageToken, anyRoles, botName)
+	return a.authServer.Cache.ListProvisionTokens(ctx, pageSize, pageToken, anyRoles, botName)
 }
 
 func (a *ServerWithRoles) GetToken(ctx context.Context, token string) (types.ProvisionToken, error) {
