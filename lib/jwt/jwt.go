@@ -795,12 +795,21 @@ func (k *Key) VerifyPluginToken(token string, claims PluginTokenParam) (*Claims,
 
 // SignOAuthRequest signs a JWT token for an OIDC OAuth request.
 func (k *Key) SignOAuthRequest(claims any) (string, error) {
+	var kid string
+	var err error
+	if kid, err = KeyID(k.config.PublicKey); err != nil {
+		return "", err
+	}
+
+	var alg jose.SignatureAlgorithm
+	if alg, err = AlgorithmForPublicKey(k.config.PublicKey); err != nil {
+		return "", err
+	}
+
 	return k.sign(claims, &jose.SignerOptions{
 		ExtraHeaders: map[jose.HeaderKey]interface{}{
-			// TODO: Switch on public key.
-			// TODO: Check OIDC discovery URL ("authorization_signing_alg_values_supported") to see
-			// if the algorithm is supported?
-			"alg": jose.RS256,
+			"alg": alg,
+			"kid": kid,
 		},
 	})
 }
