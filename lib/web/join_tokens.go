@@ -130,7 +130,7 @@ func (h *Handler) listProvisionTokens(w http.ResponseWriter, r *http.Request, pa
 	if r.URL.Query().Has("page_size") {
 		pageSize, err = strconv.ParseInt(r.URL.Query().Get("page_size"), 10, 32)
 		if err != nil {
-			return nil, trace.BadParameter("invalid page size")
+			return nil, trace.Wrap(err, "failed to parse page_size")
 		}
 	}
 
