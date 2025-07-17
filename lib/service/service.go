@@ -3363,7 +3363,7 @@ func (process *TeleportProcess) initSSH() error {
 			}
 		}
 
-		if conn.UseTunnel() {
+		if conn.UseTunnel() && os.Getenv("TELEPORT_UNSTABLE_DISABLE_REVERSE_TUNNEL") != "yes" {
 			var serverHandler reversetunnel.ServerHandler = s
 			if resumableServer != nil {
 				serverHandler = resumableServer
