@@ -5,7 +5,7 @@ description: How to deploy and use a Teleport Relay service
 
 <Admonition type="warning">
 
-This page refers to an unreleased Teleport feature and is thus subject to change. The following documentation applies to version `v18.0.0-dev.joerger.2-relay.2`.
+This page refers to an unreleased Teleport feature and is thus subject to change. The following documentation applies to version `v18.0.2-dev.jsonpath.1-relay.2`.
 
 </Admonition>
 
@@ -83,7 +83,7 @@ All Teleport SSH clients can make use of a relay by setting the `TELEPORT_UNSTAB
 
 ## Deploying a Relay with the `teleport-relay` chart
 
-The `teleport-relay` chart (available in the `https://charts.releases.development.teleport.dev` Helm repository, or usable directly through the `https://charts.releases.development.teleport.dev/teleport-relay-18.0.0-dev.joerger.2-relay.2.tgz` URL) sets up a deployment with two replicas and a load balancer, using ports 3040 and 3042. Use of the chart requires setting some values:
+The `teleport-relay` chart (available in the `https://charts.releases.development.teleport.dev` Helm repository, or usable directly through the `https://charts.releases.development.teleport.dev/teleport-relay-18.0.2-dev.jsonpath.1-relay.2.tgz` URL) sets up a deployment with two replicas and a load balancer, using ports 3040 and 3042. Use of the chart requires setting some values:
 
 ```yaml
 proxyAddr: teleport.example.com:443
@@ -111,7 +111,7 @@ image:
 #terminationGracePeriodSeconds: 30
 ```
 
-Other options are described in [the chart's default `values.yaml`](https://github.com/gravitational/teleport/blob/v18.0.0-dev.joerger.2-relay.2/examples/chart/teleport-relay/values.yaml); options such as `serviceSpec` and `serviceAnnotations` can be quite useful to configure the properties of the load balancer, for example.
+Other options are described in [the chart's default `values.yaml`](https://github.com/gravitational/teleport/blob/v18.0.2-dev.jsonpath.1-relay.2/examples/chart/teleport-relay/values.yaml); options such as `serviceSpec` and `serviceAnnotations` can be quite useful to configure the properties of the load balancer, for example.
 
 <Admonition type="warning">
 
