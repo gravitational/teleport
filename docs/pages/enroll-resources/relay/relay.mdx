@@ -112,3 +112,9 @@ image:
 ```
 
 Other options are described in [the chart's default `values.yaml`](https://github.com/gravitational/teleport/blob/v18.0.0-dev.joerger.2-relay.2/examples/chart/teleport-relay/values.yaml); options such as `serviceSpec` and `serviceAnnotations` can be quite useful to configure the properties of the load balancer, for example.
+
+<Admonition type="warning">
+
+The Relay service does not support in-place restarts or reusing the same host ID and the `teleport-relay` chart runs as a deployment and does not maintain any state (unlike the `teleport-kube-agent` chart), so the use of a secretless join method (`iam` through EKS Pod Identity, for example) is strongly recommended.
+
+</Admonition>
