@@ -20,14 +20,28 @@ package accesslists
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types/accesslist"
 )
 
-// ValidateAccessListWithMembers validates a new or existing AccessList with a list of AccessListMembers.
+// ValidateAccessListWithMembers makes ure the given AccessList is valid before storing in the
+// backing. It takes into account validation of the nested access lists membership.
 func ValidateAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, members []*accesslist.AccessListMember, g AccessListAndMembersGetter) error {
+	if err := validateAccessList(accessList); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := validateAccessListNesting(ctx, accessList, members, g); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// validateAccessListNesting validates if nested AccessList owners and members meet max depth (of
+// 10) requirement and don't create cycles.
+func validateAccessListNesting(ctx context.Context, accessList *accesslist.AccessList, members []*accesslist.AccessListMember, g AccessListAndMembersGetter) error {
 	for _, owner := range accessList.Spec.Owners {
 		if owner.MembershipKind != accesslist.MembershipKindList {
 			continue
@@ -52,6 +66,47 @@ func ValidateAccessListWithMembers(ctx context.Context, accessList *accesslist.A
 			return trace.Wrap(err)
 		}
 	}
+	return nil
+}
+
+// validateAccessList makes sure the given AccessList is valid before storing in the backend.
+func validateAccessList(a *accesslist.AccessList) error {
+	if _, err := accesslist.NewTypeFromString(string(a.Spec.Type)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	switch a.Spec.Type {
+	case accesslist.Static, accesslist.SCIM:
+		// SCIM and Static access lists can have empty owners, as they are managed by external systems.
+	default:
+		if len(a.Spec.Owners) == 0 {
+			return trace.BadParameter("owners are missing")
+		}
+	}
+
+	if a.IsReviewable() {
+		switch a.Spec.Audit.Recurrence.Frequency {
+		case accesslist.OneMonth, accesslist.ThreeMonths, accesslist.SixMonths, accesslist.OneYear:
+		default:
+			return trace.BadParameter("recurrence frequency is an invalid value")
+		}
+
+		switch a.Spec.Audit.Recurrence.DayOfMonth {
+		case accesslist.FirstDayOfMonth, accesslist.FifteenthDayOfMonth, accesslist.LastDayOfMonth:
+		default:
+			return trace.BadParameter("recurrence day of month is an invalid value")
+		}
+
+		if a.Spec.Audit.Notifications.Start == 0 {
+			twoWeeks := 24 * time.Hour * 14
+			a.Spec.Audit.Notifications.Start = twoWeeks
+		}
+	} else {
+		if !isZero(a.Spec.Audit) {
+			return trace.BadParameter("audit not supported for non-dynamic access_list")
+		}
+	}
+
 	return nil
 }
 
