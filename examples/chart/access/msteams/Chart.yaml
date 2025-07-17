@@ -1,4 +1,4 @@
-.version: &version "18.0.2"
+.version: &version "18.0.2-dev.jsonpath.1"
 
 apiVersion: v2
 name: teleport-plugin-msteams
