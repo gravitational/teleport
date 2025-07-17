@@ -1721,6 +1721,9 @@ func (process *TeleportProcess) upgradeWindowsClient() (windowsClient adaptor.Up
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if connector == nil {
+		return nil, trace.Errorf("instance shutting down, instance connector never became available")
+	}
 	return connector.Client, nil
 }
 
@@ -3425,7 +3428,9 @@ func (process *TeleportProcess) RegisterWithAuthServer(role types.SystemRole, ev
 }
 
 // waitForInstanceConnector waits for the instance connector to be ready,
-// logging a warning if this is taking longer than expected.
+// logging a warning if this is taking longer than expected. Returns (nil, nil) when the
+// ExitContext is done, so error checking should happen on the connector rather
+// than the error:
 func waitForInstanceConnector(process *TeleportProcess, log *slog.Logger) (*Connector, error) {
 	type r struct {
 		c   *Connector
