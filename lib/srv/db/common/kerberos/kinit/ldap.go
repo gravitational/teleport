@@ -174,7 +174,6 @@ func (s *ldapConnector) tlsConfigForLDAP(ctx context.Context) (*tls.Config, erro
 		AuthClient:         s.authClient,
 		Domain:             s.ldapConfig.Domain,
 		ActiveDirectorySID: s.ldapConfig.ServiceAccountSID,
-		OmitCDP:            true,
 	}
 
 	certPEM, keyPEM, caCerts, err := windows.DatabaseCredentials(ctx, req)
