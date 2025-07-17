@@ -166,6 +166,9 @@ func CleanUp(toolsDir string, tools []string) error {
 			aggErr = append(aggErr, err)
 		}
 	}
+	if err := os.Remove(filepath.Join(toolsDir, lockFileName)); err != nil && !os.IsNotExist(err) {
+		aggErr = append(aggErr, err)
+	}
 	if err := os.Remove(filepath.Join(toolsDir, configFileName)); err != nil && !os.IsNotExist(err) {
 		aggErr = append(aggErr, err)
 	}
