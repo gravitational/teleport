@@ -95,6 +95,14 @@ Examples:
 - `kubernetes_groups` set to `['privileged-group']` in the role
 - The user will be impersonated as `privileged-group` when accessing the cluster.
 
+#### Downgrade / Backwards compatibility
+
+As we add a new `wildcard` which is not a valid value in Kubernetes for a
+group, but is a valid value in Teleport, we don't need to bump the role version
+and we don't need to apply specific downgrade logic. Older agents will try to
+impersonate the `*` role which will result in no access, which is what we
+would expect from an explicit downgrade logic.
+
 ### Authoritative RBAC Documentation
 
 To simplify initial setup and long-term management, we'll update the
