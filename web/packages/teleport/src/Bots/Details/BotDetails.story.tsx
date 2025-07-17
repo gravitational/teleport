@@ -70,9 +70,6 @@ const successHandler = getBotSuccess({
 });
 
 export const Happy: Story = {
-  globals: {
-    viewport: { value: 'mobile1', isRotated: false },
-  },
   parameters: {
     msw: {
       handlers: [
