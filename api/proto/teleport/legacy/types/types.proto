@@ -1726,9 +1726,17 @@ message ProvisionTokenSpecV2Spacelift {
   message Rule {
     // SpaceID is the ID of the space in which the run that owns the token was
     // executed.
+    //
+    // This field supports "glob-style" matching when enable_glob_matching is true:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string SpaceID = 1 [(gogoproto.jsontag) = "space_id,omitempty"];
     // CallerID is the ID of the caller, ie. the stack or module that generated
     // the run.
+    //
+    // This field supports "glob-style" matching when enable_glob_matching is true:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string CallerID = 2 [(gogoproto.jsontag) = "caller_id,omitempty"];
     // CallerType is the type of the caller, ie. the entity that owns the run -
     // either `stack` or `module`.
@@ -1743,6 +1751,9 @@ message ProvisionTokenSpecV2Spacelift {
   // Hostname is the hostname of the Spacelift tenant that tokens
   // will originate from. E.g `example.app.spacelift.io`
   string Hostname = 2 [(gogoproto.jsontag) = "hostname,omitempty"];
+  // EnableGlobMatching enables glob-style matching for the space_id and
+  // caller_id fields in the rules.
+  bool EnableGlobMatching = 3 [(gogoproto.jsontag) = "enable_glob_matching,omitempty"];
 }
 
 // ProvisionTokenSpecV2Kubernetes contains the Kubernetes-specific part of the
@@ -8168,6 +8179,12 @@ message IntegrationV1 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+
+  // Status is an Integration specification.
+  IntegrationStatusV1 Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "status"
+  ];
 }
 
 // IntegrationSpecV1 contains properties of all the supported integrations.
@@ -8185,6 +8202,12 @@ message IntegrationSpecV1 {
 
   // Credentials contains credentials for the integration.
   PluginCredentialsV1 credentials = 4;
+}
+
+// IntegrationStatusV1 contains the status of the integration.
+message IntegrationStatusV1 {
+  // AWSRolesAnywhere contains the specific status fields to related to the AWS Roles Anywhere Integration subkind.
+  AWSRAIntegrationStatusV1 AWSRolesAnywhere = 1 [(gogoproto.jsontag) = "aws_ra,omitempty"];
 }
 
 // AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC SubKind Integration.
@@ -8256,6 +8279,55 @@ message AWSRolesAnywhereProfileSyncConfig {
   bool ProfileAcceptsRoleSessionName = 3 [(gogoproto.jsontag) = "profile_accepts_role_session_name"];
   // RoleARN is the ARN of the IAM Role to assume when accessing the AWS APIs.
   string RoleARN = 4 [(gogoproto.jsontag) = "role_arn"];
+  // ProfileNameFilters is a list of filters applied to the profile name.
+  // Only matching profiles will be synchronized as application servers.
+  // If empty, no filtering is applied.
+  //
+  // Filters can be globs, for example:
+  //
+  //	profile*
+  //	*name*
+  //
+  // Or regexes if they're prefixed and suffixed with ^ and $, for example:
+  //
+  //	^profile.*$
+  //	^.*name.*$
+  repeated string ProfileNameFilters = 5 [(gogoproto.jsontag) = "profile_name_filters"];
+}
+
+// AWSRAIntegrationStatusV1 contains the status properties for the AWS IAM Roles Anywhere SubKind Integration.
+message AWSRAIntegrationStatusV1 {
+  // LastProfileSync is the summary of the last profile sync iteration.
+  AWSRolesAnywhereProfileSyncIterationSummary LastProfileSync = 1 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_profile_sync"
+  ];
+}
+
+// AWSRolesAnywhereProfileSyncIterationSummary contains the summary of a single profile sync iteration.
+message AWSRolesAnywhereProfileSyncIterationSummary {
+  // StartTime is the time when the sync iteration started.
+  google.protobuf.Timestamp StartTime = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "start_time"
+  ];
+
+  // EndTime is the time when the sync iteration ended.
+  google.protobuf.Timestamp EndTime = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "end_time"
+  ];
+
+  // Status is the result of the sync iteration: SUCCESS or ERROR.
+  string Status = 3 [(gogoproto.jsontag) = "status"];
+
+  // ErrorMessage holds the error message when status is ERROR.
+  string ErrorMessage = 4 [(gogoproto.jsontag) = "error_message"];
+
+  // SyncedProfiles is the number of profiles synchronized as application servers.
+  int32 SyncedProfiles = 5 [(gogoproto.jsontag) = "synced_profiles"];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.

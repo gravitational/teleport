@@ -206,6 +206,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindGitServer},
 		{Kind: types.KindWorkloadIdentity},
 		{Kind: types.KindHealthCheckConfig},
+		{Kind: types.KindBotInstance},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -625,7 +626,7 @@ type Config struct {
 	// Restrictions is a restrictions service
 	Restrictions services.Restrictions
 	// Apps is an apps service.
-	Apps services.Apps
+	Apps services.Applications
 	// Kubernetes is an kubernetes service.
 	Kubernetes services.Kubernetes
 	// CrownJewels is a CrownJewels service.
@@ -737,6 +738,8 @@ type Config struct {
 	GitServers services.GitServerGetter
 	// HealthCheckConfig is a health check config service.
 	HealthCheckConfig services.HealthCheckConfigReader
+	// BotInstanceService is the upstream service that we're caching
+	BotInstanceService services.BotInstance
 }
 
 // CheckAndSetDefaults checks parameters and sets default values

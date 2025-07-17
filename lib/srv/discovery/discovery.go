@@ -1117,7 +1117,7 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) error {
 	ssmClient, err := s.GetSSMClient(s.ctx,
 		instances.Region,
-		awsconfig.WithCredentialsMaybeIntegration(instances.Integration),
+		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: instances.Integration}),
 		awsconfig.WithAssumeRole(instances.AssumeRoleARN, instances.ExternalID),
 	)
 	if err != nil {

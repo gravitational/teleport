@@ -61,6 +61,7 @@ type LoadtestCommand struct {
 	labels      int
 	interval    time.Duration
 	ttl         time.Duration
+	duration    time.Duration
 	concurrency int
 
 	kind   string
@@ -82,6 +83,7 @@ func (c *LoadtestCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Global
 	c.nodeHeartbeats.Flag("labels", "Number of labels to generate per node.").Default("1").IntVar(&c.labels)
 	c.nodeHeartbeats.Flag("interval", "Node heartbeat interval").Default("1m").DurationVar(&c.interval)
 	c.nodeHeartbeats.Flag("ttl", "TTL of heartbeated nodes").Default("10m").DurationVar(&c.ttl)
+	c.nodeHeartbeats.Flag("duration", "Maximum time to run before shutting down. A default value of '0' will run indefinitely").Default("0").DurationVar(&c.duration)
 	c.nodeHeartbeats.Flag("concurrency", "Max concurrent requests").Default(
 		strconv.Itoa(runtime.NumCPU() * 16),
 	).IntVar(&c.concurrency)
@@ -126,17 +128,29 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client *authclient
 		fmt.Fprintf(os.Stderr, "[!] "+format+"\n", args...)
 	}
 
-	infof("Setting up node hb load generation. count=%d, churn=%d, labels=%d, interval=%s, ttl=%s, concurrency=%d",
+	durationReadable := c.duration.String()
+	if c.duration == 0 {
+		durationReadable = "forever"
+	}
+
+	infof("Setting up node hb load generation. count=%d, churn=%d, labels=%d, interval=%s, ttl=%s, duration=%s, concurrency=%d",
 		c.count,
 		c.churn,
 		c.labels,
 		c.interval,
 		c.ttl,
+		durationReadable,
 		c.concurrency,
 	)
 
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
 	defer cancel()
+
+	if c.duration > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, c.duration)
+		defer cancel()
+		ctx = timeoutCtx
+	}
 
 	node_ids := make([]string, 0, c.count)
 

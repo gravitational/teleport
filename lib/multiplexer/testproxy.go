@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // TestProxy is tcp passthrough proxy that sends a proxy-line when connecting
@@ -52,7 +53,7 @@ func NewTestProxy(target string, v2 bool) (*TestProxy, error) {
 		listener: listener,
 		target:   target,
 		closeCh:  make(chan struct{}),
-		log:      utils.NewSlogLoggerForTests().With(teleport.ComponentKey, "test:proxy"),
+		log:      logtest.With(teleport.ComponentKey, "test:proxy"),
 		v2:       v2,
 	}, nil
 }
