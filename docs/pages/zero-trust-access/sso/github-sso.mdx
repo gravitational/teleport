@@ -31,7 +31,7 @@ reading data from the OAuth 2.0 access token. In particular, the Auth Service:
 GitHub usernames are not formatted as email addresses. As a result, any Teleport
 plugin that expects to send email to a user based on their Teleport username
 will not work as expected. For example, the [PagerDuty Access Request
-plugin](../../../identity-governance/access-request-plugins/ssh-approval-pagerduty.mdx) has this
+plugin](../../identity-governance/access-request-plugins/ssh-approval-pagerduty.mdx) has this
 limitation.
 
 </Admonition>
@@ -73,7 +73,7 @@ documentation](https://docs.github.com/en/developers/apps/building-oauth-apps/cr
 
 Create a client secret to use along with the client ID in the next step:
 
-![A GitHub Oauth App, highlighting Client ID and secret](../../../../img/sso/github-app-vars.png)
+![A GitHub Oauth App, highlighting Client ID and secret](../../../img/sso/github-app-vars.png)
 
 ## Step 2/4. Create a GitHub authentication connector
 
@@ -89,7 +89,7 @@ Update this example command with:
   Roles are defined in the **Repository roles** section of your organization's
   settings.
 
-See [tctl sso configure github](../../../reference/cli/tctl.mdx)
+See [tctl sso configure github](../../reference/cli/tctl.mdx)
 for a full reference of flags for this command:
 
 ```code
@@ -331,7 +331,7 @@ You can also log to the web UI using GitHub by clicking **Other sign-in options*
 When you sign in for the first time, you will see a prompt to authorize your
 GitHub OAuth app:
 
-![GitHub SSO authorization view](../../../../img/github-sso-auth-screen.jpg)
+![GitHub SSO authorization view](../../../img/github-sso-auth-screen.jpg)
 
 Teleport will request only the `read:org` OAuth scope. Read more about OAuth scopes in GitHub's documentation:
 [GitHub OAuth scopes](https://developer.github.com/apps/building-oauth-apps/understanding-scopes-for-oauth-apps/)
@@ -485,5 +485,5 @@ The role we illustrated in this guide uses the `internal.logins` trait,
 which Teleport replaces with values from the Teleport local user
 database. For full details on how traits work in Teleport roles,
 see the [Access Controls
-Reference](../../../reference/access-controls/roles.mdx).
+Reference](../../reference/access-controls/roles.mdx).
 

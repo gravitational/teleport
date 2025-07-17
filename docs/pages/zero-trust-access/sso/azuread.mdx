@@ -36,21 +36,21 @@ Before you get started, you’ll need:
 
 1. Select **Azure AD -> Enterprise Applications**
 
-   ![Select Enterprise Applications From Manage](../../../../img/azuread/azuread-1-home.png)
+   ![Select Enterprise Applications From Manage](../../../img/azuread/azuread-1-home.png)
 
 1. Select **New application**
 
-   ![Select New Applications From Manage](../../../../img/azuread/azuread-2-newapp.png)
+   ![Select New Applications From Manage](../../../img/azuread/azuread-2-newapp.png)
 
 1. Select **Create your own application**, enter the application name (for example,
    Teleport), and select **Integrate any other application you don't find in
    the gallery (Non-gallery)**.
 
-   ![Select Non-gallery application](../../../../img/azuread/azuread-3-createnongalleryapp.png)
+   ![Select Non-gallery application](../../../img/azuread/azuread-3-createnongalleryapp.png)
 
 1. Select **Properties** under **Manage** and set **Assignment required?** to **No**
 
-   ![Turn off user assignment](../../../../img/azuread/azuread-4-turnoffuserassign.png)
+   ![Turn off user assignment](../../../img/azuread/azuread-4-turnoffuserassign.png)
 
    Click **Save** before proceeding to the next step.
 
@@ -58,11 +58,11 @@ Before you get started, you’ll need:
 
 1. Select **Single sign-on** under **Manage** and choose **SAML**
 
-   ![Select SAML](../../../../img/azuread/azuread-5-selectsaml.png)
+   ![Select SAML](../../../img/azuread/azuread-5-selectsaml.png)
 
 1. Edit the **Basic SAML Configuration**
 
-   ![Edit Basic SAML Configuration](../../../../img/azuread/azuread-6-editbasicsaml.png)
+   ![Edit Basic SAML Configuration](../../../img/azuread/azuread-6-editbasicsaml.png)
 
 1. Enter the URL for your Teleport Proxy Service host in the **Entity ID** and **Reply URL**  fields:
 
@@ -70,14 +70,14 @@ Before you get started, you’ll need:
    https://<Var name="mytenant.teleport.sh:443" />/v1/webapi/saml/acs/ad
    ```
 
-   ![Put in Entity ID and Reply URL](../../../../img/azuread/azuread-7-entityandreplyurl.png)
+   ![Put in Entity ID and Reply URL](../../../img/azuread/azuread-7-entityandreplyurl.png)
 
    Click **Save** before proceeding to the next step.
 
 1. In **SAML Certificates** section, copy the **App Federation
    Metadata URL** link and save it for use in our Teleport connector configuration:
 
-   ![Download Federation Metadata XML](../../../../img/azuread/azuread-9-fedmeatadataxml.png)
+   ![Download Federation Metadata XML](../../../img/azuread/azuread-9-fedmeatadataxml.png)
 
 ### Edit attributes & claims
 
@@ -86,11 +86,11 @@ Before you get started, you’ll need:
 1. Change the "name identifier format" to **Default**. Make sure the source
   attribute is `user.userprincipalname`.
 
-   ![Confirm Name Identifier](../../../../img/azuread/azuread-8a-nameidentifier.png)
+   ![Confirm Name Identifier](../../../img/azuread/azuread-8a-nameidentifier.png)
 
 1. Add a group claim to make user security groups available to the connector:
 
-   ![Put in Security group claim](../../../../img/azuread/azuread-8b-groupclaim.png)
+   ![Put in Security group claim](../../../img/azuread/azuread-8b-groupclaim.png)
 
 1. (optional) Add a claim that transforms the format of the Azure AD username to lower case, in order to use it inside
    Teleport roles as the `{{external.username}}` property.
@@ -105,7 +105,7 @@ Before you get started, you’ll need:
 
    - Click "Add Transformation" and set the Transformation to `ToLowercase()`.
 
-     ![Add a transformed username](../../../../img/azuread/azuread-8c-usernameclaim.png)
+     ![Add a transformed username](../../../img/azuread/azuread-8c-usernameclaim.png)
 
 ## Step 2/3. Create a SAML connector
 
@@ -371,15 +371,15 @@ Update the connector by saving and closing the file in your editor.
 
 - Navigate to **Token Encryption**:
 
-![Navigate to token encryption](../../../../img/azuread/azuread-token-encryption-0.png)
+![Navigate to token encryption](../../../img/azuread/azuread-token-encryption-0.png)
 
 - Import certificate
 
-![Import certificate](../../../../img/azuread/azuread-token-encryption-1-import.png)
+![Import certificate](../../../img/azuread/azuread-token-encryption-1-import.png)
 
 - Activate it
 
-![Activate certificate](../../../../img/azuread/azuread-token-encryption-2-activate.png)
+![Activate certificate](../../../img/azuread/azuread-token-encryption-2-activate.png)
 
 If the SSO login with this connector is successful, the encryption works.
 
@@ -400,14 +400,14 @@ The error above is caused by a Name ID format that is not compatible with Telepo
 
 Change the Name ID format to use email instead:
 
-![Change NameID format to use email](../../../../img/azuread/azuread-nameid.png)
+![Change NameID format to use email](../../../img/azuread/azuread-nameid.png)
 
 ## Further reading
 
-- [Teleport Configuration Resources Reference](../../../reference/resources.mdx)
+- [Teleport Configuration Resources Reference](../../reference/resources.mdx)
 - In the Teleport role we illustrated in this guide, `external` traits
   are replaced with values from the single sign-on provider that the
   user used to authenticate to Teleport. For full details on how traits
   work in Teleport roles, see the [Access Controls
-  Reference](../../../reference/access-controls/roles.mdx).
+  Reference](../../reference/access-controls/roles.mdx).
 

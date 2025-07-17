@@ -28,7 +28,7 @@ screen. Select the **Management** option.
 On the left sidebar, click **Enroll New Integration** to visit the "Enroll New
 Integration" page:
 
-![Enroll an Access Request plugin](../../../../img/enterprise/plugins/enroll.png)
+![Enroll an Access Request plugin](../../../img/enterprise/plugins/enroll.png)
 
 On the "Select Integration Type" menu, click the Okta tile. Teleport will then
 guide you through configuring the Okta integration.
@@ -70,11 +70,11 @@ Teleport, you can skip to the [next step](#step-24-configure-okta).
 Create two groups: "okta-dev" and "okta-admin". In the Okta dashboard go to the
 navigation bar and click **Directory** -> **Groups**, then **Add group**:
 
-![Create Group Devs](../../../../img/sso/okta/okta-saml-2.1@2x.png)
+![Create Group Devs](../../../img/sso/okta/okta-saml-2.1@2x.png)
 
 Repeat for the admin group:
 
-![Create Group Devs](../../../../img/sso/okta/okta-saml-2.2.png)
+![Create Group Devs](../../../img/sso/okta/okta-saml-2.2.png)
 
 ## Step 2/4. Configure Okta
 
@@ -87,7 +87,7 @@ First, create a SAML 2.0 Web App in Okta:
 From the main navigation menu, select **Applications** -> **Applications**, and click
 **Create App Integration**. Select SAML 2.0, then click **Next**.
 
-![Create APP](../../../../img/sso/okta/okta-saml-1.png)
+![Create APP](../../../img/sso/okta/okta-saml-1.png)
 
 On the next screen (**General Settings**), provide a name and optional logo for
 your new app, then click **Next**. This will bring you to the **Configure SAML** section.
@@ -122,7 +122,7 @@ membership and assign matching roles.
 
 The configuration page should now look like this:
 
-![Configure APP](../../../../img/sso/okta/setup-redirection.png)
+![Configure APP](../../../img/sso/okta/setup-redirection.png)
 
 <Admonition type="warning" >
 The "Matches regex" filter requires the literal string `.*` in order to match all
@@ -142,7 +142,7 @@ Once you've filled the required fields, click **Next**, then finish the app crea
 From the **Assignments** tab of the new application page, click **Assign**.
 Assign the newly created groups access to the app.
 
-![Configure APP](../../../../img/sso/okta/okta-saml-3.1.png)
+![Configure APP](../../../img/sso/okta/okta-saml-3.1.png)
 
 ### Save IdP metadata path
 
@@ -155,7 +155,7 @@ path instead of a local copy, which can go stale.
 From the app's **Sign On** tab, scroll down to **SAML Signing Certificates**.
 Click **Actions** for the SHA-2 entry, then "View IdP metadata":
 
-![View Okta IdP Metadata](../../../../img/sso/okta/okta-copy-metadata.png)
+![View Okta IdP Metadata](../../../img/sso/okta/okta-copy-metadata.png)
 
 Copy the URL to the metadata file for use in our Teleport configuration.
 
@@ -169,7 +169,7 @@ You can also right click on the "View IdP metadata" link and select
 Define an Okta SAML connector using `tctl`. Update this example command with
 the path to your metadata file, and edit the `--attributes-to-roles` values for
 custom group assignment to roles. See [tctl sso configure
-saml](../../../reference/cli/tctl.mdx) for a full reference of
+saml](../../reference/cli/tctl.mdx) for a full reference of
 flags for this command:
 
 ```code

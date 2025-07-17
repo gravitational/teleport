@@ -32,11 +32,11 @@ to define policies like:
    **Add App**. Using the search box, select "SAML Custom Connector (SP
    Shibboleth)":
 
-   ![SAML Custom Connector (SP Shibboleth)](../../../../img/sso/onelogin/onelogin-saml-1.png)
+   ![SAML Custom Connector (SP Shibboleth)](../../../img/sso/onelogin/onelogin-saml-1.png)
 
 1. Define the new application:
 
-   ![SAML Config](../../../../img/sso/onelogin/onelogin-saml-1a.png)
+   ![SAML Config](../../../img/sso/onelogin/onelogin-saml-1a.png)
 
    You can find Teleport icons to upload from the following links:
 
@@ -56,15 +56,15 @@ to define policies like:
    - **ACS (Consumer) URL**, **SAML Recipient**, **ACS (Consumer) URL Validator**, & **Audience**:
      - `https://`<Var name="teleport.example.com:443"/>`/v1/webapi/saml/acs/onelogin`
 
-   ![Configure SAML](../../../../img/sso/onelogin/onelogin-saml-2.png)
+   ![Configure SAML](../../../img/sso/onelogin/onelogin-saml-2.png)
 
 1. Teleport needs to assign groups to users. From the **Parameters** page,
    configure the application with some parameters exposed as SAML attribute
    statements:
 
-   ![New Field](../../../../img/sso/onelogin/onelogin-saml-3.png)
+   ![New Field](../../../img/sso/onelogin/onelogin-saml-3.png)
    
-   ![New Field Group](../../../../img/sso/onelogin/onelogin-saml-4.png)
+   ![New Field Group](../../../img/sso/onelogin/onelogin-saml-4.png)
    
    <Admonition
      type="warning"
@@ -75,13 +75,13 @@ to define policies like:
 
 1. Add users to the application:
 
-   ![Add User](../../../../img/sso/onelogin/onelogin-saml-5.png)
+   ![Add User](../../../img/sso/onelogin/onelogin-saml-5.png)
 
 1. Obtain SAML metadata for your authentication connector. Once the application
    is set up, navigate to the the **More Actions** menu and find the **SAML
    Metadata** option:
 
-   ![Download XML](../../../../img/sso/onelogin/saml-download.png)
+   ![Download XML](../../../img/sso/onelogin/saml-download.png)
 
    You can either left-click the option and download the XML document as a local
    file or right-click the option and copy the link address. The Teleport Auth
@@ -170,5 +170,5 @@ In the Teleport role we illustrated in this guide, `external` traits
 are replaced with values from the single sign-on provider that the user
 used to authenticate to Teleport. For full details on how traits
 work in Teleport roles, see the [Access Controls
-Reference](../../../reference/access-controls/roles.mdx).
+Reference](../../reference/access-controls/roles.mdx).
 
