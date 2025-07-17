@@ -44,7 +44,7 @@ type AlloyDBAdminClient interface {
 func NewAlloyDBAdminClient(ctx context.Context) (AlloyDBAdminClient, error) {
 	client, err := alloydbadmin.NewAlloyDBAdminClient(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create AlloyDB Admin API client: %v", err)
+		return nil, trace.Wrap(err)
 	}
 	return &gcpAlloyDBAdminClient{client: client, clock: clockwork.NewRealClock()}, nil
 }
