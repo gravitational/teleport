@@ -42,21 +42,21 @@ export function RoleEditorDialog({
   resources,
   onSave,
   roleDiffProps,
-  initProcessing = false,
+  forceProcessingStatus = false,
 }: {
   open: boolean;
   onClose(): void;
   resources: ResourcesState;
   onSave(role: Partial<RoleWithYaml>): Promise<void>;
   /**
-   * Allows initial render of this dialog to remain in the processing
-   * state while whatever processing outside of this dialog finishes.
+   * Forces this dialog to remain in the processing state while
+   * whatever required processing outside of this dialog finishes.
    *
    * eg: Clicking on a role label triggers rendering this dialog
    * and fetching the role resource at the same time. The fetching
    * can still be in progress.
    */
-  initProcessing?: boolean;
+  forceProcessingStatus?: boolean;
 } & RolesProps) {
   const transitionRef = useRef<HTMLDivElement>(null);
   return (
@@ -73,7 +73,7 @@ export function RoleEditorDialog({
         resources={resources}
         onSave={onSave}
         roleDiffProps={roleDiffProps}
-        initProcessing={initProcessing}
+        forceProcessingStatus={forceProcessingStatus}
       />
     </CSSTransition>
   );
@@ -85,11 +85,17 @@ const DialogInternal = forwardRef<
     onClose(): void;
     resources: ResourcesState;
     onSave(role: Partial<RoleWithYaml>): Promise<void>;
-    initProcessing?: boolean;
+    forceProcessingStatus?: boolean;
   } & RolesProps
 >(
   (
-    { onClose, resources, onSave, roleDiffProps, initProcessing = false },
+    {
+      onClose,
+      resources,
+      onSave,
+      roleDiffProps,
+      forceProcessingStatus = false,
+    },
     ref
   ) => {
     return (
@@ -106,7 +112,7 @@ const DialogInternal = forwardRef<
           onSave={onSave}
           onCancel={onClose}
           roleDiffProps={roleDiffProps}
-          initProcessing={initProcessing}
+          forceProcessingStatus={forceProcessingStatus}
         />
       </Dialog>
     );
