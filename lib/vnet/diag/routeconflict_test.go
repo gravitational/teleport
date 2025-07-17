@@ -143,7 +143,7 @@ func TestRouteConflictDiag(t *testing.T) {
 	}
 }
 
-func TestRouteConflictDiag_RetriesOnUnstableIfaceError(t *testing.T) {
+func TestRouteConflictDiag_RetriesOnUnstableIfaceErrorWhenFetchingInterface(t *testing.T) {
 	interfaces := &FakeInterfaces{
 		ifaces: map[int]iface{
 			vnetIfaceIndex: {name: vnetIface},
@@ -161,6 +161,48 @@ func TestRouteConflictDiag_RetriesOnUnstableIfaceError(t *testing.T) {
 	require.NoError(t, err)
 	_, err = routeConflictDiag.Run(context.Background())
 	require.NoError(t, err)
+
+	require.Equal(t, 2, routing.getRouteDestinationsCallCount, "Unexpected number of calls to Routing.GetRouteDestinations")
+}
+
+func TestRouteConflictDiag_RetriesOnUnstableIfaceErrorWhenDoubleCheckingVnetDests(t *testing.T) {
+	const updatedVnetIfaceIndex = vnetIfaceIndex + 12
+	interfaces := &FakeInterfaces{
+		ifaces: map[int]iface{
+			vnetIfaceIndex: {name: vnetIface},
+			quuxIfaceIndex: {name: quuxIface, app: "foobar"},
+		},
+		ifacesAfterFirstFetchByName: &map[int]iface{
+			// Simulate the VNet iface index changing between fetches of route destinations.
+			updatedVnetIfaceIndex: {name: vnetIface},
+			quuxIfaceIndex:        {name: quuxIface, app: "foobar"},
+		},
+	}
+	routing := &FakeRouting{
+		dests: []RouteDest{
+			&RouteDestIP{ifaceIndex: quuxIfaceIndex, Addr: netip.AddrFrom4([4]byte{100, 65, 12, 34})},
+			// This route will get picked up as a VNet dest because of a matching index, but 1.2.3.4 does
+			// not belong to any range in IPv4CIDRRanges below. This should trigger another fetch of route
+			// destinations.
+			&RouteDestIP{ifaceIndex: vnetIfaceIndex, Addr: netip.AddrFrom4([4]byte{1, 2, 3, 4})},
+			// 100.65.12.34 does belong to the range from IPv4CIDRRanges below, but the indexes will not
+			// match on the first pass, so this will get picked up as a VNet dest only on the second call.
+			&RouteDestIP{ifaceIndex: updatedVnetIfaceIndex, Addr: netip.AddrFrom4([4]byte{100, 65, 12, 34})},
+		},
+	}
+
+	routeConflictDiag, err := NewRouteConflictDiag(&RouteConflictConfig{
+		VnetIfaceName: vnetIface, Interfaces: interfaces, Routing: routing, RefetchRoutesDuration: time.Millisecond,
+		IPv4CIDRRanges: []string{"100.64.0.0/10"},
+	})
+	require.NoError(t, err)
+	report, err := routeConflictDiag.Run(context.Background())
+	require.NoError(t, err)
+
+	require.Len(t, report.GetRouteConflictReport().RouteConflicts, 1)
+	routeConflict := report.GetRouteConflictReport().RouteConflicts[0]
+	require.Equal(t, "100.65.12.34", routeConflict.VnetDest)
+	require.Equal(t, "100.65.12.34", routeConflict.Dest)
 
 	require.Equal(t, 2, routing.getRouteDestinationsCallCount, "Unexpected number of calls to Routing.GetRouteDestinations")
 }

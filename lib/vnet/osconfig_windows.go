@@ -60,6 +60,10 @@ func (p *platformOSConfigState) getIfaceIndex() (string, error) {
 // platformConfigureOS configures the host OS according to cfg. It is safe to
 // call repeatedly, and it is meant to be called with an empty osConfig to
 // deconfigure anything necessary before exiting.
+//
+// NOTE: lib/vnet/diag.RouteConflictDiag assumes that any IPv4 route set up for the VNet interface
+// is either equal to one of the CIDR ranges or an address within any of those ranges. Adding any
+// routes that do not confirm to those requirements requires adjusting RouteConflictDiag.
 func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSConfigState) error {
 	// There is no need to remove IP addresses or routes, they will automatically be cleaned up when the
 	// process exits and the TUN is deleted.
