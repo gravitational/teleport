@@ -28,7 +28,7 @@ app_service:
   # Name of the application. Used for identification purposes.
   - name: "mcp-everything"
     # Free-form application description.
-    description: "Example everything MCP server"
+    description: "Example Everything MCP server"
     # Static labels to assign to the app. Used in RBAC.
     labels:
       env: "prod"
@@ -95,9 +95,9 @@ Used by AI tools such as Claude Desktop to connect to an MCP server via
 Teleport.
 
 <Admonition type="tip">
-In most cases, you do not to craft or run `tsh mcp connect`. Instead, use
-`tsh mcp config` to print sample configurations or update your AI tools
-directly.
+`tsh mcp config` can print sample configuration or update your AI tools
+directly. This eliminates the need to manually construct the tsh mcp connect
+command.
 </Admonition>
 
 ```code
