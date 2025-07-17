@@ -41,7 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
@@ -78,7 +78,7 @@ func TestTerminalReadFromClosedConn(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: conn, Logger: utils.NewSlogLoggerForTests()})
+	stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: conn, Logger: logtest.NewLogger()})
 
 	// close the stream before we attempt to read from it,
 	// this will produce a net.ErrClosed error on the read

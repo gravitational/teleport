@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -46,7 +47,7 @@ import (
 // enabling/disabling auto update, setting the target version and retrieve it.
 func TestClientToolsAutoUpdateCommands(t *testing.T) {
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 	process := testenv.MakeTestServer(t, testenv.WithLogger(log))
 	authClient := testenv.MakeDefaultAuthClient(t, process)
 

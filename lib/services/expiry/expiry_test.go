@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestExpiry(t *testing.T) {
@@ -51,7 +51,7 @@ func TestExpiry(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { authServer.Close() })
 
-	logger := utils.NewSlogLoggerForTests()
+	logger := logtest.NewLogger()
 	mockEmitter := &eventstest.MockRecorderEmitter{}
 	cfg := &Config{
 		Log:         logger,

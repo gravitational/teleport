@@ -90,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -103,6 +104,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -122,7 +124,7 @@ func (s *integrationTestSuite) bind(test integrationTest) func(t *testing.T) {
 		// Attempt to set a logger for the test. Be warned that parts of the
 		// Teleport codebase do not honor the logger passed in via config and
 		// will create their own. Do not expect to catch _all_ output with this.
-		s.Log = utils.NewSlogLoggerForTests()
+		s.Log = logtest.NewLogger()
 		os.RemoveAll(profile.FullProfilePath(""))
 		t.Cleanup(func() { s.Log = nil })
 		test(t, s)
@@ -206,7 +208,7 @@ func TestIntegrations(t *testing.T) {
 
 // testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
 func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
@@ -1906,7 +1908,7 @@ func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
 
 	tconf := servicecfg.MakeDefaultConfig()
 	tconf.SSH.Enabled = true
-	tconf.Logger = utils.NewSlogLoggerForTests()
+	tconf.Logger = logtest.NewLogger()
 	tconf.Proxy.DisableWebService = true
 	tconf.Proxy.DisableWebInterface = true
 	tconf.Auth.NetworkingConfig = netConfig
@@ -7295,7 +7297,7 @@ func TestWebProxyInsecure(t *testing.T) {
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	})
 
 	rcConf := servicecfg.MakeDefaultConfig()
@@ -7329,7 +7331,7 @@ func TestWebProxyInsecure(t *testing.T) {
 // roles in root and leaf clusters.
 func TestTraitsPropagation(t *testing.T) {
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
@@ -7768,7 +7770,7 @@ func isNilOrEOFErr(t *testing.T, err error) {
 }
 
 func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 	})
 
@@ -8511,7 +8513,7 @@ func TestProxySSHPortMultiplexing(t *testing.T) {
 				NodeName:    Host,
 				Priv:        privateKey,
 				Pub:         publicKey,
-				Logger:      utils.NewSlogLoggerForTests(),
+				Logger:      logtest.NewLogger(),
 			})
 
 			rcConf := servicecfg.MakeDefaultConfig()
@@ -8573,7 +8575,7 @@ func TestProxySSHPortMultiplexing(t *testing.T) {
 // can/cannot be established with an existing certificate
 // based on cluster configuration or roles.
 func TestConnectivityWithoutAuth(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	tests := []struct {
 		name         string
@@ -8636,7 +8638,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 
 			// Create auth config.
 			authCfg := servicecfg.MakeDefaultConfig()
-			authCfg.Logger = utils.NewSlogLoggerForTests()
+			authCfg.Logger = logtest.NewLogger()
 			authCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 			authCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 			authCfg.Auth.Preference.SetSecondFactor("off")
@@ -8654,7 +8656,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 				NodeName:    Host,
 				Priv:        privateKey,
 				Pub:         publicKey,
-				Logger:      utils.NewSlogLoggerForTests(),
+				Logger:      logtest.NewLogger(),
 			})
 
 			// Create a user and role.
@@ -8689,7 +8691,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 				NodeName:    Host,
 				Priv:        privateKey,
 				Pub:         publicKey,
-				Logger:      utils.NewSlogLoggerForTests(),
+				Logger:      logtest.NewLogger(),
 			})
 
 			// Create node config.
@@ -8698,7 +8700,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 			nodeCfg.SetToken("token")
 			nodeCfg.CachePolicy.Enabled = true
 			nodeCfg.DataDir = t.TempDir()
-			nodeCfg.Logger = utils.NewSlogLoggerForTests()
+			nodeCfg.Logger = logtest.NewLogger()
 			nodeCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 			nodeCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 			nodeCfg.Auth.Enabled = false
@@ -8778,7 +8780,7 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 
 	// Create auth config.
 	authCfg := servicecfg.MakeDefaultConfig()
-	authCfg.Logger = utils.NewSlogLoggerForTests()
+	authCfg.Logger = logtest.NewLogger()
 	authCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	authCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	authCfg.Auth.Preference.SetSecondFactor("off")
@@ -8796,7 +8798,7 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	})
 
 	// Create a user and role.
@@ -8828,7 +8830,7 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	})
 
 	// Create node config.
@@ -8837,7 +8839,7 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 	nodeCfg.SetToken("token")
 	nodeCfg.CachePolicy.Enabled = true
 	nodeCfg.DataDir = t.TempDir()
-	nodeCfg.Logger = utils.NewSlogLoggerForTests()
+	nodeCfg.Logger = logtest.NewLogger()
 	nodeCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	nodeCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	nodeCfg.DiagnosticAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerType("diag"), &node.Fds))
@@ -8934,7 +8936,7 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 }
 
 func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	const password = "supersecretpassword"
 	inputReader := prompt.NewFakeReader().

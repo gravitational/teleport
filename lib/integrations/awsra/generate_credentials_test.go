@@ -86,8 +86,10 @@ func TestGenerateCredentials(t *testing.T) {
 }
 
 type mockCache struct {
-	domainName string
-	ca         types.CertAuthority
+	domainName   string
+	ca           types.CertAuthority
+	appServers   []types.AppServer
+	integrations []types.Integration
 }
 
 func (m *mockCache) GetAuthPreference(context.Context) (types.AuthPreference, error) {
@@ -109,6 +111,29 @@ func (m *mockCache) GetCertAuthority(ctx context.Context, id types.CertAuthID, l
 	return m.ca, nil
 }
 
+func (m *mockCache) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
+	if m.appServers == nil {
+		m.appServers = []types.AppServer{}
+	}
+	m.appServers = append(m.appServers, server)
+	return nil, nil
+}
+
+func (m *mockCache) GetProxies() ([]types.Server, error) {
+	return []types.Server{&types.ServerV2{
+		Spec: types.ServerSpecV2{
+			PublicAddrs: []string{"proxy.example.com"},
+		},
+	}}, nil
+}
+
+func (m *mockCache) ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error) {
+	if m.integrations == nil {
+		m.integrations = []types.Integration{}
+	}
+	return m.integrations, "", nil
+}
+
 func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) types.CertAuthority {
 	t.Helper()
 
@@ -128,4 +153,19 @@ func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) ty
 	require.NoError(t, err)
 
 	return ca
+}
+
+func TestEncodeCredentialProcessFormat(t *testing.T) {
+	credentials := Credentials{
+		Version:         1,
+		AccessKeyID:     "mock-access-key-id",
+		SecretAccessKey: "mock-secret-access-key",
+		SessionToken:    "mock-session-token",
+		Expiration:      time.Date(2030, 6, 24, 0, 0, 0, 0, time.UTC),
+	}
+	encoded, err := credentials.EncodeCredentialProcessFormat()
+	require.NoError(t, err)
+
+	expected := `{"Version":1,"AccessKeyId":"mock-access-key-id","SecretAccessKey":"mock-secret-access-key","SessionToken":"mock-session-token","Expiration":"2030-06-24T00:00:00Z"}`
+	require.JSONEq(t, expected, encoded)
 }

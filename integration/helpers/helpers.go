@@ -63,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // CommandOptions controls how the SSH command is built.
@@ -379,7 +380,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = true
 	cfg.Proxy.Enabled = false
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Logger = logtest.NewLogger()
 
 	auth, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
@@ -417,7 +418,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 		cfg.Proxy.WebAddr,
 	}
 	cfg.Proxy.DisableWebInterface = true
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Logger = logtest.NewLogger()
 
 	proxy, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
@@ -454,7 +455,7 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	cfg.Databases.Enabled = true
 	cfg.Databases.Databases = dbs
 	cfg.Databases.ResourceMatchers = resMatchers
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Logger = logtest.NewLogger()
 
 	db, err := service.NewTeleport(cfg)
 	require.NoError(t, err)
@@ -487,7 +488,7 @@ func MakeAgentServer(t *testing.T, cfg *servicecfg.Config, proxyAddr utils.NetAd
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = false
 	cfg.Databases.Enabled = false
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Logger = logtest.NewLogger()
 
 	agent, err := service.NewTeleport(cfg)
 	require.NoError(t, err)
