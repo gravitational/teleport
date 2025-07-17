@@ -1,5 +1,11 @@
 # Changelog
 
+## 17.5.6 (07/17/25)
+
+* Fix backward compatibility issue introduced in the 17.5.5 / 18.0.1 release related to Access List type, causing the `unknown access_list type "dynamic"` validation error. [#56888](https://github.com/gravitational/teleport/pull/56888)
+* Added support for glob-style matching to Spacelift join rules. [#56878](https://github.com/gravitational/teleport/pull/56878)
+* Improve PKINIT compatibility by always including CDP information in the certificate. [#56876](https://github.com/gravitational/teleport/pull/56876)
+
 ## 17.5.5 (07/15/25)
 
 * Fixed backward compatibility for Access List 'membershipRequires is missing' for older terraform providers. [#56743](https://github.com/gravitational/teleport/pull/56743)
