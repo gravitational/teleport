@@ -480,8 +480,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 		cfg.SummarizerResources = summarizer
 	}
-	if cfg.SummarizerWrapper == nil {
-		cfg.SummarizerWrapper = summarizerv1.NewSummarizerWrapper()
+	if cfg.SummarizerProvider == nil {
+		cfg.SummarizerProvider = summarizerv1.NewSummarizerProvider()
 	}
 	if cfg.WorkloadIdentityX509Revocations == nil {
 		cfg.WorkloadIdentityX509Revocations, err = local.NewWorkloadIdentityX509RevocationService(cfg.Backend)
@@ -647,7 +647,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		httpClientForAWSSTS:     cfg.HTTPClientForAWSSTS,
 		accessMonitoringEnabled: cfg.AccessMonitoringEnabled,
 		logger:                  cfg.Logger,
-		summarizerWrapper:       cfg.SummarizerWrapper,
+		summarizerProvider:      cfg.SummarizerProvider,
 	}
 	as.inventory = inventory.NewController(&as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
@@ -1285,10 +1285,10 @@ type Server struct {
 	// logger is the logger used by the auth server.
 	logger *slog.Logger
 
-	// summarizerWrapper is a wrapper around the summarizer service. It is used
-	// to set the summarizer instance used by the streamer after the streamer has
-	// been created. The summarizer itself summarizes session recordings.
-	summarizerWrapper *summarizerv1.SummarizerWrapper
+	// SummarizerProvider is a provider of the summarizer service. It allows for
+	// late initialization of the summarizer in the enterprise plugin. The
+	// summarizer itself summarizes session recordings.
+	summarizerProvider *summarizerv1.SummarizerProvider
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1382,9 +1382,7 @@ func (a *Server) ResetLoginHooks() {
 // SetSummarizerService sets an implementation of the summarizer service used
 // by this server and its underlying services.
 func (a *Server) SetSummarizerService(s summarizerv1.Summarizer) {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-	a.summarizerWrapper.Summarizer = s
+	a.summarizerProvider.SetSummarizer(s)
 }
 
 // CloseContext returns the close context
