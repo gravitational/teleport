@@ -205,15 +205,11 @@ func (s *ProvisioningService) ListProvisionTokens(ctx context.Context, pageSize 
 		pageSize = int(defaults.MaxIterationLimit)
 	}
 
-	startKey := backend.NewKey(tokensPrefix)
-	if pageToken != "" {
-		startKey = startKey.AppendKey(backend.KeyFromString(pageToken))
-	}
-
+	prefix := backend.NewKey(tokensPrefix)
 	var out []types.ProvisionToken
 	for item, err := range s.Items(ctx, backend.ItemsParams{
-		StartKey: startKey,
-		EndKey:   backend.RangeEnd(startKey),
+		StartKey: prefix.AppendKey(backend.KeyFromString(pageToken)),
+		EndKey:   backend.RangeEnd(prefix.ExactKey()),
 	}) {
 		if err != nil {
 			return nil, "", trace.Wrap(err)
