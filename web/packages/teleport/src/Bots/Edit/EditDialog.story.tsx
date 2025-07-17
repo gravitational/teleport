@@ -18,14 +18,14 @@
 
 import { Meta, StoryObj } from '@storybook/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { createMemoryHistory } from 'history';
-import { MemoryRouter, Route, Router } from 'react-router';
+import { MemoryRouter } from 'react-router';
 
-import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 import {
+  editBotError,
+  editBotForever,
   editBotSuccess,
   getBotError,
   getBotForever,
@@ -33,10 +33,10 @@ import {
 } from 'teleport/test/helpers/bots';
 import { successGetRoles } from 'teleport/test/helpers/roles';
 
-import { BotDetails } from './BotDetails';
+import { EditDialog } from './EditDialog';
 
 const meta = {
-  title: 'Teleport/Bots/Details',
+  title: 'Teleport/Bots/Edit',
   component: Wrapper,
   beforeEach: () => {
     queryClient.clear(); // Prevent cached data sharing between stories
@@ -70,56 +70,6 @@ const successHandler = getBotSuccess({
 });
 
 export const Happy: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        successHandler,
-        successGetRoles({
-          startKey: '',
-          items: ['access', 'editor', 'terraform-provider'].map(r => ({
-            content: r,
-            id: r,
-            name: r,
-            kind: 'role',
-          })),
-        }),
-        editBotSuccess(),
-      ],
-    },
-  },
-};
-
-export const HappyWithNoTraitsOrRoles: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        getBotSuccess({
-          name: 'ansible-worker',
-          roles: [],
-          traits: [],
-          max_session_ttl: {
-            seconds: 43200,
-          },
-        }),
-        successGetRoles({
-          startKey: '',
-          items: ['access', 'editor', 'terraform-provider'].map(r => ({
-            content: r,
-            id: r,
-            name: r,
-            kind: 'role',
-          })),
-        }),
-        editBotSuccess(),
-      ],
-    },
-  },
-};
-
-export const HappyWithoutEditPermission: Story = {
-  args: {
-    hasBotsEdit: false,
-  },
   parameters: {
     msw: {
       handlers: [
@@ -174,6 +124,57 @@ export const WithNoBotReadPermission: Story = {
   },
 };
 
+export const WithNoBotEditPermission: Story = {
+  args: {
+    hasBotsEdit: false,
+  },
+  parameters: {
+    msw: {
+      handlers: [successHandler],
+    },
+  },
+};
+
+export const WithSubmitPending: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        successHandler,
+        successGetRoles({
+          startKey: '',
+          items: ['access', 'editor', 'terraform-provider'].map(r => ({
+            content: r,
+            id: r,
+            name: r,
+            kind: 'role',
+          })),
+        }),
+        editBotForever(),
+      ],
+    },
+  },
+};
+
+export const WithSubmitFailure: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        successHandler,
+        successGetRoles({
+          startKey: '',
+          items: ['access', 'editor', 'terraform-provider'].map(r => ({
+            content: r,
+            id: r,
+            name: r,
+            kind: 'role',
+          })),
+        }),
+        editBotError(500, 'something went wrong'),
+      ],
+    },
+  },
+};
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -185,10 +186,6 @@ const queryClient = new QueryClient({
 
 function Wrapper(props?: { hasBotsRead?: boolean; hasBotsEdit?: boolean }) {
   const { hasBotsRead = true, hasBotsEdit = true } = props ?? {};
-
-  const history = createMemoryHistory({
-    initialEntries: ['/web/bot/ansible-worker'],
-  });
 
   const customAcl = makeAcl({
     bots: {
@@ -210,11 +207,11 @@ function Wrapper(props?: { hasBotsRead?: boolean; hasBotsEdit?: boolean }) {
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
         <TeleportProviderBasic teleportCtx={ctx}>
-          <Router history={history}>
-            <Route path={cfg.routes.bot}>
-              <BotDetails />
-            </Route>
-          </Router>
+          <EditDialog
+            botName="ansible-worker"
+            onCancel={() => {}}
+            onSuccess={() => {}}
+          />
         </TeleportProviderBasic>
       </MemoryRouter>
     </QueryClientProvider>
