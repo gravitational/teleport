@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -121,6 +122,8 @@ func init() {
 		panic(err)
 	}
 }
+
+var tracer = otel.Tracer("github.com/gravitational/teleport/api/client")
 
 // AuthServiceClient keeps the interfaces implemented by the auth service.
 type AuthServiceClient struct {
