@@ -60,12 +60,9 @@ type Report struct {
 	Watcher *WatcherStats
 	// Audit contains stats for audit event backends.
 	Audit *AuditStats
-	// Service contains status of active services.
-	Service Services
+	// Service is a map of service name to a gauge value of how many services of that type are currently running.
+	Service map[string]float64
 }
-
-// Services is a map of service name to a gauge value of how many services of that type are currently running.
-type Services map[string]float64
 
 // AuditStats contains metrics related to the audit log.
 type AuditStats struct {
@@ -472,7 +469,7 @@ func generateReport(metrics map[string]*dto.MetricFamily, prev *Report, period t
 		Roles:                          getGaugeValue(metrics[prometheus.BuildFQName(teleport.MetricNamespace, "", "roles_total")]),
 	}
 
-	re.Service = getServices(metrics[prometheus.BuildFQName(teleport.MetricNamespace, "", teleport.MetricTeleportServices)])
+	re.Service = getGaugeValuesForLabelKey(metrics[prometheus.BuildFQName(teleport.MetricNamespace, "", teleport.MetricTeleportServices)], teleport.TagServiceName)
 
 	var auditStats *AuditStats
 	if prev != nil {
@@ -706,19 +703,17 @@ func getActiveMigrations(metric *dto.MetricFamily) []string {
 	return out
 }
 
-func getServices(family *dto.MetricFamily) Services {
-	if family == nil || family.GetType() != dto.MetricType_GAUGE || len(family.Metric) == 0 {
+// For a given `family` of metrics, return all gauge values that match a given `labelKey` as a map keyed by the label value.
+func getGaugeValuesForLabelKey(family *dto.MetricFamily, labelKey string) map[string]float64 {
+	if family.GetType() != dto.MetricType_GAUGE {
 		return nil
 	}
 
-	out := make(Services)
-	for _, metric := range family.Metric {
-		if metric.Gauge == nil || metric.Gauge.Value == nil {
-			continue
-		}
-		for _, label := range metric.Label {
-			if label.GetName() == teleport.TagServiceName {
-				out[label.GetValue()] = *metric.Gauge.Value
+	out := make(map[string]float64)
+	for _, metric := range family.GetMetric() {
+		for _, label := range metric.GetLabel() {
+			if label.GetName() == labelKey {
+				out[label.GetValue()] = metric.GetGauge().GetValue()
 				break
 			}
 		}
