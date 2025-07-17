@@ -1,4 +1,4 @@
-.version: &version "18.0.2-dev.jsonpath.1"
+.version: &version "18.0.2-dev.jsonpath.1-relay.2"
 
 name: teleport-kube-agent
 apiVersion: v2

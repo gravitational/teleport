@@ -1,4 +1,4 @@
-.version: &version "18.0.0-dev.joerger.2"
+.version: &version "18.0.2-dev.jsonpath.1-relay.2"
 
 name: teleport-relay
 apiVersion: v2
