@@ -162,6 +162,9 @@ const (
 	// ProxyWebListenPort is the default Teleport Proxy WebPort address.
 	ProxyWebListenPort = 3080
 
+	// RelayAPIListenPort is the default port used by the Relay API service.
+	RelayAPIListenPort = 3040
+
 	// StandardHTTPSPort is the default port used for the https URI scheme.
 	StandardHTTPSPort = 443
 )

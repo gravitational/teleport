@@ -138,3 +138,26 @@ func (l genericLister[T, I]) list(ctx context.Context, pageSize int, startToken 
 	out, next, err := l.listRange(ctx, pageSize, startToken, "")
 	return out, next, trace.Wrap(err)
 }
+
+// fetchAll fetches all items from a paginated getter that's appropriately
+// shaped. Useful to implement [collection.fetcher].
+func fetchAll[T any](
+	ctx context.Context,
+	getPage func(ctx context.Context, pageSize int, pageToken string) (_ []T, nextPageToken string, _ error),
+) ([]T, error) {
+	var out []T
+	var pageToken string
+	for {
+		const defaultPageSize = 0
+		page, nextPageToken, err := getPage(ctx, defaultPageSize, pageToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, page...)
+		if nextPageToken == "" {
+			break
+		}
+		pageToken = nextPageToken
+	}
+	return out, nil
+}

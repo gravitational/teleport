@@ -223,6 +223,10 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		return trace.Wrap(err)
 	}
 
+	if !authz.IsLocalOrRemoteUser(*authzContext) {
+		return trace.AccessDenied("only end users are allowed to use ProxySSH")
+	}
+
 	// wait for the first request to arrive with the dial request
 	req, err := stream.Recv()
 	if err != nil {
@@ -432,6 +436,10 @@ func (s *Service) ProxyWindowsDesktopSession(stream transportv1pb.TransportServi
 	authzContext, err := s.cfg.authzContextFn(p.AuthInfo)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if !authz.IsLocalOrRemoteUser(*authzContext) {
+		return trace.AccessDenied("only end users are allowed to use ProxyWindowsDesktopSession")
 	}
 
 	// Wait for the first request to arrive with the dial request.

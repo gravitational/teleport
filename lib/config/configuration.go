@@ -30,6 +30,7 @@ import (
 	"io"
 	"log/slog"
 	"maps"
+	"math"
 	"net"
 	"net/url"
 	"os"
@@ -562,6 +563,15 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 
+	if fc.RelayServer != "" {
+		addr, err := utils.ParseHostPortAddr(fc.RelayServer, defaults.RelayAPIListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		cfg.RelayServer = *addr
+	}
+
 	if err := applyTokenConfig(fc, cfg); err != nil {
 		return trace.Wrap(err)
 	}
@@ -741,6 +751,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	if fc.Jamf.Enabled() {
 		if err := applyJamfConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if fc.Relay.Enabled {
+		if err := applyRelayConfig(fc, cfg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -3005,5 +3021,49 @@ func applyJamfConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		ExitOnSync:  fc.Jamf.ExitOnSync,
 		Credentials: creds,
 	}
+	return nil
+}
+
+func applyRelayConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+	// TODO(espadolini): potential compatibility checks here like requiring
+	// config v3+ and proxy_server
+
+	// we're here because fc.Relay.Enabled is true
+	cfg.Relay.Enabled = true
+
+	if fc.Relay.RelayGroup == "" {
+		return trace.BadParameter("missing relay_service.relay_group")
+	}
+	cfg.Relay.RelayGroup = fc.Relay.RelayGroup
+
+	if fc.Relay.TargetConnectionCount < 1 || fc.Relay.TargetConnectionCount > math.MaxInt32 {
+		return trace.BadParameter("missing or invalid relay_service.target_connection_count")
+	}
+	cfg.Relay.TargetConnectionCount = int32(fc.Relay.TargetConnectionCount)
+
+	cfg.Relay.ShutdownDelay = time.Duration(fc.Relay.ShutdownDelay)
+
+	if len(fc.Relay.APIPublicHostnames) < 1 {
+		return trace.BadParameter("missing relay_service.api_public_hostnames")
+	}
+	if slices.Contains(fc.Relay.APIPublicHostnames, "") {
+		return trace.BadParameter("empty string in relay_service.api_public_hostnames")
+	}
+	cfg.Relay.APIPublicHostnames = slices.Clone(fc.Relay.APIPublicHostnames)
+
+	if fc.Relay.APIListenAddr == "" {
+		return trace.BadParameter("missing relay_service.api_listen_addr")
+	}
+	cfg.Relay.APIListenAddr = fc.Relay.APIListenAddr
+
+	if fc.Relay.TunnelListenAddr == "" {
+		return trace.BadParameter("missing relay_service.tunnel_listen_addr")
+	}
+	cfg.Relay.TunnelListenAddr = fc.Relay.TunnelListenAddr
+	if fc.Relay.TunnelPublicAddr == "" {
+		return trace.BadParameter("missing relay_service.tunnel_public_addr")
+	}
+	cfg.Relay.TunnelPublicAddr = fc.Relay.TunnelPublicAddr
+
 	return nil
 }

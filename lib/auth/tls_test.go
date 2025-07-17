@@ -5205,8 +5205,7 @@ func TestVerifyPeerCert(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			verify := caPool.verifyPeerCert()
-			err := verify(nil, [][]*x509.Certificate{{tt.peer}})
+			err := caPool.VerifyPeerCertificate(nil, [][]*x509.Certificate{{tt.peer}})
 			if tt.wantErr {
 				require.ErrorContains(t, err, "access denied: invalid client certificate")
 			} else {

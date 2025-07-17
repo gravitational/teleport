@@ -92,50 +92,49 @@ type HostAndUserCAPoolInfo struct {
 	CATypes authclient.HostAndUserCAInfo
 }
 
-// verifyPeerCert returns a function that checks that the client peer
-// certificate's cluster name matches the cluster name of the CA
-// that issued it.
-func (p *HostAndUserCAPoolInfo) verifyPeerCert() func([][]byte, [][]*x509.Certificate) error {
-	return func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
-		if len(verifiedChains) == 0 || len(verifiedChains[0]) == 0 {
-			return nil
-		}
+var _ = tls.Config{VerifyPeerCertificate: (*HostAndUserCAPoolInfo)(nil).VerifyPeerCertificate}
 
-		peerCert := verifiedChains[0][0]
-		identity, err := tlsca.FromSubject(peerCert.Subject, peerCert.NotAfter)
-		if err != nil {
-			slog.WarnContext(context.TODO(), "Failed to parse identity from client certificate subject", "error", err)
-			return trace.Wrap(err)
-		}
-		certClusterName := identity.TeleportCluster
-		issuerClusterName, err := tlsca.ClusterName(peerCert.Issuer)
-		if err != nil {
-			slog.WarnContext(context.TODO(), "Failed to parse issuer cluster name from client certificate issuer", "error", err)
-			return trace.AccessDenied(invalidCertErrMsg)
-		}
-		if certClusterName != issuerClusterName {
-			slog.WarnContext(context.TODO(), "Client peer certificate was issued by a CA from a different cluster than what the certificate claims to be from", "peer_cert_cluster_name", certClusterName, "issuer_cluster_name", issuerClusterName)
-			return trace.AccessDenied(invalidCertErrMsg)
-		}
-
-		ca, ok := p.CATypes[string(peerCert.RawIssuer)]
-		if !ok {
-			slog.WarnContext(context.TODO(), "Could not find issuer CA of client certificate")
-			return trace.AccessDenied(invalidCertErrMsg)
-		}
-
-		// Ensure the CA that issued this client cert is of the appropriate type
-		systemRole := findPrimarySystemRole(identity.Groups)
-		if systemRole != nil && !ca.IsHostCA {
-			slog.WarnContext(context.TODO(), "Client peer certificate has a builtin role but was not issued by a host CA", "role", systemRole.String())
-			return trace.AccessDenied(invalidCertErrMsg)
-		} else if systemRole == nil && !ca.IsUserCA {
-			slog.WarnContext(context.TODO(), "Client peer certificate has a local role but was not issued by a user CA")
-			return trace.AccessDenied(invalidCertErrMsg)
-		}
-
+// VerifyPeerCertificate checks that the client peer certificate's cluster name
+// matches the cluster name of the CA that issued it.
+func (p *HostAndUserCAPoolInfo) VerifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+	if len(verifiedChains) == 0 || len(verifiedChains[0]) == 0 {
 		return nil
 	}
+
+	peerCert := verifiedChains[0][0]
+	identity, err := tlsca.FromSubject(peerCert.Subject, peerCert.NotAfter)
+	if err != nil {
+		slog.WarnContext(context.TODO(), "Failed to parse identity from client certificate subject", "error", err)
+		return trace.Wrap(err)
+	}
+	certClusterName := identity.TeleportCluster
+	issuerClusterName, err := tlsca.ClusterName(peerCert.Issuer)
+	if err != nil {
+		slog.WarnContext(context.TODO(), "Failed to parse issuer cluster name from client certificate issuer", "error", err)
+		return trace.AccessDenied(invalidCertErrMsg)
+	}
+	if certClusterName != issuerClusterName {
+		slog.WarnContext(context.TODO(), "Client peer certificate was issued by a CA from a different cluster than what the certificate claims to be from", "peer_cert_cluster_name", certClusterName, "issuer_cluster_name", issuerClusterName)
+		return trace.AccessDenied(invalidCertErrMsg)
+	}
+
+	ca, ok := p.CATypes[string(peerCert.RawIssuer)]
+	if !ok {
+		slog.WarnContext(context.TODO(), "Could not find issuer CA of client certificate")
+		return trace.AccessDenied(invalidCertErrMsg)
+	}
+
+	// Ensure the CA that issued this client cert is of the appropriate type
+	systemRole := findPrimarySystemRole(identity.Groups)
+	if systemRole != nil && !ca.IsHostCA {
+		slog.WarnContext(context.TODO(), "Client peer certificate has a builtin role but was not issued by a host CA", "role", systemRole.String())
+		return trace.AccessDenied(invalidCertErrMsg)
+	} else if systemRole == nil && !ca.IsUserCA {
+		slog.WarnContext(context.TODO(), "Client peer certificate has a local role but was not issued by a user CA")
+		return trace.AccessDenied(invalidCertErrMsg)
+	}
+
+	return nil
 }
 
 // NewClientTLSConfigGenerator sets up a new generator based on the supplied parameters.
@@ -198,7 +197,7 @@ func (c *ClientTLSConfigGenerator) GetConfigForClient(info *tls.ClientHelloInfo)
 		cfg.ClientCAs = poolInfo.Pool
 		// Verify that the peer cert matches the cluster name of the
 		// issuer CA and that the CA type matches the cert Teleport role
-		cfg.VerifyPeerCertificate = poolInfo.verifyPeerCert()
+		cfg.VerifyPeerCertificate = poolInfo.VerifyPeerCertificate
 	}
 
 	return cfg, trace.Wrap(err)
