@@ -53,8 +53,22 @@ export async function resolveAutoUpdatesStatus(sources: {
     };
   }
 
-  const { reachableClusters, unreachableClusters } =
-    await sources.getClusterVersions();
+  const clusterVersions = await sources.getClusterVersions();
+  return findManagingCluster({
+    clusterVersions,
+    managingClusterUri: sources.managingClusterUri,
+  });
+}
+
+/**
+ * Attempts to find a cluster managing updates, based on a user-selected cluster
+ * and all available clusters.
+ */
+function findManagingCluster(sources: {
+  managingClusterUri: string | undefined;
+  clusterVersions: GetClusterVersionsResponse;
+}): AutoUpdatesStatus {
+  const { reachableClusters, unreachableClusters } = sources.clusterVersions;
   const candidateClusters = makeCandidateClusters(reachableClusters);
   if (!candidateClusters.length) {
     return {
