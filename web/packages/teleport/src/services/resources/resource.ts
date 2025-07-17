@@ -227,6 +227,13 @@ export async function fetchRole(
   );
 }
 
+export async function fetchRoleWithYamlParse(name: string): Promise<Role> {
+  const { content } = await fetchRole(name);
+  return yamlService.parse<Role>(YamlSupportedResourceKind.Role, {
+    yaml: content,
+  });
+}
+
 export async function updateRoleWithYamlConversion({
   name,
   role,
