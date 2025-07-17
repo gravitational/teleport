@@ -117,7 +117,7 @@ func isTextScript(data []byte) bool {
 	return true
 }
 
-// readFileLimit the first n bytes of a file.
+// readFileLimit the first n bytes of a file, or less if shorter.
 func readFileLimit(name string, n int64) ([]byte, error) {
 	f, err := os.Open(name)
 	if err != nil {
