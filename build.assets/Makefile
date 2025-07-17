@@ -315,7 +315,7 @@ teleterm: buildbox-node
 # Builds webassets inside Docker.
 .PHONY:ui
 ui: buildbox
-	docker run -u $(UID):$(GID) -v "$$(pwd)/../":/teleport $(BUILDBOX) \
+	docker run $(NOROOT) -v "$$(pwd)/../":/teleport $(BUILDBOX) \
 		bash -c "cd ../teleport && pnpm install --frozen-lockfile && pnpm build-ui"
 
 # Builds webassets inside the buildbox-node container via the
