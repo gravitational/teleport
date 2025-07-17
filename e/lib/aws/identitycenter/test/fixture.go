@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	samlidptestenv "github.com/gravitational/teleport/e/lib/idp/saml/testenv"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -47,18 +49,42 @@ type Fixture struct {
 	Backend          backend.Backend
 	Clock            clocki.FakeClock
 	Auth             *auth.Server
-	SCIMClient       *scimsdk.ClientMock
+	SCIMClient       scimsdk.Client
 	ICClient         *icsdk.ClientMock
 	PluginService    *local.PluginsService
-	PluginStatusSink *integration.FakeStatusSink
+	PluginStatusSink common.StatusSink
 	Emitter          *eventstest.ChannelEmitter
+	cleanup          func()
 }
 
 type CacheArgs struct {
 	Started bool
 }
 
-func WithCache(args CacheArgs) func(*auth.Server) error {
+type fixtureOptions struct {
+	awsState      *icsdk.MockedAWSStateType
+	authOptions   []auth.ServerOption
+	clock         clockwork.Clock
+	getStatusSink func(services.Plugins) common.StatusSink
+}
+
+type FixtureOption func(*fixtureOptions)
+
+func WithAuthOption(authOpt auth.ServerOption) FixtureOption {
+	return func(fixtureOpts *fixtureOptions) {
+		fixtureOpts.authOptions = append(fixtureOpts.authOptions, authOpt)
+	}
+}
+
+func WithStartedCache(fixtureOpts *fixtureOptions) {
+	WithAuthOption(WithCache(CacheArgs{Started: true}))(fixtureOpts)
+}
+
+func WithUnstartedCache(fixtureOpts *fixtureOptions) {
+	WithAuthOption(WithCache(CacheArgs{Started: false}))(fixtureOpts)
+}
+
+func WithCache(args CacheArgs) auth.ServerOption {
 	return func(srv *auth.Server) error {
 		return auth.InitTestAuthCache(auth.TestAuthCacheParams{
 			AuthServer: srv,
@@ -67,7 +93,44 @@ func WithCache(args CacheArgs) func(*auth.Server) error {
 	}
 }
 
-func NewFixture(t *testing.T, opts ...auth.ServerOption) *Fixture {
+func WithClock(clock clockwork.Clock) FixtureOption {
+	return func(fixtureOpts *fixtureOptions) {
+		fixtureOpts.clock = clock
+	}
+}
+
+func WithAWSState(state *icsdk.MockedAWSStateType) FixtureOption {
+	return func(fixtureOpts *fixtureOptions) {
+		fixtureOpts.awsState = state
+	}
+}
+
+func WithStatusSink(s common.StatusSink) FixtureOption {
+	return func(fixtureOpts *fixtureOptions) {
+		fixtureOpts.getStatusSink = func(services.Plugins) common.StatusSink { return s }
+	}
+}
+
+func WithWriteThroughStatusSink(fixtureOpts *fixtureOptions) {
+	fixtureOpts.getStatusSink = func(p services.Plugins) common.StatusSink {
+		return &writeThroughStatusSink{pluginsService: p}
+	}
+}
+
+func NewFixture(t *testing.T, opts ...FixtureOption) *Fixture {
+	args := fixtureOptions{
+		awsState:      nil, // use default mock state by default
+		clock:         clockwork.NewFakeClock(),
+		getStatusSink: func(services.Plugins) common.StatusSink { return &integration.FakeStatusSink{} },
+	}
+	for _, optFn := range opts {
+		optFn(&args)
+	}
+	if args.awsState == nil {
+		defaultState := icsdk.NewMockedAWSState()
+		args.awsState = &defaultState
+	}
+
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
@@ -91,32 +154,35 @@ func NewFixture(t *testing.T, opts ...auth.ServerOption) *Fixture {
 	})
 	require.NoError(t, err)
 
-	opts = append(opts, auth.WithClock(clock))
+	authOpts := append(args.authOptions, auth.WithClock(clock))
 	auth, err := auth.NewServer(&auth.InitConfig{
 		Authority:              authority.New(),
 		Backend:                backend,
 		ClusterName:            clusterName,
 		SkipPeriodicOperations: true,
 		VersionStorage:         auth.NewFakeTeleportVersion(),
-	}, opts...)
+	}, authOpts...)
 	require.NoError(t, err, "creating Auth server")
-	t.Cleanup(func() { require.NoError(t, auth.Close()) })
+	cleanup := sync.OnceFunc(func() { require.NoError(t, auth.Close()) })
+	t.Cleanup(cleanup)
 
-	scimClient := scimsdk.NewSCIMClientMock()
-	ICClient := icsdk.NewClientMock(nil /* custom mock data */)
+	icClient := NewUnifiedMockClient(*args.awsState)
 
 	pluginService := local.NewPluginsService(backend)
+
+	statusSink := args.getStatusSink(auth.Plugins)
 
 	fixture := &Fixture{
 		Ctx:              ctx,
 		Backend:          backend,
 		Clock:            clock,
 		Auth:             auth,
-		SCIMClient:       scimClient,
-		ICClient:         ICClient,
+		SCIMClient:       icClient.ViaSCIM(),
+		ICClient:         icClient.ViaAPI(),
 		PluginService:    pluginService,
-		PluginStatusSink: &integration.FakeStatusSink{},
+		PluginStatusSink: statusSink,
 		Emitter:          eventstest.NewChannelEmitter(10),
+		cleanup:          cleanup,
 	}
 
 	return fixture
@@ -145,6 +211,14 @@ func WithGroupFilters(filters icfilters.Filters) ICOption {
 		settings := plugin.Spec.GetAwsIc()
 		settings.GroupSyncFilters = filters
 	}
+}
+
+// Cleanup manually cleans up the fixture and shuts down any started services.
+// For use in situations where can't or don't want to rely on the automatic
+// end-of-tes cleanup, for example when the [Fixture] is created in a
+// [testing/synctest] bubble.
+func (f *Fixture) Cleanup() {
+	f.cleanup()
 }
 
 func (f *Fixture) CreatePluginResource(t *testing.T, options ...ICOption) {
@@ -548,4 +622,18 @@ func NewPluginV1CreateRequest(integrationName, samlServiceProviderName string) *
 			},
 		},
 	}
+}
+
+// writeThroughStatusSink implements a simple [common.StatusSink] that writes
+// back to the IC plugin resource. Attempting to create a production status
+// sink here results in a circular import, so we use this lightweight shim
+// instead.
+type writeThroughStatusSink struct {
+	pluginsService services.Plugins
+}
+
+// Emit sends the plugin status, applying custom logic for AWS IC plugin.
+// If the status detail field is nil, an existing detail status will be applied.
+func (s *writeThroughStatusSink) Emit(ctx context.Context, status types.PluginStatus) error {
+	return s.pluginsService.SetPluginStatus(ctx, types.PluginTypeAWSIdentityCenter, status)
 }

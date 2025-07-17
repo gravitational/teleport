@@ -86,7 +86,7 @@ func (m *mockExternalIDGetter) setMockAccessList(t *testing.T, localID string, e
 func TestAssignmentCalculation(t *testing.T) {
 	externalIDs := newMockExternalIDGetter()
 	logger := slog.Default().With("test", t.Name())
-	fixture := ictest.NewFixture(t, ictest.WithCache(ictest.CacheArgs{Started: true}))
+	fixture := ictest.NewFixture(t, ictest.WithStartedCache)
 	ctx := fixture.Ctx
 
 	calc, err := New(Config{

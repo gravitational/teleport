@@ -2,7 +2,6 @@ package identitycenter
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"slices"
 	"strconv"
@@ -10,7 +9,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -22,18 +20,11 @@ import (
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	icfixture "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
 	"github.com/gravitational/teleport/e/lib/provisioning"
-	"github.com/gravitational/teleport/entitlements"
-	accesscommon "github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
 	_ "github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func TestGroupImportAndEmitStatus(t *testing.T) {
@@ -350,13 +341,6 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			statusSink := &integration.FakeStatusSink{}
-			tEnv, err := newTEnv(t, statusSink)
-			require.NoError(t, err)
-
-			createRoles(t, ctx, tEnv.service.rolesSvc)
-			createUsers(t, ctx, tEnv.service.usersSvc)
-
 			mockState := icsdk.NewMockedAWSState()
 			mockState.Accounts = tc.icData.Accounts
 			mockState.PermissionSets = sdkPermSets(t)
@@ -364,16 +348,25 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 			mockState.Groups = sdkGroups(t, tc.icData.Groups)
 			mockState.GroupMemberships = sdkGroupMembers(t, tc.icData.Groups)
 			mockState.GroupAssignments = sdkGroupAssignments(t, tc.icData.Groups)
-			tEnv.setICSDKClient(icsdk.NewClientMock(&mockState))
-			tEnv.service.importConfig.GroupSyncFilter = tc.groupFilters
 
-			createAccessLists(t, ctx, tc.existingList, tEnv.service.accessListSvc)
-			createAccessListMembers(t, ctx, tc.existingList, tEnv.service.accessListSvc)
+			statusSink := &integration.FakeStatusSink{}
 
-			err = tEnv.service.importAndEmitStatus(ctx)
+			fixture := icfixture.NewFixture(t,
+				icfixture.WithStatusSink(statusSink),
+				icfixture.WithAWSState(&mockState))
+
+			fixture.CreatePluginResource(t, icfixture.WithGroupFilters(tc.groupFilters))
+			createRoles(t, ctx, fixture.Auth)
+			createUsers(t, ctx, fixture.Auth)
+			createAccessLists(t, ctx, tc.existingList, fixture.Auth)
+			createAccessListMembers(t, ctx, tc.existingList, fixture.Auth)
+
+			svc := newTestService(t, fixture, withLogger(slog.Default().With("test", t.Name())))
+
+			err := svc.importAndEmitStatus(ctx)
 			require.NoError(t, err)
 
-			compareAccessLists(t, ctx, tc.expectedList, tEnv.service.accessListSvc)
+			compareAccessLists(t, ctx, tc.expectedList, fixture.Auth.AccessLists)
 
 			require.Eventually(t, func() bool {
 				return statusSink.Get() != nil
@@ -382,7 +375,7 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 			require.NotNil(t, statusSink.Get().GetAwsIc())
 			require.Equal(t, types.AWSICGroupImportStatusCode_DONE, statusSink.Get().GetAwsIc().GroupImportStatus.StatusCode)
 
-			expectResourceSyncEvent(t, tEnv.emitter, func(e *apievents.AWSICResourceSync) {
+			expectResourceSyncEvent(t, fixture.Emitter, func(e *apievents.AWSICResourceSync) {
 				require.Equal(t, events.AWSICResourceSyncSuccessCode, e.GetCode())
 				require.Equal(t, events.AWSICResourceSyncSuccessEvent, e.GetType())
 				require.Equal(t, countICOriginatedList(tc.expectedList), int(e.TotalUserGroups))
@@ -397,7 +390,7 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 // the group filter. In that case, REIMPORT_REQUESTED status is used to override group
 // status code, which re-triggers group import.
 func TestGroupImportTriggers(t *testing.T) {
-	fixture := icfixture.NewFixture(t, icfixture.WithCache(icfixture.CacheArgs{Started: true}))
+	fixture := icfixture.NewFixture(t, icfixture.WithStartedCache)
 	ctx := fixture.Ctx
 	fixture.CreatePluginResource(t,
 		icfixture.WithGroupFilters(icfilters.Filters{
@@ -449,7 +442,7 @@ func TestGroupImportTriggers(t *testing.T) {
 			require.NoError(t, err)
 			// runs the main sync cycle that covers group, account,
 			// permission set and account assignment sync.
-			_, stopService := runTestService(t, ctx, fixture)
+			_, stopService := runNewTestService(t, ctx, fixture)
 			if tc.expectImport {
 				expectResourceSyncEvent(t, fixture.Emitter, func(e *apievents.AWSICResourceSync) {
 					require.Equal(t, int32(1), e.TotalUserGroups)
@@ -655,65 +648,6 @@ type listWithMembersAndRoles struct {
 	origin  string
 }
 
-// tEnv is a test service for Identity Center service
-type tEnv struct {
-	service *Service
-	emitter *eventstest.ChannelEmitter
-}
-
-func newTEnv(t *testing.T, statusSink accesscommon.StatusSink) (*tEnv, error) {
-	clock := clockwork.NewFakeClock()
-	backend, err := memory.New(memory.Config{
-		Clock: clock,
-	})
-	require.NoError(t, err)
-
-	newAccessListService, err := local.NewAccessListService(backend, clock)
-	require.NoError(t, err)
-
-	usersService, err := local.NewTestIdentityService(backend)
-	require.NoError(t, err)
-
-	roleService := local.NewAccessService(backend)
-	pluginService := local.NewPluginsService(backend)
-
-	createPluginReq := icfixture.NewPluginV1CreateRequest("test-oidc", "test-saml")
-	initialPlugin := types.NewPluginV1(createPluginReq.GetPlugin().GetMetadata(), createPluginReq.GetPlugin().Spec, nil)
-	require.NoError(t, pluginService.CreatePlugin(context.Background(), initialPlugin))
-
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-			Cloud: true,
-		},
-	})
-
-	emitter := eventstest.NewChannelEmitter(1)
-	return &tEnv{
-		service: &Service{
-			accessListSvc:      newAccessListService,
-			accessListSvcCache: newAccessListService,
-			usersSvc:           usersService,
-			rolesSvc:           roleService,
-			log:                slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
-			importConfig: ImportConfig{
-				AccessListDefaultOwners: accessListDefaultOwners,
-			},
-			pluginsService:   pluginService,
-			pluginStatusSink: statusSink,
-			emitter:          emitter,
-		},
-		emitter: emitter,
-	}, nil
-}
-
-func (e tEnv) setICSDKClient(client icsdk.Client) {
-	e.service.icClient = client
-}
-
 var accessListDefaultOwners = []string{"user1", "user2"}
 
 var roles = []string{"role1", "role2", "roleAdmin", "roleReadOnly"}
@@ -740,20 +674,22 @@ func createUsers(t *testing.T, ctx context.Context, userService UsersService) {
 func TestMaybeImportGroupAndGroupMembersPropagatesError(t *testing.T) {
 	ctx := context.Background()
 	statusSink := &integration.FakeStatusSink{}
-	tEnv, err := newTEnv(t, statusSink)
-	require.NoError(t, err)
 	mockedData := icsdk.NewMockedAWSState()
-	sdkClient := icsdk.NewClientMock(&mockedData)
+	fixture := icfixture.NewFixture(t,
+		icfixture.WithAWSState(&mockedData),
+		icfixture.WithStatusSink(statusSink))
 
 	// test that failed import operation error is propagated.
 	const errorMsg = "invalid credential"
+
 	// maybeImportGroupAndGroupMembers eventually calls ListPermissionSets method to fetch permission sets.
-	sdkClient.MonkeyPatch.ListPermissionSets = func(context.Context) ([]*icsdk.PermissionSet, error) {
+	fixture.ICClient.MonkeyPatch.ListPermissionSets = func(context.Context) ([]*icsdk.PermissionSet, error) {
 		return nil, trace.AccessDenied("%s", errorMsg)
 	}
-	tEnv.setICSDKClient(sdkClient)
 
-	err = tEnv.service.maybeImportGroupAndGroupMembers(ctx)
+	svc := newTestService(t, fixture)
+
+	err := svc.maybeImportGroupAndGroupMembers(ctx)
 	require.Error(t, err)
 	require.Eventually(t, func() bool {
 		return statusSink.Get() != nil
@@ -764,10 +700,9 @@ func TestMaybeImportGroupAndGroupMembersPropagatesError(t *testing.T) {
 	require.Contains(t, statusSink.Get().GetAwsIc().GroupImportStatus.ErrorMessage, errorMsg)
 
 	// test that successful import operation and status emission is propagated.
-	sdkClient.MonkeyPatch.ListPermissionSets = nil /* pasing nil makes the sdkClient to use a working ListPermissionSets mock */
-	tEnv.setICSDKClient(sdkClient)
+	fixture.ICClient.MonkeyPatch.ListPermissionSets = nil /* Resetting a monkeypatch makes the sdkClient use a working ListPermissionSets mock */
 
-	err = tEnv.service.maybeImportGroupAndGroupMembers(ctx)
+	err = svc.maybeImportGroupAndGroupMembers(ctx)
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
 		return statusSink.Get() != nil
@@ -778,16 +713,14 @@ func TestMaybeImportGroupAndGroupMembersPropagatesError(t *testing.T) {
 
 	// test for successful import event but failed status event emission error is propagated.
 	failSink := &FailingStatusSink{}
-	tEnv, err = newTEnv(t, failSink)
-	require.NoError(t, err)
-	tEnv.setICSDKClient(sdkClient)
-	err = tEnv.service.maybeImportGroupAndGroupMembers(ctx)
+	svc = newTestService(t, fixture, withStatusSink(failSink))
+	err = svc.maybeImportGroupAndGroupMembers(ctx)
 	require.Error(t, err)
 }
 
 // FailingStatusSink fails to emit status.
 type FailingStatusSink struct{}
 
-func (s *FailingStatusSink) Emit(_ context.Context, status types.PluginStatus) error {
+func (s *FailingStatusSink) Emit(_ context.Context, _ types.PluginStatus) error {
 	return trace.AccessDenied("failed")
 }

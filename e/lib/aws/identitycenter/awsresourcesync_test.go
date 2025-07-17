@@ -286,6 +286,8 @@ func TestAccountAssignmentRoleSyncMode(t *testing.T) {
 	}
 }
 
+// expectResourceSyncEvent waits for a resource sync event to arrive in the
+// emitter channel
 func expectResourceSyncEvent(t *testing.T, emitter *eventstest.ChannelEmitter, fn func(*apievents.AWSICResourceSync)) {
 	select {
 	case event := <-emitter.C():

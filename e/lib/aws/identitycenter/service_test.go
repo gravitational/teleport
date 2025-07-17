@@ -1,10 +1,10 @@
 package identitycenter
 
 import (
-	"context"
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -25,32 +25,18 @@ func TestUserCreation(t *testing.T) {
 		},
 	})
 
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	ctx := t.Context()
 
 	// GIVEN a running cluster...
-	fixture := ictest.NewFixture(t, ictest.WithCache(ictest.CacheArgs{Started: true}))
+	fixture := ictest.NewFixture(t, ictest.WithStartedCache)
 	fixture.CreatePluginResource(t, ictest.WithoutImport)
-	svc := newTestService(t, fixture)
-	go svc.Run(ctx)
+	_, stopService := runNewTestService(t, ctx, fixture)
+	defer stopService()
 
 	// GIVEN a cluster clock running faster than real time. (The IC event handler
 	// throws away duplicate events in a given time window, so it needs a
 	// running clock or nothing will get done)
-	go func() {
-		ticker := time.NewTicker(500 * time.Millisecond)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-
-			case <-ticker.C:
-				fixture.Clock.Advance(1 * time.Minute)
-			}
-		}
-	}()
+	runClock(ctx, fixture.Clock.(*clockwork.FakeClock), 500*time.Millisecond, 1*time.Minute)
 
 	// EXPECT that the AWS resource sync will eventually complete at least one
 	// pass, indicating that the server is up and running.
