@@ -1726,9 +1726,17 @@ message ProvisionTokenSpecV2Spacelift {
   message Rule {
     // SpaceID is the ID of the space in which the run that owns the token was
     // executed.
+    //
+    // This field supports "glob-style" matching when enable_glob_matching is true:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string SpaceID = 1 [(gogoproto.jsontag) = "space_id,omitempty"];
     // CallerID is the ID of the caller, ie. the stack or module that generated
     // the run.
+    //
+    // This field supports "glob-style" matching when enable_glob_matching is true:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string CallerID = 2 [(gogoproto.jsontag) = "caller_id,omitempty"];
     // CallerType is the type of the caller, ie. the entity that owns the run -
     // either `stack` or `module`.
@@ -1743,6 +1751,9 @@ message ProvisionTokenSpecV2Spacelift {
   // Hostname is the hostname of the Spacelift tenant that tokens
   // will originate from. E.g `example.app.spacelift.io`
   string Hostname = 2 [(gogoproto.jsontag) = "hostname,omitempty"];
+  // EnableGlobMatching enables glob-style matching for the space_id and
+  // caller_id fields in the rules.
+  bool EnableGlobMatching = 3 [(gogoproto.jsontag) = "enable_glob_matching,omitempty"];
 }
 
 // ProvisionTokenSpecV2Kubernetes contains the Kubernetes-specific part of the
