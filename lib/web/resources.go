@@ -127,10 +127,7 @@ func listRequestableRoles(clt requestableRolesGetter, values url.Values) (*listR
 		typeRoles = append(typeRoles, role)
 	}
 
-	uiRoles, err := ui.NewRoles(typeRoles)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	uiRoles := ui.NewRequestableRoles(typeRoles)
 
 	return &listResourcesWithoutCountGetResponse{
 		Items:    uiRoles,

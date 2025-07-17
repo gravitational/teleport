@@ -1151,6 +1151,8 @@ type IdentityService interface {
 	GetHeadlessAuthentication(ctx context.Context, id string) (*types.HeadlessAuthentication, error)
 	// WatchPendingHeadlessAuthentications creates a watcher for pending headless authentication for the current user.
 	WatchPendingHeadlessAuthentications(ctx context.Context) (types.Watcher, error)
+
+	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
 }
 
 // ProvisioningService is a service in control

@@ -878,6 +878,10 @@ func (r *Services) GenerateAzureOIDCToken(ctx context.Context, integration strin
 	return r.IntegrationsTokenGenerator.GenerateAzureOIDCToken(ctx, integration)
 }
 
+func (r *Services) ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error) {
+	return r.ListRequestableRoles(ctx, req)
+}
+
 var (
 	generateRequestsCount = prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -5403,7 +5407,7 @@ Outer:
 
 // ListRequestableRoles returns a paginated list of roles that the user can request.
 func (a *Server) ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error) {
-	if req.Limit == 0 {
+	if req.Limit == 0 || req.Limit > apidefaults.DefaultChunkSize {
 		req.Limit = apidefaults.DefaultChunkSize
 	}
 
@@ -5417,24 +5421,23 @@ func (a *Server) ListRequestableRoles(ctx context.Context, req *proto.ListReques
 		return nil, trace.Wrap(err)
 	}
 
-	roles, err := a.GetRoles(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Extract only the user's roles from the full list of roles.
-	var userRoles []types.Role
 	userRoleNames := userState.GetRoles()
-	for _, role := range roles {
-		if slices.Contains(userRoleNames, role.GetName()) {
-			userRoles = append(userRoles, role)
+	userTraits := userState.GetTraits()
+
+	// Load the user's roles to build the allow/deny matchers.
+	var userRoles []types.Role
+	for _, userRoleName := range userRoleNames {
+		userRole, err := a.GetRole(ctx, userRoleName)
+		if err != nil {
+			// If this fails, we log a warning but don't fail the entire request
+			a.logger.WarnContext(ctx, "Failed to get user role while calculating requestable roles", "user", user.GetIdentity().Username, "error", err)
+			continue
 		}
+		userRoles = append(userRoles, userRole)
 	}
 
 	// Build allow/deny matchers for role requests from the user's current roles
 	var allowMatchers, denyMatchers []parse.Matcher
-	userTraits := userState.GetTraits()
-
 	for _, userRole := range userRoles {
 		allow := userRole.GetAccessRequestConditions(types.Allow)
 		if allow.Roles != nil || len(allow.ClaimsToRoles) > 0 {

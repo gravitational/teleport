@@ -79,6 +79,28 @@ func NewRoles(roles []types.Role) ([]ResourceItem, error) {
 	return items, nil
 }
 
+// RequestableRole is a role that a user can request, containing only the name and description.
+type RequestableRole struct {
+	// Name is the role name.
+	Name string `json:"name"`
+	// Description is the role description.
+	Description string `json:"description,omitempty"`
+}
+
+// NewRequestableRoles creates a list of ui.RequestableRole from a list of types.Role.
+func NewRequestableRoles(roles []types.Role) []RequestableRole {
+	items := make([]RequestableRole, 0, len(roles))
+	for _, role := range roles {
+		item := RequestableRole{
+			Name:        role.GetName(),
+			Description: role.GetMetadata().Description,
+		}
+		items = append(items, item)
+	}
+
+	return items
+}
+
 // NewGithubConnectors creates resource item for each github connector.
 func NewGithubConnectors(connectors []types.GithubConnector) ([]ResourceItem, error) {
 	items := make([]ResourceItem, 0, len(connectors))
