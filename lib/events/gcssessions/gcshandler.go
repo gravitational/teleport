@@ -37,6 +37,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/session"
 )
@@ -278,23 +279,19 @@ func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader)
 // Download downloads a session recording from a GCS bucket and writes the
 // result into a writer. Returns trace.NotFound error if the recording is not
 // found.
-func (h *Handler) Download(ctx context.Context, sessionID session.ID, writerAt io.WriterAt) error {
-	return h.downloadFile(ctx, h.recordingPath(sessionID), writerAt)
+func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return h.downloadFile(ctx, h.recordingPath(sessionID), writer)
 }
 
 // DownloadSummary downloads a session summary from a GCS bucket and writes the
 // result into a writer. Returns trace.NotFound error if the recording is not
 // found.
-func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	return h.downloadFile(ctx, h.summaryPath(sessionID), writer)
 }
 
-func (h *Handler) downloadFile(ctx context.Context, path string, writerAt io.WriterAt) error {
+func (h *Handler) downloadFile(ctx context.Context, path string, writer events.RandomAccessWriter) error {
 	h.logger.DebugContext(ctx, "Downloading object from GCS.", "path", path)
-	writer, ok := writerAt.(io.Writer)
-	if !ok {
-		return trace.BadParameter("the provided writerAt is %T which does not implement io.Writer", writerAt)
-	}
 	reader, err := h.gcsClient.Bucket(h.Config.Bucket).Object(path).NewReader(ctx)
 	if err != nil {
 		return convertGCSError(err)

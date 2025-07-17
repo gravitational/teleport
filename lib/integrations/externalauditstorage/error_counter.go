@@ -387,14 +387,14 @@ func (c *ErrorCountingSessionHandler) UploadSummary(ctx context.Context, session
 }
 
 // Download calls [c.wrapped.Download] and counts the error or success.
-func (c *ErrorCountingSessionHandler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+func (c *ErrorCountingSessionHandler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	err := c.wrapped.Download(ctx, sessionID, writer)
 	c.downloads.observe(err)
 	return err
 }
 
 // DownloadSummary calls [c.wrapped.DownloadSummary] and counts the error or success.
-func (c *ErrorCountingSessionHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+func (c *ErrorCountingSessionHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	err := c.wrapped.DownloadSummary(ctx, sessionID, writer)
 	c.downloads.observe(err)
 	return err
