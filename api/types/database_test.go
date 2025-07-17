@@ -1121,6 +1121,99 @@ func TestDatabaseGCPCloudSQL(t *testing.T) {
 	}
 }
 
+func TestDatabaseAlloyDB(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		inputName string
+		inputSpec DatabaseSpecV3
+		wantErr   string
+	}{
+		{
+			inputName: "alloydb-valid-configuration",
+			inputSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "localhost:5432",
+				GCP: GCPCloudSQL{
+					ProjectID:  "project-1",
+					InstanceID: "instance-1",
+					Region:     "us-east-1",
+					ClusterID:  "cluster-1",
+					IsAlloyDB:  true,
+				},
+			},
+		},
+		{
+			inputName: "alloydb-missing-project-id",
+			inputSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "localhost:5432",
+				GCP: GCPCloudSQL{
+					InstanceID: "instance-1",
+					Region:     "us-east-1",
+					ClusterID:  "cluster-1",
+					IsAlloyDB:  true,
+				},
+			},
+			wantErr: "GCP project ID is empty",
+		},
+		{
+			inputName: "alloydb-missing-instance-id",
+			inputSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "localhost:5432",
+				GCP: GCPCloudSQL{
+					ProjectID: "project-1",
+					Region:    "us-east-1",
+					ClusterID: "cluster-1",
+					IsAlloyDB: true,
+				},
+			},
+			wantErr: "GCP instance ID is empty",
+		},
+		{
+			inputName: "alloydb-missing-region-id",
+			inputSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "localhost:5432",
+				GCP: GCPCloudSQL{
+					ProjectID:  "project-1",
+					InstanceID: "instance-1",
+					ClusterID:  "cluster-1",
+					IsAlloyDB:  true,
+				},
+			},
+			wantErr: "GCP region is empty",
+		},
+		{
+			inputName: "alloydb-missing-cluster-id",
+			inputSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "localhost:5432",
+				GCP: GCPCloudSQL{
+					ProjectID:  "project-1",
+					InstanceID: "instance-1",
+					Region:     "us-east-1",
+					IsAlloyDB:  true,
+				},
+			},
+			wantErr: "GCP cluster ID is empty",
+		},
+	} {
+		t.Run(test.inputName, func(t *testing.T) {
+			db, err := NewDatabaseV3(Metadata{
+				Name: test.inputName,
+			}, test.inputSpec)
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr)
+			} else {
+				require.NoError(t, err)
+				require.True(t, db.IsAlloyDB())
+			}
+		})
+	}
+}
+
 func TestGetAdminUser(t *testing.T) {
 	t.Parallel()
 

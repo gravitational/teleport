@@ -477,6 +477,11 @@ func (d *DatabaseV3) IsCloudSQL() bool {
 	return d.GetType() == DatabaseTypeCloudSQL
 }
 
+// IsAlloyDB returns true if this database is a GCP-hosted AlloyDB instance.
+func (d *DatabaseV3) IsAlloyDB() bool {
+	return d.GetType() == DatabaseTypeAlloyDB
+}
+
 // IsAzure returns true if this is Azure hosted database.
 func (d *DatabaseV3) IsAzure() bool {
 	return d.GetType() == DatabaseTypeAzure
@@ -552,6 +557,9 @@ func (d *DatabaseV3) getGCPType() (string, bool) {
 	}
 	gcp := d.GetGCP()
 	if !gcp.IsEmpty() {
+		if gcp.IsAlloyDB {
+			return DatabaseTypeAlloyDB, true
+		}
 		return DatabaseTypeCloudSQL, true
 	}
 	return "", false
@@ -727,6 +735,10 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.GCP.InstanceID == "" {
 			return trace.BadParameter("GCP Spanner database %q missing GCP instance ID",
 				d.GetName())
+		}
+	case d.IsAlloyDB():
+		if err := d.handleAlloyDBConfig(); err != nil {
+			return trace.Wrap(err)
 		}
 	case d.IsDynamoDB():
 		if err := d.handleDynamoDBConfig(); err != nil {
@@ -965,6 +977,29 @@ func (d *DatabaseV3) IsEqual(i Database) bool {
 	return false
 }
 
+// handleAlloyDBConfig validates AlloyDB configuration
+func (d *DatabaseV3) handleAlloyDBConfig() error {
+	gcp := d.Spec.GCP
+	if !gcp.IsAlloyDB {
+		return nil
+	}
+
+	if gcp.Region == "" {
+		return trace.BadParameter("database %q GCP region is empty", d.GetName())
+	}
+	if gcp.ProjectID == "" {
+		return trace.BadParameter("database %q GCP project ID is empty", d.GetName())
+	}
+	if gcp.ClusterID == "" {
+		return trace.BadParameter("database %q GCP cluster ID is empty", d.GetName())
+	}
+	if gcp.InstanceID == "" {
+		return trace.BadParameter("database %q GCP instance ID is empty", d.GetName())
+	}
+
+	return nil
+}
+
 // handleDynamoDBConfig handles DynamoDB configuration checking.
 func (d *DatabaseV3) handleDynamoDBConfig() error {
 	if d.Spec.AWS.AccountID == "" {
@@ -1167,6 +1202,8 @@ const (
 	DatabaseTypeRedshiftServerless = "redshift-serverless"
 	// DatabaseTypeCloudSQL is GCP-hosted Cloud SQL database.
 	DatabaseTypeCloudSQL = "gcp"
+	// DatabaseTypeAlloyDB is GCP-hosted AlloyDB database.
+	DatabaseTypeAlloyDB = "alloydb"
 	// DatabaseTypeSpanner is a GCP Spanner instance.
 	DatabaseTypeSpanner = "spanner"
 	// DatabaseTypeAzure is Azure-hosted database.
