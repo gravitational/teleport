@@ -2766,11 +2766,14 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		}
 
 		// Device verification.
-		if !deviceAllowed && role.GetOptions().DeviceTrustMode == constants.DeviceTrustModeRequired {
-			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, role requires a trusted device",
-				slog.String("role", role.GetName()),
-			)
-			return ErrTrustedDeviceRequired
+		switch role.GetOptions().DeviceTrustMode {
+		case constants.DeviceTrustModeRequired, constants.DeviceTrustModeRequiredHuman:
+			if !deviceAllowed {
+				logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, role requires a trusted device",
+					slog.String("role", role.GetName()),
+				)
+				return ErrTrustedDeviceRequired
+			}
 		}
 
 		// Current role allows access, but keep looking for a more restrictive

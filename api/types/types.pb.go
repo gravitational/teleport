@@ -7605,6 +7605,8 @@ type DeviceTrust struct {
 	//     endpoints.
 	//   - "required": enforces the presence of device extensions for sensitive
 	//     endpoints.
+	//   - "required-human": enforces the presence of device extensions for
+	//     sensitive endpoints, for human users only (bots are exempt).
 	//
 	// Mode is always "off" for OSS.
 	// Defaults to "optional" for Enterprise.

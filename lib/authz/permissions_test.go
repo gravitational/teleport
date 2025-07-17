@@ -391,6 +391,9 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 		AssetTag:     "assettag1",
 		CredentialID: "credentialid1",
 	}
+	botUser := userWithoutExtensions
+	botUser.Identity.BotName = "wall-e"
+	botUser.Identity.BotInstanceID = uuid.NewString()
 
 	// Enterprise is necessary for mode=optional and mode=required to work.
 	modulestest.SetTestModules(t, modulestest.Modules{
@@ -415,6 +418,17 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 			deviceMode: constants.DeviceTrustModeRequired,
 			user:       userWithoutExtensions,
 			wantErr:    "access denied",
+		},
+		{
+			name:       "nok: bot user and mode=required",
+			deviceMode: constants.DeviceTrustModeRequired,
+			user:       botUser,
+			wantErr:    "access denied",
+		},
+		{
+			name:       "ok: bot user and mode=required-human",
+			deviceMode: constants.DeviceTrustModeRequiredHuman,
+			user:       botUser,
 		},
 		{
 			name:       "global mode disabled only",

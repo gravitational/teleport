@@ -2201,7 +2201,7 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"mode": {
-							Description: "Mode of verification for trusted devices.  The following modes are supported:  - \"off\": disables both device authentication and authorization. - \"optional\": allows both device authentication and authorization, but doesn't enforce the presence of device extensions for sensitive endpoints. - \"required\": enforces the presence of device extensions for sensitive endpoints.  Mode is always \"off\" for OSS. Defaults to \"optional\" for Enterprise.",
+							Description: "Mode of verification for trusted devices.  The following modes are supported:  - \"off\": disables both device authentication and authorization. - \"optional\": allows both device authentication and authorization, but doesn't enforce the presence of device extensions for sensitive endpoints. - \"required\": enforces the presence of device extensions for sensitive endpoints. - \"required-human\": enforces the presence of device extensions for sensitive endpoints, for human users only (bots are exempt).  Mode is always \"off\" for OSS. Defaults to \"optional\" for Enterprise.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},

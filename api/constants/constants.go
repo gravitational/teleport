@@ -294,6 +294,10 @@ const (
 	// DeviceTrustModeRequired enforces the presence of device extensions for
 	// sensitive endpoints.
 	DeviceTrustModeRequired DeviceTrustMode = "required"
+	// DeviceTrustModeRequiredHuman enforces the presence of device extensions
+	// for sensitive endpoints if the user is human. In this mode, bots are
+	// exempt from device trust checks.
+	DeviceTrustModeRequiredHuman DeviceTrustMode = "required-human"
 )
 
 const (
