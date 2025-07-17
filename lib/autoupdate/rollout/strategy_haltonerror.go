@@ -134,7 +134,7 @@ func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, spec *autoupd
 				// All previous groups are DONE and time-related criteria are met.
 				// We can start.
 
-				// We pass the list of groups to the sampler because it must compute the
+				// We pass the list of groups to the sampler because it must compute the catch-call group
 				groups := make([]string, len(status.Groups))
 				for j, g := range status.Groups {
 					groups[j] = g.GetName()
@@ -226,7 +226,7 @@ func (h *haltOnErrorStrategy) sampleCanaries(ctx context.Context, group *autoupd
 		previousLength := len(group.Canaries)
 		h.log.DebugContext(ctx, "Group is missing canaries, sampling some more", "group", group, "got", previousLength, "want", int(group.CanaryCount))
 
-		// We pass the list of groups to the sampler because it must compute the
+		// We pass the list of groups to the sampler because it must compute the catch-all group.
 		groups := make([]string, len(status.Groups))
 		for j, g := range status.Groups {
 			groups[j] = g.GetName()
@@ -252,6 +252,7 @@ func injectCanaries(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, additio
 		for _, existingCanary := range group.Canaries {
 			if existingCanary.UpdaterId == canary.UpdaterId {
 				alreadySampled = true
+				break
 			}
 		}
 
