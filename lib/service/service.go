@@ -2729,6 +2729,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Logger:            logger,
 			KeyStoreManager:   authServer.GetKeyStore(),
 			Cache:             authServer.Cache,
+			StatusReporter:    authServer.Services,
 			AppServerUpserter: authServer.Services,
 			HostUUID:          process.Config.HostUUID,
 		}
@@ -6227,6 +6228,7 @@ func (process *TeleportProcess) initApps() {
 	// "app_service" section, that is considered enabling "app_service".
 	if len(process.Config.Apps.Apps) == 0 &&
 		!process.Config.Apps.DebugApp &&
+		!process.Config.Apps.MCPDemoServer &&
 		len(process.Config.Apps.ResourceMatchers) == 0 {
 		return
 	}
@@ -6364,11 +6366,11 @@ func (process *TeleportProcess) initApps() {
 			applications = append(applications, a)
 		}
 
-		if os.Getenv(mcp.InMemoryServerEnvVar) == "true" {
-			if mcpInMemoryServer, err := mcp.NewInMemoryServerApp(); err != nil {
-				logger.ErrorContext(process.ExitContext(), "Failed to create in-memory MCP server app")
+		if process.Config.Apps.MCPDemoServer {
+			if mcpDemoServer, err := mcp.NewDemoServerApp(); err != nil {
+				logger.ErrorContext(process.ExitContext(), "Failed to create MCP demo server app")
 			} else {
-				applications = append(applications, mcpInMemoryServer)
+				applications = append(applications, mcpDemoServer)
 			}
 		}
 
@@ -6441,6 +6443,7 @@ func (process *TeleportProcess) initApps() {
 			ConnectionMonitor: connMonitor,
 			ServiceComponent:  teleport.ComponentApp,
 			Logger:            logger,
+			MCPDemoServer:     process.Config.Apps.MCPDemoServer,
 		})
 		if err != nil {
 			return trace.Wrap(err)
