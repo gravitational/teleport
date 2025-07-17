@@ -407,10 +407,10 @@ type InitConfig struct {
 	// SummarizerResources manages summary inference configuration resources.
 	SummarizerResources services.SummarizerResources
 
-	// SummarizerWrapper is a wrapper around the summarizer service. It is used
-	// to set the summarizer instance used by the streamer after the streamer has
-	// been created. The summarizer itself summarizes session recordings.
-	SummarizerWrapper *summarizerv1.SummarizerWrapper
+	// SummarizerProvider is a provider of the summarizer service. It allows for
+	// late initialization of the summarizer in the enterprise plugin. The
+	// summarizer itself summarizes session recordings.
+	SummarizerProvider *summarizerv1.SummarizerProvider
 }
 
 // Init instantiates and configures an instance of AuthServer

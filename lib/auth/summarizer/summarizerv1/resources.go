@@ -20,6 +20,7 @@ import (
 	"context"
 
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
+	"github.com/gravitational/trace"
 )
 
 // NewResourcesService creates a new OSS version of the SummarizerService. It
@@ -202,4 +203,9 @@ func (s *UnimplementedResourcesService) ListInferencePolicies(
 	ctx context.Context, req *summarizerv1pb.ListInferencePoliciesRequest,
 ) (*summarizerv1pb.ListInferencePoliciesResponse, error) {
 	return nil, requireEnterprise()
+}
+
+func requireEnterprise() error {
+	return trace.AccessDenied(
+		"session recording summarization is only available with an enterprise license that supports Teleport Identity Security")
 }

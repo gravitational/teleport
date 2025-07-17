@@ -31,10 +31,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/summarizer/summarizerv1"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
@@ -370,6 +372,96 @@ func TestEncryptedRecordingIO(t *testing.T) {
 	require.Len(t, decryptedEvents, eventCount+2)
 }
 
+func TestSummarization(t *testing.T) {
+	cases := []struct {
+		name               string
+		useSummarizer      bool
+		summarizationError error
+	}{
+		{
+			name:          "nil summarizer",
+			useSummarizer: false,
+		},
+		{
+			name:          "successful summarization",
+			useSummarizer: true,
+		},
+		{
+			// Since the behavior differs only in logging, this test is here just to
+			// make sure an error doesn't cause a panic.
+			name:               "summarization error",
+			useSummarizer:      true,
+			summarizationError: errors.New("summarization error"),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+			defer cancel()
+
+			summarizerProvider := &summarizerv1.SummarizerProvider{}
+			uploader := eventstest.NewMemoryUploader()
+			streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+				Uploader:           uploader,
+				SummarizerProvider: summarizerProvider,
+			})
+			require.NoError(t, err)
+
+			evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1})
+			sid := session.ID(evts[0].(events.SessionMetadataGetter).GetSessionID())
+
+			mockSummarizer := &MockSummarizer{}
+			if tc.useSummarizer {
+				summarizerProvider.SetSummarizer(mockSummarizer)
+				matchSessionEnd := mock.MatchedBy(func(evt *apievents.OneOf) bool {
+					return evt.GetSessionEnd() != nil
+				})
+				mockSummarizer.
+					On("Summarize", mock.Anything, sid, matchSessionEnd).
+					Return(tc.summarizationError).
+					Once()
+			}
+
+			stream, err := streamer.CreateAuditStream(ctx, sid)
+			require.NoError(t, err)
+
+			preparer, err := events.NewPreparer(events.PreparerConfig{
+				SessionID:   sid,
+				Namespace:   apidefaults.Namespace,
+				ClusterName: "cluster",
+			})
+			require.NoError(t, err)
+
+			for _, evt := range evts {
+				preparedEvent, err := preparer.PrepareSessionEvent(evt)
+				require.NoError(t, err)
+
+				err = stream.RecordEvent(ctx, preparedEvent)
+				require.NoError(t, err)
+			}
+
+			err = stream.Complete(ctx)
+			require.NoError(t, err)
+
+			mockSummarizer.AssertExpectations(t)
+
+			// doneC := make(chan struct{})
+			// go func() {
+			// 	defer close(doneC)
+			// 	stream.Complete(ctx)
+			// 	stream.Close(ctx)
+			// }()
+
+			// select {
+			// case <-ctx.Done():
+			// 	t.Fatal("Timeout waiting for emitter to complete")
+			// case <-doneC:
+			// }
+		})
+	}
+}
+
 func makeQueryEvent(id string, query string) *apievents.DatabaseSessionQuery {
 	return &apievents.DatabaseSessionQuery{
 		Metadata: apievents.Metadata{
@@ -432,4 +524,15 @@ func (f fakeWriterAt) Write(p []byte) (int, error) {
 
 func (f fakeWriterAt) WriteAt(p []byte, offset int64) (int, error) {
 	return f.Write(p)
+}
+
+type MockSummarizer struct {
+	mock.Mock
+}
+
+func (m *MockSummarizer) Summarize(
+	ctx context.Context, sessionID session.ID, sessionEndEvent *apievents.OneOf,
+) error {
+	args := m.Called(ctx, sessionID, sessionEndEvent)
+	return args.Error(0)
 }

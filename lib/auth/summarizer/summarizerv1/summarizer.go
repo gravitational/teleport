@@ -18,8 +18,7 @@ package summarizerv1
 
 import (
 	"context"
-
-	"github.com/gravitational/trace"
+	"sync/atomic"
 
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -34,35 +33,48 @@ type Summarizer interface {
 	Summarize(ctx context.Context, sessionID session.ID, sessionEndEvent *events.OneOf) error
 }
 
-// SummarizerWrapper is a wrapper around the SummarizerService interface. Its
-// purpose is to allow substituting the wrapped service after a dependent
-// service has been configured with the wrapper as the service implementation.
-type SummarizerWrapper struct {
-	Summarizer
+// SummarizerProvider provides a reference to a Summarizer service
+// implementation. Here is why it is needed:
+//
+// The actual summarizer service has to be created after the
+// lib/events.ProtoStreamer, as the summarizer lives in the enterprise plugin,
+// which is configured later in the initialization process. Another factor here
+// is that the summarizer depends on the streamer for loading session
+// recordings, however, the streamer depends on the summarizer, as it needs to
+// call it when the upload finishes.
+//
+// In an absence of a dependency injection container, one solution is to use a
+// provider that is passed to the streamer as a dependency. It allows for late
+// initialization of the summarizer service. This way the provided service can
+// be replaced without ever needing to change the streamer interface by adding
+// a setter method; doing so would pollute the interface and require some
+// unnecessary stub implementations.
+type SummarizerProvider struct {
+	summarizer atomic.Pointer[Summarizer]
 }
 
-// NewSummarizerWrapper creates a new SummarizerWrapper with an unimplemented
-// Summarizer.
-func NewSummarizerWrapper() *SummarizerWrapper {
-	return &SummarizerWrapper{
-		Summarizer: &UnimplementedSummarizer{},
+// ProvideSummarizer provides the summarizer service. It is safe to call this
+// function from any thread. Allows being called on a nil provider.
+func (p *SummarizerProvider) ProvideSummarizer() Summarizer {
+	if p == nil {
+		return nil
 	}
+
+	s := p.summarizer.Load()
+	if s == nil {
+		return nil
+	}
+
+	return *s
 }
 
-// A [Summarizer] that returns an error indicating that summarization is only
-// available in the enterprise version of Teleport.
-type UnimplementedSummarizer struct{}
-
-// Summarize is supposed to return a summary of a session recording, but
-// returns an error indicating that this feature is only available in the
-// enterprise version of Teleport.
-func (s *UnimplementedSummarizer) Summarize(
-	ctx context.Context, sessionID session.ID, sessionEndEvent *events.OneOf,
-) error {
-	return requireEnterprise()
+// SetSummarizer sets the summarizer service to be provided. It is safe to call
+// this function from any thread.
+func (p *SummarizerProvider) SetSummarizer(summarizer Summarizer) {
+	p.summarizer.Store(&summarizer)
 }
 
-func requireEnterprise() error {
-	return trace.AccessDenied(
-		"session recording summarization is only available with an enterprise license that supports Teleport Identity Security")
+// NewSummarizerProvider creates a new SummarizerProvider without a summarizer.
+func NewSummarizerProvider() *SummarizerProvider {
+	return &SummarizerProvider{}
 }
