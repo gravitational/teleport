@@ -722,7 +722,7 @@ func TestAccessListReviewCRUD(t *testing.T) {
 
 	// Create a couple access lists.
 	accessList1 := newAccessList(t, "accessList1", clock)
-	accessList2 := newAccessList(t, "accessList2", clock)
+	accessList2 := newAccessList(t, "accessList2", clock, withType(accesslist.DeprecatedDynamic))
 
 	accessList1OrigDate := accessList1.Spec.Audit.NextAuditDate
 	accessList2OrigDate := accessList2.Spec.Audit.NextAuditDate
@@ -1017,7 +1017,19 @@ func TestAccessListRequiresEqual(t *testing.T) {
 	}
 }
 
-func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist.AccessList {
+type newAccessListOptions struct {
+	typ accesslist.Type
+}
+
+type newAccessListOpt func(*newAccessListOptions)
+
+func withType(typ accesslist.Type) newAccessListOpt {
+	return func(o *newAccessListOptions) {
+		o.typ = typ
+	}
+}
+
+func newAccessList(t *testing.T, name string, clock clockwork.Clock, opts ...newAccessListOpt) *accesslist.AccessList {
 	t.Helper()
 
 	accessList, err := accesslist.NewAccessList(
