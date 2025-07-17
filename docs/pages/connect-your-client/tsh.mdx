@@ -190,7 +190,7 @@ This allows you to authenticate just once, maybe at the beginning of the day. Su
   It is recommended to always use [`tsh login`](../reference/cli/tsh.mdx#tsh-login) before using any other `tsh` commands. This allows users to omit `--proxy` flag in subsequent tsh commands. For example `tsh ssh user@host` will work.
 </Admonition>
 
-A Teleport cluster can be configured for multiple user identity sources. For example, a cluster may have a local user called `admin` while regular users should [authenticate via GitHub](../admin-guides/access-controls/sso/github-sso.mdx). In this case, you have to pass `--auth` flag to `tsh login` to specify which identity storage to use:
+A Teleport cluster can be configured for multiple user identity sources. For example, a cluster may have a local user called `admin` while regular users should [authenticate via GitHub](../zero-trust-access/sso/github-sso.mdx). In this case, you have to pass `--auth` flag to `tsh login` to specify which identity storage to use:
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
