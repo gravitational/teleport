@@ -289,7 +289,7 @@ func (m *MemoryUploader) UploadSummary(ctx context.Context, sessionID session.ID
 }
 
 // Download downloads session tarball and writes it to writer
-func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -297,14 +297,14 @@ func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID, wri
 	if !ok {
 		return trace.NotFound("session %q is not found", sessionID)
 	}
-	_, err := io.Copy(writer.(io.Writer), bytes.NewReader(data))
+	_, err := io.Copy(writer, bytes.NewReader(data))
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
 	return nil
 }
 
-func (m *MemoryUploader) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+func (m *MemoryUploader) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -312,7 +312,7 @@ func (m *MemoryUploader) DownloadSummary(ctx context.Context, sessionID session.
 	if !ok {
 		return trace.NotFound("summary %q is not found", sessionID)
 	}
-	_, err := io.Copy(writer.(io.Writer), bytes.NewReader(data))
+	_, err := io.Copy(writer, bytes.NewReader(data))
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}

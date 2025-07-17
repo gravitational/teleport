@@ -111,22 +111,22 @@ func (l *Handler) Close() error {
 }
 
 // Download reads a session recording from a local directory.
-func (l *Handler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+func (l *Handler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	return downloadFile(l.recordingPath(sessionID), writer)
 }
 
 // DownloadSummary reads a session summary from a local directory.
-func (l *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+func (l *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	return downloadFile(l.summaryPath(sessionID), writer)
 }
 
-func downloadFile(path string, writer io.WriterAt) error {
+func downloadFile(path string, writer events.RandomAccessWriter) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
 	defer f.Close()
-	_, err = io.Copy(writer.(io.Writer), f)
+	_, err = io.Copy(writer, f)
 	if err != nil {
 		return trace.Wrap(err)
 	}

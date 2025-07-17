@@ -296,16 +296,16 @@ func (h *Handler) uploadBlob(ctx context.Context, sessionID session.ID, blob *bl
 }
 
 // Download implements [events.UploadHandler] and downloads a session recording.
-func (h *Handler) Download(ctx context.Context, sessionID session.ID, writerAt io.WriterAt) error {
-	return h.downloadBlob(ctx, sessionID, h.sessionBlob(sessionID), writerAt)
+func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return h.downloadBlob(ctx, sessionID, h.sessionBlob(sessionID), writer)
 }
 
 // DownloadSummary implements [events.UploadHandler] and downloads a session summary.
-func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writerAt io.WriterAt) error {
-	return h.downloadBlob(ctx, sessionID, h.summaryBlob(sessionID), writerAt)
+func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return h.downloadBlob(ctx, sessionID, h.summaryBlob(sessionID), writer)
 }
 
-func (h *Handler) downloadBlob(ctx context.Context, sessionID session.ID, blob *blockblob.Client, writerAt io.WriterAt) error {
+func (h *Handler) downloadBlob(ctx context.Context, sessionID session.ID, blob *blockblob.Client, writer events.RandomAccessWriter) error {
 	resp, err := cErr(blob.DownloadStream(ctx, nil))
 	if err != nil {
 		return trace.Wrap(err)
@@ -316,11 +316,6 @@ func (h *Handler) downloadBlob(ctx context.Context, sessionID session.ID, blob *
 			h.log.WarnContext(ctx, "Error closing downloaded blob.", "error", err, fieldSessionID, sessionID)
 		}
 	}()
-
-	writer, ok := writerAt.(io.Writer)
-	if !ok {
-		writer = io.NewOffsetWriter(writerAt, 0)
-	}
 
 	if _, err := io.Copy(writer, resp.Body); err != nil {
 		return trace.ConvertSystemError(cErr0(err))
