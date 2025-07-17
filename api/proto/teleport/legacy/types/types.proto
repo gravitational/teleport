@@ -5294,6 +5294,9 @@ message OIDCConnectorSpecV3 {
   // UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should
   // match for identifier-first login.
   repeated string UserMatchers = 21 [(gogoproto.jsontag) = "user_matchers,omitempty"];
+  // EnableRequestObjects forces the connector to use JWT-Secured Authorization Requests (JAR) during
+  // authentication with the IdP.
+  bool EnableRequestObjects = 22 [(gogoproto.jsontag) = "enable_request_objects,omitempty"];
 }
 
 // MaxAge allows the max_age parameter to be nullable to preserve backwards
