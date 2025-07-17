@@ -967,18 +967,32 @@ func TestGenerateAndSignKeys(t *testing.T) {
 
 func TestGenerateCRLForCA(t *testing.T) {
 	ctx := context.Background()
+	name, err := types.NewClusterName(types.ClusterNameSpecV2{ClusterName: "name", ClusterID: "clusterID"})
+	require.NoError(t, err)
+	cas := make([]types.CertAuthority, len(allowedCRLCertificateTypes))
+	for i, certificateType := range allowedCRLCertificateTypes {
+		cas[i], err = types.NewCertAuthority(types.CertAuthoritySpecV2{
+			Type:        types.CertAuthType(certificateType),
+			ClusterName: "name",
+			ActiveKeys: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{{
+					CRL:  []byte{},
+					Cert: []byte{1},
+				}}},
+		})
+		require.NoError(t, err)
+	}
+	authClient := &mockClient{crl: []byte{}, clusterName: name, cas: cas}
 
 	for _, caType := range allowedCRLCertificateTypes {
 		t.Run(caType, func(t *testing.T) {
 			ac := AuthCommand{caType: caType}
-			authClient := &mockClient{crl: []byte{}}
 			require.NoError(t, ac.GenerateCRLForCA(ctx, authClient))
 		})
 	}
 
 	t.Run("InvalidCAType", func(t *testing.T) {
 		ac := AuthCommand{caType: "wrong-ca"}
-		authClient := &mockClient{crl: []byte{}}
 		require.Error(t, ac.GenerateCRLForCA(ctx, authClient))
 	})
 }
