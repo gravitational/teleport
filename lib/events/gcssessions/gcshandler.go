@@ -279,7 +279,17 @@ func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader)
 // result into a writer. Returns trace.NotFound error if the recording is not
 // found.
 func (h *Handler) Download(ctx context.Context, sessionID session.ID, writerAt io.WriterAt) error {
-	path := h.recordingPath(sessionID)
+	return h.downloadFile(ctx, h.recordingPath(sessionID), writerAt)
+}
+
+// DownloadSummary downloads a session summary from a GCS bucket and writes the
+// result into a writer. Returns trace.NotFound error if the recording is not
+// found.
+func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+	return h.downloadFile(ctx, h.summaryPath(sessionID), writer)
+}
+
+func (h *Handler) downloadFile(ctx context.Context, path string, writerAt io.WriterAt) error {
 	h.logger.DebugContext(ctx, "Downloading object from GCS.", "path", path)
 	writer, ok := writerAt.(io.Writer)
 	if !ok {
@@ -298,16 +308,9 @@ func (h *Handler) Download(ctx context.Context, sessionID session.ID, writerAt i
 	downloadLatencies.Observe(time.Since(start).Seconds())
 	downloadRequests.Inc()
 	if written == 0 {
-		return trace.NotFound("recording for %v is empty", sessionID)
+		return trace.NotFound("file at path %v is empty", path)
 	}
 	return nil
-}
-
-// DownloadSummary downloads a session summary from a GCS bucket and writes the
-// result into a writer. Returns trace.NotFound error if the recording is not
-// found.
-func (l *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
-	return trace.NotImplemented("DownloadSummary is not implemented for GCS handler")
 }
 
 func (h *Handler) recordingPath(sessionID session.ID) string {
