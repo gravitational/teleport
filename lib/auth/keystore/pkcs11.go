@@ -253,6 +253,28 @@ func (p *pkcs11KeyStore) getDecrypter(ctx context.Context, rawKey []byte, public
 	return nil, trace.BadParameter("pkcs11 key does not support decryption")
 }
 
+func (p *pkcs11KeyStore) findDecryptersByLabel(ctx context.Context, label *types.KeyLabel) ([]crypto.Decrypter, error) {
+	if label == nil || label.Type != types.PrivateKeyType_PKCS11 {
+		return nil, nil
+	}
+
+	signers, err := p.ctx.FindKeyPairs(nil, []byte(label.Label))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var decrypters []crypto.Decrypter
+	for _, signer := range signers {
+		decrypter, ok := signer.(crypto.Decrypter)
+		if !ok {
+			continue
+		}
+		decrypters = append(decrypters, decrypter)
+	}
+
+	return decrypters, nil
+}
+
 func (p *pkcs11KeyStore) getSignerWithoutPublicKey(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
 	if t := keyType(rawKey); t != types.PrivateKeyType_PKCS11 {
 		return nil, trace.BadParameter("pkcs11KeyStore cannot get signer for key type %s", t.String())

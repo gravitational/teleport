@@ -172,6 +172,9 @@ type backend interface {
 	// keys this backend uses.
 	keyTypeDescription() string
 
+	// findDecryptersByLabel returns all known decrypters identified by the given label
+	findDecryptersByLabel(ctx context.Context, label *types.KeyLabel) ([]crypto.Decrypter, error)
+
 	// name returns the name of the backend.
 	name() string
 }
@@ -536,6 +539,25 @@ func (m *Manager) GetDecrypter(ctx context.Context, keyPair *types.EncryptionKey
 	}
 
 	return nil, trace.NotFound("no compatible backend found for keypair")
+}
+
+// FindDecryptersByLabels returns a slice of all [crypto.Decrypter] keys identified by the given labels across all
+// usable backends.
+func (m *Manager) FindDecryptersByLabels(ctx context.Context, labels ...*types.KeyLabel) ([]crypto.Decrypter, error) {
+	var decrypters []crypto.Decrypter
+	for _, backend := range m.usableBackends {
+		for _, label := range labels {
+			decs, err := backend.findDecryptersByLabel(ctx, label)
+			if err != nil {
+				m.logger.DebugContext(ctx, "could not find key for label", "backend", backend.name(), "label", label)
+				continue
+			}
+
+			decrypters = append(decrypters, decs...)
+		}
+	}
+
+	return decrypters, nil
 }
 
 // NewSSHKeyPair generates a new SSH keypair in the keystore backend and returns it.

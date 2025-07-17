@@ -279,6 +279,48 @@ func (a *awsKMSKeystore) getDecrypter(ctx context.Context, rawKey []byte, public
 	return a.newKMSKeyWithPublicKey(ctx, key, publicKey)
 }
 
+func (a *awsKMSKeystore) findDecryptersByLabel(ctx context.Context, label *types.KeyLabel) ([]crypto.Decrypter, error) {
+	if label == nil || label.Type != types.PrivateKeyType_AWS_KMS {
+		return nil, nil
+	}
+
+	describeOut, err := a.kms.DescribeKey(ctx, &kms.DescribeKeyInput{
+		KeyId: aws.String(label.Label),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if describeOut.KeyMetadata.KeyUsage != kmstypes.KeyUsageTypeEncryptDecrypt {
+		return nil, trace.BadParameter("key usage must be encrypt/decrypt to be used as a decrypter")
+	}
+
+	if describeOut.KeyMetadata.KeySpec != kmstypes.KeySpecRsa4096 {
+		return nil, trace.BadParameter("key spec must be RSA 4096 to be used as a decrypter")
+	}
+
+	pubKeyOut, err := a.kms.GetPublicKey(ctx, &kms.GetPublicKeyInput{
+		KeyId: aws.String(label.Label),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pubKey, err := x509.ParsePKIXPublicKey(pubKeyOut.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keyID, err := keyIDFromArn(*describeOut.KeyMetadata.Arn)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	decrypter, err := a.newKMSKeyWithPublicKey(ctx, keyID, pubKey)
+	return []crypto.Decrypter{decrypter}, trace.Wrap(err)
+
+}
+
 type awsKMSKey struct {
 	key awsKMSKeyID
 	pub crypto.PublicKey

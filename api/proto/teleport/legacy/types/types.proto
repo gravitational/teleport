@@ -2411,11 +2411,34 @@ message SessionRecordingConfigV2 {
   ];
 }
 
+// KeyLabel combines a label that can be used to identify one or more keys with a keystore type that
+// determines where the keys are stored.
+message KeyLabel {
+  // Type represnts which keystore should be searched when looking up keys by label.
+  PrivateKeyType type = 1 [(gogoproto.jsontag) = "type"];
+  // Label is a value that can be used with the related keystore in order to find relevant keys.
+  string label = 2 [(gogoproto.jsontag) = "label"];
+}
+
+// ManualKeyManagementConfig defines whether or not recording encryption keys should be managed externally
+// and how to query those keys.
+message ManualKeyManagementConfig {
+  // Enabled controls whether or recording encryption keys should be managed externally.
+  bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
+  // ActiveKeyLabels describe which keys should be queried for encryption.
+  repeated KeyLabel active_key_labels = 2 [(gogoproto.jsontag) = "active_key_labels,omitempty"];
+  // RotatedKeyLabels describe which keys should be queried during historical replay.
+  repeated KeyLabel rotated_key_labels = 3 [(gogoproto.jsontag) = "rotated_key_labels,omitempty"];
+}
+
 // SessionRecordingEncryptionConfig configures if and how session recordings
 // should be encrypted.
 message SessionRecordingEncryptionConfig {
   // Enabled controls whether or not session recordings should be encrypted.
-  bool enabled = 1 [(gogoproto.jsontag) = "enabled"];
+  bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
+  // ManualKeyManagement defines whether or not recording encryption keys should be managed externally
+  // and how to query those keys.
+  ManualKeyManagementConfig manual_key_management = 2 [(gogoproto.jsontag) = "manual_key_management,omitempty"];
 }
 
 // SessionRecordingConfigSpecV2 is the actual data we care about

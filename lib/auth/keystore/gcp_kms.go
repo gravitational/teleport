@@ -223,6 +223,30 @@ func (g *gcpKMSKeyStore) getDecrypter(ctx context.Context, rawKey []byte, public
 	return signer, trace.Wrap(err)
 }
 
+func (g *gcpKMSKeyStore) findDecryptersByLabel(ctx context.Context, label *types.KeyLabel) ([]crypto.Decrypter, error) {
+	if label == nil || label.Type != types.PrivateKeyType_GCP_KMS {
+		return nil, nil
+	}
+
+	keyMeta, err := g.kmsClient.GetCryptoKey(ctx, &kmspb.GetCryptoKeyRequest{
+		Name: label.Label,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if keyMeta.GetPurpose() != kmspb.CryptoKey_ASYMMETRIC_DECRYPT {
+		return nil, trace.BadParameter("key usage must be encrypt/decrypt to be used as a decrypter")
+	}
+
+	if keyMeta.Primary.GetAlgorithm() != kmspb.CryptoKeyVersion_RSA_DECRYPT_OAEP_4096_SHA256 {
+		return nil, trace.BadParameter("key spec must be RSA 4096 to be used as a decrypter")
+	}
+
+	key, err := g.newKmsKey(ctx, gcpKMSKeyID{keyMeta.GetName()})
+	return []crypto.Decrypter{key}, trace.Wrap(err)
+}
+
 // deleteKey deletes the given key from the KeyStore.
 func (g *gcpKMSKeyStore) deleteKey(ctx context.Context, rawKey []byte) error {
 	keyID, err := parseGCPKMSKeyID(rawKey)

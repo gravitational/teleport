@@ -23,6 +23,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"testing"
@@ -54,7 +55,9 @@ func (d oaepDecrypter) Decrypt(rand io.Reader, msg []byte, opts crypto.Decrypter
 }
 
 type fakeKeyStore struct {
-	keyType types.PrivateKeyType // abusing this field as a way to simulate different auth servers
+	keyType   types.PrivateKeyType // abusing this field as a way to simulate different auth servers
+	keys      map[string][]crypto.Decrypter
+	currLabel types.KeyLabel
 }
 
 func (f *fakeKeyStore) NewEncryptionKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.EncryptionKeyPair, error) {
@@ -77,6 +80,13 @@ func (f *fakeKeyStore) NewEncryptionKeyPair(ctx context.Context, purpose cryptos
 	if err != nil {
 		return nil, err
 	}
+
+	if f.keys == nil {
+		f.keys = make(map[string][]crypto.Decrypter)
+	}
+
+	label := fmt.Sprintf("%d:%s", f.currLabel.Type, f.currLabel.Label)
+	f.keys[label] = append(f.keys[label], private)
 
 	return &types.EncryptionKeyPair{
 		PrivateKey:     privatePEM,
@@ -101,6 +111,16 @@ func (f *fakeKeyStore) GetDecrypter(ctx context.Context, keyPair *types.Encrypti
 		return nil, errors.New("private key should have been a decrypter")
 	}
 	return oaepDecrypter{Decrypter: decrypter, hash: crypto.Hash(keyPair.Hash)}, nil
+}
+
+func (f *fakeKeyStore) FindDecryptersByLabels(ctx context.Context, labels ...*types.KeyLabel) ([]crypto.Decrypter, error) {
+	var decrypters []crypto.Decrypter
+	for _, label := range labels {
+		lookup := fmt.Sprintf("%d:%s", label.Type, label.Label)
+		decrypters = append(decrypters, f.keys[lookup]...)
+	}
+
+	return decrypters, nil
 }
 
 func newLocalBackend(
@@ -223,7 +243,7 @@ func TestResolveRecordingEncryption(t *testing.T) {
 	configA := newManagerConfig(t, bk, managerABType)
 	configB := configA
 	configC := configA
-	configC.KeyStore = &fakeKeyStore{managerCType}
+	configC.KeyStore = &fakeKeyStore{keyType: managerCType}
 
 	managerA, err := recordingencryption.NewManager(configA)
 	require.NoError(t, err)

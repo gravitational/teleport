@@ -17,7 +17,9 @@ limitations under the License.
 package types
 
 import (
+	"encoding/json"
 	"iter"
+	"log/slog"
 	"slices"
 	"strings"
 	"time"
@@ -46,6 +48,9 @@ type SessionRecordingConfig interface {
 
 	// GetEncrypted gets if session recordings should be encrypted or not.
 	GetEncrypted() bool
+
+	// GetEncryption gets the encryption config from the session recording config.
+	GetEncryption() *SessionRecordingEncryptionConfig
 
 	// GetEncryptionKeys gets the encryption keys for the session recording config.
 	GetEncryptionKeys() []*AgeEncryptionKey
@@ -184,6 +189,10 @@ func (c *SessionRecordingConfigV2) GetEncrypted() bool {
 	return encryption.Enabled
 }
 
+func (c *SessionRecordingConfigV2) GetEncryption() *SessionRecordingEncryptionConfig {
+	return c.Spec.Encryption
+}
+
 // GetEncryptionKeys gets the encryption keys for the session recording config.
 func (c *SessionRecordingConfigV2) GetEncryptionKeys() []*AgeEncryptionKey {
 	if c.Status != nil {
@@ -267,4 +276,31 @@ func (c *SessionRecordingConfigV2) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+var privateKeyTypeToName, nameToPrivateKeyType = getReciprocalMaps(map[PrivateKeyType]string{
+	PrivateKeyType_RAW:     "software",
+	PrivateKeyType_AWS_KMS: "aws_kms",
+	PrivateKeyType_GCP_KMS: "gcp_kms",
+	PrivateKeyType_PKCS11:  "pkcs11",
+})
+
+func (c *PrivateKeyType) UnmarshalJSON(b []byte) error {
+	// return trace.Wrap(unmarshalEnum(privateKeyTypeToName, privateKeyTypeToValue, b, c), "unmarshaling PrivateKeyType")
+	if err := unmarshalEnumJSON(privateKeyTypeToName, nameToPrivateKeyType, b, c); err != nil {
+		return trace.Wrap(err)
+	}
+
+	slog.Info("unmarshaling key type", "result", c, "bytes", string(b))
+	return nil
+}
+
+func (c PrivateKeyType) MarshalJSON() ([]byte, error) {
+	name, ok := privateKeyTypeToName[c]
+	if !ok {
+		return nil, trace.Errorf("invalid key type: %d", c)
+	}
+
+	slog.Info("marshaling key type", "type", c, "name", name)
+	return json.Marshal(name)
 }

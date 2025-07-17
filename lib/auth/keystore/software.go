@@ -148,6 +148,10 @@ func (s *softwareKeyStore) getDecrypter(ctx context.Context, rawKey []byte, publ
 	return newOAEPDecrypter(softwareHash, decrypter), nil
 }
 
+func (s *softwareKeyStore) findDecryptersByLabel(ctx context.Context, label *types.KeyLabel) ([]crypto.Decrypter, error) {
+	return nil, trace.NotImplemented("software decryption keys do not support lookup by label")
+}
+
 // canUseKey returns true if the given key is a raw key.
 func (s *softwareKeyStore) canUseKey(ctx context.Context, _ []byte, keyType types.PrivateKeyType) (bool, error) {
 	return keyType == types.PrivateKeyType_RAW, nil
