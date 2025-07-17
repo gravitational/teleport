@@ -331,6 +331,11 @@ auth_service:
   #
   session_recording: "node"
 
+  # This setting determines if session recordings should be encrypted. All
+  # encryption keys required will be provisioned using the key storage backend
+  # defined in ca_key_params.
+  session_recording_encryption: yes
+
   # This setting determines if a Teleport proxy performs strict host key
   # checks.
   # Only applicable if session_recording=proxy
