@@ -23,7 +23,6 @@ import (
 	"context"
 	"crypto/x509"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -31,8 +30,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
-	"testing"
 	"unicode"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -134,38 +131,6 @@ func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) 
 		OSLogSubsystem: o.osLogSubsystem,
 	})
 	return logger, trace.Wrap(err)
-}
-
-var initTestLoggerOnce = sync.Once{}
-
-// InitLoggerForTests initializes the standard logger for tests.
-// Deprecated: prefer using logtest.InitLogger
-// TODO(tross): remove after enterprise references are updated.
-func InitLoggerForTests() {
-	initTestLoggerOnce.Do(func() {
-		if !flag.Parsed() {
-			// Parse flags to check testing.Verbose().
-			flag.Parse()
-		}
-
-		if !testing.Verbose() {
-			slog.SetDefault(slog.New(slog.DiscardHandler))
-			return
-		}
-
-		logutils.Initialize(logutils.Config{
-			Severity: slog.LevelDebug.String(),
-			Format:   LogFormatJSON,
-		})
-	})
-}
-
-// NewSlogLoggerForTests creates a new slog logger for test environments.
-// Deprecated: prefer using logtest.NewLogger
-// TODO(tross): remove after enterprise references are updated.
-func NewSlogLoggerForTests() *slog.Logger {
-	InitLoggerForTests()
-	return slog.Default()
 }
 
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging
