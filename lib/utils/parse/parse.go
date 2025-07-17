@@ -230,13 +230,16 @@ func RegexpReplace(inputs []string, match string, replacement string) ([]string,
 // JSONPath takes a list of json blobs and uses jsonpath interpolation to transform
 // each entry into a list of strings, returning a combined list. If jsonpath interpolation
 // for any of the json blobs results in a value other than a string or list of strings,
-// the function will return an error.
+// the function will return an error. If any of the input values are normal strings and
+// not json blobs, this expression will return an empty list rather than an error.
 func JSONPath(inputs []string, path string) ([]string, error) {
 	out := make([]string, 0, len(inputs))
 	for _, input := range inputs {
 		jsonObject, err := oj.ParseString(input)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			// Input contained a non-json value. This can happen in multi provider scenarios
+			// where a claim is a string/list from one provider and a json object from another.
+			return nil, nil
 		}
 
 		jpExpr, err := jp.ParseString(path)
