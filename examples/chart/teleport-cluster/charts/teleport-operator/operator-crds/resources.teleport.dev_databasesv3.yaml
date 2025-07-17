@@ -320,12 +320,22 @@ spec:
               gcp:
                 description: GCP contains parameters specific to GCP Cloud SQL databases.
                 properties:
+                  cluster_id:
+                    description: ClusterID is the ID of the cluster. Required for
+                      AlloyDB databases.
+                    type: string
                   instance_id:
                     description: InstanceID is the Cloud SQL instance ID.
                     type: string
+                  is_alloy_db:
+                    description: IsAlloyDB is true if the database is an AlloyDB server.
+                    type: boolean
                   project_id:
                     description: ProjectID is the GCP project ID the Cloud SQL instance
                       resides in.
+                    type: string
+                  region:
+                    description: Region is the GCP region. Required for AlloyDB databases.
                     type: string
                 type: object
               mongo_atlas:
