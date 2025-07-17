@@ -1292,11 +1292,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	detectorConfig := &adaptor.Config{
 		ResolverAddr: resolverAddr,
 		HostUUID:     cfg.HostUUID,
-		// We can't use process.Supervisor because apparently, Supervisor doesn't have OnExit() ¯\_(ツ)_/¯
-		Supervisor:   process,
 		Log:          process.logger,
-		ClientGetter: process.upgradeWindowsClient,
-		Sentinel:     process.inventoryHandle.Sender(),
 	}
 	updater, err := adaptor.DetectAndConfigureUpdater(process.GracefulExitContext(), detectorConfig)
 	if err != nil {
@@ -1345,6 +1341,12 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "building inventory handle")
+	}
+
+	// Now that the inventory handle is up and running, we can start the updater routine.
+	err = updater.RegisterRoutines(process.GracefulExitContext(), process, process.upgradeWindowsClient, process.inventoryHandle.Sender())
+	if err != nil {
+		return nil, trace.Wrap(err, "registering updater export routines")
 	}
 
 	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping *proto.DownstreamInventoryPing) {
