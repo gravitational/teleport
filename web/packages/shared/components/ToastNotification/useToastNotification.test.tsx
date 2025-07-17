@@ -30,7 +30,7 @@ const wrapper = ({ children }) => (
   <ToastNotificationProvider>{children}</ToastNotificationProvider>
 );
 
-describe('useToastNotification', () => {
+describe('useToastNotifications', () => {
   test('add notification', async () => {
     const { result } = renderHook(() => useToastNotifications(), {
       wrapper,
@@ -40,21 +40,21 @@ describe('useToastNotification', () => {
 
     // addNotification with content type "string"
     await act(async () => {
-      result.current.addNotification('error', 'error content');
+      result.current.addNotification('error', 'first note');
     });
 
     await waitFor(() => {
       expect(result.current.notifications).toHaveLength(1);
     });
 
-    expect(result.current.notifications[0].content).toEqual('error content');
+    expect(result.current.notifications[0].content).toEqual('first note');
     expect(result.current.notifications[0].severity).toEqual('error');
     expect(result.current.notifications[0].id).toBeTruthy();
 
     // addNotification with content type "Object"
     await act(async () => {
       result.current.addNotification('info', {
-        title: 'some title',
+        title: 'second note',
         description: 'some description',
         icon: ShieldCheck,
       });
@@ -64,14 +64,18 @@ describe('useToastNotification', () => {
       expect(result.current.notifications).toHaveLength(2);
     });
 
-    expect(result.current.notifications[1].id).toBeTruthy();
-    expect(result.current.notifications[1].severity).toEqual('info');
+    expect(result.current.notifications[0].id).toBeTruthy();
+    expect(result.current.notifications[0].severity).toEqual('info');
 
-    const item = result.current.notifications[1]
+    const item = result.current.notifications[0]
       .content as ToastNotificationItemObjectContent;
-    expect(item.title).toEqual('some title');
+    expect(item.title).toEqual('second note');
     expect(item.description).toEqual('some description');
     expect(item.icon).toEqual(ShieldCheck);
+
+    // New notes get added to the beginning of list.
+    // Oldest notes are at the end of list.
+    expect(result.current.notifications[1].content).toEqual('first note');
   });
 
   test('remove notification', async () => {

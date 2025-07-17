@@ -33,7 +33,14 @@ import {
 
 type ToastNotificationContextState = {
   notifications: ToastNotificationItem[];
+  /**
+   * remove a notification matching id.
+   */
   removeNotification(id: string): void;
+  /**
+   * adds new notification to the beginning of
+   * an existing list of notifications.
+   */
   addNotification(
     severity: ToastNotificationSeverity,
     content: ToastNotificationItemContent
@@ -43,6 +50,9 @@ type ToastNotificationContextState = {
 const ToastNotificationContext =
   createContext<ToastNotificationContextState>(null);
 
+/**
+ * Provider for adding, removing, and listing toast notifications.
+ */
 export const ToastNotificationProvider: FC<PropsWithChildren> = ({
   children,
 }) => {
@@ -59,8 +69,8 @@ export const ToastNotificationProvider: FC<PropsWithChildren> = ({
     content: ToastNotificationItemContent
   ) {
     setNotifications(notifications => [
-      ...notifications,
       { id: crypto.randomUUID(), content, severity },
+      ...notifications,
     ]);
   }
 
@@ -79,6 +89,10 @@ export const ToastNotificationProvider: FC<PropsWithChildren> = ({
   );
 };
 
+/**
+ * useToastNotifications allows you to add to or remove from a
+ * list of notifications from ToastNotificationContext.
+ */
 export function useToastNotifications() {
   const context = useContext(ToastNotificationContext);
 
@@ -90,8 +104,3 @@ export function useToastNotifications() {
 
   return context;
 }
-
-export type AddNotification = (
-  severity: ToastNotificationSeverity,
-  content: ToastNotificationItemContent
-) => void;

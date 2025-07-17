@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -21,6 +21,15 @@ import styled from 'styled-components';
 import { ToastNotification } from './ToastNotification';
 import { useToastNotifications } from './ToastNotificationContext';
 
+/**
+ * Renders a list of notification toasts in the top right corner of the screen.
+ * Toasts are sticky when scrolling is enabled on the screen.
+ *
+ * Info like notifications (success, info, neutral) are automatically removed
+ * from the notification list after a set time.
+ *
+ * Requires ToastNotificationProvider.
+ */
 export const ToastNotifications = () => {
   const { removeNotification, notifications } = useToastNotifications();
 
@@ -39,14 +48,14 @@ export const ToastNotifications = () => {
   );
 };
 
-export const TopRightStickyContainer = styled.div`
+const TopRightStickyContainer = styled.div`
   position: sticky;
   top: 0;
   right: 0;
   z-index: 1;
 `;
 
-export const TopRightFlexedContainer = styled.div`
+const TopRightFlexedContainer = styled.div`
   position: absolute;
   top: ${p => p.theme.space[2]}px;
   right: ${p => p.theme.space[5]}px;
