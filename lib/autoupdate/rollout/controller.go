@@ -41,7 +41,6 @@ const (
 // We currently wake up every minute, in the future we might decide to also watch for events
 // (from autoupdate_config and autoupdate_version changefeed) to react faster.
 type Controller struct {
-	// TODO(hugoShaka) add prometheus metrics describing the reconciliation status
 	reconciler reconciler
 	clock      clockwork.Clock
 	log        *slog.Logger
