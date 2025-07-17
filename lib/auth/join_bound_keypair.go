@@ -640,6 +640,23 @@ func (a *Server) verifyBoundKeypairJoinState(
 	return nil
 }
 
+// verifyLocksForBoundKeypairToken checks if any token-level locks are in place
+// against the given token.  This should ideally be called after the request has
+// been authenticated (exact criteria varies depending on token state) but
+// before the request has mutated anything on the server - including creation of
+// additional locks: we don't want to allow continuous lock creation.
+func (a *Server) verifyLocksForBoundKeypairToken(ctx context.Context, token *types.ProvisionTokenV2) error {
+	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.checkLockInForce(
+		readOnlyAuthPref.GetLockingMode(),
+		[]types.LockTarget{{JoinToken: token.GetName()}},
+	))
+}
+
 // RegisterUsingBoundKeypairMethod handles joining requests for the bound
 // keypair join method. If successful, returns a certificate bundle and client
 // joining parameters for use in subsequent join attempts.
@@ -823,6 +840,14 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 			mutateStatusConsumeRecovery(status.RecoveryCount, spec.Recovery.Limit),
 		)
 
+		// Verify locks here, but only after we've tentatively authenticated the
+		// request. We don't want to leak the lock status to random
+		// unauthenticated clients, and by this point, we haven't mutated any
+		// server-side state.
+		if err := a.verifyLocksForBoundKeypairToken(ctx, ptv2); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		// Note: this is the initial join, so no join state to verify.
 
 		recoveryCount += 1
@@ -851,6 +876,13 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 			return nil, trace.Wrap(err)
 		}
 
+		// Verify locks here now that we've verified private key ownership but
+		// before we check join state. Otherwise, we could allow a lock creation
+		// loop.
+		if err := a.verifyLocksForBoundKeypairToken(ctx, ptv2); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		// Once we've verified the client has the matching private key, validate
 		// the join state. This must be done after a successful challenge to
 		// make sure an otherwise unauthorized client can't trigger a lockout.
@@ -876,6 +908,13 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 			challengeResponse,
 		); err != nil {
 			a.emitBoundKeypairRecoveryEvent(ctx, req, ptv2, boundPublicKey, recoveryCount, err)
+			return nil, trace.Wrap(err)
+		}
+
+		// Verify locks here now that we've verified private key ownership but
+		// before we check join state. Otherwise, we could allow a lock creation
+		// loop.
+		if err := a.verifyLocksForBoundKeypairToken(ctx, ptv2); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
