@@ -256,7 +256,7 @@ type ExternalAuditStoragePolicyConfig struct {
 	AthenaWorkgroupName string
 	// GlueDatabaseName is the name of the AWS Glue database.
 	GlueDatabaseName string
-	// GlueTabelName is the name of the AWS Glue table.
+	// GlueTableName is the name of the AWS Glue table.
 	GlueTableName string
 }
 
@@ -432,6 +432,13 @@ func StatementAccessGraphAWSSync() *Statement {
 			"iam:GetSAMLProvider",
 			"iam:ListOpenIDConnectProviders",
 			"iam:GetOpenIDConnectProvider",
+
+			// KMS IAM
+			"kms:ListKeys",
+			"kms:DescribeKey",
+			"kms:GetKeyPolicy",
+			"kms:ListAliases",
+			"kms:ListResourceTags",
 		},
 		Resources: allResources,
 	}
