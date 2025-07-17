@@ -88,7 +88,9 @@ The `teleport-relay` chart (available in the `https://charts.releases.developmen
 ```yaml
 proxyAddr: teleport.example.com:443
 
-# the `teleport.join_params` section of the Teleport config file
+# the `teleport.join_params` section of the Teleport config file, the join method should be
+# valid for joining as a Relay; creating such a token currently requires using the `tctl` tool
+# from the prerelease version
 joinParams:
   method: iam
   token_name: tokenname
