@@ -209,8 +209,50 @@ func TestRouteConflictDiag_RetriesOnNoVnetRouteDestinations(t *testing.T) {
 	require.Equal(t, 3, routing.getRouteDestinationsCallCount, "Unexpected number of calls to Routing.GetRouteDestinations")
 }
 
+func TestRouteConflictDiag_RefetchesVnetIfaceOnNoVnetRouteDestinations(t *testing.T) {
+	const updatedVnetIfaceIndex = vnetIfaceIndex + 12
+	interfaces := &FakeInterfaces{
+		ifaces: map[int]iface{
+			vnetIfaceIndex: {name: vnetIface},
+			quuxIfaceIndex: {name: quuxIface, app: "foobar"},
+		},
+		ifacesAfterFirstFetchByName: &map[int]iface{
+			// Simulate VNet iface index changing between calls.
+			updatedVnetIfaceIndex: {name: vnetIface},
+			quuxIfaceIndex:        {name: quuxIface, app: "foobar"},
+		},
+	}
+	routing := &FakeRouting{
+		// The first pass is going to be repeated because no VNet routes will be detected.
+		dests: []RouteDest{
+			&RouteDestIP{ifaceIndex: quuxIfaceIndex, Addr: netip.AddrFrom4([4]byte{1, 2, 3, 4})},
+		},
+		destsAfterFirstCall: &[]RouteDest{
+			&RouteDestIP{ifaceIndex: quuxIfaceIndex, Addr: netip.AddrFrom4([4]byte{1, 2, 3, 4})},
+			// On the second pass, there's going to be a route which matches the updated index.
+			// The test will fail if the code doesn't re-fetch interface index between passes.
+			&RouteDestIP{ifaceIndex: updatedVnetIfaceIndex, Addr: netip.AddrFrom4([4]byte{1, 2, 3, 4})},
+		},
+	}
+
+	routeConflictDiag, err := NewRouteConflictDiag(&RouteConflictConfig{
+		VnetIfaceName: vnetIface, Interfaces: interfaces, Routing: routing, RefetchRoutesDuration: time.Millisecond,
+	})
+	require.NoError(t, err)
+	report, err := routeConflictDiag.Run(context.Background())
+	require.NoError(t, err)
+
+	require.Len(t, report.GetRouteConflictReport().RouteConflicts, 1)
+	routeConflict := report.GetRouteConflictReport().RouteConflicts[0]
+	require.Equal(t, "1.2.3.4", routeConflict.VnetDest)
+	require.Equal(t, "1.2.3.4", routeConflict.Dest)
+}
+
 type FakeInterfaces struct {
 	ifaces map[int]iface
+	// ifacesAfterFirstFetchByName are the interfaces FakeInterfaces operates on after the first call
+	// to InterfaceByName, if ifacesAfterFirstFetchByName is not nil.
+	ifacesAfterFirstFetchByName *map[int]iface
 }
 
 type iface struct {
@@ -225,6 +267,13 @@ type iface struct {
 }
 
 func (f *FakeInterfaces) InterfaceByName(ifaceName string) (*net.Interface, error) {
+	defer func() {
+		if f.ifacesAfterFirstFetchByName != nil {
+			f.ifaces = *f.ifacesAfterFirstFetchByName
+			f.ifacesAfterFirstFetchByName = nil
+		}
+	}()
+
 	for index, iface := range f.ifaces {
 		if iface.name != ifaceName {
 			continue
@@ -272,13 +321,19 @@ func (f *FakeInterfaces) InterfaceApp(ctx context.Context, ifaceName string) (st
 }
 
 type FakeRouting struct {
-	dests                         []RouteDest
+	dests []RouteDest
+	// destsAfterFirstCall are the dests that are returned after the first call to
+	// GetRouteDestinations if destsAfterFirstCall is not nil.
+	destsAfterFirstCall           *[]RouteDest
 	getRouteDestinationsCallCount int
 }
 
 func (f *FakeRouting) GetRouteDestinations() ([]RouteDest, error) {
 	f.getRouteDestinationsCallCount++
-	return f.dests, nil
+	if f.destsAfterFirstCall == nil || f.getRouteDestinationsCallCount == 1 {
+		return f.dests, nil
+	}
+	return *f.destsAfterFirstCall, nil
 }
 
 func TestExtractNetworkExtDescFromIfconfigOutput(t *testing.T) {

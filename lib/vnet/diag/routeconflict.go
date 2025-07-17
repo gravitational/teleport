@@ -151,14 +151,6 @@ func (c *RouteConflictDiag) EmptyCheckReport() *diagv1.CheckReport {
 }
 
 func (c *RouteConflictDiag) run(ctx context.Context) ([]*diagv1.RouteConflict, error) {
-	// Unlike in other interactions with Interfaces, it doesn't make sense to re-fetch the routes,
-	// hence why NewUnstableIfaceError is not used. If this call gives an error, then VnetIfaceName is
-	// likely wrong.
-	vnetIface, err := c.cfg.Interfaces.InterfaceByName(c.cfg.VnetIfaceName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// If RouteConflictDiag runs soon after starting VNet or logging in to the first cluster, it might
 	// take a few seconds for the VNet admin process to set up relevant network routes. In that
 	// situation, RouteConflictDiag should wait for a brief period and then re-fetch routes.
@@ -168,12 +160,22 @@ func (c *RouteConflictDiag) run(ctx context.Context) ([]*diagv1.RouteConflict, e
 	// route conflicts.
 	var rds []RouteDest
 	var vnetDests []RouteDest
+	var vnetIface *net.Interface
 	attempts := 0
 	for len(vnetDests) == 0 && attempts < 3 {
 		if attempts > 0 {
 			time.Sleep(c.cfg.RefetchRoutesDuration)
 		}
 		attempts++
+
+		var err error
+		// If this call returns an error, then likely there's something wrong with VnetIfaceName.
+		// Unlike in other interactions with Interfaces, it doesn't make sense to re-fetch the routes in
+		// that scenario, hence why NewUnstableIfaceError is not used.
+		vnetIface, err = c.cfg.Interfaces.InterfaceByName(c.cfg.VnetIfaceName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
 		rds, err = c.cfg.Routing.GetRouteDestinations()
 		if err != nil {
