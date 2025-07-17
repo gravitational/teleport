@@ -126,6 +126,8 @@ type OIDCConnector interface {
 	GetUserMatchers() []string
 	// GetEnableRequestObjects returns true if the connector should use JWT-Secured Authorization Requests when making auth requests
 	GetEnableRequestObjects() bool
+	// SetEnableRequestObjects enables/disables JWT-Secured Authorization Requests
+	SetEnableRequestObjects(bool)
 	// SetUserMatchers sets the set of glob patterns to narrow down which username(s) this auth connector should match
 	// for identifier-first login.
 	SetUserMatchers([]string)
@@ -591,6 +593,10 @@ func (r *OIDCConnectorV3) GetUserMatchers() []string {
 // GetEnableRequestObjects returns true if the connector should use JWT-Secured Authorization Requests when making auth requests
 func (r *OIDCConnectorV3) GetEnableRequestObjects() bool {
 	return r.Spec.EnableRequestObjects
+}
+
+func (r *OIDCConnectorV3) SetEnableRequestObjects(enable bool) {
+	r.Spec.EnableRequestObjects = enable
 }
 
 // SetUserMatchers sets the set of glob patterns to narrow down which username(s) this auth connector should match
