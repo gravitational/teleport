@@ -35,6 +35,7 @@ import (
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/cryptosigner"
 	"github.com/go-jose/go-jose/v3/jwt"
+	gojwt "github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -533,6 +534,21 @@ func (p *PROXYVerifyParams) Check() error {
 	return nil
 }
 
+func (k *Key) validate(rawToken string) (map[string]interface{}, error) {
+	tok, err := gojwt.Parse(rawToken, func(t *gojwt.Token) (interface{}, error) {
+		return k.config.PublicKey, nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "Failed to validate JWT")
+	}
+
+	claims, ok := tok.Claims.(gojwt.MapClaims)
+	if !ok {
+		return nil, trace.Errorf("Failed to extract claims from JWT")
+	}
+	return claims, nil
+}
+
 func (k *Key) verify(rawToken string, expectedClaims jwt.Expected) (*Claims, error) {
 	if k.config.PublicKey == nil {
 		return nil, trace.BadParameter("can not verify token without public key")
@@ -812,4 +828,10 @@ func (k *Key) SignOAuthRequest(claims any) (string, error) {
 			"kid": kid,
 		},
 	})
+}
+
+// Validate parses JWT and verifies its signature. Returns *all* claims,
+// not just registered claims
+func (k *Key) Validate(rawToken string) (map[string]interface{}, error) {
+	return k.validate(rawToken)
 }
