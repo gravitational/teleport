@@ -191,7 +191,7 @@ func (s *ProvisioningService) GetTokens(ctx context.Context) ([]types.ProvisionT
 			services.WithRevision(item.Revision),
 		)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "unmarshaling token (key: %q)", item.Key)
 		}
 		tokens[i] = t
 	}
@@ -225,7 +225,7 @@ func (s *ProvisioningService) ListProvisionTokens(ctx context.Context, pageSize 
 			services.WithRevision(item.Revision),
 		)
 		if err != nil {
-			return nil, "", trace.Wrap(err)
+			return nil, "", trace.Wrap(err, "unmarshaling token (key: %q)", item.Key)
 		}
 
 		if len(out) == pageSize {
