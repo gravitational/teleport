@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -55,10 +54,7 @@ type UpgradeWindowsClient interface {
 type Config struct {
 	ResolverAddr utils.NetAddr
 	HostUUID     string
-	Supervisor   ProcessSupervisor
 	Log          *slog.Logger
-	ClientGetter func() (UpgradeWindowsClient, error)
-	Sentinel     <-chan inventory.DownstreamSender
 }
 
 func (c *Config) Check(ctx context.Context) error {
@@ -68,17 +64,8 @@ func (c *Config) Check(ctx context.Context) error {
 	if c.HostUUID == "" {
 		return trace.BadParameter("host UUID is not set, this is a bug")
 	}
-	if c.Supervisor == nil {
-		return trace.BadParameter("supervisor is not set, this is a bug")
-	}
 	if c.Log == nil {
 		return trace.BadParameter("logger is not set, this is a bug")
-	}
-	if c.ClientGetter == nil {
-		return trace.BadParameter("client getter is not set, this is a bug")
-	}
-	if c.Sentinel == nil {
-		return trace.BadParameter("connection sentinel is not set, this is a bug")
 	}
 	return nil
 }

@@ -48,10 +48,13 @@ type Updater struct {
 	helloUpdaterInfoGetter func(ctx context.Context) (*types.UpdaterV2Info, error)
 
 	config *Config
+	// kubeBackend is only set when the updater kind is "kube"
+	kubeBackend *kubernetes.Backend
 
+	// lock protects client
 	lock sync.Mutex
-	// client is populated only once we get the instance connector.
-	// This can happen several seconds, or never. If you need to wait for the client,
+	// client is populated only once we get the instance connector. This can only happen after
+	// RegisterRoutines is called. If you need to wait for the client,
 	// use config.ClientGetter instead.
 	client UpgradeWindowsClient
 }
@@ -89,6 +92,60 @@ func (u *Updater) Info(ctx context.Context) (*types.UpdaterV2Info, error) {
 	return u.helloUpdaterInfoGetter(ctx)
 }
 
+// RegisterRoutines registers the updater-related routines against the supervisor.
+// This function is separate from DetectAndConfigureUpdater to avoid a circular dependency.
+// The inventory needs Updater.Info() to be created, and the updater routines need the
+// inventory to detect if the auth connection is healthy.
+func (u *Updater) RegisterRoutines(ctx context.Context, supervisor ProcessSupervisor, clientGetter func() (UpgradeWindowsClient, error), sentinel <-chan inventory.DownstreamSender) error {
+	go u.waitForClient(ctx, clientGetter)
+
+	switch u.kind {
+	case types.UpgraderKindSystemdUnit:
+		// For managed updates v1 unit updaters, we don't need to collect info
+		// But we must export the endpoint and maintenance schedule.
+		supervisor.RegisterFunc("autoupdates.endpoint.export", func() error {
+			// This call will block until we have a real client or the process exit context is cancelled.
+			clt, err := clientGetter()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if clt == nil {
+				return trace.BadParameter("process exiting and Instance connector never became available")
+			}
+
+			resp, err := clt.Ping(ctx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if !resp.GetServerFeatures().GetCloud() {
+				return nil
+			}
+
+			if err := endpoint.Export(ctx, u.config.ResolverAddr.String()); err != nil {
+				u.config.Log.WarnContext(ctx,
+					"Failed to export and validate autoupdates endpoint.",
+					"addr", u.config.ResolverAddr.String(),
+					"error", err)
+				return trace.Wrap(err)
+			}
+			u.config.Log.InfoContext(ctx, "Exported autoupdates endpoint.", "addr", u.config.ResolverAddr.String())
+			return nil
+		})
+
+		// Export updater schedule
+		if err := u.runUpdaterExporter(ctx, supervisor, sentinel); err != nil {
+			return trace.Wrap(err)
+		}
+	case types.UpgraderKindKubeController:
+		// Export updater schedule
+		if err := u.runUpdaterExporter(ctx, supervisor, sentinel); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
 // DetectAndConfigureUpdater detects if the current Teleport instance is managed by an updater,
 // configures the updater if needed (managed updates v1 maintenance window export, or managed updates v2 updater uuid)
 // and returns an updater adaptor describing the updater and allowing to interact with it.
@@ -109,14 +166,13 @@ func DetectAndConfigureUpdater(
 		config:   cfg,
 	}
 
-	go updater.waitForClient(ctx)
-
 	switch updater.kind {
 	case types.UpgraderKindKubeController:
 		kubeSharedBackend, err := kubernetes.NewShared()
 		if err != nil {
 			return updater, trace.Wrap(err, "building the shared kubernetes backend used to communicate with the updater")
 		}
+		updater.kubeBackend = kubeSharedBackend
 		var replicaNumber *int
 		{
 			r, err := kubernetes.ReplicaNumber()
@@ -131,13 +187,13 @@ func DetectAndConfigureUpdater(
 
 		// Create updaterID and configure updater data collection
 		if replicaNumber != nil && *replicaNumber == 0 {
-			if err := CreateKubeUpdaterIDIfEmpty(ctx, kubeSharedBackend); err != nil {
+			if err := CreateKubeUpdaterIDIfEmpty(ctx, updater.kubeBackend); err != nil {
 				updater.config.Log.WarnContext(ctx, "Unable to create updater ID", "err", err)
 			}
 
 		}
 		updater.helloUpdaterInfoGetter = func(ctx context.Context) (*types.UpdaterV2Info, error) {
-			id, err := LookupKubeUpdaterID(ctx, kubeSharedBackend)
+			id, err := LookupKubeUpdaterID(ctx, updater.kubeBackend)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -148,47 +204,11 @@ func DetectAndConfigureUpdater(
 				UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_OK,
 			}, nil
 		}
-
-		// Export updater schedule
-		if err := updater.runUpdaterExporter(ctx, upgraderKind, kubeSharedBackend); err != nil {
-			return updater, trace.Wrap(err)
-		}
 	case types.UpgraderKindTeleportUpdate:
 		// Exports are not required for teleport-update, we only need to collect infos
 		updater.helloUpdaterInfoGetter = func(ctx context.Context) (*types.UpdaterV2Info, error) {
 			return autoupdate.ReadHelloUpdaterInfo(ctx, updater.config.Log, updater.config.HostUUID)
 		}
-	case types.UpgraderKindSystemdUnit:
-		// For managed updates v1 unit updaters, we don't need to collect info
-		// But we must export the endpoint and maintenance schedule.
-		updater.config.Supervisor.RegisterFunc("autoupdates.endpoint.export", func() error {
-			// This call will block until we have a real client or the process exit context is cancelled.
-			clt, err := updater.config.ClientGetter()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if clt == nil {
-				return trace.BadParameter("process exiting and Instance connector never became available")
-			}
-
-			resp, err := clt.Ping(ctx)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if !resp.GetServerFeatures().GetCloud() {
-				return nil
-			}
-
-			if err := endpoint.Export(ctx, updater.config.ResolverAddr.String()); err != nil {
-				updater.config.Log.WarnContext(ctx,
-					"Failed to export and validate autoupdates endpoint.",
-					"addr", updater.config.ResolverAddr.String(),
-					"error", err)
-				return trace.Wrap(err)
-			}
-			updater.config.Log.InfoContext(ctx, "Exported autoupdates endpoint.", "addr", updater.config.ResolverAddr.String())
-			return nil
-		})
 	}
 	return updater, nil
 }
@@ -227,42 +247,35 @@ func detectUpdater(ctx context.Context, log *slog.Logger) (kind, externalName st
 
 // runUpdaterExporter configures the window exporter for upgraders that export windows.
 // This is only used for Managed Updates v1 (unit and old kube updaters).
-func (u *Updater) runUpdaterExporter(ctx context.Context, kind string, kubeBackend *kubernetes.Backend) error {
-	driver, err := uw.NewDriver(kind, kubeBackend)
+func (u *Updater) runUpdaterExporter(ctx context.Context, supervisor ProcessSupervisor, sentinel <-chan inventory.DownstreamSender) error {
+	if u.kubeBackend == nil {
+		return trace.BadParameter("kubeBackend is not set, this is a bug")
+	}
+	driver, err := uw.NewDriver(u.kind, u.kubeBackend)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	// The client might not be ready yet (e.g. the instance is still connecting)
-	// We try getting it, and if it works, we use it.
-	exportWindow := func(ctx context.Context, req proto.ExportUpgradeWindowsRequest) (proto.ExportUpgradeWindowsResponse, error) {
-		clt, err := u.getClient()
-		if err != nil {
-			return proto.ExportUpgradeWindowsResponse{}, trace.Wrap(err)
-		}
-		return clt.ExportUpgradeWindows(context.Background(), req)
 	}
 
 	exporter, err := uw.NewExporter(uw.ExporterConfig[inventory.DownstreamSender]{
 		Driver:                   driver,
-		ExportFunc:               exportWindow,
-		AuthConnectivitySentinel: u.config.Sentinel,
+		ExportFunc:               u.getWindow,
+		AuthConnectivitySentinel: sentinel,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	u.config.Supervisor.RegisterCriticalFunc("upgradeewindow.export", exporter.Run)
-	u.config.Supervisor.OnExit("upgradewindow.export.stop", func(_ any) {
+	supervisor.RegisterCriticalFunc("upgradeewindow.export", exporter.Run)
+	supervisor.OnExit("upgradewindow.export.stop", func(_ any) {
 		exporter.Close()
 	})
 
-	u.config.Log.InfoContext(ctx, "Configured upgrade window exporter for external upgrader.", "kind", kind)
+	u.config.Log.InfoContext(ctx, "Configured upgrade window exporter for external upgrader.", "kind", u.kind)
 	return nil
 }
 
-func (u *Updater) waitForClient(ctx context.Context) {
-	clt, err := u.config.ClientGetter()
+func (u *Updater) waitForClient(ctx context.Context, clientGetter func() (UpgradeWindowsClient, error)) {
+	clt, err := clientGetter()
 	if err != nil {
 		u.config.Log.WarnContext(ctx, "Unable to get client for updater.", "err", err)
 		return
@@ -272,11 +285,13 @@ func (u *Updater) waitForClient(ctx context.Context) {
 	u.client = clt
 }
 
-func (u *Updater) getClient() (UpgradeWindowsClient, error) {
+func (u *Updater) getWindow(ctx context.Context, req proto.ExportUpgradeWindowsRequest) (proto.ExportUpgradeWindowsResponse, error) {
 	u.lock.Lock()
 	defer u.lock.Unlock()
+	// The client might not be ready yet (e.g. the instance is still connecting)
+	// We try getting it, and if it works, we use it.
 	if u.client == nil {
-		return nil, trace.Errorf("client not yet initialized")
+		return proto.ExportUpgradeWindowsResponse{}, trace.Errorf("client not yet initialized")
 	}
-	return u.client, nil
+	return u.client.ExportUpgradeWindows(ctx, req)
 }
