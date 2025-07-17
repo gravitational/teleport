@@ -214,16 +214,15 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 	validateAccessList := func() error {
 		var err error
 
-		if op == opTypeUpdate {
-			existingList, err = a.service.GetResource(ctx, accessList.GetName())
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			// Set memberOf / ownerOf to the existing values to prevent them from being updated.
+		existingList, err = a.service.GetResource(ctx, accessList.GetName())
+		// Only require list to exist for update ops.
+		if op == opTypeUpdate && err != nil {
+			return trace.Wrap(err)
+		}
+		if existingList != nil {
 			accessList.Status.MemberOf = existingList.Status.MemberOf
 			accessList.Status.OwnerOf = existingList.Status.OwnerOf
 		} else {
-			// In case the MemberOf/OwnerOf fields were manually changed, set to empty.
 			accessList.Status.MemberOf = []string{}
 			accessList.Status.OwnerOf = []string{}
 		}
@@ -588,6 +587,13 @@ func (a *AccessListService) UpdateAccessListMember(ctx context.Context, member *
 			}
 
 			updated, err = a.memberService.WithPrefix(member.Spec.AccessList).ConditionalUpdateResource(ctx, member)
+
+			if err == nil && member.Spec.MembershipKind == accesslist.MembershipKindList {
+				if err := a.updateAccessListMemberOf(ctx, member.Spec.AccessList, member.Spec.Name, true); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+
 			return trace.Wrap(err)
 		})
 	})
