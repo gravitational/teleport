@@ -7,6 +7,16 @@ Teleport Connect (previously Teleport Terminal, package name `teleterm`) is a de
 Please refer to [the _Using Teleport Connect_ page from our
 docs](https://goteleport.com/docs/connect-your-client/teleport-connect/).
 
+### Limitations of the OSS version
+
+Client tools updates are disabled in this version as they are licensed under AGPL. 
+To use Community Edition builds or custom binaries, set the `TELEPORT_CDN_BASE_URL` environment variable.
+
+To use Community Edition builds, start Teleport Connect with:
+```bash
+TELEPORT_CDN_BASE_URL=https://cdn.teleport.dev
+```
+
 ## Building and packaging
 
 Teleport Connect consists of two main components: the `tsh` tool and the Electron app.

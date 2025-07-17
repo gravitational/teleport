@@ -42,13 +42,13 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestEditResources(t *testing.T) {
 	t.Parallel()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 	process := testenv.MakeTestServer(t, testenv.WithLogger(log))
 	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
@@ -368,7 +368,7 @@ func TestEditEnterpriseResources(t *testing.T) {
 			},
 		},
 	})
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 	process := testenv.MakeTestServer(t, testenv.WithLogger(log))
 	rootClient := testenv.MakeDefaultAuthClient(t, process)
 

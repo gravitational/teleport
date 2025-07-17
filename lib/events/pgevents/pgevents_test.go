@@ -37,11 +37,11 @@ import (
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -226,7 +226,7 @@ func TestConfig(t *testing.T) {
 }
 
 func TestBuildSchema(t *testing.T) {
-	testLog := utils.NewSlogLoggerForTests()
+	testLog := logtest.NewLogger()
 
 	testConfig := &Config{
 		Log: testLog,
