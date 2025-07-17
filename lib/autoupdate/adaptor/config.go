@@ -46,17 +46,22 @@ type ProcessSupervisor interface {
 	OnExit(serviceName string, callback func(any))
 }
 
+// UpgradeWindowsClient is a client that can ping the Teleport auth and export
+// Managed Updates v1 Upgrade Windows.
 type UpgradeWindowsClient interface {
 	ExportUpgradeWindows(ctx context.Context, req proto.ExportUpgradeWindowsRequest) (proto.ExportUpgradeWindowsResponse, error)
 	Ping(ctx context.Context) (proto.PingResponse, error)
 }
 
+// Config is the updater adaptor config. It contains information about the Teleport
+// process and its cluster.
 type Config struct {
 	ResolverAddr utils.NetAddr
 	HostUUID     string
 	Log          *slog.Logger
 }
 
+// Check validates the config is properly set.
 func (c *Config) Check(ctx context.Context) error {
 	if c.ResolverAddr.String() == "" {
 		return trace.BadParameter("resolver address is not set, this is a bug")

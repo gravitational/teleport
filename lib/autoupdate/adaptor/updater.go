@@ -243,6 +243,8 @@ func (u *Updater) runUpdaterExporter(ctx context.Context, supervisor ProcessSupe
 	return nil
 }
 
+// waitForClient calls a clientGetter and waits to obtain a client. The client is then stored
+// in Updater.client.
 func (u *Updater) waitForClient(ctx context.Context, clientGetter func() (UpgradeWindowsClient, error)) {
 	clt, err := clientGetter()
 	if err != nil {
