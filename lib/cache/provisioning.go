@@ -103,24 +103,29 @@ func (c *Cache) ListProvisioningStatesForAllDownstreams(ctx context.Context, pag
 	ctx, span := c.Tracer.Start(ctx, "cache/ListProvisioningStatesForAllDownstreams")
 	defer span.End()
 
-	lister := genericLister[*provisioningv1.PrincipalState, principalStateIndex]{
-		cache:      c,
-		collection: c.collections.provisioningStates,
-		index:      principalStateNameIndex,
-		upstreamList: func(ctx context.Context, pageSize int, s string) ([]*provisioningv1.PrincipalState, string, error) {
-			out, next, err := c.Config.ProvisioningStates.ListProvisioningStatesForAllDownstreams(ctx, pageSize, req)
-			return out, string(next), trace.Wrap(err)
-		},
-		nextToken: func(t *provisioningv1.PrincipalState) string {
-			return t.GetMetadata().GetName()
-		},
-	}
-
 	nextToken, err := req.Consume()
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	out, next, err := lister.list(ctx, pageSize, nextToken)
+	out, next, err := c.ListProvisioningStatesForAllDownstreams2(ctx, pageSize, nextToken)
 	return out, pagination.NextPageToken(next), trace.Wrap(err)
+}
+
+func (c *Cache) ListProvisioningStatesForAllDownstreams2(ctx context.Context, pageSize int, pageToken string) ([]*provisioningv1.PrincipalState, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListProvisioningStatesForAllDownstreams2")
+	defer span.End()
+
+	lister := genericLister[*provisioningv1.PrincipalState, principalStateIndex]{
+		cache:        c,
+		collection:   c.collections.provisioningStates,
+		index:        principalStateNameIndex,
+		upstreamList: c.Config.ProvisioningStates.ListProvisioningStatesForAllDownstreams2,
+		nextToken: func(t *provisioningv1.PrincipalState) string {
+			return t.GetMetadata().GetName()
+		},
+	}
+
+	out, next, err := lister.list(ctx, pageSize, pageToken)
+	return out, next, trace.Wrap(err)
 }
