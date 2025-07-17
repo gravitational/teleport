@@ -173,37 +173,6 @@ func DetectAndConfigureUpdater(
 			return updater, trace.Wrap(err, "building the shared kubernetes backend used to communicate with the updater")
 		}
 		updater.kubeBackend = kubeSharedBackend
-		var replicaNumber *int
-		{
-			r, err := kubernetes.ReplicaNumber()
-			if err != nil {
-				updater.config.Log.WarnContext(ctx, "Unable to get replica number from kube cluster", "err", err)
-			} else {
-				replicaNumber = &r
-			}
-		}
-		// For kube updater we must both export the schedule (managed updates v1 compatibility)
-		// And collect info about the updater (managed updates v2 agent reports)
-
-		// Create updaterID and configure updater data collection
-		if replicaNumber != nil && *replicaNumber == 0 {
-			if err := CreateKubeUpdaterIDIfEmpty(ctx, updater.kubeBackend); err != nil {
-				updater.config.Log.WarnContext(ctx, "Unable to create updater ID", "err", err)
-			}
-
-		}
-		updater.helloUpdaterInfoGetter = func(ctx context.Context) (*types.UpdaterV2Info, error) {
-			id, err := LookupKubeUpdaterID(ctx, updater.kubeBackend)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			updateGroup := os.Getenv(automaticupgrades.EnvUpgraderGroup)
-			return &types.UpdaterV2Info{
-				UpdateGroup:   updateGroup,
-				UpdateUUID:    id[:],
-				UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_OK,
-			}, nil
-		}
 	case types.UpgraderKindTeleportUpdate:
 		// Exports are not required for teleport-update, we only need to collect infos
 		updater.helloUpdaterInfoGetter = func(ctx context.Context) (*types.UpdaterV2Info, error) {

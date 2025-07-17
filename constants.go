@@ -1027,8 +1027,3 @@ const (
 	// OktaReviewerRoleContext  is the context used to name Okta Reviewer role created by Okta Access List sync
 	OktaReviewerRoleContext = "reviewer-okta-acl-role"
 )
-
-// UpdaterIDKubeBackendKey is the kubernetes shared backend key containing the updater ID.
-// This is used by Teleport to stopre its updater ID, this is also read by the teleport-kube-agent-updater
-// so it can identify itself when checking for updates and get a custom response.
-const UpdaterIDKubeBackendKey = "updater_id"
