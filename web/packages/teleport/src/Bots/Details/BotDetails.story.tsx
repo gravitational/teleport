@@ -38,15 +38,14 @@ import { BotDetails } from './BotDetails';
 const meta = {
   title: 'Teleport/Bots/Details',
   component: Wrapper,
+  beforeEach: () => {
+    queryClient.clear(); // Prevent cached data sharing between stories
+  },
 } satisfies Meta<typeof Wrapper>;
 
 type Story = StoryObj<typeof meta>;
 
 export default meta;
-
-const beforeEach = () => {
-  queryClient.clear(); // Prevent cached data sharing between stories
-};
 
 const successHandler = getBotSuccess({
   name: 'ansible-worker',
@@ -71,7 +70,6 @@ const successHandler = getBotSuccess({
 });
 
 export const Happy: Story = {
-  beforeEach,
   globals: {
     viewport: { value: 'mobile1', isRotated: false },
   },
@@ -95,7 +93,6 @@ export const Happy: Story = {
 };
 
 export const HappyWithNoTraitsOrRoles: Story = {
-  beforeEach,
   parameters: {
     msw: {
       handlers: [
@@ -123,7 +120,6 @@ export const HappyWithNoTraitsOrRoles: Story = {
 };
 
 export const HappyWithoutEditPermission: Story = {
-  beforeEach,
   args: {
     hasBotsEdit: false,
   },
@@ -147,7 +143,6 @@ export const HappyWithoutEditPermission: Story = {
 };
 
 export const WithFetchPending: Story = {
-  beforeEach,
   parameters: {
     msw: {
       handlers: [getBotForever()],
@@ -156,7 +151,6 @@ export const WithFetchPending: Story = {
 };
 
 export const WithFetchFailure: Story = {
-  beforeEach,
   parameters: {
     msw: {
       handlers: [getBotError(500, 'error message goes here')],
@@ -165,7 +159,6 @@ export const WithFetchFailure: Story = {
 };
 
 export const WithBotNotFound: Story = {
-  beforeEach,
   parameters: {
     msw: {
       handlers: [getBotError(404, 'not found')],
@@ -174,7 +167,6 @@ export const WithBotNotFound: Story = {
 };
 
 export const WithNoBotReadPermission: Story = {
-  beforeEach,
   args: {
     hasBotsRead: false,
   },
