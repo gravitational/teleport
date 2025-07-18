@@ -41,23 +41,20 @@ type Command struct {
 	top           *kingpin.CmdClause
 	diagURL       string
 	refreshPeriod time.Duration
-	forceURL      bool
 }
+
+const fallbackHTTPAddr = "http://127.0.0.1:3000"
 
 // Initialize sets up the "tctl top" command.
 func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 	c.top = app.Command("top", "Report diagnostic information.")
-	c.top.Arg("diag-addr", "Diagnostic HTTP URL").Default("http://127.0.0.1:3000").Action(func(*kingpin.ParseContext) error {
-		// kingpin does not support checking if a positional argument was set explicitly, that is limited to flags.
-		c.forceURL = true
-		return nil
-	}).StringVar(&c.diagURL)
+	c.top.Arg("diag-addr", "Diagnostic HTTP URL").StringVar(&c.diagURL)
 	c.top.Arg("refresh", "Refresh period").Default("5s").DurationVar(&c.refreshPeriod)
 }
 
 func (c *Command) newDiagClient(ctx context.Context) (*roundtrip.Client, error) {
-	if c.forceURL {
+	if c.diagURL != "" {
 		// Note that explicitly passing a socket path URI here is not supported.
 		return roundtrip.NewClient(c.diagURL, "")
 	}
@@ -73,7 +70,7 @@ func (c *Command) newDiagClient(ctx context.Context) (*roundtrip.Client, error) 
 					}}})},
 		},
 		{
-			addr: c.diagURL,
+			addr: fallbackHTTPAddr,
 		},
 	}
 
