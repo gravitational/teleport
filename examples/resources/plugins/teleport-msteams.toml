@@ -24,8 +24,8 @@ preload = true
 # client_key = "/var/lib/teleport/plugins/msteams/auth.key" # Teleport TLS secret key
 # client_crt = "/var/lib/teleport/plugins/msteams/auth.crt" # Teleport TLS certificate
 # root_cas = "/var/lib/teleport/plugins/msteams/auth.cas"   # Teleport CA certs
-addr = "localhost:3025"
-identity = "identity"
+addr = "" # e.g., localhost:3025
+identity = ""
 refresh_identity = true
 
 [msapi]
@@ -45,7 +45,7 @@ teams_app_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 #
 # "dev" = "devs-msteams-channel"
 # "*" = ["admin@email.com", "admin-msteams-channel"]
-"*" = ["foo@example.com"]
+"*" = []
 
 [log]
 output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/msteams.log"
