@@ -137,6 +137,8 @@ func Run(args []string) int {
 		Hidden().BoolVar(&ccfg.SelfSetup)
 	enableCmd.Flag("path", "Directory to link the active Teleport installation's binaries into.").
 		Hidden().StringVar(&ccfg.Path)
+	enableCmd.Flag("selinux-ssh", "Install an SELinux module to constrain Teleport SSH.").
+		Hidden().Envar(autoupdate.SetupSELinuxSSHEnvVar).IsSetByUser(&ccfg.SELinuxSSHChanged).BoolVar(&ccfg.SELinuxSSH)
 
 	disableCmd := app.Command("disable", "Disable agent managed updates. Does not affect the active installation of Teleport.")
 
@@ -159,6 +161,8 @@ func Run(args []string) int {
 		Hidden().BoolVar(&ccfg.SelfSetup)
 	pinCmd.Flag("path", "Directory to link the active Teleport installation's binaries into.").
 		Hidden().StringVar(&ccfg.Path)
+	pinCmd.Flag("selinux-ssh", "Install an SELinux module to constrain Teleport SSH.").
+		Hidden().Envar(autoupdate.SetupSELinuxSSHEnvVar).IsSetByUser(&ccfg.SELinuxSSHChanged).BoolVar(&ccfg.SELinuxSSH)
 
 	unpinCmd := app.Command("unpin", "Unpin the current version, allowing it to be updated.")
 
@@ -183,6 +187,7 @@ func Run(args []string) int {
 		Envar(autoupdate.SetupVersionEnvVar).StringVar(&ccfg.ForceVersion)
 	setupCmd.Flag("flag", "Use the provided flags to generate configuration files.").
 		Envar(autoupdate.SetupFlagsEnvVar).StringsVar(&ccfg.ForceFlags)
+	setupCmd.Flag("selinux-ssh", "Install the SELinux module for Teleport SSH.").Hidden().BoolVar(&ccfg.SELinuxSSH)
 
 	statusCmd := app.Command("status", "Show Teleport agent auto-update status.")
 	statusCmd.Flag("err-if-should-update-now",
@@ -478,7 +483,7 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 	}
 	flags := common.NewInstallFlagsFromStrings(ccfg.ForceFlags)
 	rev := autoupdate.NewRevision(ccfg.ForceVersion, flags)
-	err = updater.Setup(ctx, ccfg.Path, rev, ccfg.Reload)
+	err = updater.Setup(ctx, ccfg.Path, rev, ccfg.SELinuxSSH, ccfg.Reload)
 	if err != nil {
 		return trace.Wrap(err)
 	}
