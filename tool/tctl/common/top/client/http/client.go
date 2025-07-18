@@ -14,40 +14,46 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package top
+package http
 
 import (
 	"context"
-	"errors"
 	"net/url"
+
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/httplib"
 )
 
-type ClientConfig struct {
-	addr string
-	opts []roundtrip.ClientParam
+type Client struct {
+	clt *roundtrip.Client
 }
 
-func tryNewClient(ctx context.Context, cfgs ...ClientConfig) (*roundtrip.Client, error) {
-	var errs []error
-	for _, config := range cfgs {
-		client, err := roundtrip.NewClient(config.addr, "", config.opts...)
-		if err != nil {
-			errs = append(errs, trace.Wrap(err, "failed create client for %v", config.addr))
-			continue
-		}
-
-		if _, err = httplib.ConvertResponse(client.Get(ctx, client.Endpoint("metrics"), url.Values{})); err != nil {
-			errs = append(errs, trace.Wrap(err, "failed to fetch metrics from addr %v", config.addr))
-			continue
-		}
-
-		return client, nil
+func NewClient(addr string) (*Client, error) {
+	clt, err := roundtrip.NewClient(addr, "")
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return nil, errors.Join(errs...)
+	return &Client{
+		clt: clt,
+	}, nil
+}
+
+func (c *Client) GetMetrics(ctx context.Context) (map[string]*dto.MetricFamily, error) {
+
+	re, err := c.clt.Get(ctx, c.clt.Endpoint("metrics"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(trace.ConvertSystemError(err))
+	}
+
+	var parser expfmt.TextParser
+	metrics, err := parser.TextToMetricFamilies(re.Reader())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return metrics, nil
 }
