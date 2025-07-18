@@ -432,6 +432,16 @@ func StatementAccessGraphAWSSync() *Statement {
 			"iam:GetSAMLProvider",
 			"iam:ListOpenIDConnectProviders",
 			"iam:GetOpenIDConnectProvider",
+
+			// KMS IAM
+			"kms:Get*",
+			"kms:List*",
+			"kms:Describe*",
+
+			// cloudHSM IAM
+			"cloudhsm:Get*",
+			"cloudhsm:List*",
+			"cloudhsm:Describe*",
 		},
 		Resources: allResources,
 	}

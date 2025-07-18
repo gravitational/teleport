@@ -201,6 +201,10 @@ type Resources struct {
 	SAMLProviders []*accessgraphv1alpha.AWSSAMLProviderV1
 	// OIDCProviders is a list of OIDC providers.
 	OIDCProviders []*accessgraphv1alpha.AWSOIDCProviderV1
+	// KMSKeys is a list of KMS keys.
+	KMSKeys []*accessgraphv1alpha.AWSKMSKeyV1
+	// CloudHSMClusters is a list of CloudHSM clusters.
+	CloudHSMClusters []*accessgraphv1alpha.AWSCloudHSMV1
 }
 
 func (r *Resources) count() int {

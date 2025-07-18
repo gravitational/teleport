@@ -59,6 +59,8 @@ func ReconcileResults(old *Resources, new *Resources) (upsert, delete *accessgra
 		reconcile(old.RDSDatabases, new.RDSDatabases, rdsDbKey, rdsDbWrap),
 		reconcile(old.SAMLProviders, new.SAMLProviders, samlProvKey, samlProvWrap),
 		reconcile(old.OIDCProviders, new.OIDCProviders, oidcProvKey, oidcProvWrap),
+		reconcile(old.KMSKeys, new.KMSKeys, kmsKeyKey, kmsKeyWrap),
+		reconcile(old.CloudHSMClusters, new.CloudHSMClusters, cloudHSMClusterKey, cloudHSMClusterWrap),
 	}
 	for _, res := range reconciledResources {
 		upsert.Resources = append(upsert.Resources, res.upsert.Resources...)
@@ -295,4 +297,20 @@ func oidcProvKey(provider *accessgraphv1alpha.AWSOIDCProviderV1) string {
 
 func oidcProvWrap(provider *accessgraphv1alpha.AWSOIDCProviderV1) *accessgraphv1alpha.AWSResource {
 	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_OidcProvider{OidcProvider: provider}}
+}
+
+func kmsKeyKey(key *accessgraphv1alpha.AWSKMSKeyV1) string {
+	return fmt.Sprintf("%s;%s", key.AccountId, key.Arn)
+}
+
+func kmsKeyWrap(key *accessgraphv1alpha.AWSKMSKeyV1) *accessgraphv1alpha.AWSResource {
+	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_KmsKey{KmsKey: key}}
+}
+
+func cloudHSMClusterKey(cluster *accessgraphv1alpha.AWSCloudHSMV1) string {
+	return fmt.Sprintf("%s;%s", cluster.AccountId, cluster.Arn)
+}
+
+func cloudHSMClusterWrap(cluster *accessgraphv1alpha.AWSCloudHSMV1) *accessgraphv1alpha.AWSResource {
+	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_Cloudhsm{Cloudhsm: cluster}}
 }
