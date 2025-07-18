@@ -165,7 +165,7 @@ func (i *appCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 }
 
 // localProxyMiddleware wraps around [client.CertChecker] and additionally makes it so that its
-// OnNewConnection method calls the same method of [appProvider].
+// OnNewConnection method calls OnNewAppConnection on [appProvider].
 type localProxyMiddleware struct {
 	appKey      *vnetv1.AppKey
 	certChecker *client.CertChecker
@@ -177,7 +177,7 @@ func (m *localProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpnprox
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(m.appProvider.OnNewConnection(ctx, m.appKey))
+	return trace.Wrap(m.appProvider.OnNewAppConnection(ctx, m.appKey))
 }
 
 func (m *localProxyMiddleware) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) error {
