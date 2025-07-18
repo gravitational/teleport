@@ -68,7 +68,7 @@ func (c *Command) newDiagClient(ctx context.Context) (string, client.MetricCient
 
 	sockClient, err := client.NewMetricCient(sockURL.String())
 	if err != nil {
-		errs = append(errs, trace.Wrap(err, "failed instanciate local debug client"))
+		errs = append(errs, trace.Wrap(err, "failed instantiate local debug client"))
 	}
 	if _, err = sockClient.GetMetrics(ctx); err != nil {
 		errs = append(errs, trace.Wrap(err, "failed connect to local debug service, is Teleport running?"))
@@ -78,7 +78,7 @@ func (c *Command) newDiagClient(ctx context.Context) (string, client.MetricCient
 
 	fallbackClient, err := client.NewMetricCient(fallbackHTTPAddr)
 	if err != nil {
-		errs = append(errs, trace.Wrap(err, "failed instanciate http metric client"))
+		errs = append(errs, trace.Wrap(err, "failed instantiate http metric client"))
 	}
 
 	if _, err = fallbackClient.GetMetrics(ctx); err != nil {
