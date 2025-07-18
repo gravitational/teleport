@@ -26,17 +26,17 @@ import (
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
-// remoteOSConfigProvider fetches a target OS configuration based on cluster
+// osConfigProvider fetches a target OS configuration based on cluster
 // configuration fetched via the client application process available over gRPC.
-type remoteOSConfigProvider struct {
-	cfg      remoteOSConfigProviderConfig
+type osConfigProvider struct {
+	cfg      osConfigProviderConfig
 	dnsAddrs []string
 	tunIPv6  string
 	tunIPv4  string
 }
 
-// remoteOSConfigProviderConfig holds configuration parameters for a remoteOSConfigProvider.
-type remoteOSConfigProviderConfig struct {
+// osConfigProviderConfig holds configuration parameters for an osConfigProvider.
+type osConfigProviderConfig struct {
 	clt           targetOSConfigGetter
 	tunName       string
 	ipv6Prefix    string
@@ -48,19 +48,19 @@ type targetOSConfigGetter interface {
 	GetTargetOSConfiguration(context.Context) (*vnetv1.TargetOSConfiguration, error)
 }
 
-func newRemoteOSConfigProvider(cfg remoteOSConfigProviderConfig) (*remoteOSConfigProvider, error) {
+func newOSConfigProvider(cfg osConfigProviderConfig) (*osConfigProvider, error) {
 	tunIPv6, err := tunIPv6ForPrefix(cfg.ipv6Prefix)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &remoteOSConfigProvider{
+	return &osConfigProvider{
 		cfg:      cfg,
 		dnsAddrs: []string{cfg.dnsIPv6},
 		tunIPv6:  tunIPv6,
 	}, nil
 }
 
-func (p *remoteOSConfigProvider) targetOSConfig(ctx context.Context) (*osConfig, error) {
+func (p *osConfigProvider) targetOSConfig(ctx context.Context) (*osConfig, error) {
 	targetOSConfig, err := p.cfg.clt.GetTargetOSConfiguration(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting target OS configuration from client application")
@@ -84,7 +84,7 @@ func (p *remoteOSConfigProvider) targetOSConfig(ctx context.Context) (*osConfig,
 	}, nil
 }
 
-func (p *remoteOSConfigProvider) setV4IPsFromFirstCIDR(cidrRange string) error {
+func (p *osConfigProvider) setV4IPsFromFirstCIDR(cidrRange string) error {
 	if p.tunIPv4 != "" {
 		// Only set these once.
 		return nil
