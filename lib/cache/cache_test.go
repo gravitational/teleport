@@ -176,7 +176,7 @@ type testFuncs[T types.Resource] struct {
 	create         func(context.Context, T) error
 	list           func(context.Context) ([]T, error)
 	cacheGet       func(context.Context, string) (T, error)
-	cacheList      func(context.Context) ([]T, error)
+	cacheList      func(context.Context, int) ([]T, error)
 	update         func(context.Context, T) error
 	deleteAll      func(context.Context) error
 	changeResource func(T)
@@ -1271,6 +1271,14 @@ func withSkipPaginationTest() optionsFunc {
 	}
 }
 
+// defaultTestPageSize is the default page size used in tests.
+// to test the cache pagination logic.
+// The test setup creates defaultTestPageSize + 1 items and forwards the
+// defaultTestPageSize to the cache.cacheList(context.Context, pageSize method.
+// where the test implementation needs to forward the pageSize to the
+// resource list request/call.
+const defaultTestPageSize = 2
+
 // testResources is a generic tester for resources.
 func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T], opts ...optionsFunc) {
 	t.Helper()
@@ -1314,7 +1322,7 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	// Wait until the information has been replicated to the cache.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Make sure the cache has a single resource in it.
-		out, err = funcs.cacheList(ctx)
+		out, err = funcs.cacheList(ctx, defaultTestPageSize)
 		assert.NoError(t, err)
 		assert.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 	}, time.Second*2, time.Millisecond*250)
@@ -1344,7 +1352,7 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	// Check that information has been replicated to the cache.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Make sure the cache has a single resource in it.
-		out, err = funcs.cacheList(ctx)
+		out, err = funcs.cacheList(ctx, defaultTestPageSize)
 		assert.NoError(t, err)
 		assert.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 	}, time.Second*2, time.Millisecond*250)
@@ -1355,7 +1363,7 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	// Check that information has been replicated to the cache.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Check that the cache is now empty.
-		out, err = funcs.cacheList(ctx)
+		out, err = funcs.cacheList(ctx, defaultTestPageSize)
 		assert.NoError(t, err)
 		assert.Empty(t, out)
 	}, time.Second*2, time.Millisecond*250)
@@ -2588,7 +2596,7 @@ func fetchEvent(t *testing.T, w types.Watcher, timeout time.Duration) types.Even
 
 func testResourcePagination[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	t.Helper()
-	totalItems := apidefaults.DefaultChunkSize + 1
+	totalItems := defaultTestPageSize + 1
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -2615,7 +2623,7 @@ func testResourcePagination[T types.Resource](t *testing.T, p *testPack, funcs t
 	}
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		out, err := funcs.cacheList(ctx)
+		out, err := funcs.cacheList(ctx, totalItems)
 		require.NoError(t, err)
 		require.Len(t, out, totalItems)
 		all, err := funcs.list(ctx)
@@ -2623,7 +2631,7 @@ func testResourcePagination[T types.Resource](t *testing.T, p *testPack, funcs t
 		require.Len(t, all, totalItems)
 	}, time.Second*3, time.Millisecond*100)
 
-	out, err := funcs.cacheList(ctx)
+	out, err := funcs.cacheList(ctx, defaultTestPageSize)
 	require.NoError(t, err)
 
 	seen := make(map[string]bool, totalItems)
@@ -2643,7 +2651,7 @@ func testResourcePagination[T types.Resource](t *testing.T, p *testPack, funcs t
 	// Wait for the cache to be empty.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Check that the cache is now empty.
-		out, err = funcs.cacheList(ctx)
+		out, err = funcs.cacheList(ctx, defaultTestPageSize)
 		assert.NoError(t, err)
 		assert.Empty(t, out)
 	}, time.Second*3, time.Millisecond*100)
@@ -2653,13 +2661,13 @@ type resourcesLister interface {
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
-func listAllResource(t *testing.T, lister resourcesLister, kind string) ([]types.ResourceWithLabels, error) {
+func listAllResource(t *testing.T, lister resourcesLister, kind string, pageSize int) ([]types.ResourceWithLabels, error) {
 	return stream.Collect(clientutils.Resources(
 		t.Context(),
 		func(ctx context.Context, limit int, startKey string) ([]types.ResourceWithLabels, string, error) {
 			resp, err := lister.ListResources(t.Context(), proto.ListResourcesRequest{
 				ResourceType: kind,
-				Limit:        int32(limit),
+				Limit:        int32(pageSize),
 				StartKey:     startKey,
 			})
 			if err != nil {
