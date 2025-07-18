@@ -820,7 +820,7 @@ func TestUpdater_Update(t *testing.T) {
 					return slices.Contains(tt.linkedRevisions, rev), nil
 				},
 			}
-			updater.Process = &testProcess{
+			updater.TeleportProcess = &testProcess{
 				FuncReload: func(_ context.Context) error {
 					reloadCalls++
 					return tt.reloadErr
@@ -1035,7 +1035,7 @@ func TestUpdater_LinkPackage(t *testing.T) {
 				},
 			}
 			var syncCalls int
-			updater.Process = &testProcess{
+			updater.TeleportProcess = &testProcess{
 				FuncSync: func(_ context.Context) error {
 					syncCalls++
 					return tt.syncErr
@@ -1331,7 +1331,7 @@ func TestUpdater_Remove(t *testing.T) {
 				InsecureSkipVerify: true,
 			}, ns)
 			require.NoError(t, err)
-			updater.TeleportServiceName = serviceName
+			updater.TeleportServiceName = teleportServiceName
 			if tt.serviceName != "" {
 				updater.TeleportServiceName = tt.serviceName
 			}
@@ -1365,7 +1365,7 @@ func TestUpdater_Remove(t *testing.T) {
 					return nil
 				},
 			}
-			updater.Process = &testProcess{
+			updater.TeleportProcess = &testProcess{
 				FuncSync: func(_ context.Context) error {
 					syncCalls++
 					return tt.syncErr
@@ -1833,7 +1833,7 @@ func TestUpdater_Install(t *testing.T) {
 					return false, nil
 				},
 			}
-			updater.Process = &testProcess{
+			updater.TeleportProcess = &testProcess{
 				FuncReload: func(_ context.Context) error {
 					reloadCalls++
 					return tt.reloadErr
@@ -2097,7 +2097,7 @@ func TestUpdater_Setup(t *testing.T) {
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{}, ns)
 			require.NoError(t, err)
 
-			updater.Process = &testProcess{
+			updater.TeleportProcess = &testProcess{
 				FuncReload: func(_ context.Context) error {
 					return tt.reloadErr
 				},
