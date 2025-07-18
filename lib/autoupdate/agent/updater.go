@@ -125,7 +125,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		cfg.SystemDir = packageSystemDir
 	}
 	validator := Validator{Log: cfg.Log}
-	debugClient := debug.NewClient(filepath.Join(ns.dataDir, debugSocketFileName))
+	debugClient := debug.NewClient(ns.dataDir)
 	return &Updater{
 		Log:                 cfg.Log,
 		Pool:                certPool,

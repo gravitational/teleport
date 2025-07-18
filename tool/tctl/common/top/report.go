@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
-	mclient "github.com/gravitational/teleport/tool/tctl/common/top/client"
 )
 
 // Report is a report rendered over the data
@@ -375,7 +374,7 @@ type Bucket struct {
 	UpperBound float64
 }
 
-func fetchAndGenerateReport(ctx context.Context, client mclient.MetricCient, prev *Report, period time.Duration) (*Report, error) {
+func fetchAndGenerateReport(ctx context.Context, client MetricsClient, prev *Report, period time.Duration) (*Report, error) {
 	metrics, err := client.GetMetrics(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
