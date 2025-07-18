@@ -343,14 +343,25 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 	// If an explicit AuthClient has been provided, we want to go straight to
 	// using that rather than trying both proxy and auth dialing.
 	if params.AuthClient != nil {
-		slog.InfoContext(ctx, "Attempting registration with existing auth client.")
-		result, err := registerThroughAuthClient(ctx, token, params, params.AuthClient)
+		// Test the auth client before assuming it will work - if the client is
+		// broken (expired certs, etc) we may need to attempt register without
+		// the existing client. For bots, this will probably produce a new bot
+		// instance, but in the case of expired certs, that's expected behavior,
+		// and acceptable otherwise - this would happen if the client was
+		// restarted.
+		_, err := params.AuthClient.Ping(ctx)
 		if err != nil {
-			slog.ErrorContext(ctx, "Registration with existing auth client failed.", "error", err)
-			return nil, trace.Wrap(err)
+			slog.WarnContext(ctx, "An existing auth client was provided but could not be used", "error", err)
+		} else {
+			slog.InfoContext(ctx, "Attempting registration with existing auth client.")
+			result, err := registerThroughAuthClient(ctx, token, params, params.AuthClient)
+			if err != nil {
+				slog.ErrorContext(ctx, "Registration with existing auth client failed.", "error", err)
+				return nil, trace.Wrap(err)
+			}
+			slog.InfoContext(ctx, "Successfully registered with existing auth client.")
+			return result, nil
 		}
-		slog.InfoContext(ctx, "Successfully registered with existing auth client.")
-		return result, nil
 	}
 
 	type registerMethod struct {
