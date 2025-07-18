@@ -1,24 +1,24 @@
 # Example Jira plugin configuration TOML file
 [teleport]
 # Proxy Service domain and HTTPS port
-auth_server = "myinstance.teleport.sh:443"
+auth_server = ""
 # Teleport identity file location
-identity = "/var/lib/teleport/plugins/jira/identity"
+identity = ""
 # Refresh identity file on a periodic basis.
 refresh_identity = true
 
 [jira]
-url = "https://[my-jira].atlassian.net"    # JIRA URL
-username = "bot@example.com"               # JIRA username
-api_token = "token"                        # JIRA API token
-project = "TAR"                            # JIRA Project key
+url = ""        # JIRA URL
+username = ""   # JIRA username
+api_token = ""  # JIRA API token
+project = ""    # JIRA Project key
 
 [http]
 # URL on which webhook server is accessible externally, for example,
 # [https://]teleport-jira.example.com
-public_addr = "example.com" 
-https_key_file = "/var/lib/teleport/plugins/jira/server.key"  # TLS private key
-https_cert_file = "/var/lib/teleport/plugins/jira/server.crt" # TLS certificate
+public_addr = "" 
+https_key_file = ""  # TLS private key
+https_cert_file = "" # TLS certificate
 
 [log]
 output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/jira.log"
