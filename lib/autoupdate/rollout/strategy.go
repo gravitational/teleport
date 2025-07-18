@@ -98,7 +98,8 @@ func setGroupState(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, newState
 		group.State = newState
 		changed = true
 		// If we just started the group, also update the start time
-		if newState == autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE {
+		if newState == autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE ||
+			newState == autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY {
 			group.StartTime = timestamppb.New(now)
 		}
 	}
