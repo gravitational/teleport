@@ -170,6 +170,26 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		)
 	}
 
+	if b.cfg.DiagSocketForUpdater != "" {
+		services = append(services,
+			diagnostics.ServiceBuilder(diagnostics.Config{
+				Address: b.cfg.DiagSocketForUpdater,
+				Network: "unix",
+				Logger: b.log.With(
+					teleport.ComponentKey,
+					teleport.Component(teleport.ComponentTBot, "diagnostics-updater"),
+				),
+			}),
+		)
+	}
+
+	// create the new pid file only after started successfully
+	if b.cfg.PIDFile != "" {
+		if err := utils.CreateLockedPIDFile(b.cfg.PIDFile); err != nil {
+			return trace.Wrap(err, "creating pidfile")
+		}
+	}
+
 	// This faux service allows us to get the bot's internal identity and client
 	// for tests, without exposing them on the core bot.Bot struct.
 	if b.cfg.Testing {
