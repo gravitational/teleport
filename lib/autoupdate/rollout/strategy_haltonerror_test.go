@@ -837,6 +837,7 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					ConfigStartHour:  matchingStartHour,
 					PresentCount:     12,
 					UpToDateCount:    3,
+					CanaryCount:      5,
 				},
 			},
 			reports:       canaryTestReports,
@@ -872,9 +873,7 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					InitialCount:  34,
 					PresentCount:  34,
 					UpToDateCount: 10,
-					// Checking that if CanaryCount is not set/null (e.g. we came from a manual transition)
-					// We still set it instead of jumping to the active state.
-					CanaryCount: 0,
+					CanaryCount:   5,
 				},
 			},
 			reports:       canaryTestReports,
@@ -940,6 +939,7 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 				{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY,
+					StartTime:        timestamppb.New(clock.Now()),
 					LastUpdateTime:   timestamppb.New(clock.Now()),
 					LastUpdateReason: updateReasonCanStart,
 					ConfigDays:       canStartToday,
@@ -978,6 +978,7 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 				{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY,
+					StartTime:        timestamppb.New(clock.Now()),
 					LastUpdateTime:   timestamppb.New(clock.Now()),
 					LastUpdateReason: updateReasonCanStart,
 					ConfigDays:       canStartToday,
@@ -1058,6 +1059,7 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY,
 					LastUpdateTime:   timestamppb.New(clock.Now()),
+					StartTime:        timestamppb.New(clock.Now()),
 					LastUpdateReason: updateReasonCanStart,
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
