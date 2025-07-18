@@ -437,7 +437,7 @@ message AWS {
   ];
   // AccountID is the AWS account ID this database belongs to.
   string AccountID = 4 [(gogoproto.jsontag) = "account_id,omitempty"];
-  // ElastiCache contains AWS ElastiCache Redis specific metadata.
+  // ElastiCache contains Amazon ElastiCache Redis-specific metadata.
   ElastiCache ElastiCache = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "elasticache,omitempty"
@@ -457,7 +457,7 @@ message AWS {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "rdsproxy,omitempty"
   ];
-  // RedshiftServerless contains AWS Redshift Serverless specific metadata.
+  // RedshiftServerless contains Amazon Redshift Serverless-specific metadata.
   RedshiftServerless RedshiftServerless = 9 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "redshift_serverless,omitempty"
@@ -483,7 +483,7 @@ message AWS {
   // SessionTags is a list of AWS STS session tags.
   map<string, string> SessionTags = 15 [(gogoproto.jsontag) = "session_tags,omitempty"];
 
-  // DocumentDB contains AWS DocumentDB specific metadata.
+  // DocumentDB contains Amazon DocumentDB-specific metadata.
   DocumentDB DocumentDB = 16 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "docdb,omitempty"
@@ -532,7 +532,7 @@ message RDSProxy {
   string ResourceID = 3 [(gogoproto.jsontag) = "resource_id,omitempty"];
 }
 
-// ElastiCache contains AWS ElastiCache Redis specific metadata.
+// ElastiCache contains Amazon ElastiCache Redis-specific metadata.
 message ElastiCache {
   // ReplicationGroupID is the Redis replication group ID.
   string ReplicationGroupID = 1 [(gogoproto.jsontag) = "replication_group_id,omitempty"];
@@ -556,7 +556,7 @@ message MemoryDB {
   string EndpointType = 4 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
 }
 
-// RedshiftServerless contains AWS Redshift Serverless specific metadata.
+// RedshiftServerless contains Amazon Redshift Serverless-specific metadata.
 message RedshiftServerless {
   // WorkgroupName is the workgroup name.
   string WorkgroupName = 1 [(gogoproto.jsontag) = "workgroup_name,omitempty"];
@@ -576,7 +576,7 @@ message OpenSearch {
   string EndpointType = 3 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
 }
 
-// DocumentDB contains AWS DocumentDB specific metadata.
+// DocumentDB contains Amazon DocumentDB-specific metadata.
 message DocumentDB {
   // ClusterID is the cluster identifier.
   string ClusterID = 1 [(gogoproto.jsontag) = "cluster_id,omitempty"];
@@ -2314,9 +2314,9 @@ message ClusterNetworkingConfigSpecV2 {
   // missed before the server disconnects the connection to the client.
   int64 KeepAliveCountMax = 3 [(gogoproto.jsontag) = "keep_alive_count_max"];
 
-  // SessionControlTimeout is the session control lease expiry and defines
-  // the upper limit of how long a node may be out of contact with the auth
-  // server before it begins terminating controlled sessions.
+  // SessionControlTimeout is the session control lease expiry and defines the
+  // upper limit of how long a node may be out of contact with the Auth Service
+  // before it begins terminating controlled sessions.
   int64 SessionControlTimeout = 4 [
     (gogoproto.jsontag) = "session_control_timeout",
     (gogoproto.casttype) = "Duration"

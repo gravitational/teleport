@@ -6980,8 +6980,8 @@ type ClusterNetworkingConfigSpecV2 struct {
 	// missed before the server disconnects the connection to the client.
 	KeepAliveCountMax int64 `protobuf:"varint,3,opt,name=KeepAliveCountMax,proto3" json:"keep_alive_count_max"`
 	// SessionControlTimeout is the session control lease expiry and defines
-	// the upper limit of how long a node may be out of contact with the auth
-	// server before it begins terminating controlled sessions.
+	// the upper limit of how long a node may be out of contact with the Auth
+	// Service before it begins terminating controlled sessions.
 	SessionControlTimeout Duration `protobuf:"varint,4,opt,name=SessionControlTimeout,proto3,casttype=Duration" json:"session_control_timeout"`
 	// ClientIdleTimeoutMessage is the message sent to the user when a connection times out.
 	ClientIdleTimeoutMessage string `protobuf:"bytes,5,opt,name=ClientIdleTimeoutMessage,proto3" json:"idle_timeout_message"`
