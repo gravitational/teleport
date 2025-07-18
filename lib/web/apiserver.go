@@ -2284,7 +2284,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	targetVersion, err := h.autoUpdateAgentVersion(r.Context(), group, agentUUD)
 	if err != nil {
 		h.logger.WarnContext(r.Context(), "Error retrieving the target version", "error", err)
-		targetVersion = teleport.SemVersion
+		targetVersion = teleport.SemVer()
 	}
 
 	instTmpl, err := template.New("").Parse(installer.GetScript())

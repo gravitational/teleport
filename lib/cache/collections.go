@@ -50,10 +50,10 @@ type collectionHandler interface {
 type collections struct {
 	byKind map[resourceKind]collectionHandler
 
-	botInstances   *collection[*machineidv1.BotInstance, botInstanceIndex]
-	remoteClusters *collection[types.RemoteCluster, remoteClusterIndex]
-	plugins        *collection[types.Plugin, pluginIndex]
-	autoUpdateReports                  *collection[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]
+	botInstances      *collection[*machineidv1.BotInstance, botInstanceIndex]
+	remoteClusters    *collection[types.RemoteCluster, remoteClusterIndex]
+	plugins           *collection[types.Plugin, pluginIndex]
+	autoUpdateReports *collection[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
