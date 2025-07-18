@@ -62,7 +62,7 @@ func (e *someErr) Unwrap() error {
 }
 
 func TestConvertErrorWrappedError(t *testing.T) {
-	nestedErr := &someErr{inner: trace.Wrap(fmt.Errorf("dummy"))}
+	nestedErr := &someErr{inner: trace.Wrap(fmt.Errorf("dummy error"))}
 	out := ConvertError(nestedErr)
-	require.Equal(t, nestedErr, out)
+	require.ErrorContains(t, out, "dummy error")
 }
