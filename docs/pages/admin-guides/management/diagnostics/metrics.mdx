@@ -26,6 +26,13 @@ bandwidth, and open file descriptors).
 This will enable the `http://127.0.0.1:3000/metrics` endpoint, which serves the
 metrics that Teleport tracks. It is compatible with [Prometheus](https://prometheus.io/) collectors.
 
+<Admonition type="tip" title="Grafana dashboard">
+
+A Grafana dashboard template can be found at
+[examples/grafana/teleport-dashboard.json](https://github.com/gravitational/teleport/blob/branch/v(=teleport.major_version=)/examples/grafana/teleport-dashboard.json).
+
+</Admonition>
+
 ## Backend operations
 
 A Teleport cluster cannot function if the Auth Service does not have a healthy
