@@ -277,9 +277,12 @@ func TestAccessRequestSearch(t *testing.T) {
 				setHomePath(homePath),
 			)
 			require.NoError(t, err)
-			if tc.args.format == "json" || tc.args.format == "yaml" {
-				require.Equal(t, captureStdout.String(), tc.wantOutput())
-			} else {
+			switch tc.args.format {
+			case "json":
+				require.JSONEq(t, tc.wantOutput(), captureStdout.String())
+			case "yaml":
+				require.YAMLEq(t, tc.wantOutput(), captureStdout.String())
+			default:
 				// We append a newline to the expected output to ensure that the table
 				// does not contain any more rows than expected.
 				require.Contains(t, captureStdout.String(), tc.wantOutput()+"\n")
