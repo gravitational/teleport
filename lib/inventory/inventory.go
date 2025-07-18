@@ -21,7 +21,6 @@ package inventory
 import (
 	"context"
 	"errors"
-	"github.com/jonboulle/clockwork"
 	"io"
 	"log/slog"
 	"sync"
@@ -29,6 +28,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -96,11 +96,15 @@ type DownstreamSender interface {
 
 type downstreamHandleOptions struct {
 	metadataGetter func(ctx context.Context) (*metadata.Metadata, error)
+	clock          clockwork.Clock
 }
 
 func (options *downstreamHandleOptions) SetDefaults() {
 	if options.metadataGetter == nil {
 		options.metadataGetter = metadata.Get
+	}
+	if options.clock == nil {
+		options.clock = clockwork.NewRealClock()
 	}
 }
 
@@ -109,6 +113,13 @@ type DownstreamHandleOption func(c *downstreamHandleOptions)
 func withMetadataGetter(getter func(ctx context.Context) (*metadata.Metadata, error)) DownstreamHandleOption {
 	return func(opts *downstreamHandleOptions) {
 		opts.metadataGetter = getter
+	}
+}
+
+// WithDownstreamClock overrides existing clock for downstream handle.
+func WithDownstreamClock(clock clockwork.Clock) DownstreamHandleOption {
+	return func(opts *downstreamHandleOptions) {
+		opts.clock = clock
 	}
 }
 
@@ -152,6 +163,7 @@ func NewDownstreamHandle(fn DownstreamCreateFunc, hello HelloGetter, opts ...Dow
 		closeContext:   ctx,
 		cancel:         cancel,
 		metadataGetter: options.metadataGetter,
+		clock:          options.clock,
 		helloGetter:    cachedHelloGetter,
 	}
 	go handle.run(fn)
@@ -170,6 +182,7 @@ type downstreamHandle struct {
 	cancel            context.CancelFunc
 	upstreamSSHLabels map[string]string
 	metadataGetter    func(ctx context.Context) (*metadata.Metadata, error)
+	clock             clockwork.Clock
 	helloGetter       HelloGetter
 	goodbye           atomic.Pointer[proto.UpstreamInventoryGoodbye]
 }
