@@ -29,10 +29,11 @@ import (
 // osConfigProvider fetches a target OS configuration based on cluster
 // configuration fetched via the client application process available over gRPC.
 type osConfigProvider struct {
-	cfg      osConfigProviderConfig
-	dnsAddrs []string
-	tunIPv6  string
-	tunIPv4  string
+	cfg        osConfigProviderConfig
+	dnsAddrs   []string
+	tunIPv6    string
+	tunIPv4    string
+	tunIPv4Net *net.IPNet
 }
 
 // osConfigProviderConfig holds configuration parameters for an osConfigProvider.
@@ -78,6 +79,7 @@ func (p *osConfigProvider) targetOSConfig(ctx context.Context) (*osConfig, error
 		tunName:    p.cfg.tunName,
 		tunIPv6:    p.tunIPv6,
 		tunIPv4:    p.tunIPv4,
+		tunIPv4Net: p.tunIPv4Net,
 		dnsAddrs:   p.dnsAddrs,
 		dnsZones:   targetOSConfig.GetDnsZones(),
 		cidrRanges: targetOSConfig.GetIpv4CidrRanges(),
@@ -89,7 +91,7 @@ func (p *osConfigProvider) setV4IPsFromFirstCIDR(cidrRange string) error {
 		// Only set these once.
 		return nil
 	}
-	tunIPv4, dnsIPv4, err := ipsForCIDR(cidrRange)
+	tunIPv4, tunIPv4Net, dnsIPv4, err := ipsForCIDR(cidrRange)
 	if err != nil {
 		return trace.Wrap(err, "setting TUN IPv4 address for range %s", cidrRange)
 	}
@@ -97,25 +99,26 @@ func (p *osConfigProvider) setV4IPsFromFirstCIDR(cidrRange string) error {
 		return trace.Wrap(err, "adding IPv4 DNS server at %s", dnsIPv4.String())
 	}
 	p.tunIPv4 = tunIPv4.String()
+	p.tunIPv4Net = tunIPv4Net
 	p.dnsAddrs = append(p.dnsAddrs, dnsIPv4.String())
 	return nil
 }
 
 // ipsForCIDR returns the V4 IPs to assign to the interface and use for DNS in
 // cidrRange.
-func ipsForCIDR(cidrRange string) (tunIP net.IP, dnsIP net.IP, err error) {
-	_, ipnet, err := net.ParseCIDR(cidrRange)
+func ipsForCIDR(cidrRange string) (tunIP net.IP, tunIPNet *net.IPNet, dnsIP net.IP, err error) {
+	_, tunIPNet, err = net.ParseCIDR(cidrRange)
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "parsing CIDR %q", cidrRange)
+		return nil, nil, nil, trace.Wrap(err, "parsing CIDR %q", cidrRange)
 	}
 	// ipnet.IP is the network address, ending in 0s, like 100.64.0.0
 	// Add 1 to assign the TUN address, like 100.64.0.1
-	tunIP = ipnet.IP
+	tunIP = slices.Clone(tunIPNet.IP)
 	tunIP[len(tunIP)-1]++
 
 	// Add 1 again to assign the DNS address, like 100.64.0.2
 	dnsIP = slices.Clone(tunIP)
 	dnsIP[len(dnsIP)-1]++
 
-	return tunIP, dnsIP, nil
+	return tunIP, tunIPNet, dnsIP, nil
 }
