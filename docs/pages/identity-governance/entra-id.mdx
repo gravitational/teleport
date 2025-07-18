@@ -28,6 +28,9 @@ from Entra ID directory to Teleport.
 Once the integration is configured, Teleport periodically imports users, groups, 
 and applications into Teleport.
 
+The installation process provides an option to extend Entra ID integration with the 
+Identity Security product. If you enable it, you [link access graph]
+
 ### Choosing an authentication method
 
 In order to authenticate with Microsoft Graph API and fetch resources from Entra ID, 
@@ -47,10 +50,24 @@ tokens issued by Teleport.
 
 #### System credentials
 
-Designed for air-gapped Teleport clusters that are not publicly accessible, this setup accommodates environments where Azure cannot validate OIDC tokens issued by Teleport. Instead, Teleport relies on Azure credentials available on the VMs where Teleport Auth Service is running.
+Designed for air-gapped Teleport clusters that are not publicly accessible, this setup accommodates 
+environments where Azure cannot validate OIDC tokens issued by Teleport. Instead, Teleport relies 
+on Azure credentials available on the VMs where Teleport Auth Service is running.
 
-Unidirectional connectivity from Teleport to Azure infrastructure.
+In both the cases, the credential should have the following API permissions at minimum.
+```code 
+- Application.ReadWrite.OwnedBy
+- Group.Read.All
+- User.Read.All
+```
 
+By default, the guided OIDC configuration sets a broader scoped permission, which 
+is required by the Idenitty Security product to perform policy and access path analysis.
+```code
+- Application.Read.All
+- Directory.Read.All
+- Policy.Read.All
+```
 
 ## Prerequisites
 
@@ -82,7 +99,7 @@ the default owner of Access Lists that are created for your Entra ID groups.
 
 In the next step, you will be provided with a Entra ID configuration script.
 
-![Integrations](../../img/igs/entraid/default-owners.png)
+![Integrations](../../img/igs/entraid/entra-default-owners.png)
 
 ## Step 2/3: Configure Entra ID
 
@@ -94,7 +111,7 @@ Once the script is done setting up the necessary permissions,
 it prints out tenant ID and client ID. Copy these values and provide it to the
 Web UI to finish the integration.
 
-![Integrations](../../img/igs/entraid/finish.png)
+![Integrations](../../img/igs/entraid/entra-finish.png)
 
 </TabItem>
 
@@ -135,6 +152,90 @@ it prints out tenant ID and client ID. Copy these values and provide it to the
 </TabItem>
 </Tabs>
 
+The integration is now configured and the Teleport Entra ID service will start 
+importing resources from Entra ID to Teleport.
 
-The integration is now configured and the Teleport Entra ID service will start importing resources from Entra ID to Teleport.
+## Manual configuration
 
+Manual configuration may be preferable if you wish to have more control on the 
+Entra ID configuration. 
+
+## Step 1/5. Create Enterprise Application
+
+In the Azure Portal, under “Azure services”, select “Enterprise applications”.
+Click on `+ New Application` button, then click `+ Create your own application` button.
+Enter a name for your application and create the application.
+
+![Integrations](../../img/igs/entraid/entra-create-enterprise-app.png)
+
+
+## Step 2/5. Configure SSO
+
+Open the newly created enterprise application.
+
+Under “Manage” menu select “Single sign-on”. In this configuration UI, you will need to set up Teleport
+as an SAML servicer provider.
+
+Click edit button to configure  “Basic SAML Configuration”.
+Enter the SAML assertion endpoint as Entity ID and ACS URL value.
+- **Entity ID and ACS URL:** SAML ACS endpoint of your Teleport cluster. E.g.  `https://<teleport cluster addr>/v1/webapi/saml/acs/entra-id`
+
+For “Attributes & Claims”, attributes with user will already be available for you but you will need to 
+add a `groups` claim. 
+
+![Integrations](../../img/igs/entraid/entra-sso-config.png)
+
+
+## Step 3/5. (Optional) Setting up OIDC IDP
+
+Under “App registrations” from Azure services menu, find and open your enterprise
+application created in step 1.
+
+Select “Manage > Certificates & secrets” and then select “Federated credentials“.
+Click `+ Add credential` button.
+
+Under “Add a credential” UI, configure credential with the following values:
+- **Federated credential scenario:** Other issuer
+
+Under “Connect your account”, configure the following values:
+- **Issuer:** https://example.com
+- **Type:** Explicit subject identifier
+- **Value:** teleport-azure
+
+Under “Credential details”, configure the following values:
+- **Name:** teleport-oidc
+- **Description:** Teleport OIDC Identity Provider
+
+![Integrations](../../img/igs/entraid/entra-setup-oidc.png)
+
+## Step 4/5. Configure API permissions
+
+Under the same App registration UI for your enterprise application, select “Manage > API permissions”.
+
+You can add a new graph permission by clicking on `+ Add a permission` button and then selecting “Microsoft Graph > Application permissions”.
+
+The following permissions needs to be added to the application. 
+- `Application.ReadWrite.OwnedBy`
+- `Group.Read.All`
+- `User.Read.All`
+
+![Integrations](../../img/igs/entraid/entra-api-permission.png)
+
+
+## Step 5/5. Install Entra ID plugin
+
+Now run `tctl plugins install entraid` command.
+
+```code
+$ tctl plugins install entraid \
+    --name entra-id-default \
+    --auth-connector-name entra-id \
+    --default-owner=<Var name="Access List Owner"/> \
+    –-no-access-graph \
+    –-manual-setup
+```
+
+`tctl` will then prompt for Entra ID tenant ID and Application ID of the enterprise 
+application created in step 1.
+
+Once you enter these values, Entra ID plugin will be installed with the OIDC IdP based authentication method.
