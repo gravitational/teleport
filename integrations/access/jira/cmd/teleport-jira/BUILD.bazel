@@ -1,0 +1,24 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "teleport-jira_lib",
+    srcs = ["main.go"],
+    embedsrcs = ["example_config.toml"],
+    importpath = "github.com/gravitational/teleport/integrations/access/jira/cmd/teleport-jira",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//:teleport",
+        "//integrations/access/common",
+        "//integrations/access/jira",
+        "//integrations/lib",
+        "//integrations/lib/logger",
+        "@com_github_alecthomas_kingpin_v2//:kingpin",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_binary(
+    name = "teleport-jira",
+    embed = [":teleport-jira_lib"],
+    visibility = ["//visibility:public"],
+)

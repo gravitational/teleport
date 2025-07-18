@@ -1,0 +1,12 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "oktav1_proto",
+    srcs = ["okta_service.proto"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//teleport/legacy/types:types_proto",
+        "@com_google_protobuf//:duration_proto",
+        "@com_google_protobuf//:empty_proto",
+    ],
+)

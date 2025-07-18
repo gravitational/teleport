@@ -1,0 +1,25 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "teleportassets",
+    srcs = ["teleportassets.go"],
+    importpath = "github.com/gravitational/teleport/lib/utils/teleportassets",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//lib/modules",
+        "@com_github_coreos_go_semver//semver",
+    ],
+)
+
+go_test(
+    name = "teleportassets_test",
+    srcs = ["teleportassets_test.go"],
+    embed = [":teleportassets"],
+    deps = [
+        "//lib/modules",
+        "//lib/modules/modulestest",
+        "@com_github_coreos_go_semver//semver",
+        "@com_github_stretchr_testify//require",
+    ],
+)

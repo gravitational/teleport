@@ -1,0 +1,51 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "hsm",
+    srcs = ["helpers.go"],
+    importpath = "github.com/gravitational/teleport/integration/hsm",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/breaker",
+        "//api/types",
+        "//lib/cloud/imds",
+        "//lib/defaults",
+        "//lib/service",
+        "//lib/service/servicecfg",
+        "//lib/services",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+go_test(
+    name = "hsm_test",
+    srcs = ["hsm_test.go"],
+    embed = [":hsm"],
+    deps = [
+        "//:teleport",
+        "//api/breaker",
+        "//api/client",
+        "//api/types",
+        "//entitlements",
+        "//lib/auth/authclient",
+        "//lib/auth/state",
+        "//lib/auth/storage",
+        "//lib/backend",
+        "//lib/backend/lite",
+        "//lib/defaults",
+        "//lib/modules",
+        "//lib/modules/modulestest",
+        "//lib/service",
+        "//lib/service/servicecfg",
+        "//lib/utils",
+        "//lib/utils/log/logtest",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,42 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "boundkeypair",
+    srcs = [
+        "bound_keypair.go",
+        "claims.go",
+        "join_state.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/boundkeypair",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//api/utils/keys",
+        "//lib/defaults",
+        "//lib/jwt",
+        "//lib/utils",
+        "@com_github_go_jose_go_jose_v3//:go-jose",
+        "@com_github_go_jose_go_jose_v3//jwt",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+    ],
+)
+
+go_test(
+    name = "boundkeypair_test",
+    srcs = [
+        "bound_keypair_test.go",
+        "join_state_test.go",
+    ],
+    embed = [":boundkeypair"],
+    deps = [
+        "//api/types",
+        "//api/utils/keys",
+        "//lib/cryptosuites",
+        "//lib/jwt",
+        "@com_github_go_jose_go_jose_v3//:go-jose",
+        "@com_github_go_jose_go_jose_v3//jwt",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)

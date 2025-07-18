@@ -1,0 +1,19 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "protoc-gen-crd_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/gravitational/teleport/integrations/operator/crdgen/cmd/protoc-gen-crd",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//integrations/operator/crdgen",
+        "//lib/utils/log",
+        "@com_github_gogo_protobuf//vanity/command",
+    ],
+)
+
+go_binary(
+    name = "protoc-gen-crd",
+    embed = [":protoc-gen-crd_lib"],
+    visibility = ["//visibility:public"],
+)

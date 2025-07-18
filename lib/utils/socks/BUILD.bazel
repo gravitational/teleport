@@ -1,0 +1,21 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "socks",
+    srcs = ["socks.go"],
+    importpath = "github.com/gravitational/teleport/lib/utils/socks",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_gravitational_trace//:trace"],
+)
+
+go_test(
+    name = "socks_test",
+    srcs = ["socks_test.go"],
+    embed = [":socks"],
+    deps = [
+        "//lib/utils/log/logtest",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_net//proxy",
+    ],
+)

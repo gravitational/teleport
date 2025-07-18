@@ -1,0 +1,7 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "labelv1_proto",
+    srcs = ["label.proto"],
+    visibility = ["//visibility:public"],
+)

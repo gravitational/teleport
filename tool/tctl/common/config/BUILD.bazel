@@ -1,0 +1,30 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "config",
+    srcs = [
+        "global.go",
+        "profile.go",
+    ],
+    importpath = "github.com/gravitational/teleport/tool/tctl/common/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/constants",
+        "//api/metadata",
+        "//api/types",
+        "//lib/auth/authclient",
+        "//lib/auth/state",
+        "//lib/auth/storage",
+        "//lib/client",
+        "//lib/client/identityfile",
+        "//lib/config",
+        "//lib/defaults",
+        "//lib/hardwarekey",
+        "//lib/service/servicecfg",
+        "//lib/utils",
+        "//lib/utils/hostid",
+        "//lib/utils/log",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)

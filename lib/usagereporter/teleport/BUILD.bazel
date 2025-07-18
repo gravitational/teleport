@@ -1,0 +1,53 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "teleport",
+    srcs = [
+        "audit.go",
+        "types.go",
+        "types_discover.go",
+        "usagereporter.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/usagereporter/teleport",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/gen/proto/go/usageevents/v1:usageevents",
+        "//api/types",
+        "//api/types/events",
+        "//gen/proto/go/prehog/v1alpha",
+        "//gen/proto/go/prehog/v1alpha/prehogv1alphaconnect",
+        "//lib/defaults",
+        "//lib/events",
+        "//lib/observability/metrics",
+        "//lib/srv/db/common/databaseobjectimportrule",
+        "//lib/usagereporter",
+        "//lib/utils",
+        "@com_connectrpc_connect//:connect",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)
+
+go_test(
+    name = "teleport_test",
+    srcs = [
+        "audit_test.go",
+        "usagereporter_test.go",
+    ],
+    embed = [":teleport"],
+    deps = [
+        "//:teleport",
+        "//api/gen/proto/go/teleport/accesslist/v1:accesslist",
+        "//api/gen/proto/go/usageevents/v1:usageevents",
+        "//api/types",
+        "//api/types/accesslist",
+        "//api/types/events",
+        "//gen/proto/go/prehog/v1alpha",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

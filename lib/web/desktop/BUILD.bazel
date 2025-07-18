@@ -1,0 +1,32 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "desktop",
+    srcs = ["playback.go"],
+    importpath = "github.com/gravitational/teleport/lib/web/desktop",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types/events",
+        "//lib/player",
+        "//lib/utils",
+        "@com_github_gorilla_websocket//:websocket",
+    ],
+)
+
+go_test(
+    name = "desktop_test",
+    srcs = ["playback_test.go"],
+    deps = [
+        ":desktop",
+        "//api/types/events",
+        "//lib/events/eventstest",
+        "//lib/player",
+        "//lib/session",
+        "//lib/utils",
+        "//lib/utils/log/logtest",
+        "@com_github_gorilla_websocket//:websocket",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

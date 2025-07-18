@@ -1,0 +1,37 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "spanner",
+    srcs = [
+        "doc.go",
+        "engine.go",
+        "events.go",
+        "grpcserver.go",
+        "interceptors.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/srv/db/spanner",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//api/types/events",
+        "//api/utils/grpc/interceptors",
+        "//lib/defaults",
+        "//lib/events",
+        "//lib/srv/db/common",
+        "//lib/srv/db/common/role",
+        "//lib/srv/db/endpoints",
+        "//lib/utils",
+        "//lib/utils/listener",
+        "//lib/utils/log",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@com_google_cloud_go_spanner//apiv1",
+        "@com_google_cloud_go_spanner//apiv1/spannerpb",
+        "@org_golang_google_api//option",
+        "@org_golang_google_api//transport/grpc",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//stats",
+        "@org_golang_google_protobuf//types/known/emptypb",
+    ],
+)

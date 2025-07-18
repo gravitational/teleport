@@ -1,0 +1,23 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "test",
+    srcs = [
+        "atomicwrite.go",
+        "atomicwrite_shim.go",
+        "suite.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/backend/test",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//lib/backend",
+        "//lib/utils/clocki",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_sync//errgroup",
+    ],
+)

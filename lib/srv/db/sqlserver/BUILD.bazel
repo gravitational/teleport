@@ -1,0 +1,62 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sqlserver",
+    srcs = [
+        "auth.go",
+        "connect.go",
+        "engine.go",
+        "proxy.go",
+        "test.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/srv/db/sqlserver",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/types",
+        "//api/types/events",
+        "//lib/authz",
+        "//lib/defaults",
+        "//lib/events",
+        "//lib/services",
+        "//lib/srv/db/common",
+        "//lib/srv/db/common/kerberos",
+        "//lib/srv/db/endpoints",
+        "//lib/srv/db/sqlserver/protocol",
+        "//lib/utils",
+        "//lib/utils/log/logtest",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jcmturner_gokrb5_v8//client",
+        "@com_github_jcmturner_gokrb5_v8//spnego",
+        "@com_github_microsoft_go_mssqldb//:go-mssqldb",
+        "@com_github_microsoft_go_mssqldb//azuread",
+        "@com_github_microsoft_go_mssqldb//msdsn",
+    ],
+)
+
+go_test(
+    name = "sqlserver_test",
+    srcs = [
+        "connect_test.go",
+        "engine_test.go",
+    ],
+    embed = [":sqlserver"],
+    deps = [
+        "//api/constants",
+        "//api/types",
+        "//api/types/events",
+        "//lib/defaults",
+        "//lib/events",
+        "//lib/events/eventstest",
+        "//lib/services",
+        "//lib/services/readonly",
+        "//lib/srv/db/common",
+        "//lib/srv/db/sqlserver/protocol",
+        "//lib/srv/db/sqlserver/protocol/fixtures",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jcmturner_gokrb5_v8//client",
+        "@com_github_microsoft_go_mssqldb//:go-mssqldb",
+        "@com_github_stretchr_testify//require",
+    ],
+)

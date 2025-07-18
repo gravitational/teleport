@@ -1,0 +1,45 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "benchmark",
+    srcs = [
+        "benchmark.go",
+        "kube.go",
+        "linear.go",
+        "ssh.go",
+        "web.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/benchmark",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client",
+        "//api/types",
+        "//lib/client",
+        "//lib/observability/tracing",
+        "//lib/session",
+        "//lib/utils",
+        "//lib/web/terminal",
+        "@com_github_gorilla_websocket//:websocket",
+        "@com_github_gravitational_roundtrip//:roundtrip",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_hdrhistogram_hdrhistogram_go//:hdrhistogram-go",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_client_go//kubernetes",
+        "@io_k8s_client_go//rest",
+        "@io_k8s_client_go//tools/remotecommand",
+        "@io_k8s_client_go//util/flowcontrol",
+        "@io_k8s_kubectl//pkg/scheme",
+    ],
+)
+
+go_test(
+    name = "benchmark_test",
+    srcs = ["linear_test.go"],
+    embed = [":benchmark"],
+    deps = [
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_stretchr_testify//require",
+    ],
+)

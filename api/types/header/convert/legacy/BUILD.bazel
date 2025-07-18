@@ -1,0 +1,24 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "legacy",
+    srcs = ["header.go"],
+    importpath = "github.com/gravitational/teleport/api/types/header/convert/legacy",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//api/types/header",
+    ],
+)
+
+go_test(
+    name = "legacy_test",
+    srcs = ["header_test.go"],
+    embed = [":legacy"],
+    deps = [
+        "//api/types",
+        "//api/types/header",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,41 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "stableunixusers",
+    srcs = ["stableunixusers.go"],
+    importpath = "github.com/gravitational/teleport/lib/auth/stableunixusers",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/stableunixusers/v1:stableunixusers",
+        "//api/types",
+        "//api/types/events",
+        "//lib/authz",
+        "//lib/backend",
+        "//lib/events",
+        "//lib/services",
+        "//lib/services/readonly",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+    ],
+)
+
+go_test(
+    name = "stableunixusers_test",
+    srcs = ["stableunixusers_test.go"],
+    deps = [
+        ":stableunixusers",
+        "//api/gen/proto/go/teleport/stableunixusers/v1:stableunixusers",
+        "//api/types",
+        "//api/types/events",
+        "//lib/authz",
+        "//lib/backend/memory",
+        "//lib/services/local",
+        "//lib/services/readonly",
+        "//lib/utils/log/logtest",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_sync//errgroup",
+    ],
+)

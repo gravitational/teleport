@@ -1,0 +1,24 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "mysql",
+    srcs = ["optionfile.go"],
+    importpath = "github.com/gravitational/teleport/lib/client/db/mysql",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/client/db/profile",
+        "@com_github_gravitational_trace//:trace",
+        "@in_gopkg_ini_v1//:ini_v1",
+    ],
+)
+
+go_test(
+    name = "mysql_test",
+    srcs = ["optionfile_test.go"],
+    embed = [":mysql"],
+    deps = [
+        "//lib/client/db/profile",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

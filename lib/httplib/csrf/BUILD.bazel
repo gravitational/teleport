@@ -1,0 +1,12 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "csrf",
+    srcs = ["csrf.go"],
+    importpath = "github.com/gravitational/teleport/lib/httplib/csrf",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)

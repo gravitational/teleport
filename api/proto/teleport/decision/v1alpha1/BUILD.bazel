@@ -1,0 +1,25 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "decisionpb_proto",
+    srcs = [
+        "database_access.proto",
+        "decision_service.proto",
+        "denial_metadata.proto",
+        "enforcement_feature.proto",
+        "permit_metadata.proto",
+        "request_metadata.proto",
+        "resource.proto",
+        "ssh_access.proto",
+        "ssh_identity.proto",
+        "ssh_join.proto",
+        "tls_identity.proto",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//teleport/decision/v1alpha1:v1alpha1_proto",
+        "//teleport/trait/v1:v1_proto",
+        "@com_google_protobuf//:duration_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)

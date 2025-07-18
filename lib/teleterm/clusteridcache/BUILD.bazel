@@ -1,0 +1,9 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "clusteridcache",
+    srcs = ["clusteridcache.go"],
+    importpath = "github.com/gravitational/teleport/lib/teleterm/clusteridcache",
+    visibility = ["//visibility:public"],
+    deps = ["//lib/teleterm/api/uri"],
+)

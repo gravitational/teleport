@@ -1,0 +1,33 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tags",
+    srcs = ["tags.go"],
+    importpath = "github.com/gravitational/teleport/lib/cloud/aws/tags",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "@com_github_aws_aws_sdk_go_v2_service_athena//types",
+        "@com_github_aws_aws_sdk_go_v2_service_ec2//types",
+        "@com_github_aws_aws_sdk_go_v2_service_ecs//types",
+        "@com_github_aws_aws_sdk_go_v2_service_iam//types",
+        "@com_github_aws_aws_sdk_go_v2_service_rolesanywhere//types",
+        "@com_github_aws_aws_sdk_go_v2_service_s3//types",
+        "@com_github_aws_aws_sdk_go_v2_service_ssm//types",
+    ],
+)
+
+go_test(
+    name = "tags_test",
+    srcs = ["tags_test.go"],
+    embed = [":tags"],
+    deps = [
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_service_ec2//types",
+        "@com_github_aws_aws_sdk_go_v2_service_ecs//types",
+        "@com_github_aws_aws_sdk_go_v2_service_iam//types",
+        "@com_github_aws_aws_sdk_go_v2_service_rolesanywhere//types",
+        "@com_github_aws_aws_sdk_go_v2_service_ssm//types",
+        "@com_github_stretchr_testify//require",
+    ],
+)

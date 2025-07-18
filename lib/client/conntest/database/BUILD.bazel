@@ -1,0 +1,47 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "database",
+    srcs = [
+        "database.go",
+        "mysql.go",
+        "postgres.go",
+        "sqlserver.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/client/conntest/database",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/defaults",
+        "@com_github_go_mysql_org_go_mysql//client",
+        "@com_github_go_mysql_org_go_mysql//mysql",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jackc_pgconn//:pgconn",
+        "@com_github_jackc_pgerrcode//:pgerrcode",
+        "@com_github_microsoft_go_mssqldb//:go-mssqldb",
+    ],
+)
+
+go_test(
+    name = "database_test",
+    srcs = [
+        "mysql_test.go",
+        "postgres_test.go",
+        "sqlserver_test.go",
+    ],
+    embed = [":database"],
+    deps = [
+        "//api/client/proto",
+        "//api/types",
+        "//lib/fixtures",
+        "//lib/srv/db/common",
+        "//lib/srv/db/mysql",
+        "//lib/srv/db/postgres",
+        "//lib/srv/db/sqlserver",
+        "//lib/tlsca",
+        "@com_github_go_mysql_org_go_mysql//mysql",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jackc_pgconn//:pgconn",
+        "@com_github_jackc_pgerrcode//:pgerrcode",
+        "@com_github_stretchr_testify//require",
+    ],
+)

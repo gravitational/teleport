@@ -1,0 +1,35 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "protocol",
+    srcs = [
+        "command.go",
+        "doc.go",
+        "packet.go",
+        "read.go",
+        "response.go",
+        "statement.go",
+        "version.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/srv/db/mysql/protocol",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_go_mysql_org_go_mysql//client",
+        "@com_github_go_mysql_org_go_mysql//mysql",
+        "@com_github_go_mysql_org_go_mysql//packet",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "protocol_test",
+    srcs = [
+        "fuzz_test.go",
+        "packet_test.go",
+    ],
+    embed = [":protocol"],
+    deps = [
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,8 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "awsfips",
+    srcs = ["fips_disabled.go"],
+    importpath = "github.com/gravitational/teleport/lib/utils/aws/awsfips",
+    visibility = ["//visibility:public"],
+)

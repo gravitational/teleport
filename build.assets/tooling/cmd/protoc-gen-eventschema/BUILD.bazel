@@ -1,0 +1,26 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "protoc-gen-eventschema_lib",
+    srcs = [
+        "handlerequest.go",
+        "main.go",
+        "readrequest.go",
+    ],
+    importpath = "github.com/gravitational/teleport/build.assets/tooling/cmd/protoc-gen-eventschema",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//build.assets/tooling/lib/eventschema",
+        "//build.assets/tooling/lib/protobuf-tree",
+        "@com_github_gogo_protobuf//protoc-gen-gogo/generator",
+        "@com_github_gogo_protobuf//protoc-gen-gogo/plugin",
+        "@com_github_gogo_protobuf//vanity/command",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_binary(
+    name = "protoc-gen-eventschema",
+    embed = [":protoc-gen-eventschema_lib"],
+    visibility = ["//visibility:public"],
+)

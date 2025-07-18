@@ -1,0 +1,47 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "azure",
+    srcs = [
+        "credential.go",
+        "handler.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/srv/app/azure",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/types",
+        "//api/utils/azure",
+        "//lib/cloud/azure",
+        "//lib/defaults",
+        "//lib/httplib",
+        "//lib/httplib/reverseproxy",
+        "//lib/jwt",
+        "//lib/srv/app/common",
+        "//lib/utils",
+        "@com_github_azure_azure_sdk_for_go_sdk_azcore//:azcore",
+        "@com_github_azure_azure_sdk_for_go_sdk_azcore//arm",
+        "@com_github_azure_azure_sdk_for_go_sdk_azcore//policy",
+        "@com_github_azure_azure_sdk_for_go_sdk_azidentity//:azidentity",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+    ],
+)
+
+go_test(
+    name = "azure_test",
+    srcs = [
+        "credential_test.go",
+        "handler_test.go",
+    ],
+    embed = [":azure"],
+    deps = [
+        "//lib/cloud/azure",
+        "@com_github_azure_azure_sdk_for_go_sdk_azcore//:azcore",
+        "@com_github_azure_azure_sdk_for_go_sdk_azcore//arm",
+        "@com_github_azure_azure_sdk_for_go_sdk_azcore//policy",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,8 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "usageeventsv1_proto",
+    srcs = ["usageevents.proto"],
+    visibility = ["//visibility:public"],
+    deps = ["//teleport/accesslist/v1:v1_proto"],
+)

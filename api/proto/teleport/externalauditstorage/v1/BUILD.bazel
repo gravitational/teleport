@@ -1,0 +1,15 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "externalauditstoragev1_proto",
+    srcs = [
+        "externalauditstorage.proto",
+        "externalauditstorage_service.proto",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//teleport/externalauditstorage/v1:v1_proto",
+        "//teleport/header/v1:v1_proto",
+        "@com_google_protobuf//:empty_proto",
+    ],
+)

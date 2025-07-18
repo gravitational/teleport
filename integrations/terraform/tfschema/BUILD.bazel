@@ -1,0 +1,51 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tfschema",
+    srcs = [
+        "custom_types.go",
+        "duration_type.go",
+        "role_plan_modifier.go",
+        "time_type.go",
+        "types_terraform.go",
+        "validators.go",
+    ],
+    importpath = "github.com/gravitational/teleport/integrations/terraform/tfschema",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/constants",
+        "//api/gen/proto/go/attestation/v1:attestation",
+        "//api/types",
+        "//api/types/wrappers",
+        "//api/utils",
+        "@com_github_gogo_protobuf//gogoproto",
+        "@com_github_gogo_protobuf//proto",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_hashicorp_terraform_plugin_framework//attr:go_default_library",
+        "@com_github_hashicorp_terraform_plugin_framework//diag:go_default_library",
+        "@com_github_hashicorp_terraform_plugin_framework//path:go_default_library",
+        "@com_github_hashicorp_terraform_plugin_framework//tfsdk:go_default_library",
+        "@com_github_hashicorp_terraform_plugin_framework//types:go_default_library",
+        "@com_github_hashicorp_terraform_plugin_go//tftypes:go_default_library",
+        "@org_golang_google_protobuf//types/known/durationpb",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+        "@org_golang_google_protobuf//types/known/wrapperspb",
+    ],
+)
+
+go_test(
+    name = "tfschema_test",
+    srcs = [
+        "custom_types_test.go",
+        "validators_test.go",
+    ],
+    embed = [":tfschema"],
+    deps = [
+        "//api/types/wrappers",
+        "@com_github_hashicorp_terraform_plugin_framework//attr:go_default_library",
+        "@com_github_hashicorp_terraform_plugin_framework//diag:go_default_library",
+        "@com_github_hashicorp_terraform_plugin_framework//tfsdk:go_default_library",
+        "@com_github_hashicorp_terraform_plugin_framework//types:go_default_library",
+        "@com_github_stretchr_testify//require",
+    ],
+)

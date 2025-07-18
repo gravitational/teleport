@@ -1,0 +1,29 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+go_library(
+    name = "query-latest_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/gravitational/teleport/build.assets/tooling/cmd/query-latest",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//build.assets/tooling/lib/github",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_x_mod//semver",
+    ],
+)
+
+go_binary(
+    name = "query-latest",
+    embed = [":query-latest_lib"],
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "query-latest_test",
+    srcs = ["main_test.go"],
+    embed = [":query-latest_lib"],
+    deps = [
+        "@com_github_google_go_github_v70//:github",
+        "@com_github_stretchr_testify//require",
+    ],
+)

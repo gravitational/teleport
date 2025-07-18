@@ -1,0 +1,24 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "client",
+    srcs = [
+        "builder.go",
+        "client.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/tbot/client",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/breaker",
+        "//api/client",
+        "//api/metadata",
+        "//lib/reversetunnelclient",
+        "//lib/tbot/config",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_grpc_ecosystem_go_grpc_middleware_providers_prometheus//:prometheus",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_x_crypto//ssh",
+    ],
+)

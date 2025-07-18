@@ -1,0 +1,31 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "unifiedresources",
+    srcs = ["unifiedresources.go"],
+    importpath = "github.com/gravitational/teleport/lib/teleterm/services/unifiedresources",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client",
+        "//api/client/proto",
+        "//api/types",
+        "//lib/teleterm/clusters",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "unifiedresources_test",
+    srcs = ["unififedresources_test.go"],
+    embed = [":unifiedresources"],
+    deps = [
+        "//api/client/proto",
+        "//api/types",
+        "//lib/defaults",
+        "//lib/teleterm/api/uri",
+        "//lib/teleterm/clusters",
+        "//lib/utils/aws",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_stretchr_testify//require",
+    ],
+)

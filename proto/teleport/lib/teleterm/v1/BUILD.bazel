@@ -1,0 +1,31 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "teletermv1_proto",
+    srcs = [
+        "access_request.proto",
+        "app.proto",
+        "auth_settings.proto",
+        "cluster.proto",
+        "database.proto",
+        "gateway.proto",
+        "kube.proto",
+        "label.proto",
+        "server.proto",
+        "service.proto",
+        "target_health.proto",
+        "tshd_events_service.proto",
+        "usage_events.proto",
+        "windows_desktop.proto",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//prehog/v1alpha:v1alpha_proto",
+        "//teleport/accesslist/v1:v1_proto",
+        "//teleport/devicetrust/v1:v1_proto",
+        "//teleport/legacy/types:types_proto",
+        "//teleport/lib/teleterm/v1:v1_proto",
+        "//teleport/userpreferences/v1:v1_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)

@@ -1,0 +1,54 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "resumption",
+    srcs = [
+        "client.go",
+        "handover.go",
+        "managedconn.go",
+        "resumable.go",
+        "server_detect.go",
+        "server_exchange.go",
+        "skipconn.go",
+        "utils.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/resumption",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//lib/multiplexer",
+        "//lib/sshutils",
+        "//lib/utils",
+        "//lib/utils/log",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@org_golang_x_sync//errgroup",
+    ],
+)
+
+go_test(
+    name = "resumption_test",
+    srcs = [
+        "handover_test.go",
+        "managedconn_test.go",
+        "resumable_test.go",
+        "resumption_test.go",
+        "skipconn_test.go",
+    ],
+    embed = [":resumption"],
+    deps = [
+        "//:teleport",
+        "//lib/multiplexer",
+        "//lib/sshutils",
+        "//lib/utils",
+        "//lib/utils/uds",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_crypto//ssh",
+        "@org_golang_x_net//nettest",
+        "@org_golang_x_sync//errgroup",
+    ],
+)

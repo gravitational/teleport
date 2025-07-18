@@ -1,0 +1,20 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "gcp",
+    srcs = ["gcp.go"],
+    importpath = "github.com/gravitational/teleport/lib/utils/gcp",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_gravitational_trace//:trace",
+        "@com_google_cloud_go_compute_metadata//:metadata",
+        "@org_golang_x_oauth2//google",
+    ],
+)
+
+go_test(
+    name = "gcp_test",
+    srcs = ["gcp_test.go"],
+    embed = [":gcp"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

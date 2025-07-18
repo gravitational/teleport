@@ -1,0 +1,47 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "slack",
+    srcs = [
+        "app.go",
+        "bot.go",
+        "config.go",
+        "http.go",
+        "oauth.go",
+        "status.go",
+        "types.go",
+    ],
+    importpath = "github.com/gravitational/teleport/integrations/access/slack",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//api/types/accesslist",
+        "//integrations/access/accesslist",
+        "//integrations/access/accessrequest",
+        "//integrations/access/common",
+        "//integrations/access/common/auth",
+        "//integrations/access/common/auth/oauth",
+        "//integrations/access/common/auth/storage",
+        "//integrations/lib",
+        "//integrations/lib/logger",
+        "//integrations/lib/plugindata",
+        "@com_github_go_resty_resty_v2//:resty",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_pelletier_go_toml//:go-toml",
+    ],
+)
+
+go_test(
+    name = "slack_test",
+    srcs = [
+        "oauth_test.go",
+        "status_test.go",
+    ],
+    embed = [":slack"],
+    deps = [
+        "//api/types",
+        "@com_github_julienschmidt_httprouter//:httprouter",
+        "@com_github_stretchr_testify//require",
+    ],
+)

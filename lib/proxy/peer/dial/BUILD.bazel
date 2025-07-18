@@ -1,0 +1,12 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "dial",
+    srcs = ["dial.go"],
+    importpath = "github.com/gravitational/teleport/lib/proxy/peer/dial",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//lib/utils",
+    ],
+)

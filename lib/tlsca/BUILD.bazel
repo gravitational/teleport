@@ -1,0 +1,51 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tlsca",
+    srcs = [
+        "ca.go",
+        "doc.go",
+        "parsegen.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/tlsca",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/gen/proto/go/teleport/workloadidentity/v1:workloadidentity",
+        "//api/types",
+        "//api/types/events",
+        "//api/types/wrappers",
+        "//api/utils",
+        "//api/utils/keys",
+        "//lib/cryptosuites",
+        "//lib/utils",
+        "//lib/utils/log",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@org_golang_google_protobuf//encoding/protojson",
+    ],
+)
+
+go_test(
+    name = "tlsca_test",
+    srcs = ["ca_test.go"],
+    embed = [":tlsca"],
+    deps = [
+        "//:teleport",
+        "//api/gen/proto/go/teleport/workloadidentity/v1:workloadidentity",
+        "//api/types",
+        "//api/types/events",
+        "//api/utils/keys",
+        "//lib/cryptosuites",
+        "//lib/defaults",
+        "//lib/fixtures",
+        "@com_github_gogo_protobuf//proto",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_go_cmp//cmp/cmpopts",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//testing/protocmp",
+    ],
+)

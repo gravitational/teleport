@@ -1,0 +1,15 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "joiningv1_proto",
+    srcs = [
+        "service.proto",
+        "token.proto",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//teleport/header/v1:v1_proto",
+        "//teleport/scopes/joining/v1:v1_proto",
+        "//teleport/scopes/v1:v1_proto",
+    ],
+)

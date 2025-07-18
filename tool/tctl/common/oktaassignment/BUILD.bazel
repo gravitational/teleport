@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "oktaassignment",
+    srcs = ["resource.go"],
+    importpath = "github.com/gravitational/teleport/tool/tctl/common/oktaassignment",
+    visibility = ["//visibility:public"],
+    deps = ["//api/types"],
+)
+
+go_test(
+    name = "oktaassignment_test",
+    srcs = ["resource_test.go"],
+    embed = [":oktaassignment"],
+    deps = [
+        "//api/constants",
+        "//api/types",
+        "//lib/utils",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
+)

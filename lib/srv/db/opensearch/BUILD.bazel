@@ -1,0 +1,46 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "opensearch",
+    srcs = [
+        "categories.go",
+        "engine.go",
+        "test.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/srv/db/opensearch",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/types",
+        "//api/types/events",
+        "//api/types/wrappers",
+        "//lib/cloud/awsconfig",
+        "//lib/defaults",
+        "//lib/events",
+        "//lib/srv/db/common",
+        "//lib/srv/db/common/role",
+        "//lib/srv/db/elasticsearch",
+        "//lib/srv/db/endpoints",
+        "//lib/utils",
+        "//lib/utils/aws",
+        "//lib/utils/log",
+        "//lib/utils/log/logtest",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_opensearch_project_opensearch_go_v2//:opensearch-go",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@org_golang_x_net//http/httpproxy",
+    ],
+)
+
+go_test(
+    name = "opensearch_test",
+    srcs = [
+        "categories_test.go",
+        "fuzz_test.go",
+    ],
+    embed = [":opensearch"],
+    deps = [
+        "//api/types/events",
+        "@com_github_stretchr_testify//require",
+    ],
+)

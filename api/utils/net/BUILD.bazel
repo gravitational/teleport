@@ -1,0 +1,19 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "net",
+    srcs = ["ports.go"],
+    importpath = "github.com/gravitational/teleport/api/utils/net",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_gravitational_trace//:trace"],
+)
+
+go_test(
+    name = "net_test",
+    srcs = ["ports_test.go"],
+    embed = [":net"],
+    deps = [
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

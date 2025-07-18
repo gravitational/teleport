@@ -1,0 +1,48 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "common",
+    srcs = [
+        "annotations.go",
+        "app.go",
+        "bot.go",
+        "config.go",
+        "constants.go",
+        "recipient.go",
+        "response.go",
+        "status.go",
+    ],
+    importpath = "github.com/gravitational/teleport/integrations/access/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client",
+        "//api/client/proto",
+        "//api/gen/proto/go/teleport/accessmonitoringrules/v1:accessmonitoringrules",
+        "//api/types",
+        "//api/types/accesslist",
+        "//integrations/access/common/teleport",
+        "//integrations/lib",
+        "//integrations/lib/logger",
+        "//integrations/lib/stringset",
+        "//lib/utils",
+        "@com_github_go_resty_resty_v2//:resty",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+    ],
+)
+
+go_test(
+    name = "common_test",
+    srcs = [
+        "annotations_test.go",
+        "recipient_test.go",
+        "status_test.go",
+    ],
+    embed = [":common"],
+    deps = [
+        "//api/types",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_pelletier_go_toml//:go-toml",
+        "@com_github_stretchr_testify//require",
+    ],
+)

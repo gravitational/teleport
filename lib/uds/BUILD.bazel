@@ -1,0 +1,80 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "uds",
+    srcs = [
+        "cred.go",
+        "cred_darwin.go",
+        "cred_linux.go",
+        "cred_other.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/uds",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_grpc//credentials",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:android": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "uds_test",
+    srcs = ["cred_test.go"],
+    embed = [":uds"],
+    deps = select({
+        "@io_bazel_rules_go//go/platform:android": [
+            "//api/gen/proto/go/teleport/machineid/v1:machineid",
+            "//lib/utils",
+            "@com_github_gravitational_trace//:trace",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_google_grpc//:grpc",
+            "@org_golang_google_grpc//credentials/insecure",
+            "@org_golang_google_grpc//peer",
+        ],
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "//api/gen/proto/go/teleport/machineid/v1:machineid",
+            "//lib/utils",
+            "@com_github_gravitational_trace//:trace",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_google_grpc//:grpc",
+            "@org_golang_google_grpc//credentials/insecure",
+            "@org_golang_google_grpc//peer",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "//api/gen/proto/go/teleport/machineid/v1:machineid",
+            "//lib/utils",
+            "@com_github_gravitational_trace//:trace",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_google_grpc//:grpc",
+            "@org_golang_google_grpc//credentials/insecure",
+            "@org_golang_google_grpc//peer",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            "//api/gen/proto/go/teleport/machineid/v1:machineid",
+            "//lib/utils",
+            "@com_github_gravitational_trace//:trace",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_google_grpc//:grpc",
+            "@org_golang_google_grpc//credentials/insecure",
+            "@org_golang_google_grpc//peer",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -1,0 +1,25 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "role",
+    srcs = ["role.go"],
+    importpath = "github.com/gravitational/teleport/lib/srv/db/common/role",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//lib/defaults",
+        "//lib/services",
+    ],
+)
+
+go_test(
+    name = "role_test",
+    srcs = ["role_test.go"],
+    embed = [":role"],
+    deps = [
+        "//api/types",
+        "//lib/defaults",
+        "//lib/services",
+        "@com_github_stretchr_testify//require",
+    ],
+)

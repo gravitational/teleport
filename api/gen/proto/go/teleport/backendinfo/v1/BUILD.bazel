@@ -1,0 +1,13 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "backendinfo",
+    srcs = ["backendinfo.pb.go"],
+    importpath = "github.com/gravitational/teleport/api/gen/proto/go/teleport/backendinfo/v1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/header/v1:header",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+    ],
+)

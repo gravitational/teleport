@@ -1,0 +1,35 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "accessgraphv1alpha_proto",
+    srcs = [
+        "access_graph_service.proto",
+        "aws.proto",
+        "azure.proto",
+        "entra.proto",
+        "events.proto",
+        "github.proto",
+        "gitlab.proto",
+        "graph.proto",
+        "netiq.proto",
+        "okta.proto",
+        "resources.proto",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//accessgraph/v1alpha:v1alpha_proto",
+        "//teleport/access_graph/v1:v1_proto",
+        "//teleport/accesslist/v1:v1_proto",
+        "//teleport/auditlog/v1:v1_proto",
+        "//teleport/crownjewel/v1:v1_proto",
+        "//teleport/dbobject/v1:v1_proto",
+        "//teleport/devicetrust/v1:v1_proto",
+        "//teleport/header/v1:v1_proto",
+        "//teleport/legacy/types:types_proto",
+        "@com_google_protobuf//:duration_proto",
+        "@com_google_protobuf//:empty_proto",
+        "@com_google_protobuf//:struct_proto",
+        "@com_google_protobuf//:timestamp_proto",
+        "@com_google_protobuf//:wrappers_proto",
+    ],
+)

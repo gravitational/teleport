@@ -1,0 +1,41 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "limiter",
+    srcs = [
+        "connlimiter.go",
+        "limiter.go",
+        "listener.go",
+        "ratelimiter.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/limiter",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//lib/limiter/internal/ratelimit",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//peer",
+    ],
+)
+
+go_test(
+    name = "limiter_test",
+    srcs = [
+        "connlimiter_test.go",
+        "limiter_test.go",
+    ],
+    embed = [":limiter"],
+    deps = [
+        "//lib/limiter/internal/ratelimit",
+        "//lib/utils",
+        "//lib/utils/log/logtest",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//peer",
+    ],
+)

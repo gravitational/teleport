@@ -1,0 +1,26 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "scopes",
+    srcs = [
+        "doc.go",
+        "feature.go",
+        "scopes.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/scopes",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/utils",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "scopes_test",
+    srcs = [
+        "feature_test.go",
+        "scopes_test.go",
+    ],
+    embed = [":scopes"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

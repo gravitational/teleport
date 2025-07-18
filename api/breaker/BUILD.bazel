@@ -1,0 +1,38 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "breaker",
+    srcs = [
+        "breaker.go",
+        "doc.go",
+        "interceptors.go",
+        "round_tripper.go",
+    ],
+    importpath = "github.com/gravitational/teleport/api/breaker",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/defaults",
+        "//api/utils/retryutils",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+    ],
+)
+
+go_test(
+    name = "breaker_test",
+    srcs = [
+        "breaker_test.go",
+        "round_tripper_test.go",
+    ],
+    embed = [":breaker"],
+    deps = [
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+    ],
+)

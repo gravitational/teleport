@@ -1,0 +1,20 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "versioncontrol",
+    srcs = [
+        "constants.go",
+        "target.go",
+        "versioncontrol.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/versioncontrol",
+    visibility = ["//visibility:public"],
+    deps = ["@org_golang_x_mod//semver"],
+)
+
+go_test(
+    name = "versioncontrol_test",
+    srcs = ["versioncontrol_test.go"],
+    embed = [":versioncontrol"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

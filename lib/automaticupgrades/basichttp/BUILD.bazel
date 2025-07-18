@@ -1,0 +1,9 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "basichttp",
+    srcs = ["client.go"],
+    importpath = "github.com/gravitational/teleport/lib/automaticupgrades/basichttp",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_gravitational_trace//:trace"],
+)

@@ -1,0 +1,12 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "crownjewel",
+    srcs = ["crownjewel.go"],
+    importpath = "github.com/gravitational/teleport/api/client/crownjewel",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/crownjewel/v1:crownjewel",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)

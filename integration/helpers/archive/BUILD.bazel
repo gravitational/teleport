@@ -1,0 +1,12 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "archive",
+    srcs = ["packaging.go"],
+    importpath = "github.com/gravitational/teleport/integration/helpers/archive",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)

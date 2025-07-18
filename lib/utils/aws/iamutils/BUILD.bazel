@@ -1,0 +1,25 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "iamutils",
+    srcs = ["iam.go"],
+    importpath = "github.com/gravitational/teleport/lib/utils/aws/iamutils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/utils/aws/awsfips",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_service_iam//:iam",
+    ],
+)
+
+go_test(
+    name = "iamutils_test",
+    srcs = ["iam_test.go"],
+    deps = [
+        ":iamutils",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_service_iam//:iam",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

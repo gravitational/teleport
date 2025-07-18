@@ -1,0 +1,8 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "backendinfov1_proto",
+    srcs = ["backendinfo.proto"],
+    visibility = ["//visibility:public"],
+    deps = ["//teleport/header/v1:v1_proto"],
+)

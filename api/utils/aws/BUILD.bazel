@@ -1,0 +1,36 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "aws",
+    srcs = [
+        "documentdb.go",
+        "ec2.go",
+        "endpoint.go",
+        "identifiers.go",
+        "partition.go",
+        "region.go",
+    ],
+    importpath = "github.com/gravitational/teleport/api/utils/aws",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_gravitational_trace//:trace"],
+)
+
+go_test(
+    name = "aws_test",
+    srcs = [
+        "documentdb_test.go",
+        "ec2_test.go",
+        "endpoint_test.go",
+        "fuzz_test.go",
+        "identifiers_test.go",
+        "partition_test.go",
+        "region_test.go",
+    ],
+    embed = [":aws"],
+    deps = [
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

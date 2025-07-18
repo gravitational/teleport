@@ -1,0 +1,31 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+go_library(
+    name = "render-helm-ref_lib",
+    srcs = [
+        "main.go",
+        "template.go",
+    ],
+    importpath = "github.com/gravitational/teleport/build.assets/tooling/cmd/render-helm-ref",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_masterminds_sprig_v3//:sprig",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@sh_helm_helm_v3//pkg/chart/loader",
+    ],
+)
+
+go_binary(
+    name = "render-helm-ref",
+    embed = [":render-helm-ref_lib"],
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "render-helm-ref_test",
+    srcs = ["main_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":render-helm-ref_lib"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

@@ -1,0 +1,30 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "proxy",
+    srcs = ["proxy.go"],
+    importpath = "github.com/gravitational/teleport/lib/utils/proxy",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/client",
+        "//api/observability/tracing/ssh",
+        "//api/utils",
+        "//lib/utils/log",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_x_crypto//ssh",
+    ],
+)
+
+go_test(
+    name = "proxy_test",
+    srcs = ["proxy_test.go"],
+    embed = [":proxy"],
+    deps = [
+        "//api/client",
+        "//lib/fixtures",
+        "//lib/utils/socks",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

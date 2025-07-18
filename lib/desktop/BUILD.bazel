@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "desktop",
+    srcs = ["conn.go"],
+    importpath = "github.com/gravitational/teleport/lib/desktop",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//lib/reversetunnelclient",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)

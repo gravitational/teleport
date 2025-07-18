@@ -1,0 +1,25 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "azure",
+    srcs = ["imds.go"],
+    importpath = "github.com/gravitational/teleport/lib/cloud/imds/azure",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/types",
+        "//lib/defaults",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "azure_test",
+    srcs = ["imds_test.go"],
+    embed = [":azure"],
+    deps = [
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

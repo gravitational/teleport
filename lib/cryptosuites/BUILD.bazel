@@ -1,0 +1,29 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cryptosuites",
+    srcs = [
+        "precompute.go",
+        "suites.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/cryptosuites",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client/proto",
+        "//api/types",
+        "//api/utils/keys",
+        "//lib/cryptosuites/internal/rsa",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "cryptosuites_test",
+    srcs = ["suites_test.go"],
+    embed = [":cryptosuites"],
+    deps = [
+        "//api/types",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

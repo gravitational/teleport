@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "bench_lib",
+    srcs = ["example.go"],
+    importpath = "github.com/gravitational/teleport/examples/bench",
+    visibility = ["//visibility:private"],
+    deps = ["//lib/benchmark"],
+)
+
+go_binary(
+    name = "bench",
+    embed = [":bench_lib"],
+    visibility = ["//visibility:public"],
+)

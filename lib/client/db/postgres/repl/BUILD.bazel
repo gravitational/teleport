@@ -1,0 +1,42 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "repl",
+    srcs = [
+        "commands.go",
+        "repl.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/client/db/postgres/repl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/client/proto",
+        "//lib/asciitable",
+        "//lib/client/db/repl",
+        "//lib/defaults",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jackc_pgconn//:pgconn",
+        "@org_golang_x_term//:term",
+    ],
+)
+
+go_test(
+    name = "repl_test",
+    srcs = [
+        "commands_test.go",
+        "repl_test.go",
+    ],
+    embed = [":repl"],
+    deps = [
+        "//:teleport",
+        "//api/client/proto",
+        "//lib/client/db/postgres/repl/testdata",
+        "//lib/client/db/repl",
+        "//lib/utils/testutils/golden",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jackc_pgconn//:pgconn",
+        "@com_github_jackc_pgproto3_v2//:pgproto3",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

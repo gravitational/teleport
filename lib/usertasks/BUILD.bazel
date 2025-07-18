@@ -1,0 +1,42 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "usertasks",
+    srcs = [
+        "descriptions.go",
+        "urls.go",
+    ],
+    embedsrcs = [
+        "descriptions/ec2-ssm-agent-connection-lost.md",
+        "descriptions/ec2-ssm-agent-not-registered.md",
+        "descriptions/ec2-ssm-invocation-failure.md",
+        "descriptions/ec2-ssm-script-failure.md",
+        "descriptions/ec2-ssm-unsupported-os.md",
+        "descriptions/eks-agent-not-connecting.md",
+        "descriptions/eks-authentication-mode-unsupported.md",
+        "descriptions/eks-cluster-unreachable.md",
+        "descriptions/eks-missing-endpoint-public-access.md",
+        "descriptions/eks-status-not-active.md",
+        "descriptions/rds-iam-auth-disabled.md",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/usertasks",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/usertasks/v1:usertasks",
+        "//api/types/usertasks",
+    ],
+)
+
+go_test(
+    name = "usertasks_test",
+    srcs = [
+        "descriptions_test.go",
+        "urls_test.go",
+    ],
+    embed = [":usertasks"],
+    deps = [
+        "//api/gen/proto/go/teleport/usertasks/v1:usertasks",
+        "//api/types/usertasks",
+        "@com_github_stretchr_testify//require",
+    ],
+)

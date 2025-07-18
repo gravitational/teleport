@@ -1,0 +1,29 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "authn",
+    srcs = ["authn.go"],
+    importpath = "github.com/gravitational/teleport/lib/devicetrust/authn",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/devicetrust/v1:devicetrust",
+        "//lib/devicetrust",
+        "//lib/devicetrust/authn/types",
+        "//lib/devicetrust/challenge",
+        "//lib/devicetrust/native",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "authn_test",
+    srcs = ["authn_test.go"],
+    deps = [
+        ":authn",
+        "//api/gen/proto/go/teleport/devicetrust/v1:devicetrust",
+        "//lib/devicetrust/authn/types",
+        "//lib/devicetrust/testenv",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

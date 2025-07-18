@@ -1,0 +1,18 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "dump-preset-roles_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/gravitational/teleport/build.assets/dump-preset-roles",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//api/types",
+        "//lib/services",
+    ],
+)
+
+go_binary(
+    name = "dump-preset-roles",
+    embed = [":dump-preset-roles_lib"],
+    visibility = ["//visibility:public"],
+)

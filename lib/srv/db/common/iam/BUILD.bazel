@@ -1,0 +1,26 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "iam",
+    srcs = ["aws.go"],
+    importpath = "github.com/gravitational/teleport/lib/srv/db/common/iam",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//api/utils/aws",
+        "//lib/cloud/aws",
+        "@com_github_coreos_go_semver//semver",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "iam_test",
+    srcs = ["aws_test.go"],
+    embed = [":iam"],
+    deps = [
+        "//api/types",
+        "//lib/cloud/aws",
+        "@com_github_stretchr_testify//require",
+    ],
+)

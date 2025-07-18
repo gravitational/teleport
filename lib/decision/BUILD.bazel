@@ -1,0 +1,60 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "decision",
+    srcs = [
+        "identity_generation.go",
+        "service.go",
+        "ssh_identity.go",
+        "tls_identity.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/decision",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/constants",
+        "//api/defaults",
+        "//api/gen/proto/go/teleport/decision/v1alpha1",
+        "//api/gen/proto/go/teleport/trait/v1:trait",
+        "//api/types",
+        "//api/types/trait",
+        "//api/types/trait/convert/v1:convert",
+        "//api/types/userloginstate",
+        "//api/types/wrappers",
+        "//api/utils/keys",
+        "//lib/services",
+        "//lib/sshca",
+        "//lib/tlsca",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_protobuf//types/known/durationpb",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+        "@org_golang_x_crypto//ssh",
+    ],
+)
+
+go_test(
+    name = "decision_test",
+    srcs = [
+        "service_test.go",
+        "ssh_identity_test.go",
+        "tls_identity_test.go",
+    ],
+    embed = [":decision"],
+    deps = [
+        "//api/gen/proto/go/teleport/decision/v1alpha1",
+        "//api/gen/proto/go/teleport/trait/v1:trait",
+        "//api/types",
+        "//api/types/wrappers",
+        "//api/utils/keys",
+        "//lib/sshca",
+        "//lib/tlsca",
+        "//lib/utils/testutils",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//testing/protocmp",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+        "@org_golang_x_crypto//ssh",
+    ],
+)

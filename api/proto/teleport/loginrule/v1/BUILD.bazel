@@ -1,0 +1,16 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "loginrulev1_proto",
+    srcs = [
+        "loginrule.proto",
+        "loginrule_service.proto",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//teleport/legacy/types:types_proto",
+        "//teleport/legacy/types/wrappers:wrappers_proto",
+        "//teleport/loginrule/v1:v1_proto",
+        "@com_google_protobuf//:empty_proto",
+    ],
+)

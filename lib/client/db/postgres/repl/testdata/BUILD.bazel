@@ -1,0 +1,12 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testdata",
+    srcs = ["query.go"],
+    importpath = "github.com/gravitational/teleport/lib/client/db/postgres/repl/testdata",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_jackc_pgconn//:pgconn",
+        "@com_github_jackc_pgproto3_v2//:pgproto3",
+    ],
+)

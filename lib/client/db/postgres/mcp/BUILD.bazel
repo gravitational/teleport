@@ -1,0 +1,35 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "mcp",
+    srcs = ["mcp.go"],
+    importpath = "github.com/gravitational/teleport/lib/client/db/postgres/mcp",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/client/db/mcp",
+        "//lib/client/mcp",
+        "//lib/defaults",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jackc_pgx_v5//:pgx",
+        "@com_github_jackc_pgx_v5//pgxpool",
+        "@com_github_mark3labs_mcp_go//mcp",
+    ],
+)
+
+go_test(
+    name = "mcp_test",
+    srcs = ["mcp_test.go"],
+    embed = [":mcp"],
+    deps = [
+        "//api/client",
+        "//api/types",
+        "//lib/client/db/mcp",
+        "//lib/client/mcp",
+        "//lib/defaults",
+        "//lib/utils/listener",
+        "@com_github_jackc_pgx_v5//:pgx",
+        "@com_github_jackc_pgx_v5//pgconn",
+        "@com_github_mark3labs_mcp_go//mcp",
+        "@com_github_stretchr_testify//require",
+    ],
+)

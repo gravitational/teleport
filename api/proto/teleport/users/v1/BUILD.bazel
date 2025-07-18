@@ -1,0 +1,11 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "usersv1_proto",
+    srcs = ["users_service.proto"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//teleport/legacy/types:types_proto",
+        "@com_google_protobuf//:empty_proto",
+    ],
+)

@@ -1,0 +1,18 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "terraform-mwi_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/gravitational/teleport/integrations/terraform-mwi",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//integrations/terraform-mwi/provider",
+        "@com_github_hashicorp_terraform_plugin_framework//providerserver:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "terraform-mwi",
+    embed = [":terraform-mwi_lib"],
+    visibility = ["//visibility:public"],
+)

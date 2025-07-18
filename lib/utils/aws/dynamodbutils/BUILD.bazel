@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "dynamodbutils",
+    srcs = ["dynamo.go"],
+    importpath = "github.com/gravitational/teleport/lib/utils/aws/dynamodbutils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/modules",
+        "//lib/utils/aws/awsfips",
+    ],
+)
+
+go_test(
+    name = "dynamodbutils_test",
+    srcs = ["dynamo_test.go"],
+    deps = [
+        ":dynamodbutils",
+        "//lib/modules/modulestest",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

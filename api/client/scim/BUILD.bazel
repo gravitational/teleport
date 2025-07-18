@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "scim",
+    srcs = ["scim.go"],
+    importpath = "github.com/gravitational/teleport/api/client/scim",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/scim/v1:scim",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_protobuf//types/known/emptypb",
+    ],
+)

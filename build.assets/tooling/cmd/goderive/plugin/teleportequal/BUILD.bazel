@@ -1,0 +1,12 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "teleportequal",
+    srcs = ["teleportequal.go"],
+    importpath = "github.com/gravitational/teleport/build.assets/tooling/cmd/goderive/plugin/teleportequal",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_awalterschulze_goderive//derive:go_default_library",
+        "@com_github_awalterschulze_goderive//plugin/equal:go_default_library",
+    ],
+)

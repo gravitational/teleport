@@ -1,0 +1,20 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "notificationsv1",
+    srcs = ["service.go"],
+    importpath = "github.com/gravitational/teleport/lib/auth/notifications/notificationsv1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client",
+        "//api/defaults",
+        "//api/gen/proto/go/teleport/notifications/v1:notifications",
+        "//api/internalutils/stream",
+        "//api/types",
+        "//lib/authz",
+        "//lib/services",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@org_golang_google_protobuf//types/known/emptypb",
+    ],
+)

@@ -1,0 +1,21 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "update-ami-id_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/gravitational/teleport/assets/aws/cmd/update-ami-id",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@com_github_alecthomas_kingpin_v2//:kingpin",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
+        "@com_github_aws_aws_sdk_go_v2_service_ec2//:ec2",
+        "@com_github_aws_aws_sdk_go_v2_service_ec2//types",
+    ],
+)
+
+go_binary(
+    name = "update-ami-id",
+    embed = [":update-ami-id_lib"],
+    visibility = ["//visibility:public"],
+)

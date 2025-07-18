@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "tsh_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/gravitational/teleport/integration/autoupdate/tools/updater/tsh",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//api/utils/prompt",
+        "//integration/autoupdate/tools/updater",
+        "//lib/modules",
+        "//lib/utils",
+        "//lib/utils/signal",
+        "//tool/tsh/common",
+    ],
+)
+
+go_binary(
+    name = "tsh",
+    embed = [":tsh_lib"],
+    visibility = ["//visibility:public"],
+)

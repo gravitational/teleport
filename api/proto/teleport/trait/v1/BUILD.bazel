@@ -1,0 +1,7 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "traitv1_proto",
+    srcs = ["trait.proto"],
+    visibility = ["//visibility:public"],
+)

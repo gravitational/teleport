@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "resources",
+    srcs = [
+        "groupversion_info.go",
+        "provisiontoken_types.go",
+        "samlconnector_types.go",
+        "user_types.go",
+        "zz_generated.deepcopy.go",
+    ],
+    importpath = "github.com/gravitational/teleport/integrations/operator/apis/resources/v2",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//integrations/operator/apis/resources",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_sigs_controller_runtime//pkg/scheme",
+    ],
+)

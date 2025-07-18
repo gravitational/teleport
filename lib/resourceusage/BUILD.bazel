@@ -1,0 +1,28 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "resourceusage",
+    srcs = ["usage.go"],
+    importpath = "github.com/gravitational/teleport/lib/resourceusage",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//api/types/events",
+        "//lib/events",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "resourceusage_test",
+    srcs = ["usage_test.go"],
+    embed = [":resourceusage"],
+    deps = [
+        "//api/types/events",
+        "//lib/events",
+        "//lib/events/test",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "region",
+    srcs = [
+        "generate.go",
+        "region.go",
+        "regions.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/utils/aws/region",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "region_test",
+    srcs = ["region_test.go"],
+    embed = [":region"],
+    deps = [
+        "//api/utils/aws",
+        "@com_github_stretchr_testify//require",
+    ],
+)

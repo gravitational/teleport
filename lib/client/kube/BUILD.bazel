@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "kube",
+    srcs = ["kube.go"],
+    importpath = "github.com/gravitational/teleport/lib/client/kube",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//lib/client",
+        "//lib/tlsca",
+        "//lib/utils/log",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)

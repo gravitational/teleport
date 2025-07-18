@@ -1,0 +1,18 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "darwin",
+    srcs = ["pub_key.go"],
+    importpath = "github.com/gravitational/teleport/lib/darwin",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "darwin_test",
+    srcs = ["pub_key_test.go"],
+    deps = [
+        ":darwin",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

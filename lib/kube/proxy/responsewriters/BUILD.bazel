@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "responsewriters",
+    srcs = [
+        "filters.go",
+        "memory_response.go",
+        "watcher.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/kube/proxy/responsewriters",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/httplib/reverseproxy",
+        "@com_github_gravitational_trace//:trace",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/serializer/streaming",
+        "@io_k8s_apimachinery//pkg/watch",
+        "@io_k8s_client_go//rest/watch",
+        "@org_golang_x_sync//errgroup",
+    ],
+)

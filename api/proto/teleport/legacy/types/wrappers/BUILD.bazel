@@ -1,0 +1,8 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "wrappers_proto",
+    srcs = ["wrappers.proto"],
+    visibility = ["//visibility:public"],
+    deps = ["//gogoproto:gogoproto_proto"],
+)

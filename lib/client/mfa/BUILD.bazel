@@ -1,0 +1,38 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "mfa",
+    srcs = [
+        "cli.go",
+        "prompt.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/client/mfa",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client/proto",
+        "//api/constants",
+        "//api/gen/proto/go/teleport/mfa/v1:mfa",
+        "//api/mfa",
+        "//api/utils/prompt",
+        "//lib/auth/webauthncli",
+        "//lib/auth/webauthntypes",
+        "//lib/auth/webauthnwin",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "mfa_test",
+    srcs = ["cli_test.go"],
+    deps = [
+        ":mfa",
+        "//api/client/proto",
+        "//api/gen/proto/go/teleport/mfa/v1:mfa",
+        "//api/types/webauthn",
+        "//api/utils/prompt",
+        "//lib/auth/webauthncli",
+        "//lib/auth/webauthntypes",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

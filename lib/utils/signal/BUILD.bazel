@@ -1,0 +1,18 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "signal",
+    srcs = ["stack_handler.go"],
+    importpath = "github.com/gravitational/teleport/lib/utils/signal",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "signal_test",
+    srcs = ["stack_handler_test.go"],
+    embed = [":signal"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

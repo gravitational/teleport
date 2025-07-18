@@ -1,0 +1,39 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "teleterm",
+    srcs = [
+        "config.go",
+        "grpccredentials.go",
+        "teleterm.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/teleterm",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/utils/keys",
+        "//api/utils/keys/piv",
+        "//lib/client",
+        "//lib/hardwarekey",
+        "//lib/teleterm/apiserver",
+        "//lib/teleterm/clusteridcache",
+        "//lib/teleterm/clusters",
+        "//lib/teleterm/daemon",
+        "//lib/utils",
+        "//lib/utils/cert",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//credentials/insecure",
+    ],
+)
+
+go_test(
+    name = "teleterm_test",
+    srcs = ["teleterm_test.go"],
+    embed = [":teleterm"],
+    deps = [
+        "//lib/utils",
+        "@com_github_stretchr_testify//require",
+    ],
+)

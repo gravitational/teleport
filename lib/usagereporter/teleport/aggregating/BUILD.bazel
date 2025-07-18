@@ -1,0 +1,58 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "aggregating",
+    srcs = [
+        "reporter.go",
+        "service.go",
+        "submitter.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/usagereporter/teleport/aggregating",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//api/utils/retryutils",
+        "//gen/proto/go/prehog/v1:prehog",
+        "//gen/proto/go/prehog/v1alpha",
+        "//lib/auth/machineid/machineidv1",
+        "//lib/backend",
+        "//lib/services",
+        "//lib/usagereporter/teleport",
+        "//lib/utils",
+        "//lib/utils/interval",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)
+
+go_test(
+    name = "aggregating_test",
+    srcs = [
+        "reporter_test.go",
+        "service_test.go",
+        "submitter_test.go",
+    ],
+    embed = [":aggregating"],
+    deps = [
+        "//api/types",
+        "//gen/proto/go/prehog/v1:prehog",
+        "//gen/proto/go/prehog/v1alpha",
+        "//lib/backend",
+        "//lib/backend/memory",
+        "//lib/services",
+        "//lib/services/local",
+        "//lib/usagereporter/teleport",
+        "//lib/utils",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//testing/protocmp",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)

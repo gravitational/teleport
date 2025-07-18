@@ -1,0 +1,47 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "dbcmd",
+    srcs = [
+        "dbcmd.go",
+        "dbcmd_clickhouse.go",
+        "error.go",
+        "exec.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/client/db/dbcmd",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/constants",
+        "//api/types",
+        "//lib/client",
+        "//lib/client/db",
+        "//lib/client/db/mysql",
+        "//lib/client/db/opensearch",
+        "//lib/client/db/postgres",
+        "//lib/defaults",
+        "//lib/tlsca",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+        "@org_mongodb_go_mongo_driver//x/mongo/driver/connstring",
+    ],
+)
+
+go_test(
+    name = "dbcmd_test",
+    srcs = [
+        "dbcmd_test.go",
+        "exec_test.go",
+    ],
+    embed = [":dbcmd"],
+    deps = [
+        "//api/types",
+        "//lib/client",
+        "//lib/defaults",
+        "//lib/fixtures",
+        "//lib/observability/tracing",
+        "//lib/tlsca",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

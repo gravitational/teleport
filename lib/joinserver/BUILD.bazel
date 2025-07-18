@@ -1,0 +1,37 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "joinserver",
+    srcs = ["joinserver.go"],
+    importpath = "github.com/gravitational/teleport/lib/joinserver",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client",
+        "//api/client/proto",
+        "//api/types",
+        "//lib/authz",
+        "//lib/tlsca",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@org_golang_google_grpc//peer",
+    ],
+)
+
+go_test(
+    name = "joinserver_test",
+    srcs = ["joinserver_test.go"],
+    embed = [":joinserver"],
+    deps = [
+        "//api/client",
+        "//api/client/proto",
+        "//api/types",
+        "//api/utils/grpc/interceptors",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//test/bufconn",
+    ],
+)

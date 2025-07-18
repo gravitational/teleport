@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "client",
+    srcs = ["client.go"],
+    importpath = "github.com/gravitational/teleport/lib/secretsscanner/client",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/accessgraph/v1:accessgraph",
+        "//lib/client/proxy/insecure",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@org_golang_google_grpc//:grpc",
+    ],
+)

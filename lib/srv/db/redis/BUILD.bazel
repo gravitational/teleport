@@ -1,0 +1,38 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "redis",
+    srcs = [
+        "client.go",
+        "cmds.go",
+        "doc.go",
+        "engine.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/srv/db/redis",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/types",
+        "//api/utils/aws",
+        "//lib/cloud/aws",
+        "//lib/cloud/awsconfig",
+        "//lib/cloud/azure",
+        "//lib/defaults",
+        "//lib/services",
+        "//lib/srv/db/common",
+        "//lib/srv/db/common/iam",
+        "//lib/srv/db/common/role",
+        "//lib/srv/db/endpoints",
+        "//lib/srv/db/redis/connection",
+        "//lib/srv/db/redis/protocol",
+        "//lib/utils",
+        "//lib/utils/log",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_service_elasticache//:elasticache",
+        "@com_github_aws_aws_sdk_go_v2_service_elasticache//types",
+        "@com_github_aws_aws_sdk_go_v2_service_memorydb//:memorydb",
+        "@com_github_aws_aws_sdk_go_v2_service_memorydb//types",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_redis_go_redis_v9//:go-redis",
+    ],
+)

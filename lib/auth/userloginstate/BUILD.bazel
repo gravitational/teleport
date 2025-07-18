@@ -1,0 +1,52 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "userloginstate",
+    srcs = ["generator.go"],
+    importpath = "github.com/gravitational/teleport/lib/auth/userloginstate",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client/proto",
+        "//api/gen/proto/go/teleport/accesslist/v1:accesslist",
+        "//api/gen/proto/go/usageevents/v1:usageevents",
+        "//api/types",
+        "//api/types/accesslist",
+        "//api/types/events",
+        "//api/types/header",
+        "//api/types/userloginstate",
+        "//api/utils",
+        "//lib/accesslists",
+        "//lib/events",
+        "//lib/modules",
+        "//lib/services",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+    ],
+)
+
+go_test(
+    name = "userloginstate_test",
+    srcs = ["generator_test.go"],
+    embed = [":userloginstate"],
+    deps = [
+        "//api/client/proto",
+        "//api/gen/proto/go/usageevents/v1:usageevents",
+        "//api/types",
+        "//api/types/accesslist",
+        "//api/types/header",
+        "//api/types/trait",
+        "//api/types/userloginstate",
+        "//entitlements",
+        "//lib/backend/memory",
+        "//lib/events/eventstest",
+        "//lib/modules",
+        "//lib/modules/modulestest",
+        "//lib/services",
+        "//lib/services/local",
+        "//lib/utils/log/logtest",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_go_cmp//cmp/cmpopts",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)

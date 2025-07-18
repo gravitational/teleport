@@ -1,0 +1,13 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "dynamicwindows",
+    srcs = ["dynamicwindows.go"],
+    importpath = "github.com/gravitational/teleport/api/client/dynamicwindows",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/dynamicwindows/v1:dynamicwindows",
+        "//api/types",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)

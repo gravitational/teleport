@@ -1,0 +1,46 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "email",
+    srcs = [
+        "app.go",
+        "client.go",
+        "config.go",
+        "mailers.go",
+        "plugindata.go",
+    ],
+    importpath = "github.com/gravitational/teleport/integrations/access/email",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client/proto",
+        "//api/types",
+        "//integrations/access/accessmonitoring",
+        "//integrations/access/common",
+        "//integrations/access/common/teleport",
+        "//integrations/lib",
+        "//integrations/lib/logger",
+        "//integrations/lib/watcherjob",
+        "//lib/utils",
+        "//lib/utils/log",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_mailgun_mailgun_go_v4//:mailgun-go",
+        "@com_github_pelletier_go_toml//:go-toml",
+        "@in_gopkg_mail_v2//:mail_v2",
+    ],
+)
+
+go_test(
+    name = "email_test",
+    srcs = [
+        "config_test.go",
+        "plugindata_test.go",
+    ],
+    embed = [":email"],
+    deps = [
+        "//api/types",
+        "//integrations/access/common",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_mail_v2//:mail_v2",
+    ],
+)

@@ -1,0 +1,42 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "mcputils",
+    srcs = [
+        "errors.go",
+        "id_tracker.go",
+        "protocol.go",
+        "reader.go",
+        "stdio.go",
+        "writer.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/utils/mcputils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/types/events",
+        "//lib/utils",
+        "//lib/utils/log",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_hashicorp_golang_lru_v2//simplelru",
+        "@com_github_mark3labs_mcp_go//mcp",
+    ],
+)
+
+go_test(
+    name = "mcputils_test",
+    srcs = [
+        "id_tracker_test.go",
+        "protocol_test.go",
+        "stdio_test.go",
+    ],
+    embed = [":mcputils"],
+    deps = [
+        "//lib/utils/mcptest",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_mark3labs_mcp_go//mcp",
+        "@com_github_mark3labs_mcp_go//server",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

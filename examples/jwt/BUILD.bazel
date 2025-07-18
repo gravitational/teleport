@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "jwt_lib",
+    srcs = ["verify-jwt.go"],
+    importpath = "github.com/gravitational/teleport/examples/jwt",
+    visibility = ["//visibility:private"],
+    deps = ["@com_github_go_jose_go_jose_v3//jwt"],
+)
+
+go_binary(
+    name = "jwt",
+    embed = [":jwt_lib"],
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,20 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "gitserver",
+    srcs = [
+        "git_server_service.pb.go",
+        "git_server_service_grpc.pb.go",
+    ],
+    importpath = "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+        "@org_golang_google_protobuf//types/known/emptypb",
+    ],
+)

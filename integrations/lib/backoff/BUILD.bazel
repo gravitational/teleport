@@ -1,0 +1,23 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "backoff",
+    srcs = ["backoff.go"],
+    importpath = "github.com/gravitational/teleport/integrations/lib/backoff",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+    ],
+)
+
+go_test(
+    name = "backoff_test",
+    srcs = ["backoff_test.go"],
+    embed = [":backoff"],
+    deps = [
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)

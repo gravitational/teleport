@@ -1,0 +1,30 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "interval",
+    srcs = [
+        "duration.go",
+        "interval.go",
+        "multi.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/utils/interval",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/utils/retryutils",
+        "@com_github_jonboulle_clockwork//:clockwork",
+    ],
+)
+
+go_test(
+    name = "interval_test",
+    srcs = [
+        "duration_test.go",
+        "interval_test.go",
+        "multi_test.go",
+    ],
+    embed = [":interval"],
+    deps = [
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,27 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "crownjewel",
+    srcs = ["object.go"],
+    importpath = "github.com/gravitational/teleport/lib/auth/crownjewel",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/crownjewel/v1:crownjewel",
+        "//api/gen/proto/go/teleport/header/v1:header",
+        "//api/types",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "crownjewel_test",
+    srcs = ["object_test.go"],
+    deps = [
+        ":crownjewel",
+        "//api/gen/proto/go/teleport/crownjewel/v1:crownjewel",
+        "//api/gen/proto/go/teleport/header/v1:header",
+        "//api/gen/proto/go/teleport/label/v1:label",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//types/known/wrapperspb",
+    ],
+)

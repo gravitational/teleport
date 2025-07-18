@@ -1,0 +1,30 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "tools",
+    srcs = [
+        "config.go",
+        "helper.go",
+        "migration.go",
+        "progress.go",
+        "updater.go",
+        "utils.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/autoupdate/tools",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/client/webclient",
+        "//api/constants",
+        "//api/profile",
+        "//api/types",
+        "//lib/autoupdate",
+        "//lib/modules",
+        "//lib/utils",
+        "//lib/utils/packaging",
+        "//lib/utils/signal",
+        "@com_github_coreos_go_semver//semver",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)

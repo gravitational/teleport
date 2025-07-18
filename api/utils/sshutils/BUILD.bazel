@@ -1,0 +1,40 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sshutils",
+    srcs = [
+        "callback.go",
+        "chconn.go",
+        "checker.go",
+        "conn.go",
+        "ssh.go",
+        "test.go",
+    ],
+    importpath = "github.com/gravitational/teleport/api/utils/sshutils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/constants",
+        "//api/defaults",
+        "//api/types",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@org_golang_x_crypto//ssh",
+    ],
+)
+
+go_test(
+    name = "sshutils_test",
+    srcs = [
+        "callback_test.go",
+        "checker_test.go",
+        "conn_test.go",
+        "ssh_test.go",
+    ],
+    embed = [":sshutils"],
+    deps = [
+        "//api/constants",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_crypto//ssh",
+    ],
+)

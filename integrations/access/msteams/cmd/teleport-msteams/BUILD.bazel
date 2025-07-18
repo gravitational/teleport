@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "teleport-msteams_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/gravitational/teleport/integrations/access/msteams/cmd/teleport-msteams",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//:teleport",
+        "//integrations/access/msteams",
+        "//integrations/lib",
+        "//integrations/lib/logger",
+        "@com_github_alecthomas_kingpin_v2//:kingpin",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_binary(
+    name = "teleport-msteams",
+    embed = [":teleport-msteams_lib"],
+    visibility = ["//visibility:public"],
+)

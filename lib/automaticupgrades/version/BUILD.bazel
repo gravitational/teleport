@@ -1,0 +1,41 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "version",
+    srcs = [
+        "basichttp.go",
+        "errors.go",
+        "proxy.go",
+        "static.go",
+        "versionget.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/automaticupgrades/version",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client/webclient",
+        "//lib/automaticupgrades/basichttp",
+        "//lib/automaticupgrades/cache",
+        "//lib/automaticupgrades/constants",
+        "@com_github_coreos_go_semver//semver",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "version_test",
+    srcs = [
+        "basichttp_test.go",
+        "proxy_test.go",
+        "versionget_test.go",
+    ],
+    embed = [":version"],
+    deps = [
+        "//api/client/webclient",
+        "//lib/automaticupgrades/basichttp",
+        "//lib/automaticupgrades/constants",
+        "@com_github_coreos_go_semver//semver",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+    ],
+)

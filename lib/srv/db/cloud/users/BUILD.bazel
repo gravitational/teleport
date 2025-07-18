@@ -1,0 +1,61 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "users",
+    srcs = [
+        "elasticache.go",
+        "helpers.go",
+        "memorydb.go",
+        "user.go",
+        "users.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/srv/db/cloud/users",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/types",
+        "//api/utils/retryutils",
+        "//lib/cloud/aws",
+        "//lib/cloud/awsconfig",
+        "//lib/srv/db/common",
+        "//lib/srv/db/secrets",
+        "//lib/utils",
+        "//lib/utils/interval",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2//aws/arn",
+        "@com_github_aws_aws_sdk_go_v2_service_elasticache//:elasticache",
+        "@com_github_aws_aws_sdk_go_v2_service_elasticache//types",
+        "@com_github_aws_aws_sdk_go_v2_service_memorydb//:memorydb",
+        "@com_github_aws_aws_sdk_go_v2_service_memorydb//types",
+        "@com_github_aws_aws_sdk_go_v2_service_secretsmanager//:secretsmanager",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+    ],
+)
+
+go_test(
+    name = "users_test",
+    srcs = [
+        "helpers_test.go",
+        "user_test.go",
+        "users_test.go",
+    ],
+    embed = [":users"],
+    deps = [
+        "//api/types",
+        "//lib/cloud/aws",
+        "//lib/cloud/mocks",
+        "//lib/defaults",
+        "//lib/srv/db/secrets",
+        "//lib/utils/log/logtest",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_service_elasticache//:elasticache",
+        "@com_github_aws_aws_sdk_go_v2_service_elasticache//types",
+        "@com_github_aws_aws_sdk_go_v2_service_memorydb//:memorydb",
+        "@com_github_aws_aws_sdk_go_v2_service_memorydb//types",
+        "@com_github_aws_aws_sdk_go_v2_service_secretsmanager//:secretsmanager",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)

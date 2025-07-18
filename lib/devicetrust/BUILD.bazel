@@ -1,0 +1,38 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "devicetrust",
+    srcs = [
+        "errors.go",
+        "friendly_enums.go",
+        "keys_prefix.go",
+        "tpm_attest_proto.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/devicetrust",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/devicetrust/v1:devicetrust",
+        "@com_github_google_go_attestation//attest",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+    ],
+)
+
+go_test(
+    name = "devicetrust_test",
+    srcs = [
+        "errors_test.go",
+        "tpm_attest_proto_test.go",
+    ],
+    deps = [
+        ":devicetrust",
+        "//api/utils",
+        "@com_github_google_go_attestation//attest",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+    ],
+)

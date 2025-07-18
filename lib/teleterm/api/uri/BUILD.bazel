@@ -1,0 +1,27 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "uri",
+    srcs = [
+        "parse.go",
+        "uri.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/teleterm/api/uri",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_ucarion_urlpath//:urlpath",
+    ],
+)
+
+go_test(
+    name = "uri_test",
+    srcs = [
+        "parse_test.go",
+        "uri_test.go",
+    ],
+    deps = [
+        ":uri",
+        "@com_github_stretchr_testify//require",
+    ],
+)

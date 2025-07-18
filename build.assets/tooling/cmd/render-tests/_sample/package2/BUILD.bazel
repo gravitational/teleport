@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "package2",
+    srcs = ["bar.go"],
+    importpath = "github.com/gravitational/teleport/build.assets/tooling/cmd/render-tests/_sample/package2",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "package2_test",
+    srcs = ["bar_test.go"],
+    embed = [":package2"],
+)

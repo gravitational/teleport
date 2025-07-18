@@ -1,0 +1,42 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "userloginstatev1",
+    srcs = ["service.go"],
+    importpath = "github.com/gravitational/teleport/lib/auth/userloginstate/userloginstatev1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/userloginstate/v1:userloginstate",
+        "//api/types",
+        "//api/types/userloginstate/convert/v1:convert",
+        "//lib/authz",
+        "//lib/services",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@org_golang_google_protobuf//types/known/emptypb",
+    ],
+)
+
+go_test(
+    name = "userloginstatev1_test",
+    srcs = ["service_test.go"],
+    embed = [":userloginstatev1"],
+    deps = [
+        "//api/gen/proto/go/teleport/userloginstate/v1:userloginstate",
+        "//api/types",
+        "//api/types/header",
+        "//api/types/trait",
+        "//api/types/userloginstate",
+        "//api/types/userloginstate/convert/v1:convert",
+        "//lib/authz",
+        "//lib/backend/memory",
+        "//lib/services",
+        "//lib/services/local",
+        "//lib/tlsca",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_go_cmp//cmp/cmpopts",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)

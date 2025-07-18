@@ -1,0 +1,35 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "transportv1",
+    srcs = ["client.go"],
+    importpath = "github.com/gravitational/teleport/api/client/proxy/transport/transportv1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/constants",
+        "//api/gen/proto/go/teleport/transport/v1:transport",
+        "//api/utils/grpc/stream",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//peer",
+        "@org_golang_x_crypto//ssh/agent",
+    ],
+)
+
+go_test(
+    name = "transportv1_test",
+    srcs = ["client_test.go"],
+    embed = [":transportv1"],
+    deps = [
+        "//api/gen/proto/go/teleport/transport/v1:transport",
+        "//api/trail",
+        "//api/utils/grpc/interceptors",
+        "//api/utils/grpc/stream",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//test/bufconn",
+        "@org_golang_x_crypto//ssh/agent",
+    ],
+)

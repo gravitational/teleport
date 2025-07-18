@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "joining",
+    srcs = ["service.go"],
+    importpath = "github.com/gravitational/teleport/lib/auth/scopes/joining",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/gen/proto/go/teleport/scopes/joining/v1:joining",
+        "//api/types",
+        "//lib/authz",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)

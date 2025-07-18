@@ -1,0 +1,13 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "usageevents",
+    srcs = ["usageevents.go"],
+    importpath = "github.com/gravitational/teleport/lib/events/usageevents",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/types/events",
+        "//lib/usagereporter/teleport",
+    ],
+)

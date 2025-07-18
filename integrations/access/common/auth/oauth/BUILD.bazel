@@ -1,0 +1,9 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "oauth",
+    srcs = ["oauth.go"],
+    importpath = "github.com/gravitational/teleport/integrations/access/common/auth/oauth",
+    visibility = ["//visibility:public"],
+    deps = ["//integrations/access/common/auth/storage"],
+)

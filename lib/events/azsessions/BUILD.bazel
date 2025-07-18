@@ -1,0 +1,39 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "azsessions",
+    srcs = [
+        "azsessions.go",
+        "utils.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/events/azsessions",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//lib/events",
+        "//lib/session",
+        "@com_github_azure_azure_sdk_for_go_sdk_azcore//:azcore",
+        "@com_github_azure_azure_sdk_for_go_sdk_azcore//policy",
+        "@com_github_azure_azure_sdk_for_go_sdk_azcore//streaming",
+        "@com_github_azure_azure_sdk_for_go_sdk_azidentity//:azidentity",
+        "@com_github_azure_azure_sdk_for_go_sdk_storage_azblob//:azblob",
+        "@com_github_azure_azure_sdk_for_go_sdk_storage_azblob//blob",
+        "@com_github_azure_azure_sdk_for_go_sdk_storage_azblob//blockblob",
+        "@com_github_azure_azure_sdk_for_go_sdk_storage_azblob//container",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_x_sync//errgroup",
+    ],
+)
+
+go_test(
+    name = "azsessions_test",
+    srcs = ["azsessions_test.go"],
+    embed = [":azsessions"],
+    deps = [
+        "//:teleport",
+        "//lib/events/test",
+        "//lib/utils/log/logtest",
+        "@com_github_stretchr_testify//require",
+    ],
+)

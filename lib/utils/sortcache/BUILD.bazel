@@ -1,0 +1,23 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sortcache",
+    srcs = [
+        "helpers.go",
+        "sortcache.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/utils/sortcache",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_google_btree//:btree"],
+)
+
+go_test(
+    name = "sortcache_test",
+    srcs = ["sortcache_test.go"],
+    embed = [":sortcache"],
+    deps = [
+        "//api/types",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,39 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "insecure",
+    srcs = ["insecure.go"],
+    importpath = "github.com/gravitational/teleport/lib/client/proxy/insecure",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client",
+        "//api/constants",
+        "//api/defaults",
+        "//api/metadata",
+        "//lib/srv/alpnproxy/common",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_x_net//http2",
+    ],
+)
+
+go_test(
+    name = "insecure_test",
+    srcs = ["insecure_test.go"],
+    embed = [":insecure"],
+    deps = [
+        "//api/defaults",
+        "//api/fixtures",
+        "//api/types",
+        "//lib/auth",
+        "//lib/defaults",
+        "//lib/modules",
+        "//lib/srv/alpnproxy/common",
+        "//lib/utils",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)

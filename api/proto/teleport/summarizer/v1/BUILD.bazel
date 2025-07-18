@@ -1,0 +1,14 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "summarizerv1_proto",
+    srcs = [
+        "summarizer.proto",
+        "summarizer_service.proto",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//teleport/header/v1:v1_proto",
+        "//teleport/summarizer/v1:v1_proto",
+    ],
+)

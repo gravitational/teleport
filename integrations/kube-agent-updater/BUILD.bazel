@@ -1,0 +1,12 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "kube-agent-updater",
+    srcs = ["version.go"],
+    importpath = "github.com/gravitational/teleport/integrations/kube-agent-updater",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api",
+        "@com_github_coreos_go_semver//semver",
+    ],
+)

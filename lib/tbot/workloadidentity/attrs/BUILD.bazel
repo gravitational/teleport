@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "attrs",
+    srcs = ["workload_attrs.go"],
+    importpath = "github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/workloadidentity/v1:workloadidentity",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_test(
+    name = "attrs_test",
+    srcs = ["workload_attrs_test.go"],
+    deps = [
+        ":attrs",
+        "//api/gen/proto/go/teleport/workloadidentity/v1:workloadidentity",
+        "@com_github_stretchr_testify//require",
+    ],
+)

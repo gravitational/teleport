@@ -1,0 +1,53 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "token",
+    srcs = [
+        "source.go",
+        "validator.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/kube/token",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/workloadidentity/v1:workloadidentity",
+        "//api/types",
+        "//api/utils",
+        "@com_github_go_jose_go_jose_v3//:go-jose",
+        "@com_github_go_jose_go_jose_v3//jwt",
+        "@com_github_gravitational_trace//:trace",
+        "@io_k8s_api//authentication/v1:authentication",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/util/version",
+        "@io_k8s_client_go//kubernetes",
+        "@io_k8s_client_go//rest",
+    ],
+)
+
+go_test(
+    name = "token_test",
+    srcs = [
+        "source_test.go",
+        "validator_test.go",
+    ],
+    embed = [":token"],
+    deps = [
+        "//api/gen/proto/go/teleport/workloadidentity/v1:workloadidentity",
+        "//api/types",
+        "//lib/cryptosuites",
+        "@com_github_go_jose_go_jose_v3//:go-jose",
+        "@com_github_go_jose_go_jose_v3//jwt",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_go_cmp//cmp/cmpopts",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//authentication/v1:authentication",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/version",
+        "@io_k8s_client_go//discovery",
+        "@io_k8s_client_go//discovery/fake",
+        "@io_k8s_client_go//kubernetes/fake",
+        "@io_k8s_client_go//testing",
+        "@org_golang_google_protobuf//testing/protocmp",
+    ],
+)

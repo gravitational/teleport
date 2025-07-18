@@ -1,0 +1,32 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "winpki",
+    srcs = [
+        "certificate_authority.go",
+        "ldap.go",
+        "objectsid.go",
+        "windows.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/winpki",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client/proto",
+        "//api/types",
+        "//lib/cryptosuites",
+        "//lib/tlsca",
+        "@com_github_go_ldap_ldap_v3//:ldap",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "winpki_test",
+    srcs = ["windows_test.go"],
+    embed = [":winpki"],
+    deps = [
+        "//api/types",
+        "//lib/modules",
+        "@com_github_stretchr_testify//require",
+    ],
+)

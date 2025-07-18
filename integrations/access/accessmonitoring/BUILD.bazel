@@ -1,0 +1,33 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "accessmonitoring",
+    srcs = ["access_monitoring_rules.go"],
+    importpath = "github.com/gravitational/teleport/integrations/access/accessmonitoring",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/accessmonitoringrules/v1:accessmonitoringrules",
+        "//api/types",
+        "//integrations/access/common",
+        "//integrations/access/common/teleport",
+        "//integrations/lib/logger",
+        "//integrations/lib/stringset",
+        "//lib/accessmonitoring",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "accessmonitoring_test",
+    srcs = ["access_monitoring_rules_test.go"],
+    embed = [":accessmonitoring"],
+    deps = [
+        "//api/gen/proto/go/teleport/accessmonitoringrules/v1:accessmonitoringrules",
+        "//api/types",
+        "//integrations/access/common",
+        "//integrations/access/common/teleport",
+        "//lib/services",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+    ],
+)

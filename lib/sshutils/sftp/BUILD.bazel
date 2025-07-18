@@ -1,0 +1,47 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sftp",
+    srcs = [
+        "http.go",
+        "local.go",
+        "parse.go",
+        "remote.go",
+        "sftp.go",
+        "utils.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/sshutils/sftp",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/types/events",
+        "//lib/defaults",
+        "//lib/events",
+        "//lib/httplib",
+        "//lib/sshutils/scp",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_pkg_sftp//:sftp",
+        "@com_github_schollz_progressbar_v3//:progressbar",
+        "@org_golang_x_crypto//ssh",
+    ],
+)
+
+go_test(
+    name = "sftp_test",
+    srcs = [
+        "parse_test.go",
+        "sftp_test.go",
+    ],
+    embed = [":sftp"],
+    deps = [
+        "//lib/defaults",
+        "//lib/utils",
+        "//lib/utils/log/logtest",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_pkg_sftp//:sftp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

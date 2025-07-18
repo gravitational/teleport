@@ -1,0 +1,16 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sortmap",
+    srcs = ["map.go"],
+    importpath = "github.com/gravitational/teleport/lib/utils/sortmap",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_google_btree//:btree"],
+)
+
+go_test(
+    name = "sortmap_test",
+    srcs = ["map_test.go"],
+    embed = [":sortmap"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

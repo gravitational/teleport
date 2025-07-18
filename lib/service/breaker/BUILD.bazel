@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "breaker",
+    srcs = ["breaker.go"],
+    importpath = "github.com/gravitational/teleport/lib/service/breaker",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/breaker",
+        "//api/types",
+        "@com_github_prometheus_client_golang//prometheus",
+    ],
+)

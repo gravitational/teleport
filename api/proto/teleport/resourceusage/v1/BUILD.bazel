@@ -1,0 +1,13 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "resourceusagev1_proto",
+    srcs = [
+        "access_requests.proto",
+        "account_usage_type.proto",
+        "device_trust.proto",
+        "resourceusage_service.proto",
+    ],
+    visibility = ["//visibility:public"],
+    deps = ["//teleport/resourceusage/v1:v1_proto"],
+)

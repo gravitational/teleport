@@ -1,0 +1,21 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "pam",
+    srcs = ["pam_nop.go"],
+    cgo = True,
+    importpath = "github.com/gravitational/teleport/lib/pam",
+    visibility = ["//visibility:public"],
+    deps = ["//lib/service/servicecfg"],
+)
+
+go_test(
+    name = "pam_test",
+    srcs = ["pam_test.go"],
+    embed = [":pam"],
+    deps = [
+        "//lib/service/servicecfg",
+        "//lib/utils/log/logtest",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "get-version_lib",
+    srcs = ["get-version.go"],
+    importpath = "github.com/gravitational/teleport/integrations/hack/get-version",
+    visibility = ["//visibility:private"],
+    deps = ["//api"],
+)
+
+go_binary(
+    name = "get-version",
+    embed = [":get-version_lib"],
+    visibility = ["//visibility:public"],
+)

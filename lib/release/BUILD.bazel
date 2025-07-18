@@ -1,0 +1,25 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "release",
+    srcs = ["release.go"],
+    importpath = "github.com/gravitational/teleport/lib/release",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//lib/utils",
+        "@com_github_gravitational_roundtrip//:roundtrip",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "release_test",
+    srcs = ["release_test.go"],
+    embed = [":release"],
+    deps = [
+        "//api/types",
+        "@com_github_gravitational_roundtrip//:roundtrip",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

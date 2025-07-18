@@ -1,0 +1,37 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "interceptors",
+    srcs = [
+        "errors.go",
+        "mfa.go",
+    ],
+    importpath = "github.com/gravitational/teleport/api/utils/grpc/interceptors",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/mfa",
+        "//api/trail",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_grpc//:grpc",
+    ],
+)
+
+go_test(
+    name = "interceptors_test",
+    srcs = [
+        "errors_test.go",
+        "mfa_test.go",
+    ],
+    deps = [
+        ":interceptors",
+        "//api/client/proto",
+        "//api/mfa",
+        "//api/testhelpers/mtls",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//credentials/insecure",
+    ],
+)

@@ -1,0 +1,25 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "api-sync-roles_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/gravitational/teleport/examples/api-sync-roles",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//api/client",
+        "//api/types",
+        "@com_github_gravitational_trace//:trace",
+        "@io_k8s_api//rbac/v1:rbac",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//kubernetes",
+        "@io_k8s_client_go//kubernetes/typed/rbac/v1:rbac",
+        "@io_k8s_client_go//tools/clientcmd",
+        "@org_golang_google_grpc//:grpc",
+    ],
+)
+
+go_binary(
+    name = "api-sync-roles",
+    embed = [":api-sync-roles_lib"],
+    visibility = ["//visibility:public"],
+)

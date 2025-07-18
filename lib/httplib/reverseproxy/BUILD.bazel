@@ -1,0 +1,27 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "reverseproxy",
+    srcs = [
+        "handler.go",
+        "reverse_proxy.go",
+        "rewriter.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/httplib/reverseproxy",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/defaults",
+        "//lib/utils/log",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "reverseproxy_test",
+    srcs = [
+        "reverse_proxy_test.go",
+        "rewriter_test.go",
+    ],
+    embed = [":reverseproxy"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

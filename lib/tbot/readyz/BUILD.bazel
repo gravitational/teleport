@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "readyz",
+    srcs = [
+        "http.go",
+        "readyz.go",
+        "reporter.go",
+        "status.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/tbot/readyz",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "readyz_test",
+    srcs = ["readyz_test.go"],
+    deps = [
+        ":readyz",
+        "@com_github_stretchr_testify//require",
+    ],
+)

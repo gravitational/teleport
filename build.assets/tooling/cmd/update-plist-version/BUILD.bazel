@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "update-plist-version_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/gravitational/teleport/build.assets/tooling/cmd/update-plist-version",
+    visibility = ["//visibility:private"],
+    deps = ["@net_howett_plist//:go_default_library"],
+)
+
+go_binary(
+    name = "update-plist-version",
+    embed = [":update-plist-version_lib"],
+    visibility = ["//visibility:public"],
+)

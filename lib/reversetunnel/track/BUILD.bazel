@@ -1,0 +1,19 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "track",
+    srcs = [
+        "doc.go",
+        "tracker.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/reversetunnel/track",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_gravitational_trace//:trace"],
+)
+
+go_test(
+    name = "track_test",
+    srcs = ["tracker_test.go"],
+    embed = [":track"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

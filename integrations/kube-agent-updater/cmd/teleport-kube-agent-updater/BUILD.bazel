@@ -1,0 +1,40 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "teleport-kube-agent-updater_lib",
+    srcs = [
+        "constants.go",
+        "main.go",
+    ],
+    importpath = "github.com/gravitational/teleport/integrations/kube-agent-updater/cmd/teleport-kube-agent-updater",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//api/client/webclient",
+        "//integrations/kube-agent-updater",
+        "//integrations/kube-agent-updater/pkg/controller",
+        "//integrations/kube-agent-updater/pkg/img",
+        "//integrations/kube-agent-updater/pkg/maintenance",
+        "//lib/automaticupgrades/maintenance",
+        "//lib/automaticupgrades/version",
+        "//lib/utils/log",
+        "@com_github_distribution_reference//:reference",
+        "@com_github_go_logr_logr//:logr",
+        "@com_github_gravitational_trace//:trace",
+        "@io_k8s_api//apps/v1:apps",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/fields",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/util/runtime",
+        "@io_k8s_sigs_controller_runtime//:controller-runtime",
+        "@io_k8s_sigs_controller_runtime//pkg/cache",
+        "@io_k8s_sigs_controller_runtime//pkg/client",
+        "@io_k8s_sigs_controller_runtime//pkg/healthz",
+        "@io_k8s_sigs_controller_runtime//pkg/metrics/server",
+    ],
+)
+
+go_binary(
+    name = "teleport-kube-agent-updater",
+    embed = [":teleport-kube-agent-updater_lib"],
+    visibility = ["//visibility:public"],
+)

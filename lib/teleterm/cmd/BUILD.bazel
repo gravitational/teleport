@@ -1,0 +1,43 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cmd",
+    srcs = [
+        "db.go",
+        "kube.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/teleterm/cmd",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/types",
+        "//lib/auth/authclient",
+        "//lib/client",
+        "//lib/client/db/dbcmd",
+        "//lib/defaults",
+        "//lib/teleterm/clusters",
+        "//lib/teleterm/gateway",
+        "//lib/tlsca",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "cmd_test",
+    srcs = [
+        "db_test.go",
+        "kube_test.go",
+    ],
+    embed = [":cmd"],
+    deps = [
+        "//api/client/proto",
+        "//api/types",
+        "//lib/auth/authclient",
+        "//lib/defaults",
+        "//lib/teleterm/api/uri",
+        "//lib/teleterm/clusters",
+        "//lib/teleterm/gateway",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

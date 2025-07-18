@@ -1,0 +1,28 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "latency",
+    srcs = ["monitor.go"],
+    importpath = "github.com/gravitational/teleport/lib/utils/diagnostics/latency",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/utils/retryutils",
+        "//lib/utils/log",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+    ],
+)
+
+go_test(
+    name = "latency_test",
+    srcs = ["monitor_test.go"],
+    embed = [":latency"],
+    deps = [
+        "//lib/utils/log/logtest",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,32 @@
+load("@gazelle//:def.bzl", "gazelle")
+load(
+    "@io_bazel_rules_go//go:def.bzl",
+    "TOOLS_NOGO",
+    "go_library",
+    "nogo",
+)
+
+# gazelle:prefix github.com/gravitational/teleport
+# Disable proto generation since we have pre-generated go files for now.
+# gazelle:go_generate_proto false
+gazelle(name = "gazelle")
+
+
+go_library(
+    name = "teleport",
+    srcs = [
+        "constants.go",
+        "doc.go",
+        "gitref.go",
+        "metrics.go",
+        "version.go",
+        "webassets_noembed.go",
+    ],
+    importpath = "github.com/gravitational/teleport",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api",
+        "@com_github_coreos_go_semver//semver",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)

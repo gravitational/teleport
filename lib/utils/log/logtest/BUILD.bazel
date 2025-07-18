@@ -1,0 +1,9 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "logtest",
+    srcs = ["log.go"],
+    importpath = "github.com/gravitational/teleport/lib/utils/log/logtest",
+    visibility = ["//visibility:public"],
+    deps = ["//lib/utils/log"],
+)

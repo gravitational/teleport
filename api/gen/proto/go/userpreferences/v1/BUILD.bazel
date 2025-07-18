@@ -1,0 +1,27 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "userpreferences",
+    srcs = [
+        "access_graph.pb.go",
+        "assist.pb.go",
+        "cluster_preferences.pb.go",
+        "discover_resource_preferences.pb.go",
+        "onboard.pb.go",
+        "sidenav_preferences.pb.go",
+        "theme.pb.go",
+        "unified_resource_preferences.pb.go",
+        "userpreferences.pb.go",
+        "userpreferences_grpc.pb.go",
+    ],
+    importpath = "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+        "@org_golang_google_protobuf//types/known/emptypb",
+    ],
+)

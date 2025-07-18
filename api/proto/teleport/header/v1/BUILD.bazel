@@ -1,0 +1,14 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "headerv1_proto",
+    srcs = [
+        "metadata.proto",
+        "resourceheader.proto",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//teleport/header/v1:v1_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)

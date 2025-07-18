@@ -1,0 +1,29 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "endpoint",
+    srcs = [
+        "endpoint.go",
+        "resolver.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/utils/aws/endpoint",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_aws_smithy_go//endpoints",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "endpoint_test",
+    srcs = [
+        "endpoint_test.go",
+        "resolver_test.go",
+    ],
+    deps = [
+        ":endpoint",
+        "@com_github_aws_smithy_go//endpoints",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

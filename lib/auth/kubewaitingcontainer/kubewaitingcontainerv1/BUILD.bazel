@@ -1,0 +1,34 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "kubewaitingcontainerv1",
+    srcs = ["service.go"],
+    importpath = "github.com/gravitational/teleport/lib/auth/kubewaitingcontainer/kubewaitingcontainerv1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/kubewaitingcontainer/v1:kubewaitingcontainer",
+        "//api/types",
+        "//lib/authz",
+        "//lib/services",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_protobuf//types/known/emptypb",
+    ],
+)
+
+go_test(
+    name = "kubewaitingcontainerv1_test",
+    srcs = ["service_test.go"],
+    embed = [":kubewaitingcontainerv1"],
+    deps = [
+        "//api/gen/proto/go/teleport/kubewaitingcontainer/v1:kubewaitingcontainer",
+        "//api/types",
+        "//api/types/kubewaitingcontainer",
+        "//lib/authz",
+        "//lib/backend/memory",
+        "//lib/services/local",
+        "//lib/tlsca",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

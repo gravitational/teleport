@@ -1,0 +1,53 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "pgevents",
+    srcs = [
+        "metrics.go",
+        "pgevents.go",
+        "utils.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/events/pgevents",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/gen/proto/go/teleport/auditlog/v1:auditlog",
+        "//api/internalutils/stream",
+        "//api/types",
+        "//api/types/events",
+        "//lib/backend/pgbk/common",
+        "//lib/defaults",
+        "//lib/events",
+        "//lib/observability/metrics",
+        "//lib/utils",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jackc_pgx_v5//:pgx",
+        "@com_github_jackc_pgx_v5//pgxpool",
+        "@com_github_prometheus_client_golang//prometheus",
+    ],
+)
+
+go_test(
+    name = "pgevents_test",
+    srcs = [
+        "pgevents_test.go",
+        "utils_test.go",
+    ],
+    embed = [":pgevents"],
+    deps = [
+        "//api/defaults",
+        "//api/types",
+        "//api/types/events",
+        "//lib/backend/pgbk/common",
+        "//lib/events",
+        "//lib/events/test",
+        "//lib/utils/log/logtest",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//testing/protocmp",
+    ],
+)

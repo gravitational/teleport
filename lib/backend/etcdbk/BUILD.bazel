@@ -1,0 +1,50 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "etcdbk",
+    srcs = [
+        "atomicwrite.go",
+        "etcd.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/backend/etcdbk",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/defaults",
+        "//api/types",
+        "//api/utils",
+        "//api/utils/retryutils",
+        "//lib/backend",
+        "//lib/observability/metrics",
+        "//lib/tlsca",
+        "//lib/utils",
+        "//lib/utils/concurrentqueue",
+        "@com_github_coreos_go_semver//semver",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@io_etcd_go_etcd_api_v3//mvccpb",
+        "@io_etcd_go_etcd_api_v3//v3rpc/rpctypes",
+        "@io_etcd_go_etcd_client_v3//:client",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+    ],
+)
+
+go_test(
+    name = "etcdbk_test",
+    srcs = [
+        "atomicwrite_test.go",
+        "etcd_test.go",
+    ],
+    embed = [":etcdbk"],
+    deps = [
+        "//lib/backend",
+        "//lib/backend/test",
+        "//lib/utils/clocki",
+        "//lib/utils/log/logtest",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

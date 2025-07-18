@@ -1,0 +1,41 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "webauthncli",
+    srcs = [
+        "api.go",
+        "client_data.go",
+        "doc.go",
+        "fido2_common.go",
+        "fido2_other.go",
+        "prompt.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/auth/webauthncli",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/client/proto",
+        "//api/observability/tracing",
+        "//api/utils/prompt",
+        "//lib/auth/touchid",
+        "//lib/auth/webauthntypes",
+        "//lib/auth/webauthnwin",
+        "//lib/utils/log",
+        "@com_github_go_webauthn_webauthn//protocol",
+        "@com_github_go_webauthn_webauthn//protocol/webauthncose",
+        "@com_github_gravitational_trace//:trace",
+        "@io_opentelemetry_go_otel_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "webauthncli_test",
+    srcs = ["prompt_test.go"],
+    embed = [":webauthncli"],
+    deps = [
+        "//api/utils/prompt",
+        "//lib/auth/touchid",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

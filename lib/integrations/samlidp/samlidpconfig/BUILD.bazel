@@ -1,0 +1,16 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "samlidpconfig",
+    srcs = ["gcpworkforce.go"],
+    importpath = "github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_gravitational_trace//:trace"],
+)
+
+go_test(
+    name = "samlidpconfig_test",
+    srcs = ["gcpworkforce_test.go"],
+    embed = [":samlidpconfig"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

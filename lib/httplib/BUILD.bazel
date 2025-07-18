@@ -1,0 +1,40 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "httplib",
+    srcs = [
+        "grpccreds.go",
+        "httpheaders.go",
+        "httplib.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/httplib",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api",
+        "//api/client/proto",
+        "//api/observability/tracing",
+        "//api/observability/tracing/http",
+        "//api/utils",
+        "//lib/utils",
+        "@com_github_gravitational_roundtrip//:roundtrip",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_julienschmidt_httprouter//:httprouter",
+        "@io_opentelemetry_go_contrib_instrumentation_net_http_otelhttp//:otelhttp",
+        "@org_golang_google_grpc//credentials",
+    ],
+)
+
+go_test(
+    name = "httplib_test",
+    srcs = ["httplib_test.go"],
+    embed = [":httplib"],
+    deps = [
+        "//:teleport",
+        "//api/client/proto",
+        "//api/observability/tracing",
+        "@com_github_gravitational_roundtrip//:roundtrip",
+        "@com_github_julienschmidt_httprouter//:httprouter",
+        "@com_github_stretchr_testify//require",
+    ],
+)

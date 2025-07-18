@@ -1,0 +1,48 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "kubeconfig",
+    srcs = [
+        "context_overwrite.go",
+        "kubeconfig.go",
+        "localproxy.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/kube/kubeconfig",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/utils",
+        "//lib/client",
+        "//lib/srv/alpnproxy/common",
+        "//lib/utils",
+        "//lib/utils/log",
+        "@com_github_gravitational_trace//:trace",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_client_go//tools/clientcmd",
+        "@io_k8s_client_go//tools/clientcmd/api",
+    ],
+)
+
+go_test(
+    name = "kubeconfig_test",
+    srcs = [
+        "context_overwrite_test.go",
+        "kubeconfig_test.go",
+        "localproxy_test.go",
+    ],
+    embed = [":kubeconfig"],
+    deps = [
+        "//api/utils/keys",
+        "//lib/auth/authclient",
+        "//lib/client",
+        "//lib/cryptosuites",
+        "//lib/defaults",
+        "//lib/tlsca",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_client_go//tools/clientcmd",
+        "@io_k8s_client_go//tools/clientcmd/api",
+    ],
+)

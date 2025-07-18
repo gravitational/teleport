@@ -1,0 +1,36 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "protocol",
+    srcs = [
+        "constants.go",
+        "login7.go",
+        "packet.go",
+        "prelogin.go",
+        "rpc_request.go",
+        "sql_batch.go",
+        "stream.go",
+        "utils.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_microsoft_go_mssqldb//:go-mssqldb",
+        "@com_github_microsoft_go_mssqldb//msdsn",
+    ],
+)
+
+go_test(
+    name = "protocol_test",
+    srcs = [
+        "fuzz_test.go",
+        "protocol_test.go",
+    ],
+    embed = [":protocol"],
+    deps = [
+        "//lib/srv/db/sqlserver/protocol/fixtures",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

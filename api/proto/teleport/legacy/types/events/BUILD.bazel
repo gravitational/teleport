@@ -1,0 +1,19 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "events_proto",
+    srcs = [
+        "athena.proto",
+        "events.proto",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//gogoproto:gogoproto_proto",
+        "//teleport/accesslist/v1:v1_proto",
+        "//teleport/legacy/types:types_proto",
+        "//teleport/legacy/types/wrappers:wrappers_proto",
+        "@com_google_protobuf//:struct_proto",
+        "@com_google_protobuf//:timestamp_proto",
+        "@com_google_protobuf//:wrappers_proto",
+    ],
+)

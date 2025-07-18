@@ -1,0 +1,26 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "accessrequest",
+    srcs = ["access_request.go"],
+    importpath = "github.com/gravitational/teleport/api/accessrequest",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client",
+        "//api/client/proto",
+        "//api/types",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "accessrequest_test",
+    srcs = ["access_request_test.go"],
+    embed = [":accessrequest"],
+    deps = [
+        "//api/client/proto",
+        "//api/types",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_stretchr_testify//require",
+    ],
+)

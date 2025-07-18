@@ -1,0 +1,49 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "filesessions",
+    srcs = [
+        "fileasync.go",
+        "filesessionrecorder.go",
+        "filestream.go",
+        "fileuploader.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/events/filesessions",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/defaults",
+        "//api/types/events",
+        "//api/utils/retryutils",
+        "//lib/defaults",
+        "//lib/events",
+        "//lib/session",
+        "//lib/utils",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+    ],
+)
+
+go_test(
+    name = "filesessions_test",
+    srcs = [
+        "fileasync_chaos_test.go",
+        "fileasync_test.go",
+        "filesessionrecorder_test.go",
+        "filestream_test.go",
+        "fileuploader_test.go",
+    ],
+    embed = [":filesessions"],
+    deps = [
+        "//api/types/events",
+        "//lib/events",
+        "//lib/events/eventstest",
+        "//lib/events/test",
+        "//lib/session",
+        "//lib/utils/log/logtest",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)

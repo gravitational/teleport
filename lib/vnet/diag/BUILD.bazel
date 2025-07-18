@@ -1,0 +1,57 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "diag",
+    srcs = [
+        "diag.go",
+        "routeconflict.go",
+        "routeconflict_darwin.go",
+        "routeconflict_other.go",
+        "routeconflict_windows.go",
+        "ssh.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/vnet/diag",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/constants",
+        "//api/profile",
+        "//api/utils/keypaths",
+        "//gen/proto/go/teleport/lib/vnet/diag/v1:diag",
+        "//lib/utils/log",
+        "@com_github_dustin_go_humanize//:go-humanize",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "@org_golang_x_net//route",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "@org_golang_x_net//route",
+        ],
+        "@io_bazel_rules_go//go/platform:windows": [
+            "@com_zx2c4_golang_wireguard_windows//tunnel/winipcfg",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "diag_test",
+    srcs = [
+        "diag_test.go",
+        "routeconflict_darwin_test.go",
+        "routeconflict_test.go",
+        "ssh_test.go",
+    ],
+    embed = [":diag"],
+    deps = [
+        "//api/utils/keypaths",
+        "//gen/proto/go/teleport/lib/vnet/diag/v1:diag",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)

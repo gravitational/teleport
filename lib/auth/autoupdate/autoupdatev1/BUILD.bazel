@@ -1,0 +1,48 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "autoupdatev1",
+    srcs = ["service.go"],
+    importpath = "github.com/gravitational/teleport/lib/auth/autoupdate/autoupdatev1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/autoupdate/v1:autoupdate",
+        "//api/types",
+        "//api/types/autoupdate",
+        "//api/types/events",
+        "//entitlements",
+        "//lib/authz",
+        "//lib/autoupdate/rollout",
+        "//lib/events",
+        "//lib/modules",
+        "//lib/services",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@org_golang_google_protobuf//types/known/emptypb",
+    ],
+)
+
+go_test(
+    name = "autoupdatev1_test",
+    srcs = ["service_test.go"],
+    embed = [":autoupdatev1"],
+    deps = [
+        "//api/gen/proto/go/teleport/autoupdate/v1:autoupdate",
+        "//api/types",
+        "//api/types/autoupdate",
+        "//api/types/events",
+        "//entitlements",
+        "//lib/authz",
+        "//lib/backend/memory",
+        "//lib/events",
+        "//lib/events/eventstest",
+        "//lib/modules",
+        "//lib/modules/modulestest",
+        "//lib/services",
+        "//lib/services/local",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//types/known/durationpb",
+    ],
+)

@@ -1,0 +1,17 @@
+load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "ptyHostService_proto",
+    srcs = ["ptyHostService.proto"],
+    visibility = ["//visibility:public"],
+    deps = ["@com_google_protobuf//:struct_proto"],
+)
+
+go_proto_library(
+    name = "ptyHostService_go_proto",
+    compilers = ["@io_bazel_rules_go//proto:go_grpc_v2"],
+    importpath = "github.com/gravitational/teleport/web/packages/teleterm/src/sharedProcess/api/proto",
+    proto = ":ptyHostService_proto",
+    visibility = ["//visibility:public"],
+)

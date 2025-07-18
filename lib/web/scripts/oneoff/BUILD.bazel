@@ -1,0 +1,31 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "oneoff",
+    srcs = ["oneoff.go"],
+    embedsrcs = ["oneoff.sh"],
+    importpath = "github.com/gravitational/teleport/lib/web/scripts/oneoff",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api",
+        "//api/types",
+        "//lib/modules",
+        "//lib/utils/teleportassets",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "oneoff_test",
+    srcs = ["oneoff_test.go"],
+    embed = [":oneoff"],
+    deps = [
+        "//lib/modules",
+        "//lib/modules/modulestest",
+        "//lib/utils",
+        "@com_github_buildkite_bintest_v3//:bintest",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

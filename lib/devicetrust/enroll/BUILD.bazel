@@ -1,0 +1,33 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "enroll",
+    srcs = [
+        "auto_enroll.go",
+        "enroll.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/devicetrust/enroll",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/devicetrust/v1:devicetrust",
+        "//api/trail",
+        "//lib/devicetrust",
+        "//lib/devicetrust/native",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "enroll_test",
+    srcs = [
+        "auto_enroll_test.go",
+        "enroll_test.go",
+    ],
+    deps = [
+        ":enroll",
+        "//api/gen/proto/go/teleport/devicetrust/v1:devicetrust",
+        "//lib/devicetrust/testenv",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

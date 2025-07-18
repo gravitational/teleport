@@ -1,0 +1,21 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "listener",
+    srcs = [
+        "memory.go",
+        "single_use.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/utils/listener",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "listener_test",
+    srcs = ["memory_test.go"],
+    embed = [":listener"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

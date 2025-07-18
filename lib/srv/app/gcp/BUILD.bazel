@@ -1,0 +1,37 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "gcp",
+    srcs = ["handler.go"],
+    importpath = "github.com/gravitational/teleport/lib/srv/app/gcp",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/utils/gcp",
+        "//lib/cloud",
+        "//lib/defaults",
+        "//lib/httplib",
+        "//lib/httplib/reverseproxy",
+        "//lib/srv/app/common",
+        "//lib/utils",
+        "@com_github_googleapis_gax_go_v2//:gax-go",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_google_cloud_go_iam//credentials/apiv1",
+        "@com_google_cloud_go_iam//credentials/apiv1/credentialspb",
+    ],
+)
+
+go_test(
+    name = "gcp_test",
+    srcs = ["handler_test.go"],
+    embed = [":gcp"],
+    deps = [
+        "@com_github_googleapis_gax_go_v2//:gax-go",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_google_cloud_go_iam//credentials/apiv1/credentialspb",
+    ],
+)

@@ -1,0 +1,41 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "db",
+    srcs = [
+        "database_certificates.go",
+        "profile.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/client/db",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client/proto",
+        "//api/types",
+        "//api/utils/keys",
+        "//lib/auth/authclient",
+        "//lib/client",
+        "//lib/client/db/mysql",
+        "//lib/client/db/postgres",
+        "//lib/client/db/profile",
+        "//lib/client/identityfile",
+        "//lib/cryptosuites",
+        "//lib/defaults",
+        "//lib/tlsca",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "db_test",
+    srcs = ["profile_test.go"],
+    embed = [":db"],
+    deps = [
+        "//lib/client",
+        "//lib/client/db/profile",
+        "//lib/defaults",
+        "//lib/observability/tracing",
+        "//lib/tlsca",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,20 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "types_proto",
+    srcs = [
+        "device.proto",
+        "trusted_device_requirement.proto",
+        "types.proto",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//gogoproto:gogoproto_proto",
+        "//teleport/attestation/v1:v1_proto",
+        "//teleport/legacy/types:types_proto",
+        "//teleport/legacy/types/wrappers:wrappers_proto",
+        "@com_google_protobuf//:duration_proto",
+        "@com_google_protobuf//:timestamp_proto",
+        "@com_google_protobuf//:wrappers_proto",
+    ],
+)

@@ -1,0 +1,39 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+go_library(
+    name = "render-tests_lib",
+    srcs = [
+        "args.go",
+        "main.go",
+        "result.go",
+    ],
+    importpath = "github.com/gravitational/teleport/build.assets/tooling/cmd/render-tests",
+    visibility = ["//visibility:private"],
+    deps = ["@com_github_gravitational_trace//:trace"],
+)
+
+go_binary(
+    name = "render-tests",
+    embed = [":render-tests_lib"],
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "render-tests_test",
+    srcs = [
+        "main_test.go",
+        "result_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":render-tests_lib"],
+    embedsrcs = [
+        "testdata/flaky-fail-1.in",
+        "testdata/flaky-fail-4.in",
+        "testdata/flaky-fail-5.in",
+        "testdata/flaky-pass.in",
+        "testdata/pass-fail-pass.in",
+        "testdata/pass-fail-skip.in",
+        "testdata/pass-pass-pass.in",
+    ],
+    deps = ["@com_github_stretchr_testify//require"],
+)

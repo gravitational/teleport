@@ -1,0 +1,28 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+go_library(
+    name = "teleport-usage_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/gravitational/teleport/examples/teleport-usage",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
+        "@com_github_aws_aws_sdk_go_v2_feature_dynamodb_attributevalue//:attributevalue",
+        "@com_github_aws_aws_sdk_go_v2_service_dynamodb//:dynamodb",
+        "@com_github_aws_aws_sdk_go_v2_service_dynamodb//types",
+    ],
+)
+
+go_binary(
+    name = "teleport-usage",
+    embed = [":teleport-usage_lib"],
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "teleport-usage_test",
+    srcs = ["main_test.go"],
+    embed = [":teleport-usage_lib"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

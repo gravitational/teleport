@@ -1,0 +1,34 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "operator_lib",
+    srcs = [
+        "config.go",
+        "main.go",
+        "namespace.go",
+    ],
+    importpath = "github.com/gravitational/teleport/integrations/operator",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//:teleport",
+        "//integrations/lib/embeddedtbot",
+        "//integrations/operator/controllers",
+        "//integrations/operator/controllers/resources",
+        "//lib/tbot/config",
+        "//lib/utils/log",
+        "@com_github_go_logr_logr//:logr",
+        "@com_github_gravitational_trace//:trace",
+        "@io_k8s_client_go//plugin/pkg/client/auth",
+        "@io_k8s_sigs_controller_runtime//:controller-runtime",
+        "@io_k8s_sigs_controller_runtime//pkg/cache",
+        "@io_k8s_sigs_controller_runtime//pkg/client",
+        "@io_k8s_sigs_controller_runtime//pkg/healthz",
+        "@io_k8s_sigs_controller_runtime//pkg/metrics/server",
+    ],
+)
+
+go_binary(
+    name = "operator",
+    embed = [":operator_lib"],
+    visibility = ["//visibility:public"],
+)

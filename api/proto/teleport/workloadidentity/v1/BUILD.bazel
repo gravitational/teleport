@@ -1,0 +1,29 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "workloadidentityv1_proto",
+    srcs = [
+        "attrs.proto",
+        "issuance_service.proto",
+        "join_attrs.proto",
+        "resource.proto",
+        "resource_service.proto",
+        "revocation_resource.proto",
+        "revocation_service.proto",
+        "sigstore.proto",
+        "sigstore_policy_resource.proto",
+        "sigstore_policy_service.proto",
+        "x509_overrides.proto",
+        "x509_overrides_service.proto",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//teleport/header/v1:v1_proto",
+        "//teleport/trait/v1:v1_proto",
+        "//teleport/workloadidentity/v1:v1_proto",
+        "@com_google_protobuf//:duration_proto",
+        "@com_google_protobuf//:empty_proto",
+        "@com_google_protobuf//:struct_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)

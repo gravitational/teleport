@@ -1,0 +1,18 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "secreport",
+    srcs = [
+        "crud.go",
+        "secreport.go",
+    ],
+    importpath = "github.com/gravitational/teleport/api/client/secreport",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/secreports/v1:secreports",
+        "//api/trail",
+        "//api/types/secreports",
+        "//api/types/secreports/convert/v1:convert",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)

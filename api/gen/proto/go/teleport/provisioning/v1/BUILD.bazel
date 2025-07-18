@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "provisioning",
+    srcs = ["provisioning.pb.go"],
+    importpath = "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/header/v1:header",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)

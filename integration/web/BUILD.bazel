@@ -1,0 +1,17 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "web_test",
+    srcs = ["web_test.go"],
+    deps = [
+        "//api/gen/proto/go/teleport/mfa/v1:mfa",
+        "//api/types",
+        "//api/utils",
+        "//integration/helpers",
+        "//lib/client",
+        "//lib/service/servicecfg",
+        "//lib/web",
+        "//tool/teleport/testenv",
+        "@com_github_stretchr_testify//require",
+    ],
+)

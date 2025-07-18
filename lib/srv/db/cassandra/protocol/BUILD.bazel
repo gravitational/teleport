@@ -1,0 +1,37 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "protocol",
+    srcs = [
+        "conn.go",
+        "packet.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/srv/db/cassandra/protocol",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_datastax_go_cassandra_native_protocol//client",
+        "@com_github_datastax_go_cassandra_native_protocol//frame",
+        "@com_github_datastax_go_cassandra_native_protocol//message",
+        "@com_github_datastax_go_cassandra_native_protocol//primitive",
+        "@com_github_datastax_go_cassandra_native_protocol//segment",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "protocol_test",
+    srcs = [
+        "conn_test.go",
+        "fuzz_test.go",
+    ],
+    embed = [":protocol"],
+    deps = [
+        "@com_github_datastax_go_cassandra_native_protocol//client",
+        "@com_github_datastax_go_cassandra_native_protocol//compression/lz4",
+        "@com_github_datastax_go_cassandra_native_protocol//frame",
+        "@com_github_datastax_go_cassandra_native_protocol//message",
+        "@com_github_datastax_go_cassandra_native_protocol//primitive",
+        "@com_github_datastax_go_cassandra_native_protocol//segment",
+        "@com_github_stretchr_testify//require",
+    ],
+)

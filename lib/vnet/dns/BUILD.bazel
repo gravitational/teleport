@@ -1,0 +1,44 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "dns",
+    srcs = [
+        "dns.go",
+        "osnameservers.go",
+        "osnameservers_darwin.go",
+        "osnameservers_other.go",
+        "osnameservers_windows.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/vnet/dns",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+        "@dev_gvisor_gvisor//pkg/tcpip",
+        "@org_golang_x_net//dns/dnsmessage",
+        "@org_golang_x_sync//errgroup",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:windows": [
+            "@com_zx2c4_golang_wireguard_windows//tunnel/winipcfg",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "dns_test",
+    srcs = [
+        "dns_test.go",
+        "osnameservers_darwin_test.go",
+    ],
+    embed = [":dns"],
+    deps = [
+        "//lib/utils",
+        "//lib/utils/testutils",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+        "@dev_gvisor_gvisor//pkg/tcpip",
+    ],
+)

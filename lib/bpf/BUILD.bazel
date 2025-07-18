@@ -1,0 +1,71 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "bpf",
+    srcs = [
+        "bpf_nop.go",
+        "common.go",
+    ],
+    cgo = True,
+    importpath = "github.com/gravitational/teleport/lib/bpf",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types/events",
+        "//lib/utils",
+        "@com_github_coreos_go_semver//semver",
+        "@com_github_gravitational_trace//:trace",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:386": [
+            "//lib/service/servicecfg",
+        ],
+        "@io_bazel_rules_go//go/platform:amd64": [
+            "//lib/service/servicecfg",
+        ],
+        "@io_bazel_rules_go//go/platform:arm": [
+            "//lib/service/servicecfg",
+        ],
+        "@io_bazel_rules_go//go/platform:arm64": [
+            "//lib/service/servicecfg",
+        ],
+        "@io_bazel_rules_go//go/platform:mips": [
+            "//lib/service/servicecfg",
+        ],
+        "@io_bazel_rules_go//go/platform:mips64": [
+            "//lib/service/servicecfg",
+        ],
+        "@io_bazel_rules_go//go/platform:mips64le": [
+            "//lib/service/servicecfg",
+        ],
+        "@io_bazel_rules_go//go/platform:mipsle": [
+            "//lib/service/servicecfg",
+        ],
+        "@io_bazel_rules_go//go/platform:ppc64": [
+            "//lib/service/servicecfg",
+        ],
+        "@io_bazel_rules_go//go/platform:ppc64le": [
+            "//lib/service/servicecfg",
+        ],
+        "@io_bazel_rules_go//go/platform:riscv64": [
+            "//lib/service/servicecfg",
+        ],
+        "@io_bazel_rules_go//go/platform:s390x": [
+            "//lib/service/servicecfg",
+        ],
+        "@io_bazel_rules_go//go/platform:wasm": [
+            "//lib/service/servicecfg",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "bpf_test",
+    srcs = ["common_test.go"],
+    embed = [":bpf"],
+    deps = [
+        "//lib/defaults",
+        "//lib/service/servicecfg",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "metrics",
+    srcs = ["prometheus.go"],
+    importpath = "github.com/gravitational/teleport/lib/observability/metrics",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_grpc_ecosystem_go_grpc_middleware_providers_prometheus//:prometheus",
+        "@com_github_prometheus_client_golang//prometheus",
+    ],
+)

@@ -1,0 +1,30 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "common",
+    srcs = ["common.go"],
+    importpath = "github.com/gravitational/teleport/tool/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/constants",
+        "//api/types",
+        "//api/types/events",
+        "//lib/asciitable",
+        "//lib/events",
+        "//lib/utils",
+        "//lib/utils/log",
+        "@com_github_ghodss_yaml//:yaml",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "common_test",
+    srcs = ["common_test.go"],
+    embed = [":common"],
+    deps = [
+        "//api/types",
+        "@com_github_stretchr_testify//require",
+    ],
+)

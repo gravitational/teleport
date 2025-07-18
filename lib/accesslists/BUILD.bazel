@@ -1,0 +1,38 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "accesslists",
+    srcs = [
+        "hierarchy.go",
+        "validate.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/accesslists",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/accesslist/v1:accesslist",
+        "//api/types",
+        "//api/types/accesslist",
+        "//api/types/trait",
+        "//lib/services",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+    ],
+)
+
+go_test(
+    name = "accesslists_test",
+    srcs = [
+        "hierarchy_test.go",
+        "validate_test.go",
+    ],
+    embed = [":accesslists"],
+    deps = [
+        "//api/gen/proto/go/teleport/accesslist/v1:accesslist",
+        "//api/types",
+        "//api/types/accesslist",
+        "//api/types/header",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)

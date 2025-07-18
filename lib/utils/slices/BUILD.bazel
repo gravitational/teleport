@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "slices",
+    srcs = ["slices.go"],
+    importpath = "github.com/gravitational/teleport/lib/utils/slices",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "slices_test",
+    srcs = ["slices_test.go"],
+    embed = [":slices"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

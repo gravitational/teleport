@@ -1,0 +1,29 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "web",
+    srcs = [
+        "userevent.go",
+        "userevent_discover.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/usagereporter/web",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/usageevents/v1:usageevents",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "web_test",
+    srcs = [
+        "userevent_discover_test.go",
+        "userevent_test.go",
+    ],
+    embed = [":web"],
+    deps = [
+        "//api/gen/proto/go/usageevents/v1:usageevents",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

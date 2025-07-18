@@ -1,0 +1,59 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "controller",
+    srcs = [
+        "constants.go",
+        "deployment.go",
+        "errors.go",
+        "statefulset.go",
+        "updater.go",
+        "utils.go",
+    ],
+    importpath = "github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/controller",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//integrations/kube-agent-updater/pkg/img",
+        "//integrations/kube-agent-updater/pkg/podutils",
+        "//lib/automaticupgrades/maintenance",
+        "//lib/automaticupgrades/version",
+        "@com_github_coreos_go_semver//semver",
+        "@com_github_distribution_reference//:reference",
+        "@com_github_gravitational_trace//:trace",
+        "@io_k8s_api//apps/v1:apps",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_sigs_controller_runtime//:controller-runtime",
+        "@io_k8s_sigs_controller_runtime//pkg/client",
+        "@io_k8s_sigs_controller_runtime//pkg/log",
+    ],
+)
+
+go_test(
+    name = "controller_test",
+    srcs = [
+        "statefulset_test.go",
+        "suite_test.go",
+        "updater_test.go",
+        "utils_test.go",
+    ],
+    embed = [":controller"],
+    deps = [
+        "//integrations/kube-agent-updater/pkg/img",
+        "//integrations/kube-agent-updater/pkg/podutils",
+        "//lib/automaticupgrades/maintenance",
+        "//lib/automaticupgrades/version",
+        "@com_github_coreos_go_semver//semver",
+        "@com_github_distribution_reference//:reference",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_opencontainers_go_digest//:go-digest",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//apps/v1:apps",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_sigs_controller_runtime//pkg/client",
+        "@io_k8s_sigs_controller_runtime//pkg/client/fake",
+    ],
+)

@@ -1,0 +1,23 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "healthcheckconfig",
+    srcs = [
+        "health_check_config.pb.go",
+        "health_check_config_service.pb.go",
+        "health_check_config_service_grpc.pb.go",
+    ],
+    importpath = "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/header/v1:header",
+        "//api/gen/proto/go/teleport/label/v1:label",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+        "@org_golang_google_protobuf//types/known/durationpb",
+        "@org_golang_google_protobuf//types/known/emptypb",
+    ],
+)

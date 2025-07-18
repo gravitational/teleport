@@ -1,0 +1,46 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "webauthnwin",
+    srcs = [
+        "api.go",
+        "conv.go",
+        "ctypes.go",
+        "syscall_gen.go",
+        "webauthn_other.go",
+        "webauthn_windows.go",
+        "zsyscall_windows.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/auth/webauthnwin",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client/proto",
+        "//lib/auth/webauthntypes",
+        "@com_github_go_webauthn_webauthn//protocol",
+        "@com_github_go_webauthn_webauthn//protocol/webauthncose",
+        "@com_github_gravitational_trace//:trace",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:windows": [
+            "//:teleport",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "webauthnwin_test",
+    srcs = [
+        "api_test.go",
+        "export_test.go",
+    ],
+    embed = [":webauthnwin"],
+    deps = [
+        "//api/types/webauthn",
+        "//lib/auth/webauthntypes",
+        "@com_github_go_webauthn_webauthn//protocol",
+        "@com_github_go_webauthn_webauthn//protocol/webauthncose",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

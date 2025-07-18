@@ -1,0 +1,18 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "eventschema",
+    srcs = [
+        "dump.go",
+        "ignored.go",
+        "schemagen.go",
+    ],
+    importpath = "github.com/gravitational/teleport/build.assets/tooling/lib/eventschema",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//build.assets/tooling/lib/protobuf-tree",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_masterminds_sprig_v3//:sprig",
+        "@io_k8s_apiextensions_apiserver//pkg/apis/apiextensions/v1:apiextensions",
+    ],
+)

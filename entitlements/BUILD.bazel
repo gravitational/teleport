@@ -1,0 +1,20 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "entitlements",
+    srcs = ["entitlements.go"],
+    importpath = "github.com/gravitational/teleport/entitlements",
+    visibility = ["//visibility:public"],
+    deps = ["//api/client/proto"],
+)
+
+go_test(
+    name = "entitlements_test",
+    srcs = ["entitlements_test.go"],
+    embed = [":entitlements"],
+    deps = [
+        "//api/client/proto",
+        "//api/utils",
+        "@com_github_stretchr_testify//require",
+    ],
+)

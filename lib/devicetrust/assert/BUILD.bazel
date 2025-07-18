@@ -1,0 +1,30 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "assert",
+    srcs = ["assert.go"],
+    importpath = "github.com/gravitational/teleport/lib/devicetrust/assert",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/devicetrust/v1:devicetrust",
+        "//lib/devicetrust/authn",
+        "//lib/devicetrust/authn/types",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_grpc//:grpc",
+    ],
+)
+
+go_test(
+    name = "assert_test",
+    srcs = ["assert_test.go"],
+    deps = [
+        ":assert",
+        "//api/gen/proto/go/teleport/devicetrust/v1:devicetrust",
+        "//lib/devicetrust/authn",
+        "//lib/devicetrust/testenv",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_sync//errgroup",
+    ],
+)

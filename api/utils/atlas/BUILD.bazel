@@ -1,0 +1,16 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "atlas",
+    srcs = ["endpoints.go"],
+    importpath = "github.com/gravitational/teleport/api/utils/atlas",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_gravitational_trace//:trace"],
+)
+
+go_test(
+    name = "atlas_test",
+    srcs = ["endpoints_test.go"],
+    embed = [":atlas"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

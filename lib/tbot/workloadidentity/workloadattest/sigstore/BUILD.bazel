@@ -1,0 +1,54 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sigstore",
+    srcs = [
+        "authn.go",
+        "discovery.go",
+        "discovery_bundles.go",
+        "discovery_cosign_signatures.go",
+        "repository.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/sigstore",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/workloadidentity/v1:workloadidentity",
+        "@com_github_docker_cli//cli/config",
+        "@com_github_docker_cli//cli/config/types",
+        "@com_github_google_go_containerregistry//pkg/authn",
+        "@com_github_google_go_containerregistry//pkg/crane",
+        "@com_github_google_go_containerregistry//pkg/name",
+        "@com_github_google_go_containerregistry//pkg/v1:pkg",
+        "@com_github_google_go_containerregistry//pkg/v1/remote",
+        "@com_github_google_go_containerregistry//pkg/v1/remote/transport",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_sigstore_protobuf_specs//gen/pb-go/bundle/v1:bundle",
+        "@com_github_sigstore_protobuf_specs//gen/pb-go/common/v1:common",
+        "@com_github_sigstore_protobuf_specs//gen/pb-go/rekor/v1:rekor",
+        "@com_github_sigstore_sigstore_go//pkg/bundle",
+        "@dev_dny_code_ssrf//:ssrf",
+        "@org_golang_google_protobuf//encoding/protojson",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_test(
+    name = "sigstore_test",
+    srcs = [
+        "authn_test.go",
+        "discovery_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":sigstore"],
+    deps = [
+        "//lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest",
+        "//lib/utils/log/logtest",
+        "@com_github_google_go_containerregistry//pkg/authn",
+        "@com_github_google_go_containerregistry//pkg/name",
+        "@com_github_sigstore_protobuf_specs//gen/pb-go/bundle/v1:bundle",
+        "@com_github_sigstore_protobuf_specs//gen/pb-go/common/v1:common",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//proto",
+    ],
+)

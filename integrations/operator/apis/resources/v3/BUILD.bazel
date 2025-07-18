@@ -1,0 +1,33 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "resources",
+    srcs = [
+        "githubconnector_types.go",
+        "groupversion_info.go",
+        "oidcconnector_types.go",
+        "zz_generated.deepcopy.go",
+    ],
+    importpath = "github.com/gravitational/teleport/integrations/operator/apis/resources/v3",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//integrations/operator/apis/resources",
+        "@com_github_gravitational_trace//:trace",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_sigs_controller_runtime//pkg/scheme",
+    ],
+)
+
+go_test(
+    name = "resources_test",
+    srcs = ["oidcconnector_types_test.go"],
+    embed = [":resources"],
+    deps = [
+        "//api/types",
+        "//api/types/wrappers",
+        "@com_github_stretchr_testify//require",
+    ],
+)

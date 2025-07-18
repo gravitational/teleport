@@ -1,0 +1,37 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "maintenance",
+    srcs = [
+        "basichttp.go",
+        "mock.go",
+        "proxy.go",
+        "trigger.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/automaticupgrades/maintenance",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client/webclient",
+        "//lib/automaticupgrades/basichttp",
+        "//lib/automaticupgrades/cache",
+        "//lib/automaticupgrades/constants",
+        "@com_github_gravitational_trace//:trace",
+        "@io_k8s_sigs_controller_runtime//pkg/client",
+        "@io_k8s_sigs_controller_runtime//pkg/log",
+    ],
+)
+
+go_test(
+    name = "maintenance_test",
+    srcs = [
+        "basichttp_test.go",
+        "trigger_test.go",
+    ],
+    embed = [":maintenance"],
+    deps = [
+        "//lib/automaticupgrades/basichttp",
+        "//lib/automaticupgrades/constants",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

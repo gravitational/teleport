@@ -1,0 +1,16 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "prehogv1alphaconnect",
+    srcs = [
+        "connect.connect.go",
+        "tbot.connect.go",
+        "teleport.connect.go",
+    ],
+    importpath = "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/prehogv1alphaconnect",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//gen/proto/go/prehog/v1alpha",
+        "@com_connectrpc_connect//:connect",
+    ],
+)

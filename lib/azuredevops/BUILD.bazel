@@ -1,0 +1,37 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "azuredevops",
+    srcs = [
+        "azuredevops.go",
+        "token_source.go",
+        "token_validator.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/azuredevops",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/workloadidentity/v1:workloadidentity",
+        "//lib/oidc",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_zitadel_oidc_v3//pkg/oidc",
+        "@io_opentelemetry_go_contrib_instrumentation_net_http_otelhttp//:otelhttp",
+    ],
+)
+
+go_test(
+    name = "azuredevops_test",
+    srcs = [
+        "token_source_test.go",
+        "token_validator_test.go",
+    ],
+    embed = [":azuredevops"],
+    deps = [
+        "//lib/cryptosuites",
+        "@com_github_go_jose_go_jose_v4//:go-jose",
+        "@com_github_go_jose_go_jose_v4//jwt",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_go_cmp//cmp/cmpopts",
+        "@com_github_stretchr_testify//require",
+        "@com_github_zitadel_oidc_v3//pkg/oidc",
+    ],
+)

@@ -1,0 +1,16 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "awstesthelpers",
+    srcs = ["tags.go"],
+    importpath = "github.com/gravitational/teleport/lib/cloud/awstesthelpers",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_aws_aws_sdk_go_v2_service_elasticache//types",
+        "@com_github_aws_aws_sdk_go_v2_service_memorydb//types",
+        "@com_github_aws_aws_sdk_go_v2_service_opensearch//types",
+        "@com_github_aws_aws_sdk_go_v2_service_rds//types",
+        "@com_github_aws_aws_sdk_go_v2_service_redshift//types",
+        "@com_github_aws_aws_sdk_go_v2_service_redshiftserverless//types",
+    ],
+)

@@ -1,0 +1,7 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "transportv1_proto",
+    srcs = ["transport_service.proto"],
+    visibility = ["//visibility:public"],
+)

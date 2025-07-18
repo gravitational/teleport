@@ -1,0 +1,25 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "stsutils",
+    srcs = ["sts.go"],
+    importpath = "github.com/gravitational/teleport/lib/utils/aws/stsutils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/utils/aws/awsfips",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_service_sts//:sts",
+    ],
+)
+
+go_test(
+    name = "stsutils_test",
+    srcs = ["sts_test.go"],
+    deps = [
+        ":stsutils",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_service_sts//:sts",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,46 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tester",
+    srcs = [
+        "command.go",
+        "format.go",
+        "github.go",
+        "oidc.go",
+        "saml.go",
+        "utils.go",
+    ],
+    importpath = "github.com/gravitational/teleport/tool/tctl/sso/tester",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/constants",
+        "//api/types",
+        "//api/utils/keys",
+        "//lib/auth/authclient",
+        "//lib/client",
+        "//lib/client/sso",
+        "//lib/cryptosuites",
+        "//lib/defaults",
+        "//lib/service/servicecfg",
+        "//lib/services",
+        "//lib/utils",
+        "//tool/tctl/common/client",
+        "//tool/tctl/common/config",
+        "@com_github_alecthomas_kingpin_v2//:kingpin",
+        "@com_github_ghodss_yaml//:yaml",
+        "@com_github_gravitational_trace//:trace",
+        "@io_k8s_apimachinery//pkg/util/yaml",
+        "@org_golang_x_crypto//ssh",
+    ],
+)
+
+go_test(
+    name = "tester_test",
+    srcs = ["format_test.go"],
+    embed = [":tester"],
+    deps = [
+        "//api/types",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

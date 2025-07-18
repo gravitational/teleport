@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "postgresql_lib",
+    srcs = ["postgresql.go"],
+    importpath = "github.com/gravitational/teleport/docs/pages/includes/machine-id/postgresql",
+    visibility = ["//visibility:private"],
+    deps = ["@com_github_jackc_pgx_v4//stdlib"],
+)
+
+go_binary(
+    name = "postgresql",
+    embed = [":postgresql_lib"],
+    visibility = ["//visibility:public"],
+)

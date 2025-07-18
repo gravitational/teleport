@@ -1,0 +1,28 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "usertasks",
+    srcs = ["object.go"],
+    importpath = "github.com/gravitational/teleport/api/types/usertasks",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/header/v1:header",
+        "//api/gen/proto/go/teleport/usertasks/v1:usertasks",
+        "//api/types",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)
+
+go_test(
+    name = "usertasks_test",
+    srcs = ["object_test.go"],
+    deps = [
+        ":usertasks",
+        "//api/gen/proto/go/teleport/header/v1:header",
+        "//api/gen/proto/go/teleport/usertasks/v1:usertasks",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)

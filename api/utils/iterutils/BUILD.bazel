@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "iterutils",
+    srcs = ["iter.go"],
+    importpath = "github.com/gravitational/teleport/api/utils/iterutils",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "iterutils_test",
+    srcs = ["iter_test.go"],
+    embed = [":iterutils"],
+)

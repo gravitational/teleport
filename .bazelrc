@@ -1,0 +1,11 @@
+
+common --test_output=all
+
+
+common:silent --noshow_progress
+common:silent --ui_event_filters=,+error,+fail
+common:silent --show_result=0
+common:silent --logging=0
+
+# Local dev settings
+try-import %workspace%/user.bazelrc

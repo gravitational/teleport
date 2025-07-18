@@ -1,0 +1,52 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "servicenow",
+    srcs = [
+        "app.go",
+        "bot.go",
+        "client.go",
+        "config.go",
+        "plugindata.go",
+        "types.go",
+    ],
+    importpath = "github.com/gravitational/teleport/integrations/access/servicenow",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/accessrequest",
+        "//api/client/proto",
+        "//api/types",
+        "//api/types/accesslist",
+        "//integrations/access/accessmonitoring",
+        "//integrations/access/accessrequest",
+        "//integrations/access/common",
+        "//integrations/access/common/teleport",
+        "//integrations/lib",
+        "//integrations/lib/backoff",
+        "//integrations/lib/logger",
+        "//integrations/lib/plugindata",
+        "//integrations/lib/watcherjob",
+        "//lib/utils",
+        "//lib/utils/log",
+        "@com_github_go_resty_resty_v2//:resty",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+    ],
+)
+
+go_test(
+    name = "servicenow_test",
+    srcs = [
+        "app_test.go",
+        "client_test.go",
+        "config_test.go",
+    ],
+    embed = [":servicenow"],
+    deps = [
+        "//api/types",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

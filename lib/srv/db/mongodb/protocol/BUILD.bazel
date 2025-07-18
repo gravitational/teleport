@@ -1,0 +1,47 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "protocol",
+    srcs = [
+        "deprecated_wiremessage.go",
+        "doc.go",
+        "errors.go",
+        "message.go",
+        "opcompressed.go",
+        "opdelete.go",
+        "opgetmore.go",
+        "opinsert.go",
+        "opkillcursors.go",
+        "opmsg.go",
+        "opquery.go",
+        "opreply.go",
+        "opupdate.go",
+        "util.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/srv/db/mongodb/protocol",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_gravitational_trace//:trace",
+        "@org_mongodb_go_mongo_driver//bson",
+        "@org_mongodb_go_mongo_driver//x/bsonx/bsoncore",
+        "@org_mongodb_go_mongo_driver//x/mongo/driver",
+        "@org_mongodb_go_mongo_driver//x/mongo/driver/wiremessage",
+    ],
+)
+
+go_test(
+    name = "protocol_test",
+    srcs = [
+        "fuzz_test.go",
+        "message_test.go",
+        "opmsg_test.go",
+    ],
+    embed = [":protocol"],
+    deps = [
+        "@com_github_stretchr_testify//require",
+        "@org_mongodb_go_mongo_driver//bson",
+        "@org_mongodb_go_mongo_driver//x/bsonx/bsoncore",
+        "@org_mongodb_go_mongo_driver//x/mongo/driver",
+        "@org_mongodb_go_mongo_driver//x/mongo/driver/wiremessage",
+    ],
+)

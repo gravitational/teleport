@@ -1,0 +1,47 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "configure",
+    srcs = [
+        "command.go",
+        "github.go",
+        "oidc.go",
+        "saml.go",
+        "teams_to_roles.go",
+    ],
+    importpath = "github.com/gravitational/teleport/tool/tctl/sso/configure",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/types",
+        "//api/utils",
+        "//lib/asciitable",
+        "//lib/auth/authclient",
+        "//lib/service/servicecfg",
+        "//lib/services",
+        "//lib/tlsca",
+        "//lib/utils",
+        "//lib/utils/log",
+        "//tool/tctl/common/client",
+        "//tool/tctl/common/config",
+        "//tool/tctl/sso/configure/flags",
+        "//tool/tctl/sso/tester",
+        "@com_github_alecthomas_kingpin_v2//:kingpin",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_zitadel_oidc_v3//pkg/client",
+        "@io_opentelemetry_go_contrib_instrumentation_net_http_otelhttp//:otelhttp",
+    ],
+)
+
+go_test(
+    name = "configure_test",
+    srcs = [
+        "saml_test.go",
+        "teams_to_roles_test.go",
+    ],
+    embed = [":configure"],
+    deps = [
+        "//api/types",
+        "@com_github_stretchr_testify//require",
+    ],
+)

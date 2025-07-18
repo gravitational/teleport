@@ -1,0 +1,42 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "kinit",
+    srcs = [
+        "kinit.go",
+        "ldap.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/srv/db/common/kerberos/kinit",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//lib/tlsca",
+        "//lib/winpki",
+        "@com_github_go_ldap_ldap_v3//:ldap",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jcmturner_gokrb5_v8//client",
+        "@com_github_jcmturner_gokrb5_v8//config",
+        "@com_github_jcmturner_gokrb5_v8//credentials",
+    ],
+)
+
+go_test(
+    name = "kinit_test",
+    srcs = [
+        "kinit_test.go",
+        "ldap_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":kinit"],
+    embedsrcs = ["testdata/kinit.cache"],
+    deps = [
+        "//api/client/proto",
+        "//api/types",
+        "//lib/fixtures",
+        "//lib/tlsca",
+        "//lib/winpki",
+        "@com_github_go_ldap_ldap_v3//:ldap",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

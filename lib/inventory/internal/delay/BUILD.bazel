@@ -1,0 +1,33 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "delay",
+    srcs = [
+        "delay.go",
+        "heap.go",
+        "multi.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/inventory/internal/delay",
+    visibility = ["//lib/inventory:__subpackages__"],
+    deps = [
+        "//api/utils/retryutils",
+        "//lib/utils/interval",
+        "@com_github_jonboulle_clockwork//:clockwork",
+    ],
+)
+
+go_test(
+    name = "delay_test",
+    srcs = [
+        "delay_test.go",
+        "heap_test.go",
+        "multi_test.go",
+    ],
+    embed = [":delay"],
+    deps = [
+        "//lib/utils/interval",
+        "//lib/utils/log/logtest",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)

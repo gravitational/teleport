@@ -1,0 +1,20 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "loginrule",
+    srcs = ["loginrule_terraform.go"],
+    importpath = "github.com/gravitational/teleport/integrations/terraform/tfschema/loginrule/v1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/loginrule/v1:loginrule",
+        "//api/types",
+        "//api/types/wrappers",
+        "//integrations/terraform/tfschema",
+        "@com_github_gogo_protobuf//proto",
+        "@com_github_hashicorp_terraform_plugin_framework//attr:go_default_library",
+        "@com_github_hashicorp_terraform_plugin_framework//diag:go_default_library",
+        "@com_github_hashicorp_terraform_plugin_framework//tfsdk:go_default_library",
+        "@com_github_hashicorp_terraform_plugin_framework//types:go_default_library",
+        "@com_github_hashicorp_terraform_plugin_go//tftypes:go_default_library",
+    ],
+)

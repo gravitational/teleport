@@ -1,0 +1,18 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "accesspoint",
+    srcs = ["accesspoint.go"],
+    importpath = "github.com/gravitational/teleport/lib/auth/accesspoint",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/types",
+        "//lib/cache",
+        "//lib/observability/tracing",
+        "//lib/services",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@io_opentelemetry_go_otel_trace//:trace",
+    ],
+)

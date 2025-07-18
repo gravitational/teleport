@@ -1,0 +1,31 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "oslog",
+    srcs = [
+        "oslog_darwin.go",
+        "oslog_darwin.h",
+        "oslog_darwin.m",
+    ],
+    cgo = True,
+    clinkopts = select({
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "-framework Foundation",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "-framework Foundation",
+        ],
+        "//conditions:default": [],
+    }),
+    copts = select({
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "-Wall -xobjective-c -fblocks -fobjc-arc -mmacosx-version-min=11.0",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "-Wall -xobjective-c -fblocks -fobjc-arc -mmacosx-version-min=11.0",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/gravitational/teleport/lib/utils/log/oslog",
+    visibility = ["//visibility:public"],
+)

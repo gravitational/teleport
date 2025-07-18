@@ -1,0 +1,19 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "fanoutbuffer",
+    srcs = ["buffer.go"],
+    importpath = "github.com/gravitational/teleport/lib/utils/fanoutbuffer",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_jonboulle_clockwork//:clockwork"],
+)
+
+go_test(
+    name = "fanoutbuffer_test",
+    srcs = ["buffer_test.go"],
+    embed = [":fanoutbuffer"],
+    deps = [
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)

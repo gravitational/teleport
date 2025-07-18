@@ -1,0 +1,19 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "identitycenterutils",
+    srcs = ["scim.go"],
+    importpath = "github.com/gravitational/teleport/lib/utils/aws/identitycenterutils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/utils/aws/region",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "identitycenterutils_test",
+    srcs = ["scim_test.go"],
+    embed = [":identitycenterutils"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

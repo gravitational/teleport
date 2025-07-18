@@ -1,0 +1,106 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "agent",
+    srcs = [
+        "config.go",
+        "installer.go",
+        "integrations.go",
+        "io.go",
+        "io_windows.go",
+        "logger.go",
+        "process.go",
+        "setup.go",
+        "updater.go",
+        "validate.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/autoupdate/agent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client/webclient",
+        "//api/constants",
+        "//api/types",
+        "//lib/autoupdate",
+        "//lib/client/debug",
+        "//lib/config/systemd",
+        "//lib/defaults",
+        "//lib/modules",
+        "//lib/utils",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@org_golang_x_sync//errgroup",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:aix": [
+            "@com_github_google_renameio_v2//:renameio",
+        ],
+        "@io_bazel_rules_go//go/platform:android": [
+            "@com_github_google_renameio_v2//:renameio",
+        ],
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "@com_github_google_renameio_v2//:renameio",
+        ],
+        "@io_bazel_rules_go//go/platform:dragonfly": [
+            "@com_github_google_renameio_v2//:renameio",
+        ],
+        "@io_bazel_rules_go//go/platform:freebsd": [
+            "@com_github_google_renameio_v2//:renameio",
+        ],
+        "@io_bazel_rules_go//go/platform:illumos": [
+            "@com_github_google_renameio_v2//:renameio",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "@com_github_google_renameio_v2//:renameio",
+        ],
+        "@io_bazel_rules_go//go/platform:js": [
+            "@com_github_google_renameio_v2//:renameio",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            "@com_github_google_renameio_v2//:renameio",
+        ],
+        "@io_bazel_rules_go//go/platform:netbsd": [
+            "@com_github_google_renameio_v2//:renameio",
+        ],
+        "@io_bazel_rules_go//go/platform:openbsd": [
+            "@com_github_google_renameio_v2//:renameio",
+        ],
+        "@io_bazel_rules_go//go/platform:osx": [
+            "@com_github_google_renameio_v2//:renameio",
+        ],
+        "@io_bazel_rules_go//go/platform:plan9": [
+            "@com_github_google_renameio_v2//:renameio",
+        ],
+        "@io_bazel_rules_go//go/platform:qnx": [
+            "@com_github_google_renameio_v2//:renameio",
+        ],
+        "@io_bazel_rules_go//go/platform:solaris": [
+            "@com_github_google_renameio_v2//:renameio",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "agent_test",
+    srcs = [
+        "config_test.go",
+        "installer_test.go",
+        "integrations_test.go",
+        "logger_test.go",
+        "process_test.go",
+        "setup_test.go",
+        "updater_test.go",
+        "validate_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":agent"],
+    deps = [
+        "//api/client/webclient",
+        "//lib/autoupdate",
+        "//lib/config",
+        "//lib/utils/testutils/golden",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
+)

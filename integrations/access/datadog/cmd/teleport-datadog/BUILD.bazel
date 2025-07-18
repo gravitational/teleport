@@ -1,0 +1,24 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "teleport-datadog_lib",
+    srcs = ["main.go"],
+    embedsrcs = ["example_config.toml"],
+    importpath = "github.com/gravitational/teleport/integrations/access/datadog/cmd/teleport-datadog",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//:teleport",
+        "//integrations/access/common",
+        "//integrations/access/datadog",
+        "//integrations/lib",
+        "//integrations/lib/logger",
+        "@com_github_alecthomas_kingpin_v2//:kingpin",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_binary(
+    name = "teleport-datadog",
+    embed = [":teleport-datadog_lib"],
+    visibility = ["//visibility:public"],
+)

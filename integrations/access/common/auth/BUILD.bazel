@@ -1,0 +1,27 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "auth",
+    srcs = ["token_provider.go"],
+    importpath = "github.com/gravitational/teleport/integrations/access/common/auth",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//integrations/access/common/auth/oauth",
+        "//integrations/access/common/auth/storage",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+    ],
+)
+
+go_test(
+    name = "auth_test",
+    srcs = ["token_provider_test.go"],
+    embed = [":auth"],
+    deps = [
+        "//integrations/access/common/auth/oauth",
+        "//integrations/access/common/auth/storage",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)

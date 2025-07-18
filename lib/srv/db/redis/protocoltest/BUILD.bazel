@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "protocoltest",
+    srcs = ["test.go"],
+    importpath = "github.com/gravitational/teleport/lib/srv/db/redis/protocoltest",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/srv/db/common",
+        "@com_github_alicebob_miniredis_v2//:miniredis",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_redis_go_redis_v9//:go-redis",
+    ],
+)

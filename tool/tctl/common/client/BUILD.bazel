@@ -1,0 +1,24 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "client",
+    srcs = ["auth.go"],
+    importpath = "github.com/gravitational/teleport/tool/tctl/common/client",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client",
+        "//api/client/webclient",
+        "//api/constants",
+        "//api/mfa",
+        "//api/types",
+        "//lib/auth/authclient",
+        "//lib/client/mfa",
+        "//lib/client/sso",
+        "//lib/reversetunnelclient",
+        "//lib/service/servicecfg",
+        "//lib/utils",
+        "//tool/common",
+        "//tool/tctl/common/config",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)

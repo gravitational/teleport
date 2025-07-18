@@ -1,0 +1,29 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "defaults",
+    srcs = ["defaults.go"],
+    importpath = "github.com/gravitational/teleport/lib/defaults",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/defaults",
+        "//lib/limiter",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@org_golang_x_crypto//ssh",
+    ],
+)
+
+go_test(
+    name = "defaults_test",
+    srcs = ["defaults_test.go"],
+    embed = [":defaults"],
+    deps = [
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,44 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "export",
+    srcs = [
+        "cursor.go",
+        "date_exporter.go",
+        "exporter.go",
+        "helpers.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/events/export",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/gen/proto/go/teleport/auditlog/v1:auditlog",
+        "//api/internalutils/stream",
+        "//api/utils/retryutils",
+        "//lib/utils/interval",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+        "@org_golang_x_time//rate",
+    ],
+)
+
+go_test(
+    name = "export_test",
+    srcs = [
+        "cursor_test.go",
+        "date_exporter_test.go",
+        "exporter_test.go",
+    ],
+    embed = [":export"],
+    deps = [
+        "//:teleport",
+        "//api/gen/proto/go/teleport/auditlog/v1:auditlog",
+        "//api/internalutils/stream",
+        "//api/types/events",
+        "//lib/events",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

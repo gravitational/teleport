@@ -1,0 +1,51 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "clusterconfigv1",
+    srcs = ["service.go"],
+    importpath = "github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/clusterconfig/v1:clusterconfig",
+        "//api/types",
+        "//api/types/clusterconfig",
+        "//api/types/events",
+        "//entitlements",
+        "//lib/authz",
+        "//lib/devicetrust/config",
+        "//lib/events",
+        "//lib/modules",
+        "//lib/services",
+        "//lib/services/readonly",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "clusterconfigv1_test",
+    srcs = ["service_test.go"],
+    deps = [
+        ":clusterconfigv1",
+        "//api/constants",
+        "//api/gen/proto/go/teleport/clusterconfig/v1:clusterconfig",
+        "//api/types",
+        "//api/types/clusterconfig",
+        "//api/types/events",
+        "//entitlements",
+        "//lib/authz",
+        "//lib/backend/memory",
+        "//lib/events",
+        "//lib/events/eventstest",
+        "//lib/modules",
+        "//lib/modules/modulestest",
+        "//lib/services",
+        "//lib/services/local",
+        "//lib/tlsca",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_go_cmp//cmp/cmpopts",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//testing/protocmp",
+    ],
+)

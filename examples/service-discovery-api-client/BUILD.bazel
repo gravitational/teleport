@@ -1,0 +1,25 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "service-discovery-api-client_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/gravitational/teleport/examples/service-discovery-api-client",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//api/client",
+        "//api/client/proto",
+        "//api/types",
+        "@com_github_docker_docker//api/types/container",
+        "@com_github_docker_docker//api/types/filters",
+        "@com_github_docker_docker//api/types/strslice",
+        "@com_github_docker_docker//client",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_grpc//:grpc",
+    ],
+)
+
+go_binary(
+    name = "service-discovery-api-client",
+    embed = [":service-discovery-api-client_lib"],
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,106 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "native",
+    srcs = [
+        "api.go",
+        "device_darwin.go",
+        "device_darwin.h",
+        "device_darwin.m",
+        "device_linux.go",
+        "device_others.go",
+        "device_windows.go",
+        "doc.go",
+        "status_error.go",
+        "tpm_common.go",
+        "tpm_device.go",
+    ],
+    cgo = True,
+    clinkopts = select({
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "-framework CoreFoundation -framework Foundation -framework IOKit -framework Security",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "-framework CoreFoundation -framework Foundation -framework IOKit -framework Security",
+        ],
+        "//conditions:default": [],
+    }),
+    copts = select({
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "-Wall -xobjective-c -fblocks -fobjc-arc -mmacosx-version-min=11.0",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "-Wall -xobjective-c -fblocks -fobjc-arc -mmacosx-version-min=11.0",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/gravitational/teleport/lib/devicetrust/native",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/devicetrust/v1:devicetrust",
+        "//lib/devicetrust",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:android": [
+            "//:teleport",
+            "//lib/linux",
+            "@com_github_google_go_attestation//attest",
+        ],
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "//lib/darwin",
+            "@com_github_google_uuid//:uuid",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "//lib/darwin",
+            "@com_github_google_uuid//:uuid",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            "//:teleport",
+            "//lib/linux",
+            "@com_github_google_go_attestation//attest",
+        ],
+        "@io_bazel_rules_go//go/platform:windows": [
+            "//:teleport",
+            "//lib/windowsexec",
+            "@com_github_google_go_attestation//attest",
+            "@com_github_yusufpapurcu_wmi//:wmi",
+            "@org_golang_x_sync//errgroup",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "native_test",
+    srcs = [
+        "device_linux_test.go",
+        "status_error_test.go",
+    ],
+    embed = [":native"],
+    deps = [
+        "//lib/devicetrust",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:android": [
+            "//api/gen/proto/go/teleport/devicetrust/v1:devicetrust",
+            "//lib/linux",
+            "@com_github_google_go_cmp//cmp",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_google_protobuf//proto",
+            "@org_golang_google_protobuf//testing/protocmp",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            "//api/gen/proto/go/teleport/devicetrust/v1:devicetrust",
+            "//lib/linux",
+            "@com_github_google_go_cmp//cmp",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_google_protobuf//proto",
+            "@org_golang_google_protobuf//testing/protocmp",
+        ],
+        "//conditions:default": [],
+    }),
+)

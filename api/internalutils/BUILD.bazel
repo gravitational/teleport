@@ -1,0 +1,8 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "internalutils",
+    srcs = ["doc.go"],
+    importpath = "github.com/gravitational/teleport/api/internalutils",
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,13 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "gitserver",
+    srcs = ["gitserver.go"],
+    importpath = "github.com/gravitational/teleport/api/client/gitserver",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/gitserver/v1:gitserver",
+        "//api/types",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)

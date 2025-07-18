@@ -1,0 +1,48 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "trustv1",
+    srcs = [
+        "service.go",
+        "trustedcluster.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/auth/trust/trustv1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/trust/v1:trust",
+        "//api/types",
+        "//lib/authz",
+        "//lib/modules",
+        "//lib/services",
+        "//lib/tlsca",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_protobuf//types/known/emptypb",
+    ],
+)
+
+go_test(
+    name = "trustv1_test",
+    srcs = [
+        "service_test.go",
+        "trustedcluster_test.go",
+    ],
+    embed = [":trustv1"],
+    deps = [
+        "//:teleport",
+        "//api/gen/proto/go/teleport/trust/v1:trust",
+        "//api/types",
+        "//lib/auth/testauthority",
+        "//lib/authz",
+        "//lib/backend/memory",
+        "//lib/modules",
+        "//lib/modules/modulestest",
+        "//lib/services",
+        "//lib/services/local",
+        "//lib/tlsca",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_go_cmp//cmp/cmpopts",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)

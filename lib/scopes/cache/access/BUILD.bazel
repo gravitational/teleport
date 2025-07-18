@@ -1,0 +1,46 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "access",
+    srcs = [
+        "access.go",
+        "helpers.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/scopes/cache/access",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/scopes/access/v1:access",
+        "//api/types",
+        "//api/utils/retryutils",
+        "//lib/defaults",
+        "//lib/itertools/stream",
+        "//lib/scopes/access",
+        "//lib/scopes/cache/assignments",
+        "//lib/scopes/cache/roles",
+        "//lib/services",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "access_test",
+    srcs = [
+        "access_test.go",
+        "helpers_test.go",
+    ],
+    embed = [":access"],
+    deps = [
+        "//api/gen/proto/go/teleport/header/v1:header",
+        "//api/gen/proto/go/teleport/scopes/access/v1:access",
+        "//api/types",
+        "//lib/backend/memory",
+        "//lib/scopes/access",
+        "//lib/scopes/cache/assignments",
+        "//lib/scopes/cache/roles",
+        "//lib/services",
+        "//lib/services/local",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_stretchr_testify//require",
+    ],
+)

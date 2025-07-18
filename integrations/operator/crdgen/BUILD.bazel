@@ -1,0 +1,44 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "crdgen",
+    srcs = [
+        "additional_doc.go",
+        "format.go",
+        "handlerequest.go",
+        "ignored.go",
+        "schemagen.go",
+        "tree.go",
+    ],
+    importpath = "github.com/gravitational/teleport/integrations/operator/crdgen",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "@com_github_dustin_go_humanize//english",
+        "@com_github_gogo_protobuf//gogoproto",
+        "@com_github_gogo_protobuf//proto",
+        "@com_github_gogo_protobuf//protoc-gen-gogo/descriptor",
+        "@com_github_gogo_protobuf//protoc-gen-gogo/generator",
+        "@com_github_gogo_protobuf//protoc-gen-gogo/plugin",
+        "@com_github_gravitational_trace//:trace",
+        "@io_k8s_apiextensions_apiserver//pkg/apis/apiextensions/v1:apiextensions",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_sigs_controller_tools//pkg/crd",
+        "@io_k8s_sigs_controller_tools//pkg/crd/markers",
+        "@io_k8s_sigs_controller_tools//pkg/loader",
+        "@io_k8s_sigs_controller_tools//pkg/markers",
+        "@io_k8s_sigs_yaml//:yaml",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//types/pluginpb",
+    ],
+)
+
+go_test(
+    name = "crdgen_test",
+    srcs = ["handlerequest_test.go"],
+    embed = [":crdgen"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_apiextensions_apiserver//pkg/apis/apiextensions/v1:apiextensions",
+    ],
+)

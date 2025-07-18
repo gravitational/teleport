@@ -1,0 +1,13 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "metadata",
+    srcs = ["metadata.go"],
+    importpath = "github.com/gravitational/teleport/api/metadata",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//metadata",
+    ],
+)

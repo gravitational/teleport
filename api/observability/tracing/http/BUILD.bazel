@@ -1,0 +1,13 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "http",
+    srcs = ["http.go"],
+    importpath = "github.com/gravitational/teleport/api/observability/tracing/http",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_opentelemetry_go_contrib_instrumentation_net_http_otelhttp//:otelhttp",
+        "@io_opentelemetry_go_otel//:otel",
+        "@io_opentelemetry_go_otel_metric//noop",
+    ],
+)

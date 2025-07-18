@@ -1,0 +1,40 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "hardwarekey",
+    srcs = [
+        "agent.go",
+        "errors_common.go",
+        "errors_windows.go",
+        "service.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/hardwarekey",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/hardwarekeyagent/v1:hardwarekeyagent",
+        "//api/utils/keys",
+        "//api/utils/keys/hardwarekey",
+        "//api/utils/keys/hardwarekeyagent",
+        "//api/utils/keys/piv",
+        "//lib/utils/cert",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "hardwarekey_test",
+    srcs = ["agent_test.go"],
+    deps = [
+        ":hardwarekey",
+        "//api/gen/proto/go/teleport/hardwarekeyagent/v1:hardwarekeyagent",
+        "//api/utils/keys/hardwarekey",
+        "@com_github_stretchr_testify//require",
+    ],
+)

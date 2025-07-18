@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testauthority",
+    srcs = ["testauthority.go"],
+    importpath = "github.com/gravitational/teleport/lib/auth/testauthority",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/auth/keygen",
+        "//lib/cryptosuites",
+        "//lib/sshca",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+    ],
+)

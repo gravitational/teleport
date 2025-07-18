@@ -1,0 +1,36 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "desktop",
+    srcs = [
+        "desktop.go",
+        "directorysharing.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/teleterm/services/desktop",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client/proto",
+        "//api/client/proxy",
+        "//api/utils/grpc/stream",
+        "//gen/proto/go/teleport/lib/teleterm/v1:teleterm",
+        "//lib/client",
+        "//lib/srv/desktop/tdp",
+        "//lib/teleterm/api/uri",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_grpc//:grpc",
+    ],
+)
+
+go_test(
+    name = "desktop_test",
+    srcs = [
+        "desktop_test.go",
+        "directorysharing_test.go",
+    ],
+    embed = [":desktop"],
+    deps = [
+        "//lib/teleterm/api/uri",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

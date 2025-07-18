@@ -1,0 +1,41 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "utils",
+    srcs = [
+        "eks_token_signed.go",
+        "utils.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/kube/utils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client",
+        "//api/client/proto",
+        "//api/types",
+        "//lib/automaticupgrades/version",
+        "@com_github_aws_aws_sdk_go_v2//aws/signer/v4:signer",
+        "@com_github_aws_aws_sdk_go_v2_service_sts//:sts",
+        "@com_github_aws_smithy_go//middleware",
+        "@com_github_aws_smithy_go//transport/http",
+        "@com_github_coreos_go_semver//semver",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@io_k8s_client_go//kubernetes",
+        "@io_k8s_client_go//rest",
+        "@io_k8s_client_go//tools/clientcmd",
+    ],
+)
+
+go_test(
+    name = "utils_test",
+    srcs = ["utils_test.go"],
+    embed = [":utils"],
+    deps = [
+        "//api/client/proto",
+        "//lib/automaticupgrades",
+        "//lib/automaticupgrades/version",
+        "@com_github_coreos_go_semver//semver",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

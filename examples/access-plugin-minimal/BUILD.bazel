@@ -1,0 +1,31 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "access-plugin-minimal_lib",
+    srcs = [
+        "config.go",
+        "createrow.go",
+        "main.go",
+        "makerowdata.go",
+        "plugin.go",
+        "updaterow.go",
+        "updatespreadsheet.go",
+        "watcherjob.go",
+    ],
+    importpath = "github.com/gravitational/teleport/examples/access-plugin-minimal",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//api/client",
+        "//api/types",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_api//option",
+        "@org_golang_google_api//sheets/v4:sheets",
+        "@org_golang_google_grpc//:grpc",
+    ],
+)
+
+go_binary(
+    name = "access-plugin-minimal",
+    embed = [":access-plugin-minimal_lib"],
+    visibility = ["//visibility:public"],
+)

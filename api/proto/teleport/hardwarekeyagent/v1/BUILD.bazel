@@ -1,0 +1,8 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "hardwarekeyagentv1_proto",
+    srcs = ["hardwarekeyagent_service.proto"],
+    visibility = ["//visibility:public"],
+    deps = ["@com_google_protobuf//:duration_proto"],
+)

@@ -1,0 +1,25 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "clickhouse",
+    srcs = [
+        "engine.go",
+        "engine_http.go",
+        "engine_native.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/srv/db/clickhouse",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/types",
+        "//lib/defaults",
+        "//lib/srv/db/common",
+        "//lib/srv/db/common/role",
+        "//lib/srv/db/endpoints",
+        "//lib/utils",
+        "@com_github_andybalholm_brotli//:brotli",
+        "@com_github_clickhouse_clickhouse_go_v2//:clickhouse-go",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_x_net//http/httpproxy",
+    ],
+)

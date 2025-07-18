@@ -1,0 +1,25 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "uacc",
+    srcs = [
+        "uacc.h",
+        "uacc_linux.go",
+        "uacc_stub.go",
+        "uacc_utils.go",
+    ],
+    cgo = True,
+    importpath = "github.com/gravitational/teleport/lib/srv/uacc",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_gravitational_trace//:trace",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:android": [
+            "//lib/utils",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            "//lib/utils",
+        ],
+        "//conditions:default": [],
+    }),
+)

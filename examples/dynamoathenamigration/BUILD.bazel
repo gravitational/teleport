@@ -1,0 +1,48 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "dynamoathenamigration",
+    srcs = [
+        "dynamo_deserializer.go",
+        "migration.go",
+    ],
+    importpath = "github.com/gravitational/teleport/examples/dynamoathenamigration",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types/events",
+        "//api/utils/prompt",
+        "//lib/events",
+        "//lib/events/athena",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2//aws/ratelimit",
+        "@com_github_aws_aws_sdk_go_v2//aws/retry",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
+        "@com_github_aws_aws_sdk_go_v2_feature_dynamodb_attributevalue//:attributevalue",
+        "@com_github_aws_aws_sdk_go_v2_feature_s3_manager//:manager",
+        "@com_github_aws_aws_sdk_go_v2_service_dynamodb//:dynamodb",
+        "@com_github_aws_aws_sdk_go_v2_service_dynamodb//types",
+        "@com_github_aws_aws_sdk_go_v2_service_s3//:s3",
+        "@com_github_aws_aws_sdk_go_v2_service_sns//:sns",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_x_sync//errgroup",
+    ],
+)
+
+go_test(
+    name = "dynamoathenamigration_test",
+    srcs = ["migration_test.go"],
+    embed = [":dynamoathenamigration"],
+    deps = [
+        "//api/types/events",
+        "//api/utils/prompt",
+        "//api/utils/retryutils",
+        "//lib/utils/log",
+        "//lib/utils/log/logtest",
+        "@com_github_aws_aws_sdk_go_v2_feature_s3_manager//:manager",
+        "@com_github_aws_aws_sdk_go_v2_service_s3//:s3",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_stretchr_testify//require",
+    ],
+)

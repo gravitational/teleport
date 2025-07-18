@@ -1,0 +1,42 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "userprovisioningv2",
+    srcs = ["service.go"],
+    importpath = "github.com/gravitational/teleport/lib/auth/userprovisioning/userprovisioningv2",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/userprovisioning/v2:userprovisioning",
+        "//api/types",
+        "//api/types/events",
+        "//lib/authz",
+        "//lib/events",
+        "//lib/services",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_protobuf//types/known/emptypb",
+    ],
+)
+
+go_test(
+    name = "userprovisioningv2_test",
+    srcs = ["service_test.go"],
+    embed = [":userprovisioningv2"],
+    deps = [
+        "//api/gen/proto/go/teleport/label/v1:label",
+        "//api/gen/proto/go/teleport/userprovisioning/v2:userprovisioning",
+        "//api/types",
+        "//api/types/events",
+        "//api/types/userprovisioning",
+        "//lib/authz",
+        "//lib/backend/memory",
+        "//lib/events",
+        "//lib/events/eventstest",
+        "//lib/services/local",
+        "//lib/tlsca",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_go_cmp//cmp/cmpopts",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

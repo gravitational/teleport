@@ -1,0 +1,25 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "workloadidentity",
+    srcs = [
+        "custom_types.go",
+        "resource_terraform.go",
+    ],
+    importpath = "github.com/gravitational/teleport/integrations/terraform/tfschema/workloadidentity/v1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/header/v1:header",
+        "//api/gen/proto/go/teleport/workloadidentity/v1:workloadidentity",
+        "//integrations/terraform/tfschema",
+        "//integrations/terraform/tfschema/resource153",
+        "@com_github_gogo_protobuf//proto",
+        "@com_github_hashicorp_terraform_plugin_framework//attr:go_default_library",
+        "@com_github_hashicorp_terraform_plugin_framework//diag:go_default_library",
+        "@com_github_hashicorp_terraform_plugin_framework//tfsdk:go_default_library",
+        "@com_github_hashicorp_terraform_plugin_framework//types:go_default_library",
+        "@com_github_hashicorp_terraform_plugin_go//tftypes:go_default_library",
+        "@org_golang_google_protobuf//types/known/durationpb",
+        "@org_golang_google_protobuf//types/known/structpb",
+    ],
+)

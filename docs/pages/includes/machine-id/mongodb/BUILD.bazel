@@ -1,0 +1,19 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "mongodb_lib",
+    srcs = ["mongodb.go"],
+    importpath = "github.com/gravitational/teleport/docs/pages/includes/machine-id/mongodb",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@org_mongodb_go_mongo_driver//bson",
+        "@org_mongodb_go_mongo_driver//mongo",
+        "@org_mongodb_go_mongo_driver//mongo/options",
+    ],
+)
+
+go_binary(
+    name = "mongodb",
+    embed = [":mongodb_lib"],
+    visibility = ["//visibility:public"],
+)

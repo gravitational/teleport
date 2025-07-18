@@ -1,0 +1,63 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "handler",
+    srcs = [
+        "handler.go",
+        "handler_access_requests.go",
+        "handler_apps.go",
+        "handler_auth.go",
+        "handler_clusters.go",
+        "handler_connectmycomputer.go",
+        "handler_databases.go",
+        "handler_desktops.go",
+        "handler_device_trust.go",
+        "handler_file_transfer.go",
+        "handler_gateways.go",
+        "handler_headless.go",
+        "handler_kubes.go",
+        "handler_tshd_events.go",
+        "handler_unified_resources.go",
+        "handler_usage_events.go",
+        "handler_user_preferences.go",
+        "time_converter.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/teleterm/apiserver/handler",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/client/proto",
+        "//api/constants",
+        "//api/gen/proto/go/teleport/accesslist/v1:accesslist",
+        "//api/types",
+        "//api/types/accesslist/convert/v1:convert",
+        "//gen/proto/go/teleport/lib/teleterm/v1:teleterm",
+        "//lib/client",
+        "//lib/teleterm/api/uri",
+        "//lib/teleterm/clusters",
+        "//lib/teleterm/cmd",
+        "//lib/teleterm/daemon",
+        "//lib/teleterm/gateway",
+        "//lib/ui",
+        "//lib/utils",
+        "//lib/utils/log",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)
+
+go_test(
+    name = "handler_test",
+    srcs = [
+        "handler_gateways_test.go",
+        "time_converter_test.go",
+    ],
+    embed = [":handler"],
+    deps = [
+        "//gen/proto/go/teleport/lib/teleterm/v1:teleterm",
+        "//lib/teleterm/cmd",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)

@@ -1,0 +1,13 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "loginrulev1",
+    srcs = ["service.go"],
+    importpath = "github.com/gravitational/teleport/lib/auth/loginrule/loginrulev1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/loginrule/v1:loginrule",
+        "//lib/services",
+        "@org_golang_google_protobuf//types/known/emptypb",
+    ],
+)

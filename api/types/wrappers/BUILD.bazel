@@ -1,0 +1,16 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "wrappers",
+    srcs = [
+        "wrappers.go",
+        "wrappers.pb.go",
+    ],
+    importpath = "github.com/gravitational/teleport/api/types/wrappers",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_gogo_protobuf//gogoproto",
+        "@com_github_gogo_protobuf//proto",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)

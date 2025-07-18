@@ -1,0 +1,7 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "auto_updatev1_proto",
+    srcs = ["auto_update_service.proto"],
+    visibility = ["//visibility:public"],
+)

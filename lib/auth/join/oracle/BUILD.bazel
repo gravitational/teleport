@@ -1,0 +1,30 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "oracle",
+    srcs = ["oracle.go"],
+    importpath = "github.com/gravitational/teleport/lib/auth/join/oracle",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api",
+        "//api/gen/proto/go/teleport/workloadidentity/v1:workloadidentity",
+        "//lib/defaults",
+        "//lib/utils/log",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_oracle_oci_go_sdk_v65//common",
+        "@com_github_oracle_oci_go_sdk_v65//common/auth",
+    ],
+)
+
+go_test(
+    name = "oracle_test",
+    srcs = ["oracle_test.go"],
+    embed = [":oracle"],
+    deps = [
+        "//lib/fixtures",
+        "@com_github_oracle_oci_go_sdk_v65//common",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,12 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "piv",
+    srcs = ["service_unavailable.go"],
+    importpath = "github.com/gravitational/teleport/api/utils/keys/piv",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/utils/keys/hardwarekey",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)

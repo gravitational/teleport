@@ -1,0 +1,42 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "aws",
+    srcs = [
+        "aws.go",
+        "s3.go",
+        "signing.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/utils/aws",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types/events",
+        "//api/utils/aws",
+        "//lib/utils",
+        "//lib/utils/aws/region",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2//aws/arn",
+        "@com_github_aws_aws_sdk_go_v2//aws/signer/v4:signer",
+        "@com_github_aws_aws_sdk_go_v2_feature_s3_manager//:manager",
+        "@com_github_aws_aws_sdk_go_v2_service_s3//:s3",
+        "@com_github_aws_aws_sdk_go_v2_service_s3//types",
+        "@com_github_aws_smithy_go//:smithy-go",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+    ],
+)
+
+go_test(
+    name = "aws_test",
+    srcs = [
+        "aws_test.go",
+        "s3_test.go",
+    ],
+    embed = [":aws"],
+    deps = [
+        "@com_github_aws_aws_sdk_go_v2_feature_s3_manager//:manager",
+        "@com_github_aws_aws_sdk_go_v2_service_s3//:s3",
+        "@com_github_aws_aws_sdk_go_v2_service_s3//types",
+        "@com_github_stretchr_testify//require",
+    ],
+)

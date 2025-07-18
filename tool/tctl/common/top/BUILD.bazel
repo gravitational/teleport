@@ -1,0 +1,35 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "top",
+    srcs = [
+        "box.go",
+        "command.go",
+        "model.go",
+        "report.go",
+        "table.go",
+    ],
+    importpath = "github.com/gravitational/teleport/tool/tctl/common/top",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/constants",
+        "//api/types",
+        "//lib/service/servicecfg",
+        "//lib/utils",
+        "//tool/tctl/common/client",
+        "//tool/tctl/common/config",
+        "@com_github_alecthomas_kingpin_v2//:kingpin",
+        "@com_github_charmbracelet_bubbles//help",
+        "@com_github_charmbracelet_bubbles//key",
+        "@com_github_charmbracelet_bubbletea//:bubbletea",
+        "@com_github_charmbracelet_lipgloss//:lipgloss",
+        "@com_github_dustin_go_humanize//:go-humanize",
+        "@com_github_gravitational_roundtrip//:roundtrip",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_guptarohit_asciigraph//:asciigraph",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@com_github_prometheus_client_model//go",
+        "@com_github_prometheus_common//expfmt",
+    ],
+)

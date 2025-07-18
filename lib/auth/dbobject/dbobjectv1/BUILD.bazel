@@ -1,0 +1,35 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "dbobjectv1",
+    srcs = ["service.go"],
+    importpath = "github.com/gravitational/teleport/lib/auth/dbobject/dbobjectv1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/gen/proto/go/teleport/dbobject/v1:dbobject",
+        "//api/types",
+        "//lib/authz",
+        "//lib/services",
+        "//lib/srv/db/common/databaseobject",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_protobuf//types/known/emptypb",
+    ],
+)
+
+go_test(
+    name = "dbobjectv1_test",
+    srcs = ["service_test.go"],
+    embed = [":dbobjectv1"],
+    deps = [
+        "//api/gen/proto/go/teleport/dbobject/v1:dbobject",
+        "//api/types",
+        "//lib/authz",
+        "//lib/backend/memory",
+        "//lib/services",
+        "//lib/services/local",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

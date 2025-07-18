@@ -1,0 +1,7 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "stableunixusersv1_proto",
+    srcs = ["stableunixusers.proto"],
+    visibility = ["//visibility:public"],
+)

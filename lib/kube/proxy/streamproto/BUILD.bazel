@@ -1,0 +1,27 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "streamproto",
+    srcs = ["proto.go"],
+    importpath = "github.com/gravitational/teleport/lib/kube/proxy/streamproto",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//lib/utils",
+        "@com_github_gorilla_websocket//:websocket",
+        "@com_github_gravitational_trace//:trace",
+        "@io_k8s_client_go//tools/remotecommand",
+    ],
+)
+
+go_test(
+    name = "streamproto_test",
+    srcs = ["proto_test.go"],
+    embed = [":streamproto"],
+    deps = [
+        "//api/types",
+        "@com_github_gorilla_websocket//:websocket",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

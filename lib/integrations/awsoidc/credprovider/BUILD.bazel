@@ -1,0 +1,52 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "credprovider",
+    srcs = [
+        "credentialscache.go",
+        "integration_config_provider.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/integrations/awsoidc/credprovider",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/types",
+        "//lib/modules",
+        "//lib/utils/aws/stsutils",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2//aws/arn",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
+        "@com_github_aws_aws_sdk_go_v2_credentials//stscreds",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+    ],
+)
+
+go_test(
+    name = "credprovider_test",
+    srcs = [
+        "credentialscache_test.go",
+        "integration_config_provider_test.go",
+    ],
+    embed = [":credprovider"],
+    deps = [
+        "//api/types",
+        "//api/utils/keys",
+        "//entitlements",
+        "//lib/auth/testauthority",
+        "//lib/backend/memory",
+        "//lib/integrations/awsoidc",
+        "//lib/modules",
+        "//lib/modules/modulestest",
+        "//lib/services/local",
+        "//lib/utils/testutils",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_service_sts//:sts",
+        "@com_github_aws_aws_sdk_go_v2_service_sts//types",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

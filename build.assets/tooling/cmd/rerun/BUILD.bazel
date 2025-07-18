@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "rerun_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/gravitational/teleport/build.assets/tooling/cmd/rerun",
+    visibility = ["//visibility:private"],
+)
+
+go_binary(
+    name = "rerun",
+    embed = [":rerun_lib"],
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,46 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "events",
+    srcs = [
+        "api.go",
+        "athena.pb.go",
+        "conv.go",
+        "events.go",
+        "events.pb.go",
+        "metadata.go",
+        "oneof.go",
+        "resource_ids.go",
+        "struct.go",
+        "unknown.go",
+    ],
+    importpath = "github.com/gravitational/teleport/api/types/events",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/accesslist/v1:accesslist",
+        "//api/gen/proto/go/teleport/auditlog/v1:auditlog",
+        "//api/types",
+        "//api/types/common",
+        "//api/types/wrappers",
+        "//api/utils",
+        "@com_github_gogo_protobuf//gogoproto",
+        "@com_github_gogo_protobuf//jsonpb",
+        "@com_github_gogo_protobuf//proto",
+        "@com_github_gogo_protobuf//types",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_protobuf//types/known/structpb",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)
+
+go_test(
+    name = "events_test",
+    srcs = ["events_test.go"],
+    embed = [":events"],
+    deps = [
+        "@com_github_gogo_protobuf//types",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_go_cmp//cmp/cmpopts",
+        "@com_github_stretchr_testify//require",
+    ],
+)

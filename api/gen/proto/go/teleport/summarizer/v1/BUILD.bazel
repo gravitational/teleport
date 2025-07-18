@@ -1,0 +1,20 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "summarizer",
+    srcs = [
+        "summarizer.pb.go",
+        "summarizer_service.pb.go",
+        "summarizer_service_grpc.pb.go",
+    ],
+    importpath = "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/header/v1:header",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+    ],
+)

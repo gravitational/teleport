@@ -1,0 +1,28 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "stream",
+    srcs = [
+        "legacy.go",
+        "stream.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/itertools/stream",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/internalutils/stream",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "stream_test",
+    srcs = [
+        "legacy_test.go",
+        "stream_test.go",
+    ],
+    embed = [":stream"],
+    deps = [
+        "//api/internalutils/stream",
+        "@com_github_stretchr_testify//require",
+    ],
+)

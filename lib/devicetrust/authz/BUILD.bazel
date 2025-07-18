@@ -1,0 +1,40 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "authz",
+    srcs = [
+        "authz.go",
+        "trusted_device_requirement.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/devicetrust/authz",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/constants",
+        "//api/types",
+        "//lib/devicetrust/config",
+        "//lib/sshca",
+        "//lib/tlsca",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "authz_test",
+    srcs = [
+        "authz_test.go",
+        "trusted_device_requirement_test.go",
+    ],
+    deps = [
+        ":authz",
+        "//:teleport",
+        "//api/constants",
+        "//api/types",
+        "//lib/modules",
+        "//lib/modules/modulestest",
+        "//lib/sshca",
+        "//lib/tlsca",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

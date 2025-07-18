@@ -1,0 +1,19 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "tctl",
+    srcs = [
+        "resources.go",
+        "tctl.go",
+    ],
+    importpath = "github.com/gravitational/teleport/integrations/lib/tctl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//integrations/lib/logger",
+        "//lib/utils/log",
+        "@com_github_ghodss_yaml//:yaml",
+        "@com_github_gravitational_trace//:trace",
+        "@io_k8s_apimachinery//pkg/util/yaml",
+    ],
+)

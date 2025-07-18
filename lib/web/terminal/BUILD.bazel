@@ -1,0 +1,26 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "terminal",
+    srcs = [
+        "envelope.pb.go",
+        "terminal.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/web/terminal",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/client/proto",
+        "//api/observability/tracing/ssh",
+        "//lib/client",
+        "//lib/defaults",
+        "//lib/session",
+        "//lib/utils",
+        "//lib/utils/log",
+        "@com_github_gogo_protobuf//proto",
+        "@com_github_gorilla_websocket//:websocket",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_x_text//encoding",
+        "@org_golang_x_text//encoding/unicode",
+    ],
+)

@@ -1,0 +1,29 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "apiserver",
+    srcs = [
+        "apiserver.go",
+        "config.go",
+        "middleware.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/teleterm/apiserver",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/trail",
+        "//gen/proto/go/teleport/lib/teleterm/auto_update/v1:auto_update",
+        "//gen/proto/go/teleport/lib/teleterm/v1:teleterm",
+        "//gen/proto/go/teleport/lib/teleterm/vnet/v1:vnet",
+        "//lib/defaults",
+        "//lib/teleterm/apiserver/handler",
+        "//lib/teleterm/autoupdate",
+        "//lib/teleterm/clusteridcache",
+        "//lib/teleterm/daemon",
+        "//lib/teleterm/vnet",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@org_golang_google_grpc//:grpc",
+    ],
+)

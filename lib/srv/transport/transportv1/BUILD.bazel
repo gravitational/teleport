@@ -1,0 +1,53 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "transportv1",
+    srcs = ["transport.go"],
+    importpath = "github.com/gravitational/teleport/lib/srv/transport/transportv1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/gen/proto/go/teleport/transport/v1:transport",
+        "//api/types",
+        "//api/utils/grpc/stream",
+        "//lib/agentless",
+        "//lib/authz",
+        "//lib/teleagent",
+        "//lib/utils",
+        "//lib/utils/log",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//peer",
+        "@org_golang_google_grpc//status",
+        "@org_golang_x_crypto//ssh/agent",
+    ],
+)
+
+go_test(
+    name = "transportv1_test",
+    srcs = ["transport_test.go"],
+    embed = [":transportv1"],
+    deps = [
+        "//api/gen/proto/go/teleport/transport/v1:transport",
+        "//api/types",
+        "//api/utils/grpc/interceptors",
+        "//api/utils/grpc/stream",
+        "//lib/agentless",
+        "//lib/authz",
+        "//lib/cryptosuites",
+        "//lib/services",
+        "//lib/teleagent",
+        "//lib/utils",
+        "//lib/utils/log/logtest",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//test/bufconn",
+        "@org_golang_x_crypto//ssh",
+        "@org_golang_x_crypto//ssh/agent",
+    ],
+)

@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "packagemanager",
+    srcs = [
+        "apt.go",
+        "distro_info.go",
+        "package_metadata.go",
+        "system_binaries.go",
+        "yum.go",
+        "zypper.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/utils/packagemanager",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//lib/defaults",
+        "//lib/linux",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)

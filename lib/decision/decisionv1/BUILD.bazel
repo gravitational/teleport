@@ -1,0 +1,33 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "decisionv1",
+    srcs = ["decision_service.go"],
+    importpath = "github.com/gravitational/teleport/lib/decision/decisionv1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/decision/v1alpha1",
+        "//api/types",
+        "//lib/authz",
+        "//lib/decision",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "decisionv1_test",
+    srcs = [
+        "decision_service_test.go",
+        "env_test.go",
+    ],
+    deps = [
+        "//api/constants",
+        "//api/gen/proto/go/teleport/decision/v1alpha1",
+        "//api/types",
+        "//lib/auth",
+        "//lib/auth/authclient",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

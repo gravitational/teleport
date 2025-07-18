@@ -1,0 +1,57 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "msteams",
+    srcs = [
+        "app.go",
+        "bot.go",
+        "card.go",
+        "config.go",
+        "configure.go",
+        "plugindata.go",
+        "uninstall.go",
+        "validate.go",
+    ],
+    embedsrcs = [
+        "_tpl/color.png",
+        "_tpl/manifest.json",
+        "_tpl/outline.png",
+        "_tpl/teleport-msteams-role.yaml",
+        "_tpl/teleport-msteams.toml",
+    ],
+    importpath = "github.com/gravitational/teleport/integrations/access/msteams",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client/proto",
+        "//api/types",
+        "//integrations/access/accessmonitoring",
+        "//integrations/access/common",
+        "//integrations/access/common/teleport",
+        "//integrations/access/msteams/msapi",
+        "//integrations/lib",
+        "//integrations/lib/logger",
+        "//integrations/lib/plugindata",
+        "//integrations/lib/stringset",
+        "//integrations/lib/watcherjob",
+        "//lib/utils",
+        "@com_github_danieltitkov_go_adaptive_cards//:go-adaptive-cards",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_pelletier_go_toml//:go-toml",
+    ],
+)
+
+go_test(
+    name = "msteams_test",
+    srcs = [
+        "bot_test.go",
+        "plugindata_test.go",
+    ],
+    embed = [":msteams"],
+    deps = [
+        "//integrations/lib/plugindata",
+        "//lib/utils/log/logtest",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,43 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "auditd",
+    srcs = [
+        "auditd.go",
+        "auditd_linux.go",
+        "common.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/auditd",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_mdlayher_netlink//:netlink",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:android": [
+            "@com_github_mdlayher_netlink//nlenc",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            "@com_github_mdlayher_netlink//nlenc",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "auditd_test",
+    srcs = ["auditd_test.go"],
+    embed = [":auditd"],
+    deps = select({
+        "@io_bazel_rules_go//go/platform:android": [
+            "@com_github_mdlayher_netlink//:netlink",
+            "@com_github_mdlayher_netlink//nlenc",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            "@com_github_mdlayher_netlink//:netlink",
+            "@com_github_mdlayher_netlink//nlenc",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -1,0 +1,40 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "lite",
+    srcs = [
+        "atomicwrite.go",
+        "doc.go",
+        "lite.go",
+        "periodic.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/backend/lite",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/types",
+        "//api/utils",
+        "//lib/backend",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_mattn_go_sqlite3//:go-sqlite3",
+    ],
+)
+
+go_test(
+    name = "lite_test",
+    srcs = [
+        "atomicwrite_test.go",
+        "lite_test.go",
+    ],
+    embed = [":lite"],
+    deps = [
+        "//lib/backend",
+        "//lib/backend/test",
+        "//lib/utils/clocki",
+        "//lib/utils/log/logtest",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)

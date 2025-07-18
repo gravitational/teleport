@@ -1,0 +1,55 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "identityfile",
+    srcs = [
+        "identity.go",
+        "inmemory_config_writer.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/client/identityfile",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/identityfile",
+        "//api/profile",
+        "//api/utils/keypaths",
+        "//api/utils/keys",
+        "//api/utils/prompt",
+        "//lib/client",
+        "//lib/kube/kubeconfig",
+        "//lib/sshutils",
+        "//lib/tlsca",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_pavlo_v_chernykh_keystore_go_v4//:keystore-go",
+        "@com_sslmate_software_src_go_pkcs12//:go-pkcs12",
+    ],
+)
+
+go_test(
+    name = "identityfile_test",
+    srcs = [
+        "identity_test.go",
+        "inmemory_config_writer_test.go",
+    ],
+    embed = [":identityfile"],
+    deps = [
+        "//api/constants",
+        "//api/profile",
+        "//api/utils/keypaths",
+        "//api/utils/keys",
+        "//lib/auth/authclient",
+        "//lib/auth/testauthority",
+        "//lib/client",
+        "//lib/defaults",
+        "//lib/fixtures",
+        "//lib/kube/kubeconfig",
+        "//lib/sshca",
+        "//lib/sshutils",
+        "//lib/tlsca",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_crypto//ssh",
+    ],
+)

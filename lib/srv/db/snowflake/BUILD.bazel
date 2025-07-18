@@ -1,0 +1,38 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "snowflake",
+    srcs = [
+        "cache.go",
+        "constants.go",
+        "engine.go",
+        "http.go",
+        "models.go",
+        "test.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/srv/db/snowflake",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/types",
+        "//lib/defaults",
+        "//lib/jwt",
+        "//lib/srv/db/common",
+        "//lib/srv/db/common/role",
+        "//lib/srv/db/endpoints",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_prometheus_client_golang//prometheus",
+    ],
+)
+
+go_test(
+    name = "snowflake_test",
+    srcs = ["engine_test.go"],
+    embed = [":snowflake"],
+    deps = [
+        "@com_github_snowflakedb_gosnowflake//:gosnowflake",
+        "@com_github_stretchr_testify//require",
+    ],
+)

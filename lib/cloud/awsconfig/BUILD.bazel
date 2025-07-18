@@ -1,0 +1,45 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "awsconfig",
+    srcs = [
+        "awsconfig.go",
+        "cache.go",
+        "provider.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/cloud/awsconfig",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/integration/v1:integration",
+        "//api/types",
+        "//lib/integrations/awsra",
+        "//lib/modules",
+        "//lib/utils",
+        "//lib/utils/aws/stsutils",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
+        "@com_github_aws_aws_sdk_go_v2_credentials//stscreds",
+        "@com_github_aws_aws_sdk_go_v2_service_sts//:sts",
+        "@com_github_aws_aws_sdk_go_v2_service_sts//types",
+        "@com_github_aws_smithy_go_tracing_smithyoteltracing//:smithyoteltracing",
+        "@com_github_gravitational_trace//:trace",
+        "@io_opentelemetry_go_otel//:otel",
+        "@org_golang_google_protobuf//types/known/durationpb",
+    ],
+)
+
+go_test(
+    name = "awsconfig_test",
+    srcs = ["awsconfig_test.go"],
+    embed = [":awsconfig"],
+    deps = [
+        "//api/gen/proto/go/teleport/integration/v1:integration",
+        "//api/types",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_service_sts//:sts",
+        "@com_github_aws_aws_sdk_go_v2_service_sts//types",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)

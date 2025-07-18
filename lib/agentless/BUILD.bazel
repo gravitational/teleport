@@ -1,0 +1,19 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "agentless",
+    srcs = ["agentless.go"],
+    importpath = "github.com/gravitational/teleport/lib/agentless",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client/proto",
+        "//api/types",
+        "//api/utils/keys",
+        "//api/utils/sshutils",
+        "//lib/authz",
+        "//lib/cryptosuites",
+        "//lib/sshca",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_x_crypto//ssh",
+    ],
+)

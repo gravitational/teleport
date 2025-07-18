@@ -1,0 +1,15 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "vnet_proto",
+    srcs = [
+        "vnet_config.proto",
+        "vnet_config_service.proto",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//teleport/header/v1:v1_proto",
+        "//teleport/vnet/v1:v1_proto",
+        "@com_google_protobuf//:empty_proto",
+    ],
+)

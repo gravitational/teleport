@@ -1,0 +1,60 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "quic",
+    srcs = [
+        "client.go",
+        "quic.go",
+        "server.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/proxy/peer/quic",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/trail",
+        "//api/types",
+        "//api/utils",
+        "//gen/proto/go/teleport/quicpeering/v1alpha",
+        "//lib/proxy/peer/dial",
+        "//lib/proxy/peer/internal",
+        "//lib/utils",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_quic_go_quic_go//:quic-go",
+        "@com_github_quic_go_quic_go//quicvarint",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+        "@org_golang_x_sync//errgroup",
+    ],
+)
+
+go_test(
+    name = "quic_test",
+    srcs = [
+        "quic_test.go",
+        "server_test.go",
+    ],
+    embed = [":quic"],
+    deps = [
+        "//api/types",
+        "//api/utils",
+        "//api/utils/keys",
+        "//gen/proto/go/teleport/quicpeering/v1alpha",
+        "//lib/cryptosuites",
+        "//lib/defaults",
+        "//lib/proxy/peer/dial",
+        "//lib/proxy/peer/internal",
+        "//lib/tlsca",
+        "//lib/utils",
+        "//lib/utils/log/logtest",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_quic_go_quic_go//:quic-go",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//proto",
+    ],
+)

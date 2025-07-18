@@ -1,0 +1,39 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "mcp",
+    srcs = [
+        "errors.go",
+        "mcp.go",
+        "server.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/client/db/mcp",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/client",
+        "//api/types",
+        "//lib/client/mcp",
+        "//lib/utils",
+        "@com_github_ghodss_yaml//:yaml",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_mark3labs_mcp_go//mcp",
+        "@com_github_mark3labs_mcp_go//server",
+    ],
+)
+
+go_test(
+    name = "mcp_test",
+    srcs = ["server_test.go"],
+    embed = [":mcp"],
+    deps = [
+        "//api/types",
+        "//lib/defaults",
+        "@com_github_ghodss_yaml//:yaml",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_go_cmp//cmp/cmpopts",
+        "@com_github_mark3labs_mcp_go//client",
+        "@com_github_mark3labs_mcp_go//mcp",
+        "@com_github_stretchr_testify//require",
+    ],
+)

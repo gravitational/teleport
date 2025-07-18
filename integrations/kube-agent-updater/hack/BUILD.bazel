@@ -1,0 +1,26 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "hack_lib",
+    srcs = ["cosign-fixtures.go"],
+    importpath = "github.com/gravitational/teleport/integrations/kube-agent-updater/hack",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@com_github_google_go_containerregistry//pkg/name",
+        "@com_github_google_go_containerregistry//pkg/v1:pkg",
+        "@com_github_google_go_containerregistry//pkg/v1/static",
+        "@com_github_google_go_containerregistry//pkg/v1/types",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_masterminds_sprig_v3//:sprig",
+        "@com_github_sigstore_cosign_v2//pkg/cosign",
+        "@com_github_sigstore_cosign_v2//pkg/oci",
+        "@com_github_sigstore_cosign_v2//pkg/oci/static",
+        "@com_github_sigstore_sigstore//pkg/signature/payload",
+    ],
+)
+
+go_binary(
+    name = "hack",
+    embed = [":hack_lib"],
+    visibility = ["//visibility:public"],
+)

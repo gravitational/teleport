@@ -1,0 +1,45 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "gcssessions",
+    srcs = [
+        "doc.go",
+        "gcshandler.go",
+        "gcsstream.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/events/gcssessions",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//lib/events",
+        "//lib/observability/metrics",
+        "//lib/session",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@com_google_cloud_go_storage//:storage",
+        "@org_golang_google_api//iterator",
+        "@org_golang_google_api//option",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials/insecure",
+    ],
+)
+
+go_test(
+    name = "gcssessions_test",
+    srcs = [
+        "gcshandler_test.go",
+        "gcsstream_test.go",
+    ],
+    embed = [":gcssessions"],
+    deps = [
+        "//:teleport",
+        "//lib/events/test",
+        "//lib/utils/log/logtest",
+        "@com_github_fsouza_fake_gcs_server//fakestorage",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+        "@com_google_cloud_go_storage//:storage",
+    ],
+)

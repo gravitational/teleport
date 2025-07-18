@@ -1,0 +1,23 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "db",
+    srcs = ["postgres.go"],
+    importpath = "github.com/gravitational/teleport/lib/player/db",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types/events",
+        "//api/utils",
+    ],
+)
+
+go_test(
+    name = "db_test",
+    srcs = ["postgres_test.go"],
+    embed = [":db"],
+    deps = [
+        "//api/types/events",
+        "//api/utils",
+        "@com_github_stretchr_testify//require",
+    ],
+)

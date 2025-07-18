@@ -1,0 +1,23 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "claude",
+    srcs = ["config.go"],
+    importpath = "github.com/gravitational/teleport/lib/client/mcp/claude",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_tidwall_pretty//:pretty",
+        "@com_github_tidwall_sjson//:sjson",
+    ],
+)
+
+go_test(
+    name = "claude_test",
+    srcs = ["config_test.go"],
+    embed = [":claude"],
+    deps = [
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

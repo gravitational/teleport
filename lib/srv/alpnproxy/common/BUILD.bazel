@@ -1,0 +1,24 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "common",
+    srcs = [
+        "kube.go",
+        "protocols.go",
+        "reporting.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/srv/alpnproxy/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/utils",
+        "//lib/defaults",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "common_test",
+    srcs = ["protocols_test.go"],
+    embed = [":common"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

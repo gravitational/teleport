@@ -1,0 +1,30 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testenv",
+    srcs = [
+        "fake_device_service.go",
+        "fake_macos_device.go",
+        "fake_tpm_device.go",
+        "testenv.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/devicetrust/testenv",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/devicetrust/v1:devicetrust",
+        "//api/utils/grpc/interceptors",
+        "//api/utils/sshutils",
+        "//lib/cryptosuites",
+        "//lib/devicetrust/assertserver",
+        "//lib/devicetrust/challenge",
+        "//lib/devicetrust/native",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//test/bufconn",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+        "@org_golang_x_crypto//ssh",
+    ],
+)

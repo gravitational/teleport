@@ -1,0 +1,31 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "permissions",
+    srcs = ["calculation.go"],
+    importpath = "github.com/gravitational/teleport/lib/srv/db/common/permissions",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/dbobject/v1:dbobject",
+        "//api/types",
+        "//api/types/events",
+        "//api/utils",
+        "//lib/services",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "permissions_test",
+    srcs = ["calculation_test.go"],
+    embed = [":permissions"],
+    deps = [
+        "//api/gen/proto/go/teleport/dbobject/v1:dbobject",
+        "//api/types",
+        "//api/types/events",
+        "//api/utils",
+        "//lib/srv/db/common/databaseobject",
+        "//lib/srv/db/common/databaseobjectimportrule",
+        "@com_github_stretchr_testify//require",
+    ],
+)

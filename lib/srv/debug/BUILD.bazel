@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "debug",
+    srcs = ["handlers.go"],
+    importpath = "github.com/gravitational/teleport/lib/srv/debug",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/utils/log",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "debug_test",
+    srcs = ["handlers_test.go"],
+    embed = [":debug"],
+    deps = [
+        "//lib/utils/log",
+        "@com_github_stretchr_testify//require",
+    ],
+)

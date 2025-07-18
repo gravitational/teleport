@@ -1,0 +1,25 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "convert",
+    srcs = ["header.go"],
+    importpath = "github.com/gravitational/teleport/api/types/header/convert/v1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/header/v1:header",
+        "//api/types/header",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)
+
+go_test(
+    name = "convert_test",
+    srcs = ["header_test.go"],
+    embed = [":convert"],
+    deps = [
+        "//api/gen/proto/go/teleport/header/v1:header",
+        "//api/types/header",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_stretchr_testify//require",
+    ],
+)

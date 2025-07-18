@@ -1,0 +1,25 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "userpreferences",
+    srcs = ["userpreferences.go"],
+    importpath = "github.com/gravitational/teleport/lib/teleterm/services/userpreferences",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/userpreferences/v1:userpreferences",
+        "//gen/proto/go/teleport/lib/teleterm/v1:teleterm",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_x_sync//errgroup",
+    ],
+)
+
+go_test(
+    name = "userpreferences_test",
+    srcs = ["userpreferences_test.go"],
+    embed = [":userpreferences"],
+    deps = [
+        "//api/gen/proto/go/userpreferences/v1:userpreferences",
+        "//gen/proto/go/teleport/lib/teleterm/v1:teleterm",
+        "@com_github_stretchr_testify//require",
+    ],
+)

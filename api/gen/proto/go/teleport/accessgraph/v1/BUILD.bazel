@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "accessgraph",
+    srcs = [
+        "authorized_key.pb.go",
+        "private_key.pb.go",
+        "secrets_service.pb.go",
+        "secrets_service_grpc.pb.go",
+    ],
+    importpath = "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/devicetrust/v1:devicetrust",
+        "//api/gen/proto/go/teleport/header/v1:header",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+    ],
+)

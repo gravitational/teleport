@@ -1,0 +1,51 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "resources",
+    srcs = [
+        "accesslist_types.go",
+        "appv3_types.go",
+        "autoupdateconfigv1_types.go",
+        "autoupdateversionv1_types.go",
+        "botv1_types.go",
+        "databasev3_types.go",
+        "groupversion_info.go",
+        "loginrule_types.go",
+        "okta_import_rule.go",
+        "openssheicserverv2_types.go",
+        "opensshserverv2_types.go",
+        "rolev6_types.go",
+        "rolev7_types.go",
+        "rolev8_types.go",
+        "trusted_cluster_types.go",
+        "workload_identityv1_types.go",
+        "zz_generated.deepcopy.go",
+    ],
+    importpath = "github.com/gravitational/teleport/integrations/operator/apis/resources/v1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/autoupdate/v1:autoupdate",
+        "//api/gen/proto/go/teleport/header/v1:header",
+        "//api/gen/proto/go/teleport/loginrule/v1:loginrule",
+        "//api/gen/proto/go/teleport/machineid/v1:machineid",
+        "//api/gen/proto/go/teleport/workloadidentity/v1:workloadidentity",
+        "//api/types",
+        "//api/types/accesslist",
+        "//api/types/header",
+        "//api/types/wrappers",
+        "//integrations/operator/apis/resources",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_sigs_controller_runtime//pkg/scheme",
+        "@org_golang_google_protobuf//encoding/protojson",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_test(
+    name = "resources_test",
+    srcs = ["botv1_types_test.go"],
+    embed = [":resources"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

@@ -1,0 +1,48 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "recordingencryption",
+    srcs = [
+        "age.go",
+        "encryptedio.go",
+        "manager.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/auth/recordingencryption",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/gen/proto/go/teleport/recordingencryption/v1:recordingencryption",
+        "//api/types",
+        "//api/utils/retryutils",
+        "//lib/backend",
+        "//lib/cryptosuites",
+        "//lib/services",
+        "@com_github_gravitational_trace//:trace",
+        "@io_filippo_age//:age",
+    ],
+)
+
+go_test(
+    name = "recordingencryption_test",
+    srcs = [
+        "age_test.go",
+        "encryptedio_test.go",
+        "manager_test.go",
+    ],
+    deps = [
+        ":recordingencryption",
+        "//api/gen/proto/go/teleport/recordingencryption/v1:recordingencryption",
+        "//api/types",
+        "//api/utils/keys",
+        "//lib/backend",
+        "//lib/backend/memory",
+        "//lib/cryptosuites",
+        "//lib/services",
+        "//lib/services/local",
+        "//lib/utils/log/logtest",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+        "@io_filippo_age//:age",
+    ],
+)

@@ -1,0 +1,13 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "github",
+    srcs = ["github.go"],
+    importpath = "github.com/gravitational/teleport/assets/backport/github",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_google_go_github_v70//:github",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_x_oauth2//:oauth2",
+    ],
+)

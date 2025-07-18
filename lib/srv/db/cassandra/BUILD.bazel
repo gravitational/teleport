@@ -1,0 +1,31 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "cassandra",
+    srcs = [
+        "conv.go",
+        "engine.go",
+        "handshake.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/srv/db/cassandra",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//api/types/events",
+        "//lib/cloud/awsconfig",
+        "//lib/events",
+        "//lib/srv/db/cassandra/protocol",
+        "//lib/srv/db/common",
+        "//lib/srv/db/common/role",
+        "//lib/srv/db/endpoints",
+        "//lib/utils",
+        "//lib/utils/aws",
+        "@com_github_aws_aws_sigv4_auth_cassandra_gocql_driver_plugin//sigv4",
+        "@com_github_datastax_go_cassandra_native_protocol//client",
+        "@com_github_datastax_go_cassandra_native_protocol//frame",
+        "@com_github_datastax_go_cassandra_native_protocol//message",
+        "@com_github_datastax_go_cassandra_native_protocol//primitive",
+        "@com_github_gocql_gocql//:gocql",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)

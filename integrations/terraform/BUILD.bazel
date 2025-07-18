@@ -1,0 +1,18 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "terraform_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/gravitational/teleport/integrations/terraform",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//integrations/terraform/provider",
+        "@com_github_hashicorp_terraform_plugin_framework//providerserver:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "terraform",
+    embed = [":terraform_lib"],
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,42 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "darwinbundle",
+    srcs = [
+        "darwinbundle_darwin.go",
+        "darwinbundle_darwin.h",
+        "darwinbundle_darwin.m",
+    ],
+    cgo = True,
+    clinkopts = select({
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "-framework Foundation",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "-framework Foundation",
+        ],
+        "//conditions:default": [],
+    }),
+    copts = select({
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "-Wall -xobjective-c -fblocks -fobjc-arc -mmacosx-version-min=11.0",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "-Wall -xobjective-c -fblocks -fobjc-arc -mmacosx-version-min=11.0",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/gravitational/teleport/lib/utils/darwinbundle",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "//lib/utils",
+            "@com_github_gravitational_trace//:trace",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "//lib/utils",
+            "@com_github_gravitational_trace//:trace",
+        ],
+        "//conditions:default": [],
+    }),
+)

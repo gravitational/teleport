@@ -1,0 +1,40 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sshca",
+    srcs = [
+        "encoding_helpers.go",
+        "identity.go",
+        "sshca.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/sshca",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/constants",
+        "//api/defaults",
+        "//api/types",
+        "//api/types/events",
+        "//api/types/wrappers",
+        "//api/utils/keys",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_x_crypto//ssh",
+    ],
+)
+
+go_test(
+    name = "sshca_test",
+    srcs = ["identity_test.go"],
+    embed = [":sshca"],
+    deps = [
+        "//api/constants",
+        "//api/types",
+        "//api/types/wrappers",
+        "//api/utils/keys",
+        "//lib/utils/testutils",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_crypto//ssh",
+    ],
+)

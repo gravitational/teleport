@@ -1,0 +1,11 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "quicpeeringv1alpha_proto",
+    srcs = ["dial.proto"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//google/rpc:rpc_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)

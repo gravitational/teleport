@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "strcase",
+    srcs = ["snake.go"],
+    importpath = "github.com/gravitational/teleport/integrations/terraform/gen/strcase",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "strcase_test",
+    srcs = ["snake_test.go"],
+    embed = [":strcase"],
+)

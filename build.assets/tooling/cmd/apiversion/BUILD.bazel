@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "apiversion_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/gravitational/teleport/build.assets/tooling/cmd/apiversion",
+    visibility = ["//visibility:private"],
+    deps = ["@com_github_coreos_go_semver//semver"],
+)
+
+go_binary(
+    name = "apiversion",
+    embed = [":apiversion_lib"],
+    visibility = ["//visibility:public"],
+)

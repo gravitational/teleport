@@ -1,0 +1,23 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "controllers",
+    srcs = [
+        "reconciler.go",
+        "scheme.go",
+    ],
+    importpath = "github.com/gravitational/teleport/integrations/operator/controllers",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//integrations/operator/apis/resources/v1:resources",
+        "//integrations/operator/apis/resources/v2:resources",
+        "//integrations/operator/apis/resources/v3:resources",
+        "//integrations/operator/apis/resources/v5:resources",
+        "@io_k8s_apiextensions_apiserver//pkg/apis/apiextensions/v1:apiextensions",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/util/runtime",
+        "@io_k8s_client_go//kubernetes/scheme",
+        "@io_k8s_sigs_controller_runtime//pkg/manager",
+        "@io_k8s_sigs_controller_runtime//pkg/reconcile",
+    ],
+)

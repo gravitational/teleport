@@ -1,0 +1,35 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "devicetrust",
+    srcs = [
+        "assert.pb.go",
+        "authenticate_challenge.pb.go",
+        "device.pb.go",
+        "device_collected_data.pb.go",
+        "device_confirmation_token.pb.go",
+        "device_enroll_token.pb.go",
+        "device_profile.pb.go",
+        "device_source.pb.go",
+        "device_web_token.pb.go",
+        "devicetrust_service.pb.go",
+        "devicetrust_service_grpc.pb.go",
+        "os_type.pb.go",
+        "tpm.pb.go",
+        "usage.pb.go",
+        "user_certificates.pb.go",
+    ],
+    importpath = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@org_golang_google_genproto_googleapis_rpc//status",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+        "@org_golang_google_protobuf//types/known/emptypb",
+        "@org_golang_google_protobuf//types/known/fieldmaskpb",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)

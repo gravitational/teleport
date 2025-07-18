@@ -1,0 +1,48 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "databaseobjectimportrule",
+    srcs = [
+        "apply.go",
+        "create.go",
+        "preset.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/defaults",
+        "//api/gen/proto/go/teleport/dbobject/v1:dbobject",
+        "//api/gen/proto/go/teleport/dbobjectimportrule/v1:dbobjectimportrule",
+        "//api/gen/proto/go/teleport/header/v1:header",
+        "//api/types",
+        "//api/types/label",
+        "//api/utils",
+        "//lib/services",
+        "//lib/utils",
+        "//lib/utils/typical",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_test(
+    name = "databaseobjectimportrule_test",
+    srcs = [
+        "apply_test.go",
+        "create_test.go",
+        "preset_test.go",
+    ],
+    embed = [":databaseobjectimportrule"],
+    deps = [
+        "//api/defaults",
+        "//api/gen/proto/go/teleport/dbobject/v1:dbobject",
+        "//api/gen/proto/go/teleport/dbobjectimportrule/v1:dbobjectimportrule",
+        "//api/gen/proto/go/teleport/header/v1:header",
+        "//api/types",
+        "//api/types/label",
+        "//lib/srv/db/common/databaseobject",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

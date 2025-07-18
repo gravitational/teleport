@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "discoveryconfig",
+    srcs = ["discoveryconfig.go"],
+    importpath = "github.com/gravitational/teleport/api/client/discoveryconfig",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/discoveryconfig/v1:discoveryconfig",
+        "//api/types/discoveryconfig",
+        "//api/types/discoveryconfig/convert/v1:convert",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)

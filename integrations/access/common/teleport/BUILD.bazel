@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "teleport",
+    srcs = ["client.go"],
+    importpath = "github.com/gravitational/teleport/integrations/access/common/teleport",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client/proto",
+        "//api/gen/proto/go/teleport/accessmonitoringrules/v1:accessmonitoringrules",
+        "//api/types",
+        "//api/types/accesslist",
+        "//integrations/lib/plugindata",
+    ],
+)

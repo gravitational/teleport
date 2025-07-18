@@ -1,0 +1,113 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "authorizedkeys",
+    srcs = [
+        "authorized_keys.go",
+        "supervisor.go",
+        "users_list.go",
+        "users_list_darwin.go",
+        "users_list_unix.go",
+    ],
+    cgo = True,
+    copts = select({
+        "@io_bazel_rules_go//go/platform:aix": [
+            "-D_POSIX_PTHREAD_SEMANTICS",
+            "-D_POSIX_PTHREAD_SEMANTICS -D__USE_MISC",
+        ],
+        "@io_bazel_rules_go//go/platform:android": [
+            "-D_POSIX_PTHREAD_SEMANTICS",
+            "-D_POSIX_PTHREAD_SEMANTICS -D__USE_MISC",
+        ],
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "-D_POSIX_PTHREAD_SEMANTICS",
+        ],
+        "@io_bazel_rules_go//go/platform:dragonfly": [
+            "-D_POSIX_PTHREAD_SEMANTICS",
+            "-D_POSIX_PTHREAD_SEMANTICS -D__USE_MISC",
+        ],
+        "@io_bazel_rules_go//go/platform:freebsd": [
+            "-D_POSIX_PTHREAD_SEMANTICS",
+            "-D_POSIX_PTHREAD_SEMANTICS -D__USE_MISC",
+        ],
+        "@io_bazel_rules_go//go/platform:illumos": [
+            "-D_POSIX_PTHREAD_SEMANTICS",
+            "-D_POSIX_PTHREAD_SEMANTICS -D__USE_MISC",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "-D_POSIX_PTHREAD_SEMANTICS",
+        ],
+        "@io_bazel_rules_go//go/platform:js": [
+            "-D_POSIX_PTHREAD_SEMANTICS",
+            "-D_POSIX_PTHREAD_SEMANTICS -D__USE_MISC",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            "-D_POSIX_PTHREAD_SEMANTICS",
+            "-D_POSIX_PTHREAD_SEMANTICS -D__USE_MISC",
+        ],
+        "@io_bazel_rules_go//go/platform:netbsd": [
+            "-D_POSIX_PTHREAD_SEMANTICS",
+            "-D_POSIX_PTHREAD_SEMANTICS -D__USE_MISC",
+        ],
+        "@io_bazel_rules_go//go/platform:openbsd": [
+            "-D_POSIX_PTHREAD_SEMANTICS",
+            "-D_POSIX_PTHREAD_SEMANTICS -D__USE_MISC",
+        ],
+        "@io_bazel_rules_go//go/platform:osx": [
+            "-D_POSIX_PTHREAD_SEMANTICS",
+            "-D_POSIX_PTHREAD_SEMANTICS -D__USE_MISC",
+        ],
+        "@io_bazel_rules_go//go/platform:plan9": [
+            "-D_POSIX_PTHREAD_SEMANTICS",
+            "-D_POSIX_PTHREAD_SEMANTICS -D__USE_MISC",
+        ],
+        "@io_bazel_rules_go//go/platform:qnx": [
+            "-D_POSIX_PTHREAD_SEMANTICS",
+            "-D_POSIX_PTHREAD_SEMANTICS -D__USE_MISC",
+        ],
+        "@io_bazel_rules_go//go/platform:solaris": [
+            "-D_POSIX_PTHREAD_SEMANTICS",
+            "-D_POSIX_PTHREAD_SEMANTICS -D__USE_MISC",
+        ],
+        "@io_bazel_rules_go//go/platform:windows": [
+            "-D_POSIX_PTHREAD_SEMANTICS -D__USE_MISC",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/gravitational/teleport/lib/secretsscanner/authorizedkeys",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/constants",
+        "//api/gen/proto/go/teleport/accessgraph/v1:accessgraph",
+        "//api/gen/proto/go/teleport/clusterconfig/v1:clusterconfig",
+        "//api/types/accessgraph",
+        "//api/utils/retryutils",
+        "@com_github_fsnotify_fsnotify//:fsnotify",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@org_golang_x_crypto//ssh",
+    ],
+)
+
+go_test(
+    name = "authorizedkeys_test",
+    srcs = [
+        "authorized_keys_test.go",
+        "supervisor_test.go",
+    ],
+    embed = [":authorizedkeys"],
+    deps = [
+        "//api/constants",
+        "//api/gen/proto/go/teleport/accessgraph/v1:accessgraph",
+        "//api/gen/proto/go/teleport/clusterconfig/v1:clusterconfig",
+        "//api/gen/proto/go/teleport/header/v1:header",
+        "//api/types/accessgraph",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_protobuf//testing/protocmp",
+        "@org_golang_x_sync//errgroup",
+    ],
+)

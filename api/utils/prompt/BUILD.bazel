@@ -1,0 +1,32 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "prompt",
+    srcs = [
+        "confirmation.go",
+        "context_reader.go",
+        "mock.go",
+        "stdin.go",
+    ],
+    importpath = "github.com/gravitational/teleport/api/utils/prompt",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_x_term//:term",
+    ],
+)
+
+go_test(
+    name = "prompt_test",
+    srcs = [
+        "confirmation_test.go",
+        "context_reader_test.go",
+    ],
+    embed = [":prompt"],
+    deps = [
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_term//:term",
+    ],
+)

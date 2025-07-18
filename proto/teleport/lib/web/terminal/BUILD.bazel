@@ -1,0 +1,7 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "terminal_proto",
+    srcs = ["envelope.proto"],
+    visibility = ["//visibility:public"],
+)

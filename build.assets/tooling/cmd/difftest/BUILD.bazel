@@ -1,0 +1,41 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+go_library(
+    name = "difftest_lib",
+    srcs = [
+        "ast.go",
+        "compare.go",
+        "diff.go",
+        "git.go",
+        "main.go",
+        "stringset.go",
+    ],
+    importpath = "github.com/gravitational/teleport/build.assets/tooling/cmd/difftest",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@com_github_alecthomas_kingpin_v2//:kingpin",
+        "@com_github_bmatcuk_doublestar_v4//:doublestar",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_waigani_diffparser//:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "difftest",
+    embed = [":difftest_lib"],
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "difftest_test",
+    srcs = [
+        "ast_test.go",
+        "compare_test.go",
+        "diff_test.go",
+    ],
+    embed = [":difftest_lib"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,23 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "puttyhosts",
+    srcs = ["puttyhosts.go"],
+    importpath = "github.com/gravitational/teleport/lib/puttyhosts",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//lib/auth/authclient",
+        "//lib/client",
+        "//lib/sshutils",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_x_crypto//ssh",
+    ],
+)
+
+go_test(
+    name = "puttyhosts_test",
+    srcs = ["puttyhosts_test.go"],
+    embed = [":puttyhosts"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

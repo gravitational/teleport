@@ -1,0 +1,27 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "createsession",
+    srcs = ["createsession.go"],
+    importpath = "github.com/gravitational/teleport/lib/integrations/awsra/createsession",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/utils/aws",
+        "//lib/defaults",
+        "//lib/utils",
+        "@com_github_aws_aws_sdk_go_v2//aws/arn",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+    ],
+)
+
+go_test(
+    name = "createsession_test",
+    srcs = ["createsession_test.go"],
+    embed = [":createsession"],
+    deps = [
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)

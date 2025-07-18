@@ -1,0 +1,18 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "common",
+    srcs = [
+        "common.go",
+        "constants.go",
+    ],
+    importpath = "github.com/gravitational/teleport/api/types/common",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "common_test",
+    srcs = ["common_test.go"],
+    embed = [":common"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

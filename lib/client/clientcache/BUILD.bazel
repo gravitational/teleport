@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "clientcache",
+    srcs = ["clientcache.go"],
+    importpath = "github.com/gravitational/teleport/lib/client/clientcache",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//lib/client",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_x_sync//singleflight",
+    ],
+)

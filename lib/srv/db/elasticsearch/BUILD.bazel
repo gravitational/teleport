@@ -1,0 +1,42 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "elasticsearch",
+    srcs = [
+        "categories.go",
+        "engine.go",
+        "test.go",
+        "util.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/srv/db/elasticsearch",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/types",
+        "//api/types/events",
+        "//api/types/wrappers",
+        "//lib/events",
+        "//lib/srv/db/common",
+        "//lib/srv/db/common/role",
+        "//lib/srv/db/endpoints",
+        "//lib/utils",
+        "@com_github_ghodss_yaml//:yaml",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_prometheus_client_golang//prometheus",
+    ],
+)
+
+go_test(
+    name = "elasticsearch_test",
+    srcs = [
+        "categories_test.go",
+        "fuzz_test.go",
+        "util_test.go",
+    ],
+    embed = [":elasticsearch"],
+    deps = [
+        "//api/types/events",
+        "@com_github_ghodss_yaml//:yaml",
+        "@com_github_stretchr_testify//require",
+    ],
+)

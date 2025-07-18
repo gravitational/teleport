@@ -1,0 +1,11 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "memsessions_test",
+    srcs = ["memstream_test.go"],
+    deps = [
+        "//lib/events/eventstest",
+        "//lib/events/test",
+        "//lib/utils/log/logtest",
+    ],
+)

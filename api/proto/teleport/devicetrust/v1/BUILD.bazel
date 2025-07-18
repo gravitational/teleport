@@ -1,0 +1,29 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "devicetrustv1_proto",
+    srcs = [
+        "assert.proto",
+        "authenticate_challenge.proto",
+        "device.proto",
+        "device_collected_data.proto",
+        "device_confirmation_token.proto",
+        "device_enroll_token.proto",
+        "device_profile.proto",
+        "device_source.proto",
+        "device_web_token.proto",
+        "devicetrust_service.proto",
+        "os_type.proto",
+        "tpm.proto",
+        "usage.proto",
+        "user_certificates.proto",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//google/rpc:rpc_proto",
+        "//teleport/devicetrust/v1:v1_proto",
+        "@com_google_protobuf//:empty_proto",
+        "@com_google_protobuf//:field_mask_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)

@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "vnet",
+    srcs = ["vnet.go"],
+    importpath = "github.com/gravitational/teleport/api/types/vnet",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/header/v1:header",
+        "//api/gen/proto/go/teleport/vnet/v1:vnet",
+        "//api/types",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)

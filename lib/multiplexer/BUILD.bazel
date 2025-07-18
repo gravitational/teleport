@@ -1,0 +1,61 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "multiplexer",
+    srcs = [
+        "multiplexer.go",
+        "proxyline.go",
+        "testproxy.go",
+        "tls.go",
+        "web.go",
+        "wrappers.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/multiplexer",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/types",
+        "//lib/defaults",
+        "//lib/jwt",
+        "//lib/loglimit",
+        "//lib/srv/db/dbutils",
+        "//lib/tlsca",
+        "//lib/utils",
+        "//lib/utils/log",
+        "//lib/utils/log/logtest",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@org_golang_x_net//http2",
+    ],
+)
+
+go_test(
+    name = "multiplexer_test",
+    srcs = [
+        "multiplexer_test.go",
+        "proxyline_test.go",
+        "wrapper_test.go",
+    ],
+    embed = [":multiplexer"],
+    deps = [
+        "//api/types",
+        "//api/utils/keys",
+        "//lib/cryptosuites",
+        "//lib/fixtures",
+        "//lib/httplib",
+        "//lib/jwt",
+        "//lib/multiplexer/test",
+        "//lib/tlsca",
+        "//lib/utils",
+        "//lib/utils/cert",
+        "//lib/utils/log/logtest",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jackc_pgproto3_v2//:pgproto3",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_x_crypto//ssh",
+    ],
+)

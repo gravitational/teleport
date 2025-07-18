@@ -1,0 +1,52 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "installer",
+    srcs = [
+        "autodiscover.go",
+        "defaultinstallers.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/srv/server/installer",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api",
+        "//api/types",
+        "//api/types/installers",
+        "//lib/automaticupgrades/constants",
+        "//lib/automaticupgrades/version",
+        "//lib/cloud",
+        "//lib/cloud/gcp",
+        "//lib/cloud/imds",
+        "//lib/cloud/imds/aws",
+        "//lib/cloud/imds/azure",
+        "//lib/cloud/imds/gcp",
+        "//lib/cloud/imds/oracle",
+        "//lib/defaults",
+        "//lib/linux",
+        "//lib/utils",
+        "//lib/utils/packagemanager",
+        "//lib/web/scripts/oneoff",
+        "@com_github_google_safetext//shsprintf",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "installer_test",
+    srcs = [
+        "autodiscover_test.go",
+        "defaultinstallers_test.go",
+    ],
+    embed = [":installer"],
+    deps = [
+        "//api/types/installers",
+        "//lib/cloud/imds",
+        "//lib/cloud/imds/azure",
+        "//lib/cloud/imds/gcp",
+        "//lib/utils/packagemanager",
+        "@com_github_buildkite_bintest_v3//:bintest",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

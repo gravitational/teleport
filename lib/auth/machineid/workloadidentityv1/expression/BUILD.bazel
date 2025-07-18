@@ -1,0 +1,36 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "expression",
+    srcs = [
+        "evaluate.go",
+        "expression.go",
+        "proto.go",
+        "sigstore.go",
+        "template.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/expression",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/workloadidentity/v1:workloadidentity",
+        "//lib/expression",
+        "//lib/utils/typical",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+    ],
+)
+
+go_test(
+    name = "expression_test",
+    srcs = [
+        "evaluate_test.go",
+        "template_test.go",
+    ],
+    deps = [
+        ":expression",
+        "//api/gen/proto/go/teleport/trait/v1:trait",
+        "//api/gen/proto/go/teleport/workloadidentity/v1:workloadidentity",
+        "@com_github_stretchr_testify//require",
+    ],
+)

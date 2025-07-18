@@ -1,0 +1,47 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "accesslist",
+    srcs = [
+        "app.go",
+        "bot.go",
+    ],
+    importpath = "github.com/gravitational/teleport/integrations/access/accesslist",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//api/types/accesslist",
+        "//api/utils/retryutils",
+        "//integrations/access/common",
+        "//integrations/access/common/teleport",
+        "//integrations/lib",
+        "//integrations/lib/logger",
+        "//integrations/lib/plugindata",
+        "//lib/utils/log",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+    ],
+)
+
+go_test(
+    name = "accesslist_test",
+    srcs = ["app_test.go"],
+    embed = [":accesslist"],
+    deps = [
+        "//api/constants",
+        "//api/types",
+        "//api/types/accesslist",
+        "//api/types/header",
+        "//entitlements",
+        "//integrations/access/common",
+        "//integrations/access/common/teleport",
+        "//lib/auth",
+        "//lib/modules",
+        "//lib/modules/modulestest",
+        "//lib/services",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+    ],
+)

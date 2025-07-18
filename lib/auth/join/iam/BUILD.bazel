@@ -1,0 +1,33 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "iam",
+    srcs = [
+        "endpoints.go",
+        "iam.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/auth/join/iam",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/cloud/imds/aws",
+        "//lib/utils/aws/stsutils",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
+        "@com_github_aws_aws_sdk_go_v2_service_sts//:sts",
+        "@com_github_aws_smithy_go//endpoints",
+        "@com_github_aws_smithy_go_tracing_smithyoteltracing//:smithyoteltracing",
+        "@com_github_gravitational_trace//:trace",
+        "@io_opentelemetry_go_otel//:otel",
+    ],
+)
+
+go_test(
+    name = "iam_test",
+    srcs = ["iam_test.go"],
+    deps = [
+        ":iam",
+        "//lib/utils/aws",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

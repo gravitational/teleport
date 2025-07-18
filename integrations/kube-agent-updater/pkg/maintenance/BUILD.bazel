@@ -1,0 +1,41 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "maintenance",
+    srcs = [
+        "unhealthy.go",
+        "window.go",
+    ],
+    importpath = "github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/maintenance",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//integrations/kube-agent-updater/pkg/podutils",
+        "//lib/automaticupgrades/maintenance",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@io_k8s_api//apps/v1:apps",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/labels",
+        "@io_k8s_sigs_controller_runtime//pkg/client",
+        "@io_k8s_sigs_controller_runtime//pkg/log",
+    ],
+)
+
+go_test(
+    name = "maintenance_test",
+    srcs = [
+        "unhealthy_test.go",
+        "window_test.go",
+    ],
+    embed = [":maintenance"],
+    deps = [
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//apps/v1:apps",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_sigs_controller_runtime//pkg/client",
+        "@io_k8s_sigs_controller_runtime//pkg/client/fake",
+    ],
+)

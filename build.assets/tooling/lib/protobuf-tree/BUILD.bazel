@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "protobuf-tree",
+    srcs = ["tree.go"],
+    importpath = "github.com/gravitational/teleport/build.assets/tooling/lib/protobuf-tree",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_gogo_protobuf//gogoproto",
+        "@com_github_gogo_protobuf//proto",
+        "@com_github_gogo_protobuf//protoc-gen-gogo/descriptor",
+        "@com_github_gogo_protobuf//protoc-gen-gogo/generator",
+    ],
+)

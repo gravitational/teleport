@@ -1,0 +1,29 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cache",
+    srcs = [
+        "cache.go",
+        "utils.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/scopes/cache",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/scopes",
+        "//lib/utils/sortmap",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "cache_test",
+    srcs = [
+        "cache_test.go",
+        "utils_test.go",
+    ],
+    embed = [":cache"],
+    deps = [
+        "//lib/scopes",
+        "@com_github_stretchr_testify//require",
+    ],
+)

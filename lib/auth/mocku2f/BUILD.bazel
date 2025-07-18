@@ -1,0 +1,20 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "mocku2f",
+    srcs = [
+        "mocku2f.go",
+        "webauthn.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/auth/mocku2f",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/auth/webauthn",
+        "//lib/auth/webauthncli",
+        "//lib/auth/webauthntypes",
+        "@com_github_fxamacker_cbor_v2//:cbor",
+        "@com_github_go_webauthn_webauthn//protocol",
+        "@com_github_go_webauthn_webauthn//protocol/webauthncose",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)

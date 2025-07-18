@@ -1,0 +1,56 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "workloadidentity",
+    srcs = [
+        "crl_cache.go",
+        "issue.go",
+        "trust_bundle_cache.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/tbot/workloadidentity",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client",
+        "//api/gen/proto/go/teleport/machineid/v1:machineid",
+        "//api/gen/proto/go/teleport/trust/v1:trust",
+        "//api/gen/proto/go/teleport/workloadidentity/v1:workloadidentity",
+        "//api/types",
+        "//api/utils/keys",
+        "//lib/cryptosuites",
+        "//lib/jwt",
+        "//lib/services",
+        "//lib/tbot/config",
+        "//lib/tbot/readyz",
+        "//lib/tbot/workloadidentity/attrs",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_spiffe_go_spiffe_v2//bundle/jwtbundle",
+        "@com_github_spiffe_go_spiffe_v2//bundle/spiffebundle",
+        "@com_github_spiffe_go_spiffe_v2//bundle/x509bundle",
+        "@com_github_spiffe_go_spiffe_v2//spiffeid",
+        "@io_opentelemetry_go_otel//:otel",
+        "@org_golang_google_protobuf//types/known/durationpb",
+    ],
+)
+
+go_test(
+    name = "workloadidentity_test",
+    srcs = ["trust_bundle_cache_test.go"],
+    embed = [":workloadidentity"],
+    deps = [
+        "//api/gen/proto/go/teleport/header/v1:header",
+        "//api/gen/proto/go/teleport/machineid/v1:machineid",
+        "//api/gen/proto/go/teleport/trust/v1:trust",
+        "//api/types",
+        "//api/utils/keys",
+        "//lib/auth/testauthority",
+        "//lib/jwt",
+        "//lib/tlsca",
+        "//lib/utils/log/logtest",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_spiffe_go_spiffe_v2//bundle/spiffebundle",
+        "@com_github_spiffe_go_spiffe_v2//spiffeid",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+    ],
+)

@@ -1,0 +1,33 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "cloud",
+    srcs = [
+        "clients.go",
+        "doc.go",
+        "imds.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/cloud",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/cloud/azure",
+        "//lib/cloud/gcp",
+        "//lib/cloud/imds",
+        "//lib/cloud/imds/aws",
+        "//lib/cloud/imds/azure",
+        "//lib/cloud/imds/gcp",
+        "//lib/cloud/imds/oracle",
+        "@com_github_azure_azure_sdk_for_go_sdk_azcore//:azcore",
+        "@com_github_azure_azure_sdk_for_go_sdk_azcore//arm",
+        "@com_github_azure_azure_sdk_for_go_sdk_azidentity//:azidentity",
+        "@com_github_azure_azure_sdk_for_go_sdk_resourcemanager_containerservice_armcontainerservice_v6//:armcontainerservice",
+        "@com_github_azure_azure_sdk_for_go_sdk_resourcemanager_mysql_armmysql//:armmysql",
+        "@com_github_azure_azure_sdk_for_go_sdk_resourcemanager_postgresql_armpostgresql//:armpostgresql",
+        "@com_github_azure_azure_sdk_for_go_sdk_resourcemanager_subscription_armsubscription//:armsubscription",
+        "@com_github_gravitational_trace//:trace",
+        "@com_google_cloud_go_iam//credentials/apiv1",
+        "@org_golang_google_api//option",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials/insecure",
+    ],
+)

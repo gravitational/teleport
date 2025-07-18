@@ -1,0 +1,30 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "auth",
+    srcs = ["auth_proxy.go"],
+    importpath = "github.com/gravitational/teleport/lib/srv/alpnproxy/auth",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/defaults",
+        "//api/utils",
+        "//lib/multiplexer",
+        "//lib/reversetunnelclient",
+        "//lib/srv/alpnproxy",
+        "//lib/srv/alpnproxy/common",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+        "@io_opentelemetry_go_otel//attribute",
+        "@io_opentelemetry_go_otel_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "auth_test",
+    srcs = ["auth_proxy_test.go"],
+    embed = [":auth"],
+    deps = [
+        "//lib/observability/tracing",
+        "@com_github_stretchr_testify//require",
+    ],
+)

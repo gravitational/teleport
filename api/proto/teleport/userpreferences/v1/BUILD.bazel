@@ -1,0 +1,21 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "userpreferencesv1_proto",
+    srcs = [
+        "access_graph.proto",
+        "assist.proto",
+        "cluster_preferences.proto",
+        "discover_resource_preferences.proto",
+        "onboard.proto",
+        "sidenav_preferences.proto",
+        "theme.proto",
+        "unified_resource_preferences.proto",
+        "userpreferences.proto",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//teleport/userpreferences/v1:v1_proto",
+        "@com_google_protobuf//:empty_proto",
+    ],
+)

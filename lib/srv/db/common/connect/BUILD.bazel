@@ -1,0 +1,40 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "connect",
+    srcs = ["connect.go"],
+    importpath = "github.com/gravitational/teleport/lib/srv/db/common/connect",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client/proto",
+        "//api/defaults",
+        "//api/types",
+        "//api/utils/keys",
+        "//lib/cryptosuites",
+        "//lib/reversetunnelclient",
+        "//lib/services",
+        "//lib/tlsca",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "connect_test",
+    srcs = ["connect_test.go"],
+    embed = [":connect"],
+    deps = [
+        "//:teleport",
+        "//api/types",
+        "//lib/auth",
+        "//lib/defaults",
+        "//lib/reversetunnelclient",
+        "//lib/services",
+        "//lib/tlsca",
+        "//lib/utils/log/logtest",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)

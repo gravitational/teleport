@@ -1,0 +1,33 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "watcherjob",
+    srcs = ["watcherjob.go"],
+    importpath = "github.com/gravitational/teleport/integrations/lib/watcherjob",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//integrations/access/common/teleport",
+        "//integrations/lib",
+        "//integrations/lib/backoff",
+        "//integrations/lib/logger",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+    ],
+)
+
+go_test(
+    name = "watcherjob_test",
+    srcs = [
+        "helpers_test.go",
+        "watcherjob_test.go",
+    ],
+    embed = [":watcherjob"],
+    deps = [
+        "//api/types",
+        "//integrations/lib",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,11 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testdata",
+    srcs = [
+        "invalid_keys.go",
+        "ssh_keys.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/secretsscanner/scanner/testdata",
+    visibility = ["//visibility:public"],
+)

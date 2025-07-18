@@ -1,0 +1,32 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "userpreferencesv1",
+    srcs = ["service.go"],
+    importpath = "github.com/gravitational/teleport/lib/auth/userpreferences/userpreferencesv1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/userpreferences/v1:userpreferences",
+        "//lib/authz",
+        "//lib/services",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_protobuf//types/known/emptypb",
+    ],
+)
+
+go_test(
+    name = "userpreferencesv1_test",
+    srcs = ["service_test.go"],
+    embed = [":userpreferencesv1"],
+    deps = [
+        "//api/gen/proto/go/userpreferences/v1:userpreferences",
+        "//api/types",
+        "//lib/authz",
+        "//lib/backend/memory",
+        "//lib/services",
+        "//lib/services/local",
+        "//lib/tlsca",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

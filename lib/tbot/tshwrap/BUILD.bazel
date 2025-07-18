@@ -1,0 +1,35 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tshwrap",
+    srcs = ["wrap.go"],
+    importpath = "github.com/gravitational/teleport/lib/tbot/tshwrap",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/constants",
+        "//api/identityfile",
+        "//api/types",
+        "//lib/client",
+        "//lib/tbot/bot",
+        "//lib/tbot/config",
+        "//lib/tbot/identity",
+        "//lib/tlsca",
+        "//lib/utils/log",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "tshwrap_test",
+    srcs = ["wrap_test.go"],
+    embed = [":tshwrap"],
+    deps = [
+        "//api/types",
+        "//lib/client",
+        "//lib/tbot/config",
+        "//lib/tbot/identity",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,17 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "autoupdate_proto",
+    srcs = [
+        "autoupdate.proto",
+        "autoupdate_service.proto",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//teleport/autoupdate/v1:v1_proto",
+        "//teleport/header/v1:v1_proto",
+        "@com_google_protobuf//:duration_proto",
+        "@com_google_protobuf//:empty_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)

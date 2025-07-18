@@ -1,0 +1,18 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "rsa",
+    srcs = ["rsa.go"],
+    importpath = "github.com/gravitational/teleport/lib/cryptosuites/internal/rsa",
+    visibility = ["//lib/cryptosuites:__subpackages__"],
+    deps = [
+        "//:teleport",
+        "//api/constants",
+    ],
+)
+
+go_test(
+    name = "rsa_test",
+    srcs = ["rsa_test.go"],
+    embed = [":rsa"],
+)

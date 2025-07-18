@@ -1,0 +1,45 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "common",
+    srcs = [
+        "auth.go",
+        "azure.go",
+        "gcp.go",
+        "utils.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/backend/pgbk/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/utils",
+        "//api/utils/retryutils",
+        "//lib/utils/gcp",
+        "@com_github_azure_azure_sdk_for_go_sdk_azcore//policy",
+        "@com_github_azure_azure_sdk_for_go_sdk_azidentity//:azidentity",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jackc_pgerrcode//:pgerrcode",
+        "@com_github_jackc_pgx_v5//:pgx",
+        "@com_github_jackc_pgx_v5//pgconn",
+        "@com_github_jackc_pgx_v5//pgxpool",
+        "@com_google_cloud_go_cloudsqlconn//:cloudsqlconn",
+        "@org_golang_google_api//impersonate",
+        "@org_golang_x_oauth2//:oauth2",
+        "@org_golang_x_oauth2//google",
+    ],
+)
+
+go_test(
+    name = "common_test",
+    srcs = [
+        "auth_test.go",
+        "gcp_test.go",
+    ],
+    embed = [":common"],
+    deps = [
+        "//lib/utils/log/logtest",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_jackc_pgx_v5//pgxpool",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_oauth2//:oauth2",
+    ],
+)

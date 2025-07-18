@@ -1,0 +1,32 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "userloginstate",
+    srcs = ["userloginstate.go"],
+    importpath = "github.com/gravitational/teleport/api/client/userloginstate",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/userloginstate/v1:userloginstate",
+        "//api/types/userloginstate",
+        "//api/types/userloginstate/convert/v1:convert",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "userloginstate_test",
+    srcs = ["userloginstate_test.go"],
+    embed = [":userloginstate"],
+    deps = [
+        "//api/gen/proto/go/teleport/userloginstate/v1:userloginstate",
+        "//api/types",
+        "//api/types/header",
+        "//api/types/trait",
+        "//api/types/userloginstate",
+        "//api/types/userloginstate/convert/v1:convert",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_protobuf//types/known/emptypb",
+    ],
+)

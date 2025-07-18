@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "oidc",
+    srcs = ["token_validator.go"],
+    importpath = "github.com/gravitational/teleport/lib/oidc",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_zitadel_oidc_v3//pkg/client",
+        "@com_github_zitadel_oidc_v3//pkg/client/rp",
+        "@com_github_zitadel_oidc_v3//pkg/oidc",
+        "@io_opentelemetry_go_contrib_instrumentation_net_http_otelhttp//:otelhttp",
+    ],
+)

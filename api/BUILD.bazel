@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "api",
+    srcs = [
+        "semversion.go",
+        "version.go",
+    ],
+    importpath = "github.com/gravitational/teleport/api",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_coreos_go_semver//semver"],
+)
+
+go_test(
+    name = "api_test",
+    srcs = ["semversion_test.go"],
+    embed = [":api"],
+    deps = [
+        "@com_github_coreos_go_semver//semver",
+        "@com_github_stretchr_testify//require",
+    ],
+)

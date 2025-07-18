@@ -1,0 +1,34 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "typical",
+    srcs = [
+        "cached_parser.go",
+        "parser.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/utils/typical",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_hashicorp_golang_lru_v2//:golang-lru",
+        "@com_github_vulcand_predicate//:predicate",
+    ],
+)
+
+go_test(
+    name = "typical_test",
+    srcs = [
+        "cached_parser_test.go",
+        "example_test.go",
+        "parser_test.go",
+    ],
+    embed = [":typical"],
+    deps = [
+        "//:teleport",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_vulcand_predicate//:predicate",
+    ],
+)

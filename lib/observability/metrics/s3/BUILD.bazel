@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "s3",
+    srcs = ["s3.go"],
+    importpath = "github.com/gravitational/teleport/lib/observability/metrics/s3",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/observability/metrics",
+        "@com_github_aws_aws_sdk_go_v2//aws/middleware",
+        "@com_github_aws_smithy_go//middleware",
+        "@com_github_prometheus_client_golang//prometheus",
+    ],
+)

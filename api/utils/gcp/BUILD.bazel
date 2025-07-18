@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "gcp",
+    srcs = ["endpoint.go"],
+    importpath = "github.com/gravitational/teleport/api/utils/gcp",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "gcp_test",
+    srcs = ["endpoint_test.go"],
+    embed = [":gcp"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

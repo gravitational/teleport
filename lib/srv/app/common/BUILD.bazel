@@ -1,0 +1,36 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "common",
+    srcs = [
+        "audit.go",
+        "aws.go",
+        "context.go",
+        "header.go",
+        "header_rewriter.go",
+        "session.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/srv/app/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/defaults",
+        "//api/types",
+        "//api/types/events",
+        "//lib/events",
+        "//lib/httplib/reverseproxy",
+        "//lib/tlsca",
+        "//lib/utils/aws",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "common_test",
+    srcs = ["header_rewriter_test.go"],
+    embed = [":common"],
+    deps = [
+        "//lib/httplib/reverseproxy",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

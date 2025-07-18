@@ -1,0 +1,23 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "systemd",
+    srcs = ["systemd.go"],
+    importpath = "github.com/gravitational/teleport/lib/config/systemd",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/defaults",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "systemd_test",
+    srcs = ["systemd_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":systemd"],
+    deps = [
+        "//lib/utils/testutils/golden",
+        "@com_github_stretchr_testify//require",
+    ],
+)

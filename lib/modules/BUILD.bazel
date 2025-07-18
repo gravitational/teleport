@@ -1,0 +1,39 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "modules",
+    srcs = [
+        "modules.go",
+        "notboring.go",
+        "test.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/modules",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/client/proto",
+        "//api/types",
+        "//api/types/accesslist",
+        "//api/utils/keys",
+        "//api/utils/keys/hardwarekey",
+        "//entitlements",
+        "//lib/automaticupgrades",
+        "//lib/tlsca",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "modules_test",
+    srcs = ["modules_test.go"],
+    deps = [
+        ":modules",
+        "//api/client/proto",
+        "//api/constants",
+        "//api/types",
+        "//entitlements",
+        "//lib/auth",
+        "//lib/modules/modulestest",
+        "@com_github_stretchr_testify//require",
+    ],
+)

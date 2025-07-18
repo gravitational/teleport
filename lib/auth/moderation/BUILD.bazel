@@ -1,0 +1,25 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "moderation",
+    srcs = ["session_access.go"],
+    importpath = "github.com/gravitational/teleport/lib/auth/moderation",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//lib/services",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_vulcand_predicate//:predicate",
+    ],
+)
+
+go_test(
+    name = "moderation_test",
+    srcs = ["session_access_test.go"],
+    embed = [":moderation"],
+    deps = [
+        "//api/types",
+        "@com_github_stretchr_testify//require",
+    ],
+)

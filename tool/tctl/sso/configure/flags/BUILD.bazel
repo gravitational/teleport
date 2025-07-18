@@ -1,0 +1,31 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "flags",
+    srcs = [
+        "attributes_to_roles.go",
+        "claims_to_roles.go",
+        "file_reader.go",
+    ],
+    importpath = "github.com/gravitational/teleport/tool/tctl/sso/configure/flags",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "@com_github_alecthomas_kingpin_v2//:kingpin",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "flags_test",
+    srcs = [
+        "attributes_to_roles_test.go",
+        "claims_to_roles_test.go",
+        "file_reader_test.go",
+    ],
+    embed = [":flags"],
+    deps = [
+        "//api/types",
+        "@com_github_stretchr_testify//require",
+    ],
+)

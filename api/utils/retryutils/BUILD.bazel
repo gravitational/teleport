@@ -1,0 +1,26 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "retryutils",
+    srcs = [
+        "jitter.go",
+        "retry.go",
+        "retryv2.go",
+    ],
+    importpath = "github.com/gravitational/teleport/api/utils/retryutils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+    ],
+)
+
+go_test(
+    name = "retryutils_test",
+    srcs = [
+        "jitter_test.go",
+        "retry_test.go",
+    ],
+    embed = [":retryutils"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

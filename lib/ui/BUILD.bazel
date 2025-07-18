@@ -1,0 +1,19 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ui",
+    srcs = ["labels.go"],
+    importpath = "github.com/gravitational/teleport/lib/ui",
+    visibility = ["//visibility:public"],
+    deps = ["//api/types"],
+)
+
+go_test(
+    name = "ui_test",
+    srcs = ["labels_test.go"],
+    embed = [":ui"],
+    deps = [
+        "//api/types",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,98 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "storage",
+    srcs = [
+        "storage.go",
+        "storage_unix.go",
+        "storage_windows.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/auth/storage",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client/proto",
+        "//api/types",
+        "//lib/auth/state",
+        "//lib/backend",
+        "//lib/utils",
+        "@com_github_coreos_go_semver//semver",
+        "@com_github_gravitational_trace//:trace",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:aix": [
+            "//lib/backend/kubernetes",
+            "//lib/backend/lite",
+        ],
+        "@io_bazel_rules_go//go/platform:android": [
+            "//lib/backend/kubernetes",
+            "//lib/backend/lite",
+        ],
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "//lib/backend/kubernetes",
+            "//lib/backend/lite",
+        ],
+        "@io_bazel_rules_go//go/platform:dragonfly": [
+            "//lib/backend/kubernetes",
+            "//lib/backend/lite",
+        ],
+        "@io_bazel_rules_go//go/platform:freebsd": [
+            "//lib/backend/kubernetes",
+            "//lib/backend/lite",
+        ],
+        "@io_bazel_rules_go//go/platform:illumos": [
+            "//lib/backend/kubernetes",
+            "//lib/backend/lite",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "//lib/backend/kubernetes",
+            "//lib/backend/lite",
+        ],
+        "@io_bazel_rules_go//go/platform:js": [
+            "//lib/backend/kubernetes",
+            "//lib/backend/lite",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            "//lib/backend/kubernetes",
+            "//lib/backend/lite",
+        ],
+        "@io_bazel_rules_go//go/platform:netbsd": [
+            "//lib/backend/kubernetes",
+            "//lib/backend/lite",
+        ],
+        "@io_bazel_rules_go//go/platform:openbsd": [
+            "//lib/backend/kubernetes",
+            "//lib/backend/lite",
+        ],
+        "@io_bazel_rules_go//go/platform:osx": [
+            "//lib/backend/kubernetes",
+            "//lib/backend/lite",
+        ],
+        "@io_bazel_rules_go//go/platform:plan9": [
+            "//lib/backend/kubernetes",
+            "//lib/backend/lite",
+        ],
+        "@io_bazel_rules_go//go/platform:qnx": [
+            "//lib/backend/kubernetes",
+            "//lib/backend/lite",
+        ],
+        "@io_bazel_rules_go//go/platform:solaris": [
+            "//lib/backend/kubernetes",
+            "//lib/backend/lite",
+        ],
+        "@io_bazel_rules_go//go/platform:windows": [
+            "//lib/backend/memory",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "storage_test",
+    srcs = ["storage_test.go"],
+    embed = [":storage"],
+    deps = [
+        "//api/types",
+        "//lib/backend/memory",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

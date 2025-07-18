@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "accesslist",
+    srcs = ["accesslist.go"],
+    importpath = "github.com/gravitational/teleport/api/client/accesslist",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/accesslist/v1:accesslist",
+        "//api/types/accesslist",
+        "//api/types/accesslist/convert/v1:convert",
+        "//api/types/trait/convert/v1:convert",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)

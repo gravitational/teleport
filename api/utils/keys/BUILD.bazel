@@ -1,0 +1,36 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "keys",
+    srcs = [
+        "policy.go",
+        "privatekey.go",
+        "publickey.go",
+    ],
+    importpath = "github.com/gravitational/teleport/api/utils/keys",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/utils/keys/hardwarekey",
+        "//api/utils/keys/piv",
+        "//api/utils/sshutils/ppk",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_x_crypto//ssh",
+    ],
+)
+
+go_test(
+    name = "keys_test",
+    srcs = [
+        "policy_test.go",
+        "privatekey_test.go",
+    ],
+    deps = [
+        ":keys",
+        "//api/utils/keys/hardwarekey",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_go_cmp//cmp/cmpopts",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,10 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "fork-point_test",
+    srcs = [
+        "a_simple_test.go",
+        "testify_suite_single_test.go",
+    ],
+    deps = ["@com_github_stretchr_testify//suite"],
+)

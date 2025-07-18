@@ -1,0 +1,41 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "jwt",
+    srcs = [
+        "jwk.go",
+        "jwt.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/jwt",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//api/types/wrappers",
+        "//api/utils/keys",
+        "//lib/defaults",
+        "@com_github_go_jose_go_jose_v3//:go-jose",
+        "@com_github_go_jose_go_jose_v3//cryptosigner",
+        "@com_github_go_jose_go_jose_v3//jwt",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_spiffe_go_spiffe_v2//spiffeid",
+    ],
+)
+
+go_test(
+    name = "jwt_test",
+    srcs = [
+        "jwk_test.go",
+        "jwt_test.go",
+    ],
+    embed = [":jwt"],
+    deps = [
+        "//api/types/wrappers",
+        "//api/utils/keys",
+        "//lib/cryptosuites",
+        "@com_github_go_jose_go_jose_v3//jwt",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)

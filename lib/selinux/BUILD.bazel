@@ -1,0 +1,90 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "selinux",
+    srcs = [
+        "read_config_linux.go",
+        "selinux.go",
+        "selinux_linux.go",
+        "selinux_others.go",
+    ],
+    embedsrcs = select({
+        "@io_bazel_rules_go//go/platform:android": [
+            "teleport_ssh.fc.tmpl",
+            "teleport_ssh.te",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            "teleport_ssh.fc.tmpl",
+            "teleport_ssh.te",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/gravitational/teleport/lib/selinux",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@io_bazel_rules_go//go/platform:aix": [
+            "@com_github_gravitational_trace//:trace",
+        ],
+        "@io_bazel_rules_go//go/platform:android": [
+            "//lib/utils",
+            "//lib/utils/log",
+            "//lib/versioncontrol",
+            "@com_github_gravitational_trace//:trace",
+            "@com_github_opencontainers_selinux//go-selinux",
+        ],
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "@com_github_gravitational_trace//:trace",
+        ],
+        "@io_bazel_rules_go//go/platform:dragonfly": [
+            "@com_github_gravitational_trace//:trace",
+        ],
+        "@io_bazel_rules_go//go/platform:freebsd": [
+            "@com_github_gravitational_trace//:trace",
+        ],
+        "@io_bazel_rules_go//go/platform:illumos": [
+            "@com_github_gravitational_trace//:trace",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "@com_github_gravitational_trace//:trace",
+        ],
+        "@io_bazel_rules_go//go/platform:js": [
+            "@com_github_gravitational_trace//:trace",
+        ],
+        "@io_bazel_rules_go//go/platform:linux": [
+            "//lib/utils",
+            "//lib/utils/log",
+            "//lib/versioncontrol",
+            "@com_github_gravitational_trace//:trace",
+            "@com_github_opencontainers_selinux//go-selinux",
+        ],
+        "@io_bazel_rules_go//go/platform:netbsd": [
+            "@com_github_gravitational_trace//:trace",
+        ],
+        "@io_bazel_rules_go//go/platform:openbsd": [
+            "@com_github_gravitational_trace//:trace",
+        ],
+        "@io_bazel_rules_go//go/platform:osx": [
+            "@com_github_gravitational_trace//:trace",
+        ],
+        "@io_bazel_rules_go//go/platform:plan9": [
+            "@com_github_gravitational_trace//:trace",
+        ],
+        "@io_bazel_rules_go//go/platform:qnx": [
+            "@com_github_gravitational_trace//:trace",
+        ],
+        "@io_bazel_rules_go//go/platform:solaris": [
+            "@com_github_gravitational_trace//:trace",
+        ],
+        "@io_bazel_rules_go//go/platform:windows": [
+            "@com_github_gravitational_trace//:trace",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "selinux_test",
+    srcs = ["selinux_test.go"],
+    embed = [":selinux"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

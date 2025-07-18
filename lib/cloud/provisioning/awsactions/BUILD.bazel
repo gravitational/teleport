@@ -1,0 +1,34 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "awsactions",
+    srcs = [
+        "assign_policy.go",
+        "common.go",
+        "create_document.go",
+        "create_oidc_idp.go",
+        "create_role.go",
+        "create_role_for_trustanchor.go",
+        "create_rolesanywhere_profile.go",
+        "create_rolesanywhere_trustanchor.go",
+        "put_role_policy.go",
+        "trustanchor_setup_arns.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/cloud/provisioning/awsactions",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/cloud/aws",
+        "//lib/cloud/aws/tags",
+        "//lib/cloud/provisioning",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2//aws/arn",
+        "@com_github_aws_aws_sdk_go_v2_service_iam//:iam",
+        "@com_github_aws_aws_sdk_go_v2_service_iam//types",
+        "@com_github_aws_aws_sdk_go_v2_service_rolesanywhere//:rolesanywhere",
+        "@com_github_aws_aws_sdk_go_v2_service_rolesanywhere//types",
+        "@com_github_aws_aws_sdk_go_v2_service_ssm//:ssm",
+        "@com_github_aws_aws_sdk_go_v2_service_ssm//types",
+        "@com_github_gravitational_trace//:trace",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
+)

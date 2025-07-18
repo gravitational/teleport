@@ -1,0 +1,41 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ssh",
+    srcs = [
+        "channel.go",
+        "client.go",
+        "session.go",
+        "ssh.go",
+    ],
+    importpath = "github.com/gravitational/teleport/api/observability/tracing/ssh",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/constants",
+        "//api/observability/tracing",
+        "@com_github_gravitational_trace//:trace",
+        "@io_opentelemetry_go_otel//attribute",
+        "@io_opentelemetry_go_otel//propagation",
+        "@io_opentelemetry_go_otel//semconv/v1.10.0:v1_10_0",
+        "@io_opentelemetry_go_otel_trace//:trace",
+        "@org_golang_x_crypto//ssh",
+    ],
+)
+
+go_test(
+    name = "ssh_test",
+    srcs = [
+        "client_test.go",
+        "ssh_test.go",
+    ],
+    embed = [":ssh"],
+    deps = [
+        "//api/observability/tracing",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_otel//:otel",
+        "@io_opentelemetry_go_otel//propagation",
+        "@io_opentelemetry_go_otel_sdk//trace",
+        "@org_golang_x_crypto//ssh",
+    ],
+)

@@ -1,0 +1,38 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "kubernetes",
+    srcs = [
+        "doc.go",
+        "kubernetes.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/backend/kubernetes",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/backend",
+        "//lib/kube/utils",
+        "@com_github_gravitational_trace//:trace",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//applyconfigurations/core/v1:core",
+        "@io_k8s_client_go//kubernetes",
+    ],
+)
+
+go_test(
+    name = "kubernetes_test",
+    srcs = ["kubernetes_test.go"],
+    embed = [":kubernetes"],
+    deps = [
+        "//lib/backend",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_client_go//kubernetes/fake",
+        "@io_k8s_client_go//kubernetes/typed/core/v1/fake",
+        "@io_k8s_client_go//testing",
+    ],
+)

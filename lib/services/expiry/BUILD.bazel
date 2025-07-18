@@ -1,0 +1,36 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "expiry",
+    srcs = ["expiry.go"],
+    importpath = "github.com/gravitational/teleport/lib/services/expiry",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client/proto",
+        "//api/types",
+        "//api/types/events",
+        "//api/utils/retryutils",
+        "//lib/auth/authclient",
+        "//lib/events",
+        "//lib/services",
+        "//lib/utils/interval",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+    ],
+)
+
+go_test(
+    name = "expiry_test",
+    srcs = ["expiry_test.go"],
+    embed = [":expiry"],
+    deps = [
+        "//api/constants",
+        "//api/types",
+        "//lib/auth",
+        "//lib/events/eventstest",
+        "//lib/utils/log/logtest",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)

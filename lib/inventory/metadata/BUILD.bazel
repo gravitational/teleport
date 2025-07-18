@@ -1,0 +1,38 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "metadata",
+    srcs = [
+        "get.go",
+        "metadata.go",
+        "metadata_darwin.go",
+        "metadata_linux.go",
+        "metadata_other.go",
+    ],
+    cgo = True,
+    importpath = "github.com/gravitational/teleport/lib/inventory/metadata",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/types",
+        "//api/utils",
+        "//lib/defaults",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "metadata_test",
+    srcs = [
+        "metadata_darwin_test.go",
+        "metadata_linux_test.go",
+        "metadata_test.go",
+    ],
+    embed = [":metadata"],
+    deps = [
+        "//api/types",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

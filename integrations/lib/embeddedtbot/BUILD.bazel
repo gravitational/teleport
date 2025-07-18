@@ -1,0 +1,37 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "embeddedtbot",
+    srcs = [
+        "bot.go",
+        "config.go",
+    ],
+    importpath = "github.com/gravitational/teleport/integrations/lib/embeddedtbot",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client",
+        "//api/client/proto",
+        "//api/types",
+        "//lib/tbot",
+        "//lib/tbot/config",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "embeddedtbot_test",
+    srcs = ["bot_test.go"],
+    embed = [":embeddedtbot"],
+    deps = [
+        "//api/types",
+        "//api/types/wrappers",
+        "//integration/helpers",
+        "//integrations/operator/controllers/resources/testlib",
+        "//lib/service/servicecfg",
+        "//lib/tbot/config",
+        "//lib/utils/log/logtest",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

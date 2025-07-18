@@ -1,0 +1,28 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ratelimit",
+    srcs = [
+        "http.go",
+        "ratelimit.go",
+        "tokenbucket.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/limiter/internal/ratelimit",
+    visibility = ["//lib/limiter:__subpackages__"],
+    deps = [
+        "//:teleport",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+    ],
+)
+
+go_test(
+    name = "ratelimit_test",
+    srcs = ["ratelimit_test.go"],
+    embed = [":ratelimit"],
+    deps = [
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

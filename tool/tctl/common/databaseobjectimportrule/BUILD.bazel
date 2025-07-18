@@ -1,0 +1,17 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "databaseobjectimportrule",
+    srcs = ["resource.go"],
+    importpath = "github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/defaults",
+        "//api/gen/proto/go/teleport/dbobjectimportrule/v1:dbobjectimportrule",
+        "//api/gen/proto/go/teleport/header/v1:header",
+        "//api/types",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)

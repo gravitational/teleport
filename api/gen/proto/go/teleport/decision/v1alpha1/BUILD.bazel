@@ -1,0 +1,31 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "v1alpha1",
+    srcs = [
+        "database_access.pb.go",
+        "decision_service.pb.go",
+        "decision_service_grpc.pb.go",
+        "denial_metadata.pb.go",
+        "enforcement_feature.pb.go",
+        "permit_metadata.pb.go",
+        "request_metadata.pb.go",
+        "resource.pb.go",
+        "ssh_access.pb.go",
+        "ssh_identity.pb.go",
+        "ssh_join.pb.go",
+        "tls_identity.pb.go",
+    ],
+    importpath = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/trait/v1:trait",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+        "@org_golang_google_protobuf//types/known/durationpb",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)

@@ -1,0 +1,26 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "machineidv1_proto",
+    srcs = [
+        "bot.proto",
+        "bot_instance.proto",
+        "bot_instance_service.proto",
+        "bot_service.proto",
+        "federation.proto",
+        "federation_service.proto",
+        "workload_identity_service.proto",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//teleport/header/v1:v1_proto",
+        "//teleport/legacy/types:types_proto",
+        "//teleport/machineid/v1:v1_proto",
+        "//teleport/workloadidentity/v1:v1_proto",
+        "@com_google_protobuf//:duration_proto",
+        "@com_google_protobuf//:empty_proto",
+        "@com_google_protobuf//:field_mask_proto",
+        "@com_google_protobuf//:struct_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)

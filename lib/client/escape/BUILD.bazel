@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "escape",
+    srcs = ["reader.go"],
+    importpath = "github.com/gravitational/teleport/lib/client/escape",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "escape_test",
+    srcs = ["reader_test.go"],
+    embed = [":escape"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

@@ -1,0 +1,27 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "shell",
+    srcs = [
+        "shell.go",
+        "shell_unix.go",
+        "shell_windows.go",
+    ],
+    cgo = True,
+    copts = select({
+        "@io_bazel_rules_go//go/platform:solaris": [
+            "-D_POSIX_PTHREAD_SEMANTICS",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/gravitational/teleport/lib/shell",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_gravitational_trace//:trace"],
+)
+
+go_test(
+    name = "shell_test",
+    srcs = ["shell_test.go"],
+    embed = [":shell"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

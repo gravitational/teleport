@@ -1,0 +1,61 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "log",
+    srcs = [
+        "buffer.go",
+        "file_writer.go",
+        "handle_state.go",
+        "log.go",
+        "package_logger.go",
+        "slog.go",
+        "slog_json_handler.go",
+        "slog_text_handler.go",
+        "slog_text_handler_darwin.go",
+        "slog_text_handler_other.go",
+        "slog_text_handler_windows.go",
+        "syslog.go",
+        "syslog_windows.go",
+        "writer_finalizer.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/utils/log",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "@com_github_fsnotify_fsnotify//:fsnotify",
+        "@com_github_gravitational_trace//:trace",
+        "@io_opentelemetry_go_otel_trace//:trace",
+    ] + select({
+        "@io_bazel_rules_go//go/platform:darwin": [
+            "//lib/utils/log/oslog",
+        ],
+        "@io_bazel_rules_go//go/platform:ios": [
+            "//lib/utils/log/oslog",
+        ],
+        "@io_bazel_rules_go//go/platform:windows": [
+            "//lib/utils/log/eventlog",
+            "@org_golang_x_sys//windows/svc/eventlog",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "log_test",
+    srcs = [
+        "file_writer_test.go",
+        "formatter_test.go",
+        "package_logger_test.go",
+        "slog_handler_test.go",
+    ],
+    embed = [":log"],
+    deps = [
+        "//:teleport",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_go_cmp//cmp/cmpopts",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

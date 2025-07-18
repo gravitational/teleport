@@ -1,0 +1,47 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sso",
+    srcs = [
+        "ceremony.go",
+        "redirector.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/client/sso",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:teleport",
+        "//api/client/proto",
+        "//api/constants",
+        "//api/defaults",
+        "//api/mfa",
+        "//api/types",
+        "//api/utils",
+        "//api/utils/keys",
+        "//lib/auth/authclient",
+        "//lib/defaults",
+        "//lib/saml",
+        "//lib/secret",
+        "//lib/utils",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "sso_test",
+    srcs = [
+        "ceremony_test.go",
+        "redirector_test.go",
+    ],
+    deps = [
+        ":sso",
+        "//:teleport",
+        "//api/client/proto",
+        "//api/types",
+        "//api/utils/keys",
+        "//lib/web",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

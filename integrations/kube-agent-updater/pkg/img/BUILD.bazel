@@ -1,0 +1,55 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "img",
+    srcs = [
+        "cosign.go",
+        "doc.go",
+        "errors.go",
+        "insecure.go",
+        "keychains.go",
+        "mock.go",
+        "nop.go",
+        "validator.go",
+    ],
+    importpath = "github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/img",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_awslabs_amazon_ecr_credential_helper_ecr_login//:ecr-login",
+        "@com_github_awslabs_amazon_ecr_credential_helper_ecr_login//api",
+        "@com_github_distribution_reference//:reference",
+        "@com_github_google_go_containerregistry//pkg/authn",
+        "@com_github_google_go_containerregistry//pkg/name",
+        "@com_github_google_go_containerregistry//pkg/v1/google",
+        "@com_github_google_go_containerregistry//pkg/v1/remote",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_opencontainers_go_digest//:go-digest",
+        "@com_github_sigstore_cosign_v2//pkg/cosign",
+        "@com_github_sigstore_cosign_v2//pkg/oci/remote",
+        "@com_github_sigstore_sigstore//pkg/cryptoutils",
+        "@com_github_sigstore_sigstore//pkg/signature",
+        "@io_k8s_sigs_controller_runtime//pkg/log",
+    ],
+)
+
+go_test(
+    name = "img_test",
+    srcs = [
+        "cosign_fixtures_test.go",
+        "cosign_test.go",
+        "nop_test.go",
+    ],
+    embed = [":img"],
+    deps = [
+        "@com_github_distribution_reference//:reference",
+        "@com_github_google_go_containerregistry//pkg/authn",
+        "@com_github_google_go_containerregistry//pkg/registry",
+        "@com_github_google_go_containerregistry//pkg/v1/remote",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_sigstore_cosign_v2//pkg/oci/remote",
+        "@com_github_sigstore_sigstore//pkg/cryptoutils",
+        "@com_github_sigstore_sigstore//pkg/signature",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

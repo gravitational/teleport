@@ -1,0 +1,7 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "scopesv1_proto",
+    srcs = ["scopes.proto"],
+    visibility = ["//visibility:public"],
+)

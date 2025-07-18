@@ -1,0 +1,26 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "conntest_test",
+    srcs = ["database_test.go"],
+    deps = [
+        "//api/constants",
+        "//api/defaults",
+        "//api/types",
+        "//integration/helpers",
+        "//lib/auth",
+        "//lib/client",
+        "//lib/client/conntest",
+        "//lib/defaults",
+        "//lib/modules",
+        "//lib/service/servicecfg",
+        "//lib/services",
+        "//lib/srv/db/common",
+        "//lib/srv/db/postgres",
+        "//lib/web/ui",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_pquerna_otp//totp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,44 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tdp",
+    srcs = [
+        "conn.go",
+        "png.go",
+        "proto.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/srv/desktop/tdp",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/client/proto",
+        "//lib/auth/webauthntypes",
+        "//lib/client",
+        "//lib/defaults",
+        "//lib/utils",
+        "//lib/web/mfajson",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@org_golang_x_sync//errgroup",
+    ],
+)
+
+go_test(
+    name = "tdp_test",
+    srcs = [
+        "conn_test.go",
+        "proto_test.go",
+    ],
+    embed = [":tdp"],
+    deps = [
+        "//api/client/proto",
+        "//api/types/webauthn",
+        "//lib/auth/webauthntypes",
+        "//lib/client",
+        "//lib/defaults",
+        "@com_github_go_webauthn_webauthn//protocol",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_go_cmp//cmp/cmpopts",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+    ],
+)

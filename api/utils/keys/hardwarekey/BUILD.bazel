@@ -1,0 +1,38 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "hardwarekey",
+    srcs = [
+        "attestation.go",
+        "cliprompt.go",
+        "hardwarekey.go",
+        "prompt.go",
+        "service_mock.go",
+        "slot.go",
+    ],
+    importpath = "github.com/gravitational/teleport/api/utils/keys/hardwarekey",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/attestation/v1:attestation",
+        "//api/gen/proto/go/teleport/hardwarekeyagent/v1:hardwarekeyagent",
+        "//api/utils/prompt",
+        "@com_github_gogo_protobuf//jsonpb",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "hardwarekey_test",
+    srcs = [
+        "cliprompt_test.go",
+        "hardwarekey_test.go",
+        "slot_test.go",
+    ],
+    deps = [
+        ":hardwarekey",
+        "//api/utils/prompt",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,36 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "kerberos",
+    srcs = ["client.go"],
+    importpath = "github.com/gravitational/teleport/lib/srv/db/common/kerberos",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//api/utils/tlsutils",
+        "//lib/srv/db/common/kerberos/kinit",
+        "//lib/winpki",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jcmturner_gokrb5_v8//client",
+        "@com_github_jcmturner_gokrb5_v8//config",
+        "@com_github_jcmturner_gokrb5_v8//keytab",
+    ],
+)
+
+go_test(
+    name = "kerberos_test",
+    srcs = ["client_test.go"],
+    embed = [":kerberos"],
+    embedsrcs = ["testuser.keytab"],
+    deps = [
+        "//api/types",
+        "//lib/defaults",
+        "//lib/srv/db/common/kerberos/kinit",
+        "//lib/winpki",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jcmturner_gokrb5_v8//client",
+        "@com_github_jcmturner_gokrb5_v8//config",
+        "@com_github_jcmturner_gokrb5_v8//credentials",
+        "@com_github_stretchr_testify//require",
+    ],
+)

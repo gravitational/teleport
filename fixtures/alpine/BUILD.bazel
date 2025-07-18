@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "alpine_lib",
+    srcs = ["webserver.go"],
+    importpath = "github.com/gravitational/teleport/fixtures/alpine",
+    visibility = ["//visibility:private"],
+)
+
+go_binary(
+    name = "alpine",
+    embed = [":alpine_lib"],
+    visibility = ["//visibility:public"],
+)

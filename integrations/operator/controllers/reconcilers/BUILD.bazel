@@ -1,0 +1,51 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "reconcilers",
+    srcs = [
+        "generic.go",
+        "legacy_resource_with_labels.go",
+        "legacy_resource_without_labels.go",
+        "resource153.go",
+        "utils.go",
+    ],
+    importpath = "github.com/gravitational/teleport/integrations/operator/controllers/reconcilers",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/types",
+        "//integrations/operator/controllers",
+        "@com_github_gravitational_trace//:trace",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/api/meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_sigs_controller_runtime//:controller-runtime",
+        "@io_k8s_sigs_controller_runtime//pkg/client",
+        "@io_k8s_sigs_controller_runtime//pkg/controller/controllerutil",
+        "@io_k8s_sigs_controller_runtime//pkg/event",
+        "@io_k8s_sigs_controller_runtime//pkg/log",
+        "@io_k8s_sigs_controller_runtime//pkg/predicate",
+    ],
+)
+
+go_test(
+    name = "reconcilers_test",
+    srcs = [
+        "generic_test.go",
+        "utils_test.go",
+    ],
+    embed = [":reconcilers"],
+    deps = [
+        "//api/defaults",
+        "//api/types",
+        "//integrations/operator/apis/resources",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_sigs_controller_runtime//pkg/client",
+    ],
+)

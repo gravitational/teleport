@@ -1,0 +1,23 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "azure",
+    srcs = [
+        "endpoints.go",
+        "location.go",
+    ],
+    importpath = "github.com/gravitational/teleport/api/utils/azure",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_gravitational_trace//:trace"],
+)
+
+go_test(
+    name = "azure_test",
+    srcs = [
+        "endpoints_test.go",
+        "fuzz_test.go",
+        "location_test.go",
+    ],
+    embed = [":azure"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

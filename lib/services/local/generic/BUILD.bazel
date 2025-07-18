@@ -1,0 +1,50 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "generic",
+    srcs = [
+        "generic.go",
+        "generic_wrapper.go",
+        "helpers.go",
+        "nonce.go",
+        "resource_adapter.go",
+    ],
+    importpath = "github.com/gravitational/teleport/lib/services/local/generic",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/defaults",
+        "//api/gen/proto/go/teleport/header/v1:header",
+        "//api/types",
+        "//lib/backend",
+        "//lib/services",
+        "//lib/utils",
+        "//lib/utils/log",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "generic_test",
+    srcs = [
+        "generic_test.go",
+        "generic_wrapper_test.go",
+        "nonce_test.go",
+    ],
+    embed = [":generic"],
+    deps = [
+        "//api/gen/proto/go/teleport/header/v1:header",
+        "//api/types",
+        "//lib/backend",
+        "//lib/backend/memory",
+        "//lib/services",
+        "//lib/utils",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_go_cmp//cmp/cmpopts",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gravitational_trace//:trace",
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//testing/protocmp",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)

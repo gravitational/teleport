@@ -1,0 +1,36 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+go_library(
+    name = "teleport-update_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/gravitational/teleport/tool/teleport-update",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//:teleport",
+        "//lib/autoupdate",
+        "//lib/autoupdate/agent",
+        "//lib/modules",
+        "//lib/utils",
+        "//lib/utils/log",
+        "@com_github_gravitational_trace//:trace",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
+)
+
+go_binary(
+    name = "teleport-update",
+    embed = [":teleport-update_lib"],
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "teleport-update_test",
+    srcs = ["main_test.go"],
+    embed = [":teleport-update_lib"],
+    deps = [
+        "//lib/autoupdate",
+        "//lib/autoupdate/agent",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

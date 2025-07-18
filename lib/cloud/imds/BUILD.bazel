@@ -1,0 +1,9 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "imds",
+    srcs = ["imds.go"],
+    importpath = "github.com/gravitational/teleport/lib/cloud/imds",
+    visibility = ["//visibility:public"],
+    deps = ["//api/types"],
+)

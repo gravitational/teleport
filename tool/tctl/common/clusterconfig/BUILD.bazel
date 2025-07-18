@@ -1,0 +1,33 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "clusterconfig",
+    srcs = ["accessgraphsettings.go"],
+    importpath = "github.com/gravitational/teleport/tool/tctl/common/clusterconfig",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//api/gen/proto/go/teleport/clusterconfig/v1:clusterconfig",
+        "//api/types",
+        "//api/types/header/convert/legacy",
+        "//api/types/header/convert/v1:convert",
+        "//lib/utils",
+        "@com_github_gravitational_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "clusterconfig_test",
+    srcs = ["accessgraphsettings_test.go"],
+    embed = [":clusterconfig"],
+    deps = [
+        "//api/gen/proto/go/teleport/clusterconfig/v1:clusterconfig",
+        "//api/gen/proto/go/teleport/header/v1:header",
+        "//api/types",
+        "//lib/defaults",
+        "//lib/services",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/util/yaml",
+        "@org_golang_google_protobuf//testing/protocmp",
+    ],
+)
