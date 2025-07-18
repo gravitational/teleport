@@ -501,6 +501,10 @@ func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServ
 
 type cliModules struct{}
 
+func (p *cliModules) GenerateLongTermResourceGrouping(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.LongTermResourceGrouping, error) {
+	return nil, nil
+}
+
 func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	return &types.AccessRequestAllowedPromotions{}, nil
 }
