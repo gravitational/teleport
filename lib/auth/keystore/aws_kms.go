@@ -253,6 +253,8 @@ func awsAlgorithm(alg cryptosuites.Algorithm) (kmstypes.KeySpec, error) {
 	switch alg {
 	case cryptosuites.RSA2048:
 		return kmstypes.KeySpecRsa2048, nil
+	case cryptosuites.RSA4096:
+		return kmstypes.KeySpecRsa4096, nil
 	case cryptosuites.ECDSAP256:
 		return kmstypes.KeySpecEccNistP256, nil
 	}

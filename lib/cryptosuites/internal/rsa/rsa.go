@@ -42,12 +42,16 @@ func GenerateKey() (*rsa.PrivateKey, error) {
 	return getOrGenerateRSAPrivateKey()
 }
 
+func GenerateKey4096() (*rsa.PrivateKey, error) {
+	return generateRSAPrivateKey(constants.RSA4096KeySize)
+}
+
 func getOrGenerateRSAPrivateKey() (*rsa.PrivateKey, error) {
 	select {
 	case k := <-precomputedKeys:
 		return k, nil
 	default:
-		rsaKeyPair, err := generateRSAPrivateKey()
+		rsaKeyPair, err := generateRSAPrivateKey(constants.RSAKeySize)
 		if err != nil {
 			return nil, err
 		}
@@ -55,15 +59,15 @@ func getOrGenerateRSAPrivateKey() (*rsa.PrivateKey, error) {
 	}
 }
 
-func generateRSAPrivateKey() (*rsa.PrivateKey, error) {
+func generateRSAPrivateKey(bits int) (*rsa.PrivateKey, error) {
 	//nolint:forbidigo // This is the one function allowed to generate RSA keys.
-	return rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	return rsa.GenerateKey(rand.Reader, bits)
 }
 
 func precomputeKeys() {
 	const backoff = time.Second * 30
 	for {
-		rsaPrivateKey, err := generateRSAPrivateKey()
+		rsaPrivateKey, err := generateRSAPrivateKey(constants.RSAKeySize)
 		if err != nil {
 			log.ErrorContext(context.Background(), "Failed to precompute key pair, retrying (this might be a bug).",
 				slog.Any("error", err), slog.Duration("backoff", backoff))
@@ -98,7 +102,7 @@ func generateTestKeys() <-chan *rsa.PrivateKey {
 		// Generate each key in a separate goroutine to take advantage of
 		// multiple cores if possible.
 		go func() {
-			private, err := generateRSAPrivateKey()
+			private, err := generateRSAPrivateKey(constants.RSAKeySize)
 			if err != nil {
 				// Use only in tests. Safe to panic.
 				panic(err)

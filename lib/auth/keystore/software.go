@@ -116,7 +116,7 @@ func (s *softwareKeyStore) generateDecrypter(ctx context.Context, alg cryptosuit
 	}
 
 	decrypter := key
-	if alg == cryptosuites.RSA2048 {
+	if alg == cryptosuites.RSA4096 {
 		decrypter = newOAEPDecrypter(softwareHash, decrypter)
 	}
 

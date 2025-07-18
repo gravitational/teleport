@@ -139,8 +139,11 @@ const (
 	// AWSAccountIDLabel is the key of the label containing AWS account ID.
 	AWSAccountIDLabel = "aws_account_id"
 
-	// RSAKeySize is the size of the RSA key.
+	// RSAKeySize is the default bit size of an RSA key.
 	RSAKeySize = 2048
+
+	// RSA4096KeySize is the bit size of an RSA 4096 key.
+	RSA4096KeySize = 4096
 
 	// NoLoginPrefix is the prefix used for nologin certificate principals.
 	NoLoginPrefix = "-teleport-nologin-"

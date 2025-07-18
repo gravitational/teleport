@@ -167,6 +167,9 @@ func (p *pkcs11KeyStore) generateSigner(ctx context.Context, alg cryptosuites.Al
 	case cryptosuites.RSA2048:
 		signer, err := p.generateRSA2048(rawPKCS11ID, label)
 		return rawTeleportID, signer, trace.Wrap(err, "generating RSA2048 key")
+	case cryptosuites.RSA4096:
+		signer, err := p.generateRSA4096(rawPKCS11ID, label)
+		return rawTeleportID, signer, trace.Wrap(err, "generating RSA4096 key")
 	case cryptosuites.ECDSAP256:
 		signer, err := p.generateECDSAP256(rawPKCS11ID, label)
 		return rawTeleportID, signer, trace.Wrap(err, "generating ECDSAP256 key")
@@ -208,9 +211,9 @@ func (p *pkcs11KeyStore) generateDecrypter(ctx context.Context, alg cryptosuites
 
 	label := []byte(p.hostUUID)
 	switch alg {
-	case cryptosuites.RSA2048:
-		decrypter, err := p.generateRSA2048(rawPKCS11ID, label)
-		return rawTeleportID, newOAEPDecrypter(p.oaepHash, decrypter), p.oaepHash, trace.Wrap(err, "generating RSA2048 key")
+	case cryptosuites.RSA4096:
+		decrypter, err := p.generateRSA4096(rawPKCS11ID, label)
+		return rawTeleportID, newOAEPDecrypter(p.oaepHash, decrypter), p.oaepHash, trace.Wrap(err, "generating RSA4096 key")
 	default:
 		return nil, nil, p.oaepHash, trace.BadParameter("unsupported key algorithm for PKCS#11 HSM decryption: %v", alg)
 	}
@@ -218,6 +221,11 @@ func (p *pkcs11KeyStore) generateDecrypter(ctx context.Context, alg cryptosuites
 
 func (p *pkcs11KeyStore) generateRSA2048(ckaID, label []byte) (crypto11.SignerDecrypter, error) {
 	signer, err := p.ctx.GenerateRSAKeyPairWithLabel(ckaID, label, constants.RSAKeySize)
+	return signer, trace.Wrap(err)
+}
+
+func (p *pkcs11KeyStore) generateRSA4096(ckaID, label []byte) (crypto11.SignerDecrypter, error) {
+	signer, err := p.ctx.GenerateRSAKeyPairWithLabel(ckaID, label, constants.RSA4096KeySize)
 	return signer, trace.Wrap(err)
 }
 

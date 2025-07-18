@@ -112,6 +112,8 @@ func (f *fakeGCPKMSServer) CreateCryptoKey(ctx context.Context, req *kmspb.Creat
 	switch cryptoKey.VersionTemplate.Algorithm {
 	case kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_2048_SHA256, kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_4096_SHA512:
 		pem = testRSA2048PrivateKeyPEM
+	case kmspb.CryptoKeyVersion_RSA_DECRYPT_OAEP_4096_SHA256:
+		pem = testRSA4096PrivateKeyPEM
 	case kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256:
 		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 		if err != nil {
