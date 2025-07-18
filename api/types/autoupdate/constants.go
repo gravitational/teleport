@@ -47,5 +47,5 @@ const (
 	// MaxCanaryCount is the maximum number of canaries allowed for a single group.
 	// This value is arbitrarily low to avoid XXL rollouts to grow over the max backend
 	// item size.
-	MaxCanaryCount = 10
+	MaxCanaryCount = 5
 )
