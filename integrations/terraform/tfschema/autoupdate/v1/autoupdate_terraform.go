@@ -117,6 +117,11 @@ func GenSchemaAutoUpdateConfig(ctx context.Context) (github_com_hashicorp_terraf
 						"schedules": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"regular": {
 								Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									"canary_count": {
+										Description: "canary_count is the number of canary agents that will be updated before the whole group is updated. when set to 0, the group does not enter the canary phase. This number is capped to 5. This number must always be lower than the total number of agents in the group, else the rollout will be stuck.",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+									},
 									"days": {
 										Description: "days when the update can run. Supported values are \"Mon\", \"Tue\", \"Wed\", \"Thu\", \"Fri\", \"Sat\", \"Sun\" and \"*\"",
 										Optional:    true,
@@ -680,6 +685,23 @@ func CopyAutoUpdateConfigFromTerraform(_ context.Context, tf github_com_hashicor
 																								t = int32(v.Value)
 																							}
 																							obj.WaitHours = t
+																						}
+																					}
+																				}
+																				{
+																					a, ok := tf.Attrs["canary_count"]
+																					if !ok {
+																						diags.Append(attrReadMissingDiag{"AutoUpdateConfig.spec.agents.schedules.regular.canary_count"})
+																					} else {
+																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+																						if !ok {
+																							diags.Append(attrReadConversionFailureDiag{"AutoUpdateConfig.spec.agents.schedules.regular.canary_count", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+																						} else {
+																							var t int32
+																							if !v.Null && !v.Unknown {
+																								t = int32(v.Value)
+																							}
+																							obj.CanaryCount = t
 																						}
 																					}
 																				}
@@ -1306,6 +1328,28 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 																					v.Value = int64(obj.WaitHours)
 																					v.Unknown = false
 																					tf.Attrs["wait_hours"] = v
+																				}
+																			}
+																			{
+																				t, ok := tf.AttrTypes["canary_count"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"AutoUpdateConfig.spec.agents.schedules.regular.canary_count"})
+																				} else {
+																					v, ok := tf.Attrs["canary_count"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+																					if !ok {
+																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																						if err != nil {
+																							diags.Append(attrWriteGeneralError{"AutoUpdateConfig.spec.agents.schedules.regular.canary_count", err})
+																						}
+																						v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+																						if !ok {
+																							diags.Append(attrWriteConversionFailureDiag{"AutoUpdateConfig.spec.agents.schedules.regular.canary_count", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+																						}
+																						v.Null = int64(obj.CanaryCount) == 0
+																					}
+																					v.Value = int64(obj.CanaryCount)
+																					v.Unknown = false
+																					tf.Attrs["canary_count"] = v
 																				}
 																			}
 																		}
