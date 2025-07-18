@@ -365,7 +365,7 @@ function JoinTokens(props: { botName: string; onViewAllClicked: () => void }) {
       {requiresMfa ? (
         <MfaContainer>
           <MfaText fontWeight={'regular'}>
-            MFA authentication is required to view join tokens
+            Multi-factor authentication is required to view join tokens
           </MfaText>
           <MfaVerifyButton onClick={handleVerifyClick}>
             <FingerprintSimple size="medium" /> Authenticate
