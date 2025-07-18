@@ -110,8 +110,7 @@ $ tctl plugins install entraid \
     --auth-connector-name entra-id \
     --default-owner=<Var name="Access List Owner"/> \
     --default-owner=someOtherOwner@teleport.sh  \
-    --auth-server <Var name="example.teleport.sh:443" /> \
-    –-no-access-graph 
+    --auth-server <Var name="example.teleport.sh:443" /> 
 
 Step 1: Run the Setup Script
 ...
@@ -124,6 +123,101 @@ Once the script completes, type 'continue' to proceed, 'exit' to quit:
 (!docs/pages/includes/identity-governance/azure-shell.mdx!)
 
 ## Step 3/3: Finish plugin installation (tctl)
+
+Once the script is done setting up the necessary permissions,
+it prints out tenant ID and client ID. Copy these values and provide it to the
+`tctl` to finish the integration.
+
+</TabItem>
+
+<TabItem label="System credential (tctl)" >
+
+## Step 1/4: Set up system credential
+
+You will need to grant Azure Identity with the necessary permissions required for the Entra ID
+integration.
+
+In the Azure Portal, find the identities linked to your Teleport Auth Service VMs,
+and copy the Principal ID of the identity you wish to update with the new permissions.
+
+After obtaining the Principal ID, open the [Azure Cloud Shell](https://portal.azure.com/#cloudshell/)
+in PowerShell mode and run the following script to assign the required permissions to `<Var name="Principal ID" />`.
+
+<details>
+<summary>Assign required permissions to Azure Identity</summary>
+
+```powershell
+
+# Connect to Microsoft Graph with the required scopes for directory and app role assignment permissions.
+Connect-MgGraph -Scopes 'Directory.ReadWrite.All', 'AppRoleAssignment.ReadWrite.All'
+
+# Retrieve the managed identity's service principal object using its unique principal ID (UUID).
+$managedIdentity = Get-MgServicePrincipal -ServicePrincipalId '<Var name="Principal ID" />'
+
+# Set the Microsoft Graph enterprise application object.
+# This is a service principal object representing Microsoft Graph in Azure AD with a specific app ID.
+$graphSPN = Get-MgServicePrincipal -Filter "AppId eq '00000003-0000-0000-c000-000000000000'"
+
+# Define the permission scopes that we want to assign to the managed identity.
+# These are Microsoft Graph API permissions required by the managed identity.
+$permissions = @(
+  "Application.ReadWrite.OwnedBy"   # Permission to read application
+  "Group.Read.All"     # Permission to read groups
+  "User.Read.All"        # Permission to read users
+)
+
+# Filter and find the app roles in the Microsoft Graph service principal that match the defined permissions.
+# Only include roles where "AllowedMemberTypes" includes "Application" (suitable for managed identities).
+$appRoles = $graphSPN.AppRoles |
+    Where-Object Value -in $permissions |
+    Where-Object AllowedMemberTypes -contains "Application"
+
+# Iterate over each app role to assign it to the managed identity.
+foreach ($appRole in $appRoles) {
+    # Define the parameters for the role assignment, including the managed identity's principal ID,
+    # the Microsoft Graph service principal's resource ID, and the specific app role ID.
+    $bodyParam = @{
+        PrincipalId = $managedIdentity.Id  # The ID of the managed identity (service principal)
+        ResourceId  = $graphSPN.Id         # The ID of the Microsoft Graph service principal
+        AppRoleId   = $appRole.Id          # The ID of the app role being assigned
+    }
+
+    # Create a new app role assignment for the managed identity, granting it the specified permissions.
+    New-MgServicePrincipalAppRoleAssignment -ServicePrincipalId $managedIdentity.Id -BodyParameter $bodyParam
+}
+
+```
+
+</details>
+
+Your identity principal `<Var name="Principal ID" />` now has the necessary permissions to list Applications,
+Directories, and Policies.
+
+
+## Step 2/4: Generate configuration script (tctl)
+
+To begin integration, run the `tctl plugins install entraid` command.
+
+```code
+$ tctl plugins install entraid \
+    --name entra-id-default \
+    --auth-connector-name entra-id \
+    --default-owner=<Var name="Access List Owner"/> \
+    --default-owner=someOtherOwner@teleport.sh  \
+    --auth-server <Var name="example.teleport.sh:443" /> \
+    --use-system-credentials 
+
+Step 1: Run the Setup Script
+...
+
+Once the script completes, type 'continue' to proceed, 'exit' to quit: 
+```
+
+## Step 3/4: Configure Entra ID (tctl)
+
+(!docs/pages/includes/identity-governance/azure-shell.mdx!)
+
+## Step 4/4: Finish plugin installation (tctl)
 
 Once the script is done setting up the necessary permissions,
 it prints out tenant ID and client ID. Copy these values and provide it to the
@@ -214,7 +308,6 @@ $ tctl plugins install entraid \
     --name entra-id-default \
     --auth-connector-name entra-id \
     --default-owner=<Var name="Access List Owner"/> \
-    –-no-access-graph \
     –-manual-setup
 ```
 
@@ -258,7 +351,7 @@ If you enable Identity Security integration, you will need a broader sets of per
 - Policy.Read.All
 ```
 
-By default, the guided OIDC IdP configuration requests a broader scoped permission, which 
+By default, the guided configuration script sets up a broader scoped permission, which 
 is required by the Identity Security product to perform policy and access path analysis.
 
 ## Next steps
