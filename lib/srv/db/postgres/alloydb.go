@@ -86,7 +86,7 @@ func metadataExchangeAlloyDB(accessToken string, conn io.ReadWriter) error {
 
 	// check
 	if mdxResp.GetResponseCode() != connectorspb.MetadataExchangeResponse_OK {
-		return trace.BadParameter("metadata exchange failed: %v", mdxResp.GetResponseCode())
+		return trace.BadParameter("metadata exchange failed: %v, error: %s", mdxResp.GetResponseCode(), mdxResp.GetError())
 	}
 	return nil
 }
