@@ -2,6 +2,8 @@ c2sp.org/CCTV/age v0.0.0-20240306222714-3ec4d716e805 h1:u2qwJeEvnypw+OCPUHmoZE3I
 c2sp.org/CCTV/age v0.0.0-20240306222714-3ec4d716e805/go.mod h1:FomMrUJ2Lxt5jCLmZkG3FHa72zUprnhd3v/Z18Snm4w=
 cloud.google.com/go v0.121.2 h1:v2qQpN6Dx9x2NmwrqlesOt3Ys4ol5/lFZ6Mg1B7OJCg=
 cloud.google.com/go v0.121.2/go.mod h1:nRFlrHq39MNVWu+zESP2PosMWA0ryJw8KUBZ2iZpxbw=
+cloud.google.com/go/alloydb v1.18.0 h1:P+s1oek+sF3MlcumZuOj2ueUlusVwr3IT0R0vUbMA88=
+cloud.google.com/go/alloydb v1.18.0/go.mod h1:iB/PmQYLHwDXCGCc0weeL5ORP6GadFjXJlRZ9pE0vSY=
 cloud.google.com/go/auth v0.16.2 h1:QvBAGFPLrDeoiNjyfVunhQ10HKNYuOwZ5noee0M5df4=
 cloud.google.com/go/auth v0.16.2/go.mod h1:sRBas2Y1fB1vZTdurouM0AzuYQBMZinrUYL8EufhtEA=
 cloud.google.com/go/auth/oauth2adapt v0.2.8 h1:keo8NaayQZ6wimpNSmW5OPc283g65QNIiLpZnkHRbnc=

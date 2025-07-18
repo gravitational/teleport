@@ -18,6 +18,8 @@ package postgres
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log/slog"
 	"net"
@@ -29,6 +31,7 @@ import (
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	libcloud "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
@@ -145,6 +148,69 @@ func (c *connector) getConnectConfig(ctx context.Context) (*pgconn.Config, error
 				return nil, trace.Wrap(err)
 			}
 		}
+	case types.DatabaseTypeAlloyDB:
+		token, err := c.auth.GetAlloyDBAuthToken(ctx, c.databaseUser)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		adminClient, err := c.gcpClients.GetGCPAlloyDBClient(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		pkey, err := c.auth.GenerateDatabaseClientKey(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		clientCert, rootCA, err := adminClient.GenerateClientCertificate(ctx, c.database, c.certExpiry, pkey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// construct custom TLS config suitable for AlloyDB
+		rootCAPool := x509.NewCertPool()
+		ok := rootCAPool.AppendCertsFromPEM([]byte(rootCA))
+		if !ok {
+			return nil, trace.BadParameter("failed to parse root certificate")
+		}
+		tlsConfig := &tls.Config{
+			Certificates: []tls.Certificate{*clientCert},
+			RootCAs:      rootCAPool,
+			ServerName:   config.Host,
+			MinVersion:   tls.VersionTLS13,
+			// TODO(Tener): copy other things from original TLS config?
+			// copy from original config
+			InsecureSkipVerify: config.TLSConfig.InsecureSkipVerify,
+		}
+
+		// serverProxyPort is the port the server-side proxy receives connections on.
+		const serverProxyPort = 5433
+		if config.Port != serverProxyPort {
+			c.log.WarnContext(ctx, "Non-standard AlloyDB port configured", "expected", serverProxyPort, "actual", config.Port)
+		}
+
+		// remove TLS config from pg client config; DialFunc will handle TLS on its own.
+		config.TLSConfig = nil
+		config.DialFunc = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			conn, err := net.DialTimeout(network, addr, defaults.DefaultIOTimeout)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			tlsConn := tls.Client(conn, tlsConfig)
+			err = tlsConn.HandshakeContext(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			err = metadataExchangeAlloyDB(token, tlsConn)
+			if err != nil {
+				c.log.WarnContext(ctx, "Metadata exchange failed", "err", err)
+				_ = tlsConn.Close() // best effort
+				return nil, trace.Wrap(err)
+			}
+			return tlsConn, nil
+		}
+		break
 	case types.DatabaseTypeAzure:
 		config.Password, err = c.auth.GetAzureAccessToken(ctx)
 		if err != nil {

@@ -2954,6 +2954,39 @@ func TestDatabaseCLIFlags(t *testing.T) {
 			},
 		},
 		{
+			desc: "AlloyDB database",
+			inFlags: CommandLineFlags{
+				DatabaseName:          "alloydb",
+				DatabaseProtocol:      defaults.ProtocolPostgres,
+				DatabaseURI:           "10.20.30.40:5433",
+				DatabaseCACertFile:    testCertPath,
+				DatabaseGCPProjectID:  "project-1",
+				DatabaseGCPInstanceID: "instance-1",
+				DatabaseGCPClusterID:  "cluster-1",
+				DatabaseGCPRegion:     "us-east-1",
+				DatabaseIsAlloyDB:     true,
+			},
+			outDatabase: servicecfg.Database{
+				Name:     "alloydb",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "10.20.30.40:5433",
+				TLS: servicecfg.DatabaseTLS{
+					CACert: fixtures.LocalhostCert,
+				},
+				GCP: servicecfg.DatabaseGCP{
+					ProjectID:  "project-1",
+					InstanceID: "instance-1",
+					ClusterID:  "cluster-1",
+					Region:     "us-east-1",
+					IsAlloyDB:  true,
+				},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile,
+				},
+				DynamicLabels: services.CommandLabels{},
+			},
+		},
+		{
 			desc: "SQL Server",
 			inFlags: CommandLineFlags{
 				DatabaseName:         "sqlserver",
