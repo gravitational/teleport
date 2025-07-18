@@ -3147,6 +3147,11 @@ func TestAppsCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, out)
 
+	out, next, err := clt.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, next)
+
 	// Create both apps.
 	err = clt.CreateApp(ctx, app1)
 	require.NoError(t, err)
@@ -3159,6 +3164,13 @@ func TestAppsCRUD(t *testing.T) {
 	require.Empty(t, cmp.Diff([]types.Application{app1, app2}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
+
+	out, next, err = clt.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Application{app1, app2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+	require.Empty(t, next)
 
 	// Fetch a specific app.
 	app, err := clt.GetApp(ctx, app2.GetName())
@@ -3194,6 +3206,13 @@ func TestAppsCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
+	out, next, err = clt.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Application{app2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+	require.Empty(t, next)
+
 	// Try to delete an app that doesn't exist.
 	err = clt.DeleteApp(ctx, "doesnotexist")
 	require.IsType(t, trace.NotFound(""), err)
@@ -3201,9 +3220,15 @@ func TestAppsCRUD(t *testing.T) {
 	// Delete all apps.
 	err = clt.DeleteAllApps(ctx)
 	require.NoError(t, err)
+
 	out, err = clt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, out)
+
+	out, next, err = clt.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, next)
 }
 
 // TestAppServersCRUD tests application server resource operations.

@@ -166,7 +166,7 @@ type InitConfig struct {
 	Restrictions services.Restrictions
 
 	// Apps is a service that manages application resources.
-	Apps services.Apps
+	Apps services.Applications
 
 	// Databases is a service that manages database resources.
 	Databases services.Databases

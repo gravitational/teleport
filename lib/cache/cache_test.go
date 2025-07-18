@@ -19,6 +19,7 @@
 package cache
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -28,7 +29,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
+	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -66,10 +67,12 @@ import (
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/types/userprovisioning"
 	"github.com/gravitational/teleport/api/types/usertasks"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -114,7 +117,7 @@ type testPack struct {
 	snowflakeSessionS       services.SnowflakeSession
 	samlIdPSessionsS        services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
 	restrictions            services.Restrictions
-	apps                    services.Apps
+	apps                    services.Applications
 	kubernetes              services.Kubernetes
 	databases               services.Databases
 	databaseServices        services.DatabaseServices
@@ -474,7 +477,7 @@ func TestCA(t *testing.T) {
 
 	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), true)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(ca, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(ca, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	err = p.trustS.DeleteCertAuthority(ctx, ca.GetID())
 	require.NoError(t, err)
@@ -1256,7 +1259,7 @@ func initStrategy(t *testing.T) {
 
 	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// fail again, make sure last recent data is still served
 	// on errors
@@ -1270,7 +1273,7 @@ func initStrategy(t *testing.T) {
 	// backend is out, but old value is available
 	out2, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out2), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(normalizeCA(ca), normalizeCA(out2), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// add modification and expect the resource to recover
 	ca.SetRoleMap(types.RoleMap{types.RoleMapping{Remote: "test", Local: []string{"local-test"}}})
@@ -1287,7 +1290,7 @@ func initStrategy(t *testing.T) {
 	// new value is available now
 	out, err = p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 // TestRecovery tests error recovery scenario
@@ -1331,7 +1334,7 @@ func TestRecovery(t *testing.T) {
 	out, err := p.cache.GetCertAuthority(context.Background(), ca2.GetID(), false)
 	require.NoError(t, err)
 	types.RemoveCASecrets(ca2)
-	require.Empty(t, cmp.Diff(ca2, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(ca2, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 // TestTokens tests static and dynamic tokens
@@ -1365,7 +1368,7 @@ func TestTokens(t *testing.T) {
 
 	out, err := p.cache.GetStaticTokens()
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(staticTokens, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(staticTokens, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	expires := time.Now().Add(10 * time.Hour).Truncate(time.Second).UTC()
 	token, err := types.NewProvisionToken("token", types.SystemRoles{types.RoleAuth, types.RoleNode}, expires)
@@ -1383,7 +1386,7 @@ func TestTokens(t *testing.T) {
 
 	tout, err := p.cache.GetToken(ctx, token.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(token, tout, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(token, tout, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	err = p.provisionerS.DeleteToken(ctx, token.GetName())
 	require.NoError(t, err)
@@ -1425,7 +1428,7 @@ func TestAuthPreference(t *testing.T) {
 	outAuthPref, err := p.cache.GetAuthPreference(ctx)
 	require.NoError(t, err)
 
-	require.Empty(t, cmp.Diff(outAuthPref, authPref, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(outAuthPref, authPref, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 func TestClusterNetworkingConfig(t *testing.T) {
@@ -1454,7 +1457,7 @@ func TestClusterNetworkingConfig(t *testing.T) {
 	outNetConfig, err := p.cache.GetClusterNetworkingConfig(ctx)
 	require.NoError(t, err)
 
-	require.Empty(t, cmp.Diff(outNetConfig, netConfig, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(outNetConfig, netConfig, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 func TestSessionRecordingConfig(t *testing.T) {
@@ -1483,7 +1486,7 @@ func TestSessionRecordingConfig(t *testing.T) {
 	outRecConfig, err := p.cache.GetSessionRecordingConfig(ctx)
 	require.NoError(t, err)
 
-	require.Empty(t, cmp.Diff(outRecConfig, recConfig, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(outRecConfig, recConfig, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 func TestClusterAuditConfig(t *testing.T) {
@@ -1511,7 +1514,7 @@ func TestClusterAuditConfig(t *testing.T) {
 	outAuditConfig, err := p.cache.GetClusterAuditConfig(ctx)
 	require.NoError(t, err)
 
-	require.Empty(t, cmp.Diff(outAuditConfig, auditConfig, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(outAuditConfig, auditConfig, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 func TestClusterName(t *testing.T) {
@@ -1538,7 +1541,7 @@ func TestClusterName(t *testing.T) {
 	outName, err := p.cache.GetClusterName()
 	require.NoError(t, err)
 
-	require.Empty(t, cmp.Diff(outName, clusterName, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(outName, clusterName, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 // TestNamespaces tests caching of namespaces
@@ -1566,7 +1569,7 @@ func TestNamespaces(t *testing.T) {
 
 	out, err := p.cache.GetNamespace(ns.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// update namespace metadata
 	ns.Metadata.Labels = map[string]string{"a": "b"}
@@ -1586,7 +1589,7 @@ func TestNamespaces(t *testing.T) {
 
 	out, err = p.cache.GetNamespace(ns.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	err = p.presenceS.DeleteNamespace(ns.GetName())
 	require.NoError(t, err)
@@ -1933,13 +1936,75 @@ func TestApps(t *testing.T) {
 				URI: "localhost",
 			})
 		},
-		create:    p.apps.CreateApp,
-		list:      p.apps.GetApps,
-		cacheGet:  p.cache.GetApp,
-		cacheList: p.cache.GetApps,
+		create: p.apps.CreateApp,
+		list: func(ctx context.Context) ([]types.Application, error) {
+			return stream.Collect(clientutils.Resources(ctx, p.apps.ListApps))
+		},
+		cacheGet: p.cache.GetApp,
+		cacheList: func(ctx context.Context) ([]types.Application, error) {
+			return stream.Collect(clientutils.Resources(ctx, p.cache.ListApps))
+		},
 		update:    p.apps.UpdateApp,
 		deleteAll: p.apps.DeleteAllApps,
 	})
+}
+
+func TestApplicationPagination(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	p, err := newPack(t.TempDir(), ForProxy)
+	require.NoError(t, err)
+	t.Cleanup(p.Close)
+
+	var expected []types.Application
+	for i := range 1324 {
+		app, err := types.NewAppV3(types.Metadata{
+			Name: "app" + strconv.Itoa(i+1),
+		}, types.AppSpecV3{
+			URI: "localhost",
+		})
+		require.NoError(t, err)
+
+		require.NoError(t, p.apps.CreateApp(ctx, app))
+		expected = append(expected, app)
+	}
+	slices.SortFunc(expected, func(a, b types.Application) int {
+		return cmp.Compare(a.GetName(), b.GetName())
+	})
+
+	// Drain events to prevent deadlocking. Required because the number
+	// of applications exceeds the default buffer size for the channel.
+	drainEvents(p.eventsC)
+
+	// Wait for all the applications to be replicated to the cache.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		found, err := stream.Collect(clientutils.Resources(ctx, p.cache.ListApps))
+		assert.NoError(t, err)
+		assert.Len(t, expected, len(found))
+	}, 15*time.Second, 100*time.Millisecond)
+
+	out, err := p.cache.GetApps(ctx)
+	require.NoError(t, err)
+	assert.Len(t, out, len(expected))
+	assert.Empty(t, gocmp.Diff(expected, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	page1, page2Start, err := p.cache.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	assert.Len(t, page1, 1000)
+	assert.NotEmpty(t, page2Start)
+
+	page2, next, err := p.cache.ListApps(ctx, 1000, page2Start)
+	require.NoError(t, err)
+	assert.Len(t, page2, len(expected)-1000)
+	assert.Empty(t, next)
+
+	listed := append(page1, page2...)
+	assert.Empty(t, gocmp.Diff(expected, listed,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
 }
 
 func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
@@ -2931,7 +2996,7 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	err = funcs.create(ctx, r)
 	require.NoError(t, err)
 
-	cmpOpts := []cmp.Option{
+	cmpOpts := []gocmp.Option{
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 	}
@@ -2939,14 +3004,14 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	// Check that the resource is now in the backend.
 	out, err := funcs.list(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
+	require.Empty(t, gocmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Wait until the information has been replicated to the cache.
 	require.Eventually(t, func() bool {
 		// Make sure the cache has a single resource in it.
 		out, err = funcs.cacheList(ctx)
 		assert.NoError(t, err)
-		return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
+		return len(gocmp.Diff([]T{r}, out, cmpOpts...)) == 0
 	}, time.Second*2, time.Millisecond*250)
 
 	// cacheGet is optional as not every resource implements it
@@ -2954,7 +3019,7 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 		// Make sure a single cache get works.
 		getR, err := funcs.cacheGet(ctx, r.GetName())
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(r, getR, cmpOpts...))
+		require.Empty(t, gocmp.Diff(r, getR, cmpOpts...))
 	}
 
 	// update is optional as not every resource implements it
@@ -2969,14 +3034,14 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	// update occurred).
 	out, err = funcs.list(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
+	require.Empty(t, gocmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Check that information has been replicated to the cache.
 	require.Eventually(t, func() bool {
 		// Make sure the cache has a single resource in it.
 		out, err = funcs.cacheList(ctx)
 		assert.NoError(t, err)
-		return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
+		return len(gocmp.Diff([]T{r}, out, cmpOpts...)) == 0
 	}, time.Second*2, time.Millisecond*250)
 
 	// Remove all service providers from the backend.
@@ -3006,7 +3071,7 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 	err = funcs.create(ctx, r)
 	require.NoError(t, err)
 
-	cmpOpts := []cmp.Option{
+	cmpOpts := []gocmp.Option{
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	}
@@ -3014,15 +3079,25 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 	assertCacheContents := func(expected []T) {
 		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			out, err := funcs.cacheList(ctx)
-			assert.NoError(collect, err)
-			assert.Empty(collect, cmp.Diff(expected, out, cmpOpts...))
-		}, 2*time.Second, 250*time.Millisecond)
+			assert.NoError(t, err)
+
+			// If the cache is expected to be empty, then test explicitly for
+			// *that* rather than do an equality test. An equality test here
+			// would be overly-pedantic about a service returning `nil` rather
+			// than an empty slice.
+			if len(expected) == 0 {
+				assert.Empty(t, out)
+				return
+			}
+
+			assert.Empty(t, gocmp.Diff(expected, out, cmpOpts...))
+		}, 2*time.Second, 10*time.Millisecond)
 	}
 
 	// Check that the resource is now in the backend.
 	out, err := funcs.list(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
+	require.Empty(t, gocmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Wait until the information has been replicated to the cache.
 	assertCacheContents([]T{r})
@@ -3032,7 +3107,7 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 		// Make sure a single cache get works.
 		getR, err := funcs.cacheGet(ctx, r.GetMetadata().GetName())
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(r, getR, cmpOpts...))
+		require.Empty(t, gocmp.Diff(r, getR, cmpOpts...))
 	}
 
 	// update is optional as not every resource implements it
@@ -3047,7 +3122,7 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 	// update occurred).
 	out, err = funcs.list(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
+	require.Empty(t, gocmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Check that information has been replicated to the cache.
 	assertCacheContents([]T{r})
@@ -3531,12 +3606,12 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					// attempting to compare the messages does not result in a panic
 					switch r := r.Unwrap().(type) {
 					case protobuf.Message:
-						require.Empty(t, cmp.Diff(r, eventResource.Unwrap(), protocmp.Transform()))
+						require.Empty(t, gocmp.Diff(r, eventResource.Unwrap(), protocmp.Transform()))
 					default:
-						require.Empty(t, cmp.Diff(r, eventResource.Unwrap()))
+						require.Empty(t, gocmp.Diff(r, eventResource.Unwrap()))
 					}
 				default:
-					require.Empty(t, cmp.Diff(resource, event.Resource))
+					require.Empty(t, gocmp.Diff(resource, event.Resource))
 				}
 			}
 		})
