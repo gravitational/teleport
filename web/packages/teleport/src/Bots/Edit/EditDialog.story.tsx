@@ -175,6 +175,34 @@ export const WithSubmitFailure: Story = {
   },
 };
 
+export const WithSubmitOutdatedProxy: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        successHandler,
+        successGetRoles({
+          startKey: '',
+          items: ['access', 'editor', 'terraform-provider'].map(r => ({
+            content: r,
+            id: r,
+            name: r,
+            kind: 'role',
+          })),
+        }),
+        editBotError(404, 'path not found', {
+          proxyVersion: {
+            major: 19,
+            minor: 0,
+            patch: 0,
+            preRelease: 'dev',
+            string: '18.0.0',
+          },
+        }),
+      ],
+    },
+  },
+};
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

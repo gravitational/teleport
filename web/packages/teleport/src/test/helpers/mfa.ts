@@ -16,13 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { getBot, listBotTokens } from 'teleport/services/bot/bot';
-import { createQueryHook } from 'teleport/services/queryHelpers';
+import { http, HttpResponse } from 'msw';
 
-export const { createQueryKey: createGetBotQueryKey, useQuery: useGetBot } =
-  createQueryHook(['bot', 'get'], getBot);
+import cfg from 'teleport/config';
 
-export const {
-  createQueryKey: createListBotTokensQueryKey,
-  useQuery: useListBotTokens,
-} = createQueryHook(['bot', 'token', 'list'], listBotTokens);
+export const mfaAuthnChallengeSuccess = () =>
+  http.post(cfg.api.mfaAuthnChallengePath, () => {
+    return HttpResponse.json(
+      {
+        totp_challenge: true,
+      },
+      { status: 200 }
+    );
+  });
