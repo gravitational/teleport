@@ -198,7 +198,10 @@ func (s *ProvisioningService) GetTokens(ctx context.Context) ([]types.ProvisionT
 	return tokens, nil
 }
 
-// ListProvisionTokens returns a paginated list of provision tokens.
+// ListProvisionTokens returns a paginated list of provision tokens. Items can
+// be filtered by role and bot name. Tokens with ANY of the provided roles are
+// returned. If a bot name is provided, only tokens having a role of Bot are
+// returned.
 func (s *ProvisioningService) ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error) {
 	// Bound page size (0 - 1_000)
 	if pageSize <= 0 || pageSize > int(defaults.MaxIterationLimit) {

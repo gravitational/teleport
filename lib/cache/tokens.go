@@ -173,7 +173,10 @@ func (c *Cache) GetToken(ctx context.Context, name string) (types.ProvisionToken
 	return t.Clone(), nil
 }
 
-// ListProvisionTokens returns a paginated list of provision tokens.
+// ListProvisionTokens returns a paginated list of provision tokens. Items can
+// be filtered by role and bot name. Tokens with ANY of the provided roles are
+// returned. If a bot name is provided, only tokens having a role of Bot are
+// returned.
 func (c *Cache) ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetTokens")
 	defer span.End()
