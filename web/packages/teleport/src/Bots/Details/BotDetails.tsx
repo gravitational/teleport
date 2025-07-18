@@ -374,19 +374,7 @@ function JoinTokens(props: { botName: string; onViewAllClicked: () => void }) {
       ) : undefined}
 
       {isError && !requiresMfa ? (
-        <Alert
-          kind="danger"
-          primaryAction={
-            requiresMfa
-              ? {
-                  content: 'Verify',
-                  onClick: handleVerifyClick,
-                }
-              : undefined
-          }
-        >
-          Error: {error.message}
-        </Alert>
+        <Alert kind="danger">Error: {error.message}</Alert>
       ) : undefined}
 
       {isSuccess ? (
