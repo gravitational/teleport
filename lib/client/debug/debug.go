@@ -26,6 +26,9 @@ import (
 	"net/url"
 	"strconv"
 
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
+
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -171,6 +174,21 @@ func (c *Client) GetReadiness(ctx context.Context) (Readiness, error) {
 		return ready, trace.Wrap(err)
 	}
 	return ready, nil
+}
+
+func (c *Client) GetMetrics(ctx context.Context) (map[string]*dto.MetricFamily, error) {
+	resp, err := c.do(ctx, http.MethodGet, url.URL{Path: "/metrics"}, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+	var parser expfmt.TextParser
+	metrics, err := parser.TextToMetricFamilies(resp.Body)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return metrics, nil
 }
 
 func (c *Client) do(ctx context.Context, method string, u url.URL, body []byte) (*http.Response, error) {
