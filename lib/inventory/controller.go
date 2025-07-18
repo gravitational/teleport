@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.org/x/time/rate"
 
 	"github.com/gravitational/teleport/api/client"
@@ -133,6 +134,7 @@ type controllerOptions struct {
 	authID             string
 	onConnectFunc      func(string)
 	onDisconnectFunc   func(string, int)
+	clock              clockwork.Clock
 	cleanupLimiter     *rate.Limiter
 	cleanupTimeout     time.Duration
 }
@@ -161,6 +163,10 @@ func (options *controllerOptions) SetDefaults() {
 
 	if options.onDisconnectFunc == nil {
 		options.onDisconnectFunc = func(string, int) {}
+	}
+
+	if options.clock == nil {
+		options.clock = clockwork.NewRealClock()
 	}
 
 	if options.cleanupLimiter == nil {
@@ -222,6 +228,13 @@ func withTestEventsChannel(ch chan testEvent) ControllerOption {
 	}
 }
 
+// WithClock sets the clock for the controller to have a general clock configuration.
+func WithClock(clock clockwork.Clock) ControllerOption {
+	return func(opts *controllerOptions) {
+		opts.clock = clock
+	}
+}
+
 // Controller manages the inventory control streams registered with a given auth instance. Incoming
 // messages are processed by invoking the appropriate methods on the Auth interface.
 type Controller struct {
@@ -243,6 +256,7 @@ type Controller struct {
 	testEvents                 chan testEvent
 	onConnectFunc              func(string)
 	onDisconnectFunc           func(string, int)
+	clock                      clockwork.Clock
 	cleanupLimiter             *rate.Limiter
 	cleanupTimeout             time.Duration
 	closeContext               context.Context
@@ -318,6 +332,7 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 		onDisconnectFunc:           options.onDisconnectFunc,
 		cleanupLimiter:             options.cleanupLimiter,
 		cleanupTimeout:             options.cleanupTimeout,
+		clock:                      options.clock,
 		closeContext:               ctx,
 		cancel:                     cancel,
 	}
