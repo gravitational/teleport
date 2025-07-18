@@ -393,14 +393,23 @@ func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httpro
 	}
 	defer proxy.Close()
 
+	var outStream, errStream io.Writer
+	if request.tty {
+		outStream = proxy.stdoutStream
+		errStream = proxy.stderrStream
+	} else {
+		outStream = bytes.NewBuffer(nil)
+		errStream = bytes.NewBuffer(nil)
+	}
+
 	if request.stdout {
-		if _, err := proxy.stdoutStream.Write([]byte(request.containerName + "\n")); err != nil {
+		if _, err := outStream.Write([]byte(request.containerName + "\n")); err != nil {
 			s.log.ErrorContext(request.context, "unable to send to stdout", "error", err)
 		}
 	}
 
 	if request.stderr {
-		if _, err := proxy.stderrStream.Write([]byte(request.containerName + "\n")); err != nil {
+		if _, err := errStream.Write([]byte(request.containerName + "\n")); err != nil {
 			s.log.ErrorContext(request.context, "unable to send to stderr", "error", err)
 		}
 	}
@@ -430,19 +439,26 @@ func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httpro
 			}
 
 			if request.stdout {
-				if _, err := proxy.stdoutStream.Write(buffer); err != nil {
+				if _, err := outStream.Write(buffer); err != nil {
 					s.log.ErrorContext(request.context, "unable to send to stdout", "error", err)
 				}
 			}
 
 			if request.stderr {
-				if _, err := proxy.stderrStream.Write(buffer); err != nil {
-					s.log.ErrorContext(request.context, "unable to send to stdout", "error", err)
+				if _, err := errStream.Write(buffer); err != nil {
+					s.log.ErrorContext(request.context, "unable to send to stderr", "error", err)
 				}
 			}
-
 		}
+	}
 
+	if !request.tty {
+		if _, err := io.Copy(proxy.stdoutStream, outStream.(*bytes.Buffer)); err != nil {
+			s.log.ErrorContext(request.context, "unable to copy to stdout", "error", err)
+		}
+		if _, err := io.Copy(proxy.stderrStream, errStream.(*bytes.Buffer)); err != nil {
+			s.log.ErrorContext(request.context, "unable to copy to stderr", "error", err)
+		}
 	}
 
 	return nil, nil
