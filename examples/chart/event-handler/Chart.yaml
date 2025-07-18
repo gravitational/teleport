@@ -1,4 +1,4 @@
-.version: &version "17.5.4"
+.version: &version "17.5.5-dev.sclevine.1"
 
 apiVersion: v2
 name: teleport-plugin-event-handler
