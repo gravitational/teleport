@@ -314,10 +314,10 @@ func (h *errorHandler) UploadSummary(ctx context.Context, sessionID session.ID, 
 	return "", h.err
 }
 
-func (h *errorHandler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+func (h *errorHandler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	return h.err
 }
 
-func (h *errorHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+func (h *errorHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	return h.err
 }
