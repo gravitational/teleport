@@ -293,7 +293,10 @@ func TestAccessList_EntitlementLimits(t *testing.T) {
 		{
 			name: "UpsertWithMembers",
 			invoke: func(ctx context.Context, uut *AccessListService, acl *accesslist.AccessList) (*accesslist.AccessList, error) {
-				updatedACL, _, err := uut.UpsertAccessListWithMembers(ctx, acl, []*accesslist.AccessListMember{})
+				updatedACL, _, err := uut.UpsertAccessListWithMembersV2(ctx, accesslist.UpsertAccessListWithMembersRequest{
+					AccessList: acl,
+					Members:    []*accesslist.AccessListMember{},
+				})
 				return updatedACL, err
 			},
 		},
@@ -442,7 +445,10 @@ func TestAccessListUpsertWithMembers(t *testing.T) {
 
 	t.Run("create access list", func(t *testing.T) {
 		// Create both access lists.
-		accessList, _, err := service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{})
+		accessList, _, err := service.UpsertAccessListWithMembersV2(ctx, accesslist.UpsertAccessListWithMembersRequest{
+			AccessList: accessList1,
+			Members:    []*accesslist.AccessListMember{},
+		})
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(accessList1, accessList, cmpOpts...))
 	})
@@ -451,7 +457,10 @@ func TestAccessListUpsertWithMembers(t *testing.T) {
 
 	t.Run("add member to the access list", func(t *testing.T) {
 		// Add access list members.
-		updatedAccessList, updatedMembers, err := service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessList1Member1})
+		updatedAccessList, updatedMembers, err := service.UpsertAccessListWithMembersV2(ctx, accesslist.UpsertAccessListWithMembersRequest{
+			AccessList: accessList1,
+			Members:    []*accesslist.AccessListMember{accessList1Member1},
+		})
 		require.NoError(t, err)
 		// Assert that access list is returned.
 		require.Empty(t, cmp.Diff(updatedAccessList, updatedAccessList, cmpOpts...))
@@ -468,7 +477,10 @@ func TestAccessListUpsertWithMembers(t *testing.T) {
 
 	t.Run("add another member to the access list", func(t *testing.T) {
 		// Add access list members.
-		updatedAccessList, updatedMembers, err := service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessList1Member1, accessList1Member2})
+		updatedAccessList, updatedMembers, err := service.UpsertAccessListWithMembersV2(ctx, accesslist.UpsertAccessListWithMembersRequest{
+			AccessList: accessList1,
+			Members:    []*accesslist.AccessListMember{accessList1Member1, accessList1Member2},
+		})
 		require.NoError(t, err)
 		// Assert that access list is returned.
 		require.Empty(t, cmp.Diff(updatedAccessList, updatedAccessList, cmpOpts...))
@@ -486,7 +498,10 @@ func TestAccessListUpsertWithMembers(t *testing.T) {
 	})
 
 	t.Run("empty members removes all members", func(t *testing.T) {
-		_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{})
+		_, _, err = service.UpsertAccessListWithMembersV2(ctx, accesslist.UpsertAccessListWithMembersRequest{
+			AccessList: accessList1,
+			Members:    []*accesslist.AccessListMember{},
+		})
 		require.NoError(t, err)
 
 		members, _, err := service.ListAccessListMembers(ctx, accessList1.GetName(), 0 /* default size*/, "")
@@ -697,7 +712,10 @@ func TestUpsertAndUpdateAccessListWithMembers_PreservesIdentityCenterLablesForEx
 		))
 
 	dupeMemberButWithoutOriginLabel := newAccessListMember(t, accessList1.GetName(), "aws-ic-user")
-	_, updatedMembers, err := service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{dupeMemberButWithoutOriginLabel})
+	_, updatedMembers, err := service.UpsertAccessListWithMembersV2(ctx, accesslist.UpsertAccessListWithMembersRequest{
+		AccessList: accessList1,
+		Members:    []*accesslist.AccessListMember{dupeMemberButWithoutOriginLabel},
+	})
 	require.NoError(t, err)
 	require.Equal(t, "bar", updatedMembers[0].GetMetadata().Labels["foo"])
 

@@ -320,6 +320,35 @@ func (c *Client) UpsertAccessListWithMembers(ctx context.Context, list *accessli
 	return accessList, updatedMembers, nil
 }
 
+// UpsertAccessListWithMembersV2 creates or updates an access list resource and its members.
+// Replica of UpsertAccessListWithMembers.
+// TODO(kimlisa): delete once UpsertAccessListWithMembers signature gets updated.
+func (c *Client) UpsertAccessListWithMembersV2(ctx context.Context, req accesslist.UpsertAccessListWithMembersRequest) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	resp, err := c.grpcClient.UpsertAccessListWithMembers(ctx, &accesslistv1.UpsertAccessListWithMembersRequest{
+		AccessList: conv.ToProto(req.AccessList),
+		Members:    conv.ToMembersProto(req.Members),
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	accessList, err := conv.FromProto(resp.AccessList, conv.WithOwnersIneligibleStatusField(resp.AccessList.GetSpec().GetOwners()))
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	updatedMembers := make([]*accesslist.AccessListMember, len(resp.Members))
+	for i, member := range resp.Members {
+		var err error
+		updatedMembers[i], err = conv.FromMemberProto(member, conv.WithMemberIneligibleStatusField(member))
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
+	return accessList, updatedMembers, nil
+}
+
 // AccessRequestPromote promotes an access request to an access list.
 func (c *Client) AccessRequestPromote(ctx context.Context, req *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error) {
 	resp, err := c.grpcClient.AccessRequestPromote(ctx, req)

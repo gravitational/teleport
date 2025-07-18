@@ -818,6 +818,169 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 	return accessList, membersIn, nil
 }
 
+// UpsertAccessListWithMembersV2 creates or updates an access list resource and its members.
+// Replica of UpsertAccessListWithMembers.
+// TODO(kimlisa): delete once UpsertAccessListWithMembers signature gets updated.
+func (a *AccessListService) UpsertAccessListWithMembersV2(ctx context.Context, req accesslist.UpsertAccessListWithMembersRequest) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	if err := req.AccessList.CheckAndSetDefaults(); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	for _, m := range req.Members {
+		if err := m.CheckAndSetDefaults(); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
+	validateAccessList := func() error {
+		existingList, err := a.service.GetResource(ctx, req.AccessList.GetName())
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+		if existingList != nil {
+			req.AccessList.Status.MemberOf = existingList.Status.MemberOf
+			req.AccessList.Status.OwnerOf = existingList.Status.OwnerOf
+		} else {
+			// In case the MemberOf/OwnerOf fields were manually changed, set to empty.
+			req.AccessList.Status.MemberOf = []string{}
+			req.AccessList.Status.OwnerOf = []string{}
+		}
+
+		if err := accesslists.ValidateAccessListWithMembers(ctx, req.AccessList, req.Members, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}
+
+	reconcileMembers := func() error {
+		// Convert the members slice to a map for easier lookup.
+		membersMap := utils.FromSlice(req.Members, types.GetName)
+
+		var (
+			members      []*accesslist.AccessListMember
+			membersToken string
+		)
+
+		for {
+			// List all members for the access list.
+			var err error
+			members, membersToken, err = a.memberService.WithPrefix(req.AccessList.GetName()).ListResources(ctx, 0 /* default size */, membersToken)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			for _, existingMember := range members {
+				// If the member is not in the new members map (request), delete it.
+				if newMember, ok := membersMap[existingMember.GetName()]; !ok {
+					err = a.memberService.WithPrefix(req.AccessList.GetName()).DeleteResource(ctx, existingMember.GetName())
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					// Update memberOf field if nested list.
+					if existingMember.Spec.MembershipKind == accesslist.MembershipKindList {
+						if err := a.updateAccessListMemberOf(ctx, req.AccessList.GetName(), existingMember.GetName(), false); err != nil {
+							return trace.Wrap(err)
+						}
+					}
+				} else {
+					// Preserve the membership metadata for any existing members
+					// to suppress member records flipping back and forth due
+					// due SCIM pushes or Sync Service updates.
+					if !existingMember.Spec.Expires.IsZero() {
+						newMember.Spec.Expires = existingMember.Spec.Expires
+					}
+					if existingMember.Spec.Reason != "" {
+						newMember.Spec.Reason = existingMember.Spec.Reason
+					}
+					keepAWSIdentityCenterLabels(existingMember, newMember)
+					newMember.Spec.AddedBy = existingMember.Spec.AddedBy
+
+					// Compare members and update if necessary.
+					if !cmp.Equal(newMember, existingMember) {
+						// Update the member.
+						upserted, err := a.memberService.WithPrefix(req.AccessList.GetName()).UpsertResource(ctx, newMember)
+						if err != nil {
+							return trace.Wrap(err)
+						}
+
+						existingMember.SetRevision(upserted.GetRevision())
+					}
+				}
+
+				// Remove the member from the map.
+				delete(membersMap, existingMember.GetName())
+			}
+
+			if membersToken == "" {
+				break
+			}
+		}
+
+		// Add any remaining members to the access list.
+		for _, member := range membersMap {
+			upserted, err := a.memberService.WithPrefix(req.AccessList.GetName()).UpsertResource(ctx, member)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			// Update memberOf field if nested list.
+			if member.Spec.MembershipKind == accesslist.MembershipKindList {
+				if err := a.updateAccessListMemberOf(ctx, req.AccessList.GetName(), member.Spec.Name, true); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+			member.SetRevision(upserted.GetRevision())
+		}
+
+		return nil
+	}
+
+	reconcileOwners := func() error {
+		// update references for new owners
+		for _, owner := range req.AccessList.Spec.Owners {
+			if owner.MembershipKind == accesslist.MembershipKindList {
+				if err := a.updateAccessListOwnerOf(ctx, req.AccessList.GetName(), owner.Name, true); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+		}
+		return nil
+	}
+
+	updateAccessList := func() error {
+		var err error
+		req.AccessList, err = a.service.UpsertResource(ctx, req.AccessList)
+		return trace.Wrap(err)
+	}
+
+	var actions []func() error
+
+	// If IGS is not enabled for this cluster we need to wrap the whole update and
+	// member reconciliation in *another* lock so that we can accurately count the
+	// access lists in the cluster in order to  prevent un-authorized use of the
+	// AccessList feature
+	if !modules.GetModules().Features().GetEntitlement(entitlements.Identity).Enabled {
+		actions = append(actions, func() error { return a.VerifyAccessListCreateLimit(ctx, req.AccessList.GetName()) })
+	}
+
+	actions = append(actions, validateAccessList, reconcileMembers, updateAccessList, reconcileOwners)
+
+	if err := a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+		return a.service.RunWhileLocked(ctx, lockName(req.AccessList.GetName()), 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+			for _, action := range actions {
+				if err := action(); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+			return nil
+		})
+	}); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return req.AccessList, req.Members, nil
+}
+
 func (a *AccessListService) AccessRequestPromote(_ context.Context, _ *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error) {
 	return nil, trace.NotImplemented("AccessRequestPromote should not be called")
 }

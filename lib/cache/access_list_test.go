@@ -150,14 +150,16 @@ func TestAccessListReviews(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 
-	al, _, err := p.accessLists.UpsertAccessListWithMembers(context.Background(), newAccessList(t, "access-list", clock),
-		[]*accesslist.AccessListMember{
+	al, _, err := p.accessLists.UpsertAccessListWithMembersV2(context.Background(), accesslist.UpsertAccessListWithMembersRequest{
+		AccessList: newAccessList(t, "access-list", clock),
+		Members: []*accesslist.AccessListMember{
 			newAccessListMember(t, "access-list", "member1"),
 			newAccessListMember(t, "access-list", "member2"),
 			newAccessListMember(t, "access-list", "member3"),
 			newAccessListMember(t, "access-list", "member4"),
 			newAccessListMember(t, "access-list", "member5"),
-		})
+		},
+	})
 	require.NoError(t, err)
 
 	// Keep track of the reviews, as create can update them. We'll use this
@@ -194,18 +196,22 @@ func TestAccessListReviews(t *testing.T) {
 		deleteAll: p.accessLists.DeleteAllAccessListReviews,
 	}, withSkipPaginationTest()) // access list reviews resources have customer pagination test.
 
-	_, _, err = p.accessLists.UpsertAccessListWithMembers(t.Context(), newAccessList(t, "fake-al-1", clock),
-		[]*accesslist.AccessListMember{
+	_, _, err = p.accessLists.UpsertAccessListWithMembersV2(t.Context(), accesslist.UpsertAccessListWithMembersRequest{
+		AccessList: newAccessList(t, "fake-al-1", clock),
+		Members: []*accesslist.AccessListMember{
 			newAccessListMember(t, "fake-al-1", "member1"),
 			newAccessListMember(t, "fake-al-1", "member2"),
-		})
+		},
+	})
 	require.NoError(t, err)
 
-	_, _, err = p.accessLists.UpsertAccessListWithMembers(t.Context(), newAccessList(t, "fake-al-2", clock),
-		[]*accesslist.AccessListMember{
+	_, _, err = p.accessLists.UpsertAccessListWithMembersV2(t.Context(), accesslist.UpsertAccessListWithMembersRequest{
+		AccessList: newAccessList(t, "fake-al-2", clock),
+		Members: []*accesslist.AccessListMember{
 			newAccessListMember(t, "fake-al-2", "member1"),
 			newAccessListMember(t, "fake-al-2", "member2"),
-		})
+		},
+	})
 	require.NoError(t, err)
 
 	review1 := newAccessListReview(t, "fake-al-1", "initial-review-1")
@@ -239,11 +245,13 @@ func TestAccessListReviews(t *testing.T) {
 		)
 	}, 15*time.Second, 100*time.Millisecond)
 
-	_, _, err = p.accessLists.UpsertAccessListWithMembers(t.Context(), newAccessList(t, "access-list-test", clock),
-		[]*accesslist.AccessListMember{
+	_, _, err = p.accessLists.UpsertAccessListWithMembersV2(t.Context(), accesslist.UpsertAccessListWithMembersRequest{
+		AccessList: newAccessList(t, "access-list-test", clock),
+		Members: []*accesslist.AccessListMember{
 			newAccessListMember(t, "access-list-test", "member1"),
 			newAccessListMember(t, "access-list-test", "member2"),
-		})
+		},
+	})
 	require.NoError(t, err)
 
 	for i := range 10 {

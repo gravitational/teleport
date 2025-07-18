@@ -70,6 +70,9 @@ type AccessLists interface {
 
 	// UpsertAccessListWithMembers creates or updates an access list resource and its members.
 	UpsertAccessListWithMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
+	// UpsertAccessListWithMembers creates or updates an access list resource and its members.
+	// TODO(kimlisa): delete once UpsertAccessListWithMembers signature gets updated.
+	UpsertAccessListWithMembersV2(context.Context, accesslist.UpsertAccessListWithMembersRequest) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
 
 	// AccessRequestPromote promotes an access request to an access list.
 	AccessRequestPromote(ctx context.Context, req *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error)
