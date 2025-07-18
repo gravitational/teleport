@@ -20,11 +20,11 @@ import (
 	"context"
 	"net/url"
 
+	"github.com/gravitational/trace"
 	dto "github.com/prometheus/client_model/go"
 
 	"github.com/gravitational/teleport/lib/client/debug"
 	"github.com/gravitational/teleport/tool/tctl/common/top/client/http"
-	"github.com/gravitational/trace"
 )
 
 type MetricCient interface {
