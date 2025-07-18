@@ -85,19 +85,29 @@ async function initializeApp(): Promise<void> {
   new AppUpdater();
 
   process.on('uncaughtException', (error, origin) => {
-    logger.error(origin, error);
-    app.quit();
+    logger.error('Uncaught exception', origin, error);
+    app.exit(1);
   });
 
-  // init main process
-  const mainProcess = MainProcess.create({
-    settings,
-    logger,
-    configService,
-    appStateFileStorage,
-    configFileStorage,
-    windowsManager,
-  });
+  let mainProcess: MainProcess;
+  try {
+    mainProcess = MainProcess.create({
+      settings,
+      logger,
+      configService,
+      appStateFileStorage,
+      configFileStorage,
+      windowsManager,
+    });
+  } catch (error) {
+    const message = 'Could not initialize the main process';
+    logger.error(message, error);
+    dialog.showErrorBox(message, error);
+    // app.exit(1) isn't equivalent to throwing an error, use an explicit return to stop further
+    // execution. See https://github.com/gravitational/teleport/issues/56272.
+    app.exit(1);
+    return;
+  }
 
   //TODO(gzdunek): Make sure this is not needed after migrating to Vite.
   app.on(
@@ -165,14 +175,10 @@ async function initializeApp(): Promise<void> {
       allowList: rootClusterProxyHostAllowList,
     });
   })().catch(error => {
-    const message =
-      'Could not initialize tsh daemon client in the main process';
+    const message = 'Could not initialize the tshd client in the main process';
     logger.error(message, error);
-    dialog.showErrorBox(
-      'Error during main process startup',
-      `${message}: ${error}`
-    );
-    app.quit();
+    dialog.showErrorBox(message, error);
+    app.exit(1);
   });
 
   app
@@ -191,13 +197,10 @@ async function initializeApp(): Promise<void> {
       windowsManager.createWindow();
     })
     .catch(error => {
-      const message = 'Could not initialize the app';
+      const message = 'Could not create the main app window';
       logger.error(message, error);
-      dialog.showErrorBox(
-        'Error during app initialization',
-        `${message}: ${error}`
-      );
-      app.quit();
+      dialog.showErrorBox(message, error);
+      app.exit(1);
     });
 
   // Limit navigation capabilities to reduce the attack surface.
