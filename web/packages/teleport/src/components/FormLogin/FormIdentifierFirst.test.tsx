@@ -39,6 +39,7 @@ test('no user remembered in localstorage renders username input form', () => {
       onLoginWithSso={jest.fn()}
       onUseLocalLogin={jest.fn()}
       isLocalAuthEnabled={true}
+      title={'Sign in to Teleport'}
     />
   );
 
@@ -61,6 +62,7 @@ test('user remembered in localstorage shows welcome screen with connectors', asy
       onLoginWithSso={jest.fn()}
       onUseLocalLogin={jest.fn()}
       isLocalAuthEnabled={true}
+      title={'Sign in to Teleport'}
     />
   );
 
@@ -87,6 +89,7 @@ test('if there is only one connector returned after submitting username, the use
       onLoginWithSso={mockOnLoginWithSso}
       onUseLocalLogin={jest.fn()}
       isLocalAuthEnabled={true}
+      title={'Sign in to Teleport'}
     />
   );
 

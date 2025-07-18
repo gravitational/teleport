@@ -66,6 +66,7 @@ export default function LoginForm(props: Props) {
     isPasswordlessEnabled,
     authProviders = [],
     primaryAuthType,
+    title = 'Sign in to Teleport',
   } = props;
 
   const [showIdentifierFirstLogin, setShowIdentifierFirstLogin] = useState(
@@ -101,6 +102,7 @@ export default function LoginForm(props: Props) {
         onLoginWithSso={props.onLoginWithSso}
         onUseLocalLogin={() => setShowIdentifierFirstLogin(false)}
         isLocalAuthEnabled={isLocalAuthEnabled}
+        title={title}
       />
     );
   }
@@ -109,7 +111,7 @@ export default function LoginForm(props: Props) {
   return (
     <Card my="5" mx="auto" maxWidth={500} minWidth={300} py={4}>
       <Text typography="h1" mb={4} textAlign="center">
-        Sign in to Teleport
+        {title}
       </Text>
       {errorMessage && <Alerts.Danger m={4}>{errorMessage}</Alerts.Danger>}
       {showAccessChangedMessage && (

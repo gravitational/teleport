@@ -526,7 +526,7 @@ function LicenseFooter({
   );
 }
 
-function PoweredByTeleportLogo() {
+export function PoweredByTeleportLogo() {
   const theme = useTheme();
   const src = theme.type === 'dark' ? logoPoweredByDark : logoPoweredByLight;
   return (
