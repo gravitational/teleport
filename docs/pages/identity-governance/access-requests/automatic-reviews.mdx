@@ -7,11 +7,6 @@ Teleport supports automatic reviews of role Access Requests. This
 feature enables teams to enforce a zero standing privilege policy, while
 still allowing users to receive temporary access without manual approval.
 
-<Admonition type="note" title="resource access request support">
-  Automatic reviews is not currently supported with resource Access Requests.
-  This functionality will be enabled in a future Teleport release.
-</Admonition>
-
 ## How it works
 
 Automatic reviews are triggered by Access Automation Rules. These rules instruct
@@ -137,12 +132,6 @@ process, so you may have to refresh the page.
 Automatic review rules can automatically approve or deny Access Requests based
 on the selected review decision. If an Access Request meets the conditions for
 both an approval rule and a denial rule, the denial rule takes precedence.
-
-### Resource Access Requests
-
-Automatic review rules are not currently supported for resource Access Requests.
-These rules will not be applied to any Access Requests that include a resource
-other than a role.
 
 ## Next Steps
 
