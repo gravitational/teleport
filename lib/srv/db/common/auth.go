@@ -488,7 +488,7 @@ func (a *dbAuth) GetCloudSQLAuthToken(ctx context.Context, databaseUser string) 
 // GetAlloyDBAuthToken returns authorization token that will be used as a
 // password when connecting to AlloyDB databases.
 func (a *dbAuth) GetAlloyDBAuthToken(ctx context.Context, databaseUser string) (string, error) {
-	//   https://cloud.google.com/alloydb/docs/connect-iam#procedure
+	// https://cloud.google.com/alloydb/docs/connect-iam#procedure
 	scopes := []string{
 		"https://www.googleapis.com/auth/alloydb.login",
 	}
