@@ -98,6 +98,8 @@ type cliConfig struct {
 	Insecure bool
 	// StatusWithExitCode makes the status command return different exit codes depending on the update status.
 	StatusWithExitCode bool
+	// SetupTbot specifies whether tbot should be managed.
+	SetupTbot bool
 }
 
 func Run(args []string) int {
@@ -129,7 +131,7 @@ func Run(args []string) int {
 		Short('g').Envar(updateGroupEnvVar).StringVar(&ccfg.Group)
 	enableCmd.Flag("base-url", "Base URL used to override the Teleport download URL.").
 		Short('b').Envar(common.BaseURLEnvVar).StringVar(&ccfg.BaseURL)
-	enableCmd.Flag("overwrite", "Allow existing installed Teleport binaries to be overwritten.").
+	enableCmd.Flag("overwrite", "Allow existing installed binaries and services to be overwritten.").
 		Short('o').BoolVar(&ccfg.AllowOverwrite)
 	enableCmd.Flag("allow-proxy-conflict", "Allow proxy addresses in teleport.yaml and update.yaml to conflict.").
 		BoolVar(&ccfg.AllowProxyConflict)
@@ -153,7 +155,7 @@ func Run(args []string) int {
 		Short('g').Envar(updateGroupEnvVar).StringVar(&ccfg.Group)
 	pinCmd.Flag("base-url", "Base URL used to override the Teleport download URL.").
 		Short('b').Envar(common.BaseURLEnvVar).StringVar(&ccfg.BaseURL)
-	pinCmd.Flag("overwrite", "Allow existing installed Teleport binaries to be overwritten.").
+	pinCmd.Flag("overwrite", "Allow existing installed binaries and services to be overwritten.").
 		Short('o').BoolVar(&ccfg.AllowOverwrite)
 	pinCmd.Flag("allow-proxy-conflict", "Allow proxy addresses in teleport.yaml and update.yaml to conflict.").
 		BoolVar(&ccfg.AllowProxyConflict)
@@ -193,6 +195,8 @@ func Run(args []string) int {
 		Envar(autoupdate.SetupFlagsEnvVar).StringsVar(&ccfg.ForceFlags)
 	setupCmd.Flag("selinux-ssh", "Install the SELinux module for Teleport SSH.").
 		Hidden().Envar(autoupdate.SetupSELinuxSSHEnvVar).BoolVar(&ccfg.SELinuxSSH)
+	setupCmd.Flag("tbot", "Setup a systemd service for tbot.").
+		Envar(autoupdate.SetupTbotEnvVar).BoolVar(&ccfg.SetupTbot)
 
 	statusCmd := app.Command("status", "Show Teleport agent auto-update status.")
 	statusCmd.Flag("err-if-should-update-now",
@@ -488,7 +492,7 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 	}
 	flags := common.NewInstallFlagsFromStrings(ccfg.ForceFlags)
 	rev := autoupdate.NewRevision(ccfg.ForceVersion, flags)
-	err = updater.Setup(ctx, ccfg.Path, rev, ccfg.SELinuxSSH, ccfg.Reload)
+	err = updater.Setup(ctx, ccfg.Path, rev, ccfg.SELinuxSSH, ccfg.Reload, ccfg.SetupTbot)
 	if err != nil {
 		return trace.Wrap(err)
 	}
