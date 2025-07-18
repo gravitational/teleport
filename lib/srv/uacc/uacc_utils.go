@@ -21,6 +21,8 @@ package uacc
 import (
 	"encoding/binary"
 	"net"
+	"os"
+	"strings"
 
 	"github.com/gravitational/trace"
 )
@@ -46,4 +48,12 @@ func PrepareAddr(addr net.Addr) ([4]int32, error) {
 		groupedV6[i] = int32(binary.LittleEndian.Uint32(rawV6[i*4 : (i+1)*4]))
 	}
 	return groupedV6, nil
+}
+
+func getTTYName(tty *os.File) (string, error) {
+	ttyFullName, err := os.Readlink(tty.Name())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return strings.TrimPrefix(ttyFullName, "/dev/"), nil
 }
