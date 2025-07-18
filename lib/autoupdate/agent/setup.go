@@ -143,28 +143,32 @@ type Namespace struct {
 	installDir string
 	// defaultPathDir for Teleport binaries (ns: /opt/teleport/myns/bin)
 	defaultPathDir string
-	// dataDir parsed from teleport.yaml, if present
-	dataDir string
 	// defaultProxyAddr parsed from teleport.yaml, if present
 	defaultProxyAddr string
-	// serviceFile for the Teleport systemd service (ns: /etc/systemd/system/teleport_myns.service)
-	serviceFile string
-	// configFile for Teleport config (ns: /etc/teleport_myns.yaml)
-	configFile string
-	// pidFile for Teleport (ns: /run/teleport_myns.pid)
-	pidFile string
+	// teleportDataDir parsed from teleport.yaml, if present
+	teleportDataDir string
+	// teleportServiceFile for the Teleport systemd service (ns: /etc/systemd/system/teleport_myns.service)
+	teleportServiceFile string
+	// teleportConfigFile for Teleport config (ns: /etc/teleport_myns.yaml)
+	teleportConfigFile string
+	// teleportPIDFile for Teleport (ns: /run/teleport_myns.pid)
+	teleportPIDFile string
+	// teleportDropInFile is the Teleport systemd drop-in path extending Teleport
+	teleportDropInFile string
+	// teleportNRConfigFile is the path to needrestart configuration for Teleport
+	teleportNRConfigFile string
+	tbotServiceFile      string
+	tbotConfigFile       string
+	tbotPIDFile          string
 	// updaterIDFile contains the updater's temporary ID file
 	updaterIDFile string
 	// updaterServiceFile is the systemd service path for the updater
 	updaterServiceFile string
 	// updaterTimerFile is the systemd timer path for the updater
 	updaterTimerFile string
-	// teleportDropInFile is the Teleport systemd drop-in path extending Teleport
-	teleportDropInFile string
+
 	// deprecatedDropInFile is the deprecated upgrader's systemd drop-in path
 	deprecatedDropInFile string
-	// needrestartConfFile is the path to needrestart configuration for Teleport
-	needrestartConfFile string
 }
 
 var alphanum = regexp.MustCompile("^[a-zA-Z0-9-]*$")
@@ -192,35 +196,35 @@ func NewNamespace(ctx context.Context, log *slog.Logger, name, installDir string
 			name:                 name,
 			installDir:           installDir,
 			defaultPathDir:       linkDir,
-			dataDir:              defaults.DataDir,
-			serviceFile:          filepath.Join("/", serviceDir, serviceName),
-			configFile:           defaults.ConfigFilePath,
-			pidFile:              filepath.Join(systemdPIDDir, "teleport.pid"),
+			teleportDataDir:      defaults.DataDir,
+			teleportServiceFile:  filepath.Join("/", serviceDir, serviceName),
+			teleportConfigFile:   defaults.ConfigFilePath,
+			teleportPIDFile:      filepath.Join(systemdPIDDir, "teleport.pid"),
 			updaterIDFile:        filepath.Join(os.TempDir(), BinaryName+".id"),
 			updaterServiceFile:   filepath.Join(systemdAdminDir, BinaryName+".service"),
 			updaterTimerFile:     filepath.Join(systemdAdminDir, BinaryName+".timer"),
 			teleportDropInFile:   filepath.Join(systemdAdminDir, "teleport.service.d", BinaryName+".conf"),
 			deprecatedDropInFile: filepath.Join(systemdAdminDir, deprecatedServiceName+".d", BinaryName+".conf"),
-			needrestartConfFile:  filepath.Join(needrestartConfDir, BinaryName+".conf"),
+			teleportNRConfigFile: filepath.Join(needrestartConfDir, BinaryName+".conf"),
 		}, nil
 	}
 
 	prefix := "teleport_" + name
 	linkDir := filepath.Join(installDir, name, "bin")
 	return &Namespace{
-		log:                 log,
-		name:                name,
-		installDir:          installDir,
-		defaultPathDir:      linkDir,
-		dataDir:             filepath.Join(filepath.Dir(defaults.DataDir), prefix),
-		serviceFile:         filepath.Join(systemdAdminDir, prefix+".service"),
-		configFile:          filepath.Join(filepath.Dir(defaults.ConfigFilePath), prefix+".yaml"),
-		pidFile:             filepath.Join(systemdPIDDir, prefix+".pid"),
-		updaterIDFile:       filepath.Join(os.TempDir(), BinaryName+"_"+name+".id"),
-		updaterServiceFile:  filepath.Join(systemdAdminDir, BinaryName+"_"+name+".service"),
-		updaterTimerFile:    filepath.Join(systemdAdminDir, BinaryName+"_"+name+".timer"),
-		teleportDropInFile:  filepath.Join(systemdAdminDir, prefix+".service.d", BinaryName+"_"+name+".conf"),
-		needrestartConfFile: filepath.Join(needrestartConfDir, BinaryName+"_"+name+".conf"),
+		log:                  log,
+		name:                 name,
+		installDir:           installDir,
+		defaultPathDir:       linkDir,
+		teleportDataDir:      filepath.Join(filepath.Dir(defaults.DataDir), prefix),
+		teleportServiceFile:  filepath.Join(systemdAdminDir, prefix+".service"),
+		teleportConfigFile:   filepath.Join(filepath.Dir(defaults.ConfigFilePath), prefix+".yaml"),
+		teleportPIDFile:      filepath.Join(systemdPIDDir, prefix+".pid"),
+		updaterIDFile:        filepath.Join(os.TempDir(), BinaryName+"_"+name+".id"),
+		updaterServiceFile:   filepath.Join(systemdAdminDir, BinaryName+"_"+name+".service"),
+		updaterTimerFile:     filepath.Join(systemdAdminDir, BinaryName+"_"+name+".timer"),
+		teleportDropInFile:   filepath.Join(systemdAdminDir, prefix+".service.d", BinaryName+"_"+name+".conf"),
+		teleportNRConfigFile: filepath.Join(needrestartConfDir, BinaryName+"_"+name+".conf"),
 		// no deprecatedDropInFile, as teleport-upgrade does not conflict with namespaced installs
 	}, nil
 }
@@ -503,7 +507,7 @@ func (ns *Namespace) Teardown(ctx context.Context) error {
 		ns.updaterTimerFile,
 		ns.teleportDropInFile,
 		ns.deprecatedDropInFile,
-		ns.needrestartConfFile,
+		ns.teleportNRConfigFile,
 	} {
 		if p == "" {
 			continue
@@ -549,7 +553,7 @@ func (ns *Namespace) Teardown(ctx context.Context) error {
 }
 
 func (ns *Namespace) writeConfigFiles(ctx context.Context, path string, rev Revision) error {
-	teleportService := filepath.Base(ns.serviceFile)
+	teleportService := filepath.Base(ns.teleportServiceFile)
 	params := confParams{
 		TeleportService:   teleportService,
 		UpdaterBinary:     filepath.Join(path, BinaryName),
@@ -576,7 +580,7 @@ func (ns *Namespace) writeConfigFiles(ctx context.Context, path string, rev Revi
 		}
 	}
 	// Needrestart config is non-critical for updater functionality.
-	_, err := os.Stat(filepath.Dir(ns.needrestartConfFile))
+	_, err := os.Stat(filepath.Dir(ns.teleportNRConfigFile))
 	if os.IsNotExist(err) {
 		return nil // needrestart is not present
 	}
@@ -585,7 +589,7 @@ func (ns *Namespace) writeConfigFiles(ctx context.Context, path string, rev Revi
 		return nil
 	}
 	ns.log.InfoContext(ctx, "Disabling needrestart.", unitKey, teleportService)
-	err = writeSystemTemplate(ns.needrestartConfFile, "", needrestartConfTemplate, params)
+	err = writeSystemTemplate(ns.teleportNRConfigFile, "", needrestartConfTemplate, params)
 	if err != nil {
 		ns.log.ErrorContext(ctx, "Unable to disable needrestart.", errorKey, err)
 		return nil
@@ -637,17 +641,17 @@ func (ns *Namespace) WriteTeleportService(_ context.Context, pathDir string, rev
 	if pathDir == "" {
 		pathDir = ns.defaultPathDir
 	}
-	return trace.Wrap(writeAtomicWithinDir(ns.serviceFile, configFileMode, func(w io.Writer) error {
+	return trace.Wrap(writeAtomicWithinDir(ns.teleportServiceFile, configFileMode, func(w io.Writer) error {
 		_, err := fmt.Fprint(w, genHeader(rev)+"\n")
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		return trace.Wrap(systemd.WriteUnitFile(systemd.Flags{
 			EnvironmentFile:          systemd.DefaultEnvironmentFile,
-			PIDFile:                  ns.pidFile,
+			PIDFile:                  ns.teleportPIDFile,
 			FileDescriptorLimit:      systemd.DefaultFileDescriptorLimit,
 			TeleportInstallationFile: filepath.Join(pathDir, "teleport"),
-			TeleportConfigPath:       ns.configFile,
+			TeleportConfigPath:       ns.teleportConfigFile,
 			FIPS:                     rev.Flags&autoupdate.FlagFIPS != 0,
 		}, w))
 	}))
@@ -673,11 +677,11 @@ func (ns *Namespace) ReplaceTeleportService(cfg []byte, path string, flags autou
 		},
 		{
 			old: "/etc/teleport.yaml",
-			new: ns.configFile,
+			new: ns.teleportConfigFile,
 		},
 		{
 			old: "/run/teleport.pid",
-			new: ns.pidFile,
+			new: ns.teleportPIDFile,
 		},
 		{
 			old: "/teleport start ",
@@ -705,11 +709,11 @@ func (ns *Namespace) LogWarnings(ctx context.Context, pathDir string) {
 		pathDir = ns.defaultPathDir
 	}
 	ns.log.WarnContext(ctx, "Custom install suffix specified. Teleport data_dir must be configured in the config file.",
-		"data_dir", ns.dataDir,
+		"data_dir", ns.teleportDataDir,
 		"path_dir", pathDir,
-		"config_file", ns.configFile,
-		"service", filepath.Base(ns.serviceFile),
-		"pid_file", ns.pidFile,
+		"config_file", ns.teleportConfigFile,
+		"service", filepath.Base(ns.teleportServiceFile),
+		"pid_file", ns.teleportPIDFile,
 	)
 }
 
@@ -728,10 +732,10 @@ type unversionedTeleport struct {
 
 // overrideFromConfig loads fields from teleport.yaml into the namespace, overriding any defaults.
 func (ns *Namespace) overrideFromConfig(ctx context.Context) {
-	if ns == nil || ns.configFile == "" {
+	if ns == nil || ns.teleportConfigFile == "" {
 		return
 	}
-	path := ns.configFile
+	path := ns.teleportConfigFile
 	f, err := libutils.OpenFileAllowingUnsafeLinks(path)
 	if err != nil {
 		ns.log.DebugContext(ctx, "Unable to open Teleport config to read proxy or data dir", "config", path, errorKey, err)
@@ -744,7 +748,7 @@ func (ns *Namespace) overrideFromConfig(ctx context.Context) {
 		return
 	}
 	if cfg.Teleport.DataDir != "" {
-		ns.dataDir = cfg.Teleport.DataDir
+		ns.teleportDataDir = cfg.Teleport.DataDir
 	}
 
 	// Any implicitly defaulted port in teleport.yaml is explicitly defaulted (to 3080).

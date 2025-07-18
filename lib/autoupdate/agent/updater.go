@@ -125,7 +125,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		cfg.SystemDir = packageSystemDir
 	}
 	validator := Validator{Log: cfg.Log}
-	debugClient := debug.NewClient(ns.dataDir)
+	debugClient := debug.NewClient(ns.teleportDataDir)
 	return &Updater{
 		Log:                 cfg.Log,
 		Pool:                certPool,
@@ -133,19 +133,23 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		UpdateConfigFile:    filepath.Join(ns.Dir(), updateConfigName),
 		UpdateIDFile:        ns.updaterIDFile,
 		MachineIDFile:       systemdMachineIDFile,
-		TeleportIDFile:      filepath.Join(ns.dataDir, teleportHostIDFileName),
-		TeleportConfigFile:  ns.configFile,
-		TeleportServiceName: filepath.Base(ns.serviceFile),
+		TeleportIDFile:      filepath.Join(ns.teleportDataDir, teleportHostIDFileName),
+		TeleportConfigFile:  ns.teleportConfigFile,
+		TeleportServiceName: filepath.Base(ns.teleportServiceFile),
 		DefaultProxyAddr:    ns.defaultProxyAddr,
 		DefaultPathDir:      ns.defaultPathDir,
 		Installer: &LocalInstaller{
 			InstallDir: filepath.Join(ns.Dir(), versionsDirName),
 			TargetServices: []ServiceFile{
 				{
-					Path:        ns.serviceFile,
+					Path:        ns.teleportServiceFile,
 					Binary:      "teleport",
 					ExampleName: serviceName,
 					ExampleFunc: ns.ReplaceTeleportService,
+				},
+				{
+					Path:   ns.teleportServiceFile,
+					Binary: "tbot",
 				},
 			},
 			SystemBinDir:            filepath.Join(cfg.SystemDir, "bin"),
@@ -158,8 +162,8 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 			Template:                autoupdate.DefaultCDNURITemplate,
 		},
 		Process: &SystemdService{
-			ServiceName: filepath.Base(ns.serviceFile),
-			PIDFile:     ns.pidFile,
+			ServiceName: filepath.Base(ns.teleportServiceFile),
+			PIDFile:     ns.teleportPIDFile,
 			Ready:       debugClient,
 			Log:         cfg.Log,
 		},
