@@ -606,7 +606,7 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, srcBinDir, srcSvcDir, 
 		return revert, trace.Wrap(ErrNoBinaries)
 	}
 
-	// create systemd service files
+	// process systemd service files
 
 	for _, s := range li.TargetServices {
 		orig, err := copyService(s, srcSvcDir, dstBinDir, flags)
@@ -852,6 +852,7 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, srcBinDir, srcSvcDir, ds
 		}
 	}
 
+	// process systemd service files
 	for _, s := range li.TargetServices {
 		_, err := copyService(s, srcSvcDir, dstBinDir, flags)
 		if err != nil && !errors.Is(err, os.ErrExist) {
