@@ -86,12 +86,13 @@ func TestWindowsDesktop(t *testing.T) {
 			return desktops[0], nil
 
 		},
-		cacheList: func(ctx context.Context) ([]types.WindowsDesktop, error) {
+		cacheList: func(ctx context.Context, pageSize int) ([]types.WindowsDesktop, error) {
 			var start string
 			var desktops []types.WindowsDesktop
 			for {
 				req := types.ListWindowsDesktopsRequest{
 					StartKey: start,
+					Limit:    pageSize,
 				}
 
 				resp, err := p.cache.ListWindowsDesktops(ctx, req)
@@ -195,10 +196,12 @@ func TestWindowsDesktopService(t *testing.T) {
 					},
 				)
 			},
-			create:    withKeepalive(p.presenceS.UpsertWindowsDesktopService),
-			list:      p.presenceS.GetWindowsDesktopServices,
-			cacheGet:  p.cache.GetWindowsDesktopService,
-			cacheList: p.cache.GetWindowsDesktopServices,
+			create:   withKeepalive(p.presenceS.UpsertWindowsDesktopService),
+			list:     p.presenceS.GetWindowsDesktopServices,
+			cacheGet: p.cache.GetWindowsDesktopService,
+			cacheList: func(ctx context.Context, pageSize int) ([]types.WindowsDesktopService, error) {
+				return p.cache.GetWindowsDesktopServices(ctx)
+			},
 			update:    withKeepalive(p.presenceS.UpsertWindowsDesktopService),
 			deleteAll: p.presenceS.DeleteAllWindowsDesktopServices,
 		})
@@ -243,9 +246,10 @@ func TestWindowsDesktopService(t *testing.T) {
 				return out, nil
 			},
 			cacheGet: p.cache.GetWindowsDesktopService,
-			cacheList: func(ctx context.Context) ([]types.WindowsDesktopService, error) {
+			cacheList: func(ctx context.Context, pageSize int) ([]types.WindowsDesktopService, error) {
 				req := proto.ListResourcesRequest{
 					ResourceType: types.KindWindowsDesktopService,
+					Limit:        int32(pageSize),
 				}
 
 				var out []types.WindowsDesktopService
@@ -296,8 +300,8 @@ func TestDynamicWindowsDesktop(t *testing.T) {
 			return stream.Collect(clientutils.Resources(ctx, p.dynamicWindowsDesktops.ListDynamicWindowsDesktops))
 		},
 		cacheGet: p.cache.GetDynamicWindowsDesktop,
-		cacheList: func(ctx context.Context) ([]types.DynamicWindowsDesktop, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.cache.ListDynamicWindowsDesktops))
+		cacheList: func(ctx context.Context, pageSize int) ([]types.DynamicWindowsDesktop, error) {
+			return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListDynamicWindowsDesktops, pageSize))
 		},
 		update: func(ctx context.Context, dwd types.DynamicWindowsDesktop) error {
 			_, err := p.dynamicWindowsDesktops.UpdateDynamicWindowsDesktop(ctx, dwd)
