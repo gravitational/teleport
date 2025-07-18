@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { action } from '@storybook/addon-actions';
-import { Meta, StoryFn, type StoryObj } from '@storybook/react';
+import { Meta, StoryFn, type StoryObj } from '@storybook/react-vite';
+import { action } from 'storybook/actions';
 import styled from 'styled-components';
 
 import { Flex, H2, Text } from 'design';
