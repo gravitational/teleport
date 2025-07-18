@@ -49,15 +49,15 @@ func TestNewNamespace(t *testing.T) {
 				dataDir:              "/var/lib/teleport",
 				installDir:           "/opt/teleport",
 				defaultPathDir:       "/usr/local/bin",
-				serviceFile:          "/lib/systemd/system/teleport.service",
-				configFile:           "/etc/teleport.yaml",
-				pidFile:              "/run/teleport.pid",
+				teleportServiceFile:  "/lib/systemd/system/teleport.service",
+				teleportConfigFile:   "/etc/teleport.yaml",
+				teleportPIDFile:      "/run/teleport.pid",
 				updaterIDFile:        "/TMP/teleport-update.id",
 				updaterServiceFile:   "/etc/systemd/system/teleport-update.service",
 				updaterTimerFile:     "/etc/systemd/system/teleport-update.timer",
 				teleportDropInFile:   "/etc/systemd/system/teleport.service.d/teleport-update.conf",
 				deprecatedDropInFile: "/etc/systemd/system/teleport-upgrade.service.d/teleport-update.conf",
-				needrestartConfFile:  "/etc/needrestart/conf.d/teleport-update.conf",
+				teleportNRConfigFile: "/etc/needrestart/conf.d/teleport-update.conf",
 			},
 		},
 		{
@@ -67,33 +67,33 @@ func TestNewNamespace(t *testing.T) {
 				dataDir:              "/var/lib/teleport",
 				installDir:           "/install",
 				defaultPathDir:       "/usr/local/bin",
-				serviceFile:          "/lib/systemd/system/teleport.service",
-				configFile:           "/etc/teleport.yaml",
-				pidFile:              "/run/teleport.pid",
+				teleportServiceFile:  "/lib/systemd/system/teleport.service",
+				teleportConfigFile:   "/etc/teleport.yaml",
+				teleportPIDFile:      "/run/teleport.pid",
 				updaterIDFile:        "/TMP/teleport-update.id",
 				updaterServiceFile:   "/etc/systemd/system/teleport-update.service",
 				updaterTimerFile:     "/etc/systemd/system/teleport-update.timer",
 				teleportDropInFile:   "/etc/systemd/system/teleport.service.d/teleport-update.conf",
 				deprecatedDropInFile: "/etc/systemd/system/teleport-upgrade.service.d/teleport-update.conf",
-				needrestartConfFile:  "/etc/needrestart/conf.d/teleport-update.conf",
+				teleportNRConfigFile: "/etc/needrestart/conf.d/teleport-update.conf",
 			},
 		},
 		{
 			name:      "test namespace",
 			namespace: "test",
 			ns: &Namespace{
-				name:                "test",
-				dataDir:             "/var/lib/teleport_test",
-				installDir:          "/opt/teleport",
-				defaultPathDir:      "/opt/teleport/test/bin",
-				serviceFile:         "/etc/systemd/system/teleport_test.service",
-				configFile:          "/etc/teleport_test.yaml",
-				pidFile:             "/run/teleport_test.pid",
-				updaterIDFile:       "/TMP/teleport-update_test.id",
-				updaterServiceFile:  "/etc/systemd/system/teleport-update_test.service",
-				updaterTimerFile:    "/etc/systemd/system/teleport-update_test.timer",
-				teleportDropInFile:  "/etc/systemd/system/teleport_test.service.d/teleport-update_test.conf",
-				needrestartConfFile: "/etc/needrestart/conf.d/teleport-update_test.conf",
+				name:                 "test",
+				dataDir:              "/var/lib/teleport_test",
+				installDir:           "/opt/teleport",
+				defaultPathDir:       "/opt/teleport/test/bin",
+				teleportServiceFile:  "/etc/systemd/system/teleport_test.service",
+				teleportConfigFile:   "/etc/teleport_test.yaml",
+				teleportPIDFile:      "/run/teleport_test.pid",
+				updaterIDFile:        "/TMP/teleport-update_test.id",
+				updaterServiceFile:   "/etc/systemd/system/teleport-update_test.service",
+				updaterTimerFile:     "/etc/systemd/system/teleport-update_test.timer",
+				teleportDropInFile:   "/etc/systemd/system/teleport_test.service.d/teleport-update_test.conf",
+				teleportNRConfigFile: "/etc/needrestart/conf.d/teleport-update_test.conf",
 			},
 		},
 		{
@@ -101,18 +101,18 @@ func TestNewNamespace(t *testing.T) {
 			namespace:  "test",
 			installDir: "/install",
 			ns: &Namespace{
-				name:                "test",
-				dataDir:             "/var/lib/teleport_test",
-				installDir:          "/install",
-				defaultPathDir:      "/install/test/bin",
-				configFile:          "/etc/teleport_test.yaml",
-				pidFile:             "/run/teleport_test.pid",
-				serviceFile:         "/etc/systemd/system/teleport_test.service",
-				updaterIDFile:       "/TMP/teleport-update_test.id",
-				updaterServiceFile:  "/etc/systemd/system/teleport-update_test.service",
-				updaterTimerFile:    "/etc/systemd/system/teleport-update_test.timer",
-				teleportDropInFile:  "/etc/systemd/system/teleport_test.service.d/teleport-update_test.conf",
-				needrestartConfFile: "/etc/needrestart/conf.d/teleport-update_test.conf",
+				name:                 "test",
+				dataDir:              "/var/lib/teleport_test",
+				installDir:           "/install",
+				defaultPathDir:       "/install/test/bin",
+				teleportConfigFile:   "/etc/teleport_test.yaml",
+				teleportPIDFile:      "/run/teleport_test.pid",
+				teleportServiceFile:  "/etc/systemd/system/teleport_test.service",
+				updaterIDFile:        "/TMP/teleport-update_test.id",
+				updaterServiceFile:   "/etc/systemd/system/teleport-update_test.service",
+				updaterTimerFile:     "/etc/systemd/system/teleport-update_test.timer",
+				teleportDropInFile:   "/etc/systemd/system/teleport_test.service.d/teleport-update_test.conf",
+				teleportNRConfigFile: "/etc/needrestart/conf.d/teleport-update_test.conf",
 			},
 		},
 		{
@@ -169,7 +169,7 @@ func TestWriteConfigFiles(t *testing.T) {
 			ns.updaterTimerFile = rebasePath(filepath.Join(linkDir, serviceDir), ns.updaterTimerFile)
 			ns.teleportDropInFile = rebasePath(filepath.Join(linkDir, serviceDir, filepath.Base(filepath.Dir(ns.teleportDropInFile))), ns.teleportDropInFile)
 			ns.deprecatedDropInFile = rebasePath(filepath.Join(linkDir, serviceDir, filepath.Base(filepath.Dir(ns.deprecatedDropInFile))), ns.deprecatedDropInFile)
-			ns.needrestartConfFile = rebasePath(linkDir, filepath.Base(ns.needrestartConfFile))
+			ns.teleportNRConfigFile = rebasePath(linkDir, filepath.Base(ns.teleportNRConfigFile))
 			err = ns.writeConfigFiles(ctx, linkDir, NewRevision("version", 0))
 			require.NoError(t, err)
 
@@ -181,7 +181,7 @@ func TestWriteConfigFiles(t *testing.T) {
 				{name: "timer", path: ns.updaterTimerFile},
 				{name: "dropin", path: ns.teleportDropInFile},
 				{name: "deprecated", path: ns.deprecatedDropInFile},
-				{name: "needrestart", path: ns.needrestartConfFile},
+				{name: "needrestart", path: ns.teleportNRConfigFile},
 			} {
 				if tt.path == "" {
 					continue
@@ -340,20 +340,20 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ns := &Namespace{
-				log:              slog.Default(),
-				configFile:       filepath.Join(t.TempDir(), "teleport.yaml"),
-				defaultProxyAddr: "default.example.com",
-				dataDir:          "/var/lib/teleport",
+				log:                slog.Default(),
+				teleportConfigFile: filepath.Join(t.TempDir(), "teleport.yaml"),
+				defaultProxyAddr:   "default.example.com",
+				dataDir:            "/var/lib/teleport",
 			}
 			if tt.cfg != nil {
 				out, err := yaml.Marshal(unversionedConfig{Teleport: *tt.cfg})
 				require.NoError(t, err)
-				err = os.WriteFile(ns.configFile, out, os.ModePerm)
+				err = os.WriteFile(ns.teleportConfigFile, out, os.ModePerm)
 				require.NoError(t, err)
 			}
 			ctx := context.Background()
 			ns.overrideFromConfig(ctx)
-			ns.configFile = ""
+			ns.teleportConfigFile = ""
 			ns.log = nil
 			require.Equal(t, &tt.want, ns)
 		})
@@ -423,10 +423,10 @@ func TestWriteTeleportService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			serviceFile := filepath.Join(t.TempDir(), "file")
 			ns := &Namespace{
-				log:         slog.Default(),
-				configFile:  tt.configFile,
-				serviceFile: serviceFile,
-				pidFile:     tt.pidFile,
+				log:                 slog.Default(),
+				teleportConfigFile:  tt.configFile,
+				teleportServiceFile: serviceFile,
+				teleportPIDFile:     tt.pidFile,
 			}
 			err := ns.WriteTeleportService(context.Background(), tt.pathDir, NewRevision("version", tt.flags))
 			require.NoError(t, err)
@@ -498,9 +498,9 @@ WantedBy=multi-user.target
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ns := &Namespace{
-				log:        slog.Default(),
-				configFile: tt.configFile,
-				pidFile:    tt.pidFile,
+				log:                slog.Default(),
+				teleportConfigFile: tt.configFile,
+				teleportPIDFile:    tt.pidFile,
 			}
 			data := ns.ReplaceTeleportService([]byte(tt.in), tt.pathDir, tt.flags)
 			if golden.ShouldSet() {

@@ -66,11 +66,18 @@ type SystemdService struct {
 	Ready ReadyChecker
 	// Log contains a logger.
 	Log *slog.Logger
+	// ForceRestart forces the process to always restart.
+	ForceRestart bool
 }
 
 // ReadyChecker returns the systemd service readiness status.
 type ReadyChecker interface {
 	GetReadiness(ctx context.Context) (debug.Readiness, error)
+}
+
+// Name of the systemd service.
+func (s SystemdService) Name() string {
+	return s.ServiceName
 }
 
 // Reload the systemd service.
@@ -86,7 +93,7 @@ func (s SystemdService) Reload(ctx context.Context) error {
 	// Command error codes < 0 indicate that we are unable to run the command.
 	// Errors from s.systemctl are logged along with stderr and stdout (debug only).
 
-	// If the service is not running, return ErrNotNeeded.
+	// If the service is not running, return nil.
 	// Note systemctl reload returns an error if the unit is not active, and
 	// try-reload-or-restart is too recent of an addition for centos7.
 	code := s.systemctl(ctx, slog.LevelDebug, "is-active", "--quiet", s.ServiceName)
@@ -95,7 +102,7 @@ func (s SystemdService) Reload(ctx context.Context) error {
 		return trace.Errorf("unable to determine if systemd service is active")
 	case code > 0:
 		s.Log.WarnContext(ctx, "Systemd service not running.", unitKey, s.ServiceName)
-		return trace.Wrap(ErrNotNeeded)
+		return nil
 	}
 
 	// Get initial PID for crash monitoring.
@@ -108,20 +115,28 @@ func (s SystemdService) Reload(ctx context.Context) error {
 	}
 
 	// Attempt graceful reload of running service.
-	code = s.systemctl(ctx, slog.LevelError, "reload", s.ServiceName)
-	switch {
-	case code < 0:
-		return trace.Errorf("unable to reload systemd service")
-	case code > 0:
-		// Graceful reload fails, try hard restart.
+	if !s.ForceRestart {
+		code = s.systemctl(ctx, slog.LevelError, "reload", s.ServiceName)
+		switch {
+		case code < 0:
+			return trace.Errorf("unable to reload systemd service")
+		case code > 0:
+			// Graceful reload fails, try hard restart.
+			code = s.systemctl(ctx, slog.LevelError, "try-restart", s.ServiceName)
+			if code != 0 {
+				return trace.Errorf("hard restart of systemd service failed")
+			}
+			s.Log.WarnContext(ctx, "Service ungracefully restarted. Connections potentially dropped.", unitKey, s.ServiceName)
+		default:
+			s.Log.InfoContext(ctx, "Gracefully reloaded.", unitKey, s.ServiceName)
+		}
+	} else {
 		code = s.systemctl(ctx, slog.LevelError, "try-restart", s.ServiceName)
 		if code != 0 {
 			return trace.Errorf("hard restart of systemd service failed")
 		}
-		s.Log.WarnContext(ctx, "Service ungracefully restarted. Connections potentially dropped.", unitKey, s.ServiceName)
-	default:
-		s.Log.InfoContext(ctx, "Gracefully reloaded.", unitKey, s.ServiceName)
 	}
+
 	// monitor logs all relevant errors, so we filter for a few outcomes
 	err = s.monitor(ctx, initPID)
 	if errors.Is(err, context.DeadlineExceeded) ||
@@ -301,6 +316,9 @@ func tickFile(ctx context.Context, path string, ch chan<- int, tickC <-chan time
 // waitForReady polls the SocketPath unix domain socket with HTTP requests.
 // If one request returns 200 before the timeout, the service is considered ready.
 func (s SystemdService) waitForReady(ctx context.Context, pid int, tickC <-chan time.Time) error {
+	if s.Ready == nil {
+		return nil
+	}
 	var lastErr error
 	var readiness debug.Readiness
 	for {
