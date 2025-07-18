@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/migration"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/auth/summarizer/summarizerv1"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
@@ -402,6 +403,14 @@ type InitConfig struct {
 
 	// ScopedAccess is a service that manages scoped access resources.
 	ScopedAccess services.ScopedAccess
+
+	// SummarizerResources manages summary inference configuration resources.
+	SummarizerResources services.SummarizerResources
+
+	// SummarizerProvider is a provider of the summarizer service. It allows for
+	// late initialization of the summarizer in the enterprise plugin. The
+	// summarizer itself summarizes session recordings.
+	SummarizerProvider *summarizerv1.SummarizerProvider
 }
 
 // Init instantiates and configures an instance of AuthServer
