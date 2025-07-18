@@ -55,8 +55,8 @@ func TestDiscoveryConfig(t *testing.T) {
 			return stream.Collect(clientutils.Resources(ctx, p.discoveryConfigs.ListDiscoveryConfigs))
 		},
 		cacheGet: p.cache.GetDiscoveryConfig,
-		cacheList: func(ctx context.Context) ([]*discoveryconfig.DiscoveryConfig, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.cache.ListDiscoveryConfigs))
+		cacheList: func(ctx context.Context, pageSize int) ([]*discoveryconfig.DiscoveryConfig, error) {
+			return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListDiscoveryConfigs, pageSize))
 		},
 		update: func(ctx context.Context, discoveryConfig *discoveryconfig.DiscoveryConfig) error {
 			_, err := p.discoveryConfigs.UpdateDiscoveryConfig(ctx, discoveryConfig)
