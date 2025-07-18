@@ -145,7 +145,19 @@ func TestGetActiveDirectorySID(t *testing.T) {
 		LDAPServiceAccountSID:  "S-1-5-21-2191801808-3167526388-2669316733-1104",
 	}
 
-	connector, err := newLDAPConnector(slog.Default(), &mockAuthClient{}, adConfig)
+	auth := &mockAuthClient{
+		generateDatabaseCert: func(ctx context.Context, request *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+			csr, err := tlsca.ParseCertificateRequestPEM(request.CSR)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			require.Equal(t, "CN=test-service-account", csr.Subject.String())
+			require.Len(t, csr.Extensions, 3)
+			return generateDatabaseCert(ctx, request)
+		},
+	}
+
+	connector, err := newLDAPConnector(slog.Default(), auth, adConfig)
 	require.NoError(t, err)
 
 	connector.dialLDAPServerFunc = func(ctx context.Context) (ldap.Client, error) {

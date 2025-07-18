@@ -2305,7 +2305,8 @@ func TestWindowsDesktopService(t *testing.T) {
 			mutate: func(fc *FileConfig) {
 				fc.WindowsDesktop.ADHosts = []string{"127.0.0.1:3389"}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
-					Addr: "something",
+					Addr:   "something",
+					Domain: "example.com",
 				}
 			},
 		},
@@ -2349,7 +2350,8 @@ func TestWindowsDesktopService(t *testing.T) {
 					BaseDN: "something",
 				}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
-					Addr: "something",
+					Addr:   "something",
+					Domain: "example.com",
 				}
 			},
 		},
@@ -2401,7 +2403,8 @@ func TestWindowsDesktopService(t *testing.T) {
 				fc.WindowsDesktop.ListenAddress = "0.0.0.0:3028"
 				fc.WindowsDesktop.ADHosts = []string{"127.0.0.1:3389"}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
-					Addr: "something",
+					Addr:   "something",
+					Domain: "example.com",
 				}
 				fc.WindowsDesktop.HostLabels = []WindowsHostLabelRule{
 					{Match: ".*", Labels: map[string]string{"key": "value"}},
