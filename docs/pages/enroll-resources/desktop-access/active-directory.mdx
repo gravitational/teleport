@@ -602,7 +602,8 @@ To configure Teleport to protect access to Windows desktops:
    windows_desktop_service:
      enabled: true
      ldap:
-       # Port must be included for the addr.
+       # Address (including port) of an LDAP server.
+       # Can be omitted if `locate_server` is enabled.
        # LDAPS port is 636 by default (example.com:636)
        addr: "$LDAP_SERVER_ADDRESS"
        domain: "$LDAP_DOMAIN_NAME"
@@ -622,6 +623,47 @@ To configure Teleport to protect access to Windows desktops:
 
    For a detailed description of the configuration fields, see
    [Desktop Configuration Reference](../../reference/agent-services/desktop-access-reference/configuration.mdx).
+
+1. Configure LDAP server selection.
+
+   To find desktops to connect to in Active Directory, Teleport must be given the
+   address of an LDAP server. There are two ways to specify the LDAP server, either
+   by providing a single LDAP server address in the `addr` field, or by enabling
+   `locate_server` to automatically discover the LDAP server from DNS SRV records.
+
+   If you opt to use `addr`, for the best results, the address should point to a
+   highly-available endpoint to avoid downtime. The port for LDAPS should also be
+   included, which is typically 636.
+
+   <details>
+   <summary>Example of using the addr field</summary>
+   ```yaml
+   windows_desktop_service:
+      enabled: true
+      ldap:
+         addr: ldap.example.com:636
+         domain: example.com
+   ```
+   </details>
+
+   Alternatively, you can enable `locate_server` to automatically discover an
+   LDAP server from the DNS SRV records of your specified `domain`. This is useful
+   if you have multiple LDAP servers for high availability and load balancing.
+   Optionally, you can specify a `site` to limit the discovery to a specific
+   Active Directory site.
+
+   <details>
+   <summary>Example of using locate_server</summary>
+   ```yaml
+   windows_desktop_service:
+      enabled: true
+      ldap:
+         locate_server: 
+            enabled: true
+            site: "my-site" # optional
+         domain: example.com
+   ```
+   </details>
 
 1. (!docs/pages/includes/start-teleport.mdx service="the Teleport Desktop Service"!)
 
