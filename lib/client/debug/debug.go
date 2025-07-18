@@ -24,12 +24,14 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
 
 	"github.com/gravitational/trace"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 )
 
@@ -49,11 +51,13 @@ var SupportedProfiles = map[string]struct{}{
 
 // Client represents the debug service client.
 type Client struct {
-	clt *http.Client
+	clt        *http.Client
+	socketPath string
 }
 
 // NewClient generates a new debug service client.
-func NewClient(socketPath string) *Client {
+func NewClient(dataDir string) *Client {
+	socketPath := filepath.Join(dataDir, teleport.DebugServiceSocketName)
 	return &Client{
 		clt: &http.Client{
 			Timeout: apidefaults.DefaultIOTimeout,
@@ -68,7 +72,12 @@ func NewClient(socketPath string) *Client {
 				return trace.Errorf("redirect via socket not allowed")
 			},
 		},
+		socketPath: socketPath,
 	}
+}
+
+func (c *Client) SocketPath() string {
+	return c.socketPath
 }
 
 // SetLogLevel changes the application's log level and a change status message.

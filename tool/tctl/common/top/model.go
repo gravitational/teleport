@@ -34,7 +34,6 @@ import (
 	"github.com/guptarohit/asciigraph"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/tool/tctl/common/top/client"
 )
 
 // topModel is a [tea.Model] implementation which
@@ -46,13 +45,13 @@ type topModel struct {
 	selected        int
 	help            help.Model
 	refreshInterval time.Duration
-	clt             client.MetricCient
+	clt             MetricsClient
 	report          *Report
 	reportError     error
 	addr            string
 }
 
-func newTopModel(refreshInterval time.Duration, clt client.MetricCient, addr string) *topModel {
+func newTopModel(refreshInterval time.Duration, clt MetricsClient, addr string) *topModel {
 	return &topModel{
 		help:            help.New(),
 		clt:             clt,
