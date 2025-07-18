@@ -2557,7 +2557,8 @@ func (m *DocumentDB) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_DocumentDB proto.InternalMessageInfo
 
-// GCPCloudSQL contains parameters specific to GCP Cloud SQL and AlloyDB databases.
+// GCPCloudSQL contains parameters specific to GCP databases.
+// The name GCPCloudSQL is legacy from time when only GCP Cloud SQL was supported.
 type GCPCloudSQL struct {
 	// ProjectID is the GCP project ID the Cloud SQL instance resides in.
 	ProjectID string `protobuf:"bytes,1,opt,name=ProjectID,proto3" json:"project_id,omitempty"`
