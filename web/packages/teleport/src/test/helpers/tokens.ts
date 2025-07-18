@@ -19,6 +19,7 @@
 import { http, HttpResponse } from 'msw';
 
 import cfg from 'teleport/config';
+import { JsonObject } from 'teleport/types';
 
 export const listV2TokensMfaError = () =>
   http.get(cfg.api.joinToken.listV2, () => {
@@ -32,10 +33,11 @@ export const listV2TokensMfaError = () =>
 
 export const listV2TokensError = (
   status: number,
-  error: string | null = null
+  error: string | null = null,
+  fields: JsonObject = {}
 ) =>
   http.get(cfg.api.joinToken.listV2, () => {
-    return HttpResponse.json({ error: { message: error } }, { status });
+    return HttpResponse.json({ error: { message: error }, fields }, { status });
   });
 
 export const listV2TokensSuccess = (options?: {

@@ -96,15 +96,20 @@ export async function listBotTokens(
   qs.set('bot_name', variables.botName);
   qs.set('role', 'bot');
 
-  const data = await api.get(`${path}?${qs.toString()}`, signal, undefined, {
-    skipAuthnRetry: variables.skipAuthnRetry,
-  });
+  try {
+    const data = await api.get(`${path}?${qs.toString()}`, signal, undefined, {
+      skipAuthnRetry: variables.skipAuthnRetry,
+    });
 
-  if (!parseListJoinTokensResponse(data)) {
-    throw new Error('failed to parse list join tokens response');
+    if (!parseListJoinTokensResponse(data)) {
+      throw new Error('failed to parse list join tokens response');
+    }
+
+    return data;
+  } catch (err) {
+    // TODO(nicholasmarais1158) DELETE IN v20.0.0
+    withGenericUnsupportedError(err, '19.0.0');
   }
-
-  return data;
 }
 
 export async function fetchBots(signal: AbortSignal, flags: FeatureFlags) {

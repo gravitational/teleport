@@ -222,6 +222,35 @@ export const HappyWithTokensError: Story = {
   },
 };
 
+export const HappyWithTokensOutdatedProxy: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        successHandler,
+        listV2TokensError(404, 'path not found', {
+          proxyVersion: {
+            major: 19,
+            minor: 0,
+            patch: 0,
+            preRelease: 'dev',
+            string: '18.0.0',
+          },
+        }),
+        successGetRoles({
+          startKey: '',
+          items: ['access', 'editor', 'terraform-provider'].map(r => ({
+            content: r,
+            id: r,
+            name: r,
+            kind: 'role',
+          })),
+        }),
+        editBotSuccess(),
+      ],
+    },
+  },
+};
+
 export const WithFetchPending: Story = {
   parameters: {
     msw: {
