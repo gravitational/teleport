@@ -19,8 +19,8 @@
 package eventstest
 
 import (
-	"bytes"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -36,8 +36,11 @@ import (
 // SessionParams specifies optional parameters
 // for generated session
 type SessionParams struct {
-	// PrintEvents sets up print events count
+	// PrintEvents sets up print events count. Ignored if PrintData is set.
 	PrintEvents int64
+	// PrintData is optional data to use for print events. Each element of the
+	// slice represents data for one print event.
+	PrintData []string
 	// Clock is an optional clock setting start
 	// and offset time of the event
 	Clock clockwork.Clock
@@ -60,6 +63,12 @@ func (p *SessionParams) SetDefaults() {
 	}
 	if p.SessionID == "" {
 		p.SessionID = uuid.New().String()
+	}
+	if p.PrintData == nil {
+		p.PrintData = make([]string, p.PrintEvents)
+		for i := range p.PrintEvents {
+			p.PrintData[i] = strings.Repeat("hello", int(i%177+1))
+		}
 	}
 }
 
@@ -128,17 +137,17 @@ func GenerateTestSession(params SessionParams) []apievents.AuditEvent {
 	}
 
 	genEvents := []apievents.AuditEvent{&sessionStart}
-	for i := range params.PrintEvents {
+	for i, data := range params.PrintData {
 		event := &apievents.SessionPrint{
 			Metadata: apievents.Metadata{
-				Index: i + 1,
+				Index: int64(i) + 1,
 				Type:  events.SessionPrintEvent,
 				Time:  params.Clock.Now().UTC().Add(time.Minute + time.Duration(i)*time.Millisecond),
 			},
-			ChunkIndex:        i,
-			DelayMilliseconds: i,
-			Offset:            i,
-			Data:              bytes.Repeat([]byte("hello"), int(i%177+1)),
+			ChunkIndex:        int64(i),
+			DelayMilliseconds: int64(i),
+			Offset:            int64(i),
+			Data:              []byte(data),
 		}
 		event.Bytes = int64(len(event.Data))
 		event.Time = event.Time.Add(time.Duration(i) * time.Millisecond)
