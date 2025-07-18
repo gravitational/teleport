@@ -274,6 +274,10 @@ type AccessChecker interface {
 	// EnumerateDatabaseNames specializes EnumerateEntities to enumerate db_names.
 	EnumerateDatabaseNames(database types.Database, extraNames ...string) EnumerationResult
 
+	// EnumerateMCPTools specializes EnumerateEntities to enumerate mcp.tools.
+	// mcp.tools support regexes and blobs so those expressions are returned.
+	EnumerateMCPTools(app types.Application) EnumerationResult
+
 	// GetAllowedLoginsForResource returns all of the allowed logins for the passed resource.
 	//
 	// Supports the following resource types:
@@ -826,6 +830,26 @@ func (a *accessChecker) EnumerateDatabaseNames(database types.Database, extraNam
 	return a.EnumerateEntities(database, listFn, newMatcher, extraNames...)
 }
 
+// EnumerateMCPTools specializes EnumerateEntities to enumerate mcp.tools.
+func (a *accessChecker) EnumerateMCPTools(app types.Application) EnumerationResult {
+	listFn := func(role types.Role, condition types.RoleConditionType) []string {
+		if mcpSpec := role.GetMCPPermissions(condition); mcpSpec != nil {
+			return mcpSpec.Tools
+		}
+		return nil
+	}
+	// Do not use MCPToolMatcher. We are enumerating the expressions.
+	newMatcher := func(toolRegex string) RoleMatcher {
+		return RoleMatcherFunc(func(role types.Role, condition types.RoleConditionType) (bool, error) {
+			if mcpSpec := role.GetMCPPermissions(condition); mcpSpec != nil {
+				return slices.Contains(mcpSpec.Tools, toolRegex), nil
+			}
+			return false, nil
+		})
+	}
+	return a.EnumerateEntities(app, listFn, newMatcher)
+}
+
 // roleEntitiesListFn is used for listing a role's allowed/denied entities.
 type roleEntitiesListFn func(types.Role, types.RoleConditionType) []string
 
@@ -1345,6 +1369,9 @@ func AccessInfoFromLocalTLSIdentity(identity tlsca.Identity, access UserGetter) 
 	// empty traits are a valid use case in standard certs,
 	// so we only check for whether roles are empty.
 	if len(identity.Groups) == 0 {
+		if access == nil {
+			return nil, trace.BadParameter("UserGetter not provided")
+		}
 		u, err := access.GetUser(context.TODO(), identity.Username, false)
 		if err != nil {
 			return nil, trace.Wrap(err)

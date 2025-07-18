@@ -189,6 +189,13 @@ func TestUserAdd(t *testing.T) {
 				require.ErrorContains(t, err, "GCP service account \"foobar\" is invalid")
 			},
 		},
+		{
+			name: "mcp tools",
+			args: []string{"--mcp-tools", "aa,bb", "--mcp-tools", "get_*"},
+			wantTraits: map[string][]string{
+				constants.TraitMCPTools: {"aa", "bb", "get_*"},
+			},
+		},
 	}
 
 	for ix, tc := range tests {
@@ -350,6 +357,13 @@ func TestUserUpdate(t *testing.T) {
 			args: []string{"--set-gcp-service-accounts", "foobar"},
 			errorChecker: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "GCP service account \"foobar\" is invalid")
+			},
+		},
+		{
+			name: "mcp tools",
+			args: []string{"--set-mcp-tools", "aa,bb", "--set-mcp-tools", "get_*"},
+			wantTraits: map[string][]string{
+				constants.TraitMCPTools: {"aa", "bb", "get_*"},
 			},
 		},
 	}

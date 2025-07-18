@@ -145,6 +145,9 @@ func TestAddRoleDefaults(t *testing.T) {
 						GitHubPermissions: []types.GitHubPermission{{
 							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
 						}},
+						MCP: &types.MCPPermissions{
+							Tools: defaultMCPTools()[teleport.PresetAccessRoleName],
+						},
 					},
 				},
 			},
@@ -180,6 +183,9 @@ func TestAddRoleDefaults(t *testing.T) {
 						GitHubPermissions: []types.GitHubPermission{{
 							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
 						}},
+						MCP: &types.MCPPermissions{
+							Tools: defaultMCPTools()[teleport.PresetAccessRoleName],
+						},
 					},
 				},
 			},
@@ -198,6 +204,9 @@ func TestAddRoleDefaults(t *testing.T) {
 						GitHubPermissions: []types.GitHubPermission{{
 							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
 						}},
+						MCP: &types.MCPPermissions{
+							Tools: defaultMCPTools()[teleport.PresetAccessRoleName],
+						},
 					},
 				},
 			},
@@ -217,6 +226,9 @@ func TestAddRoleDefaults(t *testing.T) {
 						GitHubPermissions: []types.GitHubPermission{{
 							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
 						}},
+						MCP: &types.MCPPermissions{
+							Tools: defaultMCPTools()[teleport.PresetAccessRoleName],
+						},
 					},
 				},
 			},

@@ -1287,6 +1287,49 @@ func TestMakeSampleFileConfig(t *testing.T) {
 		require.Equal(t, "yes", fc.Apps.EnabledFlag)
 	})
 
+	t.Run("App role with MCP Demo server", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Roles:         "app",
+			MCPDemoServer: true,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "no", fc.SSH.EnabledFlag)
+		require.Equal(t, "no", fc.Proxy.EnabledFlag)
+		require.Equal(t, "no", fc.Auth.EnabledFlag)
+		require.Equal(t, "yes", fc.Apps.EnabledFlag)
+		require.True(t, fc.Apps.MCPDemoServer)
+	})
+
+	t.Run("App name and MCP Demo Server", func(t *testing.T) {
+		_, err := MakeSampleFileConfig(SampleFlags{
+			Roles:         "app",
+			AppURI:        "localhost:8080",
+			MCPDemoServer: true,
+		})
+		require.Error(t, err)
+
+		_, err = MakeSampleFileConfig(SampleFlags{
+			Roles:         "app",
+			AppName:       "nginx",
+			MCPDemoServer: true,
+		})
+		require.Error(t, err)
+
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Roles:         "app",
+			AppURI:        "localhost:8080",
+			AppName:       "nginx",
+			MCPDemoServer: true,
+		})
+		require.NoError(t, err)
+
+		require.Equal(t, "no", fc.SSH.EnabledFlag)
+		require.Equal(t, "no", fc.Proxy.EnabledFlag)
+		require.Equal(t, "no", fc.Auth.EnabledFlag)
+		require.Equal(t, "yes", fc.Apps.EnabledFlag)
+		require.True(t, fc.Apps.MCPDemoServer)
+	})
+
 	t.Run("Proxy role", func(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
 			Roles: "proxy",

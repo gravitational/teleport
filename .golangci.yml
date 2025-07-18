@@ -113,6 +113,8 @@ linters:
           deny:
             - pkg: github.com/gravitational/teleport/integration
               desc: integration test should not be imported outside of intergation tests
+            - pkg: github.com/gravitational/teleport/lib/utils/mcptest
+              desc: testing packages should not be imported outside of _test.go files
         logging:
           deny:
             - pkg: github.com/sirupsen/logrus
@@ -213,6 +215,7 @@ linters:
             - '!**/lib/services/suite/**'
             - '!**/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest/sigstoretest.go'
             - '!**/lib/teleterm/gatewaytest/**'
+            - '!**/lib/utils/mcptest/**'
             - '!**/lib/utils/testutils/**'
             - '!**/integration/appaccess/fixtures.go'
             - '!**/integration/appaccess/jwt.go'
@@ -272,6 +275,7 @@ linters:
             - '!**/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest/sigstoretest.go'
             - '!**/lib/teleterm/gatewaytest/**'
             - '!**/lib/utils/cli.go'
+            - '!**/lib/utils/mcptest/**'
             - '!**/lib/utils/testutils/**'
             - '!**/tool/teleport/testenv/**'
           deny:
