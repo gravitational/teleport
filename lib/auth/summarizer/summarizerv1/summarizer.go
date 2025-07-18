@@ -21,17 +21,9 @@ import (
 	"sync/atomic"
 
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/session"
 )
-
-// Summarizer summarizes session recordings using language model inference.
-type Summarizer interface {
-	// Summarize summarizes a session recording with a given ID. The
-	// sessionEndEvent is optional, but should be specified if possible, as an
-	// optimization to skip reading the session stream in order to find the end
-	// event.
-	Summarize(ctx context.Context, sessionID session.ID, sessionEndEvent *events.OneOf) error
-}
 
 // SummarizerProvider provides a reference to a Summarizer service
 // implementation. Here is why it is needed:
@@ -50,31 +42,48 @@ type Summarizer interface {
 // a setter method; doing so would pollute the interface and require some
 // unnecessary stub implementations.
 type SummarizerProvider struct {
-	summarizer atomic.Pointer[Summarizer]
+	summarizer atomic.Pointer[summarizer.Summarizer]
 }
 
 // ProvideSummarizer provides the summarizer service. It is safe to call this
-// function from any thread. Allows being called on a nil provider.
-func (p *SummarizerProvider) ProvideSummarizer() Summarizer {
+// function from any thread. Allows being called on a nil provider and
+// guarantees that the summarizer returned is never nil.
+func (p *SummarizerProvider) ProvideSummarizer() summarizer.Summarizer {
 	if p == nil {
-		return nil
+		return &NoopSummarizer{}
 	}
 
-	s := p.summarizer.Load()
+	sptr := p.summarizer.Load()
+	if sptr == nil {
+		return &NoopSummarizer{}
+	}
+
+	s := *sptr
 	if s == nil {
-		return nil
+		return &NoopSummarizer{}
 	}
 
-	return *s
+	return s
 }
 
 // SetSummarizer sets the summarizer service to be provided. It is safe to call
 // this function from any thread.
-func (p *SummarizerProvider) SetSummarizer(summarizer Summarizer) {
-	p.summarizer.Store(&summarizer)
+func (p *SummarizerProvider) SetSummarizer(s summarizer.Summarizer) {
+	p.summarizer.Store(&s)
 }
 
 // NewSummarizerProvider creates a new SummarizerProvider without a summarizer.
 func NewSummarizerProvider() *SummarizerProvider {
-	return &SummarizerProvider{}
+	sp := &SummarizerProvider{}
+	var noop summarizer.Summarizer = &NoopSummarizer{}
+	sp.summarizer.Store(&noop)
+	return sp
+}
+
+// NoopSummarizer is a no-op implementation of the summarizer.Summarizer
+// interface.
+type NoopSummarizer struct{}
+
+func (*NoopSummarizer) Summarize(ctx context.Context, sessionID session.ID, sessionEndEvent *events.OneOf) error {
+	return nil
 }

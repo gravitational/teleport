@@ -92,6 +92,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
+	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/auth/summarizer/summarizerv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -1381,7 +1382,7 @@ func (a *Server) ResetLoginHooks() {
 
 // SetSummarizerService sets an implementation of the summarizer service used
 // by this server and its underlying services.
-func (a *Server) SetSummarizerService(s summarizerv1.Summarizer) {
+func (a *Server) SetSummarizerService(s summarizer.Summarizer) {
 	a.summarizerProvider.SetSummarizer(s)
 }
 

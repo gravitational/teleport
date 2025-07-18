@@ -379,7 +379,7 @@ func TestSummarization(t *testing.T) {
 		summarizationError error
 	}{
 		{
-			name:          "nil summarizer",
+			name:          "noop summarizer",
 			useSummarizer: false,
 		},
 		{

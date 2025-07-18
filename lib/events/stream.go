@@ -815,12 +815,10 @@ func (w *sliceWriter) completeStream() {
 		}
 
 		summarizer := w.proto.cfg.SummarizerProvider.ProvideSummarizer()
-		if summarizer != nil {
-			err = summarizer.Summarize(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID, w.sessionEndEvent)
-			if err != nil {
-				slog.WarnContext(w.proto.cancelCtx, "Failed to summarize upload", "error", err)
-				return
-			}
+		err = summarizer.Summarize(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID, w.sessionEndEvent)
+		if err != nil {
+			slog.WarnContext(w.proto.cancelCtx, "Failed to summarize upload", "error", err)
+			return
 		}
 	}
 }
