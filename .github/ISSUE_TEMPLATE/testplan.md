@@ -740,6 +740,8 @@ tsh ssh node-that-requires-device-trust
     - [ ] K8s Access
     - [ ] App Access NOT enforced in global mode
     - [ ] Desktop Access NOT enforced in global mode
+  - [ ] device_trust.mode="required-human" enforces enrolled devices for humans,
+        but bots (e.g. `tbot`) function on any device
   - [ ] Role-based authz enforces enrolled devices
         (device_trust.mode="optional" and role.spec.options.device_trust_mode="required")
     - [ ] SSH
