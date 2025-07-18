@@ -1709,7 +1709,7 @@ func (process *TeleportProcess) makeInventoryControlStream(ctx context.Context) 
 }
 
 // upgradeWindowsClient get the upgradeWindowsClient.
-// If the client is not yet initialized, the funciton will block until a valid
+// If the client is not yet initialized, the function will block until a valid
 // client is found.
 func (process *TeleportProcess) upgradeWindowsClient() (windowsClient adaptor.UpgradeWindowsClient, err error) {
 	// We we are a local auth, we don't have an instance client, so we return the auth.
