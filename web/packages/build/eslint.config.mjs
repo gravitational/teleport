@@ -52,7 +52,7 @@ export default tseslint.config(
       // WASM generated files
       '**/ironrdp/pkg/**',
       'web/packages/teleterm/build',
-      // allows for eslint-plugin-storybook to also lint our
+      // allows for eslint-plugin-storybook to also lint
       // configuration files inside the .storybook folder
       '!.storybook',
     ],

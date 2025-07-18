@@ -59,8 +59,7 @@
     "storybook": "^9.0.17",
     "svgo": "^4.0.0",
     "typescript": "^5.8.3",
-    "vite": "^6.3.5",
-    "eslint-plugin-storybook": "9.0.17"
+    "vite": "^6.3.5"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.18.6",
