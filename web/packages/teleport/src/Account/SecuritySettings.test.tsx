@@ -20,6 +20,7 @@ import { within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { render, screen, waitFor } from 'design/utils/testing';
+import { ToastNotificationProvider } from 'shared/components/ToastNotification';
 import { useStore } from 'shared/libs/stores';
 
 import { ContextProvider } from 'teleport';
@@ -32,7 +33,6 @@ import { PasswordState } from 'teleport/services/user';
 import TeleportContext from 'teleport/teleportContext';
 
 import useManageDevices from './ManageDevices/useManageDevices';
-import { NotificationProvider } from './NotificationContext';
 
 const defaultAuthType = cfg.auth.second_factor;
 const defaultPasswordless = cfg.auth.allowPasswordless;
@@ -56,7 +56,7 @@ function SecuritySettingsWrapper({ ctx }: { ctx: TeleportContext }) {
   }
 
   return (
-    <NotificationProvider>
+    <ToastNotificationProvider>
       <SecuritySettings
         isSso={isSso}
         canAddPasskeys={canAddPasskeys}
@@ -65,7 +65,7 @@ function SecuritySettingsWrapper({ ctx }: { ctx: TeleportContext }) {
         {...manageDevicesState}
         onPasswordChange={onPasswordChange}
       />
-    </NotificationProvider>
+    </ToastNotificationProvider>
   );
 }
 

@@ -21,13 +21,13 @@ import { useState } from 'react';
 import Flex from 'design/Flex';
 import { Bots } from 'design/Icon';
 
-import { Notification } from './Notification';
+import { ToastNotification } from './ToastNotification';
 
 export default {
-  title: 'Shared/Notification',
+  title: 'Shared/ToastNotification',
 };
 
-export const Notifications = () => {
+export const Toasts = () => {
   return (
     <div
       css={`
@@ -37,7 +37,7 @@ export const Notifications = () => {
       `}
     >
       <Flex flexDirection="column" gap={4}>
-        <Notification
+        <ToastNotification
           item={{
             id: crypto.randomUUID(),
             severity: 'info',
@@ -50,7 +50,7 @@ export const Notifications = () => {
           isAutoRemovable={false}
         />
 
-        <Notification
+        <ToastNotification
           item={{
             id: crypto.randomUUID(),
             severity: 'warn',
@@ -63,7 +63,7 @@ export const Notifications = () => {
           isAutoRemovable={false}
         />
 
-        <Notification
+        <ToastNotification
           item={{
             id: crypto.randomUUID(),
             severity: 'error',
@@ -76,7 +76,7 @@ export const Notifications = () => {
           isAutoRemovable={false}
         />
 
-        <Notification
+        <ToastNotification
           item={{
             id: crypto.randomUUID(),
             severity: 'neutral',
@@ -89,7 +89,7 @@ export const Notifications = () => {
           isAutoRemovable={false}
         />
 
-        <Notification
+        <ToastNotification
           item={{
             id: crypto.randomUUID(),
             severity: 'neutral',
@@ -105,7 +105,7 @@ export const Notifications = () => {
       </Flex>
 
       <Flex flexDirection="column" gap={4}>
-        <Notification
+        <ToastNotification
           item={{
             id: crypto.randomUUID(),
             severity: 'info',
@@ -119,7 +119,7 @@ export const Notifications = () => {
           isAutoRemovable={false}
         />
 
-        <Notification
+        <ToastNotification
           item={{
             id: crypto.randomUUID(),
             severity: 'warn',
@@ -133,7 +133,7 @@ export const Notifications = () => {
           isAutoRemovable={false}
         />
 
-        <Notification
+        <ToastNotification
           item={{
             id: crypto.randomUUID(),
             severity: 'error',
@@ -149,7 +149,7 @@ export const Notifications = () => {
       </Flex>
 
       <Flex flexDirection="column" gap={4}>
-        <Notification
+        <ToastNotification
           item={{
             id: crypto.randomUUID(),
             severity: 'info',
@@ -159,7 +159,7 @@ export const Notifications = () => {
           isAutoRemovable={false}
         />
 
-        <Notification
+        <ToastNotification
           item={{
             id: crypto.randomUUID(),
             severity: 'warn',
@@ -169,7 +169,7 @@ export const Notifications = () => {
           isAutoRemovable={false}
         />
 
-        <Notification
+        <ToastNotification
           item={{
             id: crypto.randomUUID(),
             severity: 'error',
@@ -181,7 +181,7 @@ export const Notifications = () => {
       </Flex>
 
       <Flex flexDirection="column" gap={4}>
-        <Notification
+        <ToastNotification
           item={{
             id: crypto.randomUUID(),
             severity: 'info',
@@ -193,7 +193,7 @@ export const Notifications = () => {
       </Flex>
 
       <Flex flexDirection="column" gap={4}>
-        <Notification
+        <ToastNotification
           item={{
             id: crypto.randomUUID(),
             severity: 'info',
@@ -212,7 +212,7 @@ export const Notifications = () => {
       </Flex>
 
       <Flex flexDirection="column" gap={4}>
-        <Notification
+        <ToastNotification
           item={{
             id: crypto.randomUUID(),
             severity: 'info',
@@ -227,7 +227,7 @@ export const Notifications = () => {
       </Flex>
 
       <Flex flexDirection="column" gap={4}>
-        <Notification
+        <ToastNotification
           item={{
             id: crypto.randomUUID(),
             severity: 'info',
@@ -239,7 +239,7 @@ export const Notifications = () => {
         />
       </Flex>
       <Flex flexDirection="column" gap={4}>
-        <Notification
+        <ToastNotification
           item={{
             id: crypto.randomUUID(),
             severity: 'info',
@@ -255,7 +255,7 @@ export const Notifications = () => {
         />
       </Flex>
       <Flex flexDirection="column" gap={4}>
-        <Notification
+        <ToastNotification
           item={{
             id: crypto.randomUUID(),
             severity: 'info',
@@ -268,7 +268,7 @@ export const Notifications = () => {
         />
       </Flex>
       <Flex flexDirection="column" gap={4}>
-        <Notification
+        <ToastNotification
           item={{
             id: crypto.randomUUID(),
             severity: 'info',
@@ -292,7 +292,7 @@ export const AutoRemovable = () => {
   return (
     <Flex flexDirection="column" gap={4}>
       {showInfo ? (
-        <Notification
+        <ToastNotification
           item={{
             id: crypto.randomUUID(),
             severity: 'info',
@@ -306,7 +306,7 @@ export const AutoRemovable = () => {
         <div>Info notification has been removed</div>
       )}
       {showWarning ? (
-        <Notification
+        <ToastNotification
           item={{
             id: crypto.randomUUID(),
             severity: 'warn',
@@ -320,7 +320,7 @@ export const AutoRemovable = () => {
         <div>Warning notification has been removed</div>
       )}
       {showError ? (
-        <Notification
+        <ToastNotification
           item={{
             id: crypto.randomUUID(),
             severity: 'error',
