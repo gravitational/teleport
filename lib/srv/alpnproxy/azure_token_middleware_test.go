@@ -21,9 +21,11 @@ package alpnproxy
 import (
 	"crypto"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -39,7 +41,24 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 )
 
-func TestAzureMSIMiddlewareHandleRequest(t *testing.T) {
+func TestAzureTokenMiddlewareHandleRequest(t *testing.T) {
+	t.Parallel()
+	for _, endpoint := range []struct {
+		name              string
+		endpoint          string
+		resourceFieldName string
+		secret            func(string) azureRequestModifier
+	}{
+		{name: "msi", endpoint: types.TeleportAzureMSIEndpoint, resourceFieldName: MSIResourceFieldName, secret: msiSecretModifier},
+		{name: "identity", endpoint: types.TeleportAzureIdentityEndpoint, resourceFieldName: IdentityResourceFieldName, secret: identitySecretModifier},
+	} {
+		t.Run(endpoint.name, func(t *testing.T) {
+			testAzureTokenMiddlewareHandleRequest(t, endpoint.endpoint, endpoint.secret, endpoint.resourceFieldName)
+		})
+	}
+}
+
+func testAzureTokenMiddlewareHandleRequest(t *testing.T, endpoint string, endpointSecret func(string) azureRequestModifier, resourceFieldName string) {
 	newPrivateKey := func() crypto.Signer {
 		_, privateBytes, err := jwt.GenerateKeyPair()
 		require.NoError(t, err)
@@ -47,8 +66,7 @@ func TestAzureMSIMiddlewareHandleRequest(t *testing.T) {
 		require.NoError(t, err)
 		return privateKey
 	}
-
-	m := &AzureMSIMiddleware{
+	m := &AzureTokenMiddleware{
 		Identity: "azureTestIdentity",
 		TenantID: "cafecafe-cafe-4aaa-cafe-cafecafecafe",
 		ClientID: "decaffff-cafe-4aaa-cafe-cafecafecafe",
@@ -62,7 +80,9 @@ func TestAzureMSIMiddlewareHandleRequest(t *testing.T) {
 	tests := []struct {
 		name           string
 		url            string
+		params         map[string]string
 		headers        map[string]string
+		secretFunc     azureRequestModifier
 		expectedHandle bool
 		expectedCode   int
 		expectedBody   string
@@ -75,72 +95,95 @@ func TestAzureMSIMiddlewareHandleRequest(t *testing.T) {
 		},
 		{
 			name:           "invalid request, wrong secret",
-			url:            "https://azure-msi.teleport.dev/bad-secret",
-			headers:        nil,
+			url:            endpoint,
+			headers:        map[string]string{},
+			secretFunc:     endpointSecret("bad-secret"),
 			expectedHandle: true,
 			expectedCode:   400,
 			expectedBody:   "{\n    \"error\": {\n        \"message\": \"invalid secret\"\n    }\n}",
 		},
 		{
 			name:           "invalid request, missing secret",
-			url:            "https://azure-msi.teleport.dev",
-			headers:        nil,
+			url:            endpoint,
+			headers:        map[string]string{},
+			secretFunc:     emptySecretMethod,
 			expectedHandle: true,
 			expectedCode:   400,
 			expectedBody:   "{\n    \"error\": {\n        \"message\": \"invalid secret\"\n    }\n}",
 		},
 		{
 			name:           "invalid request, missing metadata",
-			url:            "https://azure-msi.teleport.dev/my-secret",
-			headers:        nil,
+			url:            endpoint,
+			headers:        map[string]string{},
+			secretFunc:     endpointSecret("my-secret"),
 			expectedHandle: true,
 			expectedCode:   400,
 			expectedBody:   "{\n    \"error\": {\n        \"message\": \"expected Metadata header with value 'true'\"\n    }\n}",
 		},
 		{
 			name:           "invalid request, bad metadata value",
-			url:            "https://azure-msi.teleport.dev/my-secret",
+			url:            endpoint,
 			headers:        map[string]string{"Metadata": "false"},
+			secretFunc:     endpointSecret("my-secret"),
 			expectedHandle: true,
 			expectedCode:   400,
 			expectedBody:   "{\n    \"error\": {\n        \"message\": \"expected Metadata header with value 'true'\"\n    }\n}",
 		},
 		{
 			name:           "invalid request, missing arguments",
-			url:            "https://azure-msi.teleport.dev/my-secret",
+			url:            endpoint,
 			headers:        map[string]string{"Metadata": "true"},
+			secretFunc:     endpointSecret("my-secret"),
 			expectedHandle: true,
 			expectedCode:   400,
 			expectedBody:   "{\n    \"error\": {\n        \"message\": \"missing value for parameter 'resource'\"\n    }\n}",
 		},
 		{
-			name:           "invalid request, missing resource",
-			url:            "https://azure-msi.teleport.dev/my-secret?msi_res_id=azureTestIdentity",
-			headers:        map[string]string{"Metadata": "true"},
+			name:    "invalid request, missing resource",
+			url:     endpoint,
+			headers: map[string]string{"Metadata": "true"},
+			params: map[string]string{
+				resourceFieldName: "azureTestIdentity",
+			},
+			secretFunc:     endpointSecret("my-secret"),
 			expectedHandle: true,
 			expectedCode:   400,
 			expectedBody:   "{\n    \"error\": {\n        \"message\": \"missing value for parameter 'resource'\"\n    }\n}",
 		},
 		{
-			name:           "invalid request, missing identity",
-			url:            "https://azure-msi.teleport.dev/my-secret?resource=myresource",
-			headers:        map[string]string{"Metadata": "true"},
+			name:    "invalid request, missing identity",
+			url:     endpoint,
+			headers: map[string]string{"Metadata": "true"},
+			params: map[string]string{
+				"resource": "myresource",
+			},
+			secretFunc:     endpointSecret("my-secret"),
 			expectedHandle: true,
 			expectedCode:   400,
-			expectedBody:   "{\n    \"error\": {\n        \"message\": \"unexpected value for parameter 'msi_res_id': \"\n    }\n}",
+			expectedBody:   fmt.Sprintf("{\n    \"error\": {\n        \"message\": \"unexpected value for parameter '%s': \"\n    }\n}", resourceFieldName),
 		},
 		{
-			name:           "invalid request, wrong identity",
-			url:            "https://azure-msi.teleport.dev/my-secret?resource=myresource&msi_res_id=azureTestWrongIdentity",
-			headers:        map[string]string{"Metadata": "true"},
+			name:    "invalid request, wrong identity",
+			url:     endpoint,
+			headers: map[string]string{"Metadata": "true"},
+			params: map[string]string{
+				resourceFieldName: "azureTestWrongIdentity",
+				"resource":        "myresource",
+			},
+			secretFunc:     endpointSecret("my-secret"),
 			expectedHandle: true,
 			expectedCode:   400,
-			expectedBody:   "{\n    \"error\": {\n        \"message\": \"unexpected value for parameter 'msi_res_id': azureTestWrongIdentity\"\n    }\n}",
+			expectedBody:   fmt.Sprintf("{\n    \"error\": {\n        \"message\": \"unexpected value for parameter '%s': azureTestWrongIdentity\"\n    }\n}", resourceFieldName),
 		},
 		{
-			name:           "well-formatted request",
-			url:            "https://azure-msi.teleport.dev/my-secret?resource=myresource&msi_res_id=azureTestIdentity",
-			headers:        map[string]string{"Metadata": "true"},
+			name:    "well-formatted request",
+			url:     endpoint,
+			headers: map[string]string{"Metadata": "true"},
+			params: map[string]string{
+				resourceFieldName: "azureTestIdentity",
+				"resource":        "myresource",
+			},
+			secretFunc:     endpointSecret("my-secret"),
 			expectedHandle: true,
 			expectedCode:   200,
 			verifyBody: func(t *testing.T, body []byte) {
@@ -202,14 +245,22 @@ func TestAzureMSIMiddlewareHandleRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			params := url.Values{}
+			for name, value := range tt.params {
+				params.Set(name, value)
+			}
+
 			// prepare request
-			req, err := http.NewRequest("GET", tt.url, strings.NewReader(""))
+			req, err := http.NewRequest("GET", "https://"+tt.url+"?"+params.Encode(), strings.NewReader(""))
 			require.NoError(t, err)
 
 			for k, v := range tt.headers {
 				req.Header.Set(k, v)
 			}
 
+			if tt.secretFunc != nil {
+				tt.secretFunc(req)
+			}
 			recorder := httptest.NewRecorder()
 
 			// run handler
@@ -236,3 +287,20 @@ func TestAzureMSIMiddlewareHandleRequest(t *testing.T) {
 		})
 	}
 }
+
+// azureRequestModifier modifies an Azure request.
+type azureRequestModifier func(req *http.Request)
+
+func msiSecretModifier(secret string) azureRequestModifier {
+	return func(req *http.Request) {
+		req.URL = req.URL.JoinPath(secret)
+	}
+}
+
+func identitySecretModifier(secret string) azureRequestModifier {
+	return func(req *http.Request) {
+		req.Header.Add(IdentitySecretHeader, secret)
+	}
+}
+
+func emptySecretMethod(_ *http.Request) {}

@@ -265,9 +265,11 @@ func (s *handler) parseAuthHeader(token string, pubKey crypto.PublicKey) (*jwt.A
 
 	// Create a new key that can sign and verify tokens.
 	key, err := jwt.New(&jwt.Config{
-		Clock:       s.Clock,
-		PublicKey:   pubKey,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
+		Clock:     s.Clock,
+		PublicKey: pubKey,
+		Algorithm: defaults.ApplicationTokenAlgorithm,
+		// TODO(gabrielcorado): use the cluster name. This value must match the
+		// one used by the local proxy middleware.
 		ClusterName: types.TeleportAzureMSIEndpoint,
 	})
 	if err != nil {
