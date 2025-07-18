@@ -1,4 +1,4 @@
-import { StoryObj } from '@storybook/react';
+import { StoryObj } from '@storybook/react-vite';
 import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
 

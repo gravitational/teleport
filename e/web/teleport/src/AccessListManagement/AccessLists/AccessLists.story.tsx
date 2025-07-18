@@ -1,4 +1,4 @@
-import { StoryObj } from '@storybook/react';
+import { StoryObj } from '@storybook/react-vite';
 import { addWeeks } from 'date-fns';
 import { http, HttpResponse } from 'msw';
 import { useEffect } from 'react';
