@@ -93,7 +93,7 @@ func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecA
 	}
 
 	slog.DebugContext(ctx, "Attempting to local update", "current_profile_name", currentProfileName)
-	resp, err := updater.CheckLocal(currentProfileName)
+	resp, err := updater.CheckLocal(ctx, currentProfileName)
 	if err != nil {
 		return trace.Wrap(err)
 	}

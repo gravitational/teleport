@@ -144,7 +144,7 @@ func NewUpdater(toolsDir, localVersion string, options ...Option) *Updater {
 // CheckLocal is run at client tool startup and will only perform local checks.
 // Returns the version needs to be updated and re-executed, by re-execution flag we
 // understand that update and re-execute is required.
-func (u *Updater) CheckLocal(profileName string) (resp *UpdateResponse, err error) {
+func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *UpdateResponse, err error) {
 	// Check if the user has requested a specific version of client tools.
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
 	switch requestedVersion {
@@ -194,7 +194,7 @@ func (u *Updater) CheckLocal(profileName string) (resp *UpdateResponse, err erro
 		if err := migrateV1AndUpdateConfig(u.toolsDir, u.tools); err != nil {
 			// Execution should not be interrupted if migration fails. Instead, it's better to
 			// re-download the version that was supposed to be migrated but failed for some reason.
-			slog.WarnContext(context.Background(), "migrate tools failed.", "error", err)
+			slog.WarnContext(ctx, "Failed to migrate client tools", "error", err)
 		}
 	}
 
