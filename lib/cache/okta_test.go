@@ -75,8 +75,8 @@ func TestOktaImportRules(t *testing.T) {
 			return stream.Collect(clientutils.Resources(ctx, p.okta.ListOktaImportRules))
 		},
 		cacheGet: p.cache.GetOktaImportRule,
-		cacheList: func(ctx context.Context) ([]types.OktaImportRule, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.cache.ListOktaImportRules))
+		cacheList: func(ctx context.Context, pageSize int) ([]types.OktaImportRule, error) {
+			return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListOktaImportRules, pageSize))
 		},
 		update: func(ctx context.Context, resource types.OktaImportRule) error {
 			_, err := p.okta.UpdateOktaImportRule(ctx, resource)
@@ -123,8 +123,8 @@ func TestOktaAssignments(t *testing.T) {
 			return stream.Collect(clientutils.Resources(ctx, p.okta.ListOktaAssignments))
 		},
 		cacheGet: p.cache.GetOktaAssignment,
-		cacheList: func(ctx context.Context) ([]types.OktaAssignment, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.cache.ListOktaAssignments))
+		cacheList: func(ctx context.Context, pageSize int) ([]types.OktaAssignment, error) {
+			return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListOktaAssignments, pageSize))
 		},
 		update: func(ctx context.Context, resource types.OktaAssignment) error {
 			_, err := p.okta.UpdateOktaAssignment(ctx, resource)
