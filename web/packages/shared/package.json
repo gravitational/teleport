@@ -17,6 +17,10 @@
     "@xterm/addon-search": "^0.15.0",
     "ace-builds": "1.43.0",
     "events": "3.3.0",
-    "highlight-words-core": "^1.2.3"
+    "highlight-words-core": "^1.2.3",
+    "semver": "^7.7.2"
+  },
+  "devDependencies" : {
+    "@types/semver": "^7.7.0"
   }
 }

@@ -16,51 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export const compareSemVers = (a: string, b: string): -1 | 1 | 0 => {
-  const splitA = a.split('.');
-  const splitB = b.split('.');
+import compare from 'semver/functions/compare';
+import major from 'semver/functions/major';
 
-  if (splitA.length < 3 || splitB.length < 3) {
-    return -1;
-  }
+// Re-export specific functions from `semver/functions/*` to avoid bundling
+// the full semver package.
 
-  const majorA = parseInt(splitA[0]);
-  const majorB = parseInt(splitB[0]);
-  if (majorA !== majorB) {
-    return majorA > majorB ? 1 : -1;
-  }
-
-  const minorA = parseInt(splitA[1]);
-  const minorB = parseInt(splitB[1]);
-  if (minorA !== minorB) {
-    return minorA > minorB ? 1 : -1;
-  }
-
-  const patchA = parseInt(splitA[2].split('-')[0]);
-  const patchB = parseInt(splitB[2].split('-')[0]);
-  if (patchA !== patchB) {
-    return patchA > patchB ? 1 : -1;
-  }
-
-  return 0;
+export {
+  compare,
+  /** @deprecated Import `compare` from `shared/utils/semver`. */
+  compare as compareSemVers,
+  major,
 };
-
-/**
- * Extracts the major version number from a semver string.
- * @throws Error when the input is not a valid semver string.
- */
-export function getMajor(version: string): number {
-  const parts = version.split('.');
-  if (parts.length < 3) {
-    throw new Error(`'${version}' is not a valid semver string.`);
-  }
-
-  const major = parts.at(0);
-  const parsed = Number(major);
-
-  if (Number.isNaN(parsed)) {
-    throw new Error(`'${version}' is not a valid semver string.`);
-  }
-
-  return parsed;
-}

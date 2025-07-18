@@ -21,7 +21,7 @@ import type {
   GetClusterVersionsResponse,
   UnreachableCluster,
 } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
-import { compareSemVers, getMajor } from 'shared/utils/semVer';
+import { compare, major } from 'shared/utils/semVer';
 
 import Logger from 'teleterm/logger';
 import { RootClusterUri } from 'teleterm/ui/uri';
@@ -130,7 +130,7 @@ function makeCandidateClusters(
   const candidates = versions.filter(v => v.toolsAutoUpdate);
 
   return candidates.map(candidate => {
-    const candidateMajorToolsVersion = getMajor(candidate.toolsVersion);
+    const candidateMajorToolsVersion = major(candidate.toolsVersion);
 
     const otherCompatibleClusters = candidates
       .filter(v => {
@@ -139,8 +139,8 @@ function makeCandidateClusters(
           return false;
         }
 
-        const minMajor = getMajor(v.minToolsVersion);
-        const maxMajor = getMajor(v.toolsVersion);
+        const minMajor = major(v.minToolsVersion);
+        const maxMajor = major(v.toolsVersion);
 
         // Check compatibility: candidate's major version must be within [minMajor, maxMajor].
         return (
@@ -164,7 +164,7 @@ function findMostCompatibleToolsVersion(
 ): string | undefined {
   // Get the highest version first.
   const sorted = candidates.toSorted((a, b) =>
-    compareSemVers(b.toolsVersion, a.toolsVersion)
+    compare(b.toolsVersion, a.toolsVersion)
   );
 
   const allClusters = new Set(candidates.map(c => c.clusterUri));
