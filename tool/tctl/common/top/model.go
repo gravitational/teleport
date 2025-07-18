@@ -30,11 +30,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/dustin/go-humanize"
-	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/guptarohit/asciigraph"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/tool/tctl/common/top/client"
 )
 
 // topModel is a [tea.Model] implementation which
@@ -46,16 +46,18 @@ type topModel struct {
 	selected        int
 	help            help.Model
 	refreshInterval time.Duration
-	clt             *roundtrip.Client
+	clt             client.MetricCient
 	report          *Report
 	reportError     error
+	addr            string
 }
 
-func newTopModel(refreshInterval time.Duration, clt *roundtrip.Client) *topModel {
+func newTopModel(refreshInterval time.Duration, clt client.MetricCient, addr string) *topModel {
 	return &topModel{
 		help:            help.New(),
 		clt:             clt,
 		refreshInterval: refreshInterval,
+		addr:            addr,
 	}
 }
 
@@ -171,7 +173,7 @@ func (m *topModel) footerView() string {
 
 	if m.reportError != nil {
 		if trace.IsConnectionProblem(m.reportError) {
-			leftContent = fmt.Sprintf("Could not connect to metrics service: %v", m.clt.Endpoint())
+			leftContent = fmt.Sprintf("Could not connect to metrics service: %v", m.addr)
 		} else {
 			leftContent = fmt.Sprintf("Failed to generate report: %v", m.reportError)
 		}
