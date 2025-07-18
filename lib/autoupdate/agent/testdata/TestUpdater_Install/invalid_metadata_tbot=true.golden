@@ -1,0 +1,10 @@
+version: ""
+kind: ""
+spec:
+    proxy: ""
+    path: ""
+    enabled: false
+    pinned: false
+status:
+    active:
+        version: ""
