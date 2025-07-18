@@ -36,7 +36,7 @@ import (
 	update "github.com/gravitational/teleport/api/types/autoupdate"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // rolloutEquals returns a require.ValueAssertionFunc that checks the rollout is identical.
@@ -136,7 +136,7 @@ func TestGetMode(t *testing.T) {
 
 func TestTryReconcile(t *testing.T) {
 	t.Parallel()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -331,7 +331,7 @@ func TestTryReconcile(t *testing.T) {
 }
 
 func TestReconciler_Reconcile(t *testing.T) {
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 	// Test setup: creating fixtures
@@ -728,7 +728,7 @@ func (f *fakeRolloutStrategy) progressRollout(ctx context.Context, spec *autoupd
 }
 
 func Test_reconciler_computeStatus(t *testing.T) {
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 	clock := clockwork.NewFakeClock()
 	ctx := context.Background()
 

@@ -49,7 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 const (
@@ -531,7 +531,7 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 	var backends []*backendDesc
 
 	hostUUID := uuid.NewString()
-	logger := utils.NewSlogLoggerForTests()
+	logger := logtest.NewLogger()
 
 	unusedPKCS11Key, err := keyID{
 		HostID: hostUUID,

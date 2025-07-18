@@ -49,7 +49,7 @@ func TestApps(t *testing.T) {
 	testResources(t, p, testFuncs[types.Application]{
 		newResource: func(name string) (types.Application, error) {
 			return types.NewAppV3(types.Metadata{
-				Name: "foo",
+				Name: name,
 			}, types.AppSpecV3{
 				URI: "localhost",
 			})
@@ -59,8 +59,8 @@ func TestApps(t *testing.T) {
 			return stream.Collect(p.apps.Apps(ctx, "", ""))
 		},
 		cacheGet: p.cache.GetApp,
-		cacheList: func(ctx context.Context) ([]types.Application, error) {
-			return stream.Collect(p.apps.Apps(ctx, "", ""))
+		cacheList: func(ctx context.Context, pageSize int) ([]types.Application, error) {
+			return stream.Collect(p.cache.Apps(ctx, "", ""))
 		},
 		update:    p.apps.UpdateApp,
 		deleteAll: p.apps.DeleteAllApps,
@@ -172,7 +172,7 @@ func TestApplicationServers(t *testing.T) {
 			list: func(ctx context.Context) ([]types.AppServer, error) {
 				return p.presenceS.GetApplicationServers(ctx, apidefaults.Namespace)
 			},
-			cacheList: func(ctx context.Context) ([]types.AppServer, error) {
+			cacheList: func(ctx context.Context, pageSize int) ([]types.AppServer, error) {
 				return p.cache.GetApplicationServers(ctx, apidefaults.Namespace)
 			},
 			update: withKeepalive(p.presenceS.UpsertApplicationServer),
@@ -215,9 +215,10 @@ func TestApplicationServers(t *testing.T) {
 
 				return out, nil
 			},
-			cacheList: func(ctx context.Context) ([]types.AppServer, error) {
+			cacheList: func(ctx context.Context, pageSize int) ([]types.AppServer, error) {
 				req := proto.ListResourcesRequest{
 					ResourceType: types.KindAppServer,
+					Limit:        int32(pageSize),
 				}
 
 				var out []types.AppServer

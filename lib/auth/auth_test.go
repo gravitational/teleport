@@ -79,6 +79,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -86,6 +87,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type testPack struct {
@@ -227,7 +229,7 @@ func newAuthSuite(t *testing.T) *testPack {
 }
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	cryptosuites.PrecomputeRSATestKeys(m)
 	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
@@ -487,7 +489,7 @@ func TestAuthenticateWebUser_deviceWebToken(t *testing.T) {
 
 func TestAuthenticateWebUser_trustedDeviceRequirement(t *testing.T) {
 	// Can't t.Parallel because of modules.SetTestModules.
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 	})
 
@@ -2379,7 +2381,7 @@ func setupUserForAugmentWebSessionCertificatesTest(t *testing.T, testServer *Tes
 }
 
 func TestGenerateUserCertIPPinning(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	s := newAuthSuite(t)
 
@@ -3009,7 +3011,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			modules.SetTestModules(t, &modules.TestModules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				MockAttestationData: tt.mockAttestationData,
 			})
 
@@ -4628,7 +4630,7 @@ func TestCleanupNotifications(t *testing.T) {
 func TestCreateAccessListReminderNotifications(t *testing.T) {
 	ctx := context.Background()
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -4738,14 +4740,14 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 func TestServer_GetAnonymizationKey(t *testing.T) {
 	tests := []struct {
 		name        string
-		testModules *modules.TestModules
+		testModules modulestest.Modules
 		license     *license.License
 		want        string
 		errCheck    require.ErrorAssertionFunc
 	}{
 		{
 			name: "returns CloudAnonymizationKey if present",
-			testModules: &modules.TestModules{
+			testModules: modulestest.Modules{
 				TestFeatures: modules.Features{CloudAnonymizationKey: []byte("cloud-key")},
 			},
 			license: &license.License{
@@ -4756,7 +4758,7 @@ func TestServer_GetAnonymizationKey(t *testing.T) {
 		},
 		{
 			name:        "Returns license AnonymizationKey if no Cloud Key is present",
-			testModules: &modules.TestModules{},
+			testModules: modulestest.Modules{},
 			license: &license.License{
 				AnonymizationKey: []byte("license-key"),
 			},
@@ -4765,7 +4767,7 @@ func TestServer_GetAnonymizationKey(t *testing.T) {
 		},
 		{
 			name:        "Returns clusterID if no cloud key nor license key is present",
-			testModules: &modules.TestModules{},
+			testModules: modulestest.Modules{},
 			license:     &license.License{},
 			want:        "cluster-id",
 			errCheck:    require.NoError,
@@ -4786,7 +4788,7 @@ func TestServer_GetAnonymizationKey(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, testTLSServer.Close()) })
 
-			modules.SetTestModules(t, tt.testModules)
+			modulestest.SetTestModules(t, tt.testModules)
 
 			testTLSServer.AuthServer.AuthServer.SetLicense(tt.license)
 
@@ -5030,7 +5032,7 @@ func TestValidServerHostname(t *testing.T) {
 func TestCreateAuthPreference(t *testing.T) {
 	cases := []struct {
 		name       string
-		modules    modules.Modules
+		modules    *modulestest.Modules
 		preference func(p types.AuthPreference)
 		assertion  func(t *testing.T, created types.AuthPreference, err error)
 	}{
@@ -5047,7 +5049,7 @@ func TestCreateAuthPreference(t *testing.T) {
 		},
 		{
 			name:    "creation allowed when hardware key policy is set in enterprise",
-			modules: &modules.TestModules{TestBuildType: modules.BuildEnterprise},
+			modules: &modulestest.Modules{TestBuildType: modules.BuildEnterprise},
 			preference: func(p types.AuthPreference) {
 				pp := p.(*types.AuthPreferenceV2)
 				pp.Spec.RequireMFAType = types.RequireMFAType_HARDWARE_KEY_PIN
@@ -5074,7 +5076,7 @@ func TestCreateAuthPreference(t *testing.T) {
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			if test.modules != nil {
-				modules.SetTestModules(t, test.modules)
+				modulestest.SetTestModules(t, *test.modules)
 			}
 
 			bk, err := memory.New(memory.Config{})
