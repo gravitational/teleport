@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -42,10 +42,12 @@ func TestKubernetes(t *testing.T) {
 				Name: name,
 			}, types.KubernetesClusterSpecV3{})
 		},
-		create:    p.kubernetes.CreateKubernetesCluster,
-		list:      p.kubernetes.GetKubernetesClusters,
-		cacheGet:  p.cache.GetKubernetesCluster,
-		cacheList: p.cache.GetKubernetesClusters,
+		create:   p.kubernetes.CreateKubernetesCluster,
+		list:     p.kubernetes.GetKubernetesClusters,
+		cacheGet: p.cache.GetKubernetesCluster,
+		cacheList: func(ctx context.Context, pageSize int) ([]types.KubeCluster, error) {
+			return p.cache.GetKubernetesClusters(ctx)
+		},
 		update:    p.kubernetes.UpdateKubernetesCluster,
 		deleteAll: p.kubernetes.DeleteAllKubernetesClusters,
 	})
@@ -70,7 +72,7 @@ func TestKubernetesServers(t *testing.T) {
 			list: func(ctx context.Context) ([]types.KubeServer, error) {
 				return p.presenceS.GetKubernetesServers(ctx)
 			},
-			cacheList: func(ctx context.Context) ([]types.KubeServer, error) {
+			cacheList: func(ctx context.Context, pageSize int) ([]types.KubeServer, error) {
 				return p.cache.GetKubernetesServers(ctx)
 			},
 			update: withKeepalive(p.presenceS.UpsertKubernetesServer),
@@ -89,54 +91,19 @@ func TestKubernetesServers(t *testing.T) {
 			},
 			create: withKeepalive(p.presenceS.UpsertKubernetesServer),
 			list: func(ctx context.Context) ([]types.KubeServer, error) {
-				req := proto.ListResourcesRequest{
-					ResourceType: types.KindKubeServer,
+				resources, err := listAllResource(t, p.presenceS, types.KindKubeServer, apidefaults.DefaultChunkSize)
+				if err != nil {
+					return nil, trace.Wrap(err)
 				}
+				return types.ResourcesWithLabels(resources).AsKubeServers()
 
-				var out []types.KubeServer
-				for {
-					resp, err := p.presenceS.ListResources(ctx, req)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-
-					for _, s := range resp.Resources {
-						out = append(out, s.(types.KubeServer))
-					}
-
-					req.StartKey = resp.NextKey
-
-					if req.StartKey == "" {
-						break
-					}
-				}
-
-				return out, nil
 			},
-			cacheList: func(ctx context.Context) ([]types.KubeServer, error) {
-				req := proto.ListResourcesRequest{
-					ResourceType: types.KindKubeServer,
+			cacheList: func(ctx context.Context, pageSize int) ([]types.KubeServer, error) {
+				resources, err := listAllResource(t, p.cache, types.KindKubeServer, pageSize)
+				if err != nil {
+					return nil, trace.Wrap(err)
 				}
-
-				var out []types.KubeServer
-				for {
-					resp, err := p.cache.ListResources(ctx, req)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-
-					for _, s := range resp.Resources {
-						out = append(out, s.(types.KubeServer))
-					}
-
-					req.StartKey = resp.NextKey
-
-					if req.StartKey == "" {
-						break
-					}
-				}
-
-				return out, nil
+				return types.ResourcesWithLabels(resources).AsKubeServers()
 			},
 			update: withKeepalive(p.presenceS.UpsertKubernetesServer),
 			deleteAll: func(ctx context.Context) error {

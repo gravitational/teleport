@@ -48,7 +48,7 @@ func TestUsers(t *testing.T) {
 			list: func(ctx context.Context) ([]types.User, error) {
 				return p.usersS.GetUsers(ctx, false)
 			},
-			cacheList: func(ctx context.Context) ([]types.User, error) {
+			cacheList: func(ctx context.Context, pageSize int) ([]types.User, error) {
 				return p.cache.GetUsers(ctx, false)
 			},
 			update: func(ctx context.Context, user types.User) error {
@@ -91,9 +91,11 @@ func TestUsers(t *testing.T) {
 
 				return out, nil
 			},
-			cacheList: func(ctx context.Context) ([]types.User, error) {
+			cacheList: func(ctx context.Context, pageSize int) ([]types.User, error) {
 				var out []types.User
-				req := &userspb.ListUsersRequest{}
+				req := &userspb.ListUsersRequest{
+					PageSize: int32(pageSize),
+				}
 				for {
 					resp, err := p.cache.ListUsers(ctx, req)
 					if err != nil {

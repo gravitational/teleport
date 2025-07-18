@@ -59,8 +59,8 @@ func TestAccessList(t *testing.T) {
 			return stream.Collect(clientutils.Resources(ctx, p.accessLists.ListAccessLists))
 		},
 		cacheGet: p.cache.GetAccessList,
-		cacheList: func(ctx context.Context) ([]*accesslist.AccessList, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.cache.ListAccessLists))
+		cacheList: func(ctx context.Context, pageSize int) ([]*accesslist.AccessList, error) {
+			return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListAccessLists, pageSize))
 		},
 		update: func(ctx context.Context, item *accesslist.AccessList) error {
 			_, err := p.accessLists.UpsertAccessList(ctx, item)
@@ -99,7 +99,7 @@ func TestAccessListMembers(t *testing.T) {
 		cacheGet: func(ctx context.Context, name string) (*accesslist.AccessListMember, error) {
 			return p.cache.GetAccessListMember(ctx, al.GetName(), name)
 		},
-		cacheList: func(ctx context.Context) ([]*accesslist.AccessListMember, error) {
+		cacheList: func(ctx context.Context, pageSize int) ([]*accesslist.AccessListMember, error) {
 			fn := func(ctx context.Context, pageSize int, startKey string) ([]*accesslist.AccessListMember, string, error) {
 				return p.cache.ListAccessListMembers(ctx, al.GetName(), pageSize, startKey)
 			}
@@ -185,7 +185,7 @@ func TestAccessListReviews(t *testing.T) {
 		list: func(ctx context.Context) ([]*accesslist.Review, error) {
 			return stream.Collect(clientutils.Resources(ctx, p.accessLists.ListAllAccessListReviews))
 		},
-		cacheList: func(ctx context.Context) ([]*accesslist.Review, error) {
+		cacheList: func(ctx context.Context, pageSize int) ([]*accesslist.Review, error) {
 			fn := func(ctx context.Context, pageSize int, startKey string) ([]*accesslist.Review, string, error) {
 				return p.cache.ListAccessListReviews(ctx, al.GetName(), pageSize, startKey)
 			}
