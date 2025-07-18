@@ -221,7 +221,7 @@ export interface PreferencesProps {
 export function Preferences({ setErrorMessage }: PreferencesProps) {
   const { preferences, updatePreferences } = useUser();
   const theme = useTheme();
-  const { addNotification } = useToastNotifications();
+  const toastNotification = useToastNotifications();
 
   const layout = preferences.keyboardLayout;
   const layoutValue =
@@ -333,8 +333,11 @@ export function Preferences({ setErrorMessage }: PreferencesProps) {
                     runUpdatePreference({
                       keyboardLayout: selected.value,
                     });
-                    addNotification('success', {
-                      title: 'Change saved',
+                    toastNotification.add({
+                      severity: 'success',
+                      content: {
+                        title: 'Change saved',
+                      },
                     });
                   }}
                   isDisabled={updatePreferenceAttempt.status === 'processing'}

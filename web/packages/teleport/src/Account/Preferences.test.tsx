@@ -69,7 +69,7 @@ describe('Account/Preferences', () => {
       });
 
     (useToastNotifications as jest.Mock).mockReturnValue({
-      addNotification: jest.fn(),
+      add: jest.fn(),
     });
 
     mockUserContextProviderWith(userContext);
@@ -117,7 +117,7 @@ describe('Account/Preferences', () => {
 
     const addNotification = jest.fn();
     (useToastNotifications as jest.Mock).mockReturnValue({
-      addNotification,
+      add: addNotification,
     });
 
     renderComponent(createTeleportContext());
@@ -140,8 +140,11 @@ describe('Account/Preferences', () => {
       );
     });
 
-    expect(addNotification).toHaveBeenCalledWith('success', {
-      title: 'Change saved',
+    expect(addNotification).toHaveBeenCalledWith({
+      severity: 'success',
+      content: {
+        title: 'Change saved',
+      },
     });
   });
 

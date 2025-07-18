@@ -31,20 +31,22 @@ import {
   ToastNotificationSeverity,
 } from './types';
 
+export type NotificationEntry = {
+  severity: ToastNotificationSeverity;
+  content: ToastNotificationItemContent;
+};
+
 type ToastNotificationContextState = {
   notifications: ToastNotificationItem[];
   /**
    * remove a notification matching id.
    */
-  removeNotification(id: string): void;
+  remove(id: string): void;
   /**
    * adds new notification to the beginning of
    * an existing list of notifications.
    */
-  addNotification(
-    severity: ToastNotificationSeverity,
-    content: ToastNotificationItemContent
-  ): void;
+  add(entry: NotificationEntry): void;
 };
 
 const ToastNotificationContext =
@@ -60,16 +62,17 @@ export const ToastNotificationProvider: FC<PropsWithChildren> = ({
     []
   );
 
-  function removeNotification(id: string) {
+  function remove(id: string) {
     setNotifications(n => n.filter(item => item.id !== id));
   }
 
-  function addNotification(
-    severity: ToastNotificationSeverity,
-    content: ToastNotificationItemContent
-  ) {
+  function add(entry: NotificationEntry) {
     setNotifications(notifications => [
-      { id: crypto.randomUUID(), content, severity },
+      {
+        id: crypto.randomUUID(),
+        content: entry.content,
+        severity: entry.severity,
+      },
       ...notifications,
     ]);
   }
@@ -77,8 +80,8 @@ export const ToastNotificationProvider: FC<PropsWithChildren> = ({
   const providerValue = useMemo(() => {
     return {
       notifications,
-      removeNotification,
-      addNotification,
+      remove,
+      add,
     };
   }, [notifications]);
 

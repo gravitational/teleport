@@ -40,7 +40,10 @@ describe('useToastNotifications', () => {
 
     // addNotification with content type "string"
     await act(async () => {
-      result.current.addNotification('error', 'first note');
+      result.current.add({
+        severity: 'error',
+        content: 'first note',
+      });
     });
 
     await waitFor(() => {
@@ -53,10 +56,13 @@ describe('useToastNotifications', () => {
 
     // addNotification with content type "Object"
     await act(async () => {
-      result.current.addNotification('info', {
-        title: 'second note',
-        description: 'some description',
-        icon: ShieldCheck,
+      result.current.add({
+        severity: 'info',
+        content: {
+          title: 'second note',
+          description: 'some description',
+          icon: ShieldCheck,
+        },
       });
     });
 
@@ -84,7 +90,10 @@ describe('useToastNotifications', () => {
     });
 
     await act(async () => {
-      result.current.addNotification('error', 'error content');
+      result.current.add({
+        severity: 'error',
+        content: 'error content',
+      });
     });
 
     await waitFor(() => {
@@ -92,7 +101,7 @@ describe('useToastNotifications', () => {
     });
 
     await act(async () => {
-      result.current.removeNotification(result.current.notifications[0].id);
+      result.current.remove(result.current.notifications[0].id);
     });
 
     await waitFor(() => {
