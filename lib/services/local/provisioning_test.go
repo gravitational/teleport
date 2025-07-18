@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -80,17 +81,17 @@ func TestProvisioningService_ListProvisionTokens_Pagination(t *testing.T) {
 
 			result, nextPage, err := service.ListProvisionTokens(ctx, tc.pageSize, "", nil, "")
 			require.NoError(t, err)
-			require.Equal(t, tc.nextPage, nextPage)
+			assert.Equal(t, tc.nextPage, nextPage)
 			if tc.count > tc.pageSize {
-				require.Len(t, result, tc.pageSize)
+				assert.Len(t, result, tc.pageSize)
 
 				result, nextPage, err = service.ListProvisionTokens(ctx, tc.pageSize, nextPage, nil, "")
 				require.NoError(t, err)
 
-				require.Empty(t, nextPage)
-				require.Len(t, result, tc.count-tc.pageSize)
+				assert.Empty(t, nextPage)
+				assert.Len(t, result, tc.count-tc.pageSize)
 			} else {
-				require.Len(t, result, tc.count)
+				assert.Len(t, result, tc.count)
 			}
 		})
 	}
@@ -135,19 +136,19 @@ func TestProvisioningService_ListProvisionTokens_FilterAnyRoles(t *testing.T) {
 
 	result, _, err := service.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", nil, "")
 	require.NoError(t, err)
-	require.Len(t, result, 3)
+	assert.Len(t, result, 3)
 
 	result, _, err = service.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", types.SystemRoles{types.RoleAdmin, types.RoleNode, types.RoleBot}, "")
 	require.NoError(t, err)
-	require.Len(t, result, 3)
+	assert.Len(t, result, 3)
 
 	result, _, err = service.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", types.SystemRoles{types.RoleAdmin, types.RoleNode}, "")
 	require.NoError(t, err)
-	require.Len(t, result, 2)
+	assert.Len(t, result, 2)
 
 	result, _, err = service.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", types.SystemRoles{types.RoleBot}, "")
 	require.NoError(t, err)
-	require.Len(t, result, 1)
+	assert.Len(t, result, 1)
 }
 
 func TestProvisioningService_ListProvisionTokens_FilterBotName(t *testing.T) {
@@ -190,12 +191,12 @@ func TestProvisioningService_ListProvisionTokens_FilterBotName(t *testing.T) {
 	result, _, err := service.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", nil, "bot-1")
 	require.NoError(t, err)
 	require.Len(t, result, 1)
-	require.Equal(t, "test-token-2", result[0].GetName())
+	assert.Equal(t, "test-token-2", result[0].GetName())
 
 	result, _, err = service.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", nil, "bot-2")
 	require.NoError(t, err)
 	require.Len(t, result, 1)
-	require.Equal(t, "test-token-3", result[0].GetName())
+	assert.Equal(t, "test-token-3", result[0].GetName())
 }
 
 func newProvisioningService(t *testing.T, clock clockwork.Clock) *local.ProvisioningService {

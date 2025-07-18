@@ -199,20 +199,20 @@ func TestTokensCacheAnyRolesFilter(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		result, _, err := p.cache.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", nil, "")
 		require.NoError(t, err)
-		require.Len(t, result, 3)
+		assert.Len(t, result, 3)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	result, _, err := p.cache.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", types.SystemRoles{types.RoleAdmin, types.RoleNode, types.RoleBot}, "")
 	require.NoError(t, err)
-	require.Len(t, result, 3)
+	assert.Len(t, result, 3)
 
 	result, _, err = p.cache.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", types.SystemRoles{types.RoleAdmin, types.RoleNode}, "")
 	require.NoError(t, err)
-	require.Len(t, result, 2)
+	assert.Len(t, result, 2)
 
 	result, _, err = p.cache.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", types.SystemRoles{types.RoleBot}, "")
 	require.NoError(t, err)
-	require.Len(t, result, 1)
+	assert.Len(t, result, 1)
 }
 
 // TestTokensCacheBotNameFilter tests that cache items are filtered by the bot name provided.
@@ -264,10 +264,10 @@ func TestTokensCacheBotNameFilter(t *testing.T) {
 	result, _, err := p.cache.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", nil, "bot-1")
 	require.NoError(t, err)
 	require.Len(t, result, 1)
-	require.Equal(t, "test-token-2", result[0].GetName())
+	assert.Equal(t, "test-token-2", result[0].GetName())
 
 	result, _, err = p.cache.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", nil, "bot-2")
 	require.NoError(t, err)
 	require.Len(t, result, 1)
-	require.Equal(t, "test-token-3", result[0].GetName())
+	assert.Equal(t, "test-token-3", result[0].GetName())
 }
