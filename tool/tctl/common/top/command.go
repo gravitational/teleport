@@ -18,19 +18,19 @@ package top
 
 import (
 	"context"
-	"net"
-	"net/http"
+	"errors"
+	"net/url"
 	"path/filepath"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	"github.com/gravitational/teleport/tool/tctl/common/top/client"
 )
 
 // Command is a debug command that consumes the
@@ -53,28 +53,41 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	c.top.Arg("refresh", "Refresh period").Default("5s").DurationVar(&c.refreshPeriod)
 }
 
-func (c *Command) newDiagClient(ctx context.Context) (*roundtrip.Client, error) {
+func (c *Command) newDiagClient(ctx context.Context) (string, client.MetricCient, error) {
 	if c.diagURL != "" {
-		// Note that explicitly passing a socket path URI here is not supported.
-		return roundtrip.NewClient(c.diagURL, "")
+		clt, err := client.NewMetricCient(c.diagURL)
+		return c.diagURL, clt, err
 	}
 
-	clientCfgs := []ClientConfig{
-		{
-			addr: "http://unix",
-			opts: []roundtrip.ClientParam{roundtrip.HTTPClient(&http.Client{
-				// A custom transport is required for unix socket connection.
-				Transport: &http.Transport{
-					DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-						return (&net.Dialer{}).DialContext(ctx, "unix", filepath.Join(c.config.DataDir, "debug.sock"))
-					}}})},
-		},
-		{
-			addr: fallbackHTTPAddr,
-		},
+	sockURL := url.URL{
+		Scheme: "unix",
+		Path:   filepath.Join(c.config.DataDir, "debug.sock"),
 	}
 
-	return tryNewClient(ctx, clientCfgs...)
+	var errs []error
+
+	sockClient, err := client.NewMetricCient(sockURL.String())
+	if err != nil {
+		errs = append(errs, trace.Wrap(err, "failed instanciate local debug client"))
+	}
+	if _, err = sockClient.GetMetrics(ctx); err != nil {
+		errs = append(errs, trace.Wrap(err, "failed connect to local debug service, is Teleport running?"))
+	} else {
+		return sockURL.String(), sockClient, nil
+	}
+
+	fallbackClient, err := client.NewMetricCient(fallbackHTTPAddr)
+	if err != nil {
+		errs = append(errs, trace.Wrap(err, "failed instanciate http metric client"))
+	}
+
+	if _, err = fallbackClient.GetMetrics(ctx); err != nil {
+		errs = append(errs, trace.Wrap(err, "failed connect to http metric service, restart Teleport with --diag-addr"))
+	} else {
+		return fallbackHTTPAddr, fallbackClient, nil
+	}
+
+	return "", nil, errors.Join(errs...)
 }
 
 // TryRun attempts to run subcommands.
@@ -83,13 +96,13 @@ func (c *Command) TryRun(ctx context.Context, cmd string, _ commonclient.InitFun
 		return false, nil
 	}
 
-	diagClient, err := c.newDiagClient(ctx)
+	addr, diagClient, err := c.newDiagClient(ctx)
 	if err != nil {
 		return true, trace.Wrap(err)
 	}
 
 	p := tea.NewProgram(
-		newTopModel(c.refreshPeriod, diagClient),
+		newTopModel(c.refreshPeriod, diagClient, addr),
 		tea.WithAltScreen(),
 		tea.WithContext(ctx),
 	)
