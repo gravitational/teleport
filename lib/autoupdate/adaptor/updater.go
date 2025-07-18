@@ -149,9 +149,7 @@ func (u *Updater) RegisterRoutines(ctx context.Context, supervisor ProcessSuperv
 // DetectAndConfigureUpdater detects if the current Teleport instance is managed by an updater,
 // configures the updater if needed (managed updates v1 maintenance window export, or managed updates v2 updater uuid)
 // and returns an updater adaptor describing the updater and allowing to interact with it.
-func DetectAndConfigureUpdater(
-	ctx context.Context,
-	cfg *Config) (*Updater, error) {
+func DetectAndConfigureUpdater(ctx context.Context, cfg *Config) (*Updater, error) {
 
 	if err := cfg.Check(ctx); err != nil {
 		return nil, trace.Wrap(err, "checking updater detector configuration")

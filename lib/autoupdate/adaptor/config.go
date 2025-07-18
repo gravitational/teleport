@@ -43,6 +43,7 @@ type ProcessSupervisor interface {
 	// the process shuts down.
 	RegisterCriticalFunc(name string, fn func() error)
 
+	// OnExit registers a function that should be run when the process exits.
 	OnExit(serviceName string, callback func(any))
 }
 
@@ -56,9 +57,12 @@ type UpgradeWindowsClient interface {
 // Config is the updater adaptor config. It contains information about the Teleport
 // process and its cluster.
 type Config struct {
+	// ResolverAddr is the teleport process resolver address
 	ResolverAddr utils.NetAddr
-	HostUUID     string
-	Log          *slog.Logger
+	// HostUUID is the Teleport process host UUID
+	HostUUID string
+	// Log is the logger that the adaptor.Updater should use
+	Log *slog.Logger
 }
 
 // Check validates the config is properly set.
