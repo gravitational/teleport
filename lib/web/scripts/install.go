@@ -22,13 +22,12 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"net/url"
-	"regexp"
-	"strings"
-
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
+	"net/url"
+	"regexp"
+	"strings"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils/teleportassets"
@@ -86,6 +85,11 @@ type InstallScriptOptions struct {
 	// FIPS represents if the installed Teleport version should use Teleport
 	// binaries built for FIPS compliance.
 	FIPS bool
+	// Suffix is the optional teleport-update installation suffix. This value
+	// is only supported when AutoupdateStyle is UpdaterBinaryAutoupdate.
+	// When Suffix is set, Teleport is installed in a non-default namespace.
+	// This can be used to perform multiple Teleport installations on the same host.
+	Suffix string
 	// Insecure disables TLS certificate verification on the teleport-update command.
 	// This is meant for testing purposes.
 	// This does not disable the TLS certificate verification when downloading
@@ -94,10 +98,23 @@ type InstallScriptOptions struct {
 	Insecure bool
 }
 
+func isASCIIAlphanum(s string) bool {
+	// This is guaranteed not to allocate.
+	for _, c := range []byte(s) {
+		if !(c >= 'a' && c <= 'z') && !(c >= 'A' && c <= 'Z') && !(c >= '0' && c <= '9') {
+			return false
+		}
+	}
+	return true
+}
+
 // Check validates that the minimal options are set.
 func (o *InstallScriptOptions) Check() error {
 	switch o.AutoupdateStyle {
 	case NoAutoupdate, PackageManagerAutoupdate:
+		if o.Suffix != "" {
+			return trace.BadParameter("installation suffix can only be set when using Managed Updates v2: %s", o.Suffix)
+		}
 		return nil
 	case UpdaterBinaryAutoupdate:
 		// We'll do the checks later.
@@ -106,6 +123,14 @@ func (o *InstallScriptOptions) Check() error {
 	}
 	if o.ProxyAddr == "" {
 		return trace.BadParameter("Proxy address is required")
+	}
+	if o.Suffix != "" {
+		// suffix must be alphanumeric only, this both avoids potential injections
+		// (we are currently not very good at escaping things in oneoff.sh)
+		// and avoid issues later with teleport-update if the installation suffix is too funky.
+		if !isASCIIAlphanum(o.Suffix) {
+			return trace.BadParameter("suffix must contain only al: %v", o.Suffix)
+		}
 	}
 
 	if o.TeleportVersion == nil {
@@ -135,6 +160,10 @@ func (o *InstallScriptOptions) oneOffParams() (params oneoff.OneOffScriptParams)
 	// Pass the base-url override if the base url is set and is not the default one.
 	if o.CDNBaseURL != "" && o.CDNBaseURL != teleportUpdateDefaultCDN {
 		args = append(args, "--base-url", shsprintf.EscapeDefaultContext(o.CDNBaseURL))
+	}
+
+	if o.Suffix != "" {
+		args = append(args, "--install-suffix", o.Suffix)
 	}
 
 	successMessage := "Teleport successfully installed."
