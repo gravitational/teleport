@@ -97,61 +97,7 @@ func TestProvisioningService_ListProvisionTokens_Pagination(t *testing.T) {
 	}
 }
 
-func TestProvisioningService_ListProvisionTokens_FilterAnyRoles(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	service := newProvisioningService(t, clockwork.NewFakeClock())
-
-	tokens := []struct {
-		roles   types.SystemRoles
-		botName string
-	}{
-		{
-			roles:   types.SystemRoles{types.RoleAdmin},
-			botName: "",
-		},
-		{
-			roles:   types.SystemRoles{types.RoleAdmin, types.RoleNode},
-			botName: "",
-		},
-		{
-			roles:   types.SystemRoles{types.RoleBot},
-			botName: "bot-2",
-		},
-	}
-
-	for i, token := range tokens {
-		err := service.CreateToken(ctx, &types.ProvisionTokenV2{
-			Metadata: types.Metadata{
-				Name: "test-token-" + strconv.Itoa(i+1),
-			},
-			Spec: types.ProvisionTokenSpecV2{
-				Roles:   token.roles,
-				BotName: token.botName,
-			},
-		})
-		require.NoError(t, err)
-	}
-
-	result, _, err := service.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", nil, "")
-	require.NoError(t, err)
-	assert.Len(t, result, 3)
-
-	result, _, err = service.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", types.SystemRoles{types.RoleAdmin, types.RoleNode, types.RoleBot}, "")
-	require.NoError(t, err)
-	assert.Len(t, result, 3)
-
-	result, _, err = service.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", types.SystemRoles{types.RoleAdmin, types.RoleNode}, "")
-	require.NoError(t, err)
-	assert.Len(t, result, 2)
-
-	result, _, err = service.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", types.SystemRoles{types.RoleBot}, "")
-	require.NoError(t, err)
-	assert.Len(t, result, 1)
-}
-
-func TestProvisioningService_ListProvisionTokens_FilterBotName(t *testing.T) {
+func TestProvisioningService_ListProvisionTokens_Filters(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
@@ -173,6 +119,10 @@ func TestProvisioningService_ListProvisionTokens_FilterBotName(t *testing.T) {
 			roles:   types.SystemRoles{types.RoleBot},
 			botName: "bot-2",
 		},
+		{
+			roles:   types.SystemRoles{types.RoleBot},
+			botName: "bot-1",
+		},
 	}
 
 	for i, token := range tokens {
@@ -188,15 +138,167 @@ func TestProvisioningService_ListProvisionTokens_FilterBotName(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	result, _, err := service.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", nil, "bot-1")
+	result, _, err := service.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", nil, "")
 	require.NoError(t, err)
-	require.Len(t, result, 1)
-	assert.Equal(t, "test-token-2", result[0].GetName())
+	assert.Len(t, result, 4)
 
-	result, _, err = service.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", nil, "bot-2")
-	require.NoError(t, err)
-	require.Len(t, result, 1)
-	assert.Equal(t, "test-token-3", result[0].GetName())
+	t.Run("filter roles", func(t *testing.T) {
+		result, _, err = service.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", types.SystemRoles{types.RoleAdmin, types.RoleNode, types.RoleBot}, "")
+		require.NoError(t, err)
+		assert.Len(t, result, 4)
+
+		result, _, err = service.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", types.SystemRoles{types.RoleAdmin, types.RoleNode}, "")
+		require.NoError(t, err)
+		assert.Len(t, result, 2)
+
+		result, _, err = service.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", types.SystemRoles{types.RoleBot}, "")
+		require.NoError(t, err)
+		assert.Len(t, result, 3)
+	})
+
+	t.Run("filter bot name", func(t *testing.T) {
+		result, _, err := service.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", nil, "bot-1")
+		require.NoError(t, err)
+		require.Len(t, result, 2)
+		assert.Equal(t, "test-token-2", result[0].GetName())
+
+		result, _, err = service.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", nil, "bot-2")
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+		assert.Equal(t, "test-token-3", result[0].GetName())
+	})
+
+	t.Run("filter roles and bot name", func(t *testing.T) {
+		result, _, err := service.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", types.SystemRoles{types.RoleAdmin}, "bot-1")
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+		assert.Equal(t, "test-token-2", result[0].GetName())
+	})
+}
+
+func TestMatchToken(t *testing.T) {
+	t.Parallel()
+
+	tokenEmpty := types.ProvisionTokenSpecV2{}
+
+	tokenWithNodeRole := types.ProvisionTokenSpecV2{
+		Roles: types.SystemRoles{types.RoleNode},
+	}
+
+	tokenBot1WithNoBotRole := types.ProvisionTokenSpecV2{
+		Roles:   nil,
+		BotName: "bot-1",
+	}
+
+	tokenBot1WithBotRole := types.ProvisionTokenSpecV2{
+		Roles:   types.SystemRoles{types.RoleBot},
+		BotName: "bot-1",
+	}
+
+	tokenBot1WithNodeAndBotRole := types.ProvisionTokenSpecV2{
+		Roles:   types.SystemRoles{types.RoleNode, types.RoleBot},
+		BotName: "bot-1",
+	}
+
+	tc := []struct {
+		name          string
+		filterRoles   types.SystemRoles
+		filterBotName string
+		tokens        []struct {
+			spec  types.ProvisionTokenSpecV2
+			match bool
+		}
+	}{
+		{
+			name:          "empty filters",
+			filterRoles:   nil,
+			filterBotName: "",
+			tokens: []struct {
+				spec  types.ProvisionTokenSpecV2
+				match bool
+			}{
+				{spec: tokenEmpty, match: true},
+				{spec: tokenWithNodeRole, match: true},
+				{spec: tokenBot1WithNoBotRole, match: true},
+				{spec: tokenBot1WithBotRole, match: true},
+				{spec: tokenBot1WithNodeAndBotRole, match: true},
+			},
+		},
+		{
+			name:          "role filter (single)",
+			filterRoles:   types.SystemRoles{types.RoleNode},
+			filterBotName: "",
+			tokens: []struct {
+				spec  types.ProvisionTokenSpecV2
+				match bool
+			}{
+				{spec: tokenEmpty, match: false},
+				{spec: tokenWithNodeRole, match: true},
+				{spec: tokenBot1WithNoBotRole, match: false},
+				{spec: tokenBot1WithBotRole, match: false},
+				{spec: tokenBot1WithNodeAndBotRole, match: true},
+			},
+		},
+		{
+			name:          "role filter (multiple)",
+			filterRoles:   types.SystemRoles{types.RoleNode, types.RoleBot},
+			filterBotName: "",
+			tokens: []struct {
+				spec  types.ProvisionTokenSpecV2
+				match bool
+			}{
+				{spec: tokenEmpty, match: false},
+				{spec: tokenWithNodeRole, match: true},
+				{spec: tokenBot1WithNoBotRole, match: false},
+				{spec: tokenBot1WithBotRole, match: true},
+				{spec: tokenBot1WithNodeAndBotRole, match: true},
+			},
+		},
+		{
+			name:          "bot name filter",
+			filterRoles:   nil,
+			filterBotName: "bot-1",
+			tokens: []struct {
+				spec  types.ProvisionTokenSpecV2
+				match bool
+			}{
+				{spec: tokenEmpty, match: false},
+				{spec: tokenWithNodeRole, match: false},
+				{spec: tokenBot1WithNoBotRole, match: false},
+				{spec: tokenBot1WithBotRole, match: true},
+				{spec: tokenBot1WithNodeAndBotRole, match: true},
+			},
+		},
+		{
+			name:          "role and bot name filters",
+			filterRoles:   types.SystemRoles{types.RoleNode},
+			filterBotName: "bot-1",
+			tokens: []struct {
+				spec  types.ProvisionTokenSpecV2
+				match bool
+			}{
+				{spec: tokenEmpty, match: false},
+				{spec: tokenWithNodeRole, match: false},
+				{spec: tokenBot1WithNoBotRole, match: false},
+				{spec: tokenBot1WithBotRole, match: false},
+				{spec: tokenBot1WithNodeAndBotRole, match: true},
+			},
+		},
+	}
+
+	for _, c := range tc {
+		t.Run(c.name, func(t *testing.T) {
+			for _, token := range c.tokens {
+				match := local.MatchToken(&types.ProvisionTokenV2{
+					Metadata: types.Metadata{
+						Name: "test-token",
+					},
+					Spec: token.spec,
+				}, c.filterRoles, c.filterBotName)
+				assert.Equal(t, token.match, match, "not match token: %+v", token.spec)
+			}
+		})
+	}
 }
 
 func newProvisioningService(t *testing.T, clock clockwork.Clock) *local.ProvisioningService {

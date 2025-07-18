@@ -235,11 +235,7 @@ func (s *ProvisioningService) ListProvisionTokens(ctx context.Context, pageSize 
 			return out, nextKey, nil
 		}
 
-		if len(anyRoles) > 0 && !t.GetRoles().IncludeAny(anyRoles...) {
-			continue
-		}
-
-		if botName != "" && (!t.GetRoles().Include(types.RoleBot) || t.GetBotName() != botName) {
+		if !MatchToken(t, anyRoles, botName) {
 			continue
 		}
 
@@ -247,6 +243,20 @@ func (s *ProvisioningService) ListProvisionTokens(ctx context.Context, pageSize 
 	}
 
 	return out, "", nil
+}
+
+// MatchToken validates a token against a set of roles and a bot name filters.
+// If a bot name is provided, it additionally checks if the token has a role of bot.
+func MatchToken(t types.ProvisionToken, anyRoles types.SystemRoles, botName string) bool {
+	if len(anyRoles) > 0 && !t.GetRoles().IncludeAny(anyRoles...) {
+		return false
+	}
+
+	if botName != "" && (!t.GetRoles().Include(types.RoleBot) || t.GetBotName() != botName) {
+		return false
+	}
+
+	return true
 }
 
 const tokensPrefix = "tokens"

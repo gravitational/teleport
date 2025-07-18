@@ -155,8 +155,8 @@ func TestTokensCache(t *testing.T) {
 	})
 }
 
-// TestTokensCacheAnyRolesFilter tests that cache items are filtered by the roles provided.
-func TestTokensCacheAnyRolesFilter(t *testing.T) {
+// TestTokensCacheFilters tests that cache items are filtered.
+func TestTokensCacheFilters(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -173,72 +173,17 @@ func TestTokensCacheAnyRolesFilter(t *testing.T) {
 			botName: "",
 		},
 		{
-			roles:   types.SystemRoles{types.RoleAdmin, types.RoleNode},
-			botName: "",
-		},
-		{
-			roles:   types.SystemRoles{types.RoleBot},
-			botName: "bot-2",
-		},
-	}
-
-	for i, token := range tokens {
-		err := p.provisionerS.CreateToken(ctx, &types.ProvisionTokenV2{
-			Metadata: types.Metadata{
-				Name: "test-token-" + strconv.Itoa(i+1),
-			},
-			Spec: types.ProvisionTokenSpecV2{
-				Roles:   token.roles,
-				BotName: token.botName,
-			},
-		})
-		require.NoError(t, err)
-	}
-
-	// Let the cache catch up
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		result, _, err := p.cache.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", nil, "")
-		require.NoError(t, err)
-		assert.Len(t, result, 3)
-	}, 10*time.Second, 100*time.Millisecond)
-
-	result, _, err := p.cache.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", types.SystemRoles{types.RoleAdmin, types.RoleNode, types.RoleBot}, "")
-	require.NoError(t, err)
-	assert.Len(t, result, 3)
-
-	result, _, err = p.cache.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", types.SystemRoles{types.RoleAdmin, types.RoleNode}, "")
-	require.NoError(t, err)
-	assert.Len(t, result, 2)
-
-	result, _, err = p.cache.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", types.SystemRoles{types.RoleBot}, "")
-	require.NoError(t, err)
-	assert.Len(t, result, 1)
-}
-
-// TestTokensCacheBotNameFilter tests that cache items are filtered by the bot name provided.
-func TestTokensCacheBotNameFilter(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	tokens := []struct {
-		roles   types.SystemRoles
-		botName string
-	}{
-		{
-			roles:   types.SystemRoles{types.RoleAdmin},
-			botName: "",
-		},
-		{
-			roles:   types.SystemRoles{types.RoleAdmin, types.RoleBot},
+			roles:   types.SystemRoles{types.RoleAdmin, types.RoleNode, types.RoleBot},
 			botName: "bot-1",
 		},
 		{
 			roles:   types.SystemRoles{types.RoleBot},
 			botName: "bot-2",
 		},
+		{
+			roles:   types.SystemRoles{types.RoleBot},
+			botName: "bot-1",
+		},
 	}
 
 	for i, token := range tokens {
@@ -258,16 +203,39 @@ func TestTokensCacheBotNameFilter(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		result, _, err := p.cache.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", nil, "")
 		require.NoError(t, err)
-		require.Len(t, result, 3)
+		assert.Len(t, result, len(tokens))
 	}, 10*time.Second, 100*time.Millisecond)
 
-	result, _, err := p.cache.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", nil, "bot-1")
-	require.NoError(t, err)
-	require.Len(t, result, 1)
-	assert.Equal(t, "test-token-2", result[0].GetName())
+	t.Run("roles filter", func(t *testing.T) {
+		result, _, err := p.cache.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", types.SystemRoles{types.RoleAdmin, types.RoleNode, types.RoleBot}, "")
+		require.NoError(t, err)
+		assert.Len(t, result, 4)
 
-	result, _, err = p.cache.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", nil, "bot-2")
-	require.NoError(t, err)
-	require.Len(t, result, 1)
-	assert.Equal(t, "test-token-3", result[0].GetName())
+		result, _, err = p.cache.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", types.SystemRoles{types.RoleAdmin, types.RoleNode}, "")
+		require.NoError(t, err)
+		assert.Len(t, result, 2)
+
+		result, _, err = p.cache.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", types.SystemRoles{types.RoleBot}, "")
+		require.NoError(t, err)
+		assert.Len(t, result, 3)
+	})
+
+	t.Run("bot name filter", func(t *testing.T) {
+		result, _, err := p.cache.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", nil, "bot-1")
+		require.NoError(t, err)
+		require.Len(t, result, 2)
+		assert.Equal(t, "test-token-2", result[0].GetName())
+
+		result, _, err = p.cache.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", nil, "bot-2")
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+		assert.Equal(t, "test-token-3", result[0].GetName())
+	})
+
+	t.Run("combined roles and bot name filters", func(t *testing.T) {
+		result, _, err := p.cache.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", types.SystemRoles{types.RoleAdmin}, "bot-1")
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+		assert.Equal(t, "test-token-2", result[0].GetName())
+	})
 }
