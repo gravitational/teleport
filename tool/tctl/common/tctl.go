@@ -89,10 +89,9 @@ func Run(ctx context.Context, commands []CLICommand) {
 func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 	utils.InitLogger(utils.LoggingForCLI, slog.LevelWarn)
 
-	// app is the command line parser
 	var ccf tctlcfg.GlobalCLIFlags
-	app := utils.InitCLIParser("tctl", GlobalHelpString)
-	app.Flag("auth-server",
+	muApp := utils.InitCLIParser("tctl", GlobalHelpString)
+	muApp.Flag("auth-server",
 		fmt.Sprintf("Attempts to connect to specific auth/proxy address(es) instead of local auth [%v]", defaults.AuthConnectAddr().Addr)).
 		Envar(authAddrEnvVar).
 		StringsVar(&ccf.AuthServerAddr)
@@ -101,9 +100,12 @@ func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 	// the profile name and the required version for the current cluster.
 	// All other commands and flags may change between versions, so full parsing
 	// should be performed only after managed updates are applied.
-	if _, err := app.Parse(utils.FilterArguments(args, app.Model())); err != nil {
+	if _, err := muApp.Parse(utils.FilterArguments(args, muApp.Model())); err != nil {
 		slog.WarnContext(ctx, "can't identify current profile", "error", err)
 	}
+
+	// app is the command line parser
+	app := utils.InitCLIParser("tctl", GlobalHelpString)
 
 	// cfg (teleport auth server configuration) is going to be shared by all
 	// commands
@@ -149,6 +151,10 @@ func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 		ExistingFileVar(&ccf.ConfigFile)
 	app.Flag("config-string",
 		"Base64 encoded configuration string. Ignored if the config auth_service is disabled.").Hidden().Envar(defaults.ConfigEnvar).StringVar(&ccf.ConfigString)
+	app.Flag("auth-server",
+		fmt.Sprintf("Attempts to connect to specific auth/proxy address(es) instead of local auth [%v]", defaults.AuthConnectAddr().Addr)).
+		Envar(authAddrEnvVar).
+		StringsVar(&ccf.AuthServerAddr)
 	app.Flag("identity",
 		"Path to an identity file. Must be provided to make remote connections to auth. An identity file can be exported with 'tctl auth sign'").
 		Short('i').
