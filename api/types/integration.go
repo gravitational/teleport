@@ -50,6 +50,13 @@ const (
 	IntegrationAWSOIDCAudienceAWSIdentityCenter = "aws-identity-center"
 )
 
+const (
+	// IntegrationAWSRolesAnywhereProfileSyncStatusSuccess indicates that the profile sync was successful.
+	IntegrationAWSRolesAnywhereProfileSyncStatusSuccess = "SUCCESS"
+	// IntegrationAWSRolesAnywhereProfileSyncStatusError indicates that the profile sync failed.
+	IntegrationAWSRolesAnywhereProfileSyncStatusError = "ERROR"
+)
+
 // Integration specifies is a connection configuration between Teleport and a 3rd party system.
 type Integration interface {
 	ResourceWithLabels

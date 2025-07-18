@@ -2633,6 +2633,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Logger:            logger,
 			KeyStoreManager:   authServer.GetKeyStore(),
 			Cache:             authServer.Cache,
+			StatusReporter:    authServer.Services,
 			AppServerUpserter: authServer.Services,
 			HostUUID:          process.Config.HostUUID,
 		}
