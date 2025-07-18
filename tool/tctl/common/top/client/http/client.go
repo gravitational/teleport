@@ -20,11 +20,10 @@ import (
 	"context"
 	"net/url"
 
-	dto "github.com/prometheus/client_model/go"
-	"github.com/prometheus/common/expfmt"
-
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 )
 
 type Client struct {
