@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
-var roleV7Spec = types.RoleSpecV6{
+var roleV8Spec = types.RoleSpecV6{
 	Allow: types.RoleConditions{
 		Logins:           []string{"foo"},
 		KubernetesLabels: types.Labels{"env": {"dev", "prod"}},
@@ -43,27 +43,29 @@ var roleV7Spec = types.RoleSpecV6{
 				Kind:      "*",
 				Namespace: "monitoring",
 				Name:      "^prometheus-.*",
+				// APIGroup is required for rolev8
+				APIGroup: "monitoring.coreos.com",
 			},
 		},
 	},
 	Deny: types.RoleConditions{},
 }
 
-type roleV7TestingPrimitives struct {
+type roleV8TestingPrimitives struct {
 	setup *testSetup
 	reconcilers.ResourceWithLabelsAdapter[types.Role]
 }
 
-func (g *roleV7TestingPrimitives) Init(setup *testSetup) {
+func (g *roleV8TestingPrimitives) Init(setup *testSetup) {
 	g.setup = setup
 }
 
-func (g *roleV7TestingPrimitives) SetupTeleportFixtures(ctx context.Context) error {
+func (g *roleV8TestingPrimitives) SetupTeleportFixtures(ctx context.Context) error {
 	return nil
 }
 
-func (g *roleV7TestingPrimitives) CreateTeleportResource(ctx context.Context, name string) error {
-	role, err := types.NewRoleWithVersion(name, types.V7, roleV7Spec)
+func (g *roleV8TestingPrimitives) CreateTeleportResource(ctx context.Context, name string) error {
+	role, err := types.NewRoleWithVersion(name, types.V8, roleV8Spec)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -72,27 +74,27 @@ func (g *roleV7TestingPrimitives) CreateTeleportResource(ctx context.Context, na
 	return trace.Wrap(err)
 }
 
-func (g *roleV7TestingPrimitives) GetTeleportResource(ctx context.Context, name string) (types.Role, error) {
+func (g *roleV8TestingPrimitives) GetTeleportResource(ctx context.Context, name string) (types.Role, error) {
 	return g.setup.TeleportClient.GetRole(ctx, name)
 }
 
-func (g *roleV7TestingPrimitives) DeleteTeleportResource(ctx context.Context, name string) error {
+func (g *roleV8TestingPrimitives) DeleteTeleportResource(ctx context.Context, name string) error {
 	return trace.Wrap(g.setup.TeleportClient.DeleteRole(ctx, name))
 }
 
-func (g *roleV7TestingPrimitives) CreateKubernetesResource(ctx context.Context, name string) error {
-	role := &resourcesv1.TeleportRoleV7{
+func (g *roleV8TestingPrimitives) CreateKubernetesResource(ctx context.Context, name string) error {
+	role := &resourcesv1.TeleportRoleV8{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: g.setup.Namespace.Name,
 		},
-		Spec: resourcesv1.TeleportRoleV7Spec(roleV7Spec),
+		Spec: resourcesv1.TeleportRoleV8Spec(roleV8Spec),
 	}
 	return trace.Wrap(g.setup.K8sClient.Create(ctx, role))
 }
 
-func (g *roleV7TestingPrimitives) DeleteKubernetesResource(ctx context.Context, name string) error {
-	role := &resourcesv1.TeleportRoleV7{
+func (g *roleV8TestingPrimitives) DeleteKubernetesResource(ctx context.Context, name string) error {
+	role := &resourcesv1.TeleportRoleV8{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: g.setup.Namespace.Name,
@@ -101,8 +103,8 @@ func (g *roleV7TestingPrimitives) DeleteKubernetesResource(ctx context.Context, 
 	return trace.Wrap(g.setup.K8sClient.Delete(ctx, role))
 }
 
-func (g *roleV7TestingPrimitives) GetKubernetesResource(ctx context.Context, name string) (*resourcesv1.TeleportRoleV7, error) {
-	role := &resourcesv1.TeleportRoleV7{}
+func (g *roleV8TestingPrimitives) GetKubernetesResource(ctx context.Context, name string) (*resourcesv1.TeleportRoleV8, error) {
+	role := &resourcesv1.TeleportRoleV8{}
 	obj := kclient.ObjectKey{
 		Name:      name,
 		Namespace: g.setup.Namespace.Name,
@@ -111,7 +113,7 @@ func (g *roleV7TestingPrimitives) GetKubernetesResource(ctx context.Context, nam
 	return role, trace.Wrap(err)
 }
 
-func (g *roleV7TestingPrimitives) ModifyKubernetesResource(ctx context.Context, name string) error {
+func (g *roleV8TestingPrimitives) ModifyKubernetesResource(ctx context.Context, name string) error {
 	role, err := g.GetKubernetesResource(ctx, name)
 	if err != nil {
 		return trace.Wrap(err)
@@ -120,7 +122,7 @@ func (g *roleV7TestingPrimitives) ModifyKubernetesResource(ctx context.Context, 
 	return g.setup.K8sClient.Update(ctx, role)
 }
 
-func (g *roleV7TestingPrimitives) CompareTeleportAndKubernetesResource(tResource types.Role, kubeResource *resourcesv1.TeleportRoleV7) (bool, string) {
+func (g *roleV8TestingPrimitives) CompareTeleportAndKubernetesResource(tResource types.Role, kubeResource *resourcesv1.TeleportRoleV8) (bool, string) {
 	ignoreServerSideDefaults := []cmp.Option{
 		cmpopts.IgnoreFields(types.RoleSpecV6{}, "Options"),
 		cmpopts.IgnoreFields(types.RoleConditions{}, "Namespaces"),
@@ -129,17 +131,17 @@ func (g *roleV7TestingPrimitives) CompareTeleportAndKubernetesResource(tResource
 	return diff == "", diff
 }
 
-func TestTeleportRoleV7Creation(t *testing.T) {
-	test := &roleV7TestingPrimitives{}
-	testlib.ResourceCreationTest[types.Role, *resourcesv1.TeleportRoleV7](t, test)
+func TestTeleportRoleV8Creation(t *testing.T) {
+	test := &roleV8TestingPrimitives{}
+	testlib.ResourceCreationTest[types.Role, *resourcesv1.TeleportRoleV8](t, test)
 }
 
-func TestTeleportRoleV7DeletionDrift(t *testing.T) {
-	test := &roleV7TestingPrimitives{}
-	testlib.ResourceDeletionDriftTest[types.Role, *resourcesv1.TeleportRoleV7](t, test)
+func TestTeleportRoleV8DeletionDrift(t *testing.T) {
+	test := &roleV8TestingPrimitives{}
+	testlib.ResourceDeletionDriftTest[types.Role, *resourcesv1.TeleportRoleV8](t, test)
 }
 
-func TestTeleportRoleV7Update(t *testing.T) {
-	test := &roleV7TestingPrimitives{}
-	testlib.ResourceUpdateTest[types.Role, *resourcesv1.TeleportRoleV7](t, test)
+func TestTeleportRoleV8Update(t *testing.T) {
+	test := &roleV8TestingPrimitives{}
+	testlib.ResourceUpdateTest[types.Role, *resourcesv1.TeleportRoleV8](t, test)
 }
