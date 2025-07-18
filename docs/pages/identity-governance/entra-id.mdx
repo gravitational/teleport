@@ -64,12 +64,12 @@ also be enabled if you choose to enable Identity Security integration.
 ## Guided Configuration
 
 The guided configuration expects setting up a new Entra ID auth connector and OIDC
-Integration as default. 
-
+Integration as a default. 
 
 <Tabs groupId="entra-id">
-<TabItem default value="webui" label="Teleport as OIDC provider (Web UI)" >
+<TabItem label="Teleport as OIDC provider (Web UI)" >
 
+## Step 1/3: Generate configuration script
 In the Teleport Web UI, from the side-navigation, select “Add New > Integration”.
 
 In the integration UI, select the “Microsoft Entra ID” tile. 
@@ -84,7 +84,11 @@ In the next step, you will be provided with a Entra ID configuration script.
 
 ![Integrations](../../img/igs/entraid/default-owners.png)
 
+## Step 2/3: Configure Entra ID
+
 (!docs/pages/includes/identity-governance/azure-shell.mdx!)
+
+## Step 3/3: Finish plugin installation
 
 Once the script is done setting up the necessary permissions,
 it prints out tenant ID and client ID. Copy these values and provide it to the
@@ -95,6 +99,8 @@ Web UI to finish the integration.
 </TabItem>
 
 <TabItem label="Teleport as OIDC provider (tctl)" >
+
+## Step 1/3: Generate configuration script (tctl)
 
 To begin integration, run `tctl plugins install entraid` command.
 
@@ -116,14 +122,17 @@ To rerun the script, type 'exit' to close and then restart the process.
 Once the script completes, type 'continue' to proceed, 'exit' to quit: exit
 ```
 
+## Step 2/3: Configure Entra ID (tctl)
+
 (!docs/pages/includes/identity-governance/azure-shell.mdx!)
+
+## Step 3/3: Finish plugin installation (tctl)
 
 Once the script is done setting up the necessary permissions,
 it prints out tenant ID and client ID. Copy these values and provide it to the
 `tctl` to finish the integration.
 
 </TabItem>
-
 </Tabs>
 
 
