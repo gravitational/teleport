@@ -265,14 +265,7 @@ func TestAccessRequestSearch(t *testing.T) {
 			}
 			err := Run(
 				ctx,
-				append([]string{
-					"--insecure",
-					"request",
-					"search",
-					fmt.Sprintf("--kind=%s", tc.args.kind),
-				},
-					tc.args.extraArgs...,
-				),
+				args,
 				setCopyStdout(captureStdout),
 				setHomePath(homePath),
 			)

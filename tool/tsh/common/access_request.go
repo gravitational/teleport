@@ -600,13 +600,13 @@ func onRequestSearch(cf *CLIConf) error {
 		}
 
 		if len(resourceIDs) > 0 {
-			resourcesStr := strings.Trim(strings.Join(resourceIDs, " --resource "), " ")
+			resourcesStr := strings.Join(resourceIDs, " --resource ")
 			fmt.Fprintf(cf.Stdout(), `
-	To request access to these resources, run
-	> tsh request create --resource %s \
-		--reason <request reason>
+To request access to these resources, run
+> tsh request create --resource %s \
+    --reason <request reason>
 
-	`, resourcesStr)
+`, resourcesStr)
 		}
 	case teleport.JSON, teleport.YAML:
 		output, err := serializeAccessRequestSearchOutput(tableColumns, rows, format)
