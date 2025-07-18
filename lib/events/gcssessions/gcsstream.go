@@ -109,7 +109,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	}
 
 	// If the session has been already created, move to cleanup
-	sessionPath := h.path(upload.SessionID)
+	sessionPath := h.recordingPath(upload.SessionID)
 	_, err := h.gcsClient.Bucket(h.Config.Bucket).Object(sessionPath).Attrs(ctx)
 	if !errors.Is(err, storage.ErrObjectNotExist) {
 		if err != nil {
@@ -285,7 +285,7 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 // GetUploadMetadata gets the metadata for session upload
 func (h *Handler) GetUploadMetadata(s session.ID) events.UploadMetadata {
 	return events.UploadMetadata{
-		URL:       fmt.Sprintf("%v://%v/%v", teleport.SchemeGCS, h.path(s), string(s)),
+		URL:       fmt.Sprintf("%v://%v/%v", teleport.SchemeGCS, h.recordingPath(s), string(s)),
 		SessionID: s,
 	}
 }

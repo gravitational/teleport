@@ -157,7 +157,7 @@ func TestCompleteUpload(t *testing.T) {
 			require.NoError(t, err)
 
 			// Check upload contents
-			uploadPath := handler.path(upload.SessionID)
+			uploadPath := handler.recordingPath(upload.SessionID)
 			f, err := os.Open(uploadPath)
 			require.NoError(t, err)
 
