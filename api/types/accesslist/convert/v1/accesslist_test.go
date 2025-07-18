@@ -110,7 +110,13 @@ func TestRoundtrip(t *testing.T) {
 			},
 		},
 		{
-			name: "dynamic-type",
+			name: "deprecated-dynamic-type",
+			modificationFn: func(accessList *accesslist.AccessList) {
+				accessList.Spec.Type = accesslist.DeprecatedDynamic
+			},
+		},
+		{
+			name: "default-type",
 			modificationFn: func(accessList *accesslist.AccessList) {
 				accessList.Spec.Type = accesslist.Default
 			},
@@ -135,6 +141,10 @@ func TestRoundtrip(t *testing.T) {
 
 			converted, err := FromProto(ToProto(accessList))
 			require.NoError(t, err)
+
+			if accessList.Spec.Type == accesslist.DeprecatedDynamic {
+				accessList.Spec.Type = accesslist.Default
+			}
 
 			require.Empty(t, cmp.Diff(accessList, converted))
 		})

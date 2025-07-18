@@ -50,8 +50,8 @@ func TestSAMLIdPServiceProviders(t *testing.T) {
 			return stream.Collect(clientutils.Resources(ctx, p.samlIDPServiceProviders.ListSAMLIdPServiceProviders))
 		},
 		cacheGet: p.cache.GetSAMLIdPServiceProvider,
-		cacheList: func(ctx context.Context) ([]types.SAMLIdPServiceProvider, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.cache.ListSAMLIdPServiceProviders))
+		cacheList: func(ctx context.Context, pageSize int) ([]types.SAMLIdPServiceProvider, error) {
+			return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListSAMLIdPServiceProviders, pageSize))
 		},
 		update:    p.samlIDPServiceProviders.UpdateSAMLIdPServiceProvider,
 		deleteAll: p.samlIDPServiceProviders.DeleteAllSAMLIdPServiceProviders,

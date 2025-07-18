@@ -203,6 +203,8 @@ linters:
               desc: testing packages should not be imported outside of _test.go files
             - pkg: github.com/gravitational/teleport/lib/modules/modulestest
               desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/utils/logtesttest
+              desc: testing packages should not be imported outside of _test.go files
         testify:
           files:
             - '!$test'
