@@ -91,7 +91,7 @@ const useNewRoleEditor = storageService.getUseNewRoleEditor();
 export function Roles(props: State & RolesProps) {
   const { remove, create, update, fetch, rolesAcl } = props;
   const [search, setSearch] = useState('');
-  const { addNotification } = useToastNotifications();
+  const toastNotification = useToastNotifications();
 
   const serverSidePagination = useServerSidePagination<RoleResource>({
     pageSize: 20,
@@ -116,12 +116,13 @@ export function Roles(props: State & RolesProps) {
       ? create(role)
       : update(resources.item.name, role));
 
-    addNotification(
-      'success',
-      resources.status === 'creating'
-        ? `Role ${response.name} has been created`
-        : `Role ${response.name} has been updated`
-    );
+    toastNotification.add({
+      severity: 'success',
+      content:
+        resources.status === 'creating'
+          ? `Role ${response.name} has been created`
+          : `Role ${response.name} has been updated`,
+    });
 
     if (useNewRoleEditor) {
       // We don't really disregard anything, since we already saved the role;

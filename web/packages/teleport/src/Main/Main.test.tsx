@@ -183,12 +183,15 @@ test('notification render and auto dismissal', async () => {
 
 let note = 1;
 const TestComponent = () => {
-  const { addNotification } = useToastNotifications();
+  const toastNotification = useToastNotifications();
   return (
     <div>
       <ButtonPrimary
         onClick={() => {
-          addNotification('success', `some note ${note}`);
+          toastNotification.add({
+            severity: 'success',
+            content: `some note ${note}`,
+          });
           note += 1;
         }}
       >

@@ -31,7 +31,7 @@ import { useToastNotifications } from './ToastNotificationContext';
  * Requires ToastNotificationProvider.
  */
 export const ToastNotifications = () => {
-  const { removeNotification, notifications } = useToastNotifications();
+  const { remove: removeNotification, notifications } = useToastNotifications();
 
   return (
     <TopRightStickyContainer>
