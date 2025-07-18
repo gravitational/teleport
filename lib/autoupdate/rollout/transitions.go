@@ -118,7 +118,7 @@ func TriggerGroups(rollout *autoupdatev1pb.AutoUpdateAgentRollout, reports []*au
 
 		switch desiredState {
 		case autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED:
-			if shouldUseCanaries(initialCount) {
+			if shouldUseCanaries(group) {
 				// We switch to the canary state but we don't sample canaries now.
 				// Canary sampling will happen during the next reconciliation.
 				desiredState = autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY

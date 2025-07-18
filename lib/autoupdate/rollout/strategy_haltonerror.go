@@ -189,21 +189,16 @@ func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, spec *autoupd
 	return nil
 }
 
-const (
-	canaryCount     = 5
-	canaryThreshold = 20
-)
-
-func shouldUseCanaries(currentCount int) bool {
+func shouldUseCanaries(group *autoupdate.AutoUpdateAgentRolloutStatusGroup) bool {
 	// in the future we might change this logic to be a multiple of the required canary count
 	// and make the canary count dynamic
-	return currentCount >= canaryThreshold
+	return group.CanaryCount > 0
 }
 
 func (h *haltOnErrorStrategy) startGroup(ctx context.Context, group *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time, agentCount int, status *autoupdate.AutoUpdateAgentRolloutStatus) {
 	group.InitialCount = uint64(agentCount)
 
-	if !shouldUseCanaries(agentCount) {
+	if !shouldUseCanaries(group) {
 		h.log.DebugContext(ctx, "Skipping canary rollout, transitioning directly to the active state", "group", group.Name)
 		setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE, updateReasonCanStart, now)
 		return
@@ -218,9 +213,6 @@ func (h *haltOnErrorStrategy) startGroup(ctx context.Context, group *autoupdate.
 }
 
 func (h *haltOnErrorStrategy) sampleCanaries(ctx context.Context, group *autoupdate.AutoUpdateAgentRolloutStatusGroup, status *autoupdate.AutoUpdateAgentRolloutStatus) error {
-	if group.CanaryCount == 0 {
-		group.CanaryCount = canaryCount
-	}
 	// Check if we need to pick more canaries
 	if len(group.Canaries) < int(group.CanaryCount) {
 		previousLength := len(group.Canaries)
