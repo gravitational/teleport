@@ -54,6 +54,7 @@ spec:
                     items:
                       type: string
                     nullable: true
+<<<<<<< HEAD:integrations/operator/crdgen/testdata/golden/resources.teleport.dev_githubconnectors.yaml
                     type: array
                   insecure_allowed_cidr_ranges:
                     description: a list of CIDRs allowed for HTTP or HTTPS client
@@ -62,6 +63,100 @@ spec:
                       type: string
                     nullable: true
                     type: array
+||||||| parent of d7c2155058 (Tune the canary logic (#56926)):examples/chart/teleport-cluster/charts/teleport-operator/operator-crds/resources.teleport.dev_autoupdateconfigsv1.yaml
+                    properties:
+                      regular:
+                        description: regular schedules for non-critical versions.
+                        items:
+                          properties:
+                            days:
+                              description: days when the update can run. Supported
+                                values are "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
+                                "Sun" and "*"
+                              items:
+                                type: string
+                              nullable: true
+                              type: array
+                            name:
+                              description: name of the group
+                              type: string
+                            start_hour:
+                              description: start_hour to initiate update
+                              format: int32
+                              type: integer
+                            wait_hours:
+                              description: wait_hours after last group succeeds before
+                                this group can run. This can only be used when the
+                                strategy is "halt-on-failure". This field must be
+                                positive.
+                              format: int32
+                              type: integer
+                          type: object
+                        nullable: true
+                        type: array
+                    type: object
+                  strategy:
+                    description: strategy to use for updating the agents.
+                    type: string
+                type: object
+              tools:
+                nullable: true
+                properties:
+                  mode:
+                    description: Mode defines state of the client tools auto update.
+                    type: string
+=======
+                    properties:
+                      regular:
+                        description: regular schedules for non-critical versions.
+                        items:
+                          properties:
+                            canary_count:
+                              description: canary_count is the number of canary agents
+                                that will be updated before the whole group is updated.
+                                when set to 0, the group does not enter the canary
+                                phase. This number is capped to 5. This number must
+                                always be lower than the total number of agents in
+                                the group, else the rollout will be stuck.
+                              format: int32
+                              type: integer
+                            days:
+                              description: days when the update can run. Supported
+                                values are "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
+                                "Sun" and "*"
+                              items:
+                                type: string
+                              nullable: true
+                              type: array
+                            name:
+                              description: name of the group
+                              type: string
+                            start_hour:
+                              description: start_hour to initiate update
+                              format: int32
+                              type: integer
+                            wait_hours:
+                              description: wait_hours after last group succeeds before
+                                this group can run. This can only be used when the
+                                strategy is "halt-on-failure". This field must be
+                                positive.
+                              format: int32
+                              type: integer
+                          type: object
+                        nullable: true
+                        type: array
+                    type: object
+                  strategy:
+                    description: strategy to use for updating the agents.
+                    type: string
+                type: object
+              tools:
+                nullable: true
+                properties:
+                  mode:
+                    description: Mode defines state of the client tools auto update.
+                    type: string
+>>>>>>> d7c2155058 (Tune the canary logic (#56926)):examples/chart/teleport-cluster/charts/teleport-operator/operator-crds/resources.teleport.dev_autoupdateconfigsv1.yaml
                 type: object
               client_secret:
                 description: ClientSecret is the Github OAuth app client secret. This
