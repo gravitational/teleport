@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react';
+import { Meta } from '@storybook/react-vite';
 import { PropsWithChildren, useEffect } from 'react';
 
 import { Box } from 'design';

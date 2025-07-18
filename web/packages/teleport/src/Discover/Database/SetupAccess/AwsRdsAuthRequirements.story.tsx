@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react';
+import { Meta } from '@storybook/react-vite';
 
 import { DiscoverGuideId } from 'teleport/services/userPreferences/discoverPreference';
 

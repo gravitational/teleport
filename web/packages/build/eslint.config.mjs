@@ -21,6 +21,7 @@ import jestPlugin from 'eslint-plugin-jest';
 import jestDomPlugin from 'eslint-plugin-jest-dom';
 import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
+import storybook from 'eslint-plugin-storybook';
 import testingLibraryPlugin from 'eslint-plugin-testing-library';
 import unusedImportsPlugin from 'eslint-plugin-unused-imports';
 import globals from 'globals';
@@ -51,10 +52,14 @@ export default tseslint.config(
       // WASM generated files
       '**/ironrdp/pkg/**',
       'web/packages/teleterm/build',
+      // allows for eslint-plugin-storybook to also lint
+      // configuration files inside the .storybook folder
+      '!.storybook',
     ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
+  ...storybook.configs['flat/recommended'],
   reactPlugin.configs.flat.recommended,
   reactPlugin.configs.flat['jsx-runtime'],
   {
