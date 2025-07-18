@@ -21,7 +21,9 @@ package awsra
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -38,6 +40,9 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -62,6 +67,10 @@ type AWSRolesAnywherProfileSyncerParams struct {
 	// AppServerUpserter is used to upsert AppServers.
 	AppServerUpserter AppServerUpserter
 
+	// AccessListManager is used to manage access lists for the AWS Roles Anywhere Profiles.
+	// It also manages the Roles which are used as templates for the access lists.
+	AccessListManager AccessListManager
+
 	// HostUUID is the Host UUID to assign to the AppServers.
 	HostUUID string
 
@@ -71,6 +80,8 @@ type AWSRolesAnywherProfileSyncerParams struct {
 
 	// subjectName is the name of the subject to use when generating AWS credentials.
 	subjectName string
+
+	templateRoleName string
 
 	// rolesAnywhereClient is the AWS Roles Anywhere client used to interact with the AWS IAM Roles Anywhere service.
 	// Should only be set for testing purposes.
@@ -117,6 +128,10 @@ func (p *AWSRolesAnywherProfileSyncerParams) checkAndSetDefaults() error {
 		return trace.BadParameter("cache client is required")
 	}
 
+	if p.AccessListManager == nil {
+		return trace.BadParameter("access list manager is required")
+	}
+
 	if p.StatusReporter == nil {
 		return trace.BadParameter("status reporter is required")
 	}
@@ -142,6 +157,7 @@ func (p *AWSRolesAnywherProfileSyncerParams) checkAndSetDefaults() error {
 	}
 
 	p.subjectName = "teleport-roles-anywhere-profile-sync"
+	p.templateRoleName = "aws-roles-anywhere-profile-access-template"
 
 	return nil
 }
@@ -176,6 +192,12 @@ func RunAWSRolesAnywherProfileSyncer(ctx context.Context, params AWSRolesAnywher
 			return trace.Wrap(err)
 		}
 
+		if err := createRoleTemplateForProfiles(ctx, params); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// TODO(marco): consider merging the access lists here instead of inline in the loop.
+
 		for _, integration := range integrations {
 			syncSummary := syncProfileForIntegration(ctx, params, integration, proxyPublicAddr)
 			if syncSummary.setupError != nil {
@@ -190,6 +212,9 @@ func RunAWSRolesAnywherProfileSyncer(ctx context.Context, params AWSRolesAnywher
 				params.Logger.ErrorContext(ctx, "failed to update integration status", "integration", integration.GetName(), "error", err)
 			}
 		}
+
+		// TODO(marco): remove access lists for profiles that were deleted or disabled.
+		// TODO(marco): opt. if all access lists are removed, remove the template role as well.
 
 		select {
 		case <-ctx.Done():
@@ -444,6 +469,10 @@ func processProfile(ctx context.Context, req processProfileRequest) error {
 		return trace.BadParameter("failed to upsert application server from Profile: %v", err)
 	}
 
+	if err := createAccessListForProfile(ctx, req.Params, req.Profile); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -506,4 +535,169 @@ func convertProfile(params AWSRolesAnywherProfileSyncerParams, profile *integrat
 	}
 
 	return appServer, nil
+}
+
+// AccessListManager is an interface that defines methods for managing access lists.
+// This is used to create access lists for each AWS Roles Anywhere Profile.
+// Access Lists are also removed when the Profile is deleted or disabled.
+type AccessListManager interface {
+	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
+	UpsertAccessList(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
+	GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error)
+	DeleteAccessList(context.Context, string) error
+
+	// GetRole returns role by name
+	GetRole(ctx context.Context, name string) (types.Role, error)
+	// UpsertRole creates or updates a role.
+	UpsertRole(ctx context.Context, role types.Role) (types.Role, error)
+}
+
+// uuidNamespace is the namespace used for generating UUIDs for access lists.
+// It is a UUID derived from the string "aws-iam-roles-anywhere-profile-arn".
+var uuidNamespace = uuid.NewSHA1(uuid.Nil, []byte("aws-iam-roles-anywhere-profile-arn"))
+
+func accessListName(profileARN string) string {
+	// generate a UUID from the path to ensure uniqueness
+	// and to avoid collisions with other access lists.
+	// This is necessary because access list names are used as keys in the backend
+	// and must be unique and deterministic.
+	return uuid.NewSHA1(uuidNamespace, []byte(profileARN)).String()
+}
+
+const accessListAuditInTwoWeeks = 14 * 24 * time.Hour
+
+// createAccessListForProfile creates an access list for the given AWS Roles Anywhere Profile.
+// It has no members, but grants the generic role and the following trait:
+// - iam-roles-anywhere-profile-arn: <profile ARN>
+// - iam-roles: [<profile roles>]
+//
+// This trait is used by the generic role to allow access to the AWS Roles Anywhere Profile
+func createAccessListForProfile(ctx context.Context, params AWSRolesAnywherProfileSyncerParams, profile *integrationv1.RolesAnywhereProfile) error {
+	// TODO(marco): skip if this cluster is not allowed to use Access Lists (see VerifyAccessListCreateLimit).
+	accessListName := accessListName(profile.Arn)
+
+	accessList, err := accessListForProfile(accessListName, params, profile)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	existingAccessList, err := params.AccessListManager.GetAccessList(ctx, accessListName)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			_, err = params.AccessListManager.UpsertAccessList(ctx, accessList)
+			return trace.Wrap(err)
+		}
+
+		return trace.Wrap(err)
+	}
+
+	mergedAccessList, updated := mergedNewAccessListSpec(existingAccessList, accessList)
+	if !updated {
+		// No changes to the access list spec, so we can skip the upsert.
+		return nil
+	}
+
+	_, err = params.AccessListManager.UpsertAccessList(ctx, mergedAccessList)
+	return trace.Wrap(err)
+}
+
+func mergedNewAccessListSpec(old, new *accesslist.AccessList) (merged *accesslist.AccessList, changed bool) {
+	if old.Spec.Title != new.Spec.Title {
+		return overrideAccessListWithNewSpec(old, new), true
+	}
+
+	if old.Spec.Description != new.Spec.Description {
+		return overrideAccessListWithNewSpec(old, new), true
+	}
+
+	if !slices.Equal(old.Spec.Grants.Roles, new.Spec.Grants.Roles) {
+		return overrideAccessListWithNewSpec(old, new), true
+	}
+
+	if len(old.Spec.Grants.Traits) != len(new.Spec.Grants.Traits) {
+		return overrideAccessListWithNewSpec(old, new), true
+	} else {
+		for key, newValues := range new.Spec.Grants.Traits {
+			oldValues, ok := old.Spec.Grants.Traits[key]
+			if !ok || !slices.Equal(oldValues, newValues) {
+				return overrideAccessListWithNewSpec(old, new), true
+			}
+		}
+	}
+
+	return nil, false
+}
+
+func overrideAccessListWithNewSpec(old, new *accesslist.AccessList) *accesslist.AccessList {
+	// This function is used to override the spec of an existing access list with a new one.
+	// It is used to ensure that the access list has the correct spec, even if it already exists.
+	// This is necessary because the access list spec may change over time, and we want to ensure
+	// that the access list has the latest spec.
+	old.Spec = new.Spec
+	return old
+}
+
+func accessListForProfile(accessListName string, params AWSRolesAnywherProfileSyncerParams, profile *integrationv1.RolesAnywhereProfile) (*accesslist.AccessList, error) {
+	const listOwnerSystem = "system"
+	accessList, err := accesslist.NewAccessList(
+		header.Metadata{
+			Name: accessListName,
+		},
+		accesslist.Spec{
+			Title:       "AWS " + profile.Name + " Access",
+			Description: fmt.Sprintf("Access Roles allowed by the IAM Roles Anywhere Profile %q", profile.Arn),
+			Owners:      []accesslist.Owner{{Name: listOwnerSystem, MembershipKind: accesslist.MembershipKindUser}},
+			Audit: accesslist.Audit{
+				NextAuditDate: params.Clock.Now().Add(accessListAuditInTwoWeeks),
+			},
+			Grants: accesslist.Grants{
+				Roles: []string{params.templateRoleName},
+				Traits: trait.Traits{
+					roleTraitForRolesAnywhereProfileARNLabel: []string{profile.Arn},
+					roleTraitForRolesAnywhereAllowedRoles:    profile.Roles,
+				},
+			},
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return accessList, nil
+}
+
+const (
+	roleTraitForRolesAnywhereProfileARNLabel = "iam-roles-anywhere-profile-arn"
+	roleTraitForRolesAnywhereAllowedRoles    = "iam-roles"
+)
+
+func createRoleTemplateForProfiles(ctx context.Context, params AWSRolesAnywherProfileSyncerParams) error {
+	// TODO(marco): skip if this cluster is not allowed to use Access Lists (see VerifyAccessListCreateLimit).
+	// TODO(marco): if the role already exists, ensure it has the correct values.
+
+	roleName := params.templateRoleName
+	_, err := params.AccessListManager.GetRole(ctx, roleName)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	profileARNLabelTemplate := fmt.Sprintf(`{{external["%s"]}}`, roleTraitForRolesAnywhereProfileARNLabel)
+	allowedAWSRoleARNsTemplate := fmt.Sprintf(`{{external["%s"]}}`, roleTraitForRolesAnywhereAllowedRoles)
+
+	role, err := types.NewRole(roleName, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				types.AWSRolesAnywhereProfileARNLabel: []string{profileARNLabelTemplate},
+			},
+			AWSRoleARNs: []string{allowedAWSRoleARNsTemplate},
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = params.AccessListManager.UpsertRole(ctx, role)
+	return trace.Wrap(err)
 }

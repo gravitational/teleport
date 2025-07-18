@@ -2731,6 +2731,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Cache:             authServer.Cache,
 			StatusReporter:    authServer.Services,
 			AppServerUpserter: authServer.Services,
+			AccessListManager: authServer.Services,
 			HostUUID:          process.Config.HostUUID,
 		}
 
