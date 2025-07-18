@@ -96,10 +96,10 @@ func GetUpgraderVersion(ctx context.Context) *semver.Version {
 
 	ver, err := version.EnsureSemver(env)
 	if err != nil {
-		slog.WarnContext(ctx, "Unexpected updater version in env var",
-			"error", err,
-			"env_name", os.Getenv(EnvUpgraderVersion),
-			"env_value", env)
+		log.WithError(err).WithFields(log.Fields{
+			"env_name":  os.Getenv(EnvUpgraderVersion),
+			"env_value": env,
+		}).Warn(ctx, "Unexpected updater version in env var")
 		return nil
 	}
 	return ver
