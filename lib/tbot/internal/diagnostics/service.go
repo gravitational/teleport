@@ -22,8 +22,10 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/pprof"
+	"os"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -45,6 +47,7 @@ func ServiceBuilder(cfg Config) bot.ServiceBuilder {
 // Config contains configuration for the diagnostics service.
 type Config struct {
 	Address      string
+	Network      string
 	PProfEnabled bool
 	Logger       *slog.Logger
 }
@@ -52,6 +55,9 @@ type Config struct {
 func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.Address == "" {
 		return trace.BadParameter("Address is required")
+	}
+	if cfg.Network == "" {
+		cfg.Network = "tcp"
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
@@ -70,6 +76,7 @@ func NewService(cfg Config, registry readyz.ReadOnlyRegistry) (*Service, error) 
 	return &Service{
 		log:            cfg.Logger,
 		diagAddr:       cfg.Address,
+		diagNetwork:    cfg.Network,
 		pprofEnabled:   cfg.PProfEnabled,
 		statusRegistry: registry,
 	}, nil
@@ -80,6 +87,7 @@ func NewService(cfg Config, registry readyz.ReadOnlyRegistry) (*Service, error) 
 type Service struct {
 	log            *slog.Logger
 	diagAddr       string
+	diagNetwork    string
 	pprofEnabled   bool
 	statusRegistry readyz.ReadOnlyRegistry
 }
@@ -131,7 +139,30 @@ func (s *Service) Run(ctx context.Context) error {
 		}
 	}()
 
-	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+	// When the process exists, the socket files are left behind (to cover
+	// forking scenarios). To guarantee there won't be errors like "address
+	// already in use", delete the file before starting the listener.
+	if s.diagNetwork == "unix" {
+		s.log.DebugContext(ctx, "Deleting socket file", "path", s.diagAddr)
+		if err := trace.ConvertSystemError(os.Remove(s.diagAddr)); err != nil && !trace.IsNotFound(err) {
+			s.log.WarnContext(ctx, "Failed to cleanup existing socket file", "error", err)
+		}
+	}
+
+	listener, err := net.Listen(s.diagNetwork, s.diagAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// The default behavior for unix listeners is to delete the file when the
+	// listener closes (unlinking). However, if the process forks, the file
+	// descriptor will be gone when its parent process exists, causing the new
+	// listener to have no socket file.
+	if unixListener, ok := listener.(*net.UnixListener); ok {
+		unixListener.SetUnlinkOnClose(false)
+	}
+
+	if err := srv.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 
