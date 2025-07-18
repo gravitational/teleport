@@ -131,7 +131,7 @@ func TestTokensCache(t *testing.T) {
 		cacheGet: func(ctx context.Context, key string) (types.ProvisionToken, error) {
 			return p.cache.GetToken(ctx, key)
 		},
-		cacheList: func(ctx context.Context) ([]types.ProvisionToken, error) {
+		cacheList: func(ctx context.Context, pageSize int) ([]types.ProvisionToken, error) {
 			return stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]types.ProvisionToken, string, error) {
 				return p.cache.ListProvisionTokens(ctx, pageSize, pageToken, nil, "")
 			}))
