@@ -618,6 +618,60 @@ If something is not working, we recommend to:
 
 - Double-check the host names, tokens and TCP ports in a connector definition.
 
+## Identifier-first login
+
+Identifier-first login is a feature that simplifies the login experience in clusters with
+multiple authentication connectors. When identifier-first login is enabled, the initial
+login screen prompts the user for their username only.
+Teleport will then present only the auth connectors
+that are relevant to the specified user.
+
+This feature can be enabled on a cluster by configuring one or more SAML, OIDC, or
+GitHub auth connectors with a `spec.user_matchers` field, which takes a set of one or more
+user matchers for usernames. A user matcher is a string matcher that can either be a specific
+username to match, or a glob pattern using wildcard characters (`*`). An auth connector
+will be mapped to a user if one or more of its `user_matchers` matches their username.
+
+```yaml
+kind: saml
+version: v2
+metadata:
+  name: okta
+spec:
+  user_matchers: ['joe', '*@example.com']
+```
+
+Once enabled, users without an auth connector mapped to them will not be able to see
+any auth connectors on the login page. For this reason, it is recommended to configure
+one or more fallback connectors. A user matcher of `*` is a special case that marks a
+connector as a fallback, which will only be presented to users who don't match any other connector.
+
+#### Examples
+
+Match users with a username that ends in "@example.com":
+
+```yaml
+  user_matchers: ['*@example.com']
+```
+
+Match users with a username that ends in "@example.com" and also match "alice":
+
+```yaml
+user_matchers: ['*@example.com', 'alice']
+```
+
+Match only users that weren't matched to any other auth connectors:
+
+```yaml
+user_matchers: ['*']
+```
+
+Match users that end in "@example.com" or weren't matched to any other connectors:
+
+```yaml
+user_matchers: ['*', '*@example.com']
+```
+
 ### Using the Web UI
 
 If you get "access denied" or other login errors, the number one place to check is the Audit
