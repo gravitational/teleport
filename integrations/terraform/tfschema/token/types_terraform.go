@@ -599,7 +599,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 						"allow": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"caller_id": {
-									Description: "CallerID is the ID of the caller, ie. the stack or module that generated the run.",
+									Description: "CallerID is the ID of the caller, ie. the stack or module that generated the run.  This field supports \"glob-style\" matching when enable_glob_matching is true: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -614,13 +614,18 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"space_id": {
-									Description: "SpaceID is the ID of the space in which the run that owns the token was executed.",
+									Description: "SpaceID is the ID of the space in which the run that owns the token was executed.  This field supports \"glob-style\" matching when enable_glob_matching is true: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
 							Description: "Allow is a list of Rules, nodes using this token must match one allow rule to use this token.",
 							Optional:    true,
+						},
+						"enable_glob_matching": {
+							Description: "EnableGlobMatching enables glob-style matching for the space_id and caller_id fields in the rules.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
 						"hostname": {
 							Description: "Hostname is the hostname of the Spacelift tenant that tokens will originate from. E.g `example.app.spacelift.io`",
@@ -2307,6 +2312,23 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 													t = string(v.Value)
 												}
 												obj.Hostname = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["enable_glob_matching"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Spacelift.EnableGlobMatching"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Spacelift.EnableGlobMatching", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+											} else {
+												var t bool
+												if !v.Null && !v.Unknown {
+													t = bool(v.Value)
+												}
+												obj.EnableGlobMatching = t
 											}
 										}
 									}
@@ -5760,6 +5782,28 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 											v.Value = string(obj.Hostname)
 											v.Unknown = false
 											tf.Attrs["hostname"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["enable_glob_matching"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Spacelift.EnableGlobMatching"})
+										} else {
+											v, ok := tf.Attrs["enable_glob_matching"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.Spacelift.EnableGlobMatching", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Spacelift.EnableGlobMatching", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+												}
+												v.Null = bool(obj.EnableGlobMatching) == false
+											}
+											v.Value = bool(obj.EnableGlobMatching)
+											v.Unknown = false
+											tf.Attrs["enable_glob_matching"] = v
 										}
 									}
 								}
