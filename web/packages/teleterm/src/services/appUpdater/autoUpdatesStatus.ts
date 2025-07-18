@@ -54,17 +54,17 @@ export async function resolveAutoUpdatesStatus(sources: {
   }
 
   const clusterVersions = await sources.getClusterVersions();
-  return findManagingCluster({
+  return findVersionFromClusters({
     clusterVersions,
     managingClusterUri: sources.managingClusterUri,
   });
 }
 
 /**
- * Attempts to find a cluster managing updates, based on a user-selected cluster
- * and all available clusters.
+ * Attempts to find tools version from a user-selected cluster or connected
+ * clusters.
  */
-function findManagingCluster(sources: {
+function findVersionFromClusters(sources: {
   managingClusterUri: string | undefined;
   clusterVersions: GetClusterVersionsResponse;
 }): AutoUpdatesStatus {
@@ -157,7 +157,8 @@ function makeCandidateClusters(
   });
 }
 
-/** Finds version of client tools that is compatible with all other clusters. */
+/** Finds the highest version of client tools that is compatible with all
+ * candidate clusters. */
 function findMostCompatibleToolsVersion(
   candidates: CandidateCluster[]
 ): string | undefined {
@@ -166,7 +167,7 @@ function findMostCompatibleToolsVersion(
     compareSemVers(b.toolsVersion, a.toolsVersion)
   );
 
-  const requiredClusters = new Set(candidates.map(c => c.clusterUri));
+  const allClusters = new Set(candidates.map(c => c.clusterUri));
 
   for (const candidate of sorted) {
     // The candidate is compatible with itself and `otherCompatibleClusters`.
@@ -175,7 +176,7 @@ function findMostCompatibleToolsVersion(
       ...candidate.otherCompatibleClusters,
     ]);
     // Check if candidate is compatible with all required clusters.
-    if (compatibleClusters.isSupersetOf(requiredClusters)) {
+    if (compatibleClusters.isSupersetOf(allClusters)) {
       return candidate.toolsVersion;
     }
   }
