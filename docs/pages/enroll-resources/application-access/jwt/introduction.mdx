@@ -123,3 +123,14 @@ Many existing web applications and APIs support JWT authentication.
 The following guides are currently available showing how to configure it:
 
 - [ElasticSearch](./elasticsearch.mdx)
+
+## Troubleshooting
+
+By default, the `Teleport-Jwt-Assertion` header is sent along with every request that Teleport makes to an
+upstream web application.
+
+In some circumstances, including this header can increase the total header size beyond the limits that the
+upstream web application can handle. If needed, you can disable this header on a per-app basis by setting
+`jwt_claims: none` under the `rewrite` configuration for the given application.
+
+You can [read more about the jwt_claims configuration here](../guides/connecting-apps.mdx#configuring-the-jwt-token).

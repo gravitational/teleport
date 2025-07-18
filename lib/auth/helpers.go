@@ -514,7 +514,7 @@ func InitTestAuthCache(p TestAuthCacheParams) error {
 		AccessLists:             p.AuthServer.Services.AccessLists,
 		AccessMonitoringRules:   p.AuthServer.Services.AccessMonitoringRules,
 		AppSession:              p.AuthServer.Services.Identity,
-		Apps:                    p.AuthServer.Services.Apps,
+		Apps:                    p.AuthServer.Services.Applications,
 		ClusterConfig:           p.AuthServer.Services.ClusterConfigurationInternal,
 		CrownJewels:             p.AuthServer.Services.CrownJewels,
 		DatabaseObjects:         p.AuthServer.Services.DatabaseObjects,
@@ -552,6 +552,7 @@ func InitTestAuthCache(p TestAuthCacheParams) error {
 		PluginStaticCredentials: p.AuthServer.Services.PluginStaticCredentials,
 		GitServers:              p.AuthServer.Services.GitServers,
 		HealthCheckConfig:       p.AuthServer.Services.HealthCheckConfig,
+		BotInstance:             p.AuthServer.Services.BotInstance,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1194,35 +1195,53 @@ func (t *TestTLSServer) Start() error {
 
 // Close closes the listener and HTTP server
 func (t *TestTLSServer) Close() error {
-	err := t.TLSServer.Close()
-	if t.Listener != nil {
-		t.Listener.Close()
+	var errs []error
+	if err := t.Stop(); err != nil {
+		errs = append(errs, err)
 	}
+
 	if t.AuthServer.Backend != nil {
-		t.AuthServer.Backend.Close()
+		if err := t.AuthServer.Backend.Close(); err != nil {
+			errs = append(errs, err)
+		}
 	}
-	return err
+	return trace.NewAggregate(errs...)
 }
 
 // Shutdown closes the listener and HTTP server gracefully
 func (t *TestTLSServer) Shutdown(ctx context.Context) error {
-	errs := []error{t.TLSServer.Shutdown(ctx)}
+	var errs []error
+	if err := t.TLSServer.Shutdown(ctx); err != nil {
+		errs = append(errs, err)
+	}
+
 	if t.Listener != nil {
-		errs = append(errs, t.Listener.Close())
+		if err := t.Listener.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+			errs = append(errs, err)
+		}
+
 	}
 	if t.AuthServer.Backend != nil {
-		errs = append(errs, t.AuthServer.Backend.Close())
+		if err := t.AuthServer.Backend.Close(); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	return trace.NewAggregate(errs...)
 }
 
 // Stop stops listening server, but does not close the auth backend
 func (t *TestTLSServer) Stop() error {
-	err := t.TLSServer.Close()
-	if t.Listener != nil {
-		t.Listener.Close()
+	var errs []error
+	if err := t.TLSServer.Close(); err != nil {
+		errs = append(errs, err)
 	}
-	return err
+	if t.Listener != nil {
+		if err := t.Listener.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+			errs = append(errs, err)
+		}
+	}
+
+	return trace.NewAggregate(errs...)
 }
 
 // FakeTeleportVersion fake version storage implementation always return current version.

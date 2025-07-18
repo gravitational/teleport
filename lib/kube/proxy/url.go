@@ -40,14 +40,14 @@ type metaResource struct {
 	resourceDefinition *metav1.APIResource // Resource definition data from the schema.
 	requestedResource  apiResource         // User input, based on URL.
 	verb               string              // Verb of the user request.
-	isClusterWide      bool                // TODO(@creack): Remove this in favor of resourceDefinition.Namespaced.
+	isList             bool
 }
 
 func (mr *metaResource) isClusterWideResource() bool {
 	if mr == nil {
 		return false
 	}
-	return mr.isClusterWide || (mr.resourceDefinition != nil && !mr.resourceDefinition.Namespaced)
+	return mr.resourceDefinition != nil && !mr.resourceDefinition.Namespaced
 }
 
 func (mr *metaResource) rbacResource() *types.KubernetesResource {
@@ -237,11 +237,12 @@ func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (metaRe
 		// If the resource is not supported, return nil.
 		return out, nil
 	}
-	out.isClusterWide = !resource.Namespaced
+	out.resourceDefinition = &resource
 
 	if apiResource.resourceName == "" && out.verb != types.KubeVerbCreate {
 		// if the resource is supported but the resource name is not present and not a create request,
 		// return nil because it's a list request.
+		out.isList = true
 		return out, nil
 	}
 
@@ -254,7 +255,6 @@ func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (metaRe
 		apiResource.resourceName = resourceName
 		out.requestedResource = apiResource
 	}
-	out.resourceDefinition = &resource
 
 	return out, nil
 }

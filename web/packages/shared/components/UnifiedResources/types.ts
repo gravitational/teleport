@@ -23,6 +23,7 @@ import { ResourceIconName } from 'design/ResourceIcon';
 import { AppSubKind, NodeSubKind } from 'shared/services';
 import { DbProtocol } from 'shared/services/databases';
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { ResourceLabel } from 'teleport/services/agents';
 import { AppMCP, PermissionSet } from 'teleport/services/apps';
 

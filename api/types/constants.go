@@ -209,6 +209,8 @@ const (
 	KindCrownJewel = "crown_jewel"
 	// KindKubernetesCluster is a Kubernetes cluster.
 	KindKubernetesCluster = "kube_cluster"
+	// KindKubernetesResource is a Kubernetes resource within a cluster.
+	KindKubernetesResource = "kube_resource"
 
 	// KindKubePod is a Kubernetes Pod resource type.
 	KindKubePod = "pod"
@@ -869,6 +871,15 @@ const (
 	// KubernetesClusterLabel indicates name of the kubernetes cluster for auto-discovered services inside kubernetes.
 	KubernetesClusterLabel = TeleportNamespace + "/kubernetes-cluster"
 
+	// AWSRolesAnywhereProfileNameOverrideLabel indicates the name of the AWS IAM Roles Anywhere Profile's tag key
+	// that Teleport will use to override the name of the discovered profile.
+	// Ensure this name is unique and valid DNS label.
+	AWSRolesAnywhereProfileNameOverrideLabel = "TeleportApplicationName"
+
+	// AWSRolesAnywhereProfileARNLabel is the label key to store the Profile ARN when creating an Application
+	// resource from an AWS IAM Roles Anywhere Profile.
+	AWSRolesAnywhereProfileARNLabel = TeleportNamespace + "/aws-roles-anywhere-profile-arn"
+
 	// DiscoveryTypeLabel specifies type of discovered service that should be created from Kubernetes service.
 	// Also added by discovery service to indicate the type of discovered
 	// resource, e.g. "rds" for RDS databases, "eks" for EKS kube clusters, etc.
@@ -1372,10 +1383,22 @@ const (
 var RequestableResourceKinds = []string{
 	KindNode,
 	KindKubernetesCluster,
+	KindKubernetesResource,
 	KindDatabase,
 	KindApp,
 	KindWindowsDesktop,
 	KindUserGroup,
+	KindSAMLIdPServiceProvider,
+	KindIdentityCenterAccount,
+	KindIdentityCenterAccountAssignment,
+	KindGitServer,
+}
+
+// LegacyRequestableKubeResourceKinds lists all legacy Teleport resource kinds users can request access to.
+// Those are the requestable Kubernetes resource kinds that were supported before the introduction of
+// custom resource support. We need to keep them to maintain support with older Teleport versions.
+// TODO(@creack): DELETE IN v20.0.0.
+var LegacyRequestableKubeResourceKinds = []string{
 	KindKubePod,
 	KindKubeSecret,
 	KindKubeConfigmap,
@@ -1397,11 +1420,17 @@ var RequestableResourceKinds = []string{
 	KindKubeJob,
 	KindKubeCertificateSigningRequest,
 	KindKubeIngress,
-	KindSAMLIdPServiceProvider,
-	KindIdentityCenterAccount,
-	KindIdentityCenterAccountAssignment,
-	KindGitServer,
 }
+
+// Prefix constants to identify kubernetes resources in access requests.
+const (
+	// AccessRequestPrefixKindKube denotes that the resource is a kubernetes one. Used for access requests.
+	AccessRequestPrefixKindKube = "kube:"
+	// AccessRequestPrefixKindKubeClusterWide denotes that the kube resource is cluster-wide.
+	AccessRequestPrefixKindKubeClusterWide = AccessRequestPrefixKindKube + "cw:"
+	// AccessRequestPrefixKindKubeNamespaced denotes that the kube resource is namespaced.
+	AccessRequestPrefixKindKubeNamespaced = AccessRequestPrefixKindKube + "ns:"
+)
 
 // The list below needs to be kept in sync with `kubernetesResourceKindOptions`
 // in `web/packages/teleport/src/Roles/RoleEditor/standardmodel.ts`. (Keeping
@@ -1556,49 +1585,48 @@ var KubernetesClusterWideResourceKinds = []string{
 	KindKubeCertificateSigningRequest,
 }
 
-type groupKind = struct{ apiGroup, kind string }
-
 // KubernetesNamespacedResourceKinds is the list of known Kubernetes resource kinds
 // that are namespaced.
+//
 // Generated from `kubectl api-resources --namespaced=true -o name --sort-by=name` (kind k8s v1.32.2).
-// (added .core to core resources.)
 // The format is "<plural>.<apigroup>".
 //
 // Only used in role >=v8 to attempt to validate the api_group field.
 // If we have a match, we know we need a namespaced value, if we don't
 // have a match, we don't know we don't. Best effort basis.
-var kubernetesNamespacedResourceKinds = map[groupKind]struct{}{
-	{"", "bindings"}:                                      {},
-	{"", "configmaps"}:                                    {},
-	{"apps", "controllerrevisions"}:                       {},
-	{"batch", "cronjobs"}:                                 {},
-	{"storage.k8s.io", "csistoragecapacities"}:            {},
-	{"apps", "daemonsets"}:                                {},
-	{"apps", "deployments"}:                               {},
-	{"", "endpoints"}:                                     {},
-	{"discovery.k8s.io", "endpointslices"}:                {},
-	{"events.k8s.io", "events"}:                           {},
-	{"", "events"}:                                        {},
-	{"autoscaling", "horizontalpodautoscalers"}:           {},
-	{"networking.k8s.io", "ingresses"}:                    {},
-	{"batch", "jobs"}:                                     {},
-	{"coordination.k8s.io", "leases"}:                     {},
-	{"", "limitranges"}:                                   {},
-	{"authorization.k8s.io", "localsubjectaccessreviews"}: {},
-	{"networking.k8s.io", "networkpolicies"}:              {},
-	{"", "persistentvolumeclaims"}:                        {},
-	{"policy", "poddisruptionbudgets"}:                    {},
-	{"", "pods"}:                                          {},
-	{"", "podtemplates"}:                                  {},
-	{"apps", "replicasets"}:                               {},
-	{"", "replicationcontrollers"}:                        {},
-	{"", "resourcequotas"}:                                {},
-	{"rbac.authorization.k8s.io", "rolebindings"}:         {},
-	{"rbac.authorization.k8s.io", "roles"}:                {},
-	{"", "secrets"}:                                       {},
-	{"", "serviceaccounts"}:                               {},
-	{"", "services"}:                                      {},
-	{"apps", "statefulsets"}:                              {},
+//
+// Key: resource kind, value: api group.
+var kubernetesNamespacedResourceKinds = map[string]string{
+	"bindings":                  "",
+	"configmaps":                "",
+	"controllerrevisions":       "apps",
+	"cronjobs":                  "batch",
+	"csistoragecapacities":      "storage.k8s.io",
+	"daemonsets":                "apps",
+	"deployments":               "apps",
+	"endpoints":                 "",
+	"endpointslices":            "discovery.k8s.io",
+	"events":                    "events.k8s.io",
+	"horizontalpodautoscalers":  "autoscaling",
+	"ingresses":                 "networking.k8s.io",
+	"jobs":                      "batch",
+	"leases":                    "coordination.k8s.io",
+	"limitranges":               "",
+	"localsubjectaccessreviews": "authorization.k8s.io",
+	"networkpolicies":           "networking.k8s.io",
+	"persistentvolumeclaims":    "",
+	"poddisruptionbudgets":      "policy",
+	"pods":                      "",
+	"podtemplates":              "",
+	"replicasets":               "apps",
+	"replicationcontrollers":    "",
+	"resourcequotas":            "",
+	"rolebindings":              "rbac.authorization.k8s.io",
+	"roles":                     "rbac.authorization.k8s.io",
+	"secrets":                   "",
+	"serviceaccounts":           "",
+	"services":                  "",
+	"statefulsets":              "apps",
 }
 
 // List of "" (core / legacy) resources.

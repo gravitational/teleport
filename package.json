@@ -22,9 +22,10 @@
     "lint-fix": "pnpm eslint --fix && pnpm prettier-write",
     "eslint": "eslint --quiet '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "type-check": "NODE_OPTIONS='--max-old-space-size=4096' tsc --build",
+    "optimize-resource-icons": "svgo --multipass --quiet -rf web/packages/design/src/ResourceIcon/assets",
     "prettier-check": "prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "prettier-write": "prettier --write --log-level silent '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
-    "process-icons": "node web/packages/design/src/Icon/script/script.js & pnpm prettier --log-level silent --write 'web/packages/design/src/Icon/**/*.tsx'",
+    "process-icons": "pnpm optimize-resource-icons && node web/packages/design/src/Icon/script/script.js && pnpm prettier --log-level silent --write 'web/packages/design/src/Icon/**/*.tsx'",
     "nop": "exit 0"
   },
   "private": true,
@@ -67,6 +68,7 @@
     "prettier": "^3.5.3",
     "react-select-event": "^5.5.1",
     "storybook": "^8.6.12",
+    "svgo": "^4.0.0",
     "typescript": "^5.8.3",
     "vite": "^6.3.5"
   },
@@ -93,6 +95,7 @@
     "react": "^19.1.0",
     "react-day-picker": "^9.6.7",
     "react-dom": "^19.1.0",
+    "react-error-boundary": "^6.0.0",
     "react-is": "^19.1.0",
     "react-router": "5.3.4",
     "react-router-dom": "5.3.4",
@@ -108,7 +111,7 @@
       "web/.storybook/public"
     ]
   },
-  "packageManager": "pnpm@10.10.0+sha512.d615db246fe70f25dcfea6d8d73dee782ce23e2245e3c4f6f888249fb568149318637dca73c2c5c8ef2a4ca0d5657fb9567188bfab47f566d1ee6ce987815c39",
+  "packageManager": "pnpm@10.12.4+sha512.5ea8b0deed94ed68691c9bad4c955492705c5eeb8a87ef86bc62c74a26b037b08ff9570f108b2e4dbd1dd1a9186fea925e527f141c648e85af45631074680184",
   "engines": {
     "node": "^22"
   }

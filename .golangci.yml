@@ -170,6 +170,12 @@ linters:
         test_packages:
           files:
             - '!$test'
+            - '!**/integrations/operator/controllers/resources/testlib/**.go'
+            - '!**/e/lib/aws/identitycenter/test/**'
+            - '!**/e/lib/devicetrust/testenv/**'
+            - '!**/e/lib/jamf/testenv/**'
+            - '!**/e/lib/operatortest/**'
+            - '!**/e/tests/**'
           deny:
             - pkg: github.com/gravitational/teleport/e/lib/aws/identitycenter/test
               desc: testing packages should not be imported outside of _test.go files
@@ -191,6 +197,8 @@ linters:
               desc: testing packages should not be imported outside of _test.go files
             - pkg: github.com/gravitational/teleport/lib/srv/db/spanner/testing
               desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/modules/modulestest
+              desc: testing packages should not be imported outside of _test.go files
         testify:
           files:
             - '!$test'
@@ -203,9 +211,7 @@ linters:
             - '!**/lib/auth/helpers.go'
             - '!**/lib/auth/keystore/testhelpers.go'
             - '!**/lib/backend/test/**'
-            - '!**/lib/events/athena/test.go'
             - '!**/lib/events/test/**'
-            - '!**/lib/kube/proxy/utils_testing.go'
             - '!**/lib/services/suite/**'
             - '!**/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest/sigstoretest.go'
             - '!**/lib/teleterm/gatewaytest/**'
@@ -261,8 +267,7 @@ linters:
             - '!**/lib/cryptosuites/precompute.go'
             - '!**/lib/cryptosuites/internal/rsa/rsa.go'
             - '!**/lib/events/test/**'
-            - '!**/lib/events/athena/test.go'
-            - '!**/lib/kube/proxy/utils_testing.go'
+            - '!**/lib/modules/modulestest/**'
             - '!**/lib/modules/test.go'
             - '!**/lib/service/service.go'
             - '!**/lib/services/local/users.go'

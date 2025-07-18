@@ -56,7 +56,11 @@ func (dm *DestinationMemory) UnmarshalYAML(node *yaml.Node) error {
 }
 
 func (dm *DestinationMemory) CheckAndSetDefaults() error {
-	dm.store = make(map[string][]byte)
+	// Initialize the store but only if it is nil. This allows the memory
+	// destination to persist across multiple "Starts" of a bot.
+	if dm.store == nil {
+		dm.store = make(map[string][]byte)
+	}
 
 	return nil
 }

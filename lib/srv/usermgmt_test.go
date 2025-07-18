@@ -34,8 +34,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type testHostUserBackend struct {
@@ -279,11 +279,11 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 	users := HostUserManagement{
 		backend: backend,
 		storage: pres,
-		log:     utils.NewSlogLoggerForTests(),
+		log:     logtest.NewLogger(),
 	}
 	sudoers := HostSudoersManagement{
 		backend: backend,
-		log:     utils.NewSlogLoggerForTests(),
+		log:     logtest.NewLogger(),
 	}
 
 	closer, err := users.UpsertUser("bob", &decisionpb.HostUsersInfo{
@@ -306,7 +306,7 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 		users := HostUserManagement{
 			backend: backend,
 			storage: pres,
-			log:     utils.NewSlogLoggerForTests(),
+			log:     logtest.NewLogger(),
 		}
 		// test user already exists but teleport-service group has not yet
 		// been created
@@ -347,7 +347,7 @@ func TestUserMgmt_DeleteAllTeleportSystemUsers(t *testing.T) {
 	users := HostUserManagement{
 		backend:   mgmt,
 		storage:   pres,
-		log:       utils.NewSlogLoggerForTests(),
+		log:       logtest.NewLogger(),
 		userGrace: 0,
 	}
 
@@ -373,7 +373,7 @@ func TestUserMgmt_DeleteAllTeleportSystemUsers(t *testing.T) {
 	users = HostUserManagement{
 		backend: newTestUserMgmt(),
 		storage: pres,
-		log:     utils.NewSlogLoggerForTests(),
+		log:     logtest.NewLogger(),
 	}
 	// teleport-system group doesnt exist, DeleteAllUsers will return nil, instead of erroring
 	require.NoError(t, users.DeleteAllUsers())
@@ -731,7 +731,7 @@ func initBackend(t *testing.T, groups []string) (HostUserManagement, *testHostUs
 	users := HostUserManagement{
 		backend: backend,
 		storage: pres,
-		log:     utils.NewSlogLoggerForTests(),
+		log:     logtest.NewLogger(),
 	}
 
 	for _, group := range groups {
@@ -749,7 +749,7 @@ func TestCreateUserWithExistingPrimaryGroup(t *testing.T) {
 	users := HostUserManagement{
 		backend: backend,
 		storage: pres,
-		log:     utils.NewSlogLoggerForTests(),
+		log:     logtest.NewLogger(),
 	}
 
 	existingGroups := []string{"alice", "simon"}
@@ -1110,7 +1110,7 @@ func TestHostUsersResolveGroups(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			log := utils.NewSlogLoggerForTests()
+			log := logtest.NewLogger()
 			groups, err := ResolveGroups(log, c.hostUser, c.ui, c.takeOwnership)
 			if c.expectErr == nil {
 				assert.NoError(t, err)

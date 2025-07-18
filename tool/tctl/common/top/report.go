@@ -61,6 +61,8 @@ type Report struct {
 	Watcher *WatcherStats
 	// Audit contains stats for audit event backends.
 	Audit *AuditStats
+	// Service is a map of service name to a gauge value of how many services of that type are currently running.
+	Service map[string]float64
 }
 
 // AuditStats contains metrics related to the audit log.
@@ -470,6 +472,8 @@ func generateReport(metrics map[string]*dto.MetricFamily, prev *Report, period t
 		Roles:                          getGaugeValue(metrics[prometheus.BuildFQName(teleport.MetricNamespace, "", "roles_total")]),
 	}
 
+	re.Service = getGaugeValuesForLabelKey(metrics[prometheus.BuildFQName(teleport.MetricNamespace, "", teleport.MetricTeleportServices)], teleport.TagServiceName)
+
 	var auditStats *AuditStats
 	if prev != nil {
 		auditStats = prev.Audit
@@ -699,6 +703,25 @@ func getActiveMigrations(metric *dto.MetricFamily) []string {
 			}
 		}
 	}
+	return out
+}
+
+// For a given `family` of metrics, return all gauge values that match a given `labelKey` as a map keyed by the label value.
+func getGaugeValuesForLabelKey(family *dto.MetricFamily, labelKey string) map[string]float64 {
+	if family.GetType() != dto.MetricType_GAUGE {
+		return nil
+	}
+
+	out := make(map[string]float64)
+	for _, metric := range family.GetMetric() {
+		for _, label := range metric.GetLabel() {
+			if label.GetName() == labelKey {
+				out[label.GetValue()] = metric.GetGauge().GetValue()
+				break
+			}
+		}
+	}
+
 	return out
 }
 

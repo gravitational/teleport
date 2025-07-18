@@ -77,6 +77,9 @@ enum UserKind {
 
   // Indicates the user associated with this event is a Machine ID bot user.
   USER_KIND_BOT = 2;
+
+  // Indicates that the user associated with this event is a system component e.g. Okta service.
+  USER_KIND_SYSTEM = 3;
 }
 
 // UserOrigin is the origin of a user account.

@@ -143,6 +143,11 @@ type AccessList struct {
 
 // Spec is the specification for an access list.
 type Spec struct {
+	// Type can be currently "dynamic" (the default if empty string) which denotes a regular
+	// Access List, "scim" which represents an Access List created from SCIM group or "static"
+	// for Access Lists managed by IaC tools.
+	Type Type `json:"type" yaml:"type"`
+
 	// Title is a plaintext short description of the access list.
 	Title string `json:"title" yaml:"title"`
 
@@ -170,6 +175,44 @@ type Spec struct {
 
 	// OwnerGrants describes the access granted by ownership of this access list.
 	OwnerGrants Grants `json:"owner_grants" yaml:"owner_grants"`
+}
+
+type Type string
+
+const (
+	// TODO(kopiczko) v21: Remove DeprecatedDynamic. The only version setting this type is 17.5.4.
+
+	// DeprecatedDynamic is deprecated and should not be used. Use [Default] instead. It has
+	// the same semantic meaning.
+	DeprecatedDynamic Type = "dynamic"
+	// Default Access Lists are the default type supposed to be managed with the web UI. They
+	// require periodic audit reviews.
+	Default Type = ""
+	// Static Access Lists are supposed to be managed with the IaC tools like Terraform. Audit
+	// reviews are not supported for them and the ownership is optional.
+	Static Type = "static"
+	// SCIM Access Lists are created with the SCIM integration. Audit reviews are not supported
+	// for them and the ownership is optional.
+	SCIM Type = "scim"
+)
+
+func validateType(t Type) error {
+	switch t {
+	case DeprecatedDynamic, Default, Static, SCIM:
+		return nil
+	default:
+		return trace.BadParameter("unknown access_list type %q", t)
+	}
+}
+
+// IsReviewable returns true if the AccessList type supports the audit reviews in the web UI.
+func (t Type) IsReviewable() bool {
+	switch t {
+	case DeprecatedDynamic, Default:
+		return true
+	default:
+		return false
+	}
 }
 
 // Owner is an owner of an access list.
@@ -297,12 +340,26 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
+	// Restore the type if the cluster was ever running in version 17.5.4.
+	if a.Spec.Type == DeprecatedDynamic {
+		a.Spec.Type = Default
+	}
+
+	if err := validateType(a.Spec.Type); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if a.Spec.Title == "" {
 		return trace.BadParameter("access list title required")
 	}
 
-	if len(a.Spec.Owners) == 0 {
-		return trace.BadParameter("owners are missing")
+	switch a.Spec.Type {
+	case Static, SCIM:
+		// SCIM and Static access lists can have empty owners, as they are managed by external systems.
+	default:
+		if len(a.Spec.Owners) == 0 {
+			return trace.BadParameter("owners are missing")
+		}
 	}
 
 	if a.Spec.Audit.Recurrence.Frequency == 0 {
@@ -508,6 +565,11 @@ func (n Notifications) MarshalJSON() ([]byte, error) {
 		Alias: (Alias)(n),
 		Start: n.Start.String(),
 	})
+}
+
+// IsReviewable returns true if the AccessList type supports the audit reviews in the web UI.
+func (a *AccessList) IsReviewable() bool {
+	return a.Spec.Type.IsReviewable()
 }
 
 // SelectNextReviewDate will select the next review date for the access list.

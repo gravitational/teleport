@@ -46,15 +46,17 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestIsApprovedFileTransfer(t *testing.T) {
 	// set enterprise for tests
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
 
@@ -192,7 +194,7 @@ func TestSession_newRecorder(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	logger := utils.NewSlogLoggerForTests()
+	logger := logtest.NewLogger()
 
 	isNotSessionWriter := func(t require.TestingT, i interface{}, i2 ...interface{}) {
 		require.NotNil(t, i)
@@ -213,7 +215,7 @@ func TestSession_newRecorder(t *testing.T) {
 				id:     "test",
 				logger: logger,
 				registry: &SessionRegistry{
-					logger: utils.NewSlogLoggerForTests(),
+					logger: logtest.NewLogger(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -234,7 +236,7 @@ func TestSession_newRecorder(t *testing.T) {
 				id:     "test",
 				logger: logger,
 				registry: &SessionRegistry{
-					logger: utils.NewSlogLoggerForTests(),
+					logger: logtest.NewLogger(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -255,7 +257,7 @@ func TestSession_newRecorder(t *testing.T) {
 				id:     "test",
 				logger: logger,
 				registry: &SessionRegistry{
-					logger: utils.NewSlogLoggerForTests(),
+					logger: logtest.NewLogger(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -284,7 +286,7 @@ func TestSession_newRecorder(t *testing.T) {
 				id:     "test",
 				logger: logger,
 				registry: &SessionRegistry{
-					logger: utils.NewSlogLoggerForTests(),
+					logger: logtest.NewLogger(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -320,7 +322,7 @@ func TestSession_newRecorder(t *testing.T) {
 				id:     "test",
 				logger: logger,
 				registry: &SessionRegistry{
-					logger: utils.NewSlogLoggerForTests(),
+					logger: logtest.NewLogger(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -359,7 +361,7 @@ func TestSession_newRecorder(t *testing.T) {
 func TestSession_emitAuditEvent(t *testing.T) {
 	t.Parallel()
 
-	logger := utils.NewSlogLoggerForTests()
+	logger := logtest.NewLogger()
 
 	t.Run("FallbackConcurrency", func(t *testing.T) {
 		srv := newMockServer(t)
@@ -643,7 +645,7 @@ func TestNonInteractiveSession(t *testing.T) {
 
 // TestStopUnstarted tests that a session may be stopped before it launches.
 func TestStopUnstarted(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
 
@@ -1056,9 +1058,9 @@ func TestTrackingSession(t *testing.T) {
 
 			sess := &session{
 				id:     rsession.NewID(),
-				logger: utils.NewSlogLoggerForTests().With(teleport.ComponentKey, "test-session"),
+				logger: logtest.With(teleport.ComponentKey, "test-session"),
 				registry: &SessionRegistry{
-					logger: utils.NewSlogLoggerForTests(),
+					logger: logtest.NewLogger(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv:                   srv,
 						SessionTrackerService: trackingService,
@@ -1568,7 +1570,7 @@ func TestUpsertHostUser(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			registry := SessionRegistry{
-				logger: utils.NewSlogLoggerForTests(),
+				logger: logtest.NewLogger(),
 				SessionRegistryConfig: SessionRegistryConfig{
 					Srv: &fakeServer{createHostUser: c.createHostUser},
 				},
@@ -1658,7 +1660,7 @@ func TestWriteSudoersFile(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			registry := SessionRegistry{
-				logger: utils.NewSlogLoggerForTests(),
+				logger: logtest.NewLogger(),
 				SessionRegistryConfig: SessionRegistryConfig{
 					Srv: &fakeServer{hostSudoers: c.hostSudoers},
 				},

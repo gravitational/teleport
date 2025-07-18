@@ -71,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -78,10 +79,11 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/hostid"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
 }
@@ -501,7 +503,7 @@ func TestServiceInitExternalLog(t *testing.T) {
 
 func TestAthenaAuditLogSetup(t *testing.T) {
 	ctx := context.Background()
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud: true,
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -520,7 +522,7 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 			exitContext: context.Background(),
 		},
 		backend: backend,
-		logger:  utils.NewSlogLoggerForTests(),
+		logger:  logtest.NewLogger(),
 	}
 
 	integrationSvc, err := local.NewIntegrationsService(backend)
@@ -954,7 +956,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	cfg.Testing.ConnectFailureC = make(chan time.Duration, 5)
 	cfg.Testing.ClientTimeout = time.Millisecond
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Logger = logtest.NewLogger()
 	process, err := NewTeleport(cfg)
 	require.NoError(t, err)
 
@@ -1099,25 +1101,6 @@ func Test_readOrGenerateHostID(t *testing.T) {
 			},
 			wantFunc: func(receivedID string) bool {
 				return receivedID == id
-			},
-		},
-		{
-			name: "Kube Backend is available but key is missing. Load from local storage and store in kube",
-			args: args{
-				kubeBackend: &fakeKubeBackend{
-					getData: nil,
-					getErr:  fmt.Errorf("key not found"),
-				},
-				hostIDContent: id,
-			},
-			wantFunc: func(receivedID string) bool {
-				return receivedID == id
-			},
-			wantKubeItemFunc: func(i *backend.Item) bool {
-				return cmp.Diff(&backend.Item{
-					Key:   backend.KeyFromString(hostUUIDKey),
-					Value: []byte(id),
-				}, i, cmp.AllowUnexported(backend.Key{})) == ""
 			},
 		},
 		{
@@ -1296,7 +1279,7 @@ func TestProxyGRPCServers(t *testing.T) {
 	// Create a new Teleport process to initialize the gRPC servers with KubeProxy
 	// enabled.
 	process := &TeleportProcess{
-		Supervisor: NewSupervisor(hostID, utils.NewSlogLoggerForTests()),
+		Supervisor: NewSupervisor(hostID, logtest.NewLogger()),
 		Config: &servicecfg.Config{
 			Proxy: servicecfg.ProxyConfig{
 				Kube: servicecfg.KubeProxyConfig{
@@ -1304,7 +1287,7 @@ func TestProxyGRPCServers(t *testing.T) {
 				},
 			},
 		},
-		logger: utils.NewSlogLoggerForTests(),
+		logger: logtest.NewLogger(),
 	}
 
 	// Create a limiter with no limits.
@@ -1484,7 +1467,7 @@ func TestEnterpriseServicesEnabled(t *testing.T) {
 			if tt.enterprise {
 				buildType = modules.BuildEnterprise
 			}
-			modules.SetTestModules(t, &modules.TestModules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				TestBuildType: buildType,
 			})
 

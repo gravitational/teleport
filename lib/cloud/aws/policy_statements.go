@@ -452,19 +452,28 @@ func StatementAccessGraphAWSSyncSQS(sqsQueueARN string) *Statement {
 	}
 }
 
-// StatementAccessGraphAWSSyncS3BucketDownload returns the statement that allows downloading
+// StatementsAccessGraphAWSSyncS3BucketDownload returns the statements that allows downloading
 // objects from the specified S3 bucket. This is used for downloading AWS cloud trail logs.
-func StatementAccessGraphAWSSyncS3BucketDownload(s3BucketARN string) *Statement {
-	return &Statement{
-		Effect: EffectAllow,
-		Actions: []string{
-			"s3:GetObject",
-			"s3:GetObjectVersion",
-			"s3:ListBucket",
-			"s3:ListBucketVersions",
-			"s3:GetBucketLocation",
+func StatementsAccessGraphAWSSyncS3BucketDownload(s3BucketARN string) []*Statement {
+	return []*Statement{
+		{
+			Effect: EffectAllow,
+			Actions: []string{
+				"s3:GetObject",
+				"s3:GetObjectVersion",
+			},
+			Resources: []string{s3BucketARN + "/*"},
 		},
-		Resources: []string{s3BucketARN},
+		{
+			Effect: EffectAllow,
+			Actions: []string{
+				"s3:ListBucket",
+				"s3:ListBucketVersions",
+				"s3:GetBucketLocation",
+				"s3:GetBucketVersioning",
+			},
+			Resources: []string{s3BucketARN},
+		},
 	}
 }
 
@@ -530,6 +539,43 @@ func StatementForAWSIdentityCenterAccess() *Statement {
 
 			// ListProvisionedRoles
 			"iam:ListRoles",
+		},
+		Resources: allResources,
+	}
+}
+
+// StatementForAWSRolesAnywhereSyncRoleTrustRelationship returns the Trust Relationship which allows its usage from the given Trust Anchor ARN.
+// See https://docs.aws.amazon.com/rolesanywhere/latest/userguide/getting-started.html#getting-started-step2
+func StatementForAWSRolesAnywhereSyncRoleTrustRelationship(region, accountID, trustAnchorID string) *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: SliceOrString{
+			"sts:AssumeRole",
+			"sts:SetSourceIdentity",
+			"sts:TagSession",
+		},
+		Principals: map[string]SliceOrString{
+			"Service": []string{"rolesanywhere.amazonaws.com"},
+		},
+		Conditions: map[string]StringOrMap{
+			"ArnEquals": {
+				"aws:SourceArn": []string{
+					fmt.Sprintf("arn:aws:rolesanywhere:%s:%s:trust-anchor/%s", region, accountID, trustAnchorID),
+				},
+			},
+		},
+	}
+}
+
+// StatementForAWSRolesAnywhereSyncRolePolicy returns the policy required to perform the sync operation, which imports Roles Anywhere Profiles into Teleport AWS Apps.
+func StatementForAWSRolesAnywhereSyncRolePolicy() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: SliceOrString{
+			"rolesanywhere:ListProfiles",
+			"rolesanywhere:ListTagsForResource",
+			"rolesanywhere:ImportCrl",
+			"iam:GetRole",
 		},
 		Resources: allResources,
 	}

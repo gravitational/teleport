@@ -1,5 +1,6 @@
 ---
 title: teleport-cluster Chart Reference
+sidebar_label: teleport-cluster
 description: Values that can be set using the teleport-cluster Helm chart
 ---
 
@@ -257,7 +258,7 @@ Possible values are `local` and `github` for Teleport Community Edition, plus `o
 | `string` | `""`          | No        | `auth_service.authentication.connector_name` |
 
 `authentication.connectorName` sets the default authentication connector.
-[The SSO documentation](../../admin-guides/access-controls/sso/sso.mdx) explains how to create
+[The SSO documentation](../../zero-trust-access/sso/sso.mdx) explains how to create
 authentication connectors for common identity providers. In addition to SSO
 connector names, the following built-in connectors are supported:
 
@@ -276,7 +277,7 @@ Defaults to `local`.
 `authentication.localAuth` controls whether local authentication is enabled.
 When disabled, users can only log in through authentication connectors like `saml`, `oidc` or `github`.
 
-[Disabling local auth is required for FedRAMP / FIPS](../../admin-guides/access-controls/compliance-frameworks/fedramp.mdx).
+[Disabling local auth is required for FedRAMP / FIPS](../../zero-trust-access/compliance-frameworks/fedramp.mdx).
 
 ### `authentication.lockingMode`
 
@@ -668,27 +669,6 @@ By using this value you will update the Kubernetes volume specification to mount
   licenseSecretName: enterprise-license
   ```
 
-## `installCRDs`
-
-| Type   | Default value |
-|--------|---------------|
-| `bool` | `false`       |
-
-CRDs are not namespace-scoped resources - they can be installed only once in a cluster.
-
-CRDs are required by the Teleport Kubernetes Operator and are installed by default when `operator.enabled` is true.
-`installCRDs` overrides this behavior and allows users to indicate whether to deploy Teleport CRDs.
-
-If several releases of the `teleport-cluster` chart are deployed in the same Kubernetes cluster, only one
-release should have `installCRDs` enabled. Unless you are deploying multiple `teleport-cluster` Helm releases in
-the same Kubernetes cluster or installing the CRDs on your own you should not have to set this value.
-
-`values.yaml` example:
-
-  ```yaml
-  installCRDs: true
-  ```
-
 ## `operator`
 
 ### `operator.annotations.deployment`
@@ -758,7 +738,7 @@ Kubernetes annotations which should be applied to the `ServiceAccount` created b
 
 Enabling the operator will also deploy the Teleport CRDs in the Kubernetes cluster.
 If you are deploying multiple releases of the Helm chart in the same cluster you can override this behavior with
-[`installCRDs`](#installCRDs).
+[`installCRDs`](#operatorinstallcrds).
 
 `values.yaml` example:
 
@@ -766,6 +746,22 @@ If you are deploying multiple releases of the Helm chart in the same cluster you
   operator:
     enabled: true
   ```
+### `operator.installCRDs`
+
+| Type | Default |
+|------|---------|
+| `string` | `"dynamic"` |
+
+`operator.installCRDs` controls if the chart should install the CRDs.
+There are 3 possible values: dynamic, always, never.
+
+- "dynamic" means the CRDs are installed if the operator is enabled or if
+the CRDs are already present in the cluster. The presence check is here to
+avoid all CRDs to be removed if you temporarily disable the operator.
+Removing CRDs triggers a cascading deletion, which removes CRs, and all the
+related resources in Teleport.
+- "always" means the CRDs are always installed
+- "never" means the CRDs are never installed
 
 ### `operator.image`
 
@@ -885,7 +881,7 @@ If you want to run Teleport version `X.Y.Z`, you should use
 `helm --version X.Y.Z` instead.
 </Admonition>
 
-See our [installation guide](../../installation.mdx#docker) for information on
+See our [installation guide](../../installation/docker.mdx) for information on
 Docker image versions.
 
 `values.yaml` example:

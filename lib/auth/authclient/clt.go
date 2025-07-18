@@ -377,16 +377,6 @@ func (c *Client) PatchRemoteCluster(ctx context.Context, name string, updateFn f
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
-// ListWindowsDesktops not implemented: can only be called locally.
-func (c *Client) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-// ListWindowsDesktopServices not implemented: can only be called locally.
-func (c *Client) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
 const (
 	// UserTokenTypeResetPasswordInvite is a token type used for the UI invite flow that
 	// allows users to change their password and set second factor (if enabled).
@@ -617,6 +607,10 @@ func (c *Client) AccessGraphSecretsScannerClient() accessgraphsecretsv1pb.Secret
 
 func (c *Client) IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient {
 	return integrationv1.NewAWSOIDCServiceClient(c.APIClient.GetConnection())
+}
+
+func (c *Client) IntegrationAWSRolesAnywhereClient() integrationv1.AWSRolesAnywhereServiceClient {
+	return integrationv1.NewAWSRolesAnywhereServiceClient(c.APIClient.GetConnection())
 }
 
 // UserTasksClient returns a client for managing User Task resources.
@@ -1438,7 +1432,7 @@ type ClientI interface {
 	services.DynamicAccess
 	services.DynamicAccessOracle
 	services.Restrictions
-	services.Apps
+	services.Applications
 	services.Databases
 	services.DatabaseServices
 	services.Kubernetes
@@ -1485,6 +1479,9 @@ type ClientI interface {
 
 	// IntegrationAWSOIDCClient returns a client to the Integration AWS OIDC gRPC service.
 	IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient
+
+	// IntegrationAWSRolesAnywhereClient returns a client to the Integration AWS OIDC gRPC service.
+	IntegrationAWSRolesAnywhereClient() integrationv1.AWSRolesAnywhereServiceClient
 
 	// UserTasksServiceClient returns an User Task service client.
 	UserTasksServiceClient() *usertask.Client

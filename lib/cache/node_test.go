@@ -52,7 +52,7 @@ func TestNodes(t *testing.T) {
 			cacheGet: func(ctx context.Context, name string) (types.Server, error) {
 				return p.cache.GetNode(ctx, apidefaults.Namespace, name)
 			},
-			cacheList: func(ctx context.Context) ([]types.Server, error) {
+			cacheList: func(ctx context.Context, pageSize int) ([]types.Server, error) {
 				return p.cache.GetNodes(ctx, apidefaults.Namespace)
 			},
 			update: withKeepalive(p.presenceS.UpsertNode),
@@ -101,9 +101,10 @@ func TestNodes(t *testing.T) {
 			cacheGet: func(ctx context.Context, name string) (types.Server, error) {
 				return p.cache.GetNode(ctx, apidefaults.Namespace, name)
 			},
-			cacheList: func(ctx context.Context) ([]types.Server, error) {
+			cacheList: func(ctx context.Context, pageSize int) ([]types.Server, error) {
 				req := proto.ListResourcesRequest{
 					ResourceType: types.KindNode,
+					Limit:        int32(pageSize),
 				}
 
 				var out []types.Server

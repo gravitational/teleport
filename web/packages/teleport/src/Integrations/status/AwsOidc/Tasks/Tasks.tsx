@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState } from 'react';
-import { useHistory } from 'react-router';
+import { useEffect, useMemo, useState } from 'react';
+import { useHistory, useLocation } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
 import { Flex, Indicator } from 'design';
@@ -38,7 +38,8 @@ import { integrationService, UserTask } from 'teleport/services/integrations';
 export function Tasks() {
   const theme = useTheme();
   const history = useHistory();
-  const searchParams = new URLSearchParams(history.location.search);
+  const { search } = useLocation();
+  const searchParams = useMemo(() => new URLSearchParams(search), [search]);
   const [notification, setNotification] = useState<NotificationItem>();
 
   const { integrationAttempt } = useAwsOidcStatus();

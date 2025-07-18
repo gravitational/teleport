@@ -41,9 +41,9 @@ Format `extra_fields` defines additional fields which must be added to the log o
 On systemd-based distributions you can watch the log output by running the following command:
 
 ```code
-$ teleport install systemd -o /etc/systemd/system/teleport.service
-$ systemctl enable teleport
-$ journalctl -fu teleport
+$ sudo teleport install systemd -o /etc/systemd/system/teleport.service
+$ sudo systemctl enable teleport
+$ sudo journalctl -fu teleport
 ```
 
 ## Log rotation support

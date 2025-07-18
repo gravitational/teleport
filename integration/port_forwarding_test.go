@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
@@ -171,7 +171,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 				NodeName:    Host,
 				Priv:        privateKey,
 				Pub:         publicKey,
-				Logger:      utils.NewSlogLoggerForTests(),
+				Logger:      logtest.NewLogger(),
 			})
 
 			for _, login := range logins {
@@ -197,7 +197,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 				NodeName:    Host,
 				Priv:        privateKey,
 				Pub:         publicKey,
-				Logger:      utils.NewSlogLoggerForTests(),
+				Logger:      logtest.NewLogger(),
 			})
 
 			// Create node config.

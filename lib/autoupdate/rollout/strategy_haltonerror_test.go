@@ -30,7 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func Test_canStartHaltOnError(t *testing.T) {
@@ -135,7 +135,7 @@ func Test_canStartHaltOnError(t *testing.T) {
 
 func Test_progressGroupsHaltOnError(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(testSunday)
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	fewSecondsAgo := clock.Now().Add(-3 * time.Second)
 	fewMinutesAgo := clock.Now().Add(-5 * time.Minute)
@@ -749,6 +749,77 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 			// So it's better to be more conservative and validate order never changes for
 			// both strategies.
 			require.Equal(t, tt.expectedState, tt.initialState)
+		})
+	}
+}
+
+func TestCountCatchAll(t *testing.T) {
+	countByGroup := map[string]int{
+		"dev":   10,
+		"stage": 25,
+		"prod":  33,
+	}
+	upToDateByGroup := map[string]int{
+		"dev":   5,
+		"stage": 12,
+		"prod":  1,
+	}
+
+	tests := []struct {
+		name             string
+		rolloutStatus    *autoupdate.AutoUpdateAgentRolloutStatus
+		expectedCount    int
+		expectedUpToDate int
+	}{
+		{
+			name: "all group hit",
+			rolloutStatus: &autoupdate.AutoUpdateAgentRolloutStatus{
+				Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+					{Name: "dev"},
+					{Name: "stage"},
+					{Name: "prod"},
+				},
+			},
+			expectedCount:    countByGroup["prod"],
+			expectedUpToDate: upToDateByGroup["prod"],
+		},
+		{
+			name: "one group miss",
+			rolloutStatus: &autoupdate.AutoUpdateAgentRolloutStatus{
+				Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+					{Name: "dev"},
+					{Name: "prod"},
+				},
+			},
+			expectedCount:    countByGroup["stage"] + countByGroup["prod"],
+			expectedUpToDate: upToDateByGroup["stage"] + upToDateByGroup["prod"],
+		},
+		{
+			name: "only catch-all group hit",
+			rolloutStatus: &autoupdate.AutoUpdateAgentRolloutStatus{
+				Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+					{Name: "prod"},
+				},
+			},
+			expectedCount:    countByGroup["dev"] + countByGroup["stage"] + countByGroup["prod"],
+			expectedUpToDate: upToDateByGroup["dev"] + upToDateByGroup["stage"] + upToDateByGroup["prod"],
+		},
+		{
+			name: "no common group",
+			rolloutStatus: &autoupdate.AutoUpdateAgentRolloutStatus{
+				Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+					{Name: "foobar"},
+				},
+			},
+			expectedCount:    countByGroup["dev"] + countByGroup["stage"] + countByGroup["prod"],
+			expectedUpToDate: upToDateByGroup["dev"] + upToDateByGroup["stage"] + upToDateByGroup["prod"],
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			count, upToDate := countCatchAll(tt.rolloutStatus, countByGroup, upToDateByGroup)
+			require.Equal(t, tt.expectedCount, count)
+			require.Equal(t, tt.expectedUpToDate, upToDate)
 		})
 	}
 }
