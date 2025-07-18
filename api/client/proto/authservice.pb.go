@@ -15047,10 +15047,11 @@ type ListProvisionTokensRequest struct {
 	// If the previous response had NextKey set then this should be
 	// set to its value. Otherwise leave empty.
 	StartKey string `protobuf:"bytes,2,opt,name=StartKey,proto3" json:"StartKey,omitempty"`
-	// FilterRoles allows filtering for tokens with the provided roles.
+	// FilterRoles allows filtering for tokens with the provided roles. Tokens
+	// with ANY of the provided roles are returned.
 	FilterRoles []string `protobuf:"bytes,3,rep,name=FilterRoles,proto3" json:"FilterRoles,omitempty"`
 	// FilterBotName allows filtering for tokens associated with the
-	// named bot. This is a no-op unless FilterRole is 'Bot'.
+	// named bot. In addition, only items with a role of Bot are returned.
 	FilterBotName        string   `protobuf:"bytes,4,opt,name=FilterBotName,proto3" json:"FilterBotName,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
