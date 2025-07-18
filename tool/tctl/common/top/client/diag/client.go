@@ -14,42 +14,58 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package http
+package diag
 
 import (
 	"context"
+	"net/http"
 	"net/url"
 
-	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 type Client struct {
-	clt *roundtrip.Client
+	endpoint string
+	clt      *http.Client
 }
 
 func NewClient(addr string) (*Client, error) {
-	clt, err := roundtrip.NewClient(addr, "")
+	clt, err := defaults.HTTPClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	u, err := url.Parse(addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	u.Path = "metrics"
+
 	return &Client{
-		clt: clt,
+		endpoint: u.String(),
+		clt:      clt,
 	}, nil
 }
 
 func (c *Client) GetMetrics(ctx context.Context) (map[string]*dto.MetricFamily, error) {
-
-	re, err := c.clt.Get(ctx, c.clt.Endpoint("metrics"), url.Values{})
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.endpoint, http.NoBody)
 	if err != nil {
-		return nil, trace.Wrap(trace.ConvertSystemError(err))
+		return nil, trace.Wrap(err)
 	}
 
+	resp, err := c.clt.Do(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
 	var parser expfmt.TextParser
-	metrics, err := parser.TextToMetricFamilies(re.Reader())
+	metrics, err := parser.TextToMetricFamilies(resp.Body)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -18,19 +18,18 @@ package top
 
 import (
 	"context"
-	"errors"
-	"net/url"
-	"path/filepath"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravitational/trace"
+	dto "github.com/prometheus/client_model/go"
 
+	"github.com/gravitational/teleport/lib/client/debug"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
-	"github.com/gravitational/teleport/tool/tctl/common/top/client"
+	"github.com/gravitational/teleport/tool/tctl/common/top/client/diag"
 )
 
 // Command is a debug command that consumes the
@@ -43,7 +42,7 @@ type Command struct {
 	refreshPeriod time.Duration
 }
 
-const fallbackHTTPAddr = "http://127.0.0.1:3000"
+const defaultDiagAddr = "http://127.0.0.1:3000"
 
 // Initialize sets up the "tctl top" command.
 func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
@@ -53,41 +52,35 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	c.top.Arg("refresh", "Refresh period").Default("5s").DurationVar(&c.refreshPeriod)
 }
 
-func (c *Command) newDiagClient(ctx context.Context) (string, client.MetricCient, error) {
+type MetricsClient interface {
+	GetMetrics(ctx context.Context) (map[string]*dto.MetricFamily, error)
+}
+
+func (c *Command) newMetricsClient(ctx context.Context) (string, MetricsClient, error) {
 	if c.diagURL != "" {
-		clt, err := client.NewMetricCient(c.diagURL)
-		return c.diagURL, clt, err
+		clt, err := diag.NewClient(c.diagURL)
+		return c.diagURL, clt, trace.Wrap(err)
 	}
 
-	sockURL := url.URL{
-		Scheme: "unix",
-		Path:   filepath.Join(c.config.DataDir, "debug.sock"),
+	debugClient := debug.NewClient(c.config.DataDir)
+	_, debugErr := debugClient.GetMetrics(ctx)
+	if debugErr == nil {
+		return c.config.DataDir, debugClient, nil
 	}
 
-	var errs []error
-
-	sockClient, err := client.NewMetricCient(sockURL.String())
+	diagClient, err := diag.NewClient(defaultDiagAddr)
 	if err != nil {
-		errs = append(errs, trace.Wrap(err, "failed instantiate local debug client"))
-	}
-	if _, err = sockClient.GetMetrics(ctx); err != nil {
-		errs = append(errs, trace.Wrap(err, "failed connect to local debug service, is Teleport running?"))
-	} else {
-		return sockURL.String(), sockClient, nil
+		// replace with better error below
+		return "", nil, trace.NewAggregate(trace.Wrap(err, "creating diag addr client"), trace.Wrap(debugErr, "creating debug client"))
 	}
 
-	fallbackClient, err := client.NewMetricCient(fallbackHTTPAddr)
-	if err != nil {
-		errs = append(errs, trace.Wrap(err, "failed instantiate http metric client"))
+	_, err = diagClient.GetMetrics(ctx)
+	if err == nil {
+		return defaultDiagAddr, diagClient, nil
 	}
 
-	if _, err = fallbackClient.GetMetrics(ctx); err != nil {
-		errs = append(errs, trace.Wrap(err, "failed connect to http metric service, restart Teleport with --diag-addr"))
-	} else {
-		return fallbackHTTPAddr, fallbackClient, nil
-	}
-
-	return "", nil, errors.Join(errs...)
+	// replace with better error below
+	return "", nil, trace.NewAggregate(trace.Wrap(err, "creating diag addr client"), trace.Wrap(debugErr, "creating debug client"))
 }
 
 // TryRun attempts to run subcommands.
@@ -96,13 +89,13 @@ func (c *Command) TryRun(ctx context.Context, cmd string, _ commonclient.InitFun
 		return false, nil
 	}
 
-	addr, diagClient, err := c.newDiagClient(ctx)
+	addr, metricsClient, err := c.newMetricsClient(ctx)
 	if err != nil {
 		return true, trace.Wrap(err)
 	}
 
 	p := tea.NewProgram(
-		newTopModel(c.refreshPeriod, diagClient, addr),
+		newTopModel(c.refreshPeriod, metricsClient, addr),
 		tea.WithAltScreen(),
 		tea.WithContext(ctx),
 	)
