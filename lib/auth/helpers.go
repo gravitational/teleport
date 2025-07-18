@@ -554,6 +554,7 @@ func InitTestAuthCache(p TestAuthCacheParams) error {
 		PluginStaticCredentials: p.AuthServer.Services.PluginStaticCredentials,
 		GitServers:              p.AuthServer.Services.GitServers,
 		BotInstance:             p.AuthServer.Services.BotInstance,
+		Plugin:                  p.AuthServer.Services.Plugins,
 	})
 	if err != nil {
 		return trace.Wrap(err)
