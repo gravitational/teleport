@@ -21,7 +21,9 @@ package version
 import (
 	"context"
 	"fmt"
-	"strings"
+
+	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 )
@@ -29,30 +31,38 @@ import (
 // StaticGetter is a fake version.Getter that return a static answer. This is used
 // for testing purposes.
 type StaticGetter struct {
-	version string
+	version *semver.Version
 	err     error
 }
 
 // GetVersion returns the statically defined version.
-func (v StaticGetter) GetVersion(_ context.Context) (string, error) {
+func (v StaticGetter) GetVersion(_ context.Context) (*semver.Version, error) {
 	return v.version, v.err
 }
 
 // NewStaticGetter creates a StaticGetter
-func NewStaticGetter(version string, err error) Getter {
+func NewStaticGetter(version string, err error) (Getter, error) {
 	if version == constants.NoVersion {
 		return StaticGetter{
-			version: "",
+			version: nil,
 			err:     &NoNewVersionError{Message: fmt.Sprintf("target version set to '%s'", constants.NoVersion)},
-		}
+		}, nil
 	}
 
-	semVersion := version
-	if semVersion != "" && !strings.HasPrefix(semVersion, "v") {
-		semVersion = "v" + version
+	if version == "" {
+		// If there's no version set but a non-nil error, we are mocking an error and that's OK
+		if err != nil {
+			return StaticGetter{nil, err}, nil
+		}
+		return nil, trace.BadParameter("cannot build a static version getter from an empty version")
+	}
+
+	semVersion, err := EnsureSemver(version)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return StaticGetter{
 		version: semVersion,
 		err:     err,
-	}
+	}, nil
 }

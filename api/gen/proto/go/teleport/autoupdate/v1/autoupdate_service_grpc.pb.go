@@ -49,6 +49,15 @@ const (
 	AutoUpdateService_UpdateAutoUpdateAgentRollout_FullMethodName = "/teleport.autoupdate.v1.AutoUpdateService/UpdateAutoUpdateAgentRollout"
 	AutoUpdateService_UpsertAutoUpdateAgentRollout_FullMethodName = "/teleport.autoupdate.v1.AutoUpdateService/UpsertAutoUpdateAgentRollout"
 	AutoUpdateService_DeleteAutoUpdateAgentRollout_FullMethodName = "/teleport.autoupdate.v1.AutoUpdateService/DeleteAutoUpdateAgentRollout"
+	AutoUpdateService_TriggerAutoUpdateAgentGroup_FullMethodName  = "/teleport.autoupdate.v1.AutoUpdateService/TriggerAutoUpdateAgentGroup"
+	AutoUpdateService_ForceAutoUpdateAgentGroup_FullMethodName    = "/teleport.autoupdate.v1.AutoUpdateService/ForceAutoUpdateAgentGroup"
+	AutoUpdateService_RollbackAutoUpdateAgentGroup_FullMethodName = "/teleport.autoupdate.v1.AutoUpdateService/RollbackAutoUpdateAgentGroup"
+	AutoUpdateService_ListAutoUpdateAgentReports_FullMethodName   = "/teleport.autoupdate.v1.AutoUpdateService/ListAutoUpdateAgentReports"
+	AutoUpdateService_GetAutoUpdateAgentReport_FullMethodName     = "/teleport.autoupdate.v1.AutoUpdateService/GetAutoUpdateAgentReport"
+	AutoUpdateService_CreateAutoUpdateAgentReport_FullMethodName  = "/teleport.autoupdate.v1.AutoUpdateService/CreateAutoUpdateAgentReport"
+	AutoUpdateService_UpdateAutoUpdateAgentReport_FullMethodName  = "/teleport.autoupdate.v1.AutoUpdateService/UpdateAutoUpdateAgentReport"
+	AutoUpdateService_UpsertAutoUpdateAgentReport_FullMethodName  = "/teleport.autoupdate.v1.AutoUpdateService/UpsertAutoUpdateAgentReport"
+	AutoUpdateService_DeleteAutoUpdateAgentReport_FullMethodName  = "/teleport.autoupdate.v1.AutoUpdateService/DeleteAutoUpdateAgentReport"
 )
 
 // AutoUpdateServiceClient is the client API for AutoUpdateService service.
@@ -87,6 +96,26 @@ type AutoUpdateServiceClient interface {
 	UpsertAutoUpdateAgentRollout(ctx context.Context, in *UpsertAutoUpdateAgentRolloutRequest, opts ...grpc.CallOption) (*AutoUpdateAgentRollout, error)
 	// DeleteAutoUpdateAgentRollout hard deletes the specified AutoUpdateAgentRolloutRequest.
 	DeleteAutoUpdateAgentRollout(ctx context.Context, in *DeleteAutoUpdateAgentRolloutRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// TriggerAutoUpdateAgentGroup changes the state of an agent group from `unstarted` to `active`.
+	// This RPC will be extended later to switch the group state to `canary` by default,
+	// and `active` if a flag is set.
+	TriggerAutoUpdateAgentGroup(ctx context.Context, in *TriggerAutoUpdateAgentGroupRequest, opts ...grpc.CallOption) (*AutoUpdateAgentRollout, error)
+	// ForceAutoUpdateAgentGroup changes the state of an agent group from `unstarted`, `canary`, or `active` to the `done` state.
+	ForceAutoUpdateAgentGroup(ctx context.Context, in *ForceAutoUpdateAgentGroupRequest, opts ...grpc.CallOption) (*AutoUpdateAgentRollout, error)
+	// RollbackAutoUpdateAgentGroup changes the state of an agent group to `rolledback`.
+	RollbackAutoUpdateAgentGroup(ctx context.Context, in *RollbackAutoUpdateAgentGroupRequest, opts ...grpc.CallOption) (*AutoUpdateAgentRollout, error)
+	// ListAutoUpdateAgentReports returns a paginated list of AutoUpdateAgentReport resources.
+	ListAutoUpdateAgentReports(ctx context.Context, in *ListAutoUpdateAgentReportsRequest, opts ...grpc.CallOption) (*ListAutoUpdateAgentReportsResponse, error)
+	// GetAutoUpdateAgentReport returns the specified AutoUpdateAgentReport resource.
+	GetAutoUpdateAgentReport(ctx context.Context, in *GetAutoUpdateAgentReportRequest, opts ...grpc.CallOption) (*AutoUpdateAgentReport, error)
+	// CreateAutoUpdateAgentReport creates a new AutoUpdateAgentReport resource.
+	CreateAutoUpdateAgentReport(ctx context.Context, in *CreateAutoUpdateAgentReportRequest, opts ...grpc.CallOption) (*AutoUpdateAgentReport, error)
+	// UpdateAutoUpdateAgentReport updates an existing AutoUpdateAgentReport resource.
+	UpdateAutoUpdateAgentReport(ctx context.Context, in *UpdateAutoUpdateAgentReportRequest, opts ...grpc.CallOption) (*AutoUpdateAgentReport, error)
+	// UpsertAutoUpdateAgentReport creates or updates a AutoUpdateAgentReport resource.
+	UpsertAutoUpdateAgentReport(ctx context.Context, in *UpsertAutoUpdateAgentReportRequest, opts ...grpc.CallOption) (*AutoUpdateAgentReport, error)
+	// DeleteAutoUpdateAgentReport removes the specified AutoUpdateAgentReport resource.
+	DeleteAutoUpdateAgentReport(ctx context.Context, in *DeleteAutoUpdateAgentReportRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type autoUpdateServiceClient struct {
@@ -247,6 +276,96 @@ func (c *autoUpdateServiceClient) DeleteAutoUpdateAgentRollout(ctx context.Conte
 	return out, nil
 }
 
+func (c *autoUpdateServiceClient) TriggerAutoUpdateAgentGroup(ctx context.Context, in *TriggerAutoUpdateAgentGroupRequest, opts ...grpc.CallOption) (*AutoUpdateAgentRollout, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AutoUpdateAgentRollout)
+	err := c.cc.Invoke(ctx, AutoUpdateService_TriggerAutoUpdateAgentGroup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *autoUpdateServiceClient) ForceAutoUpdateAgentGroup(ctx context.Context, in *ForceAutoUpdateAgentGroupRequest, opts ...grpc.CallOption) (*AutoUpdateAgentRollout, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AutoUpdateAgentRollout)
+	err := c.cc.Invoke(ctx, AutoUpdateService_ForceAutoUpdateAgentGroup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *autoUpdateServiceClient) RollbackAutoUpdateAgentGroup(ctx context.Context, in *RollbackAutoUpdateAgentGroupRequest, opts ...grpc.CallOption) (*AutoUpdateAgentRollout, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AutoUpdateAgentRollout)
+	err := c.cc.Invoke(ctx, AutoUpdateService_RollbackAutoUpdateAgentGroup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *autoUpdateServiceClient) ListAutoUpdateAgentReports(ctx context.Context, in *ListAutoUpdateAgentReportsRequest, opts ...grpc.CallOption) (*ListAutoUpdateAgentReportsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAutoUpdateAgentReportsResponse)
+	err := c.cc.Invoke(ctx, AutoUpdateService_ListAutoUpdateAgentReports_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *autoUpdateServiceClient) GetAutoUpdateAgentReport(ctx context.Context, in *GetAutoUpdateAgentReportRequest, opts ...grpc.CallOption) (*AutoUpdateAgentReport, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AutoUpdateAgentReport)
+	err := c.cc.Invoke(ctx, AutoUpdateService_GetAutoUpdateAgentReport_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *autoUpdateServiceClient) CreateAutoUpdateAgentReport(ctx context.Context, in *CreateAutoUpdateAgentReportRequest, opts ...grpc.CallOption) (*AutoUpdateAgentReport, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AutoUpdateAgentReport)
+	err := c.cc.Invoke(ctx, AutoUpdateService_CreateAutoUpdateAgentReport_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *autoUpdateServiceClient) UpdateAutoUpdateAgentReport(ctx context.Context, in *UpdateAutoUpdateAgentReportRequest, opts ...grpc.CallOption) (*AutoUpdateAgentReport, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AutoUpdateAgentReport)
+	err := c.cc.Invoke(ctx, AutoUpdateService_UpdateAutoUpdateAgentReport_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *autoUpdateServiceClient) UpsertAutoUpdateAgentReport(ctx context.Context, in *UpsertAutoUpdateAgentReportRequest, opts ...grpc.CallOption) (*AutoUpdateAgentReport, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AutoUpdateAgentReport)
+	err := c.cc.Invoke(ctx, AutoUpdateService_UpsertAutoUpdateAgentReport_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *autoUpdateServiceClient) DeleteAutoUpdateAgentReport(ctx context.Context, in *DeleteAutoUpdateAgentReportRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, AutoUpdateService_DeleteAutoUpdateAgentReport_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AutoUpdateServiceServer is the server API for AutoUpdateService service.
 // All implementations must embed UnimplementedAutoUpdateServiceServer
 // for forward compatibility.
@@ -283,6 +402,26 @@ type AutoUpdateServiceServer interface {
 	UpsertAutoUpdateAgentRollout(context.Context, *UpsertAutoUpdateAgentRolloutRequest) (*AutoUpdateAgentRollout, error)
 	// DeleteAutoUpdateAgentRollout hard deletes the specified AutoUpdateAgentRolloutRequest.
 	DeleteAutoUpdateAgentRollout(context.Context, *DeleteAutoUpdateAgentRolloutRequest) (*emptypb.Empty, error)
+	// TriggerAutoUpdateAgentGroup changes the state of an agent group from `unstarted` to `active`.
+	// This RPC will be extended later to switch the group state to `canary` by default,
+	// and `active` if a flag is set.
+	TriggerAutoUpdateAgentGroup(context.Context, *TriggerAutoUpdateAgentGroupRequest) (*AutoUpdateAgentRollout, error)
+	// ForceAutoUpdateAgentGroup changes the state of an agent group from `unstarted`, `canary`, or `active` to the `done` state.
+	ForceAutoUpdateAgentGroup(context.Context, *ForceAutoUpdateAgentGroupRequest) (*AutoUpdateAgentRollout, error)
+	// RollbackAutoUpdateAgentGroup changes the state of an agent group to `rolledback`.
+	RollbackAutoUpdateAgentGroup(context.Context, *RollbackAutoUpdateAgentGroupRequest) (*AutoUpdateAgentRollout, error)
+	// ListAutoUpdateAgentReports returns a paginated list of AutoUpdateAgentReport resources.
+	ListAutoUpdateAgentReports(context.Context, *ListAutoUpdateAgentReportsRequest) (*ListAutoUpdateAgentReportsResponse, error)
+	// GetAutoUpdateAgentReport returns the specified AutoUpdateAgentReport resource.
+	GetAutoUpdateAgentReport(context.Context, *GetAutoUpdateAgentReportRequest) (*AutoUpdateAgentReport, error)
+	// CreateAutoUpdateAgentReport creates a new AutoUpdateAgentReport resource.
+	CreateAutoUpdateAgentReport(context.Context, *CreateAutoUpdateAgentReportRequest) (*AutoUpdateAgentReport, error)
+	// UpdateAutoUpdateAgentReport updates an existing AutoUpdateAgentReport resource.
+	UpdateAutoUpdateAgentReport(context.Context, *UpdateAutoUpdateAgentReportRequest) (*AutoUpdateAgentReport, error)
+	// UpsertAutoUpdateAgentReport creates or updates a AutoUpdateAgentReport resource.
+	UpsertAutoUpdateAgentReport(context.Context, *UpsertAutoUpdateAgentReportRequest) (*AutoUpdateAgentReport, error)
+	// DeleteAutoUpdateAgentReport removes the specified AutoUpdateAgentReport resource.
+	DeleteAutoUpdateAgentReport(context.Context, *DeleteAutoUpdateAgentReportRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedAutoUpdateServiceServer()
 }
 
@@ -337,6 +476,33 @@ func (UnimplementedAutoUpdateServiceServer) UpsertAutoUpdateAgentRollout(context
 }
 func (UnimplementedAutoUpdateServiceServer) DeleteAutoUpdateAgentRollout(context.Context, *DeleteAutoUpdateAgentRolloutRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAutoUpdateAgentRollout not implemented")
+}
+func (UnimplementedAutoUpdateServiceServer) TriggerAutoUpdateAgentGroup(context.Context, *TriggerAutoUpdateAgentGroupRequest) (*AutoUpdateAgentRollout, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TriggerAutoUpdateAgentGroup not implemented")
+}
+func (UnimplementedAutoUpdateServiceServer) ForceAutoUpdateAgentGroup(context.Context, *ForceAutoUpdateAgentGroupRequest) (*AutoUpdateAgentRollout, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ForceAutoUpdateAgentGroup not implemented")
+}
+func (UnimplementedAutoUpdateServiceServer) RollbackAutoUpdateAgentGroup(context.Context, *RollbackAutoUpdateAgentGroupRequest) (*AutoUpdateAgentRollout, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RollbackAutoUpdateAgentGroup not implemented")
+}
+func (UnimplementedAutoUpdateServiceServer) ListAutoUpdateAgentReports(context.Context, *ListAutoUpdateAgentReportsRequest) (*ListAutoUpdateAgentReportsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListAutoUpdateAgentReports not implemented")
+}
+func (UnimplementedAutoUpdateServiceServer) GetAutoUpdateAgentReport(context.Context, *GetAutoUpdateAgentReportRequest) (*AutoUpdateAgentReport, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAutoUpdateAgentReport not implemented")
+}
+func (UnimplementedAutoUpdateServiceServer) CreateAutoUpdateAgentReport(context.Context, *CreateAutoUpdateAgentReportRequest) (*AutoUpdateAgentReport, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateAutoUpdateAgentReport not implemented")
+}
+func (UnimplementedAutoUpdateServiceServer) UpdateAutoUpdateAgentReport(context.Context, *UpdateAutoUpdateAgentReportRequest) (*AutoUpdateAgentReport, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateAutoUpdateAgentReport not implemented")
+}
+func (UnimplementedAutoUpdateServiceServer) UpsertAutoUpdateAgentReport(context.Context, *UpsertAutoUpdateAgentReportRequest) (*AutoUpdateAgentReport, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertAutoUpdateAgentReport not implemented")
+}
+func (UnimplementedAutoUpdateServiceServer) DeleteAutoUpdateAgentReport(context.Context, *DeleteAutoUpdateAgentReportRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteAutoUpdateAgentReport not implemented")
 }
 func (UnimplementedAutoUpdateServiceServer) mustEmbedUnimplementedAutoUpdateServiceServer() {}
 func (UnimplementedAutoUpdateServiceServer) testEmbeddedByValue()                           {}
@@ -629,6 +795,168 @@ func _AutoUpdateService_DeleteAutoUpdateAgentRollout_Handler(srv interface{}, ct
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AutoUpdateService_TriggerAutoUpdateAgentGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TriggerAutoUpdateAgentGroupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutoUpdateServiceServer).TriggerAutoUpdateAgentGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutoUpdateService_TriggerAutoUpdateAgentGroup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutoUpdateServiceServer).TriggerAutoUpdateAgentGroup(ctx, req.(*TriggerAutoUpdateAgentGroupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AutoUpdateService_ForceAutoUpdateAgentGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ForceAutoUpdateAgentGroupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutoUpdateServiceServer).ForceAutoUpdateAgentGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutoUpdateService_ForceAutoUpdateAgentGroup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutoUpdateServiceServer).ForceAutoUpdateAgentGroup(ctx, req.(*ForceAutoUpdateAgentGroupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AutoUpdateService_RollbackAutoUpdateAgentGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RollbackAutoUpdateAgentGroupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutoUpdateServiceServer).RollbackAutoUpdateAgentGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutoUpdateService_RollbackAutoUpdateAgentGroup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutoUpdateServiceServer).RollbackAutoUpdateAgentGroup(ctx, req.(*RollbackAutoUpdateAgentGroupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AutoUpdateService_ListAutoUpdateAgentReports_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAutoUpdateAgentReportsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutoUpdateServiceServer).ListAutoUpdateAgentReports(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutoUpdateService_ListAutoUpdateAgentReports_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutoUpdateServiceServer).ListAutoUpdateAgentReports(ctx, req.(*ListAutoUpdateAgentReportsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AutoUpdateService_GetAutoUpdateAgentReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAutoUpdateAgentReportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutoUpdateServiceServer).GetAutoUpdateAgentReport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutoUpdateService_GetAutoUpdateAgentReport_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutoUpdateServiceServer).GetAutoUpdateAgentReport(ctx, req.(*GetAutoUpdateAgentReportRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AutoUpdateService_CreateAutoUpdateAgentReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAutoUpdateAgentReportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutoUpdateServiceServer).CreateAutoUpdateAgentReport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutoUpdateService_CreateAutoUpdateAgentReport_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutoUpdateServiceServer).CreateAutoUpdateAgentReport(ctx, req.(*CreateAutoUpdateAgentReportRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AutoUpdateService_UpdateAutoUpdateAgentReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAutoUpdateAgentReportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutoUpdateServiceServer).UpdateAutoUpdateAgentReport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutoUpdateService_UpdateAutoUpdateAgentReport_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutoUpdateServiceServer).UpdateAutoUpdateAgentReport(ctx, req.(*UpdateAutoUpdateAgentReportRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AutoUpdateService_UpsertAutoUpdateAgentReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertAutoUpdateAgentReportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutoUpdateServiceServer).UpsertAutoUpdateAgentReport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutoUpdateService_UpsertAutoUpdateAgentReport_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutoUpdateServiceServer).UpsertAutoUpdateAgentReport(ctx, req.(*UpsertAutoUpdateAgentReportRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AutoUpdateService_DeleteAutoUpdateAgentReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteAutoUpdateAgentReportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutoUpdateServiceServer).DeleteAutoUpdateAgentReport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutoUpdateService_DeleteAutoUpdateAgentReport_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutoUpdateServiceServer).DeleteAutoUpdateAgentReport(ctx, req.(*DeleteAutoUpdateAgentReportRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AutoUpdateService_ServiceDesc is the grpc.ServiceDesc for AutoUpdateService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -695,6 +1023,42 @@ var AutoUpdateService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteAutoUpdateAgentRollout",
 			Handler:    _AutoUpdateService_DeleteAutoUpdateAgentRollout_Handler,
+		},
+		{
+			MethodName: "TriggerAutoUpdateAgentGroup",
+			Handler:    _AutoUpdateService_TriggerAutoUpdateAgentGroup_Handler,
+		},
+		{
+			MethodName: "ForceAutoUpdateAgentGroup",
+			Handler:    _AutoUpdateService_ForceAutoUpdateAgentGroup_Handler,
+		},
+		{
+			MethodName: "RollbackAutoUpdateAgentGroup",
+			Handler:    _AutoUpdateService_RollbackAutoUpdateAgentGroup_Handler,
+		},
+		{
+			MethodName: "ListAutoUpdateAgentReports",
+			Handler:    _AutoUpdateService_ListAutoUpdateAgentReports_Handler,
+		},
+		{
+			MethodName: "GetAutoUpdateAgentReport",
+			Handler:    _AutoUpdateService_GetAutoUpdateAgentReport_Handler,
+		},
+		{
+			MethodName: "CreateAutoUpdateAgentReport",
+			Handler:    _AutoUpdateService_CreateAutoUpdateAgentReport_Handler,
+		},
+		{
+			MethodName: "UpdateAutoUpdateAgentReport",
+			Handler:    _AutoUpdateService_UpdateAutoUpdateAgentReport_Handler,
+		},
+		{
+			MethodName: "UpsertAutoUpdateAgentReport",
+			Handler:    _AutoUpdateService_UpsertAutoUpdateAgentReport_Handler,
+		},
+		{
+			MethodName: "DeleteAutoUpdateAgentReport",
+			Handler:    _AutoUpdateService_DeleteAutoUpdateAgentReport_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -28,7 +28,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/mod/semver"
+	"golang.org/x/mod/semver" //nolint:depguard // Usage precedes the x/mod/semver rule.
 
 	"github.com/gravitational/teleport"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"

@@ -3961,6 +3961,33 @@ export const events = [
     user: 'bob',
     user_kind: 1,
   },
+  {
+    ei: 0,
+    event: 'auto_update_agent_rollout.trigger',
+    code: 'AUAR001I',
+    time: '0001-01-01T00:00:00Z',
+    user: 'system',
+    groups: ['dev', 'prod'],
+    success: true,
+  },
+  {
+    ei: 0,
+    event: 'auto_update_agent_rollout.force_done',
+    code: 'AUAR002I',
+    time: '0001-01-01T00:00:00Z',
+    user: 'system',
+    groups: ['prod'],
+    success: true,
+  },
+  {
+    ei: 0,
+    event: 'auto_update_agent_rollout.rollback',
+    code: 'AUAR003I',
+    time: '0001-01-01T00:00:00Z',
+    user: 'system',
+    groups: ['prod'],
+    success: true,
+  },
 ].map(makeEvent);
 
 // Do not add new events to this array, add it to `events` list.
