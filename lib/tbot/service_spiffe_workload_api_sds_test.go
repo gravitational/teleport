@@ -48,6 +48,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -113,7 +114,7 @@ func TestSDS_FetchSecrets(t *testing.T) {
 		},
 	}
 	botConfig := &config.BotConfig{
-		CredentialLifetime: config.CredentialLifetime{
+		CredentialLifetime: bot.CredentialLifetime{
 			RenewalInterval: time.Minute,
 		},
 	}

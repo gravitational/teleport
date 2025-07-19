@@ -23,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -57,7 +58,7 @@ func TestDatabaseCommand(t *testing.T) {
 				require.Equal(t, "baz", db.Database)
 				require.Equal(t, config.TLSDatabaseFormat, db.Format)
 
-				dir, ok := db.Destination.(*config.DestinationDirectory)
+				dir, ok := db.Destination.(*destination.Directory)
 				require.True(t, ok)
 				require.Equal(t, "/bar", dir.Path)
 			},
