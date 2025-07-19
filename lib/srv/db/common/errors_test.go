@@ -19,6 +19,7 @@
 package common
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/go-mysql-org/go-mysql/mysql"
@@ -47,4 +48,21 @@ func Test_isRDSMySQLIAMAuthError(t *testing.T) {
 	require.False(t, isRDSMySQLIAMAuthError(dbAccessError))
 	require.False(t, isRDSMySQLIAMAuthError(noDBError))
 	require.False(t, isRDSMySQLIAMAuthError(trace.AccessDenied("access denied")))
+}
+
+type someErr struct {
+	inner error
+}
+
+func (e *someErr) Error() string {
+	return "inner: " + e.inner.Error()
+}
+func (e *someErr) Unwrap() error {
+	return e.inner
+}
+
+func TestConvertErrorWrappedError(t *testing.T) {
+	nestedErr := &someErr{inner: trace.Wrap(fmt.Errorf("dummy error"))}
+	out := ConvertError(nestedErr)
+	require.ErrorContains(t, out, "dummy error")
 }
