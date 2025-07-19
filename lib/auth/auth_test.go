@@ -2588,9 +2588,14 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 			ClientMetadata: apievents.ClientMetadata{
 				UserAgent: "test-user-agent/1.0",
 			},
+			CertificateAuthority: &apievents.CertificateAuthority{
+				Type:   "user",
+				Domain: "test.localhost",
+			},
 		},
 		lastEvent.(*apievents.CertificateCreate),
 		cmpopts.IgnoreFields(apievents.Identity{}, "Logins", "Expires"),
+		cmpopts.IgnoreFields(apievents.CertificateAuthority{}, "SubjectKeyID"),
 	))
 }
 

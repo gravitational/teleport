@@ -1089,7 +1089,14 @@ message DatabaseCertRequest {
   Extensions CertificateExtensions = 6 [(gogoproto.jsontag) = "certificate_extensions"];
 
   // CRLEndpoint is a certificate revocation list distribution point. Required for Windows smartcard certs.
-  string CRLEndpoint = 7 [(gogoproto.jsontag) = "crl_endpoint"];
+  // DEPRECATED: use CRLDomain instead.
+  string CRLEndpoint = 7 [
+    (gogoproto.jsontag) = "crl_endpoint",
+    deprecated = true
+  ];
+
+  // CRLDomain is the Active Directory domain where CRLs are published.
+  string CRLDomain = 8 [(gogoproto.jsontag) = "crl_domain"];
 }
 
 // DatabaseCertResponse contains the signed certificate.
@@ -1682,9 +1689,12 @@ message WindowsDesktopCertRequest {
   // CSR is the request to sign in PEM format.
   bytes CSR = 1;
   // CRLEndpoint is the address of the CRL for this certificate.
-  string CRLEndpoint = 2;
+  // DEPRECATED: use CRLDomain instead.
+  string CRLEndpoint = 2 [deprecated = true];
   // TTL is the certificate validity period.
   int64 TTL = 3 [(gogoproto.casttype) = "Duration"];
+  // CRLDomain is the Active Directory domain where CRLs are published.
+  string CRLDomain = 4;
 }
 
 // WindowsDesktopCertResponse contains the signed Windows RDP certificate.

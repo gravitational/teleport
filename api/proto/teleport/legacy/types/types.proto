@@ -1224,6 +1224,8 @@ message TLSKeyPair {
   bytes Key = 2 [(gogoproto.jsontag) = "key,omitempty"];
   // KeyType is the type of the Key.
   PrivateKeyType KeyType = 3 [(gogoproto.jsontag) = "key_type,omitempty"];
+  // CRL is an empty DER-encoded revocation list.
+  bytes CRL = 4 [(gogoproto.jsontag) = "crl"];
 }
 
 // JWTKeyPair is a PEM encoded keypair used for signing JWT tokens.

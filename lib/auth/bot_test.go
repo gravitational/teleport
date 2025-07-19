@@ -498,10 +498,15 @@ func TestRegisterBotInstance(t *testing.T) {
 				BotName:          "test",
 				BotInstanceID:    ident.BotInstanceID,
 			},
+			CertificateAuthority: &events.CertificateAuthority{
+				Type:   "user",
+				Domain: "localhost",
+			},
 		},
 			cmpopts.IgnoreFields(events.Metadata{}, "Time"),
 			cmpopts.IgnoreFields(events.Identity{}, "Logins", "Expires"),
 			cmpopts.IgnoreFields(events.ClientMetadata{}, "UserAgent"),
+			cmpopts.IgnoreFields(events.CertificateAuthority{}, "SubjectKeyID"),
 			cmpopts.EquateEmpty(),
 		),
 	)
