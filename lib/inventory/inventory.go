@@ -139,7 +139,7 @@ func NewDownstreamHandle(fn DownstreamCreateFunc, hello HelloGetter, opts ...Dow
 	cache, err := utils.NewFnCache(utils.FnCacheConfig{
 		TTL: helloGetterCacheTTL,
 		// v18 and above use options.clock, but the clock option has not been backported to v17
-		Clock:       clockwork.NewRealClock(),
+		Clock:       options.clock,
 		Context:     ctx,
 		ReloadOnErr: true,
 	})

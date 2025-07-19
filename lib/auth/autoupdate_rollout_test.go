@@ -74,8 +74,8 @@ func TestSampleAgentsFromGroup(t *testing.T) {
 	for range testNodeCount {
 		updaterID := uuid.New()
 		stream := newFakeControlStream()
-		controller.RegisterControlStream(stream, &proto.UpstreamInventoryHello{
-			Services:         types.SystemRoles{types.RoleNode}.StringSlice(),
+		controller.RegisterControlStream(stream, proto.UpstreamInventoryHello{
+			Services:         types.SystemRoles{types.RoleNode},
 			Version:          "1.2.3",
 			ServerID:         uuid.NewString(),
 			ExternalUpgrader: types.UpgraderKindTeleportUpdate,
@@ -171,7 +171,7 @@ func TestLookupAgentInInventory(t *testing.T) {
 		hellos := make([]*proto.UpstreamInventoryHello, i+1)
 		for j := range i + 1 {
 			hello := &proto.UpstreamInventoryHello{
-				Services:         types.SystemRoles{types.RoleNode}.StringSlice(),
+				Services:         types.SystemRoles{types.RoleNode},
 				Version:          fmt.Sprintf("1.2.%d", j),
 				ServerID:         hostID,
 				ExternalUpgrader: types.UpgraderKindTeleportUpdate,
@@ -184,7 +184,7 @@ func TestLookupAgentInInventory(t *testing.T) {
 			hellos[j] = hello
 
 			stream := newFakeControlStream()
-			controller.RegisterControlStream(stream, hello)
+			controller.RegisterControlStream(stream, *hello)
 			t.Cleanup(stream.close)
 		}
 		hosts[hostID] = hellos
@@ -211,8 +211,8 @@ type fakeHandle struct {
 	id int
 }
 
-func (f *fakeHandle) Hello() *proto.UpstreamInventoryHello {
-	return &proto.UpstreamInventoryHello{
+func (f *fakeHandle) Hello() proto.UpstreamInventoryHello {
+	return proto.UpstreamInventoryHello{
 		Hostname: fmt.Sprintf("hostname-%d", f.id),
 	}
 }
