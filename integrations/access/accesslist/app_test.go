@@ -249,8 +249,16 @@ func TestAccessListReminders_NoneForNonReviewable(t *testing.T) {
 		accesslist.Static,
 	} {
 		t.Run(string(typ), func(t *testing.T) {
-			nonDynamicAccessList, err := accesslist.NewAccessList(header.Metadata{
-				Name: "test-non-dynamnic-access-list",
+			const testAccessListName = "test-non-reviewable-access-list"
+
+			// Clean up the AccessList. A single one has to be reused, otherwise:
+			// cluster has reached its limit for creating access lists, please contact
+			// the cluster administrator
+			err := as.DeleteAccessList(ctx, testAccessListName)
+			require.True(t, err == nil || trace.IsNotFound(err), "err = %s", err)
+
+			nonReviewableAccessList, err := accesslist.NewAccessList(header.Metadata{
+				Name: testAccessListName,
 			}, accesslist.Spec{
 				Type:   typ,
 				Title:  "test static access list",
@@ -262,7 +270,7 @@ func TestAccessListReminders_NoneForNonReviewable(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			accessLists := []*accesslist.AccessList{nonDynamicAccessList}
+			accessLists := []*accesslist.AccessList{nonReviewableAccessList}
 
 			// No notifications for today
 			advanceAndLookForRecipients(t, bot, as, clock, 0, accessLists)

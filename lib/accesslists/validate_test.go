@@ -99,7 +99,7 @@ func TestAccessListHierarchyCircularRefsCheck(t *testing.T) {
 		},
 	}
 
-	err = ValidateAccessListWithMembers(ctx, acl5, []*accesslist.AccessListMember{acl4m1}, accessListAndMembersGetter)
+	err = ValidateAccessListWithMembers(ctx, nil, acl5, []*accesslist.AccessListMember{acl4m1}, accessListAndMembersGetter)
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as an Owner of '%s' because '%s' is already included as a Member or Owner in '%s'", acl4.Spec.Title, acl5.Spec.Title, acl5.Spec.Title, acl4.Spec.Title))
 }
@@ -187,13 +187,13 @@ func TestAccessListValidateWithMembers(t *testing.T) {
 	}
 
 	// Should validate successfully, as acl-0 -> acl-10 is a valid hierarchy of depth 10.
-	err := ValidateAccessListWithMembers(ctx, rootAcl, []*accesslist.AccessListMember{}, accessListAndMembersGetter)
+	err := ValidateAccessListWithMembers(ctx, nil, rootAcl, []*accesslist.AccessListMember{}, accessListAndMembersGetter)
 	require.NoError(t, err)
-	err = ValidateAccessListWithMembers(ctx, nestedAcls[0], []*accesslist.AccessListMember{accessListAndMembersGetter.members[nestedAcls[0].GetName()][0]}, accessListAndMembersGetter)
+	err = ValidateAccessListWithMembers(ctx, nil, nestedAcls[0], []*accesslist.AccessListMember{accessListAndMembersGetter.members[nestedAcls[0].GetName()][0]}, accessListAndMembersGetter)
 	require.NoError(t, err)
 
 	// Calling `ValidateAccessListWithMembers`, with `rootAclm1`, should fail, as it would exceed the maximum nesting depth.
-	err = ValidateAccessListWithMembers(ctx, rootAcl, []*accesslist.AccessListMember{rootAclMember}, accessListAndMembersGetter)
+	err = ValidateAccessListWithMembers(ctx, nil, rootAcl, []*accesslist.AccessListMember{rootAclMember}, accessListAndMembersGetter)
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", nestedAcls[0].Spec.Title, rootAcl.Spec.Title, accesslist.MaxAllowedDepth))
 
@@ -243,13 +243,13 @@ func TestAccessListValidateWithMembers(t *testing.T) {
 	accessListAndMembersGetter.accessLists[nestedAcls2Last.GetName()] = nestedAcls2Last
 
 	// Should validate successfully when adding another list, as both hierarchies are valid.
-	err = ValidateAccessListWithMembers(ctx, nestedAcls1Last, []*accesslist.AccessListMember{newAccessListMember(t, nestedAcls1Last.GetName(), nestedAcls2Last.GetName(), accesslist.MembershipKindList, clock)}, accessListAndMembersGetter)
+	err = ValidateAccessListWithMembers(ctx, nil, nestedAcls1Last, []*accesslist.AccessListMember{newAccessListMember(t, nestedAcls1Last.GetName(), nestedAcls2Last.GetName(), accesslist.MembershipKindList, clock)}, accessListAndMembersGetter)
 	require.NoError(t, err)
-	err = ValidateAccessListWithMembers(ctx, nestedAcls2Last, []*accesslist.AccessListMember{newAccessListMember(t, nestedAcls2Last.GetName(), nestedAcls1Last.GetName(), accesslist.MembershipKindList, clock)}, accessListAndMembersGetter)
+	err = ValidateAccessListWithMembers(ctx, nil, nestedAcls2Last, []*accesslist.AccessListMember{newAccessListMember(t, nestedAcls2Last.GetName(), nestedAcls1Last.GetName(), accesslist.MembershipKindList, clock)}, accessListAndMembersGetter)
 	require.NoError(t, err)
 
 	// Now, we'll try to connect the two hierarchies, which should fail.
-	err = ValidateAccessListWithMembers(ctx, nestedAcls1Last, []*accesslist.AccessListMember{newAccessListMember(t, nestedAcls1Last.GetName(), nestedAcls2[0].GetName(), accesslist.MembershipKindList, clock)}, accessListAndMembersGetter)
+	err = ValidateAccessListWithMembers(ctx, nil, nestedAcls1Last, []*accesslist.AccessListMember{newAccessListMember(t, nestedAcls1Last.GetName(), nestedAcls2[0].GetName(), accesslist.MembershipKindList, clock)}, accessListAndMembersGetter)
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", nestedAcls2[0].Spec.Title, nestedAcls1[len(nestedAcls1)-1].Spec.Title, accesslist.MaxAllowedDepth))
 }
