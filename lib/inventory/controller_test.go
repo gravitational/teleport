@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -1268,7 +1269,7 @@ func TestGoodbye(t *testing.T) {
 			ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			// Wait to hit the handle linear retry, then jump into the future
-			require.NoError(t, clock.BlockUntilContext(ctx, 1))
+			clock.BlockUntil(1)
 			select {
 			case <-ctx.Done():
 				require.Fail(t, "upstream never waited")
