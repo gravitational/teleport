@@ -837,7 +837,8 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		case "": // OK, "default" mode. Varies depending on OSS or Enterprise.
 		case constants.DeviceTrustModeOff,
 			constants.DeviceTrustModeOptional,
-			constants.DeviceTrustModeRequired: // OK.
+			constants.DeviceTrustModeRequired,
+			constants.DeviceTrustModeRequiredHuman: // OK.
 		default:
 			return trace.BadParameter("device trust mode %q not supported", dt.Mode)
 		}
