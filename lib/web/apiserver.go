@@ -814,7 +814,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sessions/web/renew", h.WithAuth(h.renewWebSession))
 	h.POST("/webapi/users", h.WithAuth(h.createUserHandle))
 	h.PUT("/webapi/users", h.WithAuth(h.updateUserHandle))
-	h.GET("/webapi/users", h.WithAuth(h.getUsersHandle))
+	h.GET("/webapi/users", h.WithAuth(h.listUsersHandle))
 	h.DELETE("/webapi/users/:username", h.WithAuth(h.deleteUserHandle))
 
 	// We have an overlap route here, please see godoc of handleGetUserOrResetToken

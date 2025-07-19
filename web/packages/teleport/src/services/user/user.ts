@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import cfg from 'teleport/config';
+import cfg, { UrlListUsersParams } from 'teleport/config';
 import api from 'teleport/services/api';
 import session from 'teleport/services/websession';
 
@@ -62,6 +62,16 @@ const service = {
 
   fetchUsers(signal?: AbortSignal) {
     return api.get(cfg.getUsersUrl(), signal).then(makeUsers);
+  },
+
+  async fetchUsersPaginated(
+    params?: UrlListUsersParams,
+    signal?: AbortSignal
+  ): Promise<{
+    items: User[];
+    startKey: string;
+  }> {
+    return await api.get(cfg.getListUsersUrl(params), signal);
   },
 
   /**

@@ -18,7 +18,7 @@
 
 import { ReactElement, useState } from 'react';
 
-import cfg from 'teleport/config';
+import cfg, { UrlListUsersParams } from 'teleport/config';
 import { storageService } from 'teleport/services/storageService';
 import { User } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
@@ -89,6 +89,10 @@ export default function useUsers({
 
   const usersAcl = ctx.storeUser.getUserAccess();
 
+  function fetch(params?: UrlListUsersParams) {
+    return ctx.userService.fetchUsersPaginated(params);
+  }
+
   return {
     usersAcl,
     operation,
@@ -106,6 +110,7 @@ export default function useUsers({
     EmailPasswordReset,
     showMauInfo,
     onDismissUsersMauNotice,
+    fetch,
   };
 }
 
