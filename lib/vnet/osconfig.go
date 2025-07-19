@@ -18,6 +18,7 @@ package vnet
 
 import (
 	"context"
+	"net"
 	"net/netip"
 	"os/exec"
 	"strings"
@@ -29,6 +30,7 @@ import (
 type osConfig struct {
 	tunName    string
 	tunIPv4    string
+	tunIPv4Net *net.IPNet
 	tunIPv6    string
 	cidrRanges []string
 	dnsAddrs   []string
