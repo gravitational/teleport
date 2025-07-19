@@ -199,8 +199,11 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
+|cluster_id|string|ClusterID is the ID of the cluster. Required for AlloyDB databases.|
 |instance_id|string|InstanceID is the Cloud SQL instance ID.|
+|is_alloy_db|boolean|IsAlloyDB is true if the database is an AlloyDB server.|
 |project_id|string|ProjectID is the GCP project ID the Cloud SQL instance resides in.|
+|region|string|Region is the GCP region. Required for AlloyDB databases.|
 
 ### spec.mongo_atlas
 

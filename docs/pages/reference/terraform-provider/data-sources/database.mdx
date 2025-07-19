@@ -218,8 +218,11 @@ Optional:
 
 Optional:
 
+- `cluster_id` (String) ClusterID is the ID of the cluster. Required for AlloyDB databases.
 - `instance_id` (String) InstanceID is the Cloud SQL instance ID.
+- `is_alloy_db` (Boolean) IsAlloyDB is true if the database is an AlloyDB server.
 - `project_id` (String) ProjectID is the GCP project ID the Cloud SQL instance resides in.
+- `region` (String) Region is the GCP region. Required for AlloyDB databases.
 
 
 ### Nested Schema for `spec.mongo_atlas`
