@@ -424,20 +424,22 @@ func (s *identityService) unblockWaiters() {
 
 // renewIdentity attempts to renew an existing bot identity. "Renewal" in this
 // case means one of two things:
-//   1. If using an explicitly renewable identity (i.e. `token` joining),
-//      certificates will be renewed directly via Auth using the formal renewal
-//      process.
 //
-//      If the existing identity is expired, this will fail and cannot be
-//      recovered.
-//   2. For all other join methods, a "lightweight renewal" is performed. The
-//      existing client is used to authenticate the request and prove ownership
-//      of the existing bot instance ID, but otherwise the delegated joining
-//      ceremony is performed as usual.
+//  1. If using an explicitly renewable identity (i.e. `token` joining),
+//     certificates will be renewed directly via Auth using the formal renewal
+//     process.
 //
-//      If the existing identity appears to be expired (`time.Now()` >
-//      `NotAfter`), the existing auth client will be discarded and the bot will
-//      try to join without it. This will result in a new bot instance ID.
+//     If the existing identity is expired, this will fail and cannot be
+//     recovered.
+//
+//  2. For all other join methods, a "lightweight renewal" is performed. The
+//     existing client is used to authenticate the request and prove ownership
+//     of the existing bot instance ID, but otherwise the delegated joining
+//     ceremony is performed as usual.
+//
+//     If the existing identity appears to be expired (`time.Now()` >
+//     `NotAfter`), the existing auth client will be discarded and the bot will
+//     try to join without it. This will result in a new bot instance ID.
 func renewIdentity(
 	ctx context.Context,
 	log *slog.Logger,
