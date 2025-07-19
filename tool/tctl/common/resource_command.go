@@ -2690,12 +2690,24 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &netRestrictionsCollection{nr}, nil
 	case types.KindApp:
 		if rc.ref.Name == "" {
-			apps, err := client.GetApps(ctx)
+			apps, err := stream.Collect(clientutils.Resources(ctx, client.ListApps))
 			if err != nil {
+				// TODO(tross) DELETE IN v21.0.0
+				if trace.IsNotImplemented(err) {
+					apps, err := client.GetApps(ctx)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+
+					return &appCollection{apps: apps}, nil
+				}
+
 				return nil, trace.Wrap(err)
 			}
+
 			return &appCollection{apps: apps}, nil
 		}
+
 		app, err := client.GetApp(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)

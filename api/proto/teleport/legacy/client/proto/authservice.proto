@@ -1594,6 +1594,24 @@ message ReplaceRemoteLocksRequest {
   repeated types.LockV2 Locks = 2;
 }
 
+// ListAppsRequest is a request for a page of registered applications.
+message ListAppsRequest {
+  // Limit is the maximum amount of resources to retrieve.
+  int32 limit = 1;
+  // StartKey is used to start listing resources from a specific spot. It
+  // should be set to the previous NextKey value if using pagination, or
+  // left empty.
+  string start_key = 2;
+}
+
+// ListAppsResponse contains a page of registered applications.
+message ListAppsResponse {
+  // Applictaions is a list of applications.
+  repeated types.AppV3 applications = 1;
+  // NextKey is the key for the next page of applications.
+  string next_key = 2;
+}
+
 // GetWindowsDesktopServicesResponse contains all registered Windows desktop services.
 message GetWindowsDesktopServicesResponse {
   // Services is a list of Windows desktop services.
@@ -1643,7 +1661,7 @@ message ListWindowsDesktopsRequest {
 message ListWindowsDesktopsResponse {
   // Desktops is a list of Windows desktop hosts.
   repeated types.WindowsDesktopV3 desktops = 1;
-  // NextKey is the key for the next page of SAML IdP service providers.
+  // NextKey is the key for the next page of desktops.
   string next_key = 2;
 }
 
@@ -3460,6 +3478,8 @@ service AuthService {
 
   // GetApps returns all registered applications.
   rpc GetApps(google.protobuf.Empty) returns (types.AppV3List);
+  // ListApps returns a page of registered applications.
+  rpc ListApps(ListAppsRequest) returns (ListAppsResponse);
   // GetApp returns an application by name.
   rpc GetApp(types.ResourceRequest) returns (types.AppV3);
   // CreateApp creates a new application resource.

@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"io"
 	"maps"
 	"net/url"
 	"os"
@@ -6404,6 +6405,62 @@ func (a *ServerWithRoles) GetApps(ctx context.Context) (result []types.Applicati
 		}
 	}
 	return result, nil
+}
+
+// ListApps returns a page of application resources.
+func (a *ServerWithRoles) ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindApp, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	var nextKey string
+	var count int
+	var done bool
+	results, err := stream.Collect(
+		stream.FilterMap(
+			stream.PageFunc(func() ([]types.Application, error) {
+				if done {
+					return nil, io.EOF
+				}
+				apps, next, err := a.authServer.ListApps(ctx, limit, startKey)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				startKey = next
+				if next == "" {
+					done = true
+				}
+				return apps, nil
+			}),
+			func(app types.Application) (types.Application, bool) {
+				if nextKey != "" {
+					return nil, false
+				}
+
+				if err := a.checkAccessToApp(app); err != nil {
+					return nil, false
+				}
+
+				if count >= limit {
+					done = true
+					nextKey = app.GetName()
+					return nil, false
+				}
+
+				count++
+				return app, true
+			}),
+	)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return results, nextKey, nil
 }
 
 // DeleteApp removes the specified application resource.

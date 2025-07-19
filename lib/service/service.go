@@ -2645,7 +2645,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.AccessLists = services.AccessLists
 	cfg.AccessMonitoringRules = services.AccessMonitoringRules
 	cfg.AppSession = services.Identity
-	cfg.Apps = services.Apps
+	cfg.Applications = services.Applications
 	cfg.ClusterConfig = services.ClusterConfigurationInternal
 	cfg.CrownJewels = services.CrownJewels
 	cfg.DatabaseObjects = services.DatabaseObjects
@@ -2698,7 +2698,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.AccessLists = client.AccessListClient()
 	cfg.AccessMonitoringRules = client.AccessMonitoringRuleClient()
 	cfg.AppSession = client
-	cfg.Apps = client
+	cfg.Applications = client
 	cfg.ClusterConfig = client
 	cfg.CrownJewels = client.CrownJewelServiceClient()
 	cfg.DatabaseObjects = client.DatabaseObjectsClient()

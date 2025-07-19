@@ -3423,6 +3423,30 @@ func (c *Client) GetApps(ctx context.Context) ([]types.Application, error) {
 	return apps, nil
 }
 
+// ListApps returns a page of application resources.
+//
+// Note that application resources here refers to "dynamically-added"
+// applications such as applications created by `tctl create`, or the CreateApp
+// API. Applications defined in the `app_service.apps` section of the service
+// YAML configuration are not collected in this API.
+//
+// For a page of registered applications that are served by an application
+// service, use ListResources instead.
+func (c *Client) ListApps(ctx context.Context, limit int, start string) ([]types.Application, string, error) {
+	resp, err := c.grpc.ListApps(ctx, &proto.ListAppsRequest{
+		Limit:    int32(limit),
+		StartKey: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	apps := make([]types.Application, 0, len(resp.Applications))
+	for _, app := range resp.Applications {
+		apps = append(apps, app)
+	}
+	return apps, resp.NextKey, nil
+}
+
 // DeleteApp deletes specified application resource.
 func (c *Client) DeleteApp(ctx context.Context, name string) error {
 	_, err := c.grpc.DeleteApp(ctx, &types.ResourceRequest{Name: name})

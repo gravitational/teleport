@@ -1588,7 +1588,13 @@ var _ executor[*dbobjectv1.DatabaseObject, services.DatabaseObjectsGetter] = dat
 type appExecutor struct{}
 
 func (appExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Application, error) {
-	return cache.Apps.GetApps(ctx)
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.Apps.ListApps))
+	// TODO(tross): DELETE IN v21.0.0
+	if trace.IsNotImplemented(err) {
+		apps, err := cache.Apps.GetApps(ctx)
+		return apps, trace.Wrap(err)
+	}
+	return out, trace.Wrap(err)
 }
 
 func (appExecutor) upsert(ctx context.Context, cache *Cache, resource types.Application) error {
