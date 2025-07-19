@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestAccessListCRUD tests backend operations with access list resources.
@@ -217,6 +218,152 @@ func Test_AccessList_validation_noTypeChange(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_AccessList_validation_DeprecatedDynamic_special_case(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	accessList := newAccessList(t, "test-scim-access-list-1", clock)
+
+	t.Run("dynamic is stored as default", func(t *testing.T) {
+		_, err := backend.NewSanitizer(mem).Get(ctx, service.service.MakeKey(backend.NewKey(accessList.GetName())))
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err))
+
+		accessList.Spec.Type = accesslist.DeprecatedDynamic
+		_, err = service.UpsertAccessList(ctx, accessList)
+		require.NoError(t, err)
+
+		accessList = getAccessListDirectlyFromBackend(t, mem, service.service.MakeKey(backend.NewKey(accessList.GetName())))
+		require.NoError(t, err)
+		require.Equal(t, accesslist.Default, accessList.Spec.Type)
+	})
+
+	t.Run("if stored already stored as dynamic", func(t *testing.T) {
+		verificationDescValue := "updated to deprecated dynamic bypassing defaulting"
+
+		t.Run("store with dynamic type directly in the backend", func(t *testing.T) {
+			accessList, err = service.GetAccessList(ctx, accessList.GetName())
+			require.NoError(t, err)
+			require.NotEqual(t, verificationDescValue, accessList.Spec.Description)
+
+			modifyAccessListDirectlyInBackend(t, mem, accessList, service.service.MakeBackendItem, func(al *accesslist.AccessList) {
+				al.Spec.Type = accesslist.DeprecatedDynamic
+				al.Spec.Description = verificationDescValue
+			})
+		})
+
+		t.Run("getting through service return default when stored as deprecated dynamic", func(t *testing.T) {
+			accessList, err := service.GetAccessList(ctx, accessList.GetName())
+			require.NoError(t, err)
+			require.Equal(t, verificationDescValue, accessList.Spec.Description)
+			require.Equal(t, accesslist.Default, accessList.Spec.Type)
+
+			accessList = getAccessListDirectlyFromBackend(t, mem, service.service.MakeKey(backend.NewKey(accessList.GetName())))
+			require.Equal(t, verificationDescValue, accessList.Spec.Description)
+			require.Equal(t, accesslist.DeprecatedDynamic, accessList.Spec.Type)
+		})
+
+		t.Run("modifying access list type stored as deprecated dynamic is still not allowed", func(t *testing.T) {
+			accessList = getAccessListDirectlyFromBackend(t, mem, service.service.MakeKey(backend.NewKey(accessList.GetName())))
+			require.Equal(t, verificationDescValue, accessList.Spec.Description)
+			require.Equal(t, accesslist.DeprecatedDynamic, accessList.Spec.Type)
+
+			accessList, err := service.GetAccessList(ctx, accessList.GetName())
+			require.NoError(t, err)
+
+			accessList.Spec.Type = accesslist.SCIM
+			accessList.Spec.Audit = accesslist.Audit{}
+
+			_, err = service.UpsertAccessList(ctx, accessList)
+			require.Error(t, err)
+			require.ErrorContains(t, err, `type "" cannot be changed to "scim"`)
+			require.True(t, trace.IsBadParameter(err))
+
+			accessList.Spec.Type = accesslist.Static
+			accessList.Spec.Audit = accesslist.Audit{}
+
+			_, err = service.UpsertAccessList(ctx, accessList)
+			require.Error(t, err)
+			require.ErrorContains(t, err, `type "" cannot be changed to "static"`)
+			require.True(t, trace.IsBadParameter(err))
+		})
+
+		t.Run("modifying through service changes stored as deprecated dynamic type to default", func(t *testing.T) {
+			accessList = getAccessListDirectlyFromBackend(t, mem, service.service.MakeKey(backend.NewKey(accessList.GetName())))
+			require.Equal(t, verificationDescValue, accessList.Spec.Description)
+			require.Equal(t, accesslist.DeprecatedDynamic, accessList.Spec.Type)
+
+			accessList, err := service.GetAccessList(ctx, accessList.GetName())
+			require.NoError(t, err)
+			require.Equal(t, verificationDescValue, accessList.Spec.Description)
+
+			accessList.Spec.Type = accesslist.DeprecatedDynamic
+			_, err = service.UpsertAccessList(ctx, accessList)
+			require.NoError(t, err)
+
+			accessList, err = service.GetAccessList(ctx, accessList.GetName())
+			require.NoError(t, err)
+			require.Equal(t, verificationDescValue, accessList.Spec.Description)
+			require.Equal(t, accesslist.Default, accessList.Spec.Type)
+
+			accessList = getAccessListDirectlyFromBackend(t, mem, service.service.MakeKey(backend.NewKey(accessList.GetName())))
+			require.Equal(t, verificationDescValue, accessList.Spec.Description)
+			require.Equal(t, accesslist.Default, accessList.Spec.Type)
+		})
+
+	})
+}
+
+func getAccessListDirectlyFromBackend(t *testing.T, storage backend.Backend, key backend.Key) *accesslist.AccessList {
+	t.Helper()
+	ctx := context.Background()
+
+	item, err := backend.NewSanitizer(storage).Get(ctx, key)
+	require.NoError(t, err)
+	accessList := new(accesslist.AccessList)
+	err = utils.FastUnmarshal(item.Value, &accessList)
+	require.NoError(t, err)
+	return accessList
+}
+
+func modifyAccessListDirectlyInBackend(
+	t *testing.T,
+	storage backend.Backend,
+	accessList *accesslist.AccessList,
+	makeItemFn func(*accesslist.AccessList, ...any) (backend.Item, error),
+	modifyFn func(*accesslist.AccessList),
+) {
+	t.Helper()
+	ctx := context.Background()
+
+	item, err := makeItemFn(accessList)
+	require.NoError(t, err)
+
+	// Now, because makeItemFn calls CheckAndSetDefault and we don't want to have any values
+	// defaulted/validated do the unmarshal/modify/marshal dance.
+
+	accessList = new(accesslist.AccessList)
+	err = utils.FastUnmarshal(item.Value, &accessList)
+	require.NoError(t, err)
+
+	modifyFn(accessList)
+	item.Value, err = utils.FastMarshal(accessList)
+	require.NoError(t, err)
+
+	// And finally store the modified, non-defaulted, non-validated item.
+
+	_, err = backend.NewSanitizer(storage).Put(ctx, item)
+	require.NoError(t, err)
 }
 
 // TestAccessList_EntitlementLimits asserts that any limits on creating
