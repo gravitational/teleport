@@ -69,10 +69,12 @@ export const SCIMIntegrationSetUp = () => {
     queryKey: ['authConnectors'],
     queryFn: async ({ signal }) => {
       const res = await ctx.resourceService.fetchAuthConnectors(signal);
-      return (res?.connectors || []).map(conn => ({
-        label: conn.name,
-        value: conn.id,
-      }));
+      return (res?.connectors || [])
+        .filter(conn => conn.kind === 'saml')
+        .map(conn => ({
+          label: conn.name,
+          value: conn.name,
+        }));
     },
     gcTime: 0,
   });
