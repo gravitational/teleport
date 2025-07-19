@@ -17,3 +17,9 @@
  */
 
 export * from './appUpdater';
+export type {
+  AutoUpdatesStatus,
+  AutoUpdatesEnabled,
+  AutoUpdatesDisabled,
+  CandidateCluster,
+} from './autoUpdatesStatus';
