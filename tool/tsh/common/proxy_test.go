@@ -1641,7 +1641,7 @@ func TestProxyAppMultiPort(t *testing.T) {
 		"--insecure",
 		"--proxy", process.Config.Proxy.WebAddr.Addr,
 		"proxy", "app", appName,
-		"--port", fmt.Sprintf("%s:%d", fooProxyPort, fooServerPort),
+		"--port", net.JoinHostPort(fooProxyPort, strconv.Itoa(fooServerPort)),
 	}
 	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "tsh proxy app (foo)",
@@ -1674,7 +1674,7 @@ func TestProxyAppMultiPort(t *testing.T) {
 		"--insecure",
 		"--proxy", process.Config.Proxy.WebAddr.Addr,
 		"proxy", "app", appName,
-		"--port", fmt.Sprintf("%s:%d", barProxyPort, barServerPort),
+		"--port", net.JoinHostPort(barProxyPort, strconv.Itoa(barServerPort)),
 	}
 	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "tsh proxy app (bar)",
