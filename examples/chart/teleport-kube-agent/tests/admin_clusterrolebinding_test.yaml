@@ -2,14 +2,14 @@ suite: AdminClusterRoleBinding
 templates:
   - admin_clusterrolebinding.yaml
 tests:
-  - it: don't generate a admin cluster role binding when adminClusterRoleBinding.create is false
+  - it: don't generate a admin cluster role binding when rbac.create is false
+    set:
+      rbac:
+        create: false
     asserts:
       - hasDocuments:
           count: 0
-  - it: generate a admin cluster role binding when adminClusterRoleBinding.create is true
-    set:
-      adminClusterRoleBinding:
-        create: true
+  - it: generate a admin cluster role binding when rbac.create is true
     asserts:
       - hasDocuments:
           count: 1
@@ -17,13 +17,27 @@ tests:
           of: ClusterRoleBinding
       - equal:
           path: subjects[0].name
-          value: cluster-admin
+          value: RELEASE-NAME-cluster-admin
       - matchSnapshot: {}
-  - it: generate a admin cluster role binding when adminClusterRoleBinding.create is true and adminClusterRoleBinding.name is set
+  - it: generate a admin cluster role binding when rbac.create is true and rbac.adminClusterRoleBindingName is set
     set:
-      adminClusterRoleBinding:
+      rbac:
         create: true
-        name: my-cluster-admin
+        adminClusterRoleBindingName: my-cluster-admin
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ClusterRoleBinding
+      - equal:
+          path: metadata.name
+          value: my-cluster-admin
+      - matchSnapshot: {}
+  - it: generate a admin cluster role binding when rbac.create is true and rbac.adminGroupName is set
+    set:
+      rbac:
+        create: true
+        adminGroupName: my-cluster-admin-group
     asserts:
       - hasDocuments:
           count: 1
@@ -31,5 +45,5 @@ tests:
           of: ClusterRoleBinding
       - equal:
           path: subjects[0].name
-          value: my-cluster-admin
+          value: my-cluster-admin-group
       - matchSnapshot: {}

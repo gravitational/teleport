@@ -1,0 +1,37 @@
+creates a ClusterRole:
+  1: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      name: RELEASE-NAME-cluster-admin
+    rules:
+    - apiGroups:
+      - '*'
+      resources:
+      - '*'
+      verbs:
+      - '*'
+    - nonResourceURLs:
+      - '*'
+      verbs:
+      - '*'
+sets ClusterRole labels when specified:
+  1: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      labels:
+        app.kubernetes.io/name: teleport-kube-agent
+        resource: clusterrole
+      name: RELEASE-NAME-cluster-admin
+    rules:
+    - apiGroups:
+      - '*'
+      resources:
+      - '*'
+      verbs:
+      - '*'
+    - nonResourceURLs:
+      - '*'
+      verbs:
+      - '*'

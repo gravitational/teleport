@@ -58,11 +58,11 @@ if serviceAccount is not defined or serviceAccount.name is empty, use .Release.N
 {{- end -}}
 
 {{- define "teleport-kube-agent.rbac-clusterrole-name" -}}
-{{- coalesce .Values.rbac.clusterRoleName .Values.rbac.clusterRoleName .Release.Name -}}
+{{- coalesce .Values.rbac.clusterRoleName .Values.clusterRoleName .Release.Name -}}
 {{- end -}}
 
 {{- define "teleport-kube-agent.rbac-clusterrolebinding-name" -}}
-{{- coalesce .Values.rbac.clusterRoleBindingName .Values.rbac.clusterRoleBindingName .Release.Name -}}
+{{- coalesce .Values.rbac.clusterRoleBindingName .Values.clusterRoleBindingName .Release.Name -}}
 {{- end -}}
 
 {{- define "teleport-kube-agent.rbac-admin-clusterrole-name" -}}

@@ -190,7 +190,7 @@ sets StatefulSet labels when specified:
       template:
         metadata:
           annotations:
-            checksum/config: 9e9cb2e4d76c492bccf0b1e2be4a5acffc8fe747484eb62e615c5ed8dc8c3fc6
+            checksum/config: 33485f334c7861c3937a9f2d3e34b18ef128e2dc63ad4dc1aa6a208b6825ca14
           labels:
             app: RELEASE-NAME
             app.kubernetes.io/name: teleport-kube-agent
@@ -502,7 +502,7 @@ should add volumeClaimTemplate for data volume when using StatefulSet and is Fre
       template:
         metadata:
           annotations:
-            checksum/config: 5784fa709686cf9d0818ad218ab23bb886fa3877e4a84eb1bdeb25acbe8e6b3c
+            checksum/config: e221180679ad1c6d6ce851afc3fa23b51afb6494f84ed15164beadc92d17c6ef
           labels:
             app: RELEASE-NAME
         spec:

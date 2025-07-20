@@ -1,28 +1,42 @@
-generate a admin cluster role binding when adminClusterRoleBinding.create is true:
+generate a admin cluster role binding when rbac.create is true:
   1: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
-      name: admin-k8s-cluster-group
+      name: RELEASE-NAME-cluster-admin
     roleRef:
       apiGroup: rbac.authorization.k8s.io
       kind: ClusterRole
-      name: cluster-admin
+      name: RELEASE-NAME-cluster-admin
     subjects:
     - apiGroup: rbac.authorization.k8s.io
       kind: Group
-      name: cluster-admin
-generate a admin cluster role binding when adminClusterRoleBinding.create is true and adminClusterRoleBinding.name is set:
+      name: RELEASE-NAME-cluster-admin
+generate a admin cluster role binding when rbac.create is true and rbac.adminClusterRoleBindingName is set:
   1: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
-      name: admin-k8s-cluster-group
-    roleRef:
-      apiGroup: rbac.authorization.k8s.io
-      kind: ClusterRole
-      name: cluster-admin
-    subjects:
-    - apiGroup: rbac.authorization.k8s.io
-      kind: Group
       name: my-cluster-admin
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: RELEASE-NAME-cluster-admin
+    subjects:
+    - apiGroup: rbac.authorization.k8s.io
+      kind: Group
+      name: RELEASE-NAME-cluster-admin
+generate a admin cluster role binding when rbac.create is true and rbac.adminGroupName is set:
+  1: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: RELEASE-NAME-cluster-admin
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: RELEASE-NAME-cluster-admin
+    subjects:
+    - apiGroup: rbac.authorization.k8s.io
+      kind: Group
+      name: my-cluster-admin-group

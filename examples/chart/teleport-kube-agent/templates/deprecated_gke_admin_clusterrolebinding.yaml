@@ -23,17 +23,4 @@ subjects:
 - apiGroup: rbac.authorization.k8s.io
   kind: Group
   name: {{ $groupName }}
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: {{ include "teleport-kube-agent.clusterrolebinding-admin-name" . }}
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: {{ include "teleport-kube-agent.clusterrole-admin-name" . }}
-subjects:
-- kind: Group
-  name: {{ include "teleport-kube-agent.group-admin-name" . }}
-  apiGroup: rbac.authorization.k8s.io
 {{- end }}
