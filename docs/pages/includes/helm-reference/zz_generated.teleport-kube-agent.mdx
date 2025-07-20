@@ -1104,6 +1104,9 @@ other than the default `system:masters` group.
 GKE Autopilot clusters forbid using the `system:masters` group for impersonation
 and require a custom group to be used instead.
 
+DEPRECATED: This value is deprecated and will be removed in a future version.
+Use [`rbac`](#rbac) instead.
+
 ### `adminClusterRoleBinding.create`
 
 | Type | Default |
@@ -1199,6 +1202,9 @@ Kubernetes `ClusterRole` used by the agent's `ServiceAccount`.
   Most users will not need to change this.
 </Admonition>
 
+DEPRECATED: This value is deprecated and will be removed in a future version.
+Use [`rbac`](#rbac) instead.
+
 ## `clusterRoleBindingName`
 
 | Type | Default |
@@ -1211,6 +1217,9 @@ of the Kubernetes `ClusterRoleBinding` used by the agent's `ServiceAccount`.
 <Admonition type="note">
   Most users will not need to change this.
 </Admonition>
+
+DEPRECATED: This value is deprecated and will be removed in a future version.
+Use [`rbac`](#rbac) instead.
 
 ## `roleName`
 
@@ -1226,6 +1235,9 @@ You should set this value if there is a `Role` resource in the namespace of your
 `teleport-kube-agent` resources with the same name as your `teleport-kube-agent`
 release.
 
+DEPRECATED: This value is deprecated and will be removed in a future version.
+Use [`rbac`](#rbac) instead.
+
 ## `roleBindingName`
 
 | Type | Default |
@@ -1240,6 +1252,9 @@ You should set this value if there is a `RoleBinding` resource in the namespace
 of your `teleport-kube-agent` resources with the same name as your
 `teleport-kube-agent` release.
 
+DEPRECATED: This value is deprecated and will be removed in a future version.
+Use [`rbac`](#rbac) instead.
+
 ## `serviceAccountName`
 
 | Type | Default |
@@ -1253,6 +1268,10 @@ version. Use [`serviceAccount.name`](#serviceaccountname-1) instead.
 
 `serviceAccount` controls the Kubernetes ServiceAccounts deployed and used by
 the chart.
+
+<Admonition type="note">
+  Most users will not need to change this.
+</Admonition>
 
 ### `serviceAccount.create`
 
@@ -1278,6 +1297,12 @@ Helm release.
 
 ## `rbac`
 
+`rbac` controls the RBAC resources created by the chart.
+
+<Admonition type="note">
+  Most users will not need to change this.
+</Admonition>
+
 ### `rbac.create`
 
 | Type | Default |
@@ -1287,12 +1312,108 @@ Helm release.
 `rbac.create` controls if the chart should create RBAC Kubernetes resources.
 
 - When `true`, the chart creates both `ClusterRole` and `ClusterRoleBinding`
-  resources for the agent, and `Role`/`RoleBinding` for the updater if enabled.
+  resources for the agent, impersonation admin, and `Role`/`RoleBinding` for
+  the updater if enabled.
 - When `false`, the chart does not create the `Role` and `RoleBinding` resources.
   The user is responsible for deploying and maintaining them separately.
 
 This value can be set to `false` when deploying in constrained environments
-where the user deploying the operator is not allowed to edit RBAC resources.
+where the user deploying the agent is not allowed to edit RBAC resources,
+in which case you are responsible for creating the RBAC resources, see
+[get-kubeconfig.sh](../../../../examples/k8s-auth/get-kubeconfig.sh).
+
+### `rbac.roleName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`rbac.roleName` provides a custom name for the `Role` resource that the
+`teleport-kube-agent` chart creates for the Teleport pod. By default, the `Role`
+has the name of the Helm release.
+
+You should set this value if there is a `Role` resource in the namespace of your
+`teleport-kube-agent` resources with the same name as your `teleport-kube-agent`
+release.
+
+### `rbac.roleBindingName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`rbac.roleBindingName` provides a custom name for the `RoleBinding` resource that the
+`teleport-kube-agent` chart creates for the Teleport pod. By default, the
+`RoleBinding` has the name of the Helm release.
+
+You should set this value if there is a `RoleBinding` resource in the namespace
+of your `teleport-kube-agent` resources with the same name as your
+`teleport-kube-agent` release.
+
+### `rbac.clusterRoleName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`rbac.clusterRoleName` can be optionally used to override the name of the
+Kubernetes `ClusterRole` used by the agent's `ServiceAccount`. By default, the
+`ClusterRole` has the name of the Helm release.
+
+You should set this value if there is a `ClusterRole` resource your cluster with
+the same name as your `teleport-kube-agent` release.
+
+### `rbac.clusterRoleBindingName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`rbac.clusterRoleBindingName` can be optionally used to override the name
+of the Kubernetes `ClusterRoleBinding` used by the agent's `ServiceAccount`.
+By default, the `ClusterRoleBinding` has the name of the Helm release.
+
+You should set this value if there is a `ClusterRoleBinding` in your cluster with
+the same name as your `teleport-kube-agent` release.
+
+### `rbac.adminClusterRoleName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`rbac.adminClusterRoleName` can be optionally used to override the name
+of the Kubernetes `ClusterRole` used for admin impersonation. By default, the
+`ClusterRole` has the name of the Helm release with `-cluster-admin` suffix.
+
+You should set this value if there is a `ClusterRoleBinding` resource in your cluster
+with the same name as your `teleport-kube-agent` release with `-cluster-admin` suffix.
+
+### `rbac.adminClusterRoleBindingName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`rbac.adminClusterRoleBindingName` can be optionally used to override the name
+of the Kubernetes `ClusterRoleBinding` used for admin impersonation. By default, the
+`ClusterRoleBinding` has the name of the Helm release with `-cluster-admin` suffix.
+
+You should set this value if there is a `ClusterRoleBinding` resource in your cluster
+with the same name as your `teleport-kube-agent` release with `-cluster-admin` suffix.
+
+### `rbac.adminGroupName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`rbac.adminGroupName` can be optionally used to override the name
+of the Kubernetes `Group` used for admin impersonation. By default, the
+`Group` has the name of the Helm release with `-cluster-admin` suffix.
+
+You should set this value if there is a `Group` resource in your cluster
+with the same name as your `teleport-kube-agent` release with `-cluster-admin` suffix.
 
 ## `joinTokenSecret`
 
@@ -1504,7 +1625,7 @@ for more information.
 |------|---------|
 | `object` | `{}` |
 
-`extraLabels.clusterRole` are labels to set on the ClusterRole.
+`extraLabels.clusterRole` are labels to set on the agent ClusterRole.
 
 ### `extraLabels.clusterRoleBinding`
 
@@ -1512,7 +1633,23 @@ for more information.
 |------|---------|
 | `object` | `{}` |
 
-`extraLabels.clusterRoleBinding` are labels to set on the ClusterRoleBinding.
+`extraLabels.clusterRoleBinding` are labels to set on the agent ClusterRoleBinding.
+
+### `extraLabels.adminClusterRole`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.adminClusterRole` are labels to set on the admin ClusterRole.
+
+### `extraLabels.adminClusterRoleBinding`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.adminClusterRoleBinding` are labels to set on the admin ClusterRoleBinding.
 
 ### `extraLabels.role`
 
