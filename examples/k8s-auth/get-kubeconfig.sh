@@ -34,6 +34,7 @@ set -eu -o pipefail
 # Allow passing in common name and username in environment. If not provided,
 # use default.
 TELEPORT_SA=${TELEPORT_SA_NAME:-teleport-sa}
+TELEPORT_ADMIN_GROUP=${TELEPORT_ADMIN_GROUP:-teleport-cluster-admin}
 NAMESPACE=${TELEPORT_NAMESPACE:-teleport}
 
 # Set OS specific values.
@@ -50,6 +51,7 @@ fi
 
 echo "Creating the Kubernetes Service Account with minimal RBAC permissions."
 kubectl apply -f - <<EOF
+---
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -75,18 +77,34 @@ rules:
   verbs:
   - impersonate
 - apiGroups:
-  - ""
-  resources:
-  - pods
-  verbs:
-  - get
-- apiGroups:
   - "authorization.k8s.io"
   resources:
   - selfsubjectaccessreviews
   - selfsubjectrulesreviews
   verbs:
   - create
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: teleport-cluster-admin
+rules:
+- apiGroups:
+  - '*'
+  resources:
+  - '*'
+  verbs:
+  - '*'
+- nonResourceURLs:
+  - '*'
+  verbs:
+  - '*'
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -100,6 +118,19 @@ subjects:
 - kind: ServiceAccount
   name: ${TELEPORT_SA}
   namespace: ${NAMESPACE}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: teleport-cluster-admin-crb
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: teleport-cluster-admin
+subjects:
+- kind: Group
+  name: ${TELEPORT_ADMIN_GROUP}
+  apiGroup: rbac.authorization.k8s.io
 EOF
 
 # Checks if secret entry was defined for Service account. If defined it means that Kubernetes server has a
@@ -162,7 +193,7 @@ Done!
 
 Copy the generated kubeconfig file to your Teleport Kubernetes Service, and set the
 kubeconfig_file parameter in your teleport.yaml config file to point to this
-kubeconfig file.
+kubeconfig file and set the 'groups_wildcard_mapping' field to '${TELEPORT_ADMIN_GROUP}'.
 
 If you need access to multiple kubernetes clusters, you can generate additional
 kubeconfig files using this script and then merge them using merge-kubeconfigs.sh.
