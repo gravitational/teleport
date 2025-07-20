@@ -7881,7 +7881,7 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			matcher := NewKubernetesClusterLabelMatcher(tc.kubeResLabels, userTraits)
 			// TODO(@creack): Add more test cases with the new config field.
-			gotGroups, gotUsers, err := tc.roles.CheckKubeGroupsAndUsers(time.Hour, "", true, matcher)
+			gotGroups, gotUsers, err := tc.roles.CheckKubeGroupsAndUsers(time.Hour, true, matcher)
 			if tc.errorFunc == nil {
 				require.NoError(t, err)
 			} else {
