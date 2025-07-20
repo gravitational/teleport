@@ -35,7 +35,7 @@ kubernetes_service:
   {{- else }}
   enabled: false
   {{- end }}
-  group_admin_name: {{ include "teleport-kube-agent.rbac-admin-group-name" . }}
+  groups_wildcard_mapping: {{ include "teleport-kube-agent.rbac-admin-group-name" . }}
 
 {{- if and (or (.Values.apps) (.Values.appResources)) (not ($appRolePresent)) }}
   {{- fail "app role should be enabled if one of 'apps' or 'appResources' is set, see README" }}
