@@ -243,7 +243,13 @@ func (k *kubeDetails) startUpdateClusterLoop(ctx context.Context, cfg clusterDet
 }
 
 func (k *kubeDetails) startResourceWatcher(ctx context.Context, cfg clusterDetailsConfig, creds kubeCreds) error {
-	aecs, err := apiextensionsclientset.NewForConfig(creds.getKubeRestConfig())
+	restConfig := creds.getKubeRestConfig()
+	if restConfig == nil {
+		// Expected in tests.
+		cfg.log.WarnContext(ctx, "Missing Kubernetes REST config, not starting resource watcher")
+		return nil
+	}
+	aecs, err := apiextensionsclientset.NewForConfig(restConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
