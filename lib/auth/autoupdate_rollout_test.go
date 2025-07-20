@@ -19,6 +19,7 @@
 package auth
 
 import (
+	"context"
 	"fmt"
 	"iter"
 	"slices"
@@ -45,6 +46,8 @@ func TestSampleAgentsFromGroup(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 
 	auth := &Server{
 		cancelFunc: func() {},
@@ -93,7 +96,7 @@ func TestSampleAgentsFromGroup(t *testing.T) {
 
 	// Text execution: check that we sample the correct amount of canaries
 	const sampleSize = 10
-	canaries, err := auth.SampleAgentsFromAutoUpdateGroup(t.Context(), testGroupName, sampleSize, testGroups)
+	canaries, err := auth.SampleAgentsFromAutoUpdateGroup(ctx, testGroupName, sampleSize, testGroups)
 	require.NoError(t, err)
 	require.Len(t, canaries, sampleSize)
 
@@ -104,7 +107,7 @@ func TestSampleAgentsFromGroup(t *testing.T) {
 	}
 	require.Len(t, canarySet, sampleSize, "some canary got duplicated")
 
-	canaries2, err := auth.SampleAgentsFromAutoUpdateGroup(t.Context(), testGroupName, sampleSize, testGroups)
+	canaries2, err := auth.SampleAgentsFromAutoUpdateGroup(ctx, testGroupName, sampleSize, testGroups)
 	require.NoError(t, err)
 	require.Len(t, canaries2, sampleSize)
 	canarySet = make(map[string]*autoupdatev1pb.Canary)
@@ -125,7 +128,7 @@ func TestSampleAgentsFromGroup(t *testing.T) {
 	require.Less(t, conflicts, 4)
 
 	// Test execution: check that agents not belonging to any group are sampled whe requesting the catch-all group.
-	canariesCatchAll, err := auth.SampleAgentsFromAutoUpdateGroup(t.Context(), testGroupName, sampleSize, []string{"group-a", testCatchAllGroupName})
+	canariesCatchAll, err := auth.SampleAgentsFromAutoUpdateGroup(ctx, testGroupName, sampleSize, []string{"group-a", testCatchAllGroupName})
 	require.NoError(t, err)
 	require.Len(t, canariesCatchAll, sampleSize)
 	canarySet = make(map[string]*autoupdatev1pb.Canary)
@@ -140,6 +143,8 @@ func TestLookupAgentInInventory(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 
 	auth := &Server{
 		cancelFunc: func() {},
@@ -200,7 +205,7 @@ func TestLookupAgentInInventory(t *testing.T) {
 		protocmp.Transform(),
 	}
 	for hostID, handles := range hosts {
-		result, err := auth.LookupAgentInInventory(t.Context(), hostID)
+		result, err := auth.LookupAgentInInventory(ctx, hostID)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(handles, result, opts))
 	}
