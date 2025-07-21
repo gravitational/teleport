@@ -24,8 +24,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
 // ServiceBuilder returns an example service builder.
