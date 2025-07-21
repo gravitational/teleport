@@ -9,6 +9,38 @@ labels:
 Teleport Machine & Workload Identity eliminates the need for long-lived static secrets in CI/CD pipelines by issuing short-lived, automatically generated certificates at runtime.
 Teleport natively integrates with many CI/CD providers and deployment targets. Refer to the links at the bottom of this page for instructions on using Machine & Workload Identity with your preferred tools.
 
+## Choose your CI/CD platform
+
+<TileGrid
+  tiles={[
+    {
+      icon: <Icon name="azure-devops" size="xl" />,
+      to: "../machine-id/deployment/azure-devops",
+      name: "Azure DevOps",
+    },
+    {
+      icon: <Icon name="bitbucket" size="xl" />,
+      to: "../machine-id/deployment/bitbucket",
+      name: "BitBucket",
+    },
+    {
+      icon: <Icon name="circleci" size="xl" />,
+      to: "../machine-id/deployment/circleci",
+      name: "CircleCI",
+    },
+    {
+      icon: <Icon name="gitlab-ci" size="xl" />,
+      to: "../machine-id/deployment/gitlab",
+      name: "GitLab CI",
+    },
+    {
+      icon: <Icon name="jenkins" size="xl" />,
+      to: "../machine-id/deployment/jenkins",
+      name: "Jenkins",
+    }
+  ]}
+/>
+
 ## Eliminate secrets from your CI/CD pipeline
 
 In a typical CI/CD setup, a pipeline—such as one running in GitHub Actions on GitHub's infrastructure outside the corporate network—builds a container, 
