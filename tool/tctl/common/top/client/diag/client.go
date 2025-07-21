@@ -28,11 +28,14 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
+// Client is a wrapper around [*http.Client] that provides
+// helpers for fetching metrics from the diagnostic endpoint of Teleport.
 type Client struct {
 	endpoint string
 	clt      *http.Client
 }
 
+// Creates a new Client for a given address.
 func NewClient(addr string) (*Client, error) {
 	clt, err := defaults.HTTPClient()
 	if err != nil {
@@ -52,6 +55,7 @@ func NewClient(addr string) (*Client, error) {
 	}, nil
 }
 
+// Fetches metrics from the configured endpoint and returns them as a map keyed by metric name.
 func (c *Client) GetMetrics(ctx context.Context) (map[string]*dto.MetricFamily, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.endpoint, http.NoBody)
 	if err != nil {
