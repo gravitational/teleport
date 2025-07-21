@@ -258,7 +258,7 @@ auth_service:
       # - 'required' - enables device authentication and device-aware audit.
       #   Additionally, it requires a trusted device for all SSH, Database
       #   and Kubernetes connections.
-      # - 'required-human' - enables device authentication and device-aware
+      # - 'required-for-humans' - enables device authentication and device-aware
       #   audit. Additionally, it requires a trusted device for all SSH, Database
       #   and Kubernetes connections, for human users only (bots are exempt).
       mode: optional # always "off" for Teleport Community Edition

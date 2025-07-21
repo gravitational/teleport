@@ -448,9 +448,9 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 			assertion: assertTrustedDeviceRequired,
 		},
 		{
-			name:      "device extensions not enforced for bot with mode=required-human",
+			name:      "device extensions not enforced for bot with mode=required-for-humans",
 			buildType: modules.BuildEnterprise,
-			cfg:       cfgWithDeviceMode(constants.DeviceTrustModeRequiredHuman),
+			cfg:       cfgWithDeviceMode(constants.DeviceTrustModeRequiredForHumans),
 			identity:  botIdentity(),
 			assertion: func(t *testing.T, _ context.Context, err error, _ *eventstest.MockRecorderEmitter) {
 				assert.NoError(t, err, "AcquireSessionContext returned an unexpected error")

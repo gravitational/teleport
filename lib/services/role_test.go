@@ -6787,7 +6787,7 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 		},
 		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
-				DeviceTrustMode: constants.DeviceTrustModeRequiredHuman,
+				DeviceTrustMode: constants.DeviceTrustModeRequiredForHumans,
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},

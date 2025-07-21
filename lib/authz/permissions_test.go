@@ -426,8 +426,8 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 			wantErr:    "access denied",
 		},
 		{
-			name:       "ok: bot user and mode=required-human",
-			deviceMode: constants.DeviceTrustModeRequiredHuman,
+			name:       "ok: bot user and mode=required-for-humans",
+			deviceMode: constants.DeviceTrustModeRequiredForHumans,
 			user:       botUser,
 		},
 		{
