@@ -28,7 +28,6 @@ func TestPassiveHealthCheck(t *testing.T) {
 		},
 		{
 			desc: "test failure threshold",
-
 			errs:      []error{testErr, testErr, testErr, nil, nil, nil},
 			callbacks: []error{testErr, nil},
 		},
