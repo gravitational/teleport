@@ -37,7 +37,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
-	"github.com/gravitational/teleport/lib/auth/summarizer/summarizerv1"
+	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -130,7 +130,7 @@ type ProtoStreamerConfig struct {
 	// SummarizerProvider is a provider of the summarizer service. It can be nil
 	// or provide a nil summarizer if summarization is not needed. The summarizer
 	// itself summarizes session recordings.
-	SummarizerProvider *summarizerv1.SummarizerProvider
+	SummarizerProvider *summarizer.SummarizerProvider
 }
 
 // CheckAndSetDefaults checks and sets streamer defaults
@@ -251,7 +251,7 @@ type ProtoStreamConfig struct {
 	// SummarizerProvider is a provider of the summarizer service. It can be nil
 	// or provide a nil summarizer if summarization is not needed. The summarizer
 	// itself summarizes session recordings.
-	SummarizerProvider *summarizerv1.SummarizerProvider
+	SummarizerProvider *summarizer.SummarizerProvider
 }
 
 // CheckAndSetDefaults checks and sets default values

@@ -36,8 +36,6 @@ type UnimplementedResourcesService struct {
 	summarizerv1pb.UnimplementedSummarizerServiceServer
 }
 
-var _ summarizerv1pb.SummarizerServiceServer = (*UnimplementedResourcesService)(nil)
-
 // CRUD operations for models
 
 // CreateInferenceModel is supposed to create a new inference model, but

@@ -93,7 +93,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
-	"github.com/gravitational/teleport/lib/auth/summarizer/summarizerv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -482,7 +481,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.SummarizerResources = summarizer
 	}
 	if cfg.SummarizerProvider == nil {
-		cfg.SummarizerProvider = summarizerv1.NewSummarizerProvider()
+		cfg.SummarizerProvider = summarizer.NewSummarizerProvider()
 	}
 	if cfg.WorkloadIdentityX509Revocations == nil {
 		cfg.WorkloadIdentityX509Revocations, err = local.NewWorkloadIdentityX509RevocationService(cfg.Backend)
@@ -1289,7 +1288,7 @@ type Server struct {
 	// SummarizerProvider is a provider of the summarizer service. It allows for
 	// late initialization of the summarizer in the enterprise plugin. The
 	// summarizer itself summarizes session recordings.
-	summarizerProvider *summarizerv1.SummarizerProvider
+	summarizerProvider *summarizer.SummarizerProvider
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1382,7 +1381,7 @@ func (a *Server) ResetLoginHooks() {
 
 // SetSummarizerService sets an implementation of the summarizer service used
 // by this server and its underlying services.
-func (a *Server) SetSummarizerService(s summarizer.Summarizer) {
+func (a *Server) SetSummarizerService(s summarizer.SessionSummarizer) {
 	a.summarizerProvider.SetSummarizer(s)
 }
 

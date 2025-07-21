@@ -36,7 +36,7 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth/summarizer/summarizerv1"
+	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
@@ -397,7 +397,7 @@ func TestSummarization(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			summarizerProvider := &summarizerv1.SummarizerProvider{}
+			summarizerProvider := &summarizer.SummarizerProvider{}
 			uploader := eventstest.NewMemoryUploader()
 			streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 				Uploader:           uploader,
