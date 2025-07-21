@@ -178,9 +178,10 @@ func (m *topModel) footerView() string {
 		}
 	}
 	if leftContent == "" && m.report != nil {
-		leftContent = fmt.Sprintf("Report generated at %s for host %s",
+		leftContent = fmt.Sprintf("Report generated at %s for host %s (%s)",
 			m.report.Timestamp.Format(constants.HumanDateFormatSeconds),
 			m.report.Hostname,
+			m.addr,
 		)
 	}
 	left := lipgloss.NewStyle().
