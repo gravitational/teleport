@@ -120,9 +120,6 @@ function findVersionFromClusters(sources: {
         kind: 'most-compatible',
         candidateClusters,
         unreachableClusters,
-        clustersUri: candidateClusters
-          .filter(c => c.toolsVersion === mostCompatibleVersion)
-          .map(c => c.clusterUri),
         skippedManagingClusterUri: managingClusterIsSkipped
           ? managingClusterUri
           : '',
@@ -236,8 +233,6 @@ export type AutoUpdatesEnabled = {
     | {
         /** Updates determined by the most compatible clusters available. */
         kind: 'most-compatible';
-        /** URIs of all clusters that specify the same version. */
-        clustersUri: RootClusterUri[];
         /** Clusters considered during version resolution. */
         candidateClusters: CandidateCluster[];
         /**
