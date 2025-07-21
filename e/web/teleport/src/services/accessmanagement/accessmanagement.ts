@@ -11,6 +11,7 @@ import {
   AccessListMember,
   AccessListOrigin,
   AccessListOwner,
+  AccessListReview,
   AccessListType,
   AddMembersToAccessListRequest,
   IneligibleStatus,
@@ -30,6 +31,38 @@ export const accessManagementService = {
     return api
       .get(cfg.getAccessManagementListUrl(), abortSignal)
       .then(resp => makeAccessLists(resp.accessLists));
+  },
+  fetchReviews(
+    accessListId: string,
+    params: { startKey: string; limit: number },
+    abortSignal?: AbortSignal
+  ): Promise<{ reviews: AccessListReview[]; startKey: string }> {
+    return api
+      .get(
+        cfg.getAccessListUrl({
+          action: 'reviews',
+          params: {
+            accessListId,
+            ...params,
+          },
+        }),
+        abortSignal
+      )
+      .then(resp => {
+        const madeReviews = resp.reviews?.map(r => {
+          const spec = r.spec ?? {};
+          return {
+            notes: spec.notes,
+            reviewDate: new Date(spec.review_date),
+            reviewers: spec.reviewers,
+            raw: r,
+          };
+        });
+        return {
+          reviews: madeReviews ?? [],
+          startKey: resp.startKey,
+        };
+      });
   },
   fetchAccessList(accessListId: string): Promise<AccessList> {
     return api

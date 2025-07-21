@@ -63,11 +63,17 @@ const cfg = {
   },
 
   api: {
+    // TODO(kimlisa): move accessListXXX to the "accessList" object.
     accessListManagementPath: '/v1/enterprise/accesslist/:accessListId?',
     accessListAddMembersPath: '/v1/enterprise/accesslist/:accessListId/members',
     accessListReviewPath: '/v1/enterprise/accesslist/:accessListId/reviews',
     accessListSuggestionsPath:
       '/v1/enterprise/accessrequest/:requestId/suggestions/accesslist',
+
+    accessList: {
+      reviews:
+        '/v1/enterprise/accesslist/:accessListId/reviews?limit=:limit?&startKey=:startKey?',
+    },
 
     accessGraphSettingsPath: '/v1/enterprise/accessgraphsettings',
     accessGraphQueryPath: '/v1/enterprise/accessgraph/query',
@@ -241,6 +247,19 @@ const cfg = {
 
   getAccessListSuggestionsUrl(requestId: string) {
     return generatePath(cfg.api.accessListSuggestionsPath, { requestId });
+  },
+
+  getAccessListUrl(req: {
+    action: 'reviews';
+    params: { accessListId: string; limit?: number; startKey?: string };
+  }) {
+    const action = req.action;
+    switch (action) {
+      case 'reviews':
+        return generatePath(cfg.api.accessList.reviews, req.params);
+      default:
+        action satisfies never;
+    }
   },
 
   getAccessRequestUrl(requestId?: string) {

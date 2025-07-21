@@ -13,6 +13,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/e/lib/web/ui"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web"
@@ -303,5 +304,35 @@ func (p *Plugin) reviewAccessList(w http.ResponseWriter, r *http.Request, params
 	}
 	return ui.ReviewAccessListResponse{
 		NextAuditDate: nextReviewDate,
+	}, nil
+}
+
+// listAccessListReviews is the handler for GET /enterprise/accesslist/:accessListId/reviews.
+func (p *Plugin) listAccessListReviews(_ http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessListId := params.ByName("accessListId")
+	accessListClient := clt.AccessListClient()
+
+	values := r.URL.Query()
+
+	limit, err := web.QueryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	startKey := values.Get("startKey")
+
+	reviews, nextKey, err := accessListClient.ListAccessListReviews(r.Context(), accessListId, int(limit), startKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AccessListReviewsResponse{
+		Reviews:  reviews,
+		StartKey: nextKey,
 	}, nil
 }

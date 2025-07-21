@@ -40,6 +40,20 @@ export enum AccessListMemberKind {
   List = 'MEMBERSHIP_KIND_LIST',
 }
 
+export type AccessListReview = {
+  notes: string;
+  reviewDate: Date;
+  reviewers: string[];
+  // Unprocessed data.
+  // Used to display it as json for read only TextEditor.
+  raw: any;
+};
+
+export type AccessListReviewResponse = {
+  reviews: AccessListReview[];
+  startKey: string;
+};
+
 export type AccessList = {
   id: string;
   title: string; // friendly name of id

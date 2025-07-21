@@ -288,6 +288,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler any) error {
 	h.DELETE("/enterprise/accesslist/:accessListId", h.WithAuth(p.deleteAccessList))
 	h.POST("/enterprise/accesslist/:accessListId/members", h.WithAuth(p.addMembersToAccessList))
 	h.POST("/enterprise/accesslist/:accessListId/reviews", h.WithAuth(p.reviewAccessList))
+	h.GET("/enterprise/accesslist/:accessListId/reviews", h.WithAuth(p.listAccessListReviews))
 	// Deprecated: use /enterprise/accessrequest/:requestId/suggestions/accesslist instead.
 	h.GET("/enterprise/accesslistsuggestions/accessrequest/:requestId", h.WithClusterClientProvider(p.getSuggestedAccessListsHandle))
 

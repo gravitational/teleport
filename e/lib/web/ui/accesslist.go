@@ -32,6 +32,12 @@ type AccessListResponse struct {
 	AccessList *AccessList `json:"accessList,omitempty"`
 }
 
+// AccessListReviewsResponse is a UI representation of a response for listing access list reviews.
+type AccessListReviewsResponse struct {
+	Reviews  []*accesslist.Review `json:"reviews"`
+	StartKey string               `json:"startKey"`
+}
+
 // AccessListsResponse is a UI representation of access lists response.
 type AccessListsResponse struct {
 	AccessLists []*AccessList `json:"accessLists,omitempty"`
