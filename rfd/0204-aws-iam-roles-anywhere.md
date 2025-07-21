@@ -85,8 +85,7 @@ The user now runs `aws s3 ls` and they receive a list of buckets.
 
 **As a Teleport end user, I have access to listing S3 buckets, but I want to elevate my permissions to be able to upload files**
 
-To get access to another AWS IAM Role, user creates an Access Request to access a different Profile/Role.
-They will request and assume an IAM Role which gives them the correct IAM permissions.
+To get access to another AWS IAM Role, user must be added to the Access List that allows assuming the target IAM Role.
 
 After assuming the new access, they are able to send files using:
 `aws s3 cp my-large-file.bin s3://bucket/my-large-file.bin`.
@@ -127,29 +126,34 @@ After doing this, they get back to Teleport and are allowed to complete the set 
 
 **As a Teleport Administrator, I want to give users of team "Dev" read-only access to AWS Account, and ability to request read-write access to it**
 
-There are two Profiles, each with only one IAM Role: ReadOnlyAccess and ReadWriteAccess.
+There are two Profiles, each with only one IAM Role:
+- ReadOnlyAccess Profile with ReadOnlyAccess IAM Role
+- and ReadWriteAccess Profile with ReadWriteAccess IAM Role
 
-This use case is also valid for situations where a Profile has multiple Roles. Example: S3ReadOnlyAccess and EC2ReadOnlyAccess for the ReadOnly Profile.
+After setting up AWS Access, Teleport creates an Access List for each Profile, which only allows access to a single Profile (using `app_labels` for RBAC checks on the application, and `aws_role_arn` rule for AWS IAM Roles allowed to assume).
 
-After setting up AWS Access, Teleport creates a Role for each Profile, which only allows access to a single Profile (using `app_labels` for RBAC checks on the application, and `aws_role_arn` rule for AWS IAM Roles allowed to assume).
+Users are added to the ReadOnlyAccess Profile, which ensures they get access to the ReadOnlyAccess IAM Role.
 
-They also create a new Teleport Role which allows access to requesting access to the ReadWriteAccess: RequestReadWriteAccess.
-The administrator changes the "Dev" access list and adds the two roles: ReadOnlyAccess and RequestReadWriteAccess.
+Administrator also creates a Teleport Role which allows access to the ReadWriteAccess Profile (using `app_labels` and `aws_role_arns`),
+as well as another Role (RequestReadWriteAccess) which allows users to request access to role.
+
+For longstanding access, users must be added to the Access List.
+
+For temporary access, users must request access to the Teleport Role.
 
 This way, "Dev" members can now access the ReadOnlyAccess but can also request access to the ReadWriteAccess using the permissions inherited by the RequestReadWriteAccess role.
 
 **As a user, I want to be able to see what AWS roles are available to me and request access to a role I don't have long standing access to**
 
-There are two Profiles, each with only one IAM Role: ReadOnlyAccess and ReadWriteAccess.
+There is one Roles Anywhere Profile with one IAM Role: ReadWriteAccess.
 
-After setting up AWS Access, Teleport creates a Role for each Profile, which only allows access to a single Profile (using `app_labels` for RBAC checks on the application, and `aws_role_arn` rule for AWS IAM Roles allowed to assume).
+After setting up the integration, a new Access List is created which allows for long standing access to members of that Access List.
 
-The administrator assigns the ReadOnlyAccess to all their users, and creates another Role that allows users to request access to the ReadWriteAccess Role.
+The administrator creates two roles: one to give access to the user and another one to allow for the users to request access to the role.
 
-When users login, they can see that they can access the ReadOnlyAccess, but not ReadWriteAccess.
-They can, however, ask for access to that role as well.
+When the user is assigned to the requester role, they can see that they can request access to ReadWriteAccess role.
 
-Leveraging Access Requests, users can now request access to ReadWriteAccess and, ultimately, assume the IAM Role.
+After requesting access and being granted access, they can no start using the IAM Role for the duration.
 
 ## User experience
 
@@ -226,14 +230,14 @@ A [summary of what IAM Roles Anywhere is](https://docs.aws.amazon.com/rolesanywh
 │ AWS                                        │ │ Teleport                         │
 │ ┌────────────────────────────────────────┐ │ │                                  │
 │ │ AWS Account                            │ │ │ ┌────────────┐ ┌───────────────┐ │
-│ │ ┌─────────────────┐ ┌────────────────┐ │ │ │ │App Service │ │Role           │ │
+│ │ ┌─────────────────┐ ┌────────────────┐ │ │ │ │App Service │ │Access List    │ │
 │ │ │ Region          │ │  IAM Roles     │ │ │ │ │ RA Profile1│ │ RA Profile1   │ │
 │ │ │┌─────────────┐  │ │ ┌───────────┐  │ │ │ │ │            │ │ AWS Role ARNs:│ │
 │ │ ││ RA Profile1 ┼─┬┼─┼─►   Role1   │  │ │ │ │ │            │ │ - Role1       │ │
 │ │ │└─────────────┘ ││ │ └───────────┘  │ │ │ │ │            │ │ - Role2       │ │
 │ │ │                ││ │ ┌───────────┐  │ │ │ │ └────────────┘ └───────────────┘ │
 │ │ │                └┼─┼─►   Role2   │  │ │ │ │ ┌────────────┐ ┌───────────────┐ │
-│ │ │                 │ │ └───────────┘  │ │ │ │ │App Service │ │Role           │ │
+│ │ │                 │ │ └───────────┘  │ │ │ │ │App Service │ │Access List    │ │
 │ │ │┌──────────────┐ │ │ ┌───────────┐  │ │ │ │ │ RA Profile2│ │ RA Profile2   │ │
 │ │ ││ RA Profile2  ┼─┼─┼─►   Role3   │  │ │ │ │ │            │ │ AWS Role ARNs:│ │
 │ │ │└──────────────┘ │ │ └───────────┘  │ │ │ │ │            │ │ - Role3       │ │
@@ -304,22 +308,33 @@ spec:
 version: v3
 ```
 
-And the following Teleport Role is automatically created:
+And the following Teleport Access List is automatically created:
+```yaml
+kind: access_list
+metadata:
+  description: AWS ProfileA Access
+  name: <uuid-correlated-profile-arn>
+spec:
+  grants:
+    roles:
+    - aws-roles-anywhere-profile-access-template
+    traits:
+      iam-roles-anywhere-profile-arn:
+      - <profile.arn>
+      iam-roles:
+      - <profile.roles...>
+```
+
+With the following IAM Role:
 ```yaml
 kind: role
 metadata:
-  description: AWS Access for ProfileA
-  name: access-profile-a
+  name: aws-roles-anywhere-profile-access-template
 spec:
   allow:
     app_labels:
-      teleport.dev/aws-roles-anywhere-arn: arn:aws:rolesanywhere:eu-west-2:123456789012:profile/ac1f655b-aaaa-aaaa-aaaa-aaaaaaaaaaaa
-      Team: ABC
-      Env: Prod
-    aws_role_arns:
-    - arn:aws:iam::123456789012:role/MyRoleA
-    - arn:aws:iam::123456789012:role/MyRoleB
-version: v7
+      - 'teleport.dev/aws-roles-anywhere-profile-arn': '{{external["iam-roles-anywhere-profile-arn"]}}'
+    aws_role_arns: '{{external["iam-roles"]}}'
 ```
 
 ##### New Resources
@@ -360,9 +375,6 @@ After this point, Teleport is able to sync IAM Roles Anywhere Profiles as Telepo
 In this screen users are shown a list of Roles Anywhere Profiles, with a list of name, tags and IAM Roles.
 
 ![configure access](./assets/0204-configure-access.png)
-
-IAM Roles are clickable and will open the AWS Web Console assuming that role.
-This gives the user the ability to test.
 
 If the IAM Role is not compatible with the teleport's trust anchor, then a warning icon appears and the user is informed how they can fix the issue.
 
