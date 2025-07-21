@@ -3,7 +3,7 @@ title: Database Access for MCP
 description: How to configure MCP clients to use Teleport databases as MCP servers.
 ---
 
-This guide explains how to expose your **PostgreSQL** Teleport databases as MCP servers.
+This guide explains how to connect to your **PostgreSQL** Teleport databases with MCP clients.
 
 ### Prerequisites
 
@@ -29,7 +29,7 @@ First, sign in into your Teleport cluster using `tsh login`:
 $ tsh login --proxy=<Var name="teleport.example.com:443" /> --user=myuser@example.com
 ```
 
-Only databases that you have access can be exposed as MCP servers. You can
+Only databases that you have access to can be exposed as MCP servers. You can
 retrieve the list of databases and their connection options using `tsh db ls`:
   
 ```code
@@ -40,7 +40,7 @@ $ tsh db ls
 # postgres-prod   Production database  [readonly]    env=prod
 ```
 
-Each database you want accessible through MCP must be configured separately.
+Each database you want accessible through MCP must be configured with your MCP client individually.
 This is done using the `tsh mcp db config` command. Like `tsh db connect`, this
 command requires you to select the database user and database name that the MCP
 connections will use.
