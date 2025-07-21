@@ -21,6 +21,7 @@ package config
 import (
 	"testing"
 	"time"
+
 	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
