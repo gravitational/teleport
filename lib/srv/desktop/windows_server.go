@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"os"
 	"strconv"
@@ -41,16 +42,14 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -60,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/winpki"
 )
 
 const (
@@ -120,10 +120,10 @@ var computerAttributes = []string{
 // protocol.
 type WindowsService struct {
 	cfg        WindowsServiceConfig
-	middleware *auth.Middleware
+	middleware *authz.Middleware
 
-	ca *windows.CertificateStoreClient
-	lc *windows.LDAPClient
+	ca *winpki.CertificateStoreClient
+	lc *winpki.LDAPClient
 
 	mu              sync.Mutex // mu protects the fields that follow
 	ldapConfigured  bool
@@ -191,7 +191,7 @@ type WindowsServiceConfig struct {
 	ShowDesktopWallpaper bool
 	// LDAPConfig contains parameters for connecting to an LDAP server.
 	// LDAP functionality is disabled if Addr is empty.
-	windows.LDAPConfig
+	winpki.LDAPConfig
 	// PKIDomain optionally configures a separate Active Directory domain
 	// for PKI operations. If empty, the domain from the LDAP config is used.
 	// This can be useful for cases where PKI is configured in a root domain
@@ -209,7 +209,7 @@ type WindowsServiceConfig struct {
 	// Hostname of the Windows desktop service
 	Hostname string
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
-	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
+	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
 	Labels               map[string]string
 	// ResourceMatchers match dynamic Windows desktop resources.
 	ResourceMatchers []services.ResourceMatcher
@@ -232,7 +232,7 @@ func (cfg *WindowsServiceConfig) checkAndSetDiscoveryDefaults() error {
 	for i := range cfg.Discovery {
 		switch {
 		case cfg.Discovery[i].BaseDN == types.Wildcard:
-			cfg.Discovery[i].BaseDN = windows.DomainDN(cfg.Domain)
+			cfg.Discovery[i].BaseDN = winpki.DomainDN(cfg.Domain)
 		case len(cfg.Discovery[i].BaseDN) > 0:
 			if _, err := ldap.ParseDN(cfg.Discovery[i].BaseDN); err != nil {
 				return trace.BadParameter("WindowsServiceConfig contains an invalid base_dn %q: %v", cfg.Discovery[i].BaseDN, err)
@@ -273,6 +273,9 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	if cfg.ConnLimiter == nil {
 		return trace.BadParameter("WindowsServiceConfig is missing ConnLimiter")
 	}
+	if cfg.ConnectedProxyGetter == nil {
+		return trace.BadParameter("WindowsServiceConfig is missing ConnectedProxyGetter")
+	}
 	if err := cfg.Heartbeat.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -287,7 +290,6 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 
 	cfg.Logger = cmp.Or(cfg.Logger, slog.With(teleport.ComponentKey, teleport.ComponentWindowsDesktop))
 	cfg.Clock = cmp.Or(cfg.Clock, clockwork.NewRealClock())
-	cfg.ConnectedProxyGetter = cmp.Or(cfg.ConnectedProxyGetter, reversetunnel.NewConnectedProxyGetter())
 
 	return nil
 }
@@ -356,12 +358,12 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	ctx, close := context.WithCancel(context.Background())
 	s := &WindowsService{
 		cfg: cfg,
-		middleware: &auth.Middleware{
+		middleware: &authz.Middleware{
 			ClusterName:   clusterName.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageWindowsDesktopOnly},
 		},
 		dnsResolver: resolver,
-		lc:          windows.NewLDAPClient(nil),
+		lc:          winpki.NewLDAPClient(nil),
 		clusterName: clusterName.GetClusterName(),
 		closeCtx:    ctx,
 		close:       close,
@@ -372,7 +374,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		enableNLA: os.Getenv("TELEPORT_ENABLE_RDP_NLA") == "yes",
 	}
 
-	s.ca = windows.NewCertificateStoreClient(windows.CertificateStoreConfig{
+	s.ca = winpki.NewCertificateStoreClient(winpki.CertificateStoreConfig{
 		AccessPoint: s.cfg.AccessPoint,
 		Domain:      cmp.Or(s.cfg.PKIDomain, s.cfg.Domain),
 		Logger:      slog.Default(),
@@ -458,7 +460,7 @@ func (s *WindowsService) startLDAPConnectionCheck(ctx context.Context) {
 
 				// If we have initialized the LDAP client, then try to use it to make sure we're still connected
 				// by attempting to read CAs in the NTAuth store (we know we have permissions to do so).
-				ntAuthDN := "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration," + windows.DomainDN(s.cfg.LDAPConfig.Domain)
+				ntAuthDN := "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration," + winpki.DomainDN(s.cfg.LDAPConfig.Domain)
 				_, err := s.lc.Read(ntAuthDN, "certificationAuthority", []string{"cACertificate"})
 				if trace.IsConnectionProblem(err) {
 					s.cfg.Logger.DebugContext(ctx, "detected broken LDAP connection, will reconnect")
@@ -1194,9 +1196,7 @@ func (s *WindowsService) staticHostHeartbeatInfo(host servicecfg.WindowsHost,
 	return func() (types.Resource, error) {
 		addr := host.Address.String()
 		labels := getHostLabels(addr)
-		for k, v := range host.Labels {
-			labels[k] = v
-		}
+		maps.Copy(labels, host.Labels)
 		name := host.Name
 		if name == "" {
 			var err error
@@ -1273,20 +1273,20 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 	var activeDirectorySID string
 	if !desktop.NonAD() {
 		// Find the user's SID
-		filter := windows.CombineLDAPFilters([]string{
+		filter := winpki.CombineLDAPFilters([]string{
 			fmt.Sprintf("(%s=%s)", attrSAMAccountType, AccountTypeUser),
 			fmt.Sprintf("(%s=%s)", attrSAMAccountName, username),
 		})
 		s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username, "filter", filter)
-		domainDN := windows.DomainDN(s.cfg.LDAPConfig.Domain)
+		domainDN := winpki.DomainDN(s.cfg.LDAPConfig.Domain)
 
-		entries, err := s.lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid})
+		entries, err := s.lc.ReadWithFilter(domainDN, filter, []string{winpki.AttrObjectSid})
 		// if LDAP-based desktop discovery is not enabled, there may not be enough
 		// traffic to keep the connection open. Attempt to open a new LDAP connection
 		// in this case.
 		if trace.IsConnectionProblem(err) {
 			s.initializeLDAP() // ignore error, this is a best effort attempt
-			entries, err = s.lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid})
+			entries, err = s.lc.ReadWithFilter(domainDN, filter, []string{winpki.AttrObjectSid})
 		}
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -1296,7 +1296,7 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 		} else if len(entries) > 1 {
 			s.cfg.Logger.WarnContext(ctx, "found multiple entries for user, taking the first", "username", username)
 		}
-		activeDirectorySID, err = windows.ADSIDStringFromLDAPEntry(entries[0])
+		activeDirectorySID, err = winpki.ADSIDStringFromLDAPEntry(entries[0])
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -1340,7 +1340,7 @@ type generateCredentialsRequest struct {
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
 func (s *WindowsService) generateCredentials(ctx context.Context, request generateCredentialsRequest) (certDER, keyDER []byte, err error) {
-	return windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
+	return winpki.GenerateWindowsDesktopCredentials(ctx, s.cfg.AuthClient, &winpki.GenerateCredentialsRequest{
 		CAType:             types.UserCA,
 		Username:           request.username,
 		Domain:             request.domain,
@@ -1349,7 +1349,6 @@ func (s *WindowsService) generateCredentials(ctx context.Context, request genera
 		TTL:                request.ttl,
 		ClusterName:        s.clusterName,
 		ActiveDirectorySID: request.activeDirectorySID,
-		AuthClient:         s.cfg.AuthClient,
 		CreateUser:         request.createUser,
 		Groups:             request.groups,
 		OmitCDP:            request.omitCDP,

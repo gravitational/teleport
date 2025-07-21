@@ -40,16 +40,15 @@ import (
 	"github.com/gravitational/teleport/api/client/usertask"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
-	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
@@ -61,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -69,7 +67,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -361,6 +358,24 @@ func (c *Client) SearchSessionEvents(ctx context.Context, req events.SearchSessi
 	return events, lastKey, nil
 }
 
+// SearchUnstructuredEvents allows searching for audit events with pagination support and returns unstructured events.
+func (c *Client) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
+	events, lastKey, err := c.APIClient.SearchUnstructuredEvents(
+		ctx,
+		req.From,
+		req.To,
+		apidefaults.Namespace,
+		req.EventTypes,
+		req.Limit,
+		req.Order,
+		req.StartKey,
+	)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return events, lastKey, nil
+}
+
 // UpsertClusterName not implemented: can only be called locally.
 func (c *Client) UpsertClusterName(cn types.ClusterName) error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -378,16 +393,6 @@ func (c *Client) CreateRemoteCluster(ctx context.Context, rc types.RemoteCluster
 
 // PatchRemoteCluster not implemented: can only be called locally.
 func (c *Client) PatchRemoteCluster(ctx context.Context, name string, updateFn func(rc types.RemoteCluster) (types.RemoteCluster, error)) (types.RemoteCluster, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-// ListWindowsDesktops not implemented: can only be called locally.
-func (c *Client) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-// ListWindowsDesktopServices not implemented: can only be called locally.
-func (c *Client) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
@@ -510,11 +515,6 @@ func (c *Client) UpsertSnowflakeSession(_ context.Context, _ types.WebSession) e
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// UpsertSAMLIdPSession not implemented: can only be called locally.
-func (c *Client) UpsertSAMLIdPSession(_ context.Context, _ types.WebSession) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // ResumeAuditStream resumes existing audit stream.
 func (c *Client) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
 	return c.APIClient.ResumeAuditStream(ctx, string(sid), uploadID)
@@ -626,6 +626,10 @@ func (c *Client) AccessGraphSecretsScannerClient() accessgraphsecretsv1pb.Secret
 
 func (c *Client) IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient {
 	return integrationv1.NewAWSOIDCServiceClient(c.APIClient.GetConnection())
+}
+
+func (c *Client) IntegrationAWSRolesAnywhereClient() integrationv1.AWSRolesAnywhereServiceClient {
+	return integrationv1.NewAWSRolesAnywhereServiceClient(c.APIClient.GetConnection())
 }
 
 // UserTasksClient returns a client for managing User Task resources.
@@ -916,11 +920,6 @@ type SAMLAuthResponse struct {
 type SAMLAuthRequest struct {
 	// ID is a unique request ID.
 	ID string `json:"id"`
-	// PublicKey is a public key the user wants as the subject of their SSH and TLS
-	// certificates. It must be in SSH authorized_keys format.
-	//
-	// Deprecated: prefer SSHPubKey and/or TLSPubKey.
-	PublicKey []byte `json:"public_key,omitempty"`
 	// SSHPubKey is an SSH public key the user wants as the subject of their SSH
 	// certificate. It must be in SSH authorized_keys format.
 	SSHPubKey []byte `json:"ssh_pub_key,omitempty"`
@@ -1283,10 +1282,6 @@ type AuthenticateUserRequest struct {
 	// Username is a username
 	Username string `json:"username"`
 
-	// PublicKey is a public key in ssh authorized_keys format.
-	// Deprecated: prefer SSHPublicKey and/or TLSPublicKey.
-	PublicKey []byte `json:"public_key,omitempty"`
-
 	// SSHPublicKey is a public key in ssh authorized_keys format.
 	SSHPublicKey []byte `json:"ssh_public_key,omitempty"`
 	// TLSPublicKey is a public key in PEM-encoded PKCS#1 or PKIX format.
@@ -1324,58 +1319,8 @@ func (a *AuthenticateUserRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter 'username'")
 	case a.Pass == nil && a.Webauthn == nil && a.OTP == nil && a.Session == nil && a.HeadlessAuthenticationID == "":
 		return trace.BadParameter("at least one authentication method is required")
-	case len(a.PublicKey) > 0 && len(a.SSHPublicKey) > 0:
-		return trace.BadParameter("'public_key' and 'ssh_public_key' cannot both be set")
-	case len(a.PublicKey) > 0 && len(a.TLSPublicKey) > 0:
-		return trace.BadParameter("'public_key' and 'tls_public_key' cannot both be set")
 	}
-	var err error
-	a.SSHPublicKey, a.TLSPublicKey, err = UserPublicKeys(a.PublicKey, a.SSHPublicKey, a.TLSPublicKey)
-	a.PublicKey = nil
-	return trace.Wrap(err)
-}
-
-// UserPublicKeys is a helper for the transition from clients sending a single
-// public key for both SSH and TLS, to separate public keys for each protocol.
-// [pubIn] should be the single public key that should be set by any pre-17.0.0
-// client in SSH authorized_keys format. If set, both returned keys will be
-// derived from this. If empty, sshPubIn and tlsPubIn will be returned.
-// [sshPubIn] should be the SSH public key set by any post-17.0.0 client in SSH
-// authorized_keys format.
-// [tlsPubIn] should be the TLS public key set by any post-17.0.0 client in
-// PEM-encoded PKIX or PKCS#1 ASN.1 DER form.
-// [sshPubOut] will be nil or an SSH public key in SSH authorized_keys format.
-// [tlsPubOut] will be nil or a TLS public key in PEM-encoded PKIX or PKCS#1
-// ASN.1 DER form.
-//
-// TODO(nklaassen): DELETE IN 18.0.0 after all clients should be using
-// the separated keys.
-func UserPublicKeys(pubIn, sshPubIn, tlsPubIn []byte) (sshPubOut, tlsPubOut []byte, err error) {
-	if len(pubIn) == 0 {
-		return sshPubIn, tlsPubIn, nil
-	}
-	sshPubOut = pubIn
-	cryptoPubKey, err := sshutils.CryptoPublicKey(pubIn)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	tlsPubOut, err = keys.MarshalPublicKey(cryptoPubKey)
-	return sshPubOut, tlsPubOut, trace.Wrap(err)
-}
-
-// UserAttestationStatements is a helper for the transition from clients sending
-// a single attestation statement for both SSH and TLS, to separate public keys
-// and attestation statements for each protocol.
-// [attIn] should be the single attestation that should be set by any pre-17.0.0
-// client. If set, it will be returned in both return positions. If nil,
-// sshAttIn and tlsAttIn will be returned.
-// [sshAttIn] and [tlsAttIn] should be the SSH and TLS attestation statements
-// set by any post-17.0.0 client.
-func UserAttestationStatements(attIn, sshAttIn, tlsAttIn *hardwarekey.AttestationStatement) (sshAttOut, tlsAttOut *hardwarekey.AttestationStatement) {
-	if attIn == nil {
-		return sshAttIn, tlsAttIn
-	}
-	return attIn, attIn
+	return nil
 }
 
 // PassCreds is a password credential
@@ -1411,11 +1356,6 @@ type AuthenticateSSHRequest struct {
 	// certificate. This can be empty on older clients.
 	KubernetesCluster string `json:"kubernetes_cluster"`
 
-	// AttestationStatement is an attestation statement associated with the given public key.
-	//
-	// Deprecated: prefer SSHAttestationStatement and/or TLSAttestationStatement.
-	AttestationStatement *hardwarekey.AttestationStatement `json:"attestation_statement,omitempty"`
-
 	// SSHAttestationStatement is an attestation statement associated with the
 	// given SSH public key.
 	SSHAttestationStatement *hardwarekey.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
@@ -1429,16 +1369,9 @@ func (a *AuthenticateSSHRequest) CheckAndSetDefaults() error {
 	if err := a.AuthenticateUserRequest.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	switch {
-	case len(a.SSHPublicKey)+len(a.TLSPublicKey) == 0:
+	if len(a.SSHPublicKey) == 0 && len(a.TLSPublicKey) == 0 {
 		return trace.BadParameter("'ssh_public_key' or 'tls_public_key' must be set")
-	case a.AttestationStatement != nil && a.SSHAttestationStatement != nil:
-		return trace.BadParameter("'attestation_statement' and 'ssh_attestation_statement' cannot both be set")
-	case a.AttestationStatement != nil && a.TLSAttestationStatement != nil:
-		return trace.BadParameter("'attestation_statement' and 'tls_attestation_statement' cannot both be set")
 	}
-	a.SSHAttestationStatement, a.TLSAttestationStatement = UserAttestationStatements(a.AttestationStatement, a.SSHAttestationStatement, a.TLSAttestationStatement)
-	a.AttestationStatement = nil
 	certificateFormat, err := utils.CheckCertificateFormatFlag(a.CompatibilityMode)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1518,7 +1451,7 @@ type ClientI interface {
 	services.DynamicAccess
 	services.DynamicAccessOracle
 	services.Restrictions
-	services.Apps
+	services.Applications
 	services.Databases
 	services.DatabaseServices
 	services.Kubernetes
@@ -1531,7 +1464,6 @@ type ClientI interface {
 	services.AutoUpdateServiceGetter
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
-	services.SAMLIdPSession
 	services.Integrations
 	services.KubeWaitingContainer
 	services.Notifications
@@ -1566,6 +1498,9 @@ type ClientI interface {
 
 	// IntegrationAWSOIDCClient returns a client to the Integration AWS OIDC gRPC service.
 	IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient
+
+	// IntegrationAWSRolesAnywhereClient returns a client to the Integration AWS OIDC gRPC service.
+	IntegrationAWSRolesAnywhereClient() integrationv1.AWSRolesAnywhereServiceClient
 
 	// UserTasksServiceClient returns an User Task service client.
 	UserTasksServiceClient() *usertask.Client
@@ -1616,10 +1551,6 @@ type ClientI interface {
 	// CreateSnowflakeSession creates a Snowflake web session. Snowflake web
 	// sessions represent Database Access Snowflake session the client holds.
 	CreateSnowflakeSession(context.Context, types.CreateSnowflakeSessionRequest) (types.WebSession, error)
-
-	// CreateSAMLIdPSession creates a SAML IdP. SAML IdP sessions represent
-	// sessions created by the SAML identity provider.
-	CreateSAMLIdPSession(context.Context, types.CreateSAMLIdPSessionRequest) (types.WebSession, error)
 
 	// GenerateDatabaseCert generates a client certificate used by a database
 	// service to authenticate with the database instance, or a server certificate
@@ -1834,12 +1765,6 @@ type ClientI interface {
 
 	// GenerateAppToken creates a JWT token with application access.
 	GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error)
-
-	// IdentityCenterClient returns Identity Center service client.
-	IdentityCenterClient() identitycenterv1.IdentityCenterServiceClient
-
-	// ProvisioningServiceClient returns provisioning service client.
-	ProvisioningServiceClient() provisioningv1.ProvisioningServiceClient
 
 	// IntegrationsClient returns integrations client.
 	IntegrationsClient() integrationv1.IntegrationServiceClient

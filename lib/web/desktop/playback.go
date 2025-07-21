@@ -127,7 +127,7 @@ func PlayRecording(
 						msg = []byte(`"internal server error"`)
 					}
 					//lint:ignore QF1012 this write needs to happen in a single operation
-					bytes := []byte(fmt.Sprintf(`{"message":"error", "errorText":%s}`, string(msg)))
+					bytes := fmt.Appendf(nil, `{"message":"error", "errorText":%s}`, string(msg))
 					if err := ws.WriteMessage(websocket.BinaryMessage, bytes); err != nil {
 						log.ErrorContext(ctx, "failed to write error message", "error", err)
 					}

@@ -441,15 +441,11 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 			return trace.Wrap(err, "spec.azure_devops: failed validation")
 		}
 	case JoinMethodBoundKeypair:
-		providerCfg := p.Spec.BoundKeypair
-		if providerCfg == nil {
-			return trace.BadParameter(
-				"spec.bound_keypair: must be configured for the join method %q",
-				JoinMethodBoundKeypair,
-			)
+		if p.Spec.BoundKeypair == nil {
+			p.Spec.BoundKeypair = &ProvisionTokenSpecV2BoundKeypair{}
 		}
 
-		if err := providerCfg.checkAndSetDefaults(); err != nil {
+		if err := p.Spec.BoundKeypair.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "spec.bound_keypair: failed validation")
 		}
 	default:
@@ -1033,13 +1029,21 @@ func (a *ProvisionTokenSpecV2AzureDevops) checkAndSetDefaults() error {
 
 func (a *ProvisionTokenSpecV2BoundKeypair) checkAndSetDefaults() error {
 	if a.Onboarding == nil {
-		return trace.BadParameter("spec.bound_keypair.onboarding is required")
+		a.Onboarding = &ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{}
 	}
 
-	if a.Onboarding.RegistrationSecret == "" && a.Onboarding.InitialPublicKey == "" {
-		return trace.BadParameter("at least one of [initial_join_secret, " +
-			"initial_public_key] is required in spec.bound_keypair.onboarding")
+	if a.Recovery == nil {
+		a.Recovery = &ProvisionTokenSpecV2BoundKeypair_RecoverySpec{}
 	}
+
+	// Limit must be >= 1 for the token to be useful. If zero, assume it's unset
+	// and provide a sane default.
+	if a.Recovery.Limit == 0 {
+		a.Recovery.Limit = 1
+	}
+
+	// Note: Recovery.Mode will be interpreted at joining time; it's zero value
+	// ("") is mapped to RecoveryModeStandard.
 
 	return nil
 }

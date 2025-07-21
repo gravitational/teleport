@@ -27,15 +27,14 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -44,13 +43,16 @@ import (
 // an authenticating tunnel and will automatically issue and renew certificates
 // as needed.
 type ApplicationTunnelService struct {
-	botCfg         *config.BotConfig
-	cfg            *config.ApplicationTunnelService
-	proxyPingCache *proxyPingCache
-	log            *slog.Logger
-	resolver       reversetunnelclient.Resolver
-	botClient      *authclient.Client
-	getBotIdentity getBotIdentityFn
+	botCfg             *config.BotConfig
+	cfg                *config.ApplicationTunnelService
+	proxyPingCache     *proxyPingCache
+	log                *slog.Logger
+	botClient          *apiclient.Client
+	getBotIdentity     getBotIdentityFn
+	botIdentityReadyCh <-chan struct{}
+	statusReporter     readyz.Reporter
+	identityGenerator  *identity.Generator
+	clientBuilder      *client.Builder
 }
 
 func (s *ApplicationTunnelService) Run(ctx context.Context) error {
@@ -98,10 +100,16 @@ func (s *ApplicationTunnelService) Run(ctx context.Context) error {
 	}()
 	s.log.InfoContext(ctx, "Listening for connections.", "address", l.Addr().String())
 
+	if s.statusReporter == nil {
+		s.statusReporter = readyz.NoopReporter()
+	}
+	s.statusReporter.Report(readyz.Healthy)
+
 	select {
 	case <-ctx.Done():
 		return nil
 	case err := <-errCh:
+		s.statusReporter.ReportReason(readyz.Unhealthy, err.Error())
 		return trace.Wrap(err, "local proxy failed")
 	}
 }
@@ -119,15 +127,17 @@ func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (l
 	ctx, span := tracer.Start(ctx, "ApplicationTunnelService/buildLocalProxyConfig")
 	defer span.End()
 
-	// Determine the roles to use for the impersonated app access user. We fall
-	// back to all the roles the bot has if none are configured.
-	roles := s.cfg.Roles
-	if len(roles) == 0 {
-		roles, err = fetchDefaultRoles(ctx, s.botClient, s.getBotIdentity())
-		if err != nil {
-			return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "fetching default roles")
+	if s.botIdentityReadyCh != nil {
+		select {
+		case <-s.botIdentityReadyCh:
+		default:
+			s.log.InfoContext(ctx, "Waiting for internal bot identity to be renewed before running")
+			select {
+			case <-s.botIdentityReadyCh:
+			case <-ctx.Done():
+				return alpnproxy.LocalProxyConfig{}, ctx.Err()
+			}
 		}
-		s.log.DebugContext(ctx, "No roles configured, using all roles available.", "roles", roles)
 	}
 
 	proxyPing, err := s.proxyPingCache.ping(ctx)
@@ -140,7 +150,7 @@ func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (l
 	}
 
 	s.log.DebugContext(ctx, "Issuing initial certificate for local proxy.")
-	appCert, app, err := s.issueCert(ctx, roles)
+	appCert, app, err := s.issueCert(ctx)
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err)
 	}
@@ -153,7 +163,7 @@ func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (l
 
 			if err := lp.CheckCertExpiry(ctx); err != nil {
 				s.log.InfoContext(ctx, "Certificate for tunnel needs reissuing.", "reason", err.Error())
-				cert, _, err := s.issueCert(ctx, roles)
+				cert, _, err := s.issueCert(ctx)
 				if err != nil {
 					return trace.Wrap(err, "issuing cert")
 				}
@@ -172,7 +182,7 @@ func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (l
 		Cert:               *appCert,
 		InsecureSkipVerify: s.botCfg.Insecure,
 	}
-	if client.IsALPNConnUpgradeRequired(
+	if apiclient.IsALPNConnUpgradeRequired(
 		ctx,
 		proxyAddr,
 		s.botCfg.Insecure,
@@ -188,7 +198,6 @@ func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (l
 
 func (s *ApplicationTunnelService) issueCert(
 	ctx context.Context,
-	roles []string,
 ) (*tls.Certificate, types.Application, error) {
 	ctx, span := tracer.Start(ctx, "ApplicationTunnelService/issueCert")
 	defer span.End()
@@ -197,24 +206,17 @@ func (s *ApplicationTunnelService) issueCert(
 	// session ID may need to change. Once v17 hits, this will be automagically
 	// calculated by the auth server on cert generation, and we can fetch the
 	// routeToApp once.
-	impersonatedIdentity, err := generateIdentity(
-		ctx,
-		s.botClient,
-		s.getBotIdentity(),
-		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
-		nil,
-	)
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
+	identityOpts := []identity.GenerateOption{
+		identity.WithRoles(s.cfg.Roles),
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
+	}
+	impersonatedIdentity, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	impersonatedClient, err := clientForFacade(
-		ctx,
-		s.log,
-		s.botCfg,
-		identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, impersonatedIdentity),
-		s.resolver,
-	)
+	impersonatedClient, err := s.clientBuilder.Build(ctx, impersonatedIdentity)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -229,15 +231,7 @@ func (s *ApplicationTunnelService) issueCert(
 	}
 
 	s.log.DebugContext(ctx, "Requesting issuance of certificate for tunnel proxy.")
-	routedIdent, err := generateIdentity(
-		ctx,
-		s.botClient,
-		s.getBotIdentity(),
-		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
-		func(req *proto.UserCertsRequest) {
-			req.RouteToApp = route
-		})
+	routedIdent, err := s.identityGenerator.Generate(ctx, append(identityOpts, identity.WithRouteToApp(route))...)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -249,5 +243,8 @@ func (s *ApplicationTunnelService) issueCert(
 // String returns a human-readable string that can uniquely identify the
 // service.
 func (s *ApplicationTunnelService) String() string {
-	return fmt.Sprintf("%s:%s:%s", config.ApplicationTunnelServiceType, s.cfg.Listen, s.cfg.AppName)
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("%s:%s:%s", config.ApplicationTunnelServiceType, s.cfg.Listen, s.cfg.AppName),
+	)
 }

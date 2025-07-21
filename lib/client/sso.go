@@ -82,7 +82,7 @@ func (tc *TeleportClient) loginInitFn(ctx context.Context, keyRing *KeyRing, cli
 	// initiate SSO login through the Proxy.
 	req := SSOLoginConsoleReq{
 		RedirectURL: clientCallbackURL,
-		SSOUserPublicKeys: SSOUserPublicKeys{
+		UserPublicKeys: UserPublicKeys{
 			SSHPubKey:               sshLogin.SSHPubKey,
 			TLSPubKey:               sshLogin.TLSPubKey,
 			SSHAttestationStatement: sshLogin.SSHAttestationStatement,

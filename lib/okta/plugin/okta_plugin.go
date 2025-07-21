@@ -24,11 +24,10 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // Get fetches the Okta plugin if it exists and does proper type assertions.
-func Get(ctx context.Context, plugins services.Plugins, withSecrets bool) (*types.PluginV1, error) {
+func Get(ctx context.Context, plugins PluginGetter, withSecrets bool) (*types.PluginV1, error) {
 	plugin, err := plugins.GetPlugin(ctx, types.PluginTypeOkta, withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting Okta plugin")

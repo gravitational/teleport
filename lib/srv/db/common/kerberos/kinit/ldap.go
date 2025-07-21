@@ -30,8 +30,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/winpki"
 )
 
 type ldapConnectionConfig struct {
@@ -47,7 +47,7 @@ type ldapConnectionConfig struct {
 
 type ldapConnector struct {
 	logger     *slog.Logger
-	authClient windows.AuthInterface
+	authClient winpki.AuthInterface
 
 	ldapConfig ldapConnectionConfig
 
@@ -58,7 +58,7 @@ type LDAPConnector interface {
 	GetActiveDirectorySID(ctx context.Context, username string) (sid string, err error)
 }
 
-func newLDAPConnector(logger *slog.Logger, authClient windows.AuthInterface, adConfig types.AD) (*ldapConnector, error) {
+func newLDAPConnector(logger *slog.Logger, authClient winpki.AuthInterface, adConfig types.AD) (*ldapConnector, error) {
 	if authClient == nil {
 		return nil, trace.BadParameter("auth client is missing")
 	}
@@ -155,12 +155,12 @@ func (s *ldapConnector) GetActiveDirectorySID(ctx context.Context, username stri
 
 	var activeDirectorySID string
 	// Find the user's SID
-	filter := windows.CombineLDAPFilters([]string{
+	filter := winpki.CombineLDAPFilters([]string{
 		fmt.Sprintf("(%s=%s)", attrSAMAccountType, AccountTypeUser),
 		fmt.Sprintf("(%s=%s)", attrSAMAccountName, username),
 	})
 
-	domainDN := windows.DomainDN(s.ldapConfig.domain)
+	domainDN := winpki.DomainDN(s.ldapConfig.domain)
 
 	s.logger.DebugContext(ctx, "Querying LDAP for objectSid of Windows user", "username", username, "filter", filter, "domain", domainDN)
 
@@ -169,9 +169,9 @@ func (s *ldapConnector) GetActiveDirectorySID(ctx context.Context, username stri
 		return "", trace.Wrap(err)
 	}
 
-	lc := windows.NewLDAPClient(ldapConn)
+	lc := winpki.NewLDAPClient(ldapConn)
 
-	entries, err := lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid})
+	entries, err := lc.ReadWithFilter(domainDN, filter, []string{winpki.AttrObjectSid})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -180,7 +180,7 @@ func (s *ldapConnector) GetActiveDirectorySID(ctx context.Context, username stri
 	} else if len(entries) > 1 {
 		s.logger.WarnContext(ctx, "found multiple entries for user, taking the first", "username", username)
 	}
-	activeDirectorySID, err = windows.ADSIDStringFromLDAPEntry(entries[0])
+	activeDirectorySID, err = winpki.ADSIDStringFromLDAPEntry(entries[0])
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -201,18 +201,16 @@ func (s *ldapConnector) tlsConfigForLDAP(ctx context.Context, clusterName string
 		s.logger.WarnContext(ctx, "LDAP configuration is missing service account SID; querying LDAP may fail.")
 	}
 
-	req := &windows.GenerateCredentialsRequest{
+	req := &winpki.GenerateCredentialsRequest{
 		Username:           user,
 		CAType:             types.DatabaseClientCA,
 		TTL:                time.Hour,
 		ClusterName:        clusterName,
 		Domain:             s.ldapConfig.domain,
 		ActiveDirectorySID: s.ldapConfig.serviceAccountSID,
-		AuthClient:         s.authClient,
-		OmitCDP:            true,
 	}
 
-	certPEM, keyPEM, caCerts, err := windows.DatabaseCredentials(ctx, req)
+	certPEM, keyPEM, caCerts, err := winpki.DatabaseCredentials(ctx, s.authClient, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

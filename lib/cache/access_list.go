@@ -17,6 +17,7 @@
 package cache
 
 import (
+	"cmp"
 	"context"
 
 	"github.com/gravitational/trace"
@@ -25,6 +26,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/sortcache"
 )
@@ -40,6 +43,7 @@ func newAccessListCollection(upstream services.AccessLists, w types.WatchKind) (
 
 	return &collection[*accesslist.AccessList, accessListIndex]{
 		store: newStore(
+			types.KindAccessList,
 			(*accesslist.AccessList).Clone,
 			map[accessListIndex]func(*accesslist.AccessList) string{
 				accessListNameIndex: func(al *accesslist.AccessList) string {
@@ -47,23 +51,8 @@ func newAccessListCollection(upstream services.AccessLists, w types.WatchKind) (
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*accesslist.AccessList, error) {
-			var resources []*accesslist.AccessList
-			var nextToken string
-			for {
-				var page []*accesslist.AccessList
-				var err error
-				page, nextToken, err = upstream.ListAccessLists(ctx, 0 /* page size */, nextToken)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				resources = append(resources, page...)
-
-				if nextToken == "" {
-					break
-				}
-			}
-			return resources, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListAccessLists))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *accesslist.AccessList {
 			return &accesslist.AccessList{
@@ -162,6 +151,7 @@ func newAccessListMemberCollection(upstream services.AccessLists, w types.WatchK
 
 	return &collection[*accesslist.AccessListMember, accessListMemberIndex]{
 		store: newStore(
+			types.KindAccessListMember,
 			(*accesslist.AccessListMember).Clone,
 			map[accessListMemberIndex]func(*accesslist.AccessListMember) string{
 				accessListMemberNameIndex: func(r *accesslist.AccessListMember) string {
@@ -172,23 +162,8 @@ func newAccessListMemberCollection(upstream services.AccessLists, w types.WatchK
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*accesslist.AccessListMember, error) {
-			var resources []*accesslist.AccessListMember
-			var nextToken string
-			for {
-				var page []*accesslist.AccessListMember
-				var err error
-				page, nextToken, err = upstream.ListAllAccessListMembers(ctx, 0 /* page size */, nextToken)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				resources = append(resources, page...)
-
-				if nextToken == "" {
-					break
-				}
-			}
-			return resources, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListAllAccessListMembers))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *accesslist.AccessListMember {
 			return &accesslist.AccessListMember{
@@ -224,11 +199,15 @@ func (c *Cache) CountAccessListMembers(ctx context.Context, accessListName strin
 		return count, listCount, trace.Wrap(err)
 	}
 
-	startKey := accessListName + "/" + accesslist.MembershipKindList + "/"
-	endKey := sortcache.NextKey(startKey)
-	listCount := uint32(rg.store.count(accessListMemberKindIndex, startKey, endKey))
+	startUserKey := accessListName + "/" + accesslist.MembershipKindUser + "/"
+	endUserKey := sortcache.NextKey(startUserKey)
+	userCount := uint32(rg.store.count(accessListMemberKindIndex, startUserKey, endUserKey))
 
-	return uint32(rg.store.len()) - listCount, listCount, trace.Wrap(err)
+	startListKey := accessListName + "/" + accesslist.MembershipKindList + "/"
+	endListKey := sortcache.NextKey(startListKey)
+	listCount := uint32(rg.store.count(accessListMemberKindIndex, startListKey, endListKey))
+
+	return userCount, listCount, nil
 }
 
 // ListAccessListMembers returns a paginated list of all access list members.
@@ -250,11 +229,8 @@ func (c *Cache) ListAccessListMembers(ctx context.Context, accessListName string
 		return out, next, trace.Wrap(err)
 	}
 
-	start := accessListName
+	start := cmp.Or(pageToken, accessListName)
 	end := sortcache.NextKey(accessListName + "/")
-	if pageToken != "" {
-		start += "/" + pageToken
-	}
 
 	if pageSize <= 0 {
 		pageSize = defaults.DefaultChunkSize
@@ -328,6 +304,7 @@ func newAccessListReviewCollection(upstream services.AccessLists, w types.WatchK
 
 	return &collection[*accesslist.Review, accessListReviewIndex]{
 		store: newStore(
+			types.KindAccessListReview,
 			(*accesslist.Review).Clone,
 			map[accessListReviewIndex]func(*accesslist.Review) string{
 				accessListReviewNameIndex: func(r *accesslist.Review) string {
@@ -335,23 +312,8 @@ func newAccessListReviewCollection(upstream services.AccessLists, w types.WatchK
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*accesslist.Review, error) {
-			var resources []*accesslist.Review
-			var nextToken string
-			for {
-				var page []*accesslist.Review
-				var err error
-				page, nextToken, err = upstream.ListAllAccessListReviews(ctx, 0 /* page size */, nextToken)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				resources = append(resources, page...)
-
-				if nextToken == "" {
-					break
-				}
-			}
-			return resources, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListAllAccessListReviews))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *accesslist.Review {
 			return &accesslist.Review{
@@ -391,10 +353,11 @@ func (c *Cache) ListAccessListReviews(ctx context.Context, accessList string, pa
 	}
 
 	start := accessList
+	end := sortcache.NextKey(accessList + "/")
 	if pageToken != "" {
 		start += "/" + pageToken
 	}
 
-	out, next, err := lister.list(ctx, pageSize, start)
+	out, next, err := lister.listRange(ctx, pageSize, start, end)
 	return out, next, trace.Wrap(err)
 }

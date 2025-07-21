@@ -1,6 +1,9 @@
 ---
 title: Run Teleport as a Daemon
 description: Configure Teleport to run as a daemon using systemd
+labels:
+ - how-to
+ - platform-wide
 ---
 On Linux systems in non-containerized environments, we recommend running the `teleport` binary as a daemon using systemd.
 Using a daemon helps to ensure that the `teleport` process can remain running and available regardless of a controlling terminal session or parent process, and opens up additional

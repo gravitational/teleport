@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react';
+import { Meta } from '@storybook/react-vite';
 import { createRef } from 'react';
 
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
@@ -88,7 +88,7 @@ export function Story() {
 }
 
 // https://stackoverflow.com/questions/53807517/how-to-test-if-two-types-are-exactly-the-same/73461648#73461648
-function assert<T extends never>() {} // eslint-disable-line @typescript-eslint/no-unused-vars
+function assert<T extends never>() {} // eslint-disable-line unused-imports/no-unused-vars
 type TypeEqualityGuard<A, B> = Exclude<A, B> | Exclude<B, A>;
 type ArrayElement<T> = T extends (infer U)[] ? U : never;
 

@@ -49,7 +49,7 @@ type request struct {
 	// Body request body
 	Body string
 	// Response represents template structure for a response
-	Response interface{}
+	Response any
 	// Err represents template structure for an error
 	Err error
 	// SuccessCode http code representing success

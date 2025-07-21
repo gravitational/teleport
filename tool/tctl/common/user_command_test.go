@@ -107,7 +107,7 @@ func TestUserAdd(t *testing.T) {
 			name:                "nonexistent roles",
 			dontAddDefaultRoles: true,
 			args:                []string{"--roles", "editor,access,fake"},
-			errorChecker: func(t require.TestingT, err error, i ...interface{}) {
+			errorChecker: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsNotFound(err), err)
 			},
 		},
@@ -185,8 +185,15 @@ func TestUserAdd(t *testing.T) {
 		{
 			name: "invalid GCP service account are rejected",
 			args: []string{"--gcp-service-accounts", "foobar"},
-			errorChecker: func(t require.TestingT, err error, i ...interface{}) {
+			errorChecker: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "GCP service account \"foobar\" is invalid")
+			},
+		},
+		{
+			name: "mcp tools",
+			args: []string{"--mcp-tools", "aa,bb", "--mcp-tools", "get_*"},
+			wantTraits: map[string][]string{
+				constants.TraitMCPTools: {"aa", "bb", "get_*"},
 			},
 		},
 	}
@@ -251,7 +258,7 @@ func TestUserUpdate(t *testing.T) {
 	}{
 		{
 			name: "no args",
-			errorChecker: func(t require.TestingT, err error, i ...interface{}) {
+			errorChecker: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err), err)
 			},
 		},
@@ -263,7 +270,7 @@ func TestUserUpdate(t *testing.T) {
 		{
 			name: "nonexistent roles",
 			args: []string{"--set-roles", "editor,access,fake"},
-			errorChecker: func(t require.TestingT, err error, i ...interface{}) {
+			errorChecker: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsNotFound(err), err)
 			},
 		},
@@ -348,8 +355,15 @@ func TestUserUpdate(t *testing.T) {
 		{
 			name: "invalid GCP service account are rejected",
 			args: []string{"--set-gcp-service-accounts", "foobar"},
-			errorChecker: func(t require.TestingT, err error, i ...interface{}) {
+			errorChecker: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "GCP service account \"foobar\" is invalid")
+			},
+		},
+		{
+			name: "mcp tools",
+			args: []string{"--set-mcp-tools", "aa,bb", "--set-mcp-tools", "get_*"},
+			wantTraits: map[string][]string{
+				constants.TraitMCPTools: {"aa", "bb", "get_*"},
 			},
 		},
 	}

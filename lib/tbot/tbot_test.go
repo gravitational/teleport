@@ -24,7 +24,9 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/rsa"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -32,6 +34,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -42,6 +45,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/crypto/ssh/knownhosts"
 
+	"github.com/gravitational/teleport/api/client"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -63,11 +67,12 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	cryptosuites.PrecomputeRSATestKeys(m)
 	os.Exit(m.Run())
 }
@@ -153,8 +158,9 @@ func defaultBotConfig(
 	}
 
 	cfg := &config.BotConfig{
-		AuthServer: authServer,
-		Onboarding: *onboarding,
+		AuthServer:            authServer,
+		AuthServerAddressMode: config.WarnIfAuthServerIsProxy,
+		Onboarding:            *onboarding,
 		Storage: &config.StorageConfig{
 			Destination: &config.DestinationMemory{},
 		},
@@ -180,7 +186,7 @@ func defaultBotConfig(
 func TestBot(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	// Make a new auth server.
 	const (
@@ -551,7 +557,7 @@ func tlsIdentFromDest(ctx context.Context, t *testing.T, dest bot.Destination) *
 func TestBot_ResumeFromStorage(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	// Make a new auth server.
 	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
@@ -592,10 +598,238 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 	require.NoError(t, thirdBot.Run(ctx))
 }
 
+func TestBot_IdentityRenewalFails(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	log := logtest.NewLogger()
+
+	// This test asserts that we can continue running (and recover) even when
+	// identity renewal fails on-startup.
+	//
+	// How it works:
+	//
+	// We run a TCP proxy in front of the real Teleport proxy that can be set to
+	// immediately close connections.
+	//
+	// We publish that address in TunnelPublicAddrs but put the *real* address
+	// in tbot's config so that we allow requests to the `/webapi/find` endpoint
+	// through as-is, without needing to sniff the ALPN protocols or something.
+	//
+	// This is necessary because tbot's resolver caches errors, so if we blocked
+	// the connection to that HTTP endpoint, we'd need to wait for the cache to
+	// expire.
+	proxy := newFailureProxy(t)
+
+	// Make a new auth server.
+	process := testenv.MakeTestServer(t,
+		func(o *testenv.TestServersOpts) {
+			defaultTestServerOpts(t, log)(o)
+
+			testenv.WithConfig(func(cfg *servicecfg.Config) {
+				cfg.Proxy.TunnelPublicAddrs = []utils.NetAddr{*utils.MustParseAddr(proxy.addr())}
+			})(o)
+		},
+	)
+	rootClient := testenv.MakeDefaultAuthClient(t, process)
+
+	// Create bot user and join token
+	botParams, _ := makeBot(t, rootClient, "test", "access")
+	botConfig := defaultBotConfig(t,
+		process,
+		botParams,
+		config.ServiceConfigs{},
+		defaultBotConfigOpts{insecure: true},
+	)
+
+	dest := &config.DestinationDirectory{
+		Path:     t.TempDir(),
+		Symlinks: botfs.SymlinksInsecure,
+		ACLs:     botfs.ACLOff,
+	}
+	botConfig.Storage.Destination = dest
+
+	// Configure our failure proxy to send traffic to the real proxy
+	tunnelAddr, err := process.ProxyTunnelAddr()
+	require.NoError(t, err)
+	proxy.dst = tunnelAddr.String()
+	go proxy.run(t)
+
+	botConfig.ProxyServer = tunnelAddr.String()
+	botConfig.AuthServer = ""
+
+	// Run the bot a first time
+	firstBot := New(botConfig, log)
+	require.NoError(t, firstBot.Run(ctx))
+
+	// Block connections. Running the bot should now fail.
+	proxy.setFailing(true)
+	secondBot := New(botConfig, log)
+	require.ErrorContains(t, secondBot.Run(ctx), "Error while dialing")
+
+	// Drain the notification channel so we can listen for new connections.
+	select {
+	case <-proxy.notif:
+	default:
+	}
+
+	// Run it again in long-running mode, and it should eventually succeed once
+	// the network partition has healed.
+	botConfig.Oneshot = false
+	outputDest := newWriteNotifier(&config.DestinationMemory{})
+	require.NoError(t, outputDest.CheckAndSetDefaults())
+	botConfig.Services = append(botConfig.Services, &config.IdentityOutput{
+		Destination: outputDest,
+	})
+	thirdBot := New(botConfig, log)
+
+	ctx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
+	go thirdBot.Run(ctx)
+
+	// Wait for at least one failed connection, then heal the network partition.
+	select {
+	case <-proxy.notif:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for connection")
+	}
+
+	// Wait for the client to be available.
+	var client *client.Client
+	require.Eventually(t, func() bool {
+		client = thirdBot.Client()
+		return client != nil
+	}, 5*time.Second, 100*time.Millisecond, "timeout waiting for client to become available")
+
+	t.Log("Healing network partition")
+	proxy.setFailing(false)
+
+	// We must reset gRPC's connection backoff, otherwise it'll keep returning
+	// the cached error.
+	client.GetConnection().ResetConnectBackoff()
+
+	// Wait for the destination to be written to.
+	select {
+	case <-outputDest.ch:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for output to be written")
+	}
+}
+
+func newWriteNotifier(dst bot.Destination) *writeNotifier {
+	return &writeNotifier{
+		Destination: dst,
+		ch:          make(chan struct{}, 1),
+	}
+}
+
+type writeNotifier struct {
+	bot.Destination
+
+	ch chan struct{}
+}
+
+func (w writeNotifier) Write(ctx context.Context, name string, data []byte) error {
+	if name != identity.WriteTestKey {
+		defer func() {
+			select {
+			case w.ch <- struct{}{}:
+			default:
+			}
+		}()
+	}
+	return w.Destination.Write(ctx, name, data)
+}
+
+type failureProxy struct {
+	dst     string
+	lis     net.Listener
+	failing atomic.Bool
+	notif   chan struct{}
+}
+
+func newFailureProxy(t *testing.T) *failureProxy {
+	t.Helper()
+
+	lis, err := net.Listen("tcp", ":0")
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		if err := lis.Close(); err != nil {
+			t.Logf("failed to close listener: %v", err)
+		}
+	})
+
+	return &failureProxy{
+		lis:   lis,
+		notif: make(chan struct{}, 1),
+	}
+}
+
+func (f *failureProxy) run(t *testing.T) {
+	t.Helper()
+
+	for {
+		conn, err := f.lis.Accept()
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
+		if err != nil {
+			t.Logf("accept failed: %v", err)
+			continue
+		}
+
+		select {
+		case f.notif <- struct{}{}:
+		default:
+		}
+
+		go f.handleConn(t, conn)
+	}
+}
+
+func (f *failureProxy) handleConn(t *testing.T, conn net.Conn) {
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Logf("failed to close connection: %v", err)
+		}
+	}()
+
+	// If we're failing, just close the connection immediately.
+	if f.failing.Load() {
+		return
+	}
+
+	upstream, err := net.Dial("tcp", f.dst)
+	if err != nil {
+		t.Logf("failed to dial upstream: %v", err)
+		return
+	}
+
+	done := make(chan struct{}, 1)
+	pipe := func(dst io.Writer, src io.Reader) {
+		_, _ = io.Copy(dst, src)
+		done <- struct{}{}
+	}
+
+	go pipe(upstream, conn)
+	go pipe(conn, upstream)
+
+	<-done
+}
+
+func (f *failureProxy) addr() string {
+	return f.lis.Addr().String()
+}
+
+func (f *failureProxy) setFailing(failing bool) {
+	f.failing.Store(failing)
+}
+
 func TestBot_InsecureViaProxy(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	// Make a new auth server.
 	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
@@ -764,7 +998,7 @@ func newMockDiscoveredKubeCluster(t *testing.T, name, discoveredName string) *ty
 func TestBotDatabaseTunnel(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	// Make a new auth server.
 	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
@@ -866,7 +1100,7 @@ func TestBotDatabaseTunnel(t *testing.T) {
 func TestBotSSHMultiplexer(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	currentUser, err := user.Current()
 	require.NoError(t, err)
@@ -956,7 +1190,6 @@ func TestBotSSHMultiplexer(t *testing.T) {
 		"server01.root:0|root\x00", // New style target with cluster
 	}
 	for _, target := range targets {
-		target := target
 		t.Run(target, func(t *testing.T) {
 			t.Parallel()
 
@@ -1004,4 +1237,63 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			require.Len(t, keys, 2)
 		})
 	}
+}
+
+// TestBotJoiningURI ensures configured joining URIs work in place of
+// traditional YAML onboarding config.
+func TestBotJoiningURI(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	log := logtest.NewLogger()
+
+	process := testenv.MakeTestServer(
+		t,
+		defaultTestServerOpts(t, log),
+		testenv.WithProxyKube(t),
+	)
+	rootClient := testenv.MakeDefaultAuthClient(t, process)
+
+	role, err := types.NewRole("role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				"*": apiutils.Strings{"*"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = rootClient.UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	botParams, _ := makeBot(t, rootClient, "test", "role")
+	cfg := &config.BotConfig{
+		JoinURI: fmt.Sprintf(
+			"tbot+proxy+%s://%s@%s",
+			botParams.JoinMethod,
+			botParams.TokenValue,
+			process.Config.Proxy.WebAddr.String(),
+		),
+		Storage: &config.StorageConfig{
+			Destination: &config.DestinationMemory{},
+		},
+		Services: config.ServiceConfigs{
+			&config.IdentityOutput{
+				Destination: &config.DestinationMemory{},
+			},
+		},
+		Oneshot:  true,
+		Insecure: true,
+	}
+	require.NoError(t, cfg.CheckAndSetDefaults())
+
+	bot := New(cfg, log)
+	require.NoError(t, bot.Run(ctx))
+
+	// Perform some cursory checks on the identity to make sure a cert bundle
+	// was actually produced.
+	id := bot.BotIdentity()
+	tlsIdent, err := tlsca.FromSubject(
+		id.X509Cert.Subject, id.X509Cert.NotAfter,
+	)
+	require.NoError(t, err)
+	require.Equal(t, "test", tlsIdent.BotName)
 }

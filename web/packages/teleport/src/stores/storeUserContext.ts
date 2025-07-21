@@ -255,6 +255,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.bots;
   }
 
+  getBotInstancesAccess() {
+    return this.state.acl.botInstances;
+  }
+
   getContactsAccess() {
     return this.state.acl.contacts;
   }

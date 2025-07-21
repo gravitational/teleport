@@ -739,6 +739,29 @@ const (
 	// sync attempt failure code.
 	AWSICResourceSyncFailureCode = "TAIC001E"
 
+	// MCPSessionStartCode is the event code for mcp.session.start.
+	MCPSessionStartCode = "TMCP001I"
+	// MCPSessionEndCode is the event code for mcp.session.end.
+	MCPSessionEndCode = "TMCP002I"
+	// MCPSessionRequestCode is the event code for mcp.session.request.
+	MCPSessionRequestCode = "TMCP003I"
+	// MCPSessionRequestFailureCode is the event code for mcp.session.request
+	// when the request is denied by Teleport.
+	MCPSessionRequestFailureCode = "TMCP003E"
+	// MCPSessionNotificationCode is the event code for
+	// mcp.session.notification.
+	MCPSessionNotificationCode = "TMCP004I"
+
+	// BoundKeypairRecoveryCode is the event code for
+	// join_token.bound_keypair.recovery.
+	BoundKeypairRecoveryCode = "TBK001I"
+	// BoundKeypairRotationCode is the event code for
+	// join_token.bound_keypair.rotation.
+	BoundKeypairRotationCode = "TBK002I"
+	// BoundKeypairJoinStateVerificationFailedCode is the event code for
+	// join_token.bound_keypair.join_state_verification_failed.
+	BoundKeypairJoinStateVerificationFailedCode = "TBK003W"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )

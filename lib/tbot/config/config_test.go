@@ -578,3 +578,59 @@ func TestBotConfig_Base64(t *testing.T) {
 		})
 	}
 }
+
+func TestBotConfig_NameValidation(t *testing.T) {
+	t.Parallel()
+
+	testCases := map[string]struct {
+		cfg *BotConfig
+		err string
+	}{
+		"duplicate names": {
+			cfg: &BotConfig{
+				Version: V2,
+				Services: ServiceConfigs{
+					&IdentityOutput{
+						Name:        "foo",
+						Destination: &DestinationMemory{},
+					},
+					&IdentityOutput{
+						Name:        "foo",
+						Destination: &DestinationMemory{},
+					},
+				},
+			},
+			err: `duplicate name: "foo`,
+		},
+		"reserved name": {
+			cfg: &BotConfig{
+				Version: V2,
+				Services: ServiceConfigs{
+					&IdentityOutput{
+						Name:        "identity",
+						Destination: &DestinationMemory{},
+					},
+				},
+			},
+			err: `service name "identity" is reserved for internal use`,
+		},
+		"invalid name": {
+			cfg: &BotConfig{
+				Version: V2,
+				Services: ServiceConfigs{
+					&IdentityOutput{
+						Name:        "hello, world!",
+						Destination: &DestinationMemory{},
+					},
+				},
+			},
+			err: `may only contain lowercase letters`,
+		},
+	}
+	for desc, tc := range testCases {
+		t.Run(desc, func(t *testing.T) {
+			t.Parallel()
+			require.ErrorContains(t, tc.cfg.CheckAndSetDefaults(), tc.err)
+		})
+	}
+}

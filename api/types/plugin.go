@@ -120,6 +120,7 @@ type Plugin interface {
 	SetCredentials(PluginCredentials) error
 	SetStatus(PluginStatus) error
 	GetGeneration() string
+	CloneWithoutSecrets() Plugin
 }
 
 // PluginCredentials are the credentials embedded in Plugin
@@ -418,7 +419,8 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 	return nil
 }
 
-// WithoutSecrets returns an instance of resource without secrets.
+// WithoutSecrets returns the Plugin as a Resource, with secrets removed.
+// If you want to have a copy of the Plugin without secrets use CloneWithoutSecrets instead.
 func (p *PluginV1) WithoutSecrets() Resource {
 	if p.Credentials == nil {
 		return p
@@ -427,6 +429,15 @@ func (p *PluginV1) WithoutSecrets() Resource {
 	p2 := p.Clone().(*PluginV1)
 	p2.SetCredentials(nil)
 	return p2
+}
+
+// CloneWithoutSecrets returns a deep copy of the Plugin instance with secrets removed.
+// Use this when you need a separate Plugin object without secrets,
+// rather than a Resource interface value as returned by WithoutSecrets.
+func (p *PluginV1) CloneWithoutSecrets() Plugin {
+	out := p.Clone().(*PluginV1)
+	out.SetCredentials(nil)
+	return out
 }
 
 func (p *PluginV1) setStaticFields() {
@@ -754,14 +765,9 @@ func (c *PluginEntraIDSettings) Validate() error {
 }
 
 func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
-	if c.DefaultRole == "" {
-		return trace.BadParameter("default_role must be set")
-	}
-
 	if c.SamlConnectorName == "" {
 		return trace.BadParameter("saml_connector_name must be set")
 	}
-
 	return nil
 }
 
@@ -774,6 +780,17 @@ func (c *PluginDatadogAccessSettings) CheckAndSetDefaults() error {
 	}
 	return nil
 }
+
+const (
+	// AWSICRolesSyncModeAll indicates that the AWS Identity Center integration
+	// should create and maintain roles for all possible Account Assignments.
+	AWSICRolesSyncModeAll string = "ALL"
+
+	// AWSICRolesSyncModeNone indicates that the AWS Identity Center integration
+	// should *not* create any roles representing potential account Account
+	// Assignments.
+	AWSICRolesSyncModeNone string = "NONE"
+)
 
 func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
 

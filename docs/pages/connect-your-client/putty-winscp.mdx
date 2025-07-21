@@ -1,6 +1,9 @@
 ---
 title: Using PuTTY and WinSCP with Teleport
 description: This reference shows you how to use PuTTY to connect to SSH nodes and WinSCP to transfer files through Teleport
+labels:
+ - conceptual
+ - platform-wide
 ---
 
 This guide will show you how to use the Teleport client tool `tsh` to add saved sessions for use
@@ -19,7 +22,8 @@ You will learn how to:
 
 - A client machine running Windows 10 or higher. You can only use `tsh` to save PuTTY sessions on Windows.
 
-- The Teleport `tsh.exe` client, version 14.0.3 or higher. To download the `tsh.exe` client, run the following command:
+- The Teleport `tsh.exe` client. To download the `tsh.exe` client, run the
+  following command:
 
   ```code
   $ curl.exe -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-windows-amd64-bin.zip

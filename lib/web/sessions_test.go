@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
@@ -165,7 +166,7 @@ func TestGetUserClient(t *testing.T) {
 
 	timeout := time.After(10 * time.Second)
 	clients := make([]authclient.ClientI, 2)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		select {
 		case res := <-resultCh:
 			require.NoError(t, res.err)
@@ -179,7 +180,7 @@ func TestGetUserClient(t *testing.T) {
 	// ensure that only one client was created and that
 	// both clients returned are functional
 	require.Equal(t, int32(1), openCount.Load())
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		domain, err := clients[i].GetDomainName(ctx)
 		require.NoError(t, err)
 		require.Equal(t, "test", domain)
@@ -190,7 +191,7 @@ func TestSessionCache_watcher(t *testing.T) {
 	// Can't t.Parallel because of modules.SetTestModules.
 
 	// Requires Enterprise to work.
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 	})
 
@@ -200,8 +201,7 @@ func TestSessionCache_watcher(t *testing.T) {
 	clock := webSuite.clock
 
 	// cancel is used to make sure the sessionCache stops cleanly.
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	processedC := make(chan struct{})
 	sessionCache, err := newSessionCache(ctx, sessionCacheOptions{

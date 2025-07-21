@@ -189,33 +189,16 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 
 		o.Object["items"] = objList
 	default:
-		// itemsFieldName is the field name of the items in the list
-		// object. This is used to get the items from the list object.
-		// We use reflection to get the items field name since
-		// the list object can be of any type.
-		const itemsFieldName = "Items"
-		objReflect := reflect.ValueOf(obj).Elem()
-		itemsR := objReflect.FieldByName(itemsFieldName)
-		if itemsR.Type().Kind() != reflect.Slice {
-			return internalErrStatus, trace.BadParameter("unexpected type %T, Items is not a slice", obj)
+		output, err := getItemsUsingReflection(obj)
+		if err != nil {
+			return internalErrStatus, trace.Wrap(err)
 		}
-		if itemsR.Len() == 0 {
+
+		if len(output.items) == 0 {
 			break
 		}
 
-		var (
-			underlyingType = itemsR.Index(0).Type()
-			apiVersion, _  = obj.GetObjectKind().GroupVersionKind().ToAPIVersionAndKind()
-			objs           = make([]kubeObjectInterface, 0, itemsR.Len())
-		)
-		for i := range itemsR.Len() {
-			item := itemsR.Index(i).Addr().Interface()
-			if item, ok := item.(kubeObjectInterface); ok {
-				objs = append(objs, item)
-			} else {
-				return internalErrStatus, trace.BadParameter("unexpected type %T", itemsR.Interface())
-			}
-		}
+		apiVersion, itemsR, objs, underlyingType := output.apiVersion, output.underlyingValue, output.items, output.underlyingType
 		items, err := deleteResources(
 			params,
 			sess.metaResource.requestedResource.resourceKind,
@@ -227,20 +210,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		if err != nil {
 			return internalErrStatus, trace.Wrap(err)
 		}
-		// make a new slice of the same type as the original one.
-		slice := reflect.MakeSlice(itemsR.Type(), len(items), len(items))
-		for i := 0; i < len(items); i++ {
-			item := items[i]
-			// convert the item to the underlying type of the slice.
-			// this is needed because items is a slice of pointers that
-			// satisfy the kubeObjectInterface interface.
-			// but the underlying type of the slice of elements is not
-			// a pointer. We dereference the item and convert it to the
-			// original slice element type.
-			slice.Index(i).Set(reflect.ValueOf(item).Elem().Convert(underlyingType))
-		}
-
-		itemsR.Set(slice)
+		setItemsUsingReflection(itemsR, underlyingType, items)
 	}
 
 	// reset the memory buffer.
@@ -259,19 +229,79 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	return memWriter.Status(), trace.Wrap(memWriter.CopyInto(w))
 }
 
+type getItemsUsingReflectionOutput struct {
+	items           []kubeObjectInterface
+	apiVersion      string
+	underlyingType  reflect.Type
+	underlyingValue reflect.Value
+}
+
+func getItemsUsingReflection(obj runtime.Object) (getItemsUsingReflectionOutput, error) {
+	// itemsFieldName is the field name of the items in the list
+	// object. This is used to get the items from the list object.
+	// We use reflection to get the items field name since
+	// the list object can be of any type.
+	const itemsFieldName = "Items"
+	objReflect := reflect.ValueOf(obj).Elem()
+	itemsR := objReflect.FieldByName(itemsFieldName)
+	if itemsR.Type().Kind() != reflect.Slice {
+		return getItemsUsingReflectionOutput{}, trace.BadParameter("unexpected type %T, Items is not a slice", obj)
+	}
+	if itemsR.Len() == 0 {
+		return getItemsUsingReflectionOutput{}, nil
+	}
+
+	var (
+		underlyingType = itemsR.Index(0).Type()
+		apiVersion, _  = obj.GetObjectKind().GroupVersionKind().ToAPIVersionAndKind()
+		objs           = make([]kubeObjectInterface, 0, itemsR.Len())
+	)
+	for i := range itemsR.Len() {
+		item := itemsR.Index(i).Addr().Interface()
+		if item, ok := item.(kubeObjectInterface); ok {
+			objs = append(objs, item)
+		} else {
+			return getItemsUsingReflectionOutput{}, trace.BadParameter("unexpected type %T", itemsR.Interface())
+		}
+	}
+
+	return getItemsUsingReflectionOutput{
+		items:           objs,
+		apiVersion:      apiVersion,
+		underlyingType:  underlyingType,
+		underlyingValue: itemsR,
+	}, nil
+
+}
+
+func setItemsUsingReflection(itemsR reflect.Value, underlyingType reflect.Type, items []kubeObjectInterface) {
+	// make a new slice of the same type as the original one.
+	slice := reflect.MakeSlice(itemsR.Type(), len(items), len(items))
+	for i, item := range items {
+		// convert the item to the underlying type of the slice.
+		// this is needed because items is a slice of pointers that
+		// satisfy the kubeObjectInterface interface.
+		// but the underlying type of the slice of elements is not
+		// a pointer. We dereference the item and convert it to the
+		// original slice element type.
+		slice.Index(i).Set(reflect.ValueOf(item).Elem().Convert(underlyingType))
+	}
+
+	itemsR.Set(slice)
+}
+
 // newImpersonatedKubeClient creates a new Kubernetes Client that impersonates
 // a username and the groups.
 func newImpersonatedKubeClient(creds kubeCreds, username string, groups []string) (*dynamic.DynamicClient, error) {
-	c := &rest.Config{}
 	// clone cluster's rest config.
-	*c = *creds.getKubeRestConfig()
+	c := *creds.getKubeRestConfig()
 	// change the impersonated headers.
 	c.Impersonate = rest.ImpersonationConfig{
 		UserName: username,
 		Groups:   groups,
 	}
 	// TODO(tigrato): reuse the http client.
-	client, err := dynamic.NewForConfig(c)
+	client, err := dynamic.NewForConfig(&c)
 	return client, trace.Wrap(err)
 }
 

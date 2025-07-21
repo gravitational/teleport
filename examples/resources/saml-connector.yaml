@@ -28,6 +28,10 @@ spec:
     - access
   # Provides a path to the IdP metadata.
   entity_descriptor_url: https://example.okta.com/app/your-app-id/sso/saml/metadata
+  # Optional SAML authentication request binding preference. 
+  # Value must be either "http-post" or "http-redirect".
+  # http-redirect binding is the default.
+  preferred_request_binding: http-redirect
   # Optional SAML Single Logout endpoint. If set, logging out of Teleport
   # will also log the user out of the SAML provider session.
   single_logout_url: https://example.okta.com/app/your-app-id/slo/saml

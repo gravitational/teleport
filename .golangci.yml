@@ -113,6 +113,10 @@ linters:
           deny:
             - pkg: github.com/gravitational/teleport/integration
               desc: integration test should not be imported outside of intergation tests
+            - pkg: github.com/gravitational/teleport/lib/srv/db/cassandra/protocoltest
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/utils/mcptest
+              desc: testing packages should not be imported outside of _test.go files
         logging:
           deny:
             - pkg: github.com/sirupsen/logrus
@@ -165,6 +169,44 @@ linters:
               desc: 'github.com/zitadel/oidc/v3 should be used instead'
             - pkg: github.com/zitadel/oidc$
               desc: 'github.com/zitadel/oidc/v3 should be used instead'
+        test_packages:
+          files:
+            - '!$test'
+            - '!**/integrations/operator/controllers/resources/testlib/**.go'
+            - '!**/e/lib/aws/identitycenter/test/**'
+            - '!**/e/lib/devicetrust/testenv/**'
+            - '!**/e/lib/jamf/testenv/**'
+            - '!**/e/lib/operatortest/**'
+            - '!**/e/tests/**'
+          deny:
+            - pkg: github.com/gravitational/teleport/e/lib/aws/identitycenter/test
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/e/lib/idp/operatortest
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/events/tests
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/teleterm/gatewaytest
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/utils/testutils
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/test
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/tool/teleport/testenv
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/srv/db/redis/protocoltest
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/srv/db/spanner/protocoltest
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/srv/db/clickhouse/protocoltest
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/modules/modulestest
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/utils/logtesttest
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/auth/authtest
+              desc: testing packages should not be imported outside of _test.go files
         testify:
           files:
             - '!$test'
@@ -174,21 +216,14 @@ linters:
             - '!**/e/lib/idp/saml/testenv/**'
             - '!**/e/lib/operatortest/**'
             - '!**/e/tests/**'
-            - '!**/lib/automaticupgrades/basichttp/servermock.go'
             - '!**/lib/auth/helpers.go'
             - '!**/lib/auth/keystore/testhelpers.go'
-            - '!**/lib/auth/test/**'
             - '!**/lib/backend/test/**'
-            - '!**/lib/events/athena/test.go'
             - '!**/lib/events/test/**'
-            - '!**/lib/kube/proxy/utils_testing.go'
             - '!**/lib/services/suite/**'
-            - '!**/lib/srv/mock.go'
-            - '!**/lib/srv/db/redis/test.go'
-            - '!**/lib/tbot/workloadidentity/workloadattest/podman/test_server.go'
             - '!**/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest/sigstoretest.go'
             - '!**/lib/teleterm/gatewaytest/**'
-            - '!**/lib/utils/testhelpers.go'
+            - '!**/lib/utils/mcptest/**'
             - '!**/lib/utils/testutils/**'
             - '!**/integration/appaccess/fixtures.go'
             - '!**/integration/appaccess/jwt.go'
@@ -234,28 +269,22 @@ linters:
             - '!**/integrations/access/msteams/testlib/**'
             - '!**/integrations/access/slack/testlib/**'
             - '!**/integrations/operator/controllers/resources/testlib/**'
+            - '!**/lib/auth/authtest/**'
             - '!**/lib/auth/helpers.go'
             - '!**/lib/auth/keystore/testhelpers.go'
-            - '!**/lib/auth/test/**'
-            - '!**/lib/automaticupgrades/basichttp/servermock.go'
             - '!**/lib/backend/test/**'
             - '!**/lib/cryptosuites/precompute.go'
             - '!**/lib/cryptosuites/internal/rsa/rsa.go'
             - '!**/lib/events/test/**'
-            - '!**/lib/events/athena/test.go'
-            - '!**/lib/fixtures/**'
-            - '!**/lib/kube/proxy/utils_testing.go'
+            - '!**/lib/modules/modulestest/**'
             - '!**/lib/modules/test.go'
             - '!**/lib/service/service.go'
             - '!**/lib/services/local/users.go'
             - '!**/lib/services/suite/**'
-            - '!**/lib/srv/mock.go'
-            - '!**/lib/srv/db/redis/test.go'
-            - '!**/lib/tbot/workloadidentity/workloadattest/podman/test_server.go'
             - '!**/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest/sigstoretest.go'
             - '!**/lib/teleterm/gatewaytest/**'
             - '!**/lib/utils/cli.go'
-            - '!**/lib/utils/testhelpers.go'
+            - '!**/lib/utils/mcptest/**'
             - '!**/lib/utils/testutils/**'
             - '!**/tool/teleport/testenv/**'
           deny:

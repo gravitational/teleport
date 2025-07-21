@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"slices"
 	"sort"
 	"strconv"
@@ -41,6 +42,7 @@ import (
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
@@ -1766,7 +1768,7 @@ type botInstanceCollection struct {
 func (c *botInstanceCollection) resources() []types.Resource {
 	r := make([]types.Resource, 0, len(c.items))
 	for _, resource := range c.items {
-		r = append(r, types.Resource153ToLegacy(resource))
+		r = append(r, types.ProtoResource153ToLegacy(resource))
 	}
 	return r
 }
@@ -2036,6 +2038,54 @@ func (c *autoUpdateAgentRolloutCollection) writeText(w io.Writer, verbose bool) 
 	return trace.Wrap(err)
 }
 
+type autoUpdateAgentReportCollection struct {
+	reports []*autoupdatev1pb.AutoUpdateAgentReport
+}
+
+func (c *autoUpdateAgentReportCollection) resources() []types.Resource {
+	resources := make([]types.Resource, len(c.reports))
+	for i, report := range c.reports {
+		resources[i] = types.ProtoResource153ToLegacy(report)
+	}
+	return resources
+}
+
+func (c *autoUpdateAgentReportCollection) writeText(w io.Writer, verbose bool) error {
+	groupSet := make(map[string]any)
+	versionsSet := make(map[string]any)
+	for _, report := range c.reports {
+		for groupName, group := range report.GetSpec().GetGroups() {
+			groupSet[groupName] = struct{}{}
+			for versionName := range group.GetVersions() {
+				versionsSet[versionName] = struct{}{}
+			}
+		}
+	}
+
+	groupNames := slices.Collect(maps.Keys(groupSet))
+	versionNames := slices.Collect(maps.Keys(versionsSet))
+	slices.Sort(groupNames)
+	slices.Sort(versionNames)
+
+	t := asciitable.MakeTable(append([]string{"Auth Server ID", "Agent Version"}, groupNames...))
+	for _, report := range c.reports {
+		for i, versionName := range versionNames {
+			row := make([]string, len(groupNames)+2)
+			if i == 0 {
+				row[0] = report.GetMetadata().GetName()
+			}
+			row[1] = versionName
+			for j, groupName := range groupNames {
+				row[j+2] = strconv.Itoa(int(report.GetSpec().GetGroups()[groupName].GetVersions()[versionName].GetCount()))
+			}
+			t.AddRow(row)
+		}
+		t.AddRow(make([]string, len(versionNames)+2))
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
 type accessMonitoringRuleCollection struct {
 	items []*accessmonitoringrulesv1pb.AccessMonitoringRule
 }
@@ -2102,6 +2152,69 @@ func (c *healthCheckConfigCollection) writeText(w io.Writer, verbose bool) error
 
 	// stable sort by name.
 	t.SortRowsBy([]int{0}, true)
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type scopedRoleCollection struct {
+	items []*scopedaccessv1.ScopedRole
+}
+
+func (c *scopedRoleCollection) resources() []types.Resource {
+	out := make([]types.Resource, 0, len(c.items))
+	for _, item := range c.items {
+		out = append(out, types.Resource153ToLegacy(item))
+	}
+	return out
+}
+
+func (c *scopedRoleCollection) writeText(w io.Writer, verbose bool) error {
+	headers := []string{"Scope", "Name"}
+	var rows [][]string
+	for _, item := range c.items {
+		rows = append(rows, []string{
+			item.GetScope(),
+			item.GetMetadata().GetName(),
+		})
+	}
+
+	t := asciitable.MakeTable(headers, rows...)
+
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type scopedRoleAssignmentCollection struct {
+	items []*scopedaccessv1.ScopedRoleAssignment
+}
+
+func (c *scopedRoleAssignmentCollection) resources() []types.Resource {
+	out := make([]types.Resource, 0, len(c.items))
+	for _, item := range c.items {
+		out = append(out, types.Resource153ToLegacy(item))
+	}
+	return out
+}
+
+func (c *scopedRoleAssignmentCollection) writeText(w io.Writer, verbose bool) error {
+	headers := []string{"Scope", "Name", "Assigns"}
+	var rows [][]string
+
+	for _, item := range c.items {
+		var assigns []string
+		for _, subAssignment := range item.GetSpec().GetAssignments() {
+			assigns = append(assigns, fmt.Sprintf("%s@%s", subAssignment.GetRole(), subAssignment.GetScope()))
+		}
+
+		rows = append(rows, []string{
+			item.GetScope(),
+			item.GetMetadata().GetName(),
+			strings.Join(assigns, ", "),
+		})
+	}
+
+	t := asciitable.MakeTable(headers, rows...)
+
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

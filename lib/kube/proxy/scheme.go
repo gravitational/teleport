@@ -117,7 +117,7 @@ type gvkSupportedResources map[gvkSupportedResourcesKey]*schema.GroupVersionKind
 func newClusterSchemaBuilder(log *slog.Logger, client kubernetes.Interface) (*serializer.CodecFactory, rbacSupportedResources, gvkSupportedResources, error) {
 	kubeScheme := runtime.NewScheme()
 	kubeCodecs := serializer.NewCodecFactory(kubeScheme)
-	supportedResources := maps.Clone(defaultRBACResources)
+	supportedResources := make(rbacSupportedResources)
 	gvkSupportedRes := make(gvkSupportedResources)
 	if err := registerDefaultKubeTypes(kubeScheme); err != nil {
 		return nil, nil, nil, trace.Wrap(err)
@@ -160,13 +160,6 @@ func newClusterSchemaBuilder(log *slog.Logger, client kubernetes.Interface) (*se
 			}
 		}
 
-		// Skip well-known Kubernetes API groups because they are already registered
-		// in the scheme.
-		// TODO(@creack): Remove this. It prevents resources like replicationcontroller from being registered.
-		// There is more to it though as even when registering here, it doesn't get handlded by the RBAC filters.
-		if _, ok := knownKubernetesGroups[group]; ok {
-			continue
-		}
 		groupVersion := schema.GroupVersion{Group: group, Version: version}
 		for _, apiResource := range apiGroup.APIResources {
 			// build the resource key to be able to look it up later and check if
@@ -176,7 +169,6 @@ func newClusterSchemaBuilder(log *slog.Logger, client kubernetes.Interface) (*se
 				resourceKind: apiResource.Name,
 			}
 
-			// TODO(@creack): Keep track of the namespaced field.
 			supportedResources[resourceKey] = apiResource
 
 			// Create the group version kind for the resource.
@@ -223,32 +215,4 @@ func getKubeAPIGroupAndVersion(groupVersion string) (group string, version strin
 	default:
 		return "", ""
 	}
-}
-
-// knownKubernetesGroups is a map of well-known Kubernetes API groups that
-// are already registered in the scheme and we don't need to register them
-// again.
-var knownKubernetesGroups = map[string]struct{}{
-	// core group
-	"":                             {},
-	"apiregistration.k8s.io":       {},
-	"apps":                         {},
-	"events.k8s.io":                {},
-	"authentication.k8s.io":        {},
-	"authorization.k8s.io":         {},
-	"autoscaling":                  {},
-	"batch":                        {},
-	"certificates.k8s.io":          {},
-	"networking.k8s.io":            {},
-	"policy":                       {},
-	"rbac.authorization.k8s.io":    {},
-	"storage.k8s.io":               {},
-	"admissionregistration.k8s.io": {},
-	"apiextensions.k8s.io":         {},
-	"scheduling.k8s.io":            {},
-	"coordination.k8s.io":          {},
-	"node.k8s.io":                  {},
-	"discovery.k8s.io":             {},
-	"flowcontrol.apiserver.k8s.io": {},
-	"metrics.k8s.io":               {},
 }

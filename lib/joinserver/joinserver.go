@@ -59,7 +59,7 @@ type joinServiceClient interface {
 		ctx context.Context,
 		req *proto.RegisterUsingBoundKeypairInitialRequest,
 		challengeResponse client.RegisterUsingBoundKeypairChallengeResponseFunc,
-	) (*proto.Certs, string, error)
+	) (*client.BoundKeypairRegistrationResponse, error)
 	RegisterUsingToken(
 		ctx context.Context,
 		req *types.RegisterUsingTokenRequest,
@@ -175,6 +175,10 @@ func setClientRemoteAddr(ctx context.Context, req *types.RegisterUsingTokenReque
 // setBotParameters extracts a bot instance ID from either the incoming request
 // or the context identity.
 func setBotParameters(ctx context.Context, req *types.RegisterUsingTokenRequest) {
+	// The previous bot instance can never be set at this point; it's set by the
+	// join method handler if at all.
+	req.PreviousBotInstanceID = ""
+
 	user, err := authz.UserFromContext(ctx)
 	if err != nil {
 		// No authenticated user, we don't want to trust the values provided in
@@ -398,11 +402,6 @@ func (s *JoinServiceGRPCServer) registerUsingBoundKeypair(srv proto.JoinService_
 		return trace.BadParameter("expected non-nil Init payload")
 	}
 
-	if initReq.InitialJoinSecret != "" {
-		// TODO: not supported yet.
-		return trace.NotImplemented("initial join secrets are not yet supported")
-	}
-
 	if initReq.JoinRequest == nil {
 		return trace.BadParameter(
 			"expected JoinRequest in RegisterUsingBoundKeypairInitialRequest, got nil",
@@ -414,7 +413,7 @@ func (s *JoinServiceGRPCServer) registerUsingBoundKeypair(srv proto.JoinService_
 
 	setBotParameters(ctx, initReq.JoinRequest)
 
-	certs, pubKey, err := s.joinServiceClient.RegisterUsingBoundKeypairMethod(ctx, initReq, func(resp *proto.RegisterUsingBoundKeypairMethodResponse) (*proto.RegisterUsingBoundKeypairMethodRequest, error) {
+	regResponse, err := s.joinServiceClient.RegisterUsingBoundKeypairMethod(ctx, initReq, func(resp *proto.RegisterUsingBoundKeypairMethodResponse) (*proto.RegisterUsingBoundKeypairMethodRequest, error) {
 		// First, forward the challenge from Auth to the client.
 		err := srv.Send(resp)
 		if err != nil {
@@ -443,8 +442,9 @@ func (s *JoinServiceGRPCServer) registerUsingBoundKeypair(srv proto.JoinService_
 	return trace.Wrap(srv.Send(&proto.RegisterUsingBoundKeypairMethodResponse{
 		Response: &proto.RegisterUsingBoundKeypairMethodResponse_Certs{
 			Certs: &proto.RegisterUsingBoundKeypairCertificates{
-				Certs:     certs,
-				PublicKey: pubKey,
+				Certs:     regResponse.Certs,
+				PublicKey: regResponse.BoundPublicKey,
+				JoinState: regResponse.JoinState,
 			},
 		},
 	}))

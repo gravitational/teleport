@@ -64,6 +64,10 @@ func (p *PluginsCommand) initInstallOkta(parent *kingpin.CmdClause) {
 		Default("true").
 		BoolVar(&p.install.okta.userSync)
 	p.install.okta.cmd.
+		Flag("assign-default-roles", "If user synchronization is enabled, assign the builtin okta-requester role to synchronized users").
+		Default("true").
+		BoolVar(&p.install.okta.assignDefaultRoles)
+	p.install.okta.cmd.
 		Flag("owner", "Add default owners for synced Access Lists").
 		Short('o').
 		StringsVar(&p.install.okta.defaultOwners)
@@ -97,6 +101,7 @@ type oktaArgs struct {
 	scimEnabled           bool
 	scimToken             string
 	userSync              bool
+	assignDefaultRoles    bool
 	accessListSync        bool
 	defaultOwners         []string
 	appFilters            []string
@@ -173,17 +178,19 @@ func (p *PluginsCommand) InstallOkta(ctx context.Context, args installPluginArgs
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	settings := &types.PluginOktaSettings{
 		OrgUrl: oktaSettings.org.String(),
 		SyncSettings: &types.PluginOktaSyncSettings{
-			SsoConnectorId:        oktaSettings.samlConnector,
-			AppId:                 oktaSettings.appID,
-			SyncUsers:             oktaSettings.userSync,
-			SyncAccessLists:       oktaSettings.accessListSync,
-			DefaultOwners:         oktaSettings.defaultOwners,
-			GroupFilters:          oktaSettings.groupFilters,
-			AppFilters:            oktaSettings.appFilters,
-			EnableSystemLogExport: oktaSettings.enableAuditLogsExport,
+			SsoConnectorId:            oktaSettings.samlConnector,
+			AppId:                     oktaSettings.appID,
+			SyncUsers:                 oktaSettings.userSync,
+			DisableAssignDefaultRoles: (oktaSettings.userSync || oktaSettings.scimEnabled) && !oktaSettings.assignDefaultRoles,
+			SyncAccessLists:           oktaSettings.accessListSync,
+			DefaultOwners:             oktaSettings.defaultOwners,
+			GroupFilters:              oktaSettings.groupFilters,
+			AppFilters:                oktaSettings.appFilters,
+			EnableSystemLogExport:     oktaSettings.enableAuditLogsExport,
 		},
 	}
 	req := &pluginsv1.CreatePluginRequest{

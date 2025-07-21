@@ -121,13 +121,14 @@ func onKeypairCreateCommand(ctx context.Context, globals *cli.GlobalArgs, cmd *c
 
 	state, err = boundkeypair.NewUnboundClientState(
 		ctx,
+		fsAdapter,
 		getSuiteFromProxy(cmd.ProxyServer, globals.Insecure),
 	)
 	if err != nil {
 		return trace.Wrap(err, "initializing new client state")
 	}
 
-	if err := boundkeypair.StoreClientState(ctx, fsAdapter, state); err != nil {
+	if err := state.Store(ctx); err != nil {
 		return trace.Wrap(err, "writing bound keypair state")
 	}
 

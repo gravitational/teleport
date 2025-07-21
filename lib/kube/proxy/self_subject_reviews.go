@@ -144,14 +144,14 @@ func (f *Forwarder) validateSelfSubjectAccessReview(sess *clusterSession, w http
 			// Append a matcher that validates if the Kubernetes resource is allowed
 			// by the roles that satisfy the Kubernetes Cluster.
 			&kubernetesResourceMatcher{
-				types.KubernetesResource{
+				resource: types.KubernetesResource{
 					Kind:      resource.Name,
 					Name:      name,
 					Namespace: namespace,
 					Verbs:     []string{accessReview.Spec.ResourceAttributes.Verb},
 					APIGroup:  accessReview.Spec.ResourceAttributes.Group,
 				},
-				!resource.Namespaced,
+				isClusterWideResource: !resource.Namespaced,
 			},
 		}...); {
 	case errors.Is(err, services.ErrTrustedDeviceRequired):
@@ -309,12 +309,20 @@ func (m *kubernetesResourceMatcher) Match(role types.Role, condition types.RoleC
 		if len(m.resource.Verbs) == 1 && !isVerbAllowed(resource.Verbs, m.resource.Verbs[0]) {
 			continue
 		}
+
+		switch ok, err := utils.SliceMatchesRegex(m.resource.APIGroup, []string{resource.APIGroup}); {
+		case err != nil:
+			return false, trace.Wrap(err)
+		case !ok:
+			continue
+		}
+
 		// If the resource name and namespace are empty, it means that the
 		// user wants to match all resources of the specified kind.
 		// We can return true immediately because the user is allowed to get resources
 		// of the specified kind but might not be able to see any if the matchers do not
 		// match with any resource.
-		if name == "" && namespace == "" {
+		if (resource.Namespace == "" || resource.Namespace == types.Wildcard) && name == "" && namespace == "" {
 			return true, nil
 		}
 		// If the resource name isn't empty but the resource kind is a namespace scope
@@ -334,11 +342,10 @@ func (m *kubernetesResourceMatcher) Match(role types.Role, condition types.RoleC
 				return ok, trace.Wrap(err)
 			}
 		} else {
-			if ok, err := utils.SliceMatchesRegex(namespace, []string{resource.Namespace}); err != nil || ok || namespace == "" {
-				return ok || namespace == "", trace.Wrap(err)
+			if ok, err := utils.SliceMatchesRegex(namespace, []string{resource.Namespace}); err != nil || ok {
+				return ok, trace.Wrap(err)
 			}
 		}
-
 	}
 
 	return false, nil

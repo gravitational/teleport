@@ -40,13 +40,14 @@ type metaResource struct {
 	resourceDefinition *metav1.APIResource // Resource definition data from the schema.
 	requestedResource  apiResource         // User input, based on URL.
 	verb               string              // Verb of the user request.
+	isList             bool
 }
 
 func (mr *metaResource) isClusterWideResource() bool {
-	if mr == nil || mr.resourceDefinition == nil {
+	if mr == nil {
 		return false
 	}
-	return !mr.resourceDefinition.Namespaced
+	return mr.resourceDefinition != nil && !mr.resourceDefinition.Namespaced
 }
 
 func (mr *metaResource) rbacResource() *types.KubernetesResource {
@@ -212,39 +213,6 @@ func (r rbacSupportedResources) getTeleportResourceKindFromAPIResource(api apiRe
 	return resourceType.Kind, ok
 }
 
-// defaultRBACResources is a map of supported resources and their corresponding
-// teleport resource kind for the purpose of resource rbac.
-// TODO(@creack): Remove this (keep a form of it for maybedowngraderole).
-var defaultRBACResources = rbacSupportedResources{
-	{apiGroup: "", resourceKind: "pods"}:                                          {Name: "pods", Kind: types.KindKubePod, Group: "", Namespaced: true},
-	{apiGroup: "", resourceKind: "secrets"}:                                       {Name: "secrets", Kind: types.KindKubeSecret, Group: "", Namespaced: true},
-	{apiGroup: "", resourceKind: "configmaps"}:                                    {Name: "configmaps", Kind: types.KindKubeConfigmap, Group: "", Namespaced: true},
-	{apiGroup: "", resourceKind: "namespaces"}:                                    {Name: "namespaces", Kind: types.KindKubeNamespace, Group: "", Namespaced: true},
-	{apiGroup: "", resourceKind: "services"}:                                      {Name: "services", Kind: types.KindKubeService, Group: "", Namespaced: true},
-	{apiGroup: "", resourceKind: "endpoints"}:                                     {Name: "endpoints", Kind: types.KindKubeService, Group: "", Namespaced: true},
-	{apiGroup: "", resourceKind: "serviceaccounts"}:                               {Name: "serviceaccounts", Kind: types.KindKubeServiceAccount, Group: "", Namespaced: true},
-	{apiGroup: "", resourceKind: "nodes"}:                                         {Name: "nodes", Kind: types.KindKubeNode, Group: "", Namespaced: false},
-	{apiGroup: "", resourceKind: "persistentvolumes"}:                             {Name: "persistentvolumes", Kind: types.KindKubePersistentVolume, Group: "", Namespaced: false},
-	{apiGroup: "", resourceKind: "persistentvolumeclaims"}:                        {Name: "persistentvolumeclaims", Kind: types.KindKubePersistentVolumeClaim, Group: "", Namespaced: true},
-	{apiGroup: "", resourceKind: "replicationcontrollers"}:                        {Name: "replicationcontrollers", Kind: types.KindKubeReplicationController, Group: "", Namespaced: true},
-	{apiGroup: "apps", resourceKind: "deployments"}:                               {Name: "deployments", Kind: types.KindKubeDeployment, Group: "apps", Namespaced: true},
-	{apiGroup: "apps", resourceKind: "replicasets"}:                               {Name: "replicasets", Kind: types.KindKubeReplicaSet, Group: "apps", Namespaced: true},
-	{apiGroup: "apps", resourceKind: "statefulsets"}:                              {Name: "statefulsets", Kind: types.KindKubeStatefulset, Group: "apps", Namespaced: true},
-	{apiGroup: "apps", resourceKind: "daemonsets"}:                                {Name: "daemonsets", Kind: types.KindKubeDaemonSet, Group: "apps", Namespaced: true},
-	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "clusterroles"}:         {Name: "clusterroles", Kind: types.KindKubeClusterRole, Group: "rbac.authorization.k8s.io", Namespaced: false},
-	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "roles"}:                {Name: "roles", Kind: types.KindKubeRole, Group: "rbac.authorization.k8s.io", Namespaced: true},
-	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "clusterrolebindings"}:  {Name: "clusterrolebindings", Kind: types.KindKubeClusterRoleBinding, Group: "rbac.authorization.k8s.io", Namespaced: false},
-	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "rolebindings"}:         {Name: "rolebindings", Kind: types.KindKubeRoleBinding, Group: "rbac.authorization.k8s.io", Namespaced: true},
-	{apiGroup: "batch", resourceKind: "cronjobs"}:                                 {Name: "cronjobs", Kind: types.KindKubeCronjob, Group: "batch", Namespaced: true},
-	{apiGroup: "batch", resourceKind: "jobs"}:                                     {Name: "jobs", Kind: types.KindKubeJob, Group: "batch", Namespaced: true},
-	{apiGroup: "certificates.k8s.io", resourceKind: "certificatesigningrequests"}: {Name: "certificatesigningrequests", Kind: types.KindKubeCertificateSigningRequest, Group: "certificates.k8s.io", Namespaced: false},
-	{apiGroup: "networking.k8s.io", resourceKind: "ingresses"}:                    {Name: "ingresses", Kind: types.KindKubeIngress, Group: "networking.k8s.io", Namespaced: true},
-	{apiGroup: "extensions", resourceKind: "deployments"}:                         {Name: "deployments", Kind: types.KindKubeDeployment, Group: "extensions", Namespaced: true},
-	{apiGroup: "extensions", resourceKind: "replicasets"}:                         {Name: "replicasets", Kind: types.KindKubeReplicaSet, Group: "extensions", Namespaced: true},
-	{apiGroup: "extensions", resourceKind: "daemonsets"}:                          {Name: "daemonsets", Kind: types.KindKubeDaemonSet, Group: "extensions", Namespaced: true},
-	{apiGroup: "extensions", resourceKind: "ingresses"}:                           {Name: "ingresses", Kind: types.KindKubeIngress, Group: "extensions", Namespaced: true},
-}
-
 // getResourceFromRequest returns a KubernetesResource if the user tried to access
 // a specific endpoint that Teleport support resource filtering. Otherwise, returns nil.
 func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (metaResource, error) {
@@ -269,10 +237,12 @@ func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (metaRe
 		// If the resource is not supported, return nil.
 		return out, nil
 	}
+	out.resourceDefinition = &resource
 
 	if apiResource.resourceName == "" && out.verb != types.KubeVerbCreate {
 		// if the resource is supported but the resource name is not present and not a create request,
 		// return nil because it's a list request.
+		out.isList = true
 		return out, nil
 	}
 
@@ -285,7 +255,6 @@ func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (metaRe
 		apiResource.resourceName = resourceName
 		out.requestedResource = apiResource
 	}
-	out.resourceDefinition = &resource
 
 	return out, nil
 }

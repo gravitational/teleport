@@ -233,7 +233,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Name:      "dev",
 					Namespace: "dev",
 					Verbs:     []string{types.Wildcard},
-					APIGroup:  "*",
+					APIGroup:  "",
 				},
 			},
 			wantDenied:   emptySet,
@@ -372,7 +372,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Name:      "dev",
 					Namespace: "dev",
 					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
+					APIGroup:  "",
 				},
 			},
 			wantDenied:   emptySet,
@@ -537,6 +537,10 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 			tt.assertAccess(t, err)
 			sortKubeResourceSlice(gotAllowed)
 			sortKubeResourceSlice(gotDenied)
+			// The selfsubjectaccessrewview gets injected everywhere.
+			tt.wantAllowed = append(tt.wantAllowed, types.KubernetesResourceSelfSubjectAccessReview)
+			sortKubeResourceSlice(tt.wantAllowed)
+
 			require.EqualValues(t, tt.wantAllowed, gotAllowed)
 			require.EqualValues(t, tt.wantDenied, gotDenied)
 		})
@@ -899,6 +903,165 @@ func TestAccessCheckerWorkloadIdentity(t *testing.T) {
 				AccessState{},
 			)
 			tt.requireError(t, err)
+		})
+	}
+}
+
+func TestAccessChecker_EnumerateMCPTools(t *testing.T) {
+	roleEmptyTools := newRole(func(rv *types.RoleV6) {
+		rv.SetName("empty")
+		rv.SetAppLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+	})
+	roleNoLabelsMatch := newRole(func(rv *types.RoleV6) {
+		rv.SetName("not-match")
+		rv.SetAppLabels(types.Allow, types.Labels{"env": []string{"prod"}})
+		rv.SetMCPPermissions(types.Allow, &types.MCPPermissions{
+			Tools: []string{"bar"},
+		})
+	})
+	roleAllowWildcard := newRole(func(rv *types.RoleV6) {
+		rv.SetName("dev")
+		rv.SetAppLabels(types.Allow, types.Labels{"env": []string{"dev"}})
+		rv.SetMCPPermissions(types.Allow, &types.MCPPermissions{
+			Tools: []string{"*"},
+		})
+	})
+	roleExplicitDeny := newRole(func(rv *types.RoleV6) {
+		rv.SetName("deny-bar")
+		rv.SetAppLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+		rv.SetMCPPermissions(types.Deny, &types.MCPPermissions{
+			Tools: []string{"foo"},
+		})
+	})
+
+	mcpServer := &types.AppV3{
+		Kind: types.KindApp,
+		Metadata: types.Metadata{
+			Name: "mcp-everything",
+			Labels: map[string]string{
+				"env": "dev",
+			},
+		},
+	}
+
+	testCases := []struct {
+		name      string
+		roles     RoleSet
+		mcpServer types.Application
+		result    EnumerationResult
+	}{
+		{
+			name:      "no tools permission",
+			roles:     NewRoleSet(roleEmptyTools, roleNoLabelsMatch),
+			mcpServer: mcpServer,
+			result: EnumerationResult{
+				allowedDeniedMap: map[string]bool{},
+			},
+		},
+		{
+			name:      "allow wildcard, deny specific value",
+			roles:     NewRoleSet(roleAllowWildcard, roleExplicitDeny),
+			mcpServer: mcpServer,
+			result: EnumerationResult{
+				wildcardAllowed: true,
+				allowedDeniedMap: map[string]bool{
+					"foo": false,
+				},
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Run(tt.name, func(t *testing.T) {
+				accessChecker := makeAccessCheckerWithRoleSet(tt.roles)
+				enumResult := accessChecker.EnumerateMCPTools(tt.mcpServer)
+				require.Equal(t, tt.result, enumResult)
+			})
+		})
+	}
+}
+
+func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
+	const localCluster = "cluster"
+
+	tests := []struct {
+		info         *AccessInfo
+		name         string
+		resource     types.AppServerV3
+		assertAccess require.ErrorAssertionFunc
+	}{
+		{
+			name: "matches kind and subkind",
+			info: &AccessInfo{
+				AllowedResourceIDs: []types.ResourceID{
+					{
+						Kind:        types.KindIdentityCenterAccount,
+						ClusterName: localCluster,
+						Name:        "aws-dev",
+					},
+				},
+			},
+			resource: types.AppServerV3{
+				Kind:    types.KindApp,
+				SubKind: types.KindIdentityCenterAccount,
+				Metadata: types.Metadata{
+					Name: "aws-dev",
+				},
+			},
+			assertAccess: require.NoError,
+		},
+		{
+			name: "unmatched subkind",
+			info: &AccessInfo{
+				AllowedResourceIDs: []types.ResourceID{
+					{
+						Kind:        types.KindIdentityCenterAccount,
+						ClusterName: localCluster,
+						Name:        "aws-dev",
+					},
+				},
+			},
+			resource: types.AppServerV3{
+				Kind: types.KindApp,
+				Metadata: types.Metadata{
+					Name: "aws-dev",
+				},
+			},
+			assertAccess: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "not in allowed resource IDs")
+			},
+		},
+		{
+			name: "unmatched kind",
+			info: &AccessInfo{
+				AllowedResourceIDs: []types.ResourceID{
+					{
+						Kind:        types.KindIdentityCenterAccount,
+						ClusterName: localCluster,
+						Name:        "aws-dev",
+					},
+				},
+			},
+			resource: types.AppServerV3{
+				Kind:    types.KindAppSession,
+				SubKind: types.KindIdentityCenterAccount,
+				Metadata: types.Metadata{
+					Name: "aws-dev",
+				},
+			},
+			assertAccess: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "not in allowed resource IDs")
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			accessChecker := NewAccessCheckerWithRoleSet(tc.info, localCluster, NewRoleSet(newRole(func(rv *types.RoleV6) {})))
+			tc.assertAccess(t, accessChecker.CheckAccess(
+				&tc.resource,
+				AccessState{MFARequired: MFARequiredNever},
+			))
 		})
 	}
 }

@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -42,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/winpki"
 )
 
 func (process *TeleportProcess) initWindowsDesktopService() {
@@ -229,7 +229,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 			OnHeartbeat: process.OnHeartbeat(teleport.ComponentWindowsDesktop),
 		},
 		ShowDesktopWallpaper: cfg.WindowsDesktop.ShowDesktopWallpaper,
-		LDAPConfig:           windows.LDAPConfig(cfg.WindowsDesktop.LDAP),
+		LDAPConfig:           winpki.LDAPConfig(cfg.WindowsDesktop.LDAP),
 		KDCAddr:              cfg.WindowsDesktop.KDCAddr,
 		PKIDomain:            cfg.WindowsDesktop.PKIDomain,
 		Discovery:            cfg.WindowsDesktop.Discovery,
@@ -283,7 +283,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 	})
 
 	// Cleanup, when process is exiting.
-	process.OnExit("windows_desktop.shutdown", func(payload interface{}) {
+	process.OnExit("windows_desktop.shutdown", func(payload any) {
 		// Fast shutdown.
 		warnOnErr(process.ExitContext(), srv.Close(), logger)
 		agentPool.Stop()

@@ -1,4 +1,4 @@
-//go:build !darwin
+//go:build !darwin && !windows
 
 // Teleport
 // Copyright (C) 2025 Gravitational, Inc.

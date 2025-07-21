@@ -19,14 +19,18 @@
 package proxy
 
 import (
+	"embed"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/gravitational/teleport/api/types"
@@ -75,6 +79,35 @@ func TestParseResourcePath(t *testing.T) {
 	}
 }
 
+//go:embed testing/kube_server/data
+var apiData embed.FS
+var apiDataRe = regexp.MustCompile(`^api(_?[^_]*)_v1\.json$`)
+
+func getRBACSupportedTypes(t *testing.T) rbacSupportedResources {
+	rbacSupportedTypes := rbacSupportedResources{}
+
+	entries, err := apiData.ReadDir("testing/kube_server/data")
+	require.NoError(t, err)
+	for _, elem := range entries {
+		matches := apiDataRe.FindStringSubmatch(elem.Name())
+		if matches == nil {
+			continue
+		}
+		buf, err := apiData.ReadFile("testing/kube_server/data/" + elem.Name())
+		require.NoError(t, err)
+
+		var resourceList metav1.APIResourceList
+		require.NoError(t, json.Unmarshal(buf, &resourceList))
+		gv, _ := schema.ParseGroupVersion(resourceList.GroupVersion)
+		for _, elem := range resourceList.APIResources {
+			elem.Group = gv.Group
+			elem.Version = gv.Version
+			rbacSupportedTypes[allowedResourcesKey{apiGroup: elem.Group, resourceKind: elem.Name}] = elem
+		}
+	}
+	return rbacSupportedTypes
+}
+
 func Test_getResourceFromRequest(t *testing.T) {
 	t.Parallel()
 	bodyFunc := func(t, api string) io.ReadCloser {
@@ -100,20 +133,20 @@ func Test_getResourceFromRequest(t *testing.T) {
 		{path: "/apis/apps/", want: nil},
 		{path: "/apis/apps/v1", want: nil},
 		{path: "/apis/apps/v1/", want: nil},
-		{path: "/api/v1/pods", want: nil},
-		{path: "/api/v1/watch/pods", want: nil},
+		{path: "/api/v1/pods", want: &types.KubernetesResource{Kind: "pods", Verbs: []string{"list"}, APIGroup: ""}},
+		{path: "/api/v1/watch/pods", want: &types.KubernetesResource{Kind: "pods", Verbs: []string{"watch"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/kube-system", want: &types.KubernetesResource{Kind: "namespaces", Name: "kube-system", Verbs: []string{"get"}, APIGroup: ""}},
 		{path: "/api/v1/watch/namespaces/kube-system", want: &types.KubernetesResource{Kind: "namespaces", Name: "kube-system", Verbs: []string{"watch"}, APIGroup: ""}},
-		{path: "/api/v1/namespaces/kube-system/pods", want: nil},
-		{path: "/api/v1/watch/namespaces/kube-system/pods", want: nil},
+		{path: "/api/v1/namespaces/kube-system/pods", want: &types.KubernetesResource{Kind: "pods", Namespace: "kube-system", Verbs: []string{"list"}, APIGroup: ""}},
+		{path: "/api/v1/watch/namespaces/kube-system/pods", want: &types.KubernetesResource{Kind: "pods", Namespace: "kube-system", Verbs: []string{"watch"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/kube-system/pods/foo", want: &types.KubernetesResource{Kind: "pods", Namespace: "kube-system", Name: "foo", Verbs: []string{"get"}, APIGroup: ""}},
 		{path: "/api/v1/watch/namespaces/kube-system/pods/foo", want: &types.KubernetesResource{Kind: "pods", Namespace: "kube-system", Name: "foo", Verbs: []string{"watch"}, APIGroup: ""}},
 		{path: "/apis/apiregistration.k8s.io/v1/apiservices/foo/status", want: nil},
 
 		// core
 		// Pods
-		{path: "/api/v1/pods", want: nil},
-		{path: "/api/v1/namespaces/default/pods", want: nil},
+		{path: "/api/v1/pods", want: &types.KubernetesResource{Kind: "pods", Verbs: []string{"list"}, APIGroup: ""}},
+		{path: "/api/v1/namespaces/default/pods", want: &types.KubernetesResource{Kind: "pods", Namespace: "default", Verbs: []string{"list"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/pods/foo", want: &types.KubernetesResource{Kind: "pods", Namespace: "default", Name: "foo", Verbs: []string{"get"}, APIGroup: ""}},
 		{path: "/api/v1/watch/namespaces/default/pods/foo", want: &types.KubernetesResource{Kind: "pods", Namespace: "default", Name: "foo", Verbs: []string{"watch"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/kube-system/pods/foo/exec", want: &types.KubernetesResource{Kind: "pods", Namespace: "kube-system", Name: "foo", Verbs: []string{"exec"}, APIGroup: ""}},
@@ -123,58 +156,58 @@ func Test_getResourceFromRequest(t *testing.T) {
 		{path: "/api/v1/namespaces/default/pods", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: "pods", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: ""}},
 
 		// Secrets
-		{path: "/api/v1/secrets", want: nil},
-		{path: "/api/v1/namespaces/default/secrets", want: nil},
+		{path: "/api/v1/secrets", want: &types.KubernetesResource{Kind: "secrets", Verbs: []string{"list"}, APIGroup: ""}},
+		{path: "/api/v1/namespaces/default/secrets", want: &types.KubernetesResource{Kind: "secrets", Namespace: "default", Verbs: []string{"list"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/secrets/foo", want: &types.KubernetesResource{Kind: "secrets", Namespace: "default", Name: "foo", Verbs: []string{"get"}, APIGroup: ""}},
 		{path: "/api/v1/watch/namespaces/default/secrets/foo", want: &types.KubernetesResource{Kind: "secrets", Namespace: "default", Name: "foo", Verbs: []string{"watch"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/secrets", body: bodyFunc("Secret", "v1"), want: &types.KubernetesResource{Kind: "secrets", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/secrets", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: "secrets", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: ""}},
 
 		// Configmaps
-		{path: "/api/v1/configmaps", want: nil},
-		{path: "/api/v1/namespaces/default/configmaps", want: nil},
+		{path: "/api/v1/configmaps", want: &types.KubernetesResource{Kind: "configmaps", Verbs: []string{"list"}, APIGroup: ""}},
+		{path: "/api/v1/namespaces/default/configmaps", want: &types.KubernetesResource{Kind: "configmaps", Namespace: "default", Verbs: []string{"list"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/configmaps/foo", want: &types.KubernetesResource{Kind: "configmaps", Namespace: "default", Name: "foo", Verbs: []string{"get"}, APIGroup: ""}},
 		{path: "/api/v1/watch/namespaces/default/configmaps/foo", want: &types.KubernetesResource{Kind: "configmaps", Namespace: "default", Name: "foo", Verbs: []string{"watch"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/configmaps", body: bodyFunc("ConfigMap", "v1"), want: &types.KubernetesResource{Kind: "configmaps", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/configmaps", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: "configmaps", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: ""}},
 
 		// Namespaces
-		{path: "/api/v1/namespaces", want: nil},
+		{path: "/api/v1/namespaces", want: &types.KubernetesResource{Kind: "namespaces", Verbs: []string{"list"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default", want: &types.KubernetesResource{Kind: "namespaces", Name: "default", Verbs: []string{"get"}, APIGroup: ""}},
 		{path: "/api/v1/watch/namespaces/default", want: &types.KubernetesResource{Kind: "namespaces", Name: "default", Verbs: []string{"watch"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces", body: bodyFunc("Namespace", "v1"), want: &types.KubernetesResource{Kind: "namespaces", Name: "foo-create", Verbs: []string{"create"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: "namespaces", Name: "foo-create", Verbs: []string{"create"}, APIGroup: ""}},
 
 		// Nodes
-		{path: "/api/v1/nodes", want: nil},
+		{path: "/api/v1/nodes", want: &types.KubernetesResource{Kind: "nodes", Verbs: []string{"list"}, APIGroup: ""}},
 		{path: "/api/v1/nodes/foo/proxy/bar", want: &types.KubernetesResource{Kind: "nodes", Name: "foo", Verbs: []string{"get"}, APIGroup: ""}},
 		// Services
-		{path: "/api/v1/services", want: nil},
-		{path: "/api/v1/namespaces/default/services", want: nil},
+		{path: "/api/v1/services", want: &types.KubernetesResource{Kind: "services", Verbs: []string{"list"}, APIGroup: ""}},
+		{path: "/api/v1/namespaces/default/services", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Verbs: []string{"list"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/services/foo", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "foo", Verbs: []string{"get"}, APIGroup: ""}},
 		{path: "/api/v1/watch/namespaces/default/services/foo", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "foo", Verbs: []string{"watch"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/services", body: bodyFunc("Service", "v1"), want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: ""}},
 
 		// ServiceAccounts
-		{path: "/api/v1/serviceaccounts", want: nil},
-		{path: "/api/v1/namespaces/default/serviceaccounts", want: nil},
+		{path: "/api/v1/serviceaccounts", want: &types.KubernetesResource{Kind: "serviceaccounts", Verbs: []string{"list"}, APIGroup: ""}},
+		{path: "/api/v1/namespaces/default/serviceaccounts", want: &types.KubernetesResource{Kind: "serviceaccounts", Namespace: "default", Verbs: []string{"list"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/serviceaccounts/foo", want: &types.KubernetesResource{Kind: "serviceaccounts", Namespace: "default", Name: "foo", Verbs: []string{"get"}, APIGroup: ""}},
 		{path: "/api/v1/watch/namespaces/default/serviceaccounts/foo", want: &types.KubernetesResource{Kind: "serviceaccounts", Namespace: "default", Name: "foo", Verbs: []string{"watch"}, APIGroup: ""}},
 		// PersistentVolumes
-		{path: "/api/v1/persistentvolumes", want: nil},
-		{path: "/api/v1/namespaces/default/persistentvolumes", want: nil},
+		{path: "/api/v1/persistentvolumes", want: &types.KubernetesResource{Kind: "persistentvolumes", Verbs: []string{"list"}, APIGroup: ""}},
+		{path: "/api/v1/namespaces/default/persistentvolumes", want: &types.KubernetesResource{Kind: "persistentvolumes", Namespace: "default", Verbs: []string{"list"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/persistentvolumes/foo", want: &types.KubernetesResource{Kind: "persistentvolumes", Namespace: "default", Name: "foo", Verbs: []string{"get"}, APIGroup: ""}},
 		{path: "/api/v1/watch/namespaces/default/persistentvolumes/foo", want: &types.KubernetesResource{Kind: "persistentvolumes", Namespace: "default", Name: "foo", Verbs: []string{"watch"}, APIGroup: ""}},
 		// PersistentVolumeClaims
-		{path: "/api/v1/persistentvolumeclaims", want: nil},
-		{path: "/api/v1/namespaces/default/persistentvolumeclaims", want: nil},
+		{path: "/api/v1/persistentvolumeclaims", want: &types.KubernetesResource{Kind: "persistentvolumeclaims", Verbs: []string{"list"}, APIGroup: ""}},
+		{path: "/api/v1/namespaces/default/persistentvolumeclaims", want: &types.KubernetesResource{Kind: "persistentvolumeclaims", Namespace: "default", Verbs: []string{"list"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/persistentvolumeclaims/foo", want: &types.KubernetesResource{Kind: "persistentvolumeclaims", Namespace: "default", Name: "foo", Verbs: []string{"get"}, APIGroup: ""}},
 		{path: "/api/v1/watch/namespaces/default/persistentvolumeclaims/foo", want: &types.KubernetesResource{Kind: "persistentvolumeclaims", Namespace: "default", Name: "foo", Verbs: []string{"watch"}, APIGroup: ""}},
 
 		// apis/apps
 		// Deployments
-		{path: "/apis/apps/v1/deployments", want: nil},
-		{path: "/apis/apps/v1/namespaces/default/deployments", want: nil},
+		{path: "/apis/apps/v1/deployments", want: &types.KubernetesResource{Kind: "deployments", Verbs: []string{"list"}, APIGroup: "apps"}},
+		{path: "/apis/apps/v1/namespaces/default/deployments", want: &types.KubernetesResource{Kind: "deployments", Namespace: "default", Verbs: []string{"list"}, APIGroup: "apps"}},
 		{path: "/apis/apps/v1/namespaces/default/deployments/foo", want: &types.KubernetesResource{Kind: "deployments", Namespace: "default", Name: "foo", Verbs: []string{"get"}, APIGroup: "apps"}},
 		{path: "/apis/apps/v1/watch/namespaces/default/deployments/foo", want: &types.KubernetesResource{Kind: "deployments", Namespace: "default", Name: "foo", Verbs: []string{"watch"}, APIGroup: "apps"}},
 		{path: "/apis/apps/v1/namespaces/default/deployments", body: bodyFunc("Deployment", "apps/v1"), want: &types.KubernetesResource{Kind: "deployments", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: "apps"}},
@@ -182,42 +215,43 @@ func Test_getResourceFromRequest(t *testing.T) {
 		{path: "/apis/apps/v1/namespaces/default/deployments", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: "deployments", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: "apps"}},
 
 		// Statefulsets
-		{path: "/apis/apps/v1/statefulsets", want: nil},
-		{path: "/apis/apps/v1/namespaces/default/statefulsets", want: nil},
+		{path: "/apis/apps/v1/statefulsets", want: &types.KubernetesResource{Kind: "statefulsets", Verbs: []string{"list"}, APIGroup: "apps"}},
+		{path: "/apis/apps/v1/namespaces/default/statefulsets", want: &types.KubernetesResource{Kind: "statefulsets", Namespace: "default", Verbs: []string{"list"}, APIGroup: "apps"}},
 		{path: "/apis/apps/v1/namespaces/default/statefulsets/foo", want: &types.KubernetesResource{Kind: "statefulsets", Namespace: "default", Name: "foo", Verbs: []string{"get"}, APIGroup: "apps"}},
 		{path: "/apis/apps/v1/watch/namespaces/default/statefulsets/foo", want: &types.KubernetesResource{Kind: "statefulsets", Namespace: "default", Name: "foo", Verbs: []string{"watch"}, APIGroup: "apps"}},
 		// Replicasets
-		{path: "/apis/apps/v1/replicasets", want: nil},
-		{path: "/apis/apps/v1/namespaces/default/replicasets", want: nil},
+		{path: "/apis/apps/v1/replicasets", want: &types.KubernetesResource{Kind: "replicasets", Verbs: []string{"list"}, APIGroup: "apps"}},
+		{path: "/apis/apps/v1/namespaces/default/replicasets", want: &types.KubernetesResource{Kind: "replicasets", Namespace: "default", Verbs: []string{"list"}, APIGroup: "apps"}},
 		{path: "/apis/apps/v1/namespaces/default/replicasets/foo", want: &types.KubernetesResource{Kind: "replicasets", Namespace: "default", Name: "foo", Verbs: []string{"get"}, APIGroup: "apps"}},
 		{path: "/apis/apps/v1/watch/namespaces/default/replicasets/foo", want: &types.KubernetesResource{Kind: "replicasets", Namespace: "default", Name: "foo", Verbs: []string{"watch"}, APIGroup: "apps"}},
 		// Daemonsets
-		{path: "/apis/apps/v1/daemonsets", want: nil},
-		{path: "/apis/apps/v1/namespaces/default/daemonsets", want: nil},
+		{path: "/apis/apps/v1/daemonsets", want: &types.KubernetesResource{Kind: "daemonsets", Verbs: []string{"list"}, APIGroup: "apps"}},
+		{path: "/apis/apps/v1/namespaces/default/daemonsets", want: &types.KubernetesResource{Kind: "daemonsets", Namespace: "default", Verbs: []string{"list"}, APIGroup: "apps"}},
 		{path: "/apis/apps/v1/namespaces/default/daemonsets/foo", want: &types.KubernetesResource{Kind: "daemonsets", Namespace: "default", Name: "foo", Verbs: []string{"get"}, APIGroup: "apps"}},
 		{path: "/apis/apps/v1/watch/namespaces/default/daemonsets/foo", want: &types.KubernetesResource{Kind: "daemonsets", Namespace: "default", Name: "foo", Verbs: []string{"watch"}, APIGroup: "apps"}},
 
 		// apis/batch
 		// Job
-		{path: "/apis/batch/v1/jobs", want: nil},
-		{path: "/apis/batch/v1/namespaces/default/jobs", want: nil},
+		{path: "/apis/batch/v1/jobs", want: &types.KubernetesResource{Kind: "jobs", Verbs: []string{"list"}, APIGroup: "batch"}},
+		{path: "/apis/batch/v1/namespaces/default/jobs", want: &types.KubernetesResource{Kind: "jobs", Namespace: "default", Verbs: []string{"list"}, APIGroup: "batch"}},
 		{path: "/apis/batch/v1/namespaces/default/jobs/foo", want: &types.KubernetesResource{Kind: "jobs", Namespace: "default", Name: "foo", Verbs: []string{"get"}, APIGroup: "batch"}},
 		{path: "/apis/batch/v1/watch/namespaces/default/jobs/foo", want: &types.KubernetesResource{Kind: "jobs", Namespace: "default", Name: "foo", Verbs: []string{"watch"}, APIGroup: "batch"}},
 		// CronJob
-		{path: "/apis/batch/v1/cronjobs", want: nil},
-		{path: "/apis/batch/v1/namespaces/default/cronjobs", want: nil},
+		{path: "/apis/batch/v1/cronjobs", want: &types.KubernetesResource{Kind: "cronjobs", Verbs: []string{"list"}, APIGroup: "batch"}},
+		{path: "/apis/batch/v1/namespaces/default/cronjobs", want: &types.KubernetesResource{Kind: "cronjobs", Namespace: "default", Verbs: []string{"list"}, APIGroup: "batch"}},
 		{path: "/apis/batch/v1/namespaces/default/cronjobs/foo", want: &types.KubernetesResource{Kind: "cronjobs", Namespace: "default", Name: "foo", Verbs: []string{"get"}, APIGroup: "batch"}},
 		{path: "/apis/batch/v1/watch/namespaces/default/cronjobs/foo", want: &types.KubernetesResource{Kind: "cronjobs", Namespace: "default", Name: "foo", Verbs: []string{"watch"}, APIGroup: "batch"}},
 
 		// apis/certificates.k8s.io
-		{path: "/apis/certificates.k8s.io/v1/certificatesigningrequests", want: nil},
+		{path: "/apis/certificates.k8s.io/v1/certificatesigningrequests", want: &types.KubernetesResource{Kind: "certificatesigningrequests", Verbs: []string{"list"}, APIGroup: "certificates.k8s.io"}},
 		{path: "/apis/certificates.k8s.io/v1/certificatesigningrequests/foo", want: &types.KubernetesResource{Kind: "certificatesigningrequests", Name: "foo", Verbs: []string{"get"}, APIGroup: "certificates.k8s.io"}},
 
 		// apis/networking.k8s.io
-		{path: "/apis/networking.k8s.io/v1/ingresses", want: nil},
+		{path: "/apis/networking.k8s.io/v1/ingresses", want: &types.KubernetesResource{Kind: "ingresses", Verbs: []string{"list"}, APIGroup: "networking.k8s.io"}},
 		{path: "/apis/networking.k8s.io/v1/ingresses/foo", want: &types.KubernetesResource{Kind: "ingresses", Name: "foo", Verbs: []string{"get"}, APIGroup: "networking.k8s.io"}},
 	}
 
+	rbacSupportedTypes := getRBACSupportedTypes(t)
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
 			verb := http.MethodGet
@@ -226,7 +260,7 @@ func Test_getResourceFromRequest(t *testing.T) {
 			}
 			got, err := getResourceFromRequest(&http.Request{Method: verb, URL: &url.URL{Path: tt.path}, Body: tt.body}, &kubeDetails{
 				kubeCodecs:         &globalKubeCodecs,
-				rbacSupportedTypes: defaultRBACResources,
+				rbacSupportedTypes: rbacSupportedTypes,
 				gvkSupportedResources: map[gvkSupportedResourcesKey]*schema.GroupVersionKind{
 					{
 						apiGroup: "",

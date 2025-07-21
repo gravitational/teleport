@@ -46,15 +46,17 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestIsApprovedFileTransfer(t *testing.T) {
 	// set enterprise for tests
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
 
@@ -192,9 +194,9 @@ func TestSession_newRecorder(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	logger := utils.NewSlogLoggerForTests()
+	logger := logtest.NewLogger()
 
-	isNotSessionWriter := func(t require.TestingT, i interface{}, i2 ...interface{}) {
+	isNotSessionWriter := func(t require.TestingT, i any, i2 ...any) {
 		require.NotNil(t, i)
 		_, ok := i.(*events.SessionWriter)
 		require.False(t, ok)
@@ -213,7 +215,7 @@ func TestSession_newRecorder(t *testing.T) {
 				id:     "test",
 				logger: logger,
 				registry: &SessionRegistry{
-					logger: utils.NewSlogLoggerForTests(),
+					logger: logtest.NewLogger(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -234,7 +236,7 @@ func TestSession_newRecorder(t *testing.T) {
 				id:     "test",
 				logger: logger,
 				registry: &SessionRegistry{
-					logger: utils.NewSlogLoggerForTests(),
+					logger: logtest.NewLogger(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -255,7 +257,7 @@ func TestSession_newRecorder(t *testing.T) {
 				id:     "test",
 				logger: logger,
 				registry: &SessionRegistry{
-					logger: utils.NewSlogLoggerForTests(),
+					logger: logtest.NewLogger(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -284,7 +286,7 @@ func TestSession_newRecorder(t *testing.T) {
 				id:     "test",
 				logger: logger,
 				registry: &SessionRegistry{
-					logger: utils.NewSlogLoggerForTests(),
+					logger: logtest.NewLogger(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -307,7 +309,7 @@ func TestSession_newRecorder(t *testing.T) {
 				term: &terminal{},
 			},
 			errAssertion: require.NoError,
-			recAssertion: func(t require.TestingT, i interface{}, _ ...interface{}) {
+			recAssertion: func(t require.TestingT, i any, _ ...any) {
 				require.NotNil(t, i)
 				sw, ok := i.(apievents.Stream)
 				require.True(t, ok)
@@ -320,7 +322,7 @@ func TestSession_newRecorder(t *testing.T) {
 				id:     "test",
 				logger: logger,
 				registry: &SessionRegistry{
-					logger: utils.NewSlogLoggerForTests(),
+					logger: logtest.NewLogger(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -338,7 +340,7 @@ func TestSession_newRecorder(t *testing.T) {
 				term: &terminal{},
 			},
 			errAssertion: require.NoError,
-			recAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			recAssertion: func(t require.TestingT, i any, i2 ...any) {
 				require.NotNil(t, i)
 				sw, ok := i.(apievents.Stream)
 				require.True(t, ok)
@@ -359,7 +361,7 @@ func TestSession_newRecorder(t *testing.T) {
 func TestSession_emitAuditEvent(t *testing.T) {
 	t.Parallel()
 
-	logger := utils.NewSlogLoggerForTests()
+	logger := logtest.NewLogger()
 
 	t.Run("FallbackConcurrency", func(t *testing.T) {
 		srv := newMockServer(t)
@@ -407,8 +409,7 @@ func TestSession_emitAuditEvent(t *testing.T) {
 func TestInteractiveSession(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
@@ -498,8 +499,7 @@ func TestNonInteractiveSession(t *testing.T) {
 	t.Run("without BPF", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		srv := newMockServer(t)
 		srv.component = teleport.ComponentNode
@@ -561,8 +561,7 @@ func TestNonInteractiveSession(t *testing.T) {
 	t.Run("with BPF", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		srv := newMockServer(t)
 		srv.component = teleport.ComponentNode
@@ -643,7 +642,7 @@ func TestNonInteractiveSession(t *testing.T) {
 
 // TestStopUnstarted tests that a session may be stopped before it launches.
 func TestStopUnstarted(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
 
@@ -927,8 +926,7 @@ func (s sessionEvaluator) IsModerated() bool {
 
 func TestTrackingSession(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	me, err := user.Current()
 	require.NoError(t, err)
@@ -1056,9 +1054,9 @@ func TestTrackingSession(t *testing.T) {
 
 			sess := &session{
 				id:     rsession.NewID(),
-				logger: utils.NewSlogLoggerForTests().With(teleport.ComponentKey, "test-session"),
+				logger: logtest.With(teleport.ComponentKey, "test-session"),
 				registry: &SessionRegistry{
-					logger: utils.NewSlogLoggerForTests(),
+					logger: logtest.NewLogger(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv:                   srv,
 						SessionTrackerService: trackingService,
@@ -1185,8 +1183,7 @@ func TestSessionRecordingMode(t *testing.T) {
 }
 
 func TestCloseProxySession(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentProxy
@@ -1233,8 +1230,7 @@ func TestCloseProxySession(t *testing.T) {
 // closing the session releases all the resources, and return properly to the
 // user.
 func TestCloseRemoteSession(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentProxy
@@ -1568,7 +1564,7 @@ func TestUpsertHostUser(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			registry := SessionRegistry{
-				logger: utils.NewSlogLoggerForTests(),
+				logger: logtest.NewLogger(),
 				SessionRegistryConfig: SessionRegistryConfig{
 					Srv: &fakeServer{createHostUser: c.createHostUser},
 				},
@@ -1658,7 +1654,7 @@ func TestWriteSudoersFile(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			registry := SessionRegistry{
-				logger: utils.NewSlogLoggerForTests(),
+				logger: logtest.NewLogger(),
 				SessionRegistryConfig: SessionRegistryConfig{
 					Srv: &fakeServer{hostSudoers: c.hostSudoers},
 				},

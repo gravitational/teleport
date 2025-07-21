@@ -83,7 +83,7 @@ func (f *fakeIDP) issuer() string {
 }
 
 func (f *fakeIDP) handleOpenIDConfig(w http.ResponseWriter, r *http.Request) {
-	response := map[string]interface{}{
+	response := map[string]any{
 		"claims_supported": []string{
 			"sub",
 			"aud",
@@ -138,6 +138,11 @@ func (f *fakeIDP) issueToken(
 		NotBefore: jwt.NewNumericDate(issuedAt),
 		Expiry:    jwt.NewNumericDate(expiry),
 	}
+	// GCP ID tokens have an "azp" claim that is the same as the "sub" claim.
+	// This azp is not included in the "aud" claim. It's a little murky whether
+	// this is spec-compliant. We should explicitly reproduce this in our tests
+	// since zealous oidc validation implementations may reject it.
+	claims.AuthorizedParty = sub
 	token, err := jwt.Signed(f.signer).
 		Claims(stdClaims).
 		Claims(claims).
@@ -225,7 +230,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid service account email: gserviceaccount.com domain",
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.Error(tt, err, i...)
 				require.Contains(tt, err.Error(), "invalid email claim")
 			},
@@ -243,7 +248,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid service account email: gserviceaccount.coma domain",
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.Error(tt, err, i...)
 				require.Contains(tt, err.Error(), "invalid email claim")
 			},
@@ -261,7 +266,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid service account email: google domain",
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.Error(tt, err, i...)
 				require.Contains(tt, err.Error(), "invalid email claim")
 			},
@@ -279,7 +284,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 		},
 		{
 			name: "empty service account email",
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.Error(tt, err, i...)
 				require.Contains(tt, err.Error(), "invalid email claim")
 			},

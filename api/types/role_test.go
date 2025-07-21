@@ -267,6 +267,12 @@ func TestRole_GetKubeResources(t *testing.T) {
 						Name:      "test",
 						Verbs:     []string{Wildcard},
 					},
+					{
+						Kind:      KindKubeJob,
+						Namespace: "test",
+						Name:      "test",
+						Verbs:     []string{Wildcard},
+					},
 				},
 			},
 			wantDeny: []KubernetesResource{
@@ -275,7 +281,14 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Namespace: "test",
 					Name:      "test",
 					Verbs:     []string{Wildcard},
-					APIGroup:  Wildcard,
+					APIGroup:  "",
+				},
+				{
+					Kind:      "jobs",
+					Namespace: "test",
+					Name:      "test",
+					Verbs:     []string{Wildcard},
+					APIGroup:  "batch",
 				},
 			},
 			assertErrorCreation: require.NoError,
@@ -306,6 +319,11 @@ func TestRole_GetKubeResources(t *testing.T) {
 						Namespace: "test",
 						Name:      "test",
 					},
+					{
+						Kind:      KindKubeDeployment,
+						Namespace: "test",
+						Name:      "test",
+					},
 				},
 			},
 			assertErrorCreation: require.NoError,
@@ -314,7 +332,13 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Kind:      "pods",
 					Namespace: "test",
 					Name:      "test",
-					APIGroup:  Wildcard,
+					APIGroup:  "",
+				},
+				{
+					Kind:      "deployments",
+					Namespace: "test",
+					Name:      "test",
+					APIGroup:  "apps",
 				},
 			},
 		},
@@ -353,10 +377,186 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Kind:      "pods",
 					Namespace: "test",
 					Name:      "test",
-					APIGroup:  Wildcard,
+					APIGroup:  "",
 				},
 			},
 		},
+		{
+			name: "v7 with allow wildcard kind",
+			args: args{
+				version: V7,
+				labels:  kubeLabels,
+				resources: []KubernetesResource{
+					{
+						// rolev7 ignored the namespace field for global resources.
+						Kind:      Wildcard,
+						Namespace: "default",
+						Name:      Wildcard,
+						Verbs:     []string{Wildcard},
+					},
+				},
+			},
+			assertErrorCreation: require.NoError,
+			wantAllow: []KubernetesResource{
+				// Expect the main resource to match namespaced resources.
+				{
+					Kind:      Wildcard,
+					Namespace: "default",
+					Name:      Wildcard,
+					Verbs:     []string{Wildcard},
+					APIGroup:  Wildcard,
+				},
+				// Expect injected global resources to maintain v7 behavior.
+				{
+					Kind:     "nodes",
+					Name:     Wildcard,
+					Verbs:    []string{Wildcard},
+					APIGroup: Wildcard,
+				},
+				{
+					Kind:     "persistentvolumes",
+					Name:     Wildcard,
+					Verbs:    []string{Wildcard},
+					APIGroup: Wildcard,
+				},
+				{
+					Kind:     "clusterroles",
+					Name:     Wildcard,
+					Verbs:    []string{Wildcard},
+					APIGroup: Wildcard,
+				},
+				{
+					Kind:     "clusterrolebindings",
+					Name:     Wildcard,
+					Verbs:    []string{Wildcard},
+					APIGroup: Wildcard,
+				},
+				{
+					Kind:     "certificatesigningrequests",
+					Name:     Wildcard,
+					Verbs:    []string{Wildcard},
+					APIGroup: Wildcard,
+				},
+			},
+		},
+		{
+			name: "v7 with deny wildcard kind",
+			args: args{
+				version: V7,
+				labels:  kubeLabels,
+				resources: []KubernetesResource{
+					{
+						// rolev7 ignored the namespace field for global resources.
+						Kind:      Wildcard,
+						Namespace: "default",
+						Name:      Wildcard,
+						Verbs:     []string{Wildcard},
+					},
+				},
+			},
+			assertErrorCreation: require.NoError,
+			wantDeny: []KubernetesResource{
+				// Expect the main resource to match namespaced resources.
+				{
+					Kind:      Wildcard,
+					Namespace: "default",
+					Name:      Wildcard,
+					Verbs:     []string{Wildcard},
+					APIGroup:  Wildcard,
+				},
+				// Expect injected global resources to maintain v7 behavior.
+				{
+					Kind:     "nodes",
+					Name:     Wildcard,
+					Verbs:    []string{Wildcard},
+					APIGroup: Wildcard,
+				},
+				{
+					Kind:     "persistentvolumes",
+					Name:     Wildcard,
+					Verbs:    []string{Wildcard},
+					APIGroup: Wildcard,
+				},
+				{
+					Kind:     "clusterroles",
+					Name:     Wildcard,
+					Verbs:    []string{Wildcard},
+					APIGroup: Wildcard,
+				},
+				{
+					Kind:     "clusterrolebindings",
+					Name:     Wildcard,
+					Verbs:    []string{Wildcard},
+					APIGroup: Wildcard,
+				},
+				{
+					Kind:     "certificatesigningrequests",
+					Name:     Wildcard,
+					Verbs:    []string{Wildcard},
+					APIGroup: Wildcard,
+				},
+			},
+		},
+		{
+			name: "v7 with allow namespace",
+			args: args{
+				version: V7,
+				labels:  kubeLabels,
+				resources: []KubernetesResource{
+					{
+						Kind:  KindKubeNamespace,
+						Name:  "default",
+						Verbs: []string{Wildcard},
+					},
+				},
+			},
+			assertErrorCreation: require.NoError,
+			wantAllow: []KubernetesResource{
+				{
+					Kind:      Wildcard,
+					Namespace: "default",
+					Name:      Wildcard,
+					Verbs:     []string{Wildcard},
+					APIGroup:  Wildcard,
+				},
+				{
+					Kind:  "namespaces",
+					Name:  "default",
+					Verbs: []string{Wildcard},
+				},
+			},
+		},
+
+		{
+			name: "v7 with deny namespace",
+			args: args{
+				version: V7,
+				labels:  kubeLabels,
+				resources: []KubernetesResource{
+					{
+						Kind:  KindKubeNamespace,
+						Name:  "default",
+						Verbs: []string{Wildcard},
+					},
+				},
+			},
+			assertErrorCreation: require.NoError,
+			wantDeny: []KubernetesResource{
+				{
+					Kind:      Wildcard,
+					Namespace: "default",
+					Name:      Wildcard,
+					Verbs:     []string{Wildcard},
+					APIGroup:  Wildcard,
+				},
+				{
+					Kind:  "namespaces",
+					Name:  "default",
+					Verbs: []string{Wildcard},
+				},
+			},
+		},
+
 		{
 			name: "v6 without wildcard; labels expression",
 			args: args{
@@ -377,7 +577,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Namespace: "test",
 					Name:      "test",
 					Verbs:     []string{Wildcard},
-					APIGroup:  Wildcard,
+					APIGroup:  "",
 				},
 			},
 				appendV7KubeResources()...),
@@ -426,7 +626,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Namespace: "test",
 					Name:      "test",
 					Verbs:     []string{Wildcard},
-					APIGroup:  Wildcard,
+					APIGroup:  "",
 				},
 			},
 				appendV7KubeResources()...),
@@ -485,6 +685,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 			}
 			if tt.wantDeny == nil {
 				got := r.GetKubeResources(Allow)
+				tt.wantAllow = append(tt.wantAllow, KubernetesResourceSelfSubjectAccessReview)
 				require.Equal(t, tt.wantAllow, got)
 			}
 			got := r.GetKubeResources(Deny)
@@ -703,6 +904,7 @@ func appendV7KubeResources() []KubernetesResource {
 	resources := []KubernetesResource{}
 	// append other kubernetes resources
 	for _, resource := range KubernetesResourcesKinds {
+		group := KubernetesResourcesV7KindGroups[resource]
 		resource = KubernetesResourcesKindsPlurals[resource]
 		if resource == "pods" || resource == "namespaces" {
 			continue
@@ -712,7 +914,7 @@ func appendV7KubeResources() []KubernetesResource {
 			Namespace: Wildcard,
 			Name:      Wildcard,
 			Verbs:     []string{Wildcard},
-			APIGroup:  Wildcard,
+			APIGroup:  group,
 		},
 		)
 	}

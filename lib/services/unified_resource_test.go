@@ -110,6 +110,9 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		Database: db,
 	})
 	require.NoError(t, err)
+	health := dbServer.GetTargetHealth()
+	health.Status = "unknown"
+	dbServer.SetTargetHealth(health)
 	_, err = clt.UpsertDatabaseServer(ctx, dbServer)
 	require.NoError(t, err)
 	gitServer := newGitServer(t, "my-org")
@@ -253,6 +256,9 @@ func TestUnifiedResourceCacheIterateResources(t *testing.T) {
 		Database: db,
 	})
 	require.NoError(t, err)
+	health := dbServer.GetTargetHealth()
+	health.Status = "unknown"
+	dbServer.SetTargetHealth(health)
 	_, err = clt.UpsertDatabaseServer(ctx, dbServer)
 	require.NoError(t, err)
 	gitServer := newGitServer(t, "my-org")
@@ -405,7 +411,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 
 	const resourceCount = 1234
 	ids := make([]string, 0, resourceCount)
-	for i := 0; i < resourceCount; i++ {
+	for i := range resourceCount {
 		ids = append(ids, "resource"+strconv.Itoa(i))
 	}
 
@@ -445,27 +451,33 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 		{
 			name: "databases",
 			createResource: func(name string, c *client) error {
-				db, err := types.NewDatabaseV3(types.Metadata{
-					Name: name,
-				}, types.DatabaseSpecV3{
-					Protocol: "test-protocol",
-					URI:      "test-uri",
-				})
-				if err != nil {
-					return err
+				for _, status := range []string{"healthy", "unhealthy", "unknown"} {
+					db, err := types.NewDatabaseV3(types.Metadata{
+						Name: name,
+					}, types.DatabaseSpecV3{
+						Protocol: "test-protocol",
+						URI:      "test-uri",
+					})
+					if err != nil {
+						return err
+					}
+					dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+						Name: name,
+					}, types.DatabaseServerSpecV3{
+						Hostname: "hostname:" + name,
+						HostID:   uuid.NewString(),
+						Database: db,
+					})
+					if err != nil {
+						return err
+					}
+					dbServer.SetTargetHealth(types.TargetHealth{Status: status})
+					_, err = c.UpsertDatabaseServer(ctx, dbServer)
+					if err != nil {
+						return err
+					}
 				}
-				dbServer, err := types.NewDatabaseServerV3(types.Metadata{
-					Name: name,
-				}, types.DatabaseServerSpecV3{
-					Hostname: "hostname:" + name,
-					HostID:   uuid.NewString(),
-					Database: db,
-				})
-				if err != nil {
-					return err
-				}
-				_, err = c.UpsertDatabaseServer(ctx, dbServer)
-				return err
+				return nil
 			},
 			iterateResources: func(urc *services.UnifiedResourceCache, descending bool) iter.Seq2[GetNamer, error] {
 				return func(yield func(GetNamer, error) bool) {
@@ -663,7 +675,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			for i := 0; i < resourceCount; i++ {
+			for i := range resourceCount {
 				require.NoError(t, test.createResource(ids[i], clt), "creating resource %d", i)
 			}
 
@@ -684,6 +696,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 						if r.GetName() != ids[count] {
 							t.Fatalf("expected resource named %s, got %s", ids[count], r.GetName())
 						}
+						requireHealthStatusIfGiven(t, r, types.TargetHealthStatusMixed)
 						count++
 					}
 
@@ -698,6 +711,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 						if r.GetName() != ids[count] {
 							t.Fatalf("expected resource named %s, got %s", ids[count], r.GetName())
 						}
+						requireHealthStatusIfGiven(t, r, types.TargetHealthStatusMixed)
 						count--
 					}
 
@@ -720,6 +734,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 							if r.GetName() != ids[count] {
 								t.Fatalf("expected resource named %s, got %s", ids[count], r.GetName())
 							}
+							requireHealthStatusIfGiven(t, r, types.TargetHealthStatusMixed)
 							count++
 						}
 
@@ -748,6 +763,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 							if r.GetName() != ids[count] {
 								t.Fatalf("expected resource named %s, got %s", ids[count], r.GetName())
 							}
+							requireHealthStatusIfGiven(t, r, types.TargetHealthStatusMixed)
 							count--
 						}
 
@@ -821,24 +837,28 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	_, err = clt.UpsertNode(ctx, node)
 	require.NoError(t, err)
 
-	// add a database server
-	db, err := types.NewDatabaseV3(types.Metadata{
-		Name: "db1",
-	}, types.DatabaseSpecV3{
-		Protocol: "test-protocol",
-		URI:      "test-uri",
-	})
-	require.NoError(t, err)
-	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
-		Name: "db1-server",
-	}, types.DatabaseServerSpecV3{
-		Hostname: "db-hostname",
-		HostID:   uuid.NewString(),
-		Database: db,
-	})
-	require.NoError(t, err)
-	_, err = clt.UpsertDatabaseServer(ctx, dbServer)
-	require.NoError(t, err)
+	// add multiple database servers for the same db (HA setup)
+	var dbServers []*types.DatabaseServerV3
+	for range 3 {
+		db, err := types.NewDatabaseV3(types.Metadata{
+			Name: "db1",
+		}, types.DatabaseSpecV3{
+			Protocol: "test-protocol",
+			URI:      "test-uri",
+		})
+		require.NoError(t, err)
+		dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+			Name: "db1-server",
+		}, types.DatabaseServerSpecV3{
+			Hostname: "db-hostname",
+			HostID:   uuid.NewString(),
+			Database: db,
+		})
+		require.NoError(t, err)
+		_, err = clt.UpsertDatabaseServer(ctx, dbServer)
+		require.NoError(t, err)
+		dbServers = append(dbServers, dbServer)
+	}
 
 	// add a saml app
 	samlapp, err := types.NewSAMLIdPServiceProvider(
@@ -854,52 +874,64 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	err = clt.CreateSAMLIdPServiceProvider(ctx, samlapp)
 	require.NoError(t, err)
 
-	// Add an app server
-	app, err := types.NewAppServerV3(
-		types.Metadata{Name: "app1"},
-		types.AppServerSpecV3{
-			HostID: "app1-host-id",
-			App:    newApp(t, "app1"),
-		},
-	)
-	require.NoError(t, err)
-	_, err = clt.UpsertApplicationServer(ctx, app)
-	require.NoError(t, err)
+	// Add multiple app servers for the same app (HA setup)
+	var appServers []*types.AppServerV3
+	for range 3 {
+		app, err := types.NewAppServerV3(
+			types.Metadata{Name: "app1"},
+			types.AppServerSpecV3{
+				HostID: uuid.NewString(),
+				App:    newApp(t, "app1"),
+			},
+		)
+		require.NoError(t, err)
+		_, err = clt.UpsertApplicationServer(ctx, app)
+		require.NoError(t, err)
+		appServers = append(appServers, app)
+	}
 
-	// add desktop
-	desktop, err := types.NewWindowsDesktopV3(
-		"desktop",
-		map[string]string{"label": string(make([]byte, 0))},
-		types.WindowsDesktopSpecV3{
-			Addr:   "addr",
-			HostID: "HostID",
-		})
-	require.NoError(t, err)
-	err = clt.UpsertWindowsDesktop(ctx, desktop)
-	require.NoError(t, err)
+	// add multiple desktops (HA setup)
+	var desktops []*types.WindowsDesktopV3
+	for range 3 {
+		desktop, err := types.NewWindowsDesktopV3(
+			"desktop",
+			map[string]string{"label": string(make([]byte, 0))},
+			types.WindowsDesktopSpecV3{
+				Addr:   "addr",
+				HostID: uuid.NewString(),
+			})
+		require.NoError(t, err)
+		err = clt.UpsertWindowsDesktop(ctx, desktop)
+		require.NoError(t, err)
+		desktops = append(desktops, desktop)
+	}
 
-	// add kube
-	kube, err := types.NewKubernetesClusterV3(
-		types.Metadata{
-			Name:      "kube",
-			Namespace: defaults.Namespace,
-		},
-		types.KubernetesClusterSpecV3{},
-	)
-	require.NoError(t, err)
-	kubeServer, err := types.NewKubernetesServerV3(
-		types.Metadata{
-			Name:      "kube_server",
-			Namespace: defaults.Namespace,
-		},
-		types.KubernetesServerSpecV3{
-			Cluster: kube,
-			HostID:  "hostID",
-		},
-	)
-	require.NoError(t, err)
-	_, err = clt.UpsertKubernetesServer(ctx, kubeServer)
-	require.NoError(t, err)
+	// add multiple kube servers (HA setup)
+	var kubeServers []*types.KubernetesServerV3
+	for range 3 {
+		kube, err := types.NewKubernetesClusterV3(
+			types.Metadata{
+				Name:      "kube",
+				Namespace: defaults.Namespace,
+			},
+			types.KubernetesClusterSpecV3{},
+		)
+		require.NoError(t, err)
+		kubeServer, err := types.NewKubernetesServerV3(
+			types.Metadata{
+				Name:      "kube_server",
+				Namespace: defaults.Namespace,
+			},
+			types.KubernetesServerSpecV3{
+				Cluster: kube,
+				HostID:  uuid.NewString(),
+			},
+		)
+		require.NoError(t, err)
+		_, err = clt.UpsertKubernetesServer(ctx, kubeServer)
+		require.NoError(t, err)
+		kubeServers = append(kubeServers, kubeServer)
+	}
 
 	icAcct := newICAccount(t, ctx, clt)
 
@@ -913,28 +945,69 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 		return len(res) == 8
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be added")
 
-	// delete everything
+	// delete just one of each of the HA servers
+	err = clt.DeleteDatabaseServer(ctx, "default", dbServers[0].Spec.HostID, dbServers[0].GetName())
+	require.NoError(t, err)
+	dbServers = dbServers[1:]
+	err = clt.DeleteApplicationServer(ctx, "default", appServers[0].Spec.HostID, appServers[0].GetName())
+	require.NoError(t, err)
+	appServers = appServers[1:]
+	err = clt.DeleteWindowsDesktop(ctx, desktops[0].Spec.HostID, desktops[0].GetName())
+	require.NoError(t, err)
+	desktops = desktops[1:]
+	err = clt.DeleteKubernetesServer(ctx, kubeServers[0].Spec.HostID, kubeServers[0].GetName())
+	require.NoError(t, err)
+	kubeServers = kubeServers[1:]
+
+	// delete everything else
 	err = clt.DeleteNode(ctx, "default", node.GetName())
 	require.NoError(t, err)
-	err = clt.DeleteDatabaseServer(ctx, "default", dbServer.Spec.HostID, dbServer.GetName())
-	require.NoError(t, err)
 	err = clt.DeleteSAMLIdPServiceProvider(ctx, samlapp.GetName())
-	require.NoError(t, err)
-	err = clt.DeleteApplicationServer(ctx, "default", app.Spec.HostID, app.GetName())
-	require.NoError(t, err)
-	err = clt.DeleteWindowsDesktop(ctx, desktop.Spec.HostID, desktop.GetName())
-	require.NoError(t, err)
-	err = clt.DeleteKubernetesServer(ctx, kubeServer.Spec.HostID, kubeServer.GetName())
 	require.NoError(t, err)
 	err = clt.DeleteIdentityCenterAccount(ctx, services.IdentityCenterAccountID(icAcct.GetMetadata().GetName()))
 	require.NoError(t, err)
 	err = clt.DeleteGitServer(ctx, gitServer.GetName())
 	require.NoError(t, err)
 
-	assert.Eventually(t, func() bool {
-		res, _ := w.GetUnifiedResources(ctx)
-		return len(res) == 0
-	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be deleted")
+	duplicatedServerNames := []string{
+		appServers[0].GetName(),
+		dbServers[0].GetName(),
+		desktops[0].GetName(),
+		kubeServers[0].GetName(),
+	}
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, err := w.GetUnifiedResources(ctx)
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.ElementsMatch(t, duplicatedServerNames, slices.Collect(types.ResourceNames(res)))
+	}, 5*time.Second, 100*time.Millisecond, "Timed out waiting for unified resources to be deleted except for HA servers")
+
+	// delete all remaining (db, kube, app, desktop) servers
+	for _, dbServer := range dbServers {
+		err = clt.DeleteDatabaseServer(ctx, "default", dbServer.Spec.HostID, dbServer.GetName())
+		require.NoError(t, err)
+	}
+	for _, appServer := range appServers {
+		err = clt.DeleteApplicationServer(ctx, "default", appServer.Spec.HostID, appServer.GetName())
+		require.NoError(t, err)
+	}
+	for _, desktop := range desktops {
+		err = clt.DeleteWindowsDesktop(ctx, desktop.Spec.HostID, desktop.GetName())
+		require.NoError(t, err)
+	}
+	for _, kubeServer := range kubeServers {
+		err = clt.DeleteKubernetesServer(ctx, kubeServer.Spec.HostID, kubeServer.GetName())
+		require.NoError(t, err)
+	}
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, err := w.GetUnifiedResources(ctx)
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.Empty(t, res)
+	}, 5*time.Second, 100*time.Millisecond, "Timed out waiting for unified resources to be deleted")
 }
 
 func newTestEntityDescriptor(entityID string) string {
@@ -1046,4 +1119,11 @@ func mustCreateOktaAppServer(t *testing.T, name, friendlyName string) *types.App
 	})
 	require.NoError(t, err)
 	return resource
+}
+
+func requireHealthStatusIfGiven(t *testing.T, r any, want types.TargetHealthStatus) {
+	t.Helper()
+	if r, ok := r.(types.TargetHealthStatusGetter); ok {
+		require.Equal(t, want, r.GetTargetHealthStatus(), "resource %v", r)
+	}
 }

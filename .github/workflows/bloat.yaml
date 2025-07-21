@@ -25,7 +25,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport18
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
 
     steps:
       - name: Checkout base
@@ -41,7 +41,7 @@ jobs:
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
-          ref: main
+          ref: 664e788d45a7f56935cf63094b4fb52a41b12015 # workflows/v0.0.2
 
       - name: Setup base cache
         uses: actions/cache/restore@v3
@@ -93,7 +93,7 @@ jobs:
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
-          ref: main
+          ref: 664e788d45a7f56935cf63094b4fb52a41b12015 # workflows/v0.0.2
 
       - name: Build Binaries
         id: build_branch

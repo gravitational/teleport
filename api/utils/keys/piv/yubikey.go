@@ -34,7 +34,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-piv/piv-go/piv"
+	"github.com/go-piv/piv-go/v2/piv"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api"
@@ -439,7 +439,11 @@ func (y *YubiKey) setPINAndPUKFromDefault(ctx context.Context, prompt hardwareke
 	y.pinCache.mu.Lock()
 	defer y.pinCache.mu.Unlock()
 
-	ctx, cancel := context.WithTimeout(ctx, pinPromptTimeout)
+	// Use a longer timeout than pinPromptTimeout since this specific prompt requires the user to
+	// re-type both PIN and PUK. The user might also want to save the values somewhere.
+	// pinPromptTimeout just doesn't give enough time for that.
+	const newPinPromptTimeout = 3 * time.Minute
+	ctx, cancel := context.WithTimeout(ctx, newPinPromptTimeout)
 	defer cancel()
 
 	pinAndPUK, err := prompt.ChangePIN(ctx, keyInfo)
@@ -684,7 +688,7 @@ func (c *sharedPIVConnection) reset() error {
 	return trace.Wrap(c.conn.Reset())
 }
 
-func (c *sharedPIVConnection) setCertificate(key [24]byte, slot piv.Slot, cert *x509.Certificate) error {
+func (c *sharedPIVConnection) setCertificate(key []byte, slot piv.Slot, cert *x509.Certificate) error {
 	release, err := c.connect()
 	if err != nil {
 		return trace.Wrap(err)
@@ -711,7 +715,7 @@ func (c *sharedPIVConnection) certificate(slot piv.Slot) (*x509.Certificate, err
 	return cert, trace.Wrap(err)
 }
 
-func (c *sharedPIVConnection) generateKey(key [24]byte, slot piv.Slot, opts piv.Key) (crypto.PublicKey, error) {
+func (c *sharedPIVConnection) generateKey(key []byte, slot piv.Slot, opts piv.Key) (crypto.PublicKey, error) {
 	release, err := c.connect()
 	if err != nil {
 		return nil, trace.Wrap(err)

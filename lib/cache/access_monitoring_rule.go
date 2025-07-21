@@ -25,6 +25,8 @@ import (
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -39,6 +41,7 @@ func newAccessMonitoringRuleCollection(upstream services.AccessMonitoringRules, 
 
 	return &collection[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleIndex]{
 		store: newStore(
+			types.KindAccessMonitoringRule,
 			proto.CloneOf[*accessmonitoringrulesv1.AccessMonitoringRule],
 			map[accessMonitoringRuleIndex]func(*accessmonitoringrulesv1.AccessMonitoringRule) string{
 				accessMonitoringRuleNameIndex: func(r *accessmonitoringrulesv1.AccessMonitoringRule) string {
@@ -46,22 +49,8 @@ func newAccessMonitoringRuleCollection(upstream services.AccessMonitoringRules, 
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-			var resources []*accessmonitoringrulesv1.AccessMonitoringRule
-			var nextToken string
-			for {
-				var page []*accessmonitoringrulesv1.AccessMonitoringRule
-				var err error
-				page, nextToken, err = upstream.ListAccessMonitoringRules(ctx, 0 /* page size */, nextToken)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				resources = append(resources, page...)
-
-				if nextToken == "" {
-					break
-				}
-			}
-			return resources, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListAccessMonitoringRules))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *accessmonitoringrulesv1.AccessMonitoringRule {
 			return &accessmonitoringrulesv1.AccessMonitoringRule{

@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestGetDatabaseServers(t *testing.T) {
@@ -56,7 +56,7 @@ func TestGetDatabaseServers(t *testing.T) {
 		"no match": {
 			identity: identityWithDatabase("no-match", "root", "alice", nil),
 			getter:   newDatabaseServersWithServers("first", "second", "third"),
-			expectErrorFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			expectErrorFunc: func(tt require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsNotFound(err), "expected trace.NotFound error but got %T", err)
 			},
@@ -69,7 +69,7 @@ func TestGetDatabaseServers(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			servers, err := GetDatabaseServers(context.Background(), GetDatabaseServersParams{
-				Logger:                utils.NewSlogLoggerForTests(),
+				Logger:                logtest.NewLogger(),
 				ClusterName:           "root",
 				DatabaseServersGetter: tc.getter,
 				Identity:              tc.identity,
@@ -106,7 +106,7 @@ func TestGetServerTLSConfig(t *testing.T) {
 			server:          databaseServerWithName("db", "server1"),
 			identity:        identityWithDatabase("db", clusterName, user.GetName(), []string{role.GetName()}),
 			expectErrorFunc: require.NoError,
-			expectTLSConfigFunc: func(tt require.TestingT, tlsConfigI interface{}, _ ...interface{}) {
+			expectTLSConfigFunc: func(tt require.TestingT, tlsConfigI any, _ ...any) {
 				require.IsType(t, &tls.Config{}, tlsConfigI)
 				tlsConfig, _ := tlsConfigI.(*tls.Config)
 				require.Len(t, tlsConfig.Certificates, 1)
@@ -190,7 +190,7 @@ func TestConnect(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			conn, stats, err := Connect(context.Background(), ConnectParams{
-				Logger:         utils.NewSlogLoggerForTests(),
+				Logger:         logtest.NewLogger(),
 				Identity:       tc.identity,
 				Servers:        tc.dialer.getServers(),
 				ShuffleFunc:    ShuffleSort,

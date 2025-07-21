@@ -91,7 +91,6 @@ func TestUpdateBotLogins(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 
 		const botName = "test"
 
@@ -202,7 +201,6 @@ func TestUpdateBotRoles(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 
 		const botName = "test"
 

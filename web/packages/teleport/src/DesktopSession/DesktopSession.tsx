@@ -24,7 +24,7 @@ import {
   DesktopSession as SharedDesktopSession,
 } from 'shared/components/DesktopSession';
 import { useAsync } from 'shared/hooks/useAsync';
-import { BrowserFileSystem, TdpClient } from 'shared/libs/tdp';
+import { selectDirectoryInBrowser, TdpClient } from 'shared/libs/tdp';
 
 import { useTeleport } from 'teleport';
 import AuthnDialog from 'teleport/components/AuthnDialog';
@@ -34,9 +34,11 @@ import { adaptWebSocketToTdpTransport } from 'teleport/lib/tdp';
 import { shouldShowMfaPrompt, useMfaEmitter } from 'teleport/lib/useMfa';
 import { getHostName } from 'teleport/services/api';
 import auth from 'teleport/services/auth';
+import { useUser } from 'teleport/User/UserContext';
 
 export function DesktopSession() {
   const ctx = useTeleport();
+  const { preferences } = useUser();
   const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
   useEffect(() => {
     document.title = `${username} on ${desktopName} • ${clusterId}`;
@@ -57,7 +59,7 @@ export function DesktopSession() {
             ),
             abortSignal
           ),
-        new BrowserFileSystem()
+        selectDirectoryInBrowser
       )
   );
   const mfa = useMfaEmitter(client, undefined, {
@@ -129,7 +131,9 @@ export function DesktopSession() {
         }
       }}
       aclAttempt={aclAttempt}
+      browserSupportsSharing={navigator.userAgent.includes('Chrome')}
       hasAnotherSession={hasAnotherSession}
+      keyboardLayout={preferences.keyboardLayout}
     />
   );
 }

@@ -530,14 +530,14 @@ func (o *PluginOktaSyncSettings) GetEnableAppGroupSync() bool {
 }
 
 func (o *PluginOktaSyncSettings) GetEnableAccessListSync() bool {
-	if o == nil {
+	if !o.GetEnableAppGroupSync() {
 		return false
 	}
 	return o.SyncAccessLists
 }
 
 func (o *PluginOktaSyncSettings) GetEnableBidirectionalSync() bool {
-	if !o.GetEnableAccessListSync() {
+	if !o.GetEnableAppGroupSync() {
 		return false
 	}
 	return !o.DisableBidirectionalSync
@@ -548,6 +548,13 @@ func (o *PluginOktaSyncSettings) GetEnableSystemLogExport() bool {
 		return false
 	}
 	return o.EnableSystemLogExport
+}
+
+func (o *PluginOktaSyncSettings) GetAssignDefaultRoles() bool {
+	if o == nil {
+		return false
+	}
+	return !o.DisableAssignDefaultRoles
 }
 
 type OktaUserSyncSource string

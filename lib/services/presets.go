@@ -300,6 +300,9 @@ func NewPresetAccessRole() types.Role {
 					types.NewRule(types.KindInstance, RO()),
 					types.NewRule(types.KindClusterMaintenanceConfig, RO()),
 				},
+				MCP: &types.MCPPermissions{
+					Tools: []string{teleport.TraitInternalMCPTools},
+				},
 			},
 		},
 	}
@@ -1075,6 +1078,15 @@ func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
 		}
 	}
 
+	if role.GetMCPPermissions(types.Allow) == nil {
+		if mcpTools := defaultMCPTools()[role.GetName()]; len(mcpTools) > 0 {
+			role.SetMCPPermissions(types.Allow, &types.MCPPermissions{
+				Tools: mcpTools,
+			})
+			changed = true
+		}
+	}
+
 	if !changed {
 		return nil, trace.AlreadyExists("no change")
 	}
@@ -1190,5 +1202,11 @@ func updateAllowLabels(role types.Role, kind string, defaultLabels types.Labels)
 func defaultGitHubOrgs() map[string][]string {
 	return map[string][]string{
 		teleport.PresetAccessRoleName: []string{teleport.TraitInternalGitHubOrgs},
+	}
+}
+
+func defaultMCPTools() map[string][]string {
+	return map[string][]string{
+		teleport.PresetAccessRoleName: []string{teleport.TraitInternalMCPTools},
 	}
 }
