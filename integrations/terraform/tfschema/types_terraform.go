@@ -464,7 +464,7 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 				"gcp": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"cluster_id": {
-							Description: "ClusterID is the ID of the cluster. Required for AlloyDB databases.",
+							Description: "ClusterID is the ID of the cluster. Required only for AlloyDB databases.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -484,7 +484,7 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"region": {
-							Description: "Region is the GCP region. Required for AlloyDB databases.",
+							Description: "Region is the GCP region. Required only for AlloyDB databases.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},

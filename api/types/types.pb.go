@@ -2564,9 +2564,9 @@ type GCPCloudSQL struct {
 	ProjectID string `protobuf:"bytes,1,opt,name=ProjectID,proto3" json:"project_id,omitempty"`
 	// InstanceID is the Cloud SQL instance ID.
 	InstanceID string `protobuf:"bytes,2,opt,name=InstanceID,proto3" json:"instance_id,omitempty"`
-	// Region is the GCP region. Required for AlloyDB databases.
+	// Region is the GCP region. Required only for AlloyDB databases.
 	Region string `protobuf:"bytes,3,opt,name=Region,proto3" json:"region,omitempty"`
-	// ClusterID is the ID of the cluster. Required for AlloyDB databases.
+	// ClusterID is the ID of the cluster. Required only for AlloyDB databases.
 	ClusterID string `protobuf:"bytes,4,opt,name=ClusterID,proto3" json:"cluster_id,omitempty"`
 	// IsAlloyDB is true if the database is an AlloyDB server.
 	IsAlloyDB            bool     `protobuf:"varint,5,opt,name=IsAlloyDB,proto3" json:"is_alloy_db,omitempty"`

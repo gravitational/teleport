@@ -58,6 +58,9 @@ type gcpAlloyDBAdminClient struct {
 	clock  clockwork.Clock
 }
 
+// GenerateClientCertificate returns a new PEM-encoded client certificate and Root CA suitable for connecting to particular AlloyDB instance.
+//
+// See: https://cloud.google.com/go/docs/reference/cloud.google.com/go/alloydb/latest/apiv1beta#cloud_google_com_go_alloydb_apiv1beta_AlloyDBAdminClient_GenerateClientCertificate
 func (g *gcpAlloyDBAdminClient) GenerateClientCertificate(ctx context.Context, db types.Database, certExpiry time.Time, pkey *keys.PrivateKey) (*tls.Certificate, string, error) {
 	keyPEM, err := keys.MarshalPublicKey(pkey.Public())
 	if err != nil {
