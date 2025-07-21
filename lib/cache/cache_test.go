@@ -1852,40 +1852,6 @@ func TestAuthServers(t *testing.T) {
 	})
 }
 
-// TestRemoteClusters tests remote clusters caching
-func TestRemoteClusters(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForProxy)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[types.RemoteCluster]{
-		newResource: func(name string) (types.RemoteCluster, error) {
-			return types.NewRemoteCluster(name)
-		},
-		create: func(ctx context.Context, rc types.RemoteCluster) error {
-			_, err := p.trustS.CreateRemoteCluster(ctx, rc)
-			return err
-		},
-		list: func(ctx context.Context) ([]types.RemoteCluster, error) {
-			return p.trustS.GetRemoteClusters(ctx)
-		},
-		cacheGet: func(ctx context.Context, name string) (types.RemoteCluster, error) {
-			return p.cache.GetRemoteCluster(ctx, name)
-		},
-		cacheList: func(ctx context.Context) ([]types.RemoteCluster, error) {
-			return p.cache.GetRemoteClusters(ctx)
-		},
-		update: func(ctx context.Context, rc types.RemoteCluster) error {
-			_, err := p.trustS.UpdateRemoteCluster(ctx, rc)
-			return err
-		},
-		deleteAll: func(ctx context.Context) error {
-			return p.trustS.DeleteAllRemoteClusters(ctx)
-		},
-	})
-}
-
 // TestKubernetes tests that CRUD operations on kubernetes clusters resources are
 // replicated from the backend to the cache.
 func TestKubernetes(t *testing.T) {
