@@ -47,10 +47,8 @@ func ConvertError(err error) error {
 		return nil
 	}
 	// Unwrap original error first.
-	var traceErr *trace.TraceErr
-	if errors.As(err, &traceErr) {
-		return ConvertError(trace.Unwrap(err))
-	}
+	err = trace.Unwrap(err)
+
 	var pgErr pgError
 	if errors.As(err, &pgErr) {
 		return ConvertError(pgErr.Unwrap())
