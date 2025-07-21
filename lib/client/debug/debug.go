@@ -184,6 +184,7 @@ func (c *Client) GetReadiness(ctx context.Context) (Readiness, error) {
 	return ready, nil
 }
 
+// GetMetrics returns metrics as a map keyed by metric name.
 func (c *Client) GetMetrics(ctx context.Context) (map[string]*dto.MetricFamily, error) {
 	resp, err := c.do(ctx, http.MethodGet, url.URL{Path: "/metrics"}, nil)
 	if err != nil {
