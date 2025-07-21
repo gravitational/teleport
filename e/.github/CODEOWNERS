@@ -7,5 +7,12 @@
 # Owners for Go dependency updates.
 /tooling/os-package-repo-tool/go.mod @russjones @r0mant @zmb3 @rosstimothy @fheinecke @camscale @doggydogworld
 
+# Internal Tools files
+/tooling/ @russjones @r0mant @fheinecke @camscale @doggydogworld
+/.sops.yaml @russjones @r0mant @fheinecke @camscale @doggydogworld
+/scripts/check-unencrypted-sops.sh @russjones @r0mant @fheinecke @camscale @doggydogworld
+/scripts/configure-git.sh @russjones @r0mant @fheinecke @camscale @doggydogworld
+/scripts/shared-pre-commit.sh @russjones @r0mant @fheinecke @camscale @doggydogworld
+
 # Owners for Rust dependency updates.
 /windowsauth/Cargo.toml @russjones @r0mant @zmb3 @rosstimothy @fspmarshall @espadolini @probakowski
