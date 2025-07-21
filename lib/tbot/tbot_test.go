@@ -1273,11 +1273,11 @@ func TestBotJoiningURI(t *testing.T) {
 			process.Config.Proxy.WebAddr.String(),
 		),
 		Storage: &config.StorageConfig{
-			Destination: &config.DestinationMemory{},
+			Destination: &destination.Memory{},
 		},
 		Services: config.ServiceConfigs{
 			&config.IdentityOutput{
-				Destination: &config.DestinationMemory{},
+				Destination: &destination.Memory{},
 			},
 		},
 		Oneshot:  true,
