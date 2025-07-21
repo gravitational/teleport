@@ -43,7 +43,8 @@ configured in the Entra ID enterprise application.
 Direct bidirectional connectivity between Teleport and Entra ID is necessary for 
 the Entra ID to validate the OIDC tokens issued by Teleport.
 
-For Teleport cloud cluster, OIDC IdP based authentication is the only supported method. 
+For a Teleport cloud cluster, OIDC IdP based authentication is the only supported
+authentication method. 
 
 #### System credentials
 
@@ -52,6 +53,22 @@ accommodates environments where Entra ID cannot validate OIDC tokens issued by T
 
 Instead, Teleport relies on API credentials available where Teleport 
 Auth Service is running.
+
+### Choosing guided or manual Entra ID configuration method
+
+In the guided Entra ID configuration process, Teleport generates a configuration 
+script, which configures your Entra ID tenant with the properties that are required
+for the Teleport Entra ID integration. 
+
+But if you want to have more control over the Entra ID configuration, a manual
+Entra ID configuration may be suitable for you. In this case, you update the Entra ID
+tenant with the properties that are required for Teleport Entra ID integration. 
+
+The Web UI only supports guided Entra ID configuration with Teleport as OIDC IdP 
+authentication method. `tctl` supports both the guided and manual Entra ID 
+configuration methods, for both Teleport as OIDC IdP and system credential based setup. 
+
+Both the guided and manual configuration is demonstrated in this guide. 
 
 ## Prerequisites
 
@@ -63,13 +80,16 @@ also be enabled if you choose to enable Identity Security integration.
 
 ## Guided Configuration
 
-The guided configuration expects setting up a new Entra ID auth connector and OIDC
-IdP integration as a default. 
+Teleport will generate a script that will configure your Entra ID tenant with the 
+properties required for the Teleport Entra ID integration.
 
-<Tabs groupId="entra-id">
-<TabItem label="Teleport as OIDC provider (Web UI)">
+Below, the configuration methods are categorized based on the authentication method
+you choose, i.e. OIDC IdP or system credential. 
 
 ## Step 1/3: Generate configuration script
+<Tabs groupId="entra-guided">
+<TabItem default label="Teleport as OIDC provider (Web UI)" name="entra-oidc-ui">
+
 In the Teleport Web UI, from the side-navigation, select “Add New > Integration”.
 
 Next, select the “Microsoft Entra ID” tile. 
@@ -83,23 +103,9 @@ are created for your Entra ID groups.
 
 In the next step, you will be provided with a Entra ID configuration script.
 
-## Step 2/3: Configure Entra ID
-
-(!docs/pages/includes/identity-governance/azure-shell.mdx!)
-
-## Step 3/3: Finish plugin installation
-
-Once the script is done setting up the necessary permissions,
-it prints out tenant ID and client ID. Copy these values and provide it to the
-Web UI to finish the integration.
-
-![Entra ID Integration](../../img/igs/entraid/entra-finish.png)
-
 </TabItem>
 
-<TabItem label="Teleport as OIDC provider (tctl)" >
-
-## Step 1/3: Generate configuration script (tctl)
+<TabItem label="Teleport as OIDC provider (tctl)" name="entra-oidc-tctl">
 
 To begin integration, run the `tctl plugins install entraid` command.
 
@@ -115,21 +121,9 @@ $ tctl plugins install entraid \
 The command will generate a configuration script in the current directory 
 from where the `tctl` is invoked. 
 
-## Step 2/3: Configure Entra ID (tctl)
-
-(!docs/pages/includes/identity-governance/azure-shell.mdx!)
-
-## Step 3/3: Finish plugin installation (tctl)
-
-Once the script is done setting up the necessary permissions,
-it prints out tenant ID and client ID. Copy these values and enter it in the
-`tctl` to finish the integration.
-
 </TabItem>
 
-<TabItem label="System credential (tctl)" >
-
-## Step 1/4: Set up system credential
+<TabItem label="System credential (tctl)" name="entra-system-cred-tctl">
 
 You will need to grant Azure Identity with the necessary permissions required for the Entra ID
 integration.
@@ -189,10 +183,7 @@ foreach ($appRole in $appRoles) {
 Your identity principal `<Var name="Principal ID" />` now has the necessary permissions to list Applications,
 Directories, and Policies.
 
-
-## Step 2/4: Generate configuration script (tctl)
-
-To begin integration, run the `tctl plugins install entraid` command.
+Now, to begin integration, run the `tctl plugins install entraid` command.
 
 ```code
 $ tctl plugins install entraid \
@@ -207,15 +198,36 @@ $ tctl plugins install entraid \
 The command will generate a configuration script in the current directory 
 from where the `tctl` is invoked. 
 
-## Step 3/4: Configure Entra ID (tctl)
+</TabItem>
+</Tabs>
+
+## Step 2/3: Configure Entra ID
 
 (!docs/pages/includes/identity-governance/azure-shell.mdx!)
 
-## Step 4/4: Finish plugin installation (tctl)
+## Step 3/3: Finish plugin installation
 
-Once the script is done setting up the necessary permissions,
-it prints out tenant ID and client ID. Copy these values and provide it to the
-`tctl` to finish the integration.
+<Tabs groupId="entra-guided">
+<TabItem default label="Teleport as OIDC provider (Web UI)" name="entra-oidc-ui">
+
+Copy the Entra ID tenant ID and enterprise application client ID from the script output
+and enter it in the Web UI to finish the integration.
+
+![Entra ID Integration](../../img/igs/entraid/entra-finish.png)
+
+</TabItem>
+
+<TabItem label="Teleport as OIDC provider (tctl)" name="entra-oidc-tctl">
+
+Copy the Entra ID tenant ID and enterprise application client ID from the script output
+and enter it in the `tctl` to finish the integration.
+
+</TabItem>
+
+<TabItem label="System credential (tctl)" name="entra-system-cred-tctl">
+
+Copy the Entra ID tenant ID and enterprise application client ID from the script output
+and enter it in the `tctl` to finish the integration.
 
 </TabItem>
 </Tabs>
@@ -226,8 +238,8 @@ importing resources from Entra ID to Teleport.
 ## Manual configuration
 
 Manual configuration may be preferable if you wish to have more control on the 
-Entra ID configuration. Below, an OIDC IdP based manual configuration is 
-demonstrated. 
+Entra ID configuration. Below, a manual Entra ID configuration is demonstrated,
+which as based on setting up the OIDC IdP based authentication method.  
 
 ## Step 1/5. Create enterprise application
 
