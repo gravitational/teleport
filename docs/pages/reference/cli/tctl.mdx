@@ -1860,12 +1860,11 @@ When a specific endpoint is provided, `tctl top` will always attempt to connect 
 The endpoint should be a valid HTTP URL, corresponding to a matching
 diagnostic metrics service configuration such as `teleport start --diag-addr=<bind-addr>`.
 
-When no endpoint is specified, `tctl top` will attempt to connect via the debug UNIX socket endpoint, falling back to
-localhost.
+When no endpoint is specified, `tctl top` will attempt to connect via the debug UNIX socket endpoint, falling back to localhost.
 
 ### Argument
 
-- `[<diag-addr>]` Diagnostic HTTP URL (HTTPS not supported) or UNIX socket.
+- `[<diag-addr>]` Diagnostic HTTP URL (HTTPS not supported)
 - `[<refresh>]` Refresh period e.g. `5s`, `2m`, or `3h`
 
 ### Example

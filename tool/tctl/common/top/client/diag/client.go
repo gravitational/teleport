@@ -37,12 +37,12 @@ type Client struct {
 }
 
 // Takes a string address and attempts to parse it into a valid URL.
-// The input can either be a valid string URL or a <host>:<port>.
+// The input can either be a valid string URL or a <host>:<port> pair.
 func parseAddress(addr string) (*url.URL, error) {
 	u, err := url.Parse(addr)
 
 	if err != nil || u.Scheme == "" || u.Host == "" {
-		// It's possible the address is hostport format
+		// Attempt to parse the input as a host:port tuple instead.
 		_, _, err = net.SplitHostPort(addr)
 		if err != nil {
 			return nil, trace.Errorf("address %s is neither a valid URL nor <host>:<port>", addr)
@@ -79,7 +79,7 @@ func NewClient(addr string) (*Client, error) {
 	}, nil
 }
 
-// Fetches metrics from the configured endpoint and returns them as a map keyed by metric name.
+// GetMetrics returns metrics as a map keyed by metric name.
 func (c *Client) GetMetrics(ctx context.Context) (map[string]*dto.MetricFamily, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.endpoint, http.NoBody)
 	if err != nil {
