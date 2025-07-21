@@ -69,21 +69,19 @@ function findVersionFromClusters(sources: {
   clusterVersions: GetClusterVersionsResponse;
 }): AutoUpdatesStatus {
   const { reachableClusters, unreachableClusters } = sources.clusterVersions;
-  const candidateClusters = makeCandidateClusters(reachableClusters);
-  const autoUpdateCandidateClusters = candidateClusters.filter(
-    c => c.toolsAutoUpdate
-  );
+  const clusters = makeClusters(reachableClusters);
+  const autoUpdateCandidateClusters = clusters.filter(c => c.toolsAutoUpdate);
   if (!autoUpdateCandidateClusters.length) {
     return {
       enabled: false,
       reason: 'no-cluster-with-auto-update',
-      candidateClusters,
+      clusters,
       unreachableClusters,
     };
   }
 
   const { managingClusterUri } = sources;
-  const managingCluster = candidateClusters.find(
+  const managingCluster = clusters.find(
     c => c.clusterUri === managingClusterUri
   );
 
@@ -93,7 +91,7 @@ function findVersionFromClusters(sources: {
       version: managingCluster.toolsVersion,
       source: {
         kind: 'managing-cluster',
-        candidateClusters,
+        clusters,
         clusterUri: managingCluster.clusterUri,
         unreachableClusters,
       },
@@ -110,15 +108,14 @@ function findVersionFromClusters(sources: {
     );
   }
 
-  const mostCompatibleVersion =
-    findMostCompatibleToolsVersion(candidateClusters);
+  const mostCompatibleVersion = findMostCompatibleToolsVersion(clusters);
   if (mostCompatibleVersion) {
     return {
       enabled: true,
       version: mostCompatibleVersion,
       source: {
         kind: 'most-compatible',
-        candidateClusters,
+        clusters,
         unreachableClusters,
         skippedManagingClusterUri: managingClusterIsSkipped
           ? managingClusterUri
@@ -131,7 +128,7 @@ function findVersionFromClusters(sources: {
     enabled: false,
     reason: 'no-compatible-version',
     unreachableClusters,
-    candidateClusters,
+    clusters,
   };
 }
 
@@ -153,12 +150,10 @@ export function shouldAutoDownload(updatesStatus: AutoUpdatesEnabled): boolean {
   );
 }
 
-/** Assigns each candidate a compatibility with client tools from other clusters. */
-function makeCandidateClusters(
-  versions: ClusterVersionInfo[]
-): CandidateCluster[] {
+/** Assigns each cluster a compatibility with client tools from other clusters. */
+function makeClusters(versions: ClusterVersionInfo[]): Cluster[] {
   return versions.map(version => {
-    const candidateMajorToolsVersion = major(version.toolsVersion);
+    const majorToolsVersion = major(version.toolsVersion);
 
     const otherCompatibleClusters = versions
       .filter(v => {
@@ -170,11 +165,8 @@ function makeCandidateClusters(
         const minMajor = major(v.minToolsVersion);
         const maxMajor = major(v.toolsVersion);
 
-        // Check compatibility: candidate's major version must be within [minMajor, maxMajor].
-        return (
-          candidateMajorToolsVersion >= minMajor &&
-          candidateMajorToolsVersion <= maxMajor
-        );
+        // Check compatibility: cluster's major version must be within [minMajor, maxMajor].
+        return majorToolsVersion >= minMajor && majorToolsVersion <= maxMajor;
       })
       .map(v => v.clusterUri);
 
@@ -185,19 +177,16 @@ function makeCandidateClusters(
   });
 }
 
-/**
- * Finds the highest version of client tools that is compatible with all
- * candidate clusters.
- */
+/** Finds the highest version of client tools that is compatible with all clusters. */
 function findMostCompatibleToolsVersion(
-  candidates: CandidateCluster[]
+  clusters: Cluster[]
 ): string | undefined {
   // Get the highest version first.
-  const sortedAutoUpdateCandidates = candidates
+  const sortedAutoUpdateCandidates = clusters
     .filter(c => c.toolsAutoUpdate)
     .toSorted((a, b) => compare(b.toolsVersion, a.toolsVersion));
 
-  const allClusters = new Set(candidates.map(c => c.clusterUri));
+  const allClusters = new Set(clusters.map(c => c.clusterUri));
 
   for (const candidate of sortedAutoUpdateCandidates) {
     // The candidate is compatible with itself and `otherCompatibleClusters`.
@@ -226,7 +215,7 @@ export type AutoUpdatesEnabled = {
         /** URI of the managing cluster. */
         clusterUri: RootClusterUri;
         /** Clusters considered during version resolution. */
-        candidateClusters: CandidateCluster[];
+        clusters: Cluster[];
         /** Clusters from which version information could not be retrieved. */
         unreachableClusters: UnreachableCluster[];
       }
@@ -234,7 +223,7 @@ export type AutoUpdatesEnabled = {
         /** Updates determined by the most compatible clusters available. */
         kind: 'most-compatible';
         /** Clusters considered during version resolution. */
-        candidateClusters: CandidateCluster[];
+        clusters: Cluster[];
         /**
          * Clusters from which version information could not be retrieved.
          * If non-empty, the update is not automatically downloaded.
@@ -259,7 +248,7 @@ export type AutoUpdatesDisabled =
       /** There is no cluster that could manage updates. */
       reason: 'no-cluster-with-auto-update';
       /** Clusters considered during version resolution. */
-      candidateClusters: CandidateCluster[];
+      clusters: Cluster[];
       /** Clusters from which version information could not be retrieved. */
       unreachableClusters: UnreachableCluster[];
     }
@@ -271,7 +260,7 @@ export type AutoUpdatesDisabled =
        */
       reason: 'no-compatible-version';
       /** Clusters considered during version resolution. */
-      candidateClusters: CandidateCluster[];
+      clusters: Cluster[];
       /** Clusters from which version information could not be retrieved. */
       unreachableClusters: UnreachableCluster[];
     };
@@ -279,7 +268,7 @@ export type AutoUpdatesDisabled =
 export type AutoUpdatesStatus = AutoUpdatesEnabled | AutoUpdatesDisabled;
 
 /** Represents a cluster that could manage updates. */
-export interface CandidateCluster {
+export interface Cluster {
   /** URI of the cluster. */
   clusterUri: RootClusterUri;
   /** Whether the client should automatically update the tools version. */

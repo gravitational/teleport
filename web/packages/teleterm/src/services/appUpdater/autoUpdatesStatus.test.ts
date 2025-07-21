@@ -80,7 +80,7 @@ test.each([
     expected: {
       enabled: false,
       reason: 'no-cluster-with-auto-update',
-      candidateClusters: [
+      clusters: [
         {
           clusterUri: '/clusters/cluster-a',
           toolsAutoUpdate: false,
@@ -115,7 +115,7 @@ test.each([
       source: {
         kind: 'managing-cluster',
         clusterUri: '/clusters/cluster-a',
-        candidateClusters: [
+        clusters: [
           {
             clusterUri: '/clusters/cluster-a',
             toolsAutoUpdate: true,
@@ -157,7 +157,7 @@ test.each([
       version: '14.0.0',
       source: {
         kind: 'most-compatible',
-        candidateClusters: [
+        clusters: [
           {
             clusterUri: '/clusters/cluster-a',
             toolsAutoUpdate: true,
@@ -207,7 +207,7 @@ test.each([
       version: '14.2.0', // the newer version should be taken
       source: {
         kind: 'most-compatible',
-        candidateClusters: [
+        clusters: [
           {
             clusterUri: '/clusters/cluster-a',
             toolsAutoUpdate: true,
@@ -257,7 +257,7 @@ test.each([
       version: '18.2.0', // From semver spec: pre-releases have lower precedence than a normal version.
       source: {
         kind: 'most-compatible',
-        candidateClusters: [
+        clusters: [
           {
             clusterUri: '/clusters/cluster-a',
             toolsAutoUpdate: true,
@@ -307,7 +307,7 @@ test.each([
       version: '15.0.0',
       source: {
         kind: 'most-compatible',
-        candidateClusters: [
+        clusters: [
           {
             clusterUri: '/clusters/cluster-a',
             toolsAutoUpdate: true,
@@ -357,7 +357,7 @@ test.each([
       version: '15.0.0',
       source: {
         kind: 'most-compatible',
-        candidateClusters: [
+        clusters: [
           {
             clusterUri: '/clusters/cluster-a',
             toolsAutoUpdate: false,
@@ -406,7 +406,7 @@ test.each([
       version: '15.0.0',
       source: {
         kind: 'most-compatible',
-        candidateClusters: [
+        clusters: [
           {
             clusterUri: '/clusters/cluster-b',
             toolsAutoUpdate: true,
@@ -458,7 +458,7 @@ test.each([
     expected: {
       enabled: false,
       reason: 'no-compatible-version',
-      candidateClusters: [
+      clusters: [
         {
           clusterUri: '/clusters/cluster-a',
           toolsAutoUpdate: false,
@@ -497,7 +497,7 @@ describe('should not auto download', () => {
         enabled: true,
         version: '15.0.0',
         source: {
-          candidateClusters: [
+          clusters: [
             {
               clusterUri: '/clusters/cluster-a',
               minToolsVersion: '15.0.0-aa',
@@ -525,7 +525,7 @@ describe('should not auto download', () => {
         enabled: true,
         version: '16.1.0',
         source: {
-          candidateClusters: [
+          clusters: [
             {
               clusterUri: '/clusters/cluster-b',
               minToolsVersion: '15.0.0-aa',
