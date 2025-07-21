@@ -330,7 +330,7 @@ test.each([
   },
   {
     title:
-      'resolving using most compatible version when cluster managing updates stopped doing it',
+      'resolving using most compatible version when cluster managing no longer has `toolsAutoUpdate` set to true',
     input: {
       versionEnvVar: '',
       getClusterVersions: async () => ({

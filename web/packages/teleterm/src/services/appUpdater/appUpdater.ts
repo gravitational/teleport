@@ -128,8 +128,8 @@ function registerEventHandlers(
   emit: (event: AppUpdateEvent) => void,
   getAutoUpdatesStatus: () => AutoUpdatesStatus
 ): () => void {
-  // The update info is stored when the update is available
-  // to attach it to other events, like 'download-progress' or 'error'.
+  // updateInfo becomes defined when an update is available (see onUpdateAvailable).
+  // It is later attached to other events, like 'download-progress' or 'error'.
   let updateInfo: UpdateInfo | undefined;
 
   const onCheckingForUpdate = () => {

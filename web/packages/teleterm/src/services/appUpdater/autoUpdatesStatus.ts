@@ -142,13 +142,13 @@ export function shouldAutoDownload(updatesStatus: AutoUpdatesEnabled): boolean {
   }
 
   return (
-    // If reading a cluster version fails, another cluster might take over
-    // managing updates.
-    // This can trigger an unintended update if the cluster that previously managed updates
-    // is only temporarily unavailable.
+    // Prevent auto-downloading in cases where the most-compatible approach had
+    // to ignore some unreachable clusters.
+    // This can happen when a cluster that manages updates becomes temporarily unavailable
+    // – we don't want another cluster to suddenly take over managing updates.
     updatesStatus.source.unreachableClusters.length === 0 &&
-    // If managing cluster exists but is not able to manage the updates,
-    // do not download most compatible version automatically.
+    // Do not download the most compatible version automatically if the managing
+    // cluster is unreachable or has auto-updates disabled.
     !updatesStatus.source.skippedManagingClusterUri
   );
 }
