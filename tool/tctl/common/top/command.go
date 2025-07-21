@@ -62,25 +62,33 @@ func (c *Command) newMetricsClient(ctx context.Context) (string, MetricsClient, 
 		return c.diagURL, clt, trace.Wrap(err)
 	}
 
+	// Try the local UNIX debug service client first.
 	debugClient := debug.NewClient(c.config.DataDir)
 	_, debugErr := debugClient.GetMetrics(ctx)
 	if debugErr == nil {
 		return c.config.DataDir, debugClient, nil
 	}
+	debugErr = trace.Wrap(debugErr, "failed to get metrics from debug service")
 
-	diagClient, err := diag.NewClient(defaultDiagAddr)
-	if err != nil {
-		// replace with better error below
-		return "", nil, trace.NewAggregate(trace.Wrap(err, "creating diag addr client"), trace.Wrap(debugErr, "creating debug client"))
+	// Try default diagnostic address
+	diagClient, defErr := diag.NewClient(defaultDiagAddr)
+	if defErr != nil {
+		return "", nil, trace.NewAggregate(
+			trace.Errorf("unable to connect to Teleport service"),
+			trace.Wrap(defErr, "failed to create diagnostics client for default address %q", defaultDiagAddr),
+			debugErr)
 	}
 
-	_, err = diagClient.GetMetrics(ctx)
-	if err == nil {
+	_, defErr = diagClient.GetMetrics(ctx)
+	if defErr == nil {
 		return defaultDiagAddr, diagClient, nil
 	}
 
-	// replace with better error below
-	return "", nil, trace.NewAggregate(trace.Wrap(err, "creating diag addr client"), trace.Wrap(debugErr, "creating debug client"))
+	return "", nil, trace.NewAggregate(
+		trace.Errorf("unable to connect to Teleport service"),
+		trace.Wrap(defErr, "failed to get metrics from diagnostics client at default address %q", defaultDiagAddr),
+		debugErr,
+	)
 }
 
 // TryRun attempts to run subcommands.
