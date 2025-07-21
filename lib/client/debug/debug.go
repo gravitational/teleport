@@ -76,6 +76,7 @@ func NewClient(dataDir string) *Client {
 	}
 }
 
+// SocketPath returns the absolute path to the UNIX socket that the debug service is exposed on.
 func (c *Client) SocketPath() string {
 	return c.socketPath
 }
@@ -184,7 +185,7 @@ func (c *Client) GetReadiness(ctx context.Context) (Readiness, error) {
 	return ready, nil
 }
 
-// GetMetrics returns metrics as a map keyed by metric name.
+// GetMetrics returns prometheus metrics as a map keyed by metric name.
 func (c *Client) GetMetrics(ctx context.Context) (map[string]*dto.MetricFamily, error) {
 	resp, err := c.do(ctx, http.MethodGet, url.URL{Path: "/metrics"}, nil)
 	if err != nil {

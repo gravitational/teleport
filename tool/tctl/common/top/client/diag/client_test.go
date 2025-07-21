@@ -60,6 +60,15 @@ func TestClientAddressParsing(t *testing.T) {
 				Host:   "127.0.0.1:3000",
 			},
 		},
+		{
+			addr: "badurl:300:9:1",
+		},
+		{
+			addr: "http//badurl",
+		},
+		{
+			addr: "/var/lib/file.sock",
+		},
 	}
 
 	for _, tc := range testCases {
