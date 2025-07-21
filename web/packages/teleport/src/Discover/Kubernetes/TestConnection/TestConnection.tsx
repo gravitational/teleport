@@ -20,8 +20,6 @@ import { useState } from 'react';
 
 import { Box, H3, Subtitle3 } from 'design';
 import FieldInput from 'shared/components/FieldInput';
-import FieldSelect from 'shared/components/FieldSelect';
-import { Option } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
@@ -65,17 +63,7 @@ export function TestConnection({
   showMfaDialog,
   cancelMfaDialog,
 }: State) {
-  const userOpts = kube.users.map(l => ({ value: l, label: l }));
-  const groupOpts = kube.groups.map(l => ({ value: l, label: l }));
-
   const [namespace, setNamespace] = useState('default');
-  const [selectedGroups, setSelectedGroups] = useState(groupOpts);
-
-  // Always default it to either teleport username or from one of users defined
-  // from previous step.
-  const [selectedUser, setSelectedUser] = useState(
-    () => userOpts[0] || { value: username, label: username }
-  );
 
   function handleTestConnection(validator: Validator) {
     if (!validator.validate()) {
