@@ -835,12 +835,12 @@ func TestUpdater_Update(t *testing.T) {
 				},
 			}
 			var restarted bool
-			updater.ReexecSetup = func(_ context.Context, path string, reload bool) error {
+			updater.ReexecSetup = func(_ context.Context, path string, rev Revision, reload bool) error {
 				restarted = reload
 				setupCalls++
 				return tt.setupErr
 			}
-			updater.SetupNamespace = func(_ context.Context, path string) error {
+			updater.SetupNamespace = func(_ context.Context, path string, rev Revision) error {
 				revertSetupCalls++
 				return nil
 			}
@@ -1788,12 +1788,12 @@ func TestUpdater_Install(t *testing.T) {
 				},
 			}
 			var restarted bool
-			updater.ReexecSetup = func(_ context.Context, path string, reload bool) error {
+			updater.ReexecSetup = func(_ context.Context, path string, rev Revision, reload bool) error {
 				setupCalls++
 				restarted = reload
 				return tt.setupErr
 			}
-			updater.SetupNamespace = func(_ context.Context, path string) error {
+			updater.SetupNamespace = func(_ context.Context, path string, rev Revision) error {
 				revertSetupCalls++
 				return nil
 			}
@@ -1983,13 +1983,18 @@ func TestUpdater_Setup(t *testing.T) {
 					return tt.present, tt.presentErr
 				},
 			}
-			updater.SetupNamespace = func(_ context.Context, path string) error {
+			updater.SetupNamespace = func(_ context.Context, path string, rev Revision) error {
 				require.Equal(t, "test", path)
+				return tt.setupErr
+			}
+			updater.WriteTeleportService = func(_ context.Context, path string, rev Revision) error {
+				require.Equal(t, "test", path)
+				require.Equal(t, "version", rev.Version)
 				return tt.setupErr
 			}
 
 			ctx := context.Background()
-			err = updater.Setup(ctx, "test", tt.restart)
+			err = updater.Setup(ctx, "test", Revision{Version: "version"}, tt.restart)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)

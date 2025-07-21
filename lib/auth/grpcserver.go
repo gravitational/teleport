@@ -68,6 +68,7 @@ import (
 	mfav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	recordingencryptionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	secreportsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
@@ -106,6 +107,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption/recordingencryptionv1"
 	scopedaccess "github.com/gravitational/teleport/lib/auth/scopes/access"
 	scopedjoining "github.com/gravitational/teleport/lib/auth/scopes/joining"
 	"github.com/gravitational/teleport/lib/auth/secreports/secreportsv1"
@@ -133,6 +135,7 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 var (
@@ -2025,52 +2028,75 @@ func downgradeSAMLIdPRBAC(downgradedRole *types.RoleV6) *types.RoleV6 {
 	return downgradedRole
 }
 
-func maybeDowngradeRoleK8sAPIGroupToV7(role *types.RoleV6) *types.RoleV6 {
-	downgrade := func(resources []types.KubernetesResource) ([]types.KubernetesResource, bool) {
-		var out []types.KubernetesResource
-		for _, elem := range resources {
-			// If group is '*', simply remove it as the behavior in v7 would be the same.
-			if elem.APIGroup == types.Wildcard {
-				elem.APIGroup = ""
-			}
-			// If we have a wildcard kind, only keep it if the namespace is also a wildcard.
-			if elem.Kind == types.Wildcard && elem.Namespace == types.Wildcard && elem.APIGroup == "" {
-				out = append(out, elem)
-				continue
-			}
-			// If Kind is known in v7 and group is known, remove it the api group and keep the resource.
-			if v, ok := defaultRBACResources[allowedResourcesKey{elem.APIGroup, elem.Kind}]; ok {
-				elem.APIGroup = ""
-				elem.Kind = v
-				out = append(out, elem)
-				continue
-			}
-
-			// If we reach this point, we are dealing with a resource we don't know about or a wildcard
-			// As the scope of permissions granted differs, deny everything.
-			role.Spec.Allow.KubernetesResources = nil
-			role.Spec.Deny.KubernetesLabels = types.Labels{
-				types.Wildcard: {types.Wildcard},
-			}
-			role.Spec.Deny.KubernetesResources = []types.KubernetesResource{
-				{
-					Kind:      types.Wildcard,
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-				},
-			}
-			return nil, false
+func downgradeKubeResources[T types.KubeResource](role *types.RoleV6, resources []T) []T {
+	var out []T
+	for _, elem := range resources {
+		apiGroup, kind, namespace := elem.GetAPIGroup(), elem.GetKind(), elem.GetNamespace()
+		// If group is '*', simply remove it as the behavior in v7 would be the same.
+		if apiGroup == types.Wildcard {
+			elem.SetAPIGroup("")
+			apiGroup = ""
 		}
-		return out, true
-	}
+		// If we have a wildcard kind, only keep it if the namespace is also a wildcard.
+		if kind == types.Wildcard && namespace == types.Wildcard && apiGroup == "" {
+			out = append(out, elem)
+			continue
+		}
+		// If Kind is known in v7 and group is known, remove it.
+		if v, ok := defaultRBACResources[allowedResourcesKey{apiGroup, kind}]; ok {
+			elem.SetAPIGroup("")
+			elem.SetKind(v)
+			out = append(out, elem)
+			continue
+		}
 
-	var ok bool
-	role.Spec.Allow.KubernetesResources, ok = downgrade(role.Spec.Allow.KubernetesResources)
-	if !ok {
-		return role
+		// If we reach this point, we are dealing with a resource we don't know about or a wildcard
+		// As the scope of permissions granted differs, deny everything.
+		role.Spec.Allow.KubernetesResources = nil
+		role.Spec.Deny.KubernetesLabels = types.Labels{
+			types.Wildcard: {types.Wildcard},
+		}
+		role.Spec.Deny.KubernetesResources = []types.KubernetesResource{
+			{
+				Kind:      types.Wildcard,
+				Name:      types.Wildcard,
+				Namespace: types.Wildcard,
+				Verbs:     []string{types.Wildcard},
+			},
+		}
+		return nil
 	}
-	role.Spec.Deny.KubernetesResources, _ = downgrade(role.Spec.Deny.KubernetesResources)
+	return out
+}
+
+// maybeDowngradeRoleK8sAPIGroupToV7 downgrades the role to kubernetes resources to role v7 if the client
+// is below the minimum supported version.
+//
+// If there is an unsupported resource, clear them and inject deny all at the label level as well as setting the resource to be a wildcard deny.
+//
+// In the case of access requests, if there is a deny, also inject a wildcard deny in the request level.
+func maybeDowngradeRoleK8sAPIGroupToV7(role *types.RoleV6) *types.RoleV6 {
+	role.Spec.Allow.KubernetesResources = slices.FromPointers(downgradeKubeResources(role, slices.ToPointers(role.Spec.Allow.KubernetesResources)))
+	role.Spec.Deny.KubernetesResources = slices.FromPointers(downgradeKubeResources(role, slices.ToPointers(role.Spec.Deny.KubernetesResources)))
+
+	// NOTE: Make sure to handle access request deny before the allow.
+	if role.Spec.Deny.Request != nil && len(role.Spec.Deny.Request.KubernetesResources) > 0 {
+		role.Spec.Deny.Request.KubernetesResources = slices.FromPointers(downgradeKubeResources(role, slices.ToPointers(role.Spec.Deny.Request.KubernetesResources)))
+		// If we cleared the Deny, inject a wildcard.
+		if len(role.Spec.Deny.Request.KubernetesResources) == 0 {
+			role.Spec.Deny.Request.KubernetesResources = []types.RequestKubernetesResource{{Kind: types.Wildcard}}
+		}
+	}
+	if role.Spec.Allow.Request != nil && len(role.Spec.Allow.Request.KubernetesResources) > 0 {
+		role.Spec.Allow.Request.KubernetesResources = slices.FromPointers(downgradeKubeResources(role, slices.ToPointers(role.Spec.Allow.Request.KubernetesResources)))
+		// If we cleared out the Allow, inject a wildcard in Deny.
+		if len(role.Spec.Allow.Request.KubernetesResources) == 0 {
+			if role.Spec.Deny.Request == nil {
+				role.Spec.Deny.Request = &types.AccessRequestConditions{}
+			}
+			role.Spec.Deny.Request.KubernetesResources = append(role.Spec.Deny.Request.KubernetesResources, types.RequestKubernetesResource{Kind: types.Wildcard})
+		}
+	}
 
 	return role
 }
@@ -3790,6 +3816,32 @@ func (g *GRPCServer) GetApps(ctx context.Context, _ *emptypb.Empty) (*types.AppV
 	}, nil
 }
 
+// ListApps returns a page of application resources.
+func (g *GRPCServer) ListApps(ctx context.Context, req *authpb.ListAppsRequest) (*authpb.ListAppsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	apps, next, err := auth.ListApps(ctx, int(req.Limit), req.StartKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListAppsResponse{
+		Applications: make([]*types.AppV3, 0, len(apps)),
+		NextKey:      next,
+	}
+
+	for _, app := range apps {
+		appV3, ok := app.(*types.AppV3)
+		if !ok {
+			return nil, trace.BadParameter("unsupported application type %T", app)
+		}
+		resp.Applications = append(resp.Applications, appV3)
+	}
+	return resp, nil
+}
+
 // DeleteApp removes the specified application resource.
 func (g *GRPCServer) DeleteApp(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -4031,6 +4083,39 @@ func (g *GRPCServer) GetWindowsDesktops(ctx context.Context, filter *types.Windo
 	return &authpb.GetWindowsDesktopsResponse{
 		Desktops: desktops,
 	}, nil
+}
+
+// ListWindowsDesktops returns a page of registered Windows desktop hosts.
+func (g *GRPCServer) ListWindowsDesktops(ctx context.Context, req *authpb.ListWindowsDesktopsRequest) (*authpb.ListWindowsDesktopsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := auth.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+		WindowsDesktopFilter: req.WindowsDesktopFilter,
+		Limit:                int(req.Limit),
+		StartKey:             req.StartKey,
+		PredicateExpression:  req.PredicateExpression,
+		Labels:               req.Labels,
+		SearchKeywords:       req.SearchKeywords,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := &authpb.ListWindowsDesktopsResponse{
+		Desktops: make([]*types.WindowsDesktopV3, 0, len(resp.Desktops)),
+		NextKey:  resp.NextKey,
+	}
+
+	for _, d := range resp.Desktops {
+		if v3, ok := d.(*types.WindowsDesktopV3); ok {
+			out.Desktops = append(out.Desktops, v3)
+		}
+	}
+
+	return out, nil
 }
 
 // CreateWindowsDesktop registers a new Windows desktop host.
@@ -5448,6 +5533,9 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	scopedAccessControl, err := scopedaccess.New(scopedaccess.Config{
 		Authorizer: cfg.Authorizer,
+		Reader:     cfg.AuthServer.scopedAccessCache,
+		Writer:     cfg.AuthServer.scopedAccessBackend,
+		Logger:     logger,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating scoped access control service")
@@ -5542,6 +5630,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	integrationv1pb.RegisterAWSOIDCServiceServer(server, integrationAWSOIDCServiceServer)
 
+	integrationAWSRolesAnywhereServiceServer, err := integrationv1.NewAWSRolesAnywhereService(&integrationv1.AWSRolesAnywhereServiceConfig{
+		Authorizer:         cfg.Authorizer,
+		IntegrationService: integrationServiceServer,
+		Clock:              cfg.AuthServer.clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	integrationv1pb.RegisterAWSRolesAnywhereServiceServer(server, integrationAWSRolesAnywhereServiceServer)
+
 	userTask, err := usertasksv1.NewService(usertasksv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
@@ -5603,6 +5701,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	userloginstatev1pb.RegisterUserLoginStateServiceServer(server, userLoginStateServer)
+
+	recordingEncryptionService, err := recordingencryptionv1.NewService(recordingencryptionv1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Uploader:   cfg.AuthServer.Services,
+		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, teleport.ComponentRecordingEncryption),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	recordingencryptionv1pb.RegisterRecordingEncryptionServiceServer(server, recordingEncryptionService)
 
 	clusterConfigService, err := clusterconfigv1.NewService(clusterconfigv1.ServiceConfig{
 		Cache:      cfg.AuthServer.Cache,

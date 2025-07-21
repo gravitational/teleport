@@ -53,7 +53,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
-	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/metadata"
@@ -75,9 +75,11 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/okta/oktatest"
-	scopedrole "github.com/gravitational/teleport/lib/scopes/roles"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
@@ -760,6 +762,109 @@ func TestGithubAuthCompat(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAWSRolesAnywhereCredentialGenerationForApps(t *testing.T) {
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+
+	// Set up a new Integration for AWS Roles Anywhere.
+	awsRAIntegration := "awsra-integration"
+	ig, err := types.NewIntegrationAWSRA(types.Metadata{Name: awsRAIntegration}, &types.AWSRAIntegrationSpecV1{
+		TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/ExampleTrustAnchor",
+		ProfileSyncConfig: &types.AWSRolesAnywhereProfileSyncConfig{
+			Enabled:                       true,
+			ProfileARN:                    "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid2",
+			ProfileAcceptsRoleSessionName: true,
+			RoleARN:                       "arn:aws:iam::123456789012:role/SyncRole",
+		},
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().Integrations.CreateIntegration(ctx, ig)
+	require.NoError(t, err)
+
+	// Set up a new AWS App created from a Roles Anywhere Profile.
+	appName := "my-aws-access"
+	app, err := types.NewAppServerV3(
+		types.Metadata{Name: appName},
+		types.AppServerSpecV3{
+			HostID: uuid.NewString(),
+			App: &types.AppV3{
+				Metadata: types.Metadata{Name: appName},
+				Spec: types.AppSpecV3{
+					URI:         constants.AWSConsoleURL,
+					Integration: awsRAIntegration,
+					PublicAddr:  "my-app.example.com",
+					AWS: &types.AppAWS{
+						RolesAnywhereProfile: &types.AppAWSRolesAnywhereProfile{
+							ProfileARN:            "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid1",
+							AcceptRoleSessionName: true,
+						},
+					},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertApplicationServer(ctx, app)
+	require.NoError(t, err)
+
+	// Mock the credential generation function to return fixed credentials.
+	// This is required because the generator calls AWS endpoints to convert a teleport created certificate into valid AWS credentials.
+	srv.Auth().AWSRolesAnywhereCreateSessionOverride = func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
+		return &createsession.CreateSessionResponse{
+			Version:         1,
+			AccessKeyID:     "aki",
+			SecretAccessKey: "sak",
+			SessionToken:    "st",
+			Expiration:      "2025-06-25T12:07:02.474135Z",
+		}, nil
+	}
+
+	// Set up a user with the necessary roles to access the AWS App.
+	username := "aws-access-user"
+	roleARN := "arn:aws:iam::123456789012:role/MyRole"
+	awsAccessRole, err := CreateRole(ctx, srv.Auth(), "aws-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+			AWSRoleARNs: []string{roleARN},
+		},
+	})
+	require.NoError(t, err)
+
+	user, err := CreateUser(ctx, srv.Auth(), username, awsAccessRole)
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	// Create credentials for the AWS App
+	priv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	pub, err := keys.MarshalPublicKey(priv.Public())
+	require.NoError(t, err)
+
+	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		TLSPublicKey: pub,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
+		RouteToApp: proto.RouteToApp{
+			Name:       app.GetApp().GetName(),
+			AWSRoleARN: roleARN,
+		},
+	})
+	require.NoError(t, err)
+
+	// Parse the Identity and check the AWS Role ARN and credentials.
+	tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+	require.NoError(t, err)
+	identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+	require.NoError(t, err)
+
+	require.Equal(t, roleARN, identity.AWSRoleARNs[0], "Expected AWS Role ARN to match the one requested")
+	require.JSONEq(t, `{"Version":1,"AccessKeyId":"aki","SecretAccessKey":"sak","SessionToken":"st","Expiration":"2025-06-25T12:07:02.474135Z"}`, identity.RouteToApp.AWSCredentialProcessCredentials)
 }
 
 func TestSSODiagnosticInfo(t *testing.T) {
@@ -1887,7 +1992,7 @@ func TestClusterNetworkingCloudUpdates(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			modules.SetTestModules(t, &modules.TestModules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				TestBuildType: modules.BuildEnterprise,
 				TestFeatures: modules.Features{
 					Cloud: tc.cloud,
@@ -3116,7 +3221,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 
 func TestListSAMLIdPServiceProviderWithCache(t *testing.T) {
 	// Set license to enterprise in order to be able to list SAML IdP service providers.
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 	})
 	ctx := context.Background()
@@ -3167,7 +3272,7 @@ func TestListSAMLIdPServiceProviderWithCache(t *testing.T) {
 // RBAC and search filters when fetching SAML IdP service providers.
 func TestListSAMLIdPServiceProviderAndListResources(t *testing.T) {
 	// Set license to enterprise in order to be able to list SAML IdP service providers.
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 	})
 
@@ -3391,10 +3496,24 @@ func TestApps(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
+	out, next, err := devClt.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff([]types.Application{devApp}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
 	// Admin should see both.
 	apps, err = adminClt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{adminApp, devApp}, apps,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, next, err = adminClt.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff([]types.Application{adminApp, devApp}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
@@ -3417,18 +3536,41 @@ func TestApps(t *testing.T) {
 	// Dev should only be able to delete dev app.
 	err = devClt.DeleteAllApps(ctx)
 	require.NoError(t, err)
+
+	apps, err = devClt.GetApps(ctx)
+	require.NoError(t, err)
+	require.Empty(t, apps)
+
+	out, next, err = devClt.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, next)
+
 	apps, err = adminClt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{adminApp}, apps,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
+	out, next, err = adminClt.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff([]types.Application{adminApp}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
 	// Admin should be able to delete all.
 	err = adminClt.DeleteAllApps(ctx)
 	require.NoError(t, err)
+
 	apps, err = adminClt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, apps)
+
+	out, next, err = adminClt.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, next)
 }
 
 // TestReplaceRemoteLocksRBAC verifies that only a remote proxy may replace the
@@ -9647,10 +9789,10 @@ func TestScopedRoleEvents(t *testing.T) {
 	watcher, err := client.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{
 			{
-				Kind: scopedrole.KindScopedRole,
+				Kind: scopedaccess.KindScopedRole,
 			},
 			{
-				Kind: scopedrole.KindScopedRoleAssignment,
+				Kind: scopedaccess.KindScopedRoleAssignment,
 			},
 		},
 	})
@@ -9679,19 +9821,19 @@ func TestScopedRoleEvents(t *testing.T) {
 	require.Equal(t, types.OpInit, event.Type)
 
 	// Create a ScopedRole and verify create event is well-formed.
-	role := &accessv1.ScopedRole{
-		Kind: scopedrole.KindScopedRole,
+	role := &scopedaccessv1.ScopedRole{
+		Kind: scopedaccess.KindScopedRole,
 		Metadata: &headerv1.Metadata{
 			Name: "test-role",
 		},
 		Scope: "/",
-		Spec: &accessv1.ScopedRoleSpec{
+		Spec: &scopedaccessv1.ScopedRoleSpec{
 			AssignableScopes: []string{"/foo", "/bar"},
 		},
 		Version: types.V1,
 	}
 
-	crsp, err := service.CreateScopedRole(ctx, &accessv1.CreateScopedRoleRequest{
+	crsp, err := service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 		Role: role,
 	})
 	require.NoError(t, err)
@@ -9699,11 +9841,11 @@ func TestScopedRoleEvents(t *testing.T) {
 	event = getNextEvent()
 	require.Equal(t, types.OpPut, event.Type)
 
-	resource := (event.Resource).(types.Resource153UnwrapperT[*accessv1.ScopedRole]).UnwrapT()
+	resource := (event.Resource).(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]).UnwrapT()
 	require.Empty(t, cmp.Diff(crsp.Role, resource, protocmp.Transform() /* deliberately not ignoring revision */))
 
 	// delete the role and verify delete event is well-formed.
-	_, err = service.DeleteScopedRole(ctx, &accessv1.DeleteScopedRoleRequest{
+	_, err = service.DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
 		Name: role.Metadata.Name,
 	})
 	require.NoError(t, err)
@@ -9712,29 +9854,29 @@ func TestScopedRoleEvents(t *testing.T) {
 	require.Equal(t, types.OpDelete, event.Type)
 
 	require.Empty(t, cmp.Diff(&types.ResourceHeader{
-		Kind: scopedrole.KindScopedRole,
+		Kind: scopedaccess.KindScopedRole,
 		Metadata: types.Metadata{
 			Name: role.Metadata.Name,
 		},
 	}, event.Resource.(*types.ResourceHeader), protocmp.Transform()))
 
 	// recreate scoped role so that we can use it for testing assignment events
-	crsp, err = service.CreateScopedRole(ctx, &accessv1.CreateScopedRoleRequest{
+	crsp, err = service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 		Role: role,
 	})
 	require.NoError(t, err)
 
 	_ = getNextEvent() // drain the role create event
 
-	assignment := &accessv1.ScopedRoleAssignment{
-		Kind: scopedrole.KindScopedRoleAssignment,
+	assignment := &scopedaccessv1.ScopedRoleAssignment{
+		Kind: scopedaccess.KindScopedRoleAssignment,
 		Metadata: &headerv1.Metadata{
 			Name: uuid.New().String(),
 		},
 		Scope: "/",
-		Spec: &accessv1.ScopedRoleAssignmentSpec{
+		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 			User: "alice",
-			Assignments: []*accessv1.Assignment{
+			Assignments: []*scopedaccessv1.Assignment{
 				{
 					Role:  role.Metadata.Name,
 					Scope: "/foo",
@@ -9744,7 +9886,7 @@ func TestScopedRoleEvents(t *testing.T) {
 		Version: types.V1,
 	}
 
-	acrsp, err := service.CreateScopedRoleAssignment(ctx, &accessv1.CreateScopedRoleAssignmentRequest{
+	acrsp, err := service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: assignment,
 		RoleRevisions: map[string]string{
 			role.Metadata.Name: crsp.Role.Metadata.Revision,
@@ -9754,11 +9896,11 @@ func TestScopedRoleEvents(t *testing.T) {
 
 	event = getNextEvent()
 	require.Equal(t, types.OpPut, event.Type)
-	assignmentResource := (event.Resource).(types.Resource153UnwrapperT[*accessv1.ScopedRoleAssignment]).UnwrapT()
+	assignmentResource := (event.Resource).(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]).UnwrapT()
 	require.Empty(t, cmp.Diff(acrsp.Assignment, assignmentResource, protocmp.Transform() /* deliberately not ignoring revision */))
 
 	// delete the assignment and verify delete event is well-formed.
-	_, err = service.DeleteScopedRoleAssignment(ctx, &accessv1.DeleteScopedRoleAssignmentRequest{
+	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
 		Name: assignment.Metadata.Name,
 	})
 	require.NoError(t, err)
@@ -9767,7 +9909,7 @@ func TestScopedRoleEvents(t *testing.T) {
 	require.Equal(t, types.OpDelete, event.Type)
 
 	require.Empty(t, cmp.Diff(&types.ResourceHeader{
-		Kind: scopedrole.KindScopedRoleAssignment,
+		Kind: scopedaccess.KindScopedRoleAssignment,
 		Metadata: types.Metadata{
 			Name: assignment.Metadata.Name,
 		},
@@ -9988,7 +10130,7 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 			ctx := context.Background()
 			srv := newTestTLSServer(t)
 
-			modules.SetTestModules(t, &modules.TestModules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				TestBuildType: modules.BuildEnterprise,
 				TestFeatures: modules.Features{
 					Cloud: tc.cloud,

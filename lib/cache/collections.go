@@ -34,6 +34,7 @@ import (
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -42,7 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
-	scopedrole "github.com/gravitational/teleport/lib/scopes/roles"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
 // collectionHandler is used by the [Cache] to seed the initial
@@ -140,6 +141,8 @@ type collections struct {
 	secReportsStates                   *collection[*secreports.ReportState, securityReportStateIndex]
 	relayServers                       *collection[*presencev1.RelayServer, relayServerIndex]
 	botInstances                       *collection[*machineidv1.BotInstance, botInstanceIndex]
+	recordingEncryption                *collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex]
+	plugins                            *collection[types.Plugin, pluginIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -147,7 +150,7 @@ type collections struct {
 // resources events can be processed by downstream watchers.
 func isKnownUncollectedKind(kind string) bool {
 	switch kind {
-	case types.KindAccessRequest, types.KindHeadlessAuthentication, scopedrole.KindScopedRole, scopedrole.KindScopedRoleAssignment:
+	case types.KindAccessRequest, types.KindHeadlessAuthentication, scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment:
 		return true
 	default:
 		return false
@@ -740,10 +743,26 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.botInstances = collect
 			out.byKind[resourceKind] = out.botInstances
+		case types.KindRecordingEncryption:
+			collect, err := newRecordingEncryptionCollection(c.RecordingEncryption, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.recordingEncryption = collect
+			out.byKind[resourceKind] = out.recordingEncryption
+		case types.KindPlugin:
+			collect, err := newPluginsCollection(c.Plugin, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			out.plugins = collect
+			out.byKind[resourceKind] = out.plugins
 		default:
 			if _, ok := out.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 			}
+
 		}
 	}
 

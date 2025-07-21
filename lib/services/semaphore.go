@@ -175,7 +175,7 @@ func (l *SemaphoreLock) keepAlive() {
 			defer cancel()
 			err = l.cfg.Service.CancelSemaphoreLease(cancelContext, lease)
 			if err != nil {
-				slog.WarnContext(cancelContext, "Failed to cancel semaphore lease %s/%s: %v",
+				slog.WarnContext(cancelContext, "Failed to cancel semaphore lease",
 					"semaphore_kind", lease.SemaphoreKind,
 					"semaphore_name", lease.SemaphoreName,
 					"error", err,

@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func renewBotCerts(
@@ -497,10 +498,15 @@ func TestRegisterBotInstance(t *testing.T) {
 				BotName:          "test",
 				BotInstanceID:    ident.BotInstanceID,
 			},
+			CertificateAuthority: &events.CertificateAuthority{
+				Type:   "user",
+				Domain: "localhost",
+			},
 		},
 			cmpopts.IgnoreFields(events.Metadata{}, "Time"),
 			cmpopts.IgnoreFields(events.Identity{}, "Logins", "Expires"),
 			cmpopts.IgnoreFields(events.ClientMetadata{}, "UserAgent"),
+			cmpopts.IgnoreFields(events.CertificateAuthority{}, "SubjectKeyID"),
 			cmpopts.EquateEmpty(),
 		),
 	)
@@ -549,7 +555,11 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	require.NoError(t, err)
 
 	// Renew the certs once (e.g. this is the actual bot process)
-	_, certsReal, err := renewBotCerts(ctx, srv, result.Certs.TLS, bot.Status.UserName, result.PrivateKey)
+	renewedClient, certsReal, err := renewBotCerts(ctx, srv, result.Certs.TLS, bot.Status.UserName, result.PrivateKey)
+	require.NoError(t, err)
+
+	// This client should be able to ping.
+	_, err = renewedClient.Ping(ctx)
 	require.NoError(t, err)
 
 	// Check the generation, it should be 2.
@@ -564,12 +574,18 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 
-	// The user should now be locked.
+	// The bot instance should now be locked.
 	locks, err := srv.Auth().GetLocks(ctx, true, types.LockTarget{
-		User: "bot-test",
+		BotInstanceID: impersonatedIdent.BotInstanceID,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, locks)
+
+	// The original client should be locked out.
+	require.Eventually(t, func() bool {
+		_, err = renewedClient.Ping(ctx)
+		return err != nil && strings.Contains(err.Error(), "access denied")
+	}, 5*time.Second, 100*time.Millisecond)
 }
 
 // TestRegisterBotCertificateExtensions ensures bot cert extensions are present.
@@ -830,7 +846,7 @@ func authClientForRegisterResult(t *testing.T, ctx context.Context, addr *utils.
 		nil /* clock */)
 	require.NoError(t, err)
 
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              resolver,
 		ClientConfig:          sshConfig,

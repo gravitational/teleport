@@ -55,7 +55,8 @@ import (
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
-	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -71,28 +72,46 @@ import (
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/types/userprovisioning"
 	"github.com/gravitational/teleport/api/types/usertasks"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
-	scopedrole "github.com/gravitational/teleport/lib/scopes/roles"
+	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 const eventBufferSize = 1024
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	modules.SetModules(&modulestest.Modules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+				entitlements.AccessLists: {
+					Enabled: true,
+					Limit:   2000,
+				},
+			},
+		},
+	})
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
 // TestNodesDontCacheHighVolumeResources verifies that resources classified as "high volume" aren't
 // cached by nodes.
 func TestNodesDontCacheHighVolumeResources(t *testing.T) {
+	t.Parallel()
 	for _, kind := range ForNode(Config{}).Watches {
 		require.False(t, isHighVolumeResource(kind.Kind), "resource=%q", kind.Kind)
 	}
@@ -101,12 +120,10 @@ func TestNodesDontCacheHighVolumeResources(t *testing.T) {
 // testPack contains pack of
 // services used for test run
 type testPack struct {
-	dataDir      string
-	backend      *backend.Wrapper
-	eventsC      chan Event
-	cache        *Cache
-	cacheBackend backend.Backend
-
+	dataDir                 string
+	backend                 *backend.Wrapper
+	eventsC                 chan Event
+	cache                   *Cache
 	eventsS                 *proxyEvents
 	trustS                  *local.CA
 	provisionerS            *local.ProvisioningService
@@ -150,6 +167,8 @@ type testPack struct {
 	workloadIdentity        *local.WorkloadIdentityService
 	healthCheckConfig       *local.HealthCheckConfigService
 	botInstanceService      *local.BotInstanceService
+	recordingEncryption     *local.RecordingEncryptionService
+	plugin                  *local.PluginsService
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -158,7 +177,7 @@ type testFuncs[T types.Resource] struct {
 	create         func(context.Context, T) error
 	list           func(context.Context) ([]T, error)
 	cacheGet       func(context.Context, string) (T, error)
-	cacheList      func(context.Context) ([]T, error)
+	cacheList      func(context.Context, int) ([]T, error)
 	update         func(context.Context, T) error
 	deleteAll      func(context.Context) error
 	changeResource func(T)
@@ -254,15 +273,6 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 	p.backend = backend.NewWrapper(bk)
-
-	p.cacheBackend, err = memory.New(
-		memory.Config{
-			Context: ctx,
-			Mirror:  true,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	p.eventsC = make(chan Event, eventBufferSize)
 
@@ -433,6 +443,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	p.recordingEncryption, err = local.NewRecordingEncryptionService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.plugin = local.NewPluginsService(p.backend)
+
 	return p, nil
 }
 
@@ -446,7 +462,6 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 
 	p.cache, err = New(setupConfig(Config{
 		Context:                 ctx,
-		Backend:                 p.cacheBackend,
 		Events:                  p.eventsS,
 		ClusterConfig:           p.clusterConfigS,
 		Provisioner:             p.provisionerS,
@@ -490,6 +505,8 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		HealthCheckConfig:       p.healthCheckConfig,
 		WorkloadIdentity:        p.workloadIdentity,
 		BotInstanceService:      p.botInstanceService,
+		RecordingEncryption:     p.recordingEncryption,
+		Plugin:                  p.plugin,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -705,22 +722,13 @@ func TestCompletenessInit(t *testing.T) {
 	}
 
 	for range inits {
-		var err error
-
-		p.cacheBackend, err = memory.New(
-			memory.Config{
-				Context: ctx,
-				Mirror:  true,
-			})
-		require.NoError(t, err)
-
 		// simulate bad connection to auth server
 		p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
 		p.eventsS.closeWatchers()
 
+		var err error
 		p.cache, err = New(ForAuth(Config{
 			Context:                 ctx,
-			Backend:                 p.cacheBackend,
 			Events:                  p.eventsS,
 			ClusterConfig:           p.clusterConfigS,
 			Provisioner:             p.provisionerS,
@@ -759,6 +767,7 @@ func TestCompletenessInit(t *testing.T) {
 			AutoUpdateService:       p.autoUpdateService,
 			ProvisioningStates:      p.provisioningStates,
 			WorkloadIdentity:        p.workloadIdentity,
+			RecordingEncryption:     p.recordingEncryption,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			IdentityCenter:          p.identityCenter,
 			PluginStaticCredentials: p.pluginStaticCredentials,
@@ -766,6 +775,7 @@ func TestCompletenessInit(t *testing.T) {
 			GitServers:              p.gitServers,
 			HealthCheckConfig:       p.healthCheckConfig,
 			BotInstanceService:      p.botInstanceService,
+			Plugin:                  p.plugin,
 		}))
 		require.NoError(t, err)
 
@@ -783,8 +793,6 @@ func TestCompletenessInit(t *testing.T) {
 
 		require.NoError(t, p.cache.Close())
 		p.cache = nil
-		require.NoError(t, p.cacheBackend.Close())
-		p.cacheBackend = nil
 	}
 }
 
@@ -808,7 +816,6 @@ func TestCompletenessReset(t *testing.T) {
 	var err error
 	p.cache, err = New(ForAuth(Config{
 		Context:                 ctx,
-		Backend:                 p.cacheBackend,
 		Events:                  p.eventsS,
 		ClusterConfig:           p.clusterConfigS,
 		Provisioner:             p.provisionerS,
@@ -849,11 +856,13 @@ func TestCompletenessReset(t *testing.T) {
 		IdentityCenter:          p.identityCenter,
 		PluginStaticCredentials: p.pluginStaticCredentials,
 		WorkloadIdentity:        p.workloadIdentity,
+		RecordingEncryption:     p.recordingEncryption,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		GitServers:              p.gitServers,
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
+		Plugin:                  p.plugin,
 	}))
 	require.NoError(t, err)
 
@@ -966,7 +975,6 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 
 	p.cache, err = New(ForAuth(Config{
 		Context:                 ctx,
-		Backend:                 p.cacheBackend,
 		Events:                  p.eventsS,
 		ClusterConfig:           p.clusterConfigS,
 		Provisioner:             p.provisionerS,
@@ -1007,12 +1015,14 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		IdentityCenter:          p.identityCenter,
 		PluginStaticCredentials: p.pluginStaticCredentials,
 		WorkloadIdentity:        p.workloadIdentity,
+		RecordingEncryption:     p.recordingEncryption,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
 		GitServers:              p.gitServers,
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
+		Plugin:                  p.plugin,
 	}))
 	require.NoError(t, err)
 
@@ -1065,7 +1075,6 @@ func initStrategy(t *testing.T) {
 	var err error
 	p.cache, err = New(ForAuth(Config{
 		Context:                 ctx,
-		Backend:                 p.cacheBackend,
 		Events:                  p.eventsS,
 		ClusterConfig:           p.clusterConfigS,
 		Provisioner:             p.provisionerS,
@@ -1106,11 +1115,13 @@ func initStrategy(t *testing.T) {
 		IdentityCenter:          p.identityCenter,
 		PluginStaticCredentials: p.pluginStaticCredentials,
 		WorkloadIdentity:        p.workloadIdentity,
+		RecordingEncryption:     p.recordingEncryption,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		GitServers:              p.gitServers,
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
+		Plugin:                  p.plugin,
 	}))
 	require.NoError(t, err)
 
@@ -1255,9 +1266,34 @@ func newUserTasks(t *testing.T) *usertasksv1.UserTask {
 	return ut
 }
 
+type testOptions struct {
+	skipPaginationTest bool
+}
+
+type optionsFunc func(*testOptions)
+
+func withSkipPaginationTest() optionsFunc {
+	return func(opts *testOptions) {
+		opts.skipPaginationTest = true
+	}
+}
+
+// defaultTestPageSize is the default page size used in tests.
+// to test the cache pagination logic.
+// The test setup creates defaultTestPageSize + 1 items and forwards the
+// defaultTestPageSize to the cache.cacheList(context.Context, pageSize method.
+// where the test implementation needs to forward the pageSize to the
+// resource list request/call.
+const defaultTestPageSize = 2
+
 // testResources is a generic tester for resources.
-func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
-	ctx := context.Background()
+func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T], opts ...optionsFunc) {
+	t.Helper()
+	var options testOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+	ctx := t.Context()
 
 	if funcs.changeResource == nil {
 		funcs.changeResource = func(t T) {
@@ -1267,6 +1303,9 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 				t.SetExpiry(t.Expiry().Add(30 * time.Minute))
 			}
 		}
+	}
+	if !options.skipPaginationTest {
+		testResourcePagination(t, p, funcs)
 	}
 
 	// Create a resource.
@@ -1290,7 +1329,7 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	// Wait until the information has been replicated to the cache.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Make sure the cache has a single resource in it.
-		out, err = funcs.cacheList(ctx)
+		out, err = funcs.cacheList(ctx, defaultTestPageSize)
 		assert.NoError(t, err)
 		assert.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 	}, time.Second*2, time.Millisecond*250)
@@ -1305,6 +1344,15 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 
 	// update is optional as not every resource implements it
 	if funcs.update != nil {
+		// Not all create functions will result in resource being updated
+		// with the latest revision. To avoid any conditional update
+		// failures caused by mismatched revisions, an updated
+		// copy of the resource is loaded prior to updating.
+		if funcs.cacheGet != nil {
+			var err error
+			r, err = funcs.cacheGet(ctx, r.GetName())
+			require.NoError(t, err)
+		}
 		// Update the resource and upsert it into the backend again.
 		funcs.changeResource(r)
 		err = funcs.update(ctx, r)
@@ -1320,7 +1368,7 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	// Check that information has been replicated to the cache.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Make sure the cache has a single resource in it.
-		out, err = funcs.cacheList(ctx)
+		out, err = funcs.cacheList(ctx, defaultTestPageSize)
 		assert.NoError(t, err)
 		assert.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 	}, time.Second*2, time.Millisecond*250)
@@ -1331,10 +1379,11 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	// Check that information has been replicated to the cache.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Check that the cache is now empty.
-		out, err = funcs.cacheList(ctx)
+		out, err = funcs.cacheList(ctx, defaultTestPageSize)
 		assert.NoError(t, err)
 		assert.Empty(t, out)
 	}, time.Second*2, time.Millisecond*250)
+
 }
 
 // testResources153 is a generic tester for RFD153-style resources.
@@ -1864,12 +1913,14 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindIdentityCenterAccount:             types.Resource153ToLegacy(newIdentityCenterAccount("some_account")),
 		types.KindIdentityCenterAccountAssignment:   types.Resource153ToLegacy(newIdentityCenterAccountAssignment("some_account_assignment")),
 		types.KindIdentityCenterPrincipalAssignment: types.Resource153ToLegacy(newIdentityCenterPrincipalAssignment("some_principal_assignment")),
+		types.KindPlugin:                            &types.PluginV1{},
 		types.KindPluginStaticCredentials:           &types.PluginStaticCredentialsV1{},
 		types.KindGitServer:                         &types.ServerV2{},
 		types.KindWorkloadIdentity:                  types.Resource153ToLegacy(newWorkloadIdentity("some_identifier")),
+		types.KindRecordingEncryption:               types.Resource153ToLegacy(newRecordingEncryption()),
 		types.KindHealthCheckConfig:                 types.Resource153ToLegacy(newHealthCheckConfig(t, "some-name")),
-		scopedrole.KindScopedRole:                   types.Resource153ToLegacy(&accessv1.ScopedRole{}),
-		scopedrole.KindScopedRoleAssignment:         types.Resource153ToLegacy(&accessv1.ScopedRoleAssignment{}),
+		scopedaccess.KindScopedRole:                 types.Resource153ToLegacy(&scopedaccessv1.ScopedRole{}),
+		scopedaccess.KindScopedRoleAssignment:       types.Resource153ToLegacy(&scopedaccessv1.ScopedRoleAssignment{}),
 		types.KindRelayServer:                       types.ProtoResource153ToLegacy(new(presencev1.RelayServer)),
 		types.KindBotInstance:                       types.ProtoResource153ToLegacy(new(machineidv1.BotInstance)),
 	}
@@ -1911,6 +1962,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateVersion]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*autoupdate.AutoUpdateConfig]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*recordingencryptionv1.RecordingEncryption]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*recordingencryptionv1.RecordingEncryption]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*userprovisioningpb.StaticHostUser]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*userprovisioningpb.StaticHostUser]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*machineidv1.SPIFFEFederation]:
@@ -1931,10 +1984,10 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*kubewaitingcontainerpb.KubernetesWaitingContainer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*accessv1.ScopedRole]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*accessv1.ScopedRole]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*accessv1.ScopedRoleAssignment]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*accessv1.ScopedRoleAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*presencev1.RelayServer]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*presencev1.RelayServer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*machineidv1.BotInstance]:
@@ -1951,6 +2004,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 // Cache operates in partially healthy mode in which it serves reads of the confirmed kinds from the cache and
 // lets everything else pass through.
 func TestPartialHealth(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	// setup cache such that role resources wouldn't be recognized by the event source and wouldn't be cached.
@@ -2534,8 +2588,8 @@ func modifyNoContext[T any](fn func(T) error) func(context.Context, T) error {
 }
 
 // A test entity descriptor from https://sptest.iamshowcase.com/testsp_metadata.xml.
-const testEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
-<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="IAMShowcase" validUntil="2025-12-09T09:13:31.006Z">
+const testEntityDescriptorFmt = `<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="%s" validUntil="2025-12-09T09:13:31.006Z">
    <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
       <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
       <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
@@ -2556,4 +2610,87 @@ func fetchEvent(t *testing.T, w types.Watcher, timeout time.Duration) types.Even
 	case ev = <-w.Events():
 	}
 	return ev
+}
+
+func testResourcePagination[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
+	t.Helper()
+	totalItems := defaultTestPageSize + 1
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-p.eventsC:
+				// Discard events to avoid blocking the test.
+			}
+		}
+	}()
+
+	// Generate and create test resources
+	names := make(map[string]struct{}, totalItems)
+	for i := range totalItems {
+		name := fmt.Sprintf("resources-%d", i)
+		r, err := funcs.newResource(name)
+		require.NoError(t, err)
+		require.NoError(t, funcs.create(ctx, r))
+		names[name] = struct{}{}
+	}
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		out, err := funcs.cacheList(ctx, totalItems)
+		require.NoError(t, err)
+		require.Len(t, out, totalItems)
+		all, err := funcs.list(ctx)
+		require.NoError(t, err)
+		require.Len(t, all, totalItems)
+	}, time.Second*3, time.Millisecond*100)
+
+	out, err := funcs.cacheList(ctx, defaultTestPageSize)
+	require.NoError(t, err)
+
+	seen := make(map[string]bool, totalItems)
+	for _, item := range out {
+		name := item.GetName()
+		if seen[name] {
+			t.Fatalf("duplicate resource returned in pagination: %q", name)
+		}
+		if _, expected := names[name]; !expected {
+			t.Fatalf("unexpected resource returned: %q", name)
+		}
+		seen[name] = true
+	}
+	// Remove all resource from the backend to has fresh state
+	require.NoError(t, funcs.deleteAll(ctx))
+
+	// Wait for the cache to be empty.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// Check that the cache is now empty.
+		out, err = funcs.cacheList(ctx, defaultTestPageSize)
+		assert.NoError(t, err)
+		assert.Empty(t, out)
+	}, time.Second*3, time.Millisecond*100)
+}
+
+type resourcesLister interface {
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+}
+
+func listAllResource(t *testing.T, lister resourcesLister, kind string, pageSize int) ([]types.ResourceWithLabels, error) {
+	return stream.Collect(clientutils.Resources(
+		t.Context(),
+		func(ctx context.Context, limit int, startKey string) ([]types.ResourceWithLabels, string, error) {
+			resp, err := lister.ListResources(t.Context(), proto.ListResourcesRequest{
+				ResourceType: kind,
+				Limit:        int32(pageSize),
+				StartKey:     startKey,
+			})
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			return resp.Resources, resp.NextKey, nil
+		}))
 }

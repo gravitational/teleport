@@ -41,7 +41,7 @@ const (
 	ClientApplicationService_ResolveFQDN_FullMethodName              = "/teleport.lib.vnet.v1.ClientApplicationService/ResolveFQDN"
 	ClientApplicationService_ReissueAppCert_FullMethodName           = "/teleport.lib.vnet.v1.ClientApplicationService/ReissueAppCert"
 	ClientApplicationService_SignForApp_FullMethodName               = "/teleport.lib.vnet.v1.ClientApplicationService/SignForApp"
-	ClientApplicationService_OnNewConnection_FullMethodName          = "/teleport.lib.vnet.v1.ClientApplicationService/OnNewConnection"
+	ClientApplicationService_OnNewAppConnection_FullMethodName       = "/teleport.lib.vnet.v1.ClientApplicationService/OnNewAppConnection"
 	ClientApplicationService_OnInvalidLocalPort_FullMethodName       = "/teleport.lib.vnet.v1.ClientApplicationService/OnInvalidLocalPort"
 	ClientApplicationService_GetTargetOSConfiguration_FullMethodName = "/teleport.lib.vnet.v1.ClientApplicationService/GetTargetOSConfiguration"
 	ClientApplicationService_UserTLSCert_FullMethodName              = "/teleport.lib.vnet.v1.ClientApplicationService/UserTLSCert"
@@ -77,9 +77,9 @@ type ClientApplicationServiceClient interface {
 	// SignForApp issues a signature with the private key associated with an x509
 	// certificate previously issued for a requested app.
 	SignForApp(ctx context.Context, in *SignForAppRequest, opts ...grpc.CallOption) (*SignForAppResponse, error)
-	// OnNewConnection gets called whenever a new connection is about to be
+	// OnNewAppConnection gets called whenever a new app connection is about to be
 	// established through VNet for observability.
-	OnNewConnection(ctx context.Context, in *OnNewConnectionRequest, opts ...grpc.CallOption) (*OnNewConnectionResponse, error)
+	OnNewAppConnection(ctx context.Context, in *OnNewAppConnectionRequest, opts ...grpc.CallOption) (*OnNewAppConnectionResponse, error)
 	// OnInvalidLocalPort gets called before VNet refuses to handle a connection
 	// to a multi-port TCP app because the provided port does not match any of the
 	// TCP ports in the app spec.
@@ -168,10 +168,10 @@ func (c *clientApplicationServiceClient) SignForApp(ctx context.Context, in *Sig
 	return out, nil
 }
 
-func (c *clientApplicationServiceClient) OnNewConnection(ctx context.Context, in *OnNewConnectionRequest, opts ...grpc.CallOption) (*OnNewConnectionResponse, error) {
+func (c *clientApplicationServiceClient) OnNewAppConnection(ctx context.Context, in *OnNewAppConnectionRequest, opts ...grpc.CallOption) (*OnNewAppConnectionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(OnNewConnectionResponse)
-	err := c.cc.Invoke(ctx, ClientApplicationService_OnNewConnection_FullMethodName, in, out, cOpts...)
+	out := new(OnNewAppConnectionResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_OnNewAppConnection_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -274,9 +274,9 @@ type ClientApplicationServiceServer interface {
 	// SignForApp issues a signature with the private key associated with an x509
 	// certificate previously issued for a requested app.
 	SignForApp(context.Context, *SignForAppRequest) (*SignForAppResponse, error)
-	// OnNewConnection gets called whenever a new connection is about to be
+	// OnNewAppConnection gets called whenever a new app connection is about to be
 	// established through VNet for observability.
-	OnNewConnection(context.Context, *OnNewConnectionRequest) (*OnNewConnectionResponse, error)
+	OnNewAppConnection(context.Context, *OnNewAppConnectionRequest) (*OnNewAppConnectionResponse, error)
 	// OnInvalidLocalPort gets called before VNet refuses to handle a connection
 	// to a multi-port TCP app because the provided port does not match any of the
 	// TCP ports in the app spec.
@@ -323,8 +323,8 @@ func (UnimplementedClientApplicationServiceServer) ReissueAppCert(context.Contex
 func (UnimplementedClientApplicationServiceServer) SignForApp(context.Context, *SignForAppRequest) (*SignForAppResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SignForApp not implemented")
 }
-func (UnimplementedClientApplicationServiceServer) OnNewConnection(context.Context, *OnNewConnectionRequest) (*OnNewConnectionResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method OnNewConnection not implemented")
+func (UnimplementedClientApplicationServiceServer) OnNewAppConnection(context.Context, *OnNewAppConnectionRequest) (*OnNewAppConnectionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method OnNewAppConnection not implemented")
 }
 func (UnimplementedClientApplicationServiceServer) OnInvalidLocalPort(context.Context, *OnInvalidLocalPortRequest) (*OnInvalidLocalPortResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method OnInvalidLocalPort not implemented")
@@ -477,20 +477,20 @@ func _ClientApplicationService_SignForApp_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ClientApplicationService_OnNewConnection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(OnNewConnectionRequest)
+func _ClientApplicationService_OnNewAppConnection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OnNewAppConnectionRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ClientApplicationServiceServer).OnNewConnection(ctx, in)
+		return srv.(ClientApplicationServiceServer).OnNewAppConnection(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ClientApplicationService_OnNewConnection_FullMethodName,
+		FullMethod: ClientApplicationService_OnNewAppConnection_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClientApplicationServiceServer).OnNewConnection(ctx, req.(*OnNewConnectionRequest))
+		return srv.(ClientApplicationServiceServer).OnNewAppConnection(ctx, req.(*OnNewAppConnectionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -653,8 +653,8 @@ var ClientApplicationService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ClientApplicationService_SignForApp_Handler,
 		},
 		{
-			MethodName: "OnNewConnection",
-			Handler:    _ClientApplicationService_OnNewConnection_Handler,
+			MethodName: "OnNewAppConnection",
+			Handler:    _ClientApplicationService_OnNewAppConnection_Handler,
 		},
 		{
 			MethodName: "OnInvalidLocalPort",

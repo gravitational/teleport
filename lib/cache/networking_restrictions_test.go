@@ -40,7 +40,7 @@ func TestNetworkRestrictions(t *testing.T) {
 			restrictions, err := p.restrictions.GetNetworkRestrictions(ctx)
 			return []types.NetworkRestrictions{restrictions}, trace.Wrap(err)
 		},
-		cacheList: func(ctx context.Context) ([]types.NetworkRestrictions, error) {
+		cacheList: func(ctx context.Context, pageSize int) ([]types.NetworkRestrictions, error) {
 			restrictions, err := p.cache.GetNetworkRestrictions(ctx)
 			if trace.IsNotFound(err) {
 				return nil, nil
@@ -48,5 +48,5 @@ func TestNetworkRestrictions(t *testing.T) {
 			return []types.NetworkRestrictions{restrictions}, trace.Wrap(err)
 		},
 		deleteAll: p.restrictions.DeleteNetworkRestrictions,
-	})
+	}, withSkipPaginationTest()) // skip pagination test because NetworkRestrictions is a singleton resource
 }

@@ -334,42 +334,39 @@ func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *prot
 	}
 	endKey := backend.RangeEnd(backend.ExactKey(accessRequestsPrefix))
 
-	if err := backend.IterateRange(ctx, s.Backend, startKey, endKey, limit+1, func(items []backend.Item) (stop bool, err error) {
-		for _, item := range items {
-			if len(rsp.AccessRequests) > limit {
-				return true, nil
-			}
-
-			if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
-				// Item represents a different resource type in the
-				// same namespace.
-				continue
-			}
-
-			accessRequest, err := itemToAccessRequest(item)
-			if err != nil {
-				s.logger.WarnContext(ctx, "Failed to unmarshal access request",
-					"key", item.Key,
-					"error", err,
-				)
-				continue
-			}
-
-			if !req.Filter.Match(accessRequest) {
-				continue
-			}
-
-			rsp.AccessRequests = append(rsp.AccessRequests, accessRequest)
+	for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
+		StartKey: startKey,
+		EndKey:   endKey,
+	}) {
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
-		return len(rsp.AccessRequests) > limit, nil
-	}); err != nil {
-		return nil, trace.Wrap(err)
-	}
+		if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
+			// Item represents a different resource type in the
+			// same namespace.
+			continue
+		}
 
-	if len(rsp.AccessRequests) > limit {
-		rsp.NextKey = rsp.AccessRequests[limit].GetName()
-		rsp.AccessRequests = rsp.AccessRequests[:limit]
+		accessRequest, err := itemToAccessRequest(item)
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to unmarshal access request",
+				"key", item.Key,
+				"error", err,
+			)
+			continue
+		}
+
+		if !req.Filter.Match(accessRequest) {
+			continue
+		}
+
+		if len(rsp.AccessRequests) >= limit {
+			rsp.NextKey = accessRequest.GetName()
+			return &rsp, nil
+		}
+
+		rsp.AccessRequests = append(rsp.AccessRequests, accessRequest)
 	}
 
 	return &rsp, nil

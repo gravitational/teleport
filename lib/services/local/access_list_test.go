@@ -21,12 +21,14 @@ package local
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -39,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 // TestAccessListCRUD tests backend operations with access list resources.
@@ -313,7 +316,7 @@ func TestAccessList_EntitlementLimits(t *testing.T) {
 					// target because the `newAccessListService()` fixture also sets the
 					// test modules, and that would clobber our test setup if we went
 					// first
-					modules.SetTestModules(t, &modules.TestModules{
+					modulestest.SetTestModules(t, modulestest.Modules{
 						TestBuildType: modules.BuildEnterprise,
 						TestFeatures: modules.Features{
 							Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -721,7 +724,7 @@ func TestAccessListReviewCRUD(t *testing.T) {
 
 	// Create a couple access lists.
 	accessList1 := newAccessList(t, "accessList1", clock)
-	accessList2 := newAccessList(t, "accessList2", clock)
+	accessList2 := newAccessList(t, "accessList2", clock, withType(accesslist.DeprecatedDynamic))
 
 	accessList1OrigDate := accessList1.Spec.Audit.NextAuditDate
 	accessList2OrigDate := accessList2.Spec.Audit.NextAuditDate
@@ -890,6 +893,42 @@ func TestAccessListReviewCRUD(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func Test_CreateAccessListReview_FailForNonReviewable(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	// Create a couple access lists.
+	accessList1 := newAccessList(t, "accessList1", clock, withType(accesslist.Static))
+	accessList2 := newAccessList(t, "accessList2", clock, withType(accesslist.SCIM))
+
+	// Create both access lists.
+	_, err = service.UpsertAccessList(ctx, accessList1)
+	require.NoError(t, err)
+	_, err = service.UpsertAccessList(ctx, accessList2)
+	require.NoError(t, err)
+
+	accessList1Review := newAccessListReview(t, accessList1.GetName(), "al1-review")
+	accessList2Review := newAccessListReview(t, accessList2.GetName(), "al2-review")
+
+	// Add access list review.
+	_, _, err = service.CreateAccessListReview(ctx, accessList1Review)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "is not reviewable")
+	require.True(t, trace.IsBadParameter(err))
+	_, _, err = service.CreateAccessListReview(ctx, accessList2Review)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "is not reviewable")
+	require.True(t, trace.IsBadParameter(err))
+}
+
 func TestAccessListRequiresEqual(t *testing.T) {
 	t.Parallel()
 
@@ -1015,29 +1054,59 @@ func TestAccessListRequiresEqual(t *testing.T) {
 	}
 }
 
-func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist.AccessList {
+type newAccessListOptions struct {
+	typ    accesslist.Type
+	owners []accesslist.Owner
+}
+
+type newAccessListOpt func(*newAccessListOptions)
+
+func withType(typ accesslist.Type) newAccessListOpt {
+	return func(o *newAccessListOptions) {
+		o.typ = typ
+	}
+}
+
+func withOwners(owners []accesslist.Owner) newAccessListOpt {
+	return func(o *newAccessListOptions) {
+		o.owners = owners
+	}
+}
+
+func newAccessList(t *testing.T, name string, clock clockwork.Clock, opts ...newAccessListOpt) *accesslist.AccessList {
 	t.Helper()
+
+	options := newAccessListOptions{
+		owners: []accesslist.Owner{
+			{
+				Name:        "test-user1",
+				Description: "test user 1",
+			},
+			{
+				Name:        "test-user2",
+				Description: "test user 2",
+			},
+		},
+	}
+	for _, o := range opts {
+		o(&options)
+	}
+
+	audit := accesslist.Audit{}
+	if options.typ.IsReviewable() {
+		audit.NextAuditDate = clock.Now()
+	}
 
 	accessList, err := accesslist.NewAccessList(
 		header.Metadata{
 			Name: name,
 		},
 		accesslist.Spec{
-			Title:       "title",
+			Type:        options.typ,
+			Title:       name + " title",
 			Description: "test access list",
-			Owners: []accesslist.Owner{
-				{
-					Name:        "test-user1",
-					Description: "test user 1",
-				},
-				{
-					Name:        "test-user2",
-					Description: "test user 2",
-				},
-			},
-			Audit: accesslist.Audit{
-				NextAuditDate: clock.Now(),
-			},
+			Owners:      options.owners,
+			Audit:       audit,
 			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},
 				Traits: map[string][]string{
@@ -1066,20 +1135,47 @@ func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist
 	return accessList
 }
 
-func newAccessListMember(t *testing.T, accessList, name string) *accesslist.AccessListMember {
+func createAccessList(t *testing.T, service *AccessListService, name string, clock clockwork.Clock, opts ...newAccessListOpt) *accesslist.AccessList {
 	t.Helper()
+	ctx := context.Background()
+	accessList := newAccessList(t, name, clock, opts...)
+	upserted, err := service.UpsertAccessList(ctx, accessList)
+	require.NoError(t, err)
+	return upserted
+}
+
+type accessListMemberOptions struct {
+	membershipKind string
+}
+
+type accessListMemberOpt func(*accessListMemberOptions)
+
+func withMembershipKind(membershipKind string) accessListMemberOpt {
+	return func(o *accessListMemberOptions) {
+		o.membershipKind = membershipKind
+	}
+}
+
+func newAccessListMember(t *testing.T, accessList, name string, opts ...accessListMemberOpt) *accesslist.AccessListMember {
+	t.Helper()
+
+	options := accessListMemberOptions{}
+	for _, o := range opts {
+		o(&options)
+	}
 
 	member, err := accesslist.NewAccessListMember(
 		header.Metadata{
 			Name: name,
 		},
 		accesslist.AccessListMemberSpec{
-			AccessList: accessList,
-			Name:       name,
-			Joined:     time.Now(),
-			Expires:    time.Now().Add(time.Hour * 24),
-			Reason:     "a reason",
-			AddedBy:    "dummy",
+			AccessList:     accessList,
+			Name:           name,
+			Joined:         time.Now(),
+			Expires:        time.Now().Add(time.Hour * 24),
+			Reason:         "a reason",
+			AddedBy:        "dummy",
+			MembershipKind: options.membershipKind,
 		},
 	)
 	require.NoError(t, err)
@@ -1247,10 +1343,183 @@ func TestAccessListService_ListAllAccessListReviews(t *testing.T) {
 	))
 }
 
+func TestAccessListService_Status_OwnerOf(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	ownersAccessList := createAccessList(t, service, "test-owners-acl-"+uuid.NewString(), clock)
+	requireStatusOwnerOf(t, service, ownersAccessList.GetName(), nil)
+
+	accessList := createAccessList(t, service, "test-acl-"+uuid.NewString(), clock,
+		withOwners([]accesslist.Owner{
+			{
+				Name:           ownersAccessList.GetName(),
+				MembershipKind: accesslist.MembershipKindList,
+			},
+		}),
+	)
+	requireStatusOwnerOf(t, service, ownersAccessList.GetName(), []string{accessList.GetName()})
+
+	ownersAccessList, _, err = service.UpsertAccessListWithMembers(ctx, ownersAccessList, nil)
+	require.NoError(t, err)
+	requireStatusOwnerOf(t, service, ownersAccessList.GetName(), []string{accessList.GetName()})
+
+	ownersAccessList, err = service.UpsertAccessList(ctx, ownersAccessList)
+	require.NoError(t, err)
+	requireStatusOwnerOf(t, service, ownersAccessList.GetName(), []string{accessList.GetName()})
+
+	ownersAccessList, err = service.UpdateAccessList(ctx, ownersAccessList)
+	require.NoError(t, err)
+	requireStatusOwnerOf(t, service, ownersAccessList.GetName(), []string{accessList.GetName()})
+
+	err = service.DeleteAccessList(ctx, accessList.GetName())
+	require.NoError(t, err)
+	requireStatusOwnerOf(t, service, ownersAccessList.GetName(), nil)
+}
+
+func TestAccessListService_Status_MemberOf(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	t.Run("creation for UpsertAccessListMember", func(t *testing.T) {
+		accessList := createAccessList(t, service, "test-acl-"+uuid.NewString(), clock)
+		nestedAccessList := createAccessList(t, service, "test-nested-acl-"+uuid.NewString(), clock)
+
+		_, err = service.UpsertAccessListMember(ctx, newAccessListMember(t,
+			accessList.GetName(),
+			nestedAccessList.GetName(),
+			withMembershipKind(accesslist.MembershipKindList),
+		))
+		require.NoError(t, err)
+
+		requireStatusMemberOf(t, service, nestedAccessList.GetName(), []string{accessList.GetName()})
+
+		err = service.DeleteAccessListMember(ctx, accessList.GetName(), nestedAccessList.GetName())
+		require.NoError(t, err)
+
+		requireStatusMemberOf(t, service, nestedAccessList.GetName(), nil)
+	})
+
+	t.Run("creation for UpsertAccessListWithMembers", func(t *testing.T) {
+		accessList := createAccessList(t, service, "test-acl-"+uuid.NewString(), clock)
+		nestedAccessList := createAccessList(t, service, "test-nested-acl-"+uuid.NewString(), clock)
+
+		_, _, err = service.UpsertAccessListWithMembers(
+			ctx,
+			accessList,
+			[]*accesslist.AccessListMember{
+				newAccessListMember(t,
+					accessList.GetName(),
+					nestedAccessList.GetName(),
+					withMembershipKind(accesslist.MembershipKindList),
+				),
+			},
+		)
+		require.NoError(t, err)
+
+		requireStatusMemberOf(t, service, nestedAccessList.GetName(), []string{accessList.GetName()})
+
+		_, _, err = service.UpsertAccessListWithMembers(
+			ctx,
+			accessList,
+			[]*accesslist.AccessListMember{
+				// delete the member
+			},
+		)
+		require.NoError(t, err)
+
+		requireStatusMemberOf(t, service, nestedAccessList.GetName(), nil)
+	})
+
+	t.Run("member updates and upserts do not affect MemberOf", func(t *testing.T) {
+		accessList := createAccessList(t, service, "test-acl-"+uuid.NewString(), clock)
+		nestedAccessList := createAccessList(t, service, "test-nested-acl-"+uuid.NewString(), clock)
+
+		member, err := service.UpsertAccessListMember(ctx, newAccessListMember(t,
+			accessList.GetName(),
+			nestedAccessList.GetName(),
+			withMembershipKind(accesslist.MembershipKindList),
+		))
+		require.NoError(t, err)
+
+		requireStatusMemberOf(t, service, nestedAccessList.GetName(), []string{accessList.GetName()})
+
+		updatedMember, err := service.UpdateAccessListMember(ctx, member)
+		require.NoError(t, err)
+		requireStatusMemberOf(t, service, nestedAccessList.GetName(), []string{accessList.GetName()})
+
+		_, err = service.UpsertAccessListMember(ctx, updatedMember)
+		require.NoError(t, err)
+		requireStatusMemberOf(t, service, nestedAccessList.GetName(), []string{accessList.GetName()})
+	})
+
+	t.Run("member access list updates and upserts do not affect its MemberOf", func(t *testing.T) {
+		accessList := createAccessList(t, service, "test-acl-"+uuid.NewString(), clock)
+		nestedAccessList := createAccessList(t, service, "test-nested-acl-"+uuid.NewString(), clock)
+
+		_, err = service.UpsertAccessListMember(ctx, newAccessListMember(t,
+			accessList.GetName(),
+			nestedAccessList.GetName(),
+			withMembershipKind(accesslist.MembershipKindList),
+		))
+		require.NoError(t, err)
+
+		requireStatusMemberOf(t, service, nestedAccessList.GetName(), []string{accessList.GetName()})
+
+		nestedAccessList, _, err = service.UpsertAccessListWithMembers(ctx, nestedAccessList, nil)
+		require.NoError(t, err)
+		requireStatusMemberOf(t, service, nestedAccessList.GetName(), []string{accessList.GetName()})
+
+		nestedAccessList, err = service.UpdateAccessList(ctx, nestedAccessList)
+		require.NoError(t, err)
+		requireStatusMemberOf(t, service, nestedAccessList.GetName(), []string{accessList.GetName()})
+
+		nestedAccessList, err = service.UpsertAccessList(ctx, nestedAccessList)
+		require.NoError(t, err)
+		requireStatusMemberOf(t, service, nestedAccessList.GetName(), []string{accessList.GetName()})
+	})
+}
+
+func requireStatusOwnerOf(t *testing.T, service *AccessListService, accessListName string, ownerOf []string) {
+	t.Helper()
+	ctx := context.Background()
+	accessList, err := service.GetAccessList(ctx, accessListName)
+	require.NoError(t, err)
+	slices.Sort(ownerOf)
+	slices.Sort(accessList.Status.OwnerOf)
+	require.ElementsMatch(t, ownerOf, accessList.Status.OwnerOf)
+}
+
+func requireStatusMemberOf(t *testing.T, service *AccessListService, accessListName string, memberOf []string) {
+	t.Helper()
+	ctx := context.Background()
+	accessList, err := service.GetAccessList(ctx, accessListName)
+	require.NoError(t, err)
+	slices.Sort(memberOf)
+	slices.Sort(accessList.Status.MemberOf)
+	require.ElementsMatch(t, memberOf, accessList.Status.MemberOf)
+}
+
 func newAccessListService(t *testing.T, mem *memory.Memory, clock clockwork.Clock, igsEnabled bool) *AccessListService {
 	t.Helper()
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.Identity:    {Enabled: igsEnabled},

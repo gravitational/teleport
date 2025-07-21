@@ -24,8 +24,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/gitserver"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -40,26 +41,14 @@ func newGitServerCollection(upstream services.GitServerGetter, w types.WatchKind
 
 	return &collection[types.Server, gitServerIndex]{
 		store: newStore(
+			types.KindGitServer,
 			types.Server.DeepCopy,
 			map[gitServerIndex]func(types.Server) string{
 				gitServerNameIndex: types.Server.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Server, error) {
-			var all []types.Server
-			var nextToken string
-			for {
-				var page []types.Server
-				var err error
-				page, nextToken, err = upstream.ListGitServers(ctx, apidefaults.DefaultChunkSize, nextToken)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				all = append(all, page...)
-				if nextToken == "" {
-					break
-				}
-			}
-			return all, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListGitServers))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Server {
 			return &types.ServerV2{

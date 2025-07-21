@@ -658,6 +658,34 @@ func TestNewAppV3(t *testing.T) {
 			},
 			wantErr: require.Error,
 		},
+		{
+			name: "mcp demo",
+			meta: Metadata{
+				Name: "teleport-mcp-demo",
+				Labels: map[string]string{
+					TeleportInternalResourceType: DemoResource,
+				},
+			},
+			spec: AppSpecV3{
+				URI: "mcp+stdio://teleport-mcp-demo",
+			},
+			want: &AppV3{
+				Kind:    "app",
+				SubKind: "mcp",
+				Version: "v3",
+				Metadata: Metadata{
+					Name:      "teleport-mcp-demo",
+					Namespace: "default",
+					Labels: map[string]string{
+						TeleportInternalResourceType: DemoResource,
+					},
+				},
+				Spec: AppSpecV3{
+					URI: "mcp+stdio://teleport-mcp-demo",
+				},
+			},
+			wantErr: require.NoError,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

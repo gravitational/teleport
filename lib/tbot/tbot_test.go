@@ -67,11 +67,12 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	cryptosuites.PrecomputeRSATestKeys(m)
 	os.Exit(m.Run())
 }
@@ -185,7 +186,7 @@ func defaultBotConfig(
 func TestBot(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	// Make a new auth server.
 	const (
@@ -556,7 +557,7 @@ func tlsIdentFromDest(ctx context.Context, t *testing.T, dest bot.Destination) *
 func TestBot_ResumeFromStorage(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	// Make a new auth server.
 	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
@@ -601,7 +602,7 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	// This test asserts that we can continue running (and recover) even when
 	// identity renewal fails on-startup.
@@ -828,7 +829,7 @@ func (f *failureProxy) setFailing(failing bool) {
 func TestBot_InsecureViaProxy(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	// Make a new auth server.
 	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
@@ -997,7 +998,7 @@ func newMockDiscoveredKubeCluster(t *testing.T, name, discoveredName string) *ty
 func TestBotDatabaseTunnel(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	// Make a new auth server.
 	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
@@ -1099,7 +1100,7 @@ func TestBotDatabaseTunnel(t *testing.T) {
 func TestBotSSHMultiplexer(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	currentUser, err := user.Current()
 	require.NoError(t, err)
@@ -1236,4 +1237,63 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			require.Len(t, keys, 2)
 		})
 	}
+}
+
+// TestBotJoiningURI ensures configured joining URIs work in place of
+// traditional YAML onboarding config.
+func TestBotJoiningURI(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	log := logtest.NewLogger()
+
+	process := testenv.MakeTestServer(
+		t,
+		defaultTestServerOpts(t, log),
+		testenv.WithProxyKube(t),
+	)
+	rootClient := testenv.MakeDefaultAuthClient(t, process)
+
+	role, err := types.NewRole("role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				"*": apiutils.Strings{"*"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = rootClient.UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	botParams, _ := makeBot(t, rootClient, "test", "role")
+	cfg := &config.BotConfig{
+		JoinURI: fmt.Sprintf(
+			"tbot+proxy+%s://%s@%s",
+			botParams.JoinMethod,
+			botParams.TokenValue,
+			process.Config.Proxy.WebAddr.String(),
+		),
+		Storage: &config.StorageConfig{
+			Destination: &config.DestinationMemory{},
+		},
+		Services: config.ServiceConfigs{
+			&config.IdentityOutput{
+				Destination: &config.DestinationMemory{},
+			},
+		},
+		Oneshot:  true,
+		Insecure: true,
+	}
+	require.NoError(t, cfg.CheckAndSetDefaults())
+
+	bot := New(cfg, log)
+	require.NoError(t, bot.Run(ctx))
+
+	// Perform some cursory checks on the identity to make sure a cert bundle
+	// was actually produced.
+	id := bot.BotIdentity()
+	tlsIdent, err := tlsca.FromSubject(
+		id.X509Cert.Subject, id.X509Cert.NotAfter,
+	)
+	require.NoError(t, err)
+	require.Equal(t, "test", tlsIdent.BotName)
 }

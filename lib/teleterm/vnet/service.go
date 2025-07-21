@@ -248,9 +248,10 @@ func (s *Service) GetServiceInfo(ctx context.Context, _ *api.GetServiceInfoReque
 	}
 
 	return &api.GetServiceInfoResponse{
-		AppDnsZones:   unifiedClusterConfig.AppDNSZones(),
-		Clusters:      unifiedClusterConfig.ClusterNames,
-		SshConfigured: sshConfigured,
+		AppDnsZones:       unifiedClusterConfig.AppDNSZones(),
+		Clusters:          unifiedClusterConfig.ClusterNames,
+		SshConfigured:     sshConfigured,
+		VnetSshConfigPath: sshConfigChecker.VNetSSHConfigPath,
 	}, nil
 }
 
@@ -311,6 +312,13 @@ func (s *Service) getNetworkStack(ctx context.Context) (*diagv1.NetworkStack, er
 		Ipv4CidrRanges: unifiedClusterConfig.IPv4CidrRanges,
 		DnsZones:       unifiedClusterConfig.AllDNSZones(),
 	}, nil
+}
+
+// AutoConfigureSSH automatically configures OpenSSH-compatible clients for
+// connections to Teleport SSH servers through VNet.
+func (s *Service) AutoConfigureSSH(ctx context.Context, _ *api.AutoConfigureSSHRequest) (*api.AutoConfigureSSHResponse, error) {
+	err := vnet.AutoConfigureOpenSSH(ctx, s.cfg.profilePath)
+	return nil, trace.Wrap(err)
 }
 
 func (s *Service) stopLocked() error {
@@ -522,11 +530,25 @@ func (p *clientApplication) GetDialOptions(ctx context.Context, profileName stri
 	return dialOpts, nil
 }
 
-// OnNewConnection submits a usage event once per clientApplication lifetime.
-// That is, if a user makes multiple connections to a single app, OnNewConnection submits a single
+// OnNewSSHSession submits a usage event for a new SSH session.
+func (p *clientApplication) OnNewSSHSession(ctx context.Context, profileName, targetClusterName string) {
+	// Enqueue the event from a separate goroutine since we don't care about errors anyway and we also
+	// don't want to slow down VNet connections.
+	go func() {
+		// Not passing ctx to ReportSSHSession since ctx is tied to the
+		// lifetime of a short-lived API call, inheriting the context could
+		// interrupt reporting.
+		if err := p.usageReporter.ReportSSHSession(profileName, targetClusterName); err != nil {
+			log.ErrorContext(ctx, "Failed to submit SSH usage event")
+		}
+	}()
+}
+
+// OnNewAppConnection submits an app usage event once per clientApplication lifetime.
+// That is, if a user makes multiple connections to a single app, OnNewAppConnection submits a single
 // event. This is to mimic how Connect submits events for its app gateways. This lets us compare
 // popularity of VNet and app gateways.
-func (p *clientApplication) OnNewConnection(ctx context.Context, appKey *vnetv1.AppKey) error {
+func (p *clientApplication) OnNewAppConnection(ctx context.Context, appKey *vnetv1.AppKey) error {
 	// Enqueue the event from a separate goroutine since we don't care about errors anyway and we also
 	// don't want to slow down VNet connections.
 	go func() {
@@ -534,9 +556,8 @@ func (p *clientApplication) OnNewConnection(ctx context.Context, appKey *vnetv1.
 
 		// Not passing ctx to ReportApp since ctx is tied to the lifetime of the connection.
 		// If it's a short-lived connection, inheriting its context would interrupt reporting.
-		err := p.usageReporter.ReportApp(uri)
-		if err != nil {
-			log.ErrorContext(ctx, "Failed to submit usage event", "app", uri, "error", err)
+		if err := p.usageReporter.ReportApp(uri); err != nil {
+			log.ErrorContext(ctx, "Failed to submit app usage event", "app", uri, "error", err)
 		}
 	}()
 
@@ -598,6 +619,7 @@ func (p *clientApplication) OnInvalidLocalPort(ctx context.Context, appInfo *vne
 
 type usageReporter interface {
 	ReportApp(uri.ResourceURI) error
+	ReportSSHSession(profileName, rootClusterName string) error
 	Stop()
 }
 
@@ -667,6 +689,51 @@ func newDaemonUsageReporter(cfg daemonUsageReporterConfig) (*daemonUsageReporter
 	}, nil
 }
 
+// ReportSSHSession adds an event for a new SSH session to the events queue.
+// It reports a new event for each new SSH session, in contrast to ReportApp
+// which only reports each unique app once, to align with how Connect reports
+// usage events for SSH sessions.
+func (r *daemonUsageReporter) ReportSSHSession(profileName, rootClusterName string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.closed.Load() {
+		return trace.CompareFailed("usage reporter has been stopped")
+	}
+
+	rootClusterURI := uri.NewClusterURI(profileName)
+	_, tc, err := r.cfg.ClientCache.ResolveClusterURI(rootClusterURI)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clusterID, ok := r.cfg.ClusterIDCache.Load(rootClusterURI)
+	if !ok {
+		return trace.NotFound("cluster ID for %q not found", rootClusterURI)
+	}
+
+	log.DebugContext(context.Background(), "Reporting SSH usage event", "profile", profileName, "root_cluster", rootClusterName)
+	if err := r.cfg.EventConsumer.ReportUsageEvent(&apiteleterm.ReportUsageEventRequest{
+		AuthClusterId: clusterID,
+		PrehogReq: &prehogv1alpha.SubmitConnectEventRequest{
+			DistinctId: r.cfg.InstallationID,
+			Timestamp:  timestamppb.Now(),
+			Event: &prehogv1alpha.SubmitConnectEventRequest_ProtocolUse{
+				ProtocolUse: &prehogv1alpha.ConnectProtocolUseEvent{
+					ClusterName:   rootClusterName,
+					UserName:      tc.Username,
+					Protocol:      "ssh",
+					Origin:        "vnet",
+					AccessThrough: "vnet",
+				},
+			},
+		},
+	}); err != nil {
+		return trace.Wrap(err, "adding SSH usage event to queue")
+	}
+	return nil
+}
+
 // ReportApp adds an event related to the given app to the events queue, if the app wasn't reported
 // already. Only one invocation of ReportApp can be in flight at a time.
 func (r *daemonUsageReporter) ReportApp(appURI uri.ResourceURI) error {
@@ -708,9 +775,9 @@ func (r *daemonUsageReporter) ReportApp(appURI uri.ResourceURI) error {
 		return trace.NotFound("cluster ID for %q not found", rootClusterURI)
 	}
 
-	log.DebugContext(ctx, "Reporting usage event", "app", appURI.String())
+	log.DebugContext(ctx, "Reporting app usage event", "app", appURI.String())
 
-	err = r.cfg.EventConsumer.ReportUsageEvent(&apiteleterm.ReportUsageEventRequest{
+	if err := r.cfg.EventConsumer.ReportUsageEvent(&apiteleterm.ReportUsageEventRequest{
 		AuthClusterId: clusterID,
 		PrehogReq: &prehogv1alpha.SubmitConnectEventRequest{
 			DistinctId: r.cfg.InstallationID,
@@ -725,9 +792,8 @@ func (r *daemonUsageReporter) ReportApp(appURI uri.ResourceURI) error {
 				},
 			},
 		},
-	})
-	if err != nil {
-		return trace.Wrap(err, "adding usage event to queue")
+	}); err != nil {
+		return trace.Wrap(err, "adding app usage event to queue")
 	}
 
 	r.reportedApps[appURI.String()] = struct{}{}
@@ -754,7 +820,12 @@ func (r *daemonUsageReporter) Stop() {
 type disabledTelemetryUsageReporter struct{}
 
 func (r *disabledTelemetryUsageReporter) ReportApp(appURI uri.ResourceURI) error {
-	log.DebugContext(context.Background(), "Skipping usage event, usage reporting is turned off", "app", appURI.String())
+	log.DebugContext(context.Background(), "Skipping app usage event, usage reporting is turned off", "app", appURI.String())
+	return nil
+}
+
+func (r *disabledTelemetryUsageReporter) ReportSSHSession(profileName, rootClusterName string) error {
+	log.DebugContext(context.Background(), "Skipping SSH usage event, usage reporting is turned off", "profile", profileName, "root_cluster", rootClusterName)
 	return nil
 }
 

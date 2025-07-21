@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
@@ -35,7 +36,7 @@ import (
 // license does not support the moderated sessions feature.
 func TestUnmoderatedSessionsAllowed(t *testing.T) {
 	// Use OSS License (which doesn't support moderated sessions).
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildOSS})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildOSS})
 
 	srv := &Server{
 		clock:    clockwork.NewRealClock(),
@@ -63,7 +64,7 @@ func TestUnmoderatedSessionsAllowed(t *testing.T) {
 // Since moderated sessions require trackers, we mediate this in the tracker creation function.
 func TestModeratedSessionsDisabled(t *testing.T) {
 	// Use OSS License (which doesn't support moderated sessions).
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildOSS})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildOSS})
 
 	srv := &Server{
 		clock:    clockwork.NewRealClock(),
@@ -103,7 +104,7 @@ func TestModeratedSessionsDisabled(t *testing.T) {
 // requirements when the license supports it.
 func TestModeratedSesssionsEnabled(t *testing.T) {
 	// Use Enterprise License (which supports moderated sessions).
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	srv := &Server{
 		clock:    clockwork.NewRealClock(),

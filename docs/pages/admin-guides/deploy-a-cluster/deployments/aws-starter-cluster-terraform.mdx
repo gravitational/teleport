@@ -2,6 +2,9 @@
 title: Teleport Single-Instance Deployment on AWS
 description: How to quickly configure Teleport on a single instance for testing in AWS.
 tocDepth: 3
+labels:
+ - how-to
+ - platform-wide
 ---
 
 This guide is designed to accompany our [reference starter-cluster Terraform code](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/aws/terraform/starter-cluster#teleport-terraform-aws-ami-simple-example)
@@ -732,11 +735,11 @@ The `systemd` service name is different between Let's Encrypt (`teleport.service
 The easiest way to quickly join new resources to your cluster is to use the "Enroll New Resource" wizards in the Teleport web UI.
 
 Customers run many workloads within AWS and depending on how you work, there are many manual
-ways to integrate Teleport onto your servers. We recommend looking at our [Installation guide](../../../installation.mdx).
+ways to integrate Teleport onto your servers. We recommend looking at our [Installation guide](../../../installation/installation.mdx).
 
 To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 
-- [Install the Teleport binary on the Server](../../../installation.mdx)
+- [Install the Teleport binary on the Server](../../../installation/installation.mdx)
 - [Run Teleport - we recommend using systemd](../../management/admin/daemon.mdx)
 - [Set the correct settings in /etc/teleport.yaml](../../../reference/config.mdx)
 - [Add Nodes to the Teleport
