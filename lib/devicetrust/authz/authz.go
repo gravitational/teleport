@@ -48,7 +48,7 @@ func IsTLSDeviceVerified(ext *tlsca.DeviceExtensions) bool {
 // VerifyTLSUser verifies if the TLS identity has the required extensions to
 // fulfill the device trust configuration.
 func VerifyTLSUser(ctx context.Context, dt *types.DeviceTrust, identity tlsca.Identity) error {
-	return verifyDeviceExtensions(ctx, dt, identity.Username, identity.BotName != "", IsTLSDeviceVerified(&identity.DeviceExtensions))
+	return verifyDeviceExtensions(ctx, dt, identity.Username, identity.IsBot(), IsTLSDeviceVerified(&identity.DeviceExtensions))
 }
 
 // IsSSHDeviceVerified returns true if cert contains all required device
@@ -89,7 +89,7 @@ func VerifySSHUser(ctx context.Context, dt *types.DeviceTrust, ident *sshca.Iden
 	if ident == nil {
 		return trace.BadParameter("ssh identity required")
 	}
-	return verifyDeviceExtensions(ctx, dt, ident.Username, ident.BotName != "", IsSSHDeviceVerified(ident))
+	return verifyDeviceExtensions(ctx, dt, ident.Username, ident.IsBot(), IsSSHDeviceVerified(ident))
 }
 
 func verifyDeviceExtensions(ctx context.Context, dt *types.DeviceTrust, username string, isBot bool, verified bool) error {
