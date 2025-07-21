@@ -1280,6 +1280,56 @@ func TestService_GetAccessListMember(t *testing.T) {
 	require.Empty(t, cmp.Diff(a2m2, mustFromMemberProto(t, member), cmpOpts...))
 }
 
+func TestService_GetStaticAccessListMember(t *testing.T) {
+	c := initSvc(t)
+
+	staticAccessList := newAccessList(t, "test-acl-1", c.clock, withType(accesslist.Static))
+	defaultAccessList := newAccessList(t, "test-acl-3", c.clock)
+	scimAccessList := newAccessList(t, "test-acl-4", c.clock, withType(accesslist.SCIM))
+
+	accessLists := []*accesslist.AccessList{
+		staticAccessList, defaultAccessList, scimAccessList,
+	}
+	members := []*accesslist.AccessListMember{}
+
+	for _, accessList := range []*accesslist.AccessList{
+		staticAccessList, defaultAccessList, scimAccessList,
+	} {
+		members = append(members, newAccessListMember(t, accessList.GetName(), member1, accesslist.MembershipKindUser, c.clock))
+		members = append(members, newAccessListMember(t, accessList.GetName(), member2, accesslist.MembershipKindUser, c.clock))
+	}
+
+	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil, accessLists, members)
+
+	t.Run("getting member of non-static access_list fails", func(t *testing.T) {
+		nonStaticAccessLists := []*accesslist.AccessList{
+			defaultAccessList, scimAccessList,
+		}
+		for _, accessList := range nonStaticAccessLists {
+			t.Run(accessList.GetName(), func(t *testing.T) {
+				for _, m := range []string{member1, member2} {
+					_, err := c.svc.GetStaticAccessListMember(c.userCtx, &accesslistv1.GetStaticAccessListMemberRequest{
+						AccessList: accessList.GetMetadata().Name,
+						MemberName: m,
+					})
+					require.Error(t, err, "member = %q", m)
+					require.True(t, isNonStaticAccessList(err), "member = %q", m)
+				}
+			})
+		}
+	})
+
+	t.Run("getting member of static access_list succeeds", func(t *testing.T) {
+		for _, m := range []string{member1, member2} {
+			_, err := c.svc.GetStaticAccessListMember(c.userCtx, &accesslistv1.GetStaticAccessListMemberRequest{
+				AccessList: staticAccessList.GetMetadata().Name,
+				MemberName: m,
+			})
+			require.NoError(t, err)
+		}
+	})
+}
+
 type client struct {
 	services.Access
 	services.Identity
@@ -1447,6 +1497,58 @@ func TestService_UpsertAccessListMember(t *testing.T) {
 	})
 }
 
+func TestService_UpsertStaticAccessListMember(t *testing.T) {
+	c := initSvc(t)
+
+	staticAccessList := newAccessList(t, "test-acl-1", c.clock, withType(accesslist.Static))
+	defaultAccessList := newAccessList(t, "test-acl-3", c.clock)
+	scimAccessList := newAccessList(t, "test-acl-4", c.clock, withType(accesslist.SCIM))
+
+	accessLists := []*accesslist.AccessList{
+		staticAccessList, defaultAccessList, scimAccessList,
+	}
+
+	newMember := func(t *testing.T, accessList *accesslist.AccessList, memberName string) *accesslistv1.Member {
+		t.Helper()
+		m := newAccessListMember(t, accessList.GetName(), memberName, accesslist.MembershipKindUser, c.clock)
+		return conv.ToMemberProto(m)
+	}
+
+	createAccessLists(t, c.userCtx, c.svc, c.emitter, nil, accessLists)
+
+	t.Run("upserting member to non-static access_list fails", func(t *testing.T) {
+		nonStaticAccessLists := []*accesslist.AccessList{
+			defaultAccessList, scimAccessList,
+		}
+		for _, accessList := range nonStaticAccessLists {
+			t.Run(accessList.GetName(), func(t *testing.T) {
+				for _, m := range []string{member1, member2} {
+					_, err := c.svc.UpsertStaticAccessListMember(c.userCtx, &accesslistv1.UpsertStaticAccessListMemberRequest{
+						Member: newMember(t, accessList, m),
+					})
+					require.Error(t, err, "member = %q", m)
+					require.True(t, isNonStaticAccessList(err), "member = %q", m)
+				}
+			})
+		}
+	})
+
+	t.Run("upserting member of static access_list succeeds", func(t *testing.T) {
+		for _, m := range []string{member1, member2} {
+			resp, err := c.svc.UpsertStaticAccessListMember(c.userCtx, &accesslistv1.UpsertStaticAccessListMemberRequest{
+				Member: newMember(t, staticAccessList, m),
+			})
+			require.NoError(t, err, "member = %q", m)
+
+			resp.Member.Header.GetMetadata().Labels = map[string]string{"updated": "label"}
+			_, err = c.svc.UpsertStaticAccessListMember(c.userCtx, &accesslistv1.UpsertStaticAccessListMemberRequest{
+				Member: resp.Member,
+			})
+			require.NoError(t, err, "member = %q", m)
+		}
+	})
+}
+
 func TestService_UpsertAccessListMemberMaxDepth(t *testing.T) {
 	c := initSvc(t)
 
@@ -1573,6 +1675,56 @@ func TestService_DeleteAccessListMember(t *testing.T) {
 	})
 	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberDelete) {
 		require.Equal(t, a2.GetName(), event.AccessListMemberDelete.Metadata.Id)
+	})
+}
+
+func TestService_DeleteStaticAccessListMember(t *testing.T) {
+	c := initSvc(t)
+
+	staticAccessList := newAccessList(t, "test-acl-1", c.clock, withType(accesslist.Static))
+	defaultAccessList := newAccessList(t, "test-acl-3", c.clock)
+	scimAccessList := newAccessList(t, "test-acl-4", c.clock, withType(accesslist.SCIM))
+
+	accessLists := []*accesslist.AccessList{
+		staticAccessList, defaultAccessList, scimAccessList,
+	}
+	members := []*accesslist.AccessListMember{}
+
+	for _, accessList := range []*accesslist.AccessList{
+		staticAccessList, defaultAccessList, scimAccessList,
+	} {
+		members = append(members, newAccessListMember(t, accessList.GetName(), member1, accesslist.MembershipKindUser, c.clock))
+		members = append(members, newAccessListMember(t, accessList.GetName(), member2, accesslist.MembershipKindUser, c.clock))
+	}
+
+	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil, accessLists, members)
+
+	t.Run("deleting member of non-static access_list fails", func(t *testing.T) {
+		nonStaticAccessLists := []*accesslist.AccessList{
+			defaultAccessList, scimAccessList,
+		}
+		for _, accessList := range nonStaticAccessLists {
+			t.Run(accessList.GetName(), func(t *testing.T) {
+				for _, m := range []string{member1, member2} {
+					_, err := c.svc.DeleteStaticAccessListMember(c.userCtx, &accesslistv1.DeleteStaticAccessListMemberRequest{
+						AccessList: accessList.GetMetadata().Name,
+						MemberName: m,
+					})
+					require.Error(t, err, "member = %q", m)
+					require.True(t, isNonStaticAccessList(err), "member = %q", m)
+				}
+			})
+		}
+	})
+
+	t.Run("deleting member of static access_list succeeds", func(t *testing.T) {
+		for _, m := range []string{member1, member2} {
+			_, err := c.svc.DeleteStaticAccessListMember(c.userCtx, &accesslistv1.DeleteStaticAccessListMemberRequest{
+				AccessList: staticAccessList.GetMetadata().Name,
+				MemberName: m,
+			})
+			require.NoError(t, err)
+		}
 	})
 }
 
@@ -2808,6 +2960,16 @@ func TestPopulateMembersFields(t *testing.T) {
 
 }
 
+func Test_nonStaticAccessListError(t *testing.T) {
+	err := &nonStaticAccessListError{
+		accessList: "vegetables",
+		member:     "carrot",
+	}
+	msg := err.Error()
+	expected := `member.spec.access_list must reference an access_list of static type (i.e. with spec.type set to "static"). Member "carrot" cannot be added to access list "vegetables" because access list "vegetables" is not of "static" type. Teleport IaC tools support adding members only to "static" access lists.`
+	require.Equal(t, expected, msg)
+}
+
 func listAllAccessListMembers(ctx context.Context, t *testing.T, service *Service, accessListName string, pageSize int) []*accesslist.AccessListMember {
 	t.Helper()
 
@@ -3004,20 +3166,26 @@ func newAccessList(t *testing.T, name string, clock clockwork.Clock, opts ...acc
 func newAccessListWithPartialSpec(t *testing.T, name string, nextAuditDate time.Time, spec accesslist.Spec) *accesslist.AccessList {
 	t.Helper()
 
+	audit := accesslist.Audit{}
+	if spec.Type.IsReviewable() {
+		audit = accesslist.Audit{
+			NextAuditDate: nextAuditDate,
+			Notifications: accesslist.Notifications{
+				Start: 336 * time.Hour, // Two weeks.
+			},
+		}
+	}
+
 	accessList, err := accesslist.NewAccessList(
 		header.Metadata{
 			Name: name,
 		},
 		accesslist.Spec{
-			Title:       name,
-			Description: "test access list",
-			Owners:      spec.Owners,
-			Audit: accesslist.Audit{
-				NextAuditDate: nextAuditDate,
-				Notifications: accesslist.Notifications{
-					Start: 336 * time.Hour, // Two weeks.
-				},
-			},
+			Title:              name,
+			Type:               spec.Type,
+			Description:        "test access list",
+			Owners:             spec.Owners,
+			Audit:              audit,
 			MembershipRequires: spec.MembershipRequires,
 			OwnershipRequires:  spec.OwnershipRequires,
 			Grants:             spec.Grants,
@@ -3033,12 +3201,11 @@ func newAccessListWithPartialSpec(t *testing.T, name string, nextAuditDate time.
 	return accessList
 }
 
-type newMemberOption func(*accesslist.AccessListMember) *accesslist.AccessListMember
+type newMemberOption func(*accesslist.AccessListMember)
 
 func withOriginLabel(origin string) newMemberOption {
-	return func(am *accesslist.AccessListMember) *accesslist.AccessListMember {
+	return func(am *accesslist.AccessListMember) {
 		am.SetOrigin(origin)
-		return am
 	}
 }
 
@@ -3062,7 +3229,7 @@ func newAccessListMember(t *testing.T, accessListName, memberName string, member
 	require.NoError(t, err)
 
 	for _, opt := range opts {
-		member = opt(member)
+		opt(member)
 	}
 
 	return member
@@ -3115,6 +3282,13 @@ func mustFromProtoAll(t *testing.T, accessLists ...*accesslistv1.AccessList) []*
 	}
 
 	return convertedAccessLists
+}
+
+func createAccessLists(t *testing.T, ctx context.Context, service *Service, emitter *eventstest.ChannelEmitter,
+	usageEvents *usageEventsClient, accessLists []*accesslist.AccessList,
+) {
+	t.Helper()
+	createAccessListsAndMembers(t, ctx, service, emitter, usageEvents, accessLists, nil)
 }
 
 func createAccessListsAndMembers(t *testing.T, ctx context.Context, service *Service, emitter *eventstest.ChannelEmitter,

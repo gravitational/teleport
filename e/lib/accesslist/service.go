@@ -2,6 +2,8 @@ package accesslist
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"maps"
 	"math"
@@ -159,6 +161,37 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+type nonStaticAccessListError struct {
+	accessList, member string
+}
+
+func newNonStaticAccessListErrorFromMemberReq(req memberGetter) *nonStaticAccessListError {
+	return &nonStaticAccessListError{
+		accessList: req.GetMember().GetSpec().GetAccessList(),
+		member:     req.GetMember().GetHeader().GetMetadata().GetName(),
+	}
+}
+
+func newNonStaticAccessListErrorFromMemberMetaReq(req memberMetaGetter) *nonStaticAccessListError {
+	return &nonStaticAccessListError{
+		accessList: req.GetAccessList(),
+		member:     req.GetMemberName(),
+	}
+}
+
+func (e *nonStaticAccessListError) Error() string {
+	return fmt.Sprintf(
+		`member.spec.access_list must reference an access_list of static type (i.e. with spec.type set to "static"). Member %[2]q cannot be added to access list %[1]q because access list %[1]q is not of "static" type. Teleport IaC tools support adding members only to "static" access lists.`,
+		e.accessList, e.member,
+	)
+}
+
+func isNonStaticAccessList(err error) bool {
+	var val nonStaticAccessListError
+	ptr := &val
+	return errors.As(err, &ptr)
 }
 
 type Service struct {
@@ -845,11 +878,41 @@ func (s *Service) ListAccessListMembers(ctx context.Context, req *accesslistv1.L
 
 // GetAccessListMember returns the specified access list member resource.
 func (s *Service) GetAccessListMember(ctx context.Context, req *accesslistv1.GetAccessListMemberRequest) (*accesslistv1.Member, error) {
-	if _, err := s.authOrIsOwner(ctx, req.AccessList, types.VerbRead); err != nil {
+	if err := validateMemberMetaRequest(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	m, err := s.getAccessListMember(ctx, req, memberOptions{})
+	return m, trace.Wrap(err)
+}
+
+// GetStaticAccessListMember returns the specified access_list_member resource. If returns error
+// if the target access_list is not of type static.
+func (s *Service) GetStaticAccessListMember(ctx context.Context, req *accesslistv1.GetStaticAccessListMemberRequest) (*accesslistv1.GetStaticAccessListMemberResponse, error) {
+	if err := validateMemberMetaRequest(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	m, err := s.getAccessListMember(ctx, req, memberOptions{
+		requireStatic: true,
+	})
+	return &accesslistv1.GetStaticAccessListMemberResponse{Member: m}, trace.Wrap(err)
+}
+
+func (s *Service) getAccessListMember(ctx context.Context, req memberMetaGetter, opts memberOptions) (*accesslistv1.Member, error) {
+	if _, err := s.authOrIsOwner(ctx, req.GetAccessList(), types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	result, err := s.cache.GetAccessListMember(ctx, req.AccessList, req.MemberName)
+	if opts.requireStatic {
+		acl, err := s.accessLists.GetAccessList(ctx, req.GetAccessList())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if acl.Spec.Type != accesslist.Static {
+			return nil, trace.Wrap(newNonStaticAccessListErrorFromMemberMetaReq(req))
+		}
+	}
+
+	result, err := s.cache.GetAccessListMember(ctx, req.GetAccessList(), req.GetMemberName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -859,7 +922,27 @@ func (s *Service) GetAccessListMember(ctx context.Context, req *accesslistv1.Get
 
 // UpsertAccessListMember creates or updates an access list member resource.
 func (s *Service) UpsertAccessListMember(ctx context.Context, req *accesslistv1.UpsertAccessListMemberRequest) (*accesslistv1.Member, error) {
-	authCtx, err := s.authOrIsOwner(ctx, req.Member.Spec.AccessList, types.VerbCreate, types.VerbUpdate)
+	if err := validateMemberRequest(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	m, err := s.upsertAccessListMember(ctx, req, memberOptions{})
+	return m, trace.Wrap(err)
+}
+
+// UpsertStaticAccessListMember creates or updates an access_list_member resource. It returns error
+// and does nothing if the target access_list is not of type static.
+func (s *Service) UpsertStaticAccessListMember(ctx context.Context, req *accesslistv1.UpsertStaticAccessListMemberRequest) (*accesslistv1.UpsertStaticAccessListMemberResponse, error) {
+	if err := validateMemberRequest(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	m, err := s.upsertAccessListMember(ctx, req, memberOptions{
+		requireStatic: true,
+	})
+	return &accesslistv1.UpsertStaticAccessListMemberResponse{Member: m}, trace.Wrap(err)
+}
+
+func (s *Service) upsertAccessListMember(ctx context.Context, req memberGetter, opts memberOptions) (*accesslistv1.Member, error) {
+	authCtx, err := s.authOrIsOwner(ctx, req.GetMember().GetSpec().GetAccessList(), types.VerbCreate, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -868,7 +951,7 @@ func (s *Service) UpsertAccessListMember(ctx context.Context, req *accesslistv1.
 		return nil, trace.Wrap(err)
 	}
 
-	member, err := conv.FromMemberProto(req.Member)
+	member, err := conv.FromMemberProto(req.GetMember())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -878,11 +961,22 @@ func (s *Service) UpsertAccessListMember(ctx context.Context, req *accesslistv1.
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.checkMembersModificationAllowedByName(ctx, *authCtx, req.Member.Spec.AccessList); err != nil {
-		return nil, trace.Wrap(err, "adding and updating members not allowed for Access List %q", req.Member.Spec.AccessList)
+	memberAccessList, err := s.accessLists.GetAccessList(ctx, req.GetMember().GetSpec().GetAccessList())
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	resp, accessListName, updated, upsertErr := s.upsertAccessListMember(ctx, authCtx, member, s.accessLists.UpsertAccessListMember)
+	if opts.requireStatic {
+		if memberAccessList.Spec.Type != accesslist.Static {
+			return nil, trace.Wrap(newNonStaticAccessListErrorFromMemberReq(req))
+		}
+	}
+
+	if err := s.checkMembersModificationAllowed(ctx, *authCtx, memberAccessList); err != nil {
+		return nil, trace.Wrap(err, "adding and updating members not allowed for Access List %q", req.GetMember().GetSpec().GetAccessList())
+	}
+
+	resp, accessListName, updated, upsertErr := s.runAccessListMemberOp(ctx, authCtx, member, s.accessLists.UpsertAccessListMember)
 
 	var joinTime time.Time
 	if resp != nil {
@@ -890,7 +984,7 @@ func (s *Service) UpsertAccessListMember(ctx context.Context, req *accesslistv1.
 	}
 
 	s.emitUpsertAccessListMemberEvent(ctx, username, updated, accessListName, upsertErr,
-		accessListMembersForEvent(joinTime, time.Time{}, accessListMemberProtoToMemberEventMetadata(req.Member))...)
+		accessListMembersForEvent(joinTime, time.Time{}, accessListMemberProtoToMemberEventMetadata(req.GetMember()))...)
 
 	if upsertErr == nil {
 		s.emitUpsertAccessListMemberUsageEvent(ctx, updated, accessListName, member)
@@ -928,7 +1022,7 @@ func (s *Service) UpdateAccessListMember(ctx context.Context, req *accesslistv1.
 		return nil, trace.Wrap(err, "updating members not allowed for Access List %q", req.Member.Spec.AccessList)
 	}
 
-	resp, accessListName, updated, upsertErr := s.upsertAccessListMember(ctx, authCtx, member, s.accessLists.UpdateAccessListMember)
+	resp, accessListName, updated, upsertErr := s.runAccessListMemberOp(ctx, authCtx, member, s.accessLists.UpdateAccessListMember)
 
 	var joinTime time.Time
 	if resp != nil {
@@ -945,11 +1039,11 @@ func (s *Service) UpdateAccessListMember(ctx context.Context, req *accesslistv1.
 	return resp, trace.Wrap(upsertErr)
 }
 
-// updateOrUpsertSignature is a function signature for updating or upserting access list members.
-type updateOrUpsertSignature func(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error)
+// updateOrUpsertMemberSignature is a function signature for updating or upserting access list members.
+type updateOrUpsertMemberSignature func(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error)
 
-// upsertAccessListMember is a helper for creating or updating access list members that returns the response, whether this was an update, and an error.
-func (s *Service) upsertAccessListMember(ctx context.Context, authCtx *authz.Context, member *accesslist.AccessListMember, f updateOrUpsertSignature) (resultProto *accesslistv1.Member, accessListName string, updated bool, err error) {
+// runAccessListMemberOp is a helper for creating or updating access list members that returns the response, whether this was an update, and an error.
+func (s *Service) runAccessListMemberOp(ctx context.Context, authCtx *authz.Context, member *accesslist.AccessListMember, f updateOrUpsertMemberSignature) (resultProto *accesslistv1.Member, accessListName string, updated bool, err error) {
 	updated = false
 	username, err := getUsername(authCtx)
 	if err != nil {
@@ -1148,44 +1242,64 @@ func (s *Service) emitUpsertAccessListMemberUsageEvent(ctx context.Context, upda
 
 // DeleteAccessListMember hard deletes the specified access list member resource.
 func (s *Service) DeleteAccessListMember(ctx context.Context, req *accesslistv1.DeleteAccessListMemberRequest) (*emptypb.Empty, error) {
-	authCtx, err := s.authOrIsOwner(ctx, req.AccessList, types.VerbDelete)
-	if err != nil {
+	if err := validateMemberMetaRequest(req); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	err := s.deleteAccessListMember(ctx, req, memberOptions{})
+	return &emptypb.Empty{}, trace.Wrap(err)
+}
+
+// DeleteStaticAccessListMember hard deletes the specified access_list_member. It returns error and does
+// nothing if the target access_list is not of static type.
+func (s *Service) DeleteStaticAccessListMember(ctx context.Context, req *accesslistv1.DeleteStaticAccessListMemberRequest) (*accesslistv1.DeleteStaticAccessListMemberResponse, error) {
+	if err := validateMemberMetaRequest(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err := s.deleteAccessListMember(ctx, req, memberOptions{
+		requireStatic: true,
+	})
+	return &accesslistv1.DeleteStaticAccessListMemberResponse{}, trace.Wrap(err)
+}
+
+func (s *Service) deleteAccessListMember(ctx context.Context, req memberMetaGetter, opts memberOptions) error {
+	authCtx, err := s.authOrIsOwner(ctx, req.GetAccessList(), types.VerbDelete)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	if err := authCtx.AuthorizeAdminAction(); err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
+	}
+
+	if opts.requireStatic {
+		acl, err := s.accessLists.GetAccessList(ctx, req.GetAccessList())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if acl.Spec.Type != accesslist.Static {
+			return trace.Wrap(newNonStaticAccessListErrorFromMemberMetaReq(req))
+		}
 	}
 
 	username, err := getUsername(authCtx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	if err := s.checkMembersModificationAllowedByName(ctx, *authCtx, req.AccessList); err != nil {
-		return nil, trace.Wrap(err, "deleting members not allowed for Access List %q", req.AccessList)
+	if err := s.checkMembersModificationAllowedByName(ctx, *authCtx, req.GetAccessList()); err != nil {
+		return trace.Wrap(err, "deleting members not allowed for Access List %q", req.GetAccessList())
 	}
 
-	resp, deleteErr := s.deleteAccessListMember(ctx, req)
+	deleteErr := s.accessLists.DeleteAccessListMember(ctx, req.GetAccessList(), req.GetMemberName())
 
-	s.emitDeleteAccessListMemberEvent(ctx, username, req.AccessList, deleteErr,
-		accessListMembersForEvent(time.Time{}, s.clock.Now(), &memberEventMetadata{name: req.MemberName})...)
+	s.emitDeleteAccessListMemberEvent(ctx, username, req.GetAccessList(), deleteErr,
+		accessListMembersForEvent(time.Time{}, s.clock.Now(), &memberEventMetadata{name: req.GetMemberName()})...)
 
 	if deleteErr == nil {
-		s.emitDeleteAccessListMemberUsageEvent(ctx, req.AccessList)
+		s.emitDeleteAccessListMemberUsageEvent(ctx, req.GetAccessList())
 	}
 
-	return resp, trace.Wrap(deleteErr)
-}
-
-// deleteAccessListMember is a helper for deleting access list members that returns the response and an error.
-func (s *Service) deleteAccessListMember(ctx context.Context, req *accesslistv1.DeleteAccessListMemberRequest) (*emptypb.Empty, error) {
-	err := s.accessLists.DeleteAccessListMember(ctx, req.AccessList, req.MemberName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &emptypb.Empty{}, nil
+	return trace.Wrap(deleteErr)
 }
 
 // emitDeleteAccessListMemberEvent will emit the delete event for the access list member.
@@ -1731,7 +1845,7 @@ func (s *Service) AccessRequestPromote(ctx context.Context, req *accesslistv1.Ac
 
 	memberName := accessReq.GetUser()
 
-	_, _, _, err = s.upsertAccessListMember(ctx, authCtx, &accesslist.AccessListMember{
+	_, _, _, err = s.runAccessListMemberOp(ctx, authCtx, &accesslist.AccessListMember{
 		ResourceHeader: header.ResourceHeader{
 			Kind:    types.KindAccessListMember,
 			Version: types.V3,
@@ -2364,4 +2478,21 @@ func applyOwnersIneligibleStatus(accessList *accesslist.AccessList, clock clockw
 	}
 
 	return updatedOwners
+}
+
+type memberOptions struct {
+	// requireStatic forces the operation to fail if the AccessList.Spec.Type is not "static".
+	requireStatic bool
+}
+
+type memberMetaGetter interface {
+	// GetAccessList returns the name of the access_list that the member belongs to.
+	GetAccessList() string
+	// GetMemberName returns the name of the user that belongs to the access_list.
+	GetMemberName() string
+}
+
+type memberGetter interface {
+	// GetMember returns the access_list_member.
+	GetMember() *accesslistv1.Member
 }
