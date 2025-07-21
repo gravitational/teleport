@@ -711,11 +711,11 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_deviceTrust(t *testing.T) {
 			},
 		},
 		{
-			name: "Mode=required-human",
+			name: "Mode=required-for-humans",
 			authPref: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
 					DeviceTrust: &types.DeviceTrust{
-						Mode: constants.DeviceTrustModeRequiredHuman,
+						Mode: constants.DeviceTrustModeRequiredForHumans,
 					},
 				},
 			},

@@ -1294,12 +1294,12 @@ func TestBotDeviceTrust(t *testing.T) {
 	ctx := context.Background()
 	log := logtest.NewLogger()
 
-	// Start a test server with `device.trust.mode="required-human"`.
+	// Start a test server with `device.trust.mode="required-for-humans"`.
 	process := testenv.MakeTestServer(t,
 		defaultTestServerOpts(t, log),
 		testenv.WithAuthConfig(func(cfg *servicecfg.AuthConfig) {
 			cfg.Preference.SetDeviceTrust(&types.DeviceTrust{
-				Mode: constants.DeviceTrustModeRequiredHuman,
+				Mode: constants.DeviceTrustModeRequiredForHumans,
 			})
 		}),
 	)

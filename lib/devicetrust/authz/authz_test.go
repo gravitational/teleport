@@ -253,10 +253,10 @@ func runVerifyUserTest(t *testing.T, method string, verify func(dt *types.Device
 			assertErr: assertNoErr,
 		},
 		{
-			name:      "ok: Enterprise mode=required-human with bot",
+			name:      "ok: Enterprise mode=required-for-humans with bot",
 			buildType: modules.BuildEnterprise,
 			dt: &types.DeviceTrust{
-				Mode: constants.DeviceTrustModeRequiredHuman,
+				Mode: constants.DeviceTrustModeRequiredForHumans,
 			},
 			ext:       userWithoutExtensions,
 			isBot:     true,

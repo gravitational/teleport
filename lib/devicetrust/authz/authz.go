@@ -100,7 +100,7 @@ func verifyDeviceExtensions(ctx context.Context, dt *types.DeviceTrust, username
 	case constants.DeviceTrustModeOff, constants.DeviceTrustModeOptional:
 		// OK, extensions not enforced.
 		pass = true
-	case constants.DeviceTrustModeRequiredHuman:
+	case constants.DeviceTrustModeRequiredForHumans:
 		// Humans must use trusted devices, bots can use untrusted devices.
 		pass = verified || isBot
 	case constants.DeviceTrustModeRequired:

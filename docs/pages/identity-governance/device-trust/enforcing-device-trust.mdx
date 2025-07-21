@@ -32,7 +32,7 @@ by the `device_trust_mode` authentication setting:
 - `required` - enables device authentication and device-aware audit.
   Additionally, it requires a trusted device for all SSH, Database and
   Kubernetes connections.
-- `required-human` - enables device authentication and device-aware audit.
+- `required-for-humans` - enables device authentication and device-aware audit.
   Additionally, it requires a trusted device for all SSH, Database and
   Kubernetes connections, for human users only (bots are exempt).
 
@@ -55,7 +55,7 @@ works similarly to [`require_session_mfa`](../../admin-guides/access-controls/gu
 
 To enforce authenticated device checks for a specific role when a user accesses
 databases, Kubernetes clusters, and servers with Teleport, update the role with
-the `device_trust_mode` field assigned to `"required"` or `"required-human"`.
+the `device_trust_mode` field assigned to `"required"` or `"required-for-humans"`.
 The following example updates the preset `require-trusted-device` role:
 
 ```yaml
@@ -65,7 +65,7 @@ metadata:
   name: require-trusted-device
 spec:
   options:
-    device_trust_mode: "required-human"
+    device_trust_mode: "required-for-humans"
   allow:
     db_labels:
       '*': '*'
@@ -168,7 +168,7 @@ metadata:
   name: require-trusted-device-apps
 spec:
   options:
-    device_trust_mode: "required-human"
+    device_trust_mode: "required-for-humans"
   allow:
     app_labels:
       env: production

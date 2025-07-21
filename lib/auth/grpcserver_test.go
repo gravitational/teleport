@@ -1290,8 +1290,8 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 			assertErr:          assertAccessDenied,
 		},
 		{
-			name:               "ok: mode=required-human with bot",
-			clusterDeviceMode:  constants.DeviceTrustModeRequiredHuman,
+			name:               "ok: mode=required-for-humans with bot",
+			clusterDeviceMode:  constants.DeviceTrustModeRequiredForHumans,
 			client:             botClient,
 			req:                botSSHReq,
 			skipSingleUseCerts: true,
