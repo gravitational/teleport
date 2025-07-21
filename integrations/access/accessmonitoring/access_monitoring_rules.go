@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/accessrequest"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
@@ -145,8 +146,11 @@ func (amrh *RuleHandler) RecipientsFromAccessMonitoringRules(ctx context.Context
 	log := logger.Get(ctx)
 	recipientSet := common.NewRecipientSet()
 
-	traits := amrh.getUserTraits(ctx, req.GetUser())
-	env := getAccessRequestExpressionEnv(req, traits)
+	env, err := amrh.newExpressionEnv(ctx, req)
+	if err != nil {
+		log.WarnContext(ctx, "Failed to create expression env", "error", err)
+		return &recipientSet
+	}
 
 	for _, rule := range amrh.getAccessMonitoringRules() {
 		match, err := accessmonitoring.EvaluateCondition(rule.Spec.Condition, env)
@@ -176,8 +180,11 @@ func (amrh *RuleHandler) RawRecipientsFromAccessMonitoringRules(ctx context.Cont
 	log := logger.Get(ctx)
 	recipientSet := stringset.New()
 
-	traits := amrh.getUserTraits(ctx, req.GetUser())
-	env := getAccessRequestExpressionEnv(req, traits)
+	env, err := amrh.newExpressionEnv(ctx, req)
+	if err != nil {
+		log.WarnContext(ctx, "Failed to create expression env", "error", err)
+		return nil
+	}
 
 	for _, rule := range amrh.getAccessMonitoringRules() {
 		match, err := accessmonitoring.EvaluateCondition(rule.Spec.Condition, env)
@@ -195,20 +202,6 @@ func (amrh *RuleHandler) RawRecipientsFromAccessMonitoringRules(ctx context.Cont
 		}
 	}
 	return recipientSet.ToSlice()
-}
-
-func (amrh *RuleHandler) getUserTraits(ctx context.Context, userName string) map[string][]string {
-	log := logger.Get(ctx)
-	const withSecretsFalse = false
-	user, err := amrh.apiClient.GetUser(ctx, userName, withSecretsFalse)
-	if trace.IsAccessDenied(err) {
-		log.WarnContext(ctx, "Missing permissions to read user.traits, please add user.read to the associated role", "error", err)
-		return nil
-	} else if err != nil {
-		log.WarnContext(ctx, "Failed to read user.traits", "error", err)
-		return nil
-	}
-	return user.GetTraits()
 }
 
 func (amrh *RuleHandler) getAllAccessMonitoringRules(ctx context.Context) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {
@@ -259,16 +252,37 @@ func (amrh *RuleHandler) ruleApplies(amr *accessmonitoringrulesv1.AccessMonitori
 	})
 }
 
-// getAccessRequestExpressionEnv returns the expression env of the access request.
-func getAccessRequestExpressionEnv(req types.AccessRequest, traits map[string][]string) accessmonitoring.AccessRequestExpressionEnv {
+// newExpressionEnv returns the expression env of the access request.
+func (amrh *RuleHandler) newExpressionEnv(ctx context.Context, req types.AccessRequest) (accessmonitoring.AccessRequestExpressionEnv, error) {
+	log := logger.Get(ctx)
+
+	var userTraits map[string][]string
+
+	const withSecretsFalse = false
+	user, err := amrh.apiClient.GetUser(ctx, req.GetUser(), withSecretsFalse)
+	switch {
+	case trace.IsAccessDenied(err):
+		log.WarnContext(ctx, "Missing permissions to read user.traits, please add user.read to the associated role", "error", err)
+	case err != nil:
+		return accessmonitoring.AccessRequestExpressionEnv{}, trace.Wrap(err)
+	default:
+		userTraits = user.GetTraits()
+	}
+
+	requestedResources, err := accessrequest.GetResourcesByResourceIDs(ctx, amrh.apiClient, req.GetRequestedResourceIDs())
+	if err != nil {
+		return accessmonitoring.AccessRequestExpressionEnv{}, trace.Wrap(err)
+	}
+
 	return accessmonitoring.AccessRequestExpressionEnv{
 		Roles:              req.GetRoles(),
+		RequestedResources: requestedResources,
 		SuggestedReviewers: req.GetSuggestedReviewers(),
 		Annotations:        req.GetSystemAnnotations(),
 		User:               req.GetUser(),
 		RequestReason:      req.GetRequestReason(),
 		CreationTime:       req.GetCreationTime(),
 		Expiry:             req.Expiry(),
-		UserTraits:         traits,
-	}
+		UserTraits:         userTraits,
+	}, nil
 }
