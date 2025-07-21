@@ -98,10 +98,10 @@ $ argocd app sync $YOUR_APPLICATION_NAME
 
 ## Step 3/3. Manage access to your new resource
 
-First create a Teleport role called `kube-access`
-that enables a user to send requests to any Teleport-protected Kubernetes
+In this step, we'll create a Teleport role called `kube-access`
+that allows users to send requests to any Teleport-protected Kubernetes
 cluster as a member of the `viewers` group. The Teleport Kubernetes Service
-impersonates the `viewers` group when proxying requests from the user.
+will impersonate the `viewers` group when proxying requests from those users.
 
 1. Create a file called `kube-access.yaml` with the following content:
 
