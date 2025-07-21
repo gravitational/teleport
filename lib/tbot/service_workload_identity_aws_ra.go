@@ -26,13 +26,13 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	awsspiffe "github.com/spiffe/aws-spiffe-workload-helper"
 	"github.com/spiffe/aws-spiffe-workload-helper/vendoredaws"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"gopkg.in/ini.v1"
 
+	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/tbot/bot"

@@ -24,11 +24,11 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	apiclient "github.com/gravitational/teleport/api/client"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"

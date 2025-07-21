@@ -21,11 +21,12 @@ package bot
 import (
 	"log/slog"
 
+	"github.com/gravitational/trace"
+	"github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
+
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
-	"github.com/gravitational/trace"
-	"github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 )
 
 // Config contains the core bot's configuration. The tbot binary's configuration

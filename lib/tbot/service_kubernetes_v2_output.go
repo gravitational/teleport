@@ -28,11 +28,11 @@ import (
 	"log/slog"
 	"path/filepath"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
+	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"

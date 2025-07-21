@@ -22,6 +22,8 @@ import (
 	"context"
 	"log/slog"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -29,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
-	"golang.org/x/sync/errgroup"
 )
 
 // Service is a long-running sub-component of tbot.
