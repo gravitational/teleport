@@ -477,7 +477,9 @@ func renewIdentity(
 			"The bot identity appears to be expired and will not be used to "+
 				"authenticate the identity renewal. If it is possible to "+
 				"rejoin, a new bot instance will be issued. Ensure the "+
-				"certificate TTL and renewal interval are configured properly.",
+				"configured certificate TTL is long enough to accommodate "+
+				"your environment and that no external issues will prevent "+
+				"the bot from renewing its identity on schedule.",
 			"now", now,
 			"expiry", expiry,
 			"credential_lifetime", botCfg.CredentialLifetime,
