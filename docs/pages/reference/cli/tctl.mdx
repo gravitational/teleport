@@ -1850,16 +1850,15 @@ $ tctl tokens rm [<token>]
 
 Reports diagnostic information.
 
-`tctl top` can consume metrics from a HTTP diagnostic endpoint or a local UNIX socket.
+`tctl top` can consume metrics from a HTTP diagnostic endpoint.
 
 ```code
 $ tctl top [<diag-addr>] [<refresh>]
 ```
 
-When a specific endpoint is provided, `tctl top` will always attempt to connect to it. The endpoint can be a HTTP URL or
-a valid local UNIX socket path in a URI format (such as `unix:///var/lib/teleport/debug.sock`).
-
-In the case of a HTTP endpoint the diagnostic metrics service must be enabled with `teleport start --diag-addr=<bind-addr>`.
+When a specific endpoint is provided, `tctl top` will always attempt to connect to it.
+The endpoint should be a valid HTTP URL, corresponding to a matching
+diagnostic metrics service configuration such as `teleport start --diag-addr=<bind-addr>`.
 
 When no endpoint is specified, `tctl top` will attempt to connect via the debug UNIX socket endpoint, falling back to
 localhost.
@@ -1875,8 +1874,6 @@ localhost.
 $ sudo teleport start --diag-addr=127.0.0.1:3000
 # View stats with a refresh period of 5 seconds
 $ tctl top http://127.0.0.1:3000 5s
-# View stats using the debug service socket
-$ tctl top unix:///var/lib/teleport/debug.sock 5s
 # Use configured defaults for local node
 $ tctl top
 ```
