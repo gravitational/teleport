@@ -173,6 +173,11 @@ linters:
           files:
             - '!$test'
             - '!**/integrations/operator/controllers/resources/testlib/**.go'
+            - '!**/e/lib/aws/identitycenter/test/**'
+            - '!**/e/lib/devicetrust/testenv/**'
+            - '!**/e/lib/jamf/testenv/**'
+            - '!**/e/lib/operatortest/**'
+            - '!**/e/tests/**'
           deny:
             - pkg: github.com/gravitational/teleport/e/lib/aws/identitycenter/test
               desc: testing packages should not be imported outside of _test.go files
@@ -197,6 +202,10 @@ linters:
             - pkg: github.com/gravitational/teleport/lib/srv/db/clickhouse/protocoltest
               desc: testing packages should not be imported outside of _test.go files
             - pkg: github.com/gravitational/teleport/lib/modules/modulestest
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/utils/logtesttest
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/auth/authtest
               desc: testing packages should not be imported outside of _test.go files
         testify:
           files:
@@ -260,6 +269,7 @@ linters:
             - '!**/integrations/access/msteams/testlib/**'
             - '!**/integrations/access/slack/testlib/**'
             - '!**/integrations/operator/controllers/resources/testlib/**'
+            - '!**/lib/auth/authtest/**'
             - '!**/lib/auth/helpers.go'
             - '!**/lib/auth/keystore/testhelpers.go'
             - '!**/lib/backend/test/**'

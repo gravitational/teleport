@@ -23,7 +23,6 @@ import (
 	"context"
 	"crypto/x509"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -31,8 +30,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
-	"testing"
 	"unicode"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -134,38 +131,6 @@ func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) 
 		OSLogSubsystem: o.osLogSubsystem,
 	})
 	return logger, trace.Wrap(err)
-}
-
-var initTestLoggerOnce = sync.Once{}
-
-// InitLoggerForTests initializes the standard logger for tests.
-// Deprecated: prefer using logtest.InitLogger
-// TODO(tross): remove after enterprise references are updated.
-func InitLoggerForTests() {
-	initTestLoggerOnce.Do(func() {
-		if !flag.Parsed() {
-			// Parse flags to check testing.Verbose().
-			flag.Parse()
-		}
-
-		if !testing.Verbose() {
-			slog.SetDefault(slog.New(slog.DiscardHandler))
-			return
-		}
-
-		logutils.Initialize(logutils.Config{
-			Severity: slog.LevelDebug.String(),
-			Format:   LogFormatJSON,
-		})
-	})
-}
-
-// NewSlogLoggerForTests creates a new slog logger for test environments.
-// Deprecated: prefer using logtest.NewLogger
-// TODO(tross): remove after enterprise references are updated.
-func NewSlogLoggerForTests() *slog.Logger {
-	InitLoggerForTests()
-	return slog.Default()
 }
 
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging
@@ -518,4 +483,28 @@ func FormatAlert(alert types.ClusterAlert) string {
 		}
 	}
 	return buf.String()
+}
+
+// FilterArguments filters the input arguments, keeping only those defined in the provided `kingpin.ApplicationModel`.
+// For example, if the model defines only one boolean flag `--insecure`, all other arguments in `args`
+// will be excluded, and only the `--insecure` flag will remain.
+func FilterArguments(args []string, model *kingpin.ApplicationModel) []string {
+	var result []string
+	for _, flag := range model.Flags {
+		for i := range args {
+			if strings.HasPrefix(args[i], fmt.Sprint("--", flag.Name, "=")) {
+				result = append(result, args[i])
+				break
+			}
+			if args[i] == fmt.Sprint("--", flag.Name) {
+				if flag.IsBoolFlag() {
+					result = append(result, args[i])
+				} else if i+2 <= len(args) {
+					result = append(result, args[i], args[i+1])
+				}
+				break
+			}
+		}
+	}
+	return result
 }

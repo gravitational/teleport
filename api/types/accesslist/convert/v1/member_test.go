@@ -71,12 +71,12 @@ func TestMemberFromProtoNils(t *testing.T) {
 		{
 			name:     "accesslist",
 			mutate:   func(m *accesslistv1.Member) { m.Spec.AccessList = "" },
-			checkErr: require.Error,
+			checkErr: require.NoError,
 		},
 		{
 			name:     "joined",
 			mutate:   func(m *accesslistv1.Member) { m.Spec.Joined = nil },
-			checkErr: require.Error,
+			checkErr: require.NoError,
 		},
 		{
 			name:     "expires",
@@ -91,7 +91,7 @@ func TestMemberFromProtoNils(t *testing.T) {
 		{
 			name:     "added by",
 			mutate:   func(m *accesslistv1.Member) { m.Spec.AddedBy = "" },
-			checkErr: require.Error,
+			checkErr: require.NoError,
 		},
 	}
 

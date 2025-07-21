@@ -110,7 +110,13 @@ func TestRoundtrip(t *testing.T) {
 			},
 		},
 		{
-			name: "dynamic-type",
+			name: "deprecated-dynamic-type",
+			modificationFn: func(accessList *accesslist.AccessList) {
+				accessList.Spec.Type = accesslist.DeprecatedDynamic
+			},
+		},
+		{
+			name: "default-type",
 			modificationFn: func(accessList *accesslist.AccessList) {
 				accessList.Spec.Type = accesslist.Default
 			},
@@ -136,18 +142,13 @@ func TestRoundtrip(t *testing.T) {
 			converted, err := FromProto(ToProto(accessList))
 			require.NoError(t, err)
 
+			if accessList.Spec.Type == accesslist.DeprecatedDynamic {
+				accessList.Spec.Type = accesslist.Default
+			}
+
 			require.Empty(t, cmp.Diff(accessList, converted))
 		})
 	}
-}
-
-func Test_FromProto_withBadType(t *testing.T) {
-	accessList := newAccessList(t, "access-list")
-	accessList.Spec.Type = "test_bad_type"
-
-	_, err := FromProto(ToProto(accessList))
-	require.Error(t, err)
-	require.ErrorContains(t, err, `unknown access_list type "test_bad_type"`)
 }
 
 // Make sure that we don't panic if any of the message fields are missing.
@@ -167,7 +168,7 @@ func TestFromProtoNils(t *testing.T) {
 		accessList.Spec.Owners = nil
 
 		_, err := FromProto(accessList)
-		require.Error(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("audit", func(t *testing.T) {
