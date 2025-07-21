@@ -885,6 +885,20 @@ func TestContext_GetAccessState(t *testing.T) {
 				DeviceVerified:           true,  // Identity extensions
 			},
 		},
+		{
+			name: "bot user",
+			createAuthCtx: func() *Context {
+				ctx := localCtx
+				localUser := ctx.Identity.(LocalUser)
+				localUser.Identity.BotName = "wall-e"
+				ctx.Identity = localUser
+				return &ctx
+			},
+			want: services.AccessState{
+				EnableDeviceVerification: true,
+				IsBot:                    true,
+			},
+		},
 	}
 	for _, test := range tests {
 		test := test
