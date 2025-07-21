@@ -327,7 +327,7 @@ spec:
                   instance_id:
                     description: InstanceID is the Cloud SQL instance ID.
                     type: string
-                  is_alloy_db:
+                  is_alloydb:
                     description: IsAlloyDB is true if the database is an AlloyDB server.
                     type: boolean
                   project_id:

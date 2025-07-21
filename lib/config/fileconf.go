@@ -2080,7 +2080,7 @@ type DatabaseGCP struct {
 	// ClusterID is the ID of the cluster. Required for AlloyDB databases.
 	ClusterID string `yaml:"cluster_id,omitempty"`
 	// IsAlloyDB is true if the database is an AlloyDB server.
-	IsAlloyDB bool `yaml:"is_alloy_db,omitempty"`
+	IsAlloyDB bool `yaml:"is_alloydb,omitempty"`
 }
 
 // DatabaseAzure contains Azure database configuration.

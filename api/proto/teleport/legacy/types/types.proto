@@ -598,7 +598,7 @@ message GCPCloudSQL {
   // ClusterID is the ID of the cluster. Required only for AlloyDB databases.
   string ClusterID = 4 [(gogoproto.jsontag) = "cluster_id,omitempty"];
   // IsAlloyDB is true if the database is an AlloyDB server.
-  bool IsAlloyDB = 5 [(gogoproto.jsontag) = "is_alloy_db,omitempty"];
+  bool IsAlloyDB = 5 [(gogoproto.jsontag) = "is_alloydb,omitempty"];
 }
 
 // Azure contains Azure specific database metadata.

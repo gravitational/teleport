@@ -473,7 +473,7 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"is_alloy_db": {
+						"is_alloydb": {
 							Description: "IsAlloyDB is true if the database is an AlloyDB server.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
@@ -6389,7 +6389,7 @@ func CopyDatabaseV3FromTerraform(_ context.Context, tf github_com_hashicorp_terr
 										}
 									}
 									{
-										a, ok := tf.Attrs["is_alloy_db"]
+										a, ok := tf.Attrs["is_alloydb"]
 										if !ok {
 											diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.GCP.IsAlloyDB"})
 										} else {
@@ -8745,11 +8745,11 @@ func CopyDatabaseV3ToTerraform(ctx context.Context, obj *github_com_gravitationa
 										}
 									}
 									{
-										t, ok := tf.AttrTypes["is_alloy_db"]
+										t, ok := tf.AttrTypes["is_alloydb"]
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.GCP.IsAlloyDB"})
 										} else {
-											v, ok := tf.Attrs["is_alloy_db"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											v, ok := tf.Attrs["is_alloydb"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
 											if !ok {
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
@@ -8763,7 +8763,7 @@ func CopyDatabaseV3ToTerraform(ctx context.Context, obj *github_com_gravitationa
 											}
 											v.Value = bool(obj.IsAlloyDB)
 											v.Unknown = false
-											tf.Attrs["is_alloy_db"] = v
+											tf.Attrs["is_alloydb"] = v
 										}
 									}
 								}
