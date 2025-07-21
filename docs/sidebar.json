@@ -189,6 +189,26 @@
           "id": "connect-your-client/teleport-connect"
         },
         {
+          "type": "category",
+          "label": "Model Context Protocol (MCP)",
+          "link": {
+            "type": "doc",
+            "id": "connect-your-client/model-context-protocol/model-context-protocol"
+          },
+          "items": [
+            {
+              "type": "doc",
+              "label": "MCP Access",
+              "id": "connect-your-client/model-context-protocol/mcp-access"
+            },
+            {
+              "type": "doc",
+              "label": "Database Access",
+              "id": "connect-your-client/model-context-protocol/database-access"
+            }
+          ]
+        },
+        {
           "type": "doc",
           "label": "Using VNet",
           "id": "connect-your-client/vnet"
@@ -265,6 +285,11 @@
           "dirName": "identity-security"
         }
       ]
+    },
+    {
+      "type": "doc",
+      "label": "Model Context Protocol (MCP)",
+      "id": "connect-your-client/model-context-protocol/model-context-protocol"
     },
     {
       "type": "category",
