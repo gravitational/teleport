@@ -2634,6 +2634,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Logger:            logger,
 			KeyStoreManager:   authServer.GetKeyStore(),
 			Cache:             authServer.Cache,
+			StatusReporter:    authServer.Services,
 			AppServerUpserter: authServer.Services,
 			HostUUID:          process.Config.HostUUID,
 		}
@@ -2778,6 +2779,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.GitServers = services.GitServers
 	cfg.HealthCheckConfig = services.HealthCheckConfig
 	cfg.BotInstance = services.BotInstance
+	cfg.Plugin = services.Plugins
 
 	return accesspoint.NewCache(cfg)
 }
