@@ -2686,7 +2686,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 
 	// TODO(codingllama): Consider making EnableDeviceVerification opt-out instead
 	//  of opt-in.
-	deviceAllowed := !state.EnableDeviceVerification || state.DeviceVerified
+	deviceTrusted := !state.EnableDeviceVerification || state.DeviceVerified
 
 	var errs []error
 	allowed := false
@@ -2742,7 +2742,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		// (and gets an early exit) or we need to check every applicable role to
 		// ensure the access is permitted.
 
-		if mfaAllowed && deviceAllowed {
+		if mfaAllowed && deviceTrusted {
 			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource granted, allow rule in role matched",
 				slog.String("role", role.GetName()),
 			)
@@ -2758,14 +2758,20 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		}
 
 		// Device verification.
+		deviceVerificationPassed := true
 		switch role.GetOptions().DeviceTrustMode {
-		case constants.DeviceTrustModeRequired, constants.DeviceTrustModeRequiredHuman:
-			if !deviceAllowed {
-				logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, role requires a trusted device",
-					slog.String("role", role.GetName()),
-				)
-				return ErrTrustedDeviceRequired
-			}
+		case constants.DeviceTrustModeRequiredHuman:
+			// Humans must use trusted devices, bots can use untrusted devices.
+			deviceVerificationPassed = deviceTrusted || state.IsBot
+		case constants.DeviceTrustModeRequired:
+			// Only trusted devices allowed for bot human and bot users.
+			deviceVerificationPassed = deviceTrusted
+		}
+		if !deviceVerificationPassed {
+			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, role requires a trusted device",
+				slog.String("role", role.GetName()),
+			)
+			return ErrTrustedDeviceRequired
 		}
 
 		// Current role allows access, but keep looking for a more restrictive
@@ -3620,6 +3626,9 @@ type AccessState struct {
 	// It's recommended to set this in tandem with EnableDeviceVerification.
 	// See [dtauthz.IsTLSDeviceVerified] and [dtauthz.IsSSHDeviceVerified].
 	DeviceVerified bool
+	// IsBot determines whether the user certificate belongs to a bot. It's used
+	// when deciding whether to enforce device verification.
+	IsBot bool
 }
 
 // MFARequired determines when MFA is required for a user to access a resource.
@@ -3721,6 +3730,7 @@ func AccessStateFromSSHIdentity(ctx context.Context, ident *sshca.Identity, chec
 
 	state.EnableDeviceVerification = true
 	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(ident)
+	state.IsBot = ident.IsBot()
 	return state, nil
 }
 

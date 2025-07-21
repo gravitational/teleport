@@ -6780,6 +6780,24 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 			},
 		},
 	}
+	matchingLabelsRoleWithDeviceTrustForHumans := &types.RoleV6{
+		Metadata: types.Metadata{
+			Name:      "matching-labels-devicetrust-humans",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				DeviceTrustMode: constants.DeviceTrustModeRequiredHuman,
+			},
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
+				KubernetesLabels: types.Labels{
+					"foo": apiutils.Strings{"bar"},
+					"baz": apiutils.Strings{"qux"},
+				},
+			},
+		},
+	}
 	noLabelsRole := &types.RoleV6{
 		Metadata: types.Metadata{
 			Name:      "no-labels",
@@ -6918,6 +6936,28 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 				DeviceVerified:           false,
 			},
 			hasAccess: true, // doesn't match device trust role
+		},
+		{
+			name:    "role requires device trust for all, is bot",
+			roles:   []*types.RoleV6{matchingLabelsRoleWithDeviceTrust},
+			cluster: clusterWithLabels,
+			state: AccessState{
+				EnableDeviceVerification: true,
+				DeviceVerified:           false,
+				IsBot:                    true,
+			},
+			hasAccess: false,
+		},
+		{
+			name:    "role requires device trust for humans, is bot",
+			roles:   []*types.RoleV6{matchingLabelsRoleWithDeviceTrustForHumans},
+			cluster: clusterWithLabels,
+			state: AccessState{
+				EnableDeviceVerification: true,
+				DeviceVerified:           false,
+				IsBot:                    true,
+			},
+			hasAccess: true,
 		},
 	}
 	for _, tc := range testCases {
