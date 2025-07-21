@@ -23,9 +23,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 func TestProcessStateGetState(t *testing.T) {
