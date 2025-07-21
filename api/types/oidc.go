@@ -595,6 +595,7 @@ func (r *OIDCConnectorV3) GetEnableRequestObjects() bool {
 	return r.Spec.EnableRequestObjects
 }
 
+// SetEnableRequestObjects enables/disables the use of JWT-Secured Authorization Requests when making auth requests
 func (r *OIDCConnectorV3) SetEnableRequestObjects(enable bool) {
 	r.Spec.EnableRequestObjects = enable
 }
