@@ -12,6 +12,7 @@ Teleport's `role` resource provides the following options for controlling MCP
 access:
 ```yaml
 kind: role
+version: v8
 metadata:
   name: mcp-developer
 spec:
@@ -47,8 +48,6 @@ spec:
       # tools: list of tools denied for this role.
       tools:
       - slack_post_message
-
-version: v8
 ```
 
 <Admonition
@@ -73,7 +72,7 @@ For full details on how traits work in Teleport roles, see the [Access Controls
 Reference](../../reference/access-controls/roles.mdx).
 
 For example, here is what a role may look like if you want to assign allowed
-tools from the user's Okta `databases` assertion:
+tools from the user's Okta `mcp_tools` assertion:
 
 ```yaml
 spec:
