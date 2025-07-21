@@ -43,6 +43,34 @@ app_service:
       run_as_host_user: "docker"
 ```
 
+## Resource
+
+The MCP server resources are registered as `app` resources in the Teleport
+backend. Here is the spec of MCP server resources managed by `tctl` resource
+command:
+
+```yaml
+kind: app
+version: v3
+metadata:
+  # MCP server name
+  name: everything
+  # MCP server description.
+  description: The Everything MCP server
+  # MCP server labels.
+  labels:
+    env: local
+spec:
+  mcp:
+    # Command to launch stdio-based MCP servers.
+    command: "docker"
+    # Args to execute with the command.
+    args: ["run", "-i", "--rm", "mcp/everything"]
+    # Name of the host user account under which the command will be
+    # executed. Required for stdio-based MCP servers.
+    run_as_host_user: "docker"
+```
+
 ## CLI
 
 This section shows CLI commands relevant for MCP access.
