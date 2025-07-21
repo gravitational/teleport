@@ -620,9 +620,9 @@ export function newResourceAccess(
     case 'kube_cluster':
       return {
         kind: 'kube_cluster',
-        groups: [stringToOption('{{internal.kubernetes_groups}}')],
+        groups: [stringToOption('*')],
         labels: [],
-        resources: [],
+        resources: [newKubernetesResourceModel(roleVersion)],
         users: [],
         roleVersion,
         hideValidationErrors: true,

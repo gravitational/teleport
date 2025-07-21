@@ -173,7 +173,7 @@ describe('KubernetesAccessSection', () => {
     expect(onChange).toHaveBeenLastCalledWith({
       kind: 'kube_cluster',
       groups: [
-        expect.objectContaining({ value: '{{internal.kubernetes_groups}}' }),
+        expect.objectContaining({ value: '*' }),
         expect.objectContaining({ value: 'group1' }),
         expect.objectContaining({ value: 'group2' }),
       ],

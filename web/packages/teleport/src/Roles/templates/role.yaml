@@ -9,13 +9,9 @@ spec:
     # List of Kubernetes cluster users can access the k8s API
     kubernetes_labels:
       '*': '*'
-    # This role is mapped to Kubernetes 'developer' group.
+    # This role is mapped to the configured value.
     kubernetes_groups:
-    - '{{internal.kubernetes_groups}}'
-    - developer
-    kubernetes_users:
-    - '{{internal.kubernetes_users}}'
-    - 'dev'
+    - '*'
 
     # List of Kubernetes resources users can access with this role
     # This example allows access to all resources in all namespaces

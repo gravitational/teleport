@@ -288,38 +288,6 @@ export function KubernetesAccessSection({
   );
   return (
     <>
-      <FieldSelectCreatable
-        isMulti
-        label="Groups"
-        placeholder="Type a group name and press Enter"
-        isDisabled={isProcessing}
-        formatCreateLabel={label => `Group: ${label}`}
-        components={{
-          DropdownIndicator: null,
-        }}
-        openMenuOnClick={false}
-        value={value.groups}
-        onChange={groups => onChange?.({ ...value, groups })}
-        menuPosition="fixed"
-        rule={precomputed(validation.fields.groups)}
-      />
-
-      <FieldSelectCreatable
-        isMulti
-        label="Users"
-        placeholder="Type a user name and press Enter"
-        isDisabled={isProcessing}
-        formatCreateLabel={label => `User: ${label}`}
-        components={{
-          DropdownIndicator: null,
-        }}
-        openMenuOnClick={false}
-        value={value.users}
-        onChange={users => onChange?.({ ...value, users })}
-        menuPosition="fixed"
-        rule={precomputed(validation.fields.users)}
-      />
-
       <LabelsInput
         atLeastOneRow
         legend="Labels"
@@ -352,6 +320,44 @@ export function KubernetesAccessSection({
             }
           />
         ))}
+
+        <SectionBox
+          titleSegments={['Advanced']}
+          validation={validation}
+          initiallyCollapsed
+        >
+          <FieldSelectCreatable
+            isMulti
+            label="Groups"
+            placeholder="Type a group name and press Enter"
+            isDisabled={isProcessing}
+            formatCreateLabel={label => `Group: ${label}`}
+            components={{
+              DropdownIndicator: null,
+            }}
+            openMenuOnClick={false}
+            value={value.groups}
+            onChange={groups => onChange?.({ ...value, groups })}
+            menuPosition="fixed"
+            rule={precomputed(validation.fields.groups)}
+          />
+
+          <FieldSelectCreatable
+            isMulti
+            label="Users"
+            placeholder="Type a user name and press Enter"
+            isDisabled={isProcessing}
+            formatCreateLabel={label => `User: ${label}`}
+            components={{
+              DropdownIndicator: null,
+            }}
+            openMenuOnClick={false}
+            value={value.users}
+            onChange={users => onChange?.({ ...value, users })}
+            menuPosition="fixed"
+            rule={precomputed(validation.fields.users)}
+          />
+        </SectionBox>
 
         <Box>
           <Button
