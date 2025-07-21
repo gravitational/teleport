@@ -134,20 +134,25 @@ function findVersionFromClusters(sources: {
 
 /** When `false` is returned, the user will need to click 'Download' manually. */
 export function shouldAutoDownload(updatesStatus: AutoUpdatesEnabled): boolean {
-  if (updatesStatus.source.kind !== 'most-compatible') {
-    return true;
+  const { kind } = updatesStatus.source;
+  switch (kind) {
+    case 'env-var':
+    case 'managing-cluster':
+      return true;
+    case 'most-compatible':
+      return (
+        // Prevent auto-downloading in cases where the most-compatible approach had
+        // to ignore some unreachable clusters.
+        // This can happen when a cluster that manages updates becomes temporarily unavailable
+        // – we don't want another cluster to suddenly take over managing updates.
+        updatesStatus.source.unreachableClusters.length === 0 &&
+        // Do not download the most compatible version automatically if the managing
+        // cluster is unreachable or has auto-updates disabled.
+        !updatesStatus.source.skippedManagingClusterUri
+      );
+    default:
+      kind satisfies never;
   }
-
-  return (
-    // Prevent auto-downloading in cases where the most-compatible approach had
-    // to ignore some unreachable clusters.
-    // This can happen when a cluster that manages updates becomes temporarily unavailable
-    // – we don't want another cluster to suddenly take over managing updates.
-    updatesStatus.source.unreachableClusters.length === 0 &&
-    // Do not download the most compatible version automatically if the managing
-    // cluster is unreachable or has auto-updates disabled.
-    !updatesStatus.source.skippedManagingClusterUri
-  );
 }
 
 /** Assigns each cluster a compatibility with client tools from other clusters. */
