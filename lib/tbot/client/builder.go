@@ -22,12 +22,12 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/gravitational/trace"
 	"github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
-	"github.com/gravitational/trace"
 )
 
 // NewBuilder creates a new Builder.
