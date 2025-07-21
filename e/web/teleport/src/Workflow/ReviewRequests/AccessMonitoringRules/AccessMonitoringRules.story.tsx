@@ -345,7 +345,7 @@ const createRule = http.post(
   }
 );
 
-const getRoles = http.get(cfg.oss.api.listRolesPath.split('?')[0], () => {
+const getRoles = http.get(cfg.oss.api.role.listWithoutQueryParam, () => {
   return HttpResponse.json({
     startKey: '',
     items: [

@@ -27,14 +27,16 @@ export const Dialog: StoryObj = {
             },
           ]);
         }),
-        http.get(cfg.oss.getListRolesUrl(), () => {
-          return HttpResponse.json([
-            { name: 'admin', description: 'admin' },
-            { name: 'auditor', description: 'auditor' },
-            { name: 'reviewer', description: 'reviewer' },
-            { name: 'access', description: 'access' },
-            { name: 'editor' },
-          ]);
+        http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
+          return HttpResponse.json({
+            items: [
+              { name: 'admin', description: 'admin' },
+              { name: 'auditor', description: 'auditor' },
+              { name: 'reviewer', description: 'reviewer' },
+              { name: 'access', description: 'access' },
+              { name: 'editor' },
+            ],
+          });
         }),
       ],
     },
@@ -65,7 +67,7 @@ export const DialogError: StoryObj = {
             { status: 500 }
           );
         }),
-        http.get(cfg.oss.getListRolesUrl(), () => {
+        http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
           return HttpResponse.json(
             {
               message: 'testing error for getRoles()',

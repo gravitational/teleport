@@ -357,7 +357,7 @@ export const ViewingAsAdmin: StoryObj = {
             },
           ]);
         }),
-        http.get(cfg.oss.getListRolesUrl(), () => {
+        http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
           return HttpResponse.json([
             { name: 'admin' },
             { name: 'auditor' },

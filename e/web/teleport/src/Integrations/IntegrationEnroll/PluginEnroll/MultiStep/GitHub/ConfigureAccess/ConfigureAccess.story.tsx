@@ -32,7 +32,7 @@ export const SkipOrCreateRole = () => {
 };
 SkipOrCreateRole.parameters = {
   msw: {
-    handlers: [http.post(cfg.getRoleUrl(), () => HttpResponse.json({}))],
+    handlers: [http.post(cfg.api.role.create, () => HttpResponse.json({}))],
   },
 };
 
@@ -52,7 +52,7 @@ export const CreateRoleLoading = () => {
 };
 CreateRoleLoading.parameters = {
   msw: {
-    handlers: [http.post(cfg.getRoleUrl(), () => delay('infinite'))],
+    handlers: [http.post(cfg.api.role.create, () => delay('infinite'))],
   },
 };
 
@@ -73,7 +73,7 @@ export const CreateRoleFailed = () => {
 CreateRoleFailed.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.getRoleUrl(), () =>
+      http.post(cfg.api.role.create, () =>
         HttpResponse.json(
           {
             error: { message: 'Whoops, error creating.' },

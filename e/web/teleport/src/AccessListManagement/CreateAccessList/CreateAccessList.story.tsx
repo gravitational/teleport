@@ -36,7 +36,7 @@ export const Failed: StoryObj = {
   parameters: {
     msw: {
       handlers: [
-        http.get(cfg.oss.getListRolesUrl(), () => {
+        http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
           return HttpResponse.json([]);
         }),
         http.get(cfg.oss.api.usersPath, () => {
@@ -69,7 +69,7 @@ export const NoAccess: StoryObj = {
         http.get(cfg.oss.api.usersPath, () => {
           return new HttpResponse();
         }),
-        http.get(cfg.oss.api.listRolesPath, () => {
+        http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
           return new HttpResponse();
         }),
       ],
@@ -88,7 +88,7 @@ export const LoadedWithoutLimit: StoryObj = {
   parameters: {
     msw: {
       handlers: [
-        http.get(cfg.oss.getListRolesUrl(), () => {
+        http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
           return HttpResponse.json([]);
         }),
         http.get(cfg.oss.api.usersPath, () => {
@@ -115,7 +115,7 @@ export const LoadedReachedLimit: StoryObj = {
   parameters: {
     msw: {
       handlers: [
-        http.get(cfg.oss.getListRolesUrl(), () => {
+        http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
           return HttpResponse.json([]);
         }),
         http.get(cfg.oss.api.usersPath, () => {
