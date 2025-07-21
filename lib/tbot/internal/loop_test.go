@@ -26,9 +26,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func Test_RunOnInterval(t *testing.T) {
