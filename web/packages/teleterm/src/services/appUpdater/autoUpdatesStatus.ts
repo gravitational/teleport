@@ -82,23 +82,31 @@ function findVersionFromClusters(sources: {
     };
   }
 
-  const clusterUri = sources.managingClusterUri;
-  if (clusterUri) {
-    const cluster = candidateClusters.find(c => c.clusterUri === clusterUri);
-    if (cluster?.toolsAutoUpdate) {
-      return {
-        enabled: true,
-        version: cluster.toolsVersion,
-        source: {
-          kind: 'managing-cluster',
-          candidateClusters,
-          clusterUri,
-          unreachableClusters,
-        },
-      };
-    }
+  const { managingClusterUri } = sources;
+  const managingCluster = candidateClusters.find(
+    c => c.clusterUri === managingClusterUri
+  );
+
+  if (managingCluster?.toolsAutoUpdate) {
+    return {
+      enabled: true,
+      version: managingCluster.toolsVersion,
+      source: {
+        kind: 'managing-cluster',
+        candidateClusters,
+        clusterUri: managingCluster.clusterUri,
+        unreachableClusters,
+      },
+    };
+  }
+
+  const managingClusterIsSkipped =
+    !!managingCluster ||
+    unreachableClusters.some(c => c.clusterUri === managingClusterUri);
+
+  if (managingClusterIsSkipped) {
     logger.warn(
-      `Cluster ${clusterUri} managing updates was not found, continuing resolution.`
+      `Cluster ${managingClusterUri} managing updates is unreachable or not managing updates, continuing resolution.`
     );
   }
 
@@ -115,6 +123,9 @@ function findVersionFromClusters(sources: {
         clustersUri: candidateClusters
           .filter(c => c.toolsVersion === mostCompatibleVersion)
           .map(c => c.clusterUri),
+        skippedManagingClusterUri: managingClusterIsSkipped
+          ? managingClusterUri
+          : '',
       },
     };
   }
@@ -125,6 +136,24 @@ function findVersionFromClusters(sources: {
     unreachableClusters,
     candidateClusters,
   };
+}
+
+/** When `false` is returned, the user will need to click 'Download' manually. */
+export function shouldAutoDownload(updatesStatus: AutoUpdatesEnabled): boolean {
+  if (updatesStatus.source.kind !== 'most-compatible') {
+    return true;
+  }
+
+  return (
+    // If reading a cluster version fails, another cluster might take over
+    // managing updates.
+    // This can trigger an unintended update if the cluster that previously managed updates
+    // is only temporarily unavailable.
+    updatesStatus.source.unreachableClusters.length === 0 &&
+    // If managing cluster exists but is not able to manage the updates,
+    // do not download most compatible version automatically.
+    !updatesStatus.source.skippedManagingClusterUri
+  );
 }
 
 /** Assigns each candidate a compatibility with client tools from other clusters. */
@@ -216,6 +245,11 @@ export type AutoUpdatesEnabled = {
          * If non-empty, the update is not automatically downloaded.
          * */
         unreachableClusters: UnreachableCluster[];
+        /**
+         * Indicates whether a cluster configured to manage updates is unreachable
+         * or not managing updates (toolsAutoUpdate: false).
+         */
+        skippedManagingClusterUri: string;
       };
 };
 

@@ -35,6 +35,7 @@ import {
   AutoUpdatesEnabled,
   AutoUpdatesStatus,
   resolveAutoUpdatesStatus,
+  shouldAutoDownload,
 } from './autoUpdatesStatus';
 import {
   ClientToolsUpdateProvider,
@@ -121,18 +122,6 @@ export interface AppUpdaterStorage<
 > {
   get(): T;
   set(value: Partial<T>): void;
-}
-
-/** When `false` is returned, the user will need to click 'Download' manually. */
-function shouldAutoDownload(updatesStatus: AutoUpdatesEnabled): boolean {
-  // If reading a cluster version fails, another cluster might take over
-  // managing updates.
-  // This can trigger an unintended update if the cluster that previously managed updates
-  // is only temporarily unavailable.
-  return !(
-    updatesStatus.source.kind === 'most-compatible' &&
-    updatesStatus.source.unreachableClusters.length > 0
-  );
 }
 
 function registerEventHandlers(

@@ -18,7 +18,11 @@
 
 import Logger, { NullService } from 'teleterm/logger';
 
-import { resolveAutoUpdatesStatus } from './autoUpdatesStatus';
+import {
+  AutoUpdatesEnabled,
+  resolveAutoUpdatesStatus,
+  shouldAutoDownload,
+} from './autoUpdatesStatus';
 
 beforeAll(() => {
   Logger.init(new NullService());
@@ -171,6 +175,7 @@ test.each([
         ],
         unreachableClusters: [],
         clustersUri: ['/clusters/cluster-a', '/clusters/cluster-b'],
+        skippedManagingClusterUri: '',
       },
     },
   },
@@ -221,6 +226,7 @@ test.each([
         ],
         unreachableClusters: [],
         clustersUri: ['/clusters/cluster-b'],
+        skippedManagingClusterUri: '',
       },
     },
   },
@@ -271,12 +277,13 @@ test.each([
         ],
         unreachableClusters: [],
         clustersUri: ['/clusters/cluster-b'],
+        skippedManagingClusterUri: '',
       },
     },
   },
   {
     title:
-      'resolving using most compatible version where clusters are on different major version',
+      'resolving using most compatible version when clusters are on different major version',
     input: {
       versionEnvVar: '',
       getClusterVersions: async () => ({
@@ -296,7 +303,6 @@ test.each([
         ],
         unreachableClusters: [],
       }),
-
       managingClusterUri: '/clusters/missing-cluster',
     },
     expected: {
@@ -322,6 +328,106 @@ test.each([
         ],
         unreachableClusters: [],
         clustersUri: ['/clusters/cluster-b'],
+        skippedManagingClusterUri: '',
+      },
+    },
+  },
+  {
+    title:
+      'resolving using most compatible version when cluster managing updates stopped doing it',
+    input: {
+      versionEnvVar: '',
+      getClusterVersions: async () => ({
+        reachableClusters: [
+          {
+            clusterUri: '/clusters/cluster-a',
+            toolsVersion: '16.0.0',
+            minToolsVersion: '15.0.0-aa',
+            toolsAutoUpdate: false,
+          },
+          {
+            clusterUri: '/clusters/cluster-b',
+            toolsVersion: '15.0.0',
+            minToolsVersion: '14.0.0-aa',
+            toolsAutoUpdate: true,
+          },
+        ],
+        unreachableClusters: [],
+      }),
+      managingClusterUri: '/clusters/cluster-a',
+    },
+    expected: {
+      enabled: true,
+      version: '15.0.0',
+      source: {
+        kind: 'most-compatible',
+        candidateClusters: [
+          {
+            clusterUri: '/clusters/cluster-a',
+            toolsAutoUpdate: false,
+            toolsVersion: '16.0.0',
+            minToolsVersion: '15.0.0-aa',
+            otherCompatibleClusters: [],
+          },
+          {
+            clusterUri: '/clusters/cluster-b',
+            toolsAutoUpdate: true,
+            toolsVersion: '15.0.0',
+            minToolsVersion: '14.0.0-aa',
+            otherCompatibleClusters: ['/clusters/cluster-a'],
+          },
+        ],
+        skippedManagingClusterUri: '/clusters/cluster-a',
+        unreachableClusters: [],
+        clustersUri: ['/clusters/cluster-b'],
+      },
+    },
+  },
+  {
+    title:
+      'resolving using most compatible version when cluster managing updates is unreachable',
+    input: {
+      versionEnvVar: '',
+      getClusterVersions: async () => ({
+        reachableClusters: [
+          {
+            clusterUri: '/clusters/cluster-b',
+            toolsVersion: '15.0.0',
+            minToolsVersion: '14.0.0-aa',
+            toolsAutoUpdate: true,
+          },
+        ],
+        unreachableClusters: [
+          {
+            clusterUri: '/clusters/cluster-a',
+            errorMessage: 'Something went wrong',
+          },
+        ],
+      }),
+      managingClusterUri: '/clusters/cluster-a',
+    },
+    expected: {
+      enabled: true,
+      version: '15.0.0',
+      source: {
+        kind: 'most-compatible',
+        candidateClusters: [
+          {
+            clusterUri: '/clusters/cluster-b',
+            toolsAutoUpdate: true,
+            toolsVersion: '15.0.0',
+            minToolsVersion: '14.0.0-aa',
+            otherCompatibleClusters: [],
+          },
+        ],
+        skippedManagingClusterUri: '/clusters/cluster-a',
+        unreachableClusters: [
+          {
+            clusterUri: '/clusters/cluster-a',
+            errorMessage: 'Something went wrong',
+          },
+        ],
+        clustersUri: ['/clusters/cluster-b'],
       },
     },
   },
@@ -335,19 +441,19 @@ test.each([
           {
             clusterUri: '/clusters/cluster-a',
             toolsVersion: '18.0.0',
-            minToolsVersion: '17.0.0',
+            minToolsVersion: '17.0.0-aa',
             toolsAutoUpdate: false,
           },
           {
             clusterUri: '/clusters/cluster-b',
             toolsVersion: '16.0.0',
-            minToolsVersion: '15.0.0',
+            minToolsVersion: '15.0.0-aa',
             toolsAutoUpdate: true,
           },
           {
             clusterUri: '/clusters/cluster-c',
             toolsVersion: '16.1.0',
-            minToolsVersion: '15.0.0',
+            minToolsVersion: '15.0.0-aa',
             toolsAutoUpdate: true,
           },
         ],
@@ -363,21 +469,21 @@ test.each([
           clusterUri: '/clusters/cluster-a',
           toolsAutoUpdate: false,
           toolsVersion: '18.0.0',
-          minToolsVersion: '17.0.0',
+          minToolsVersion: '17.0.0-aa',
           otherCompatibleClusters: [],
         },
         {
           clusterUri: '/clusters/cluster-b',
           toolsAutoUpdate: true,
           toolsVersion: '16.0.0',
-          minToolsVersion: '15.0.0',
+          minToolsVersion: '15.0.0-aa',
           otherCompatibleClusters: ['/clusters/cluster-c'],
         },
         {
           clusterUri: '/clusters/cluster-c',
           toolsAutoUpdate: true,
           toolsVersion: '16.1.0',
-          minToolsVersion: '15.0.0',
+          minToolsVersion: '15.0.0-aa',
           otherCompatibleClusters: ['/clusters/cluster-b'],
         },
       ],
@@ -387,4 +493,94 @@ test.each([
 ])('$title', async ({ input, expected }) => {
   const result = await resolveAutoUpdatesStatus(input);
   expect(result).toEqual(expected);
+});
+
+describe('should not auto download', () => {
+  test.each<{ title: string; input: AutoUpdatesEnabled }>([
+    {
+      title: 'when cluster previously managing updates was skipped',
+      input: {
+        enabled: true,
+        version: '15.0.0',
+        source: {
+          candidateClusters: [
+            {
+              clusterUri: '/clusters/cluster-a',
+              minToolsVersion: '15.0.0-aa',
+              otherCompatibleClusters: ['/clusters/cluster-b'],
+              toolsAutoUpdate: false,
+              toolsVersion: '16.1.0',
+            },
+            {
+              clusterUri: '/clusters/cluster-b',
+              minToolsVersion: '15.0.0-aa',
+              otherCompatibleClusters: ['/clusters/cluster-a'],
+              toolsAutoUpdate: true,
+              toolsVersion: '16.1.0',
+            },
+          ],
+          clustersUri: ['/clusters/cluster-a', '/clusters/cluster-b'],
+          skippedManagingClusterUri: '/clusters/cluster-b',
+          kind: 'most-compatible',
+          unreachableClusters: [],
+        },
+      },
+    },
+    {
+      title: 'when cluster previously managing updates is unreachable',
+      input: {
+        enabled: true,
+        version: '16.1.0',
+        source: {
+          candidateClusters: [
+            {
+              clusterUri: '/clusters/cluster-b',
+              minToolsVersion: '15.0.0',
+              otherCompatibleClusters: [],
+              toolsAutoUpdate: true,
+              toolsVersion: '16.1.0',
+            },
+          ],
+          clustersUri: ['/clusters/cluster-b'],
+          isManagingClusterUnreachableOrNotUpdating: true,
+          kind: 'most-compatible',
+          unreachableClusters: [
+            {
+              clusterUri: '/clusters/cluster-a',
+              errorMessage: 'Something went wrong',
+            },
+          ],
+        },
+      },
+    },
+    {
+      title: 'when there is unreachable cluster',
+      input: {
+        enabled: true,
+        version: '16.1.0',
+        source: {
+          candidateClusters: [
+            {
+              clusterUri: '/clusters/cluster-b',
+              minToolsVersion: '15.0.0-aa',
+              otherCompatibleClusters: [],
+              toolsAutoUpdate: true,
+              toolsVersion: '16.1.0',
+            },
+          ],
+          skippedManagingClusterUri: '/clusters/cluster-b',
+          kind: 'most-compatible',
+          unreachableClusters: [
+            {
+              clusterUri: '/clusters/cluster-a',
+              errorMessage: 'Something went wrong',
+            },
+          ],
+        },
+      },
+    },
+  ])('$title', ({ input }) => {
+    const result = shouldAutoDownload(input);
+    expect(result).toBeFalsy();
+  });
 });
