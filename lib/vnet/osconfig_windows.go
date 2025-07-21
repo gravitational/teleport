@@ -71,8 +71,9 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 		if !state.configuredV4Address {
 			log.InfoContext(ctx, "Setting IPv4 address for the TUN device",
 				"device", cfg.tunName, "address", cfg.tunIPv4)
+			netMask := maskForIPNet(cfg.tunIPv4Net)
 			if err := runCommand(ctx,
-				"netsh", "interface", "ip", "set", "address", cfg.tunName, "static", cfg.tunIPv4,
+				"netsh", "interface", "ip", "set", "address", cfg.tunName, "static", cfg.tunIPv4, netMask,
 			); err != nil {
 				return trace.Wrap(err)
 			}
@@ -133,7 +134,11 @@ func addrMaskForCIDR(cidr string) (string, string, error) {
 	if err != nil {
 		return "", "", trace.Wrap(err, "parsing CIDR range %s", cidr)
 	}
-	return ipNet.IP.String(), net.IP(ipNet.Mask).String(), nil
+	return ipNet.IP.String(), maskForIPNet(ipNet), nil
+}
+
+func maskForIPNet(ipNet *net.IPNet) string {
+	return net.IP(ipNet.Mask).String()
 }
 
 func shouldUpdateDNSConfig(cfg *osConfig, state *platformOSConfigState) bool {
