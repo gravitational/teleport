@@ -16,10 +16,9 @@ Ability to manage Access List members with Terraform. This is enterprise-only fe
 
 ## Why
 
-Currently the Access List membership model is very dynamic in nature. Periodic membership reviews
-are required, membership can expire, and custom dynamic eligibility criteria can be specified.
-Because of that, the IaC approach to Access List membership was not provided so far and we don't
-have a good way to introduce it for the Access Lists in their current form.
+Currently the Access List membership model requires periodic membership reviews. Because of that,
+the IaC approach to Access List membership was not provided so far and we don't have a good way to
+introduce it for the Access Lists in their current form.
 
 Manual management of Access List membership doesn't always scale. There are ways of proper
 structuring teams as Access Lists and then using the nested Access List concept to assign teams to
@@ -32,8 +31,8 @@ groups](https://learn.microsoft.com/en-us/entra/identity/hybrid/connect/how-to-c
 
 A new concept, a ***static Access Lists***, is introduced to overcome the outlined limitations. The
 idea is to have Access List with a *spec.type* set to "static". Creating the Access List with the
-new type will disable the dynamic features of the *static* Access List (like reviews, expiration,
-or eligibility criteria). This will make it possible to manage such Access Lists using IaC tools. 
+new static type will disable reviews and therefore make it possible to manage such Access Lists
+using IaC tools.
 
 ## Details
 
@@ -45,7 +44,7 @@ or eligibility criteria). This will make it possible to manage such Access Lists
 
 #### Terraform
 
-There will be a new Terraform resource named `teleport_access_list_member`. 
+There will be a new Terraform resource named `teleport_access_list_member`.
 
 ```hcl
 resource "teleport_access_list" "crane_operation" {
@@ -60,6 +59,12 @@ resource "teleport_access_list" "crane_operation" {
     type = "static"
     title = "Crane operation"
     description = "Used to grant access to the crane."
+    owners = [
+      {
+        name        = "gru"
+        description = "The supervillain."
+      }
+    ]
     grants = {
       roles = ["crane-operator"]
     }
@@ -74,7 +79,7 @@ resource "teleport_access_list_member" "crane_operator" {
   header = {
     version = "v1"
     metadata = {
-      name = "crane-operator" 
+      name = "crane-operator"
     }
   }
   spec = {
@@ -149,9 +154,11 @@ resource "teleport_access_list_member" "crane_operation_okta_group" {
 
 There are a few things to note here:
 
+- *access_list.spec.owners* - as static Access Lists don't support reviews, owners don't serve any
+  special purpose other than RBAC - owners are allowed to add members to the list, but this can
+  happen only through Terraform or tctl right now
 - fields not present in *teleport_access_list* resource:
   - *.spec.audit* - reviews are disabled for static Access Lists and specifying it results in an error
-  - *.spec.owners* - owners are optional with static Access Lists as they don't serve any major purpose
   - *.spec.ownership_requires* - allowed but skipped because *owners* are skipped
 - fields not present in *teleport_access_list_member* resource:
   - *.spec.name* - when not set, defaults to *.header.metadata.name*
@@ -185,33 +192,72 @@ teleport_access_list.crane_operation: Modifying... [id=crane-operation]
 │   on main.tf line 15, in resource "teleport_access_list" "crane_operation":
 │   15: resource "teleport_access_list" "crane_operation" {
 │
-│ access_list "crane-operation" type "static" cannot be changed to "dynamic"
+│ access_list "crane-operation" type "static" cannot be changed to ""
 ╵
 ```
 
 The *.spec.audit* field is illegal for static *access_list*:
 
 ```
-teleport_access_list.crane_operation: Modifying... [id=crane-operation]
+teleport_access_list.characters: Creating...
 ╷
-│ Error: Error reading AccessList
+│ Error: Error creating AccessList
 │
-│   with teleport_access_list.crane_operation,
-│   on main.tf line 15, in resource "teleport_access_list" "crane_operation":
-│   15: resource "teleport_access_list" "crane_operation" {
+│   with teleport_access_list.characters,
+│   on main.tf line 14, in resource "teleport_access_list" "characters":
+│   14: resource "teleport_access_list" "characters" {
 │
-│ Can not convert *accesslist.AccessList to AccessList: audit not supported for static access_list
+│ audit not supported for non-reviewable access_list of type "static"
+╵
+```
+
+Trying to create a member of non-static access_list:
+
+```
+teleport_access_list_member.fighter: Creating...
+╷
+│ Error: Error reading Member
+│
+│   with teleport_access_list_member.fighter,
+│   on main.tf line 42, in resource "teleport_access_list_member" "fighter":
+│   42: resource "teleport_access_list_member" "fighter" {
+│
+│ rpc error: code = Unknown desc = member.spec.access_list must reference an access_list of static
+│ type (i.e. with spec.type set to "static"). Member "fighter" cannot be added to access list
+│ "characters" because access list "characters" is not of "static" type. Teleport IaC tools support
+│ adding members only to "static" access lists.
 ╵
 ```
 
 Trying to import non-static access_list member:
 
 ```
-teleport_access_list_member.alice: Importing from ID "dynamic/alice"...
+teleport_access_list_member.fighter: Importing from ID "characters/fighter"...
 ╷
 │ Error: Error reading Member
 │
-│ member's access_list is not static type
+│ rpc error: code = Unknown desc = member.spec.access_list must reference an access_list of static
+│ type (i.e. with spec.type set to "static"). Member "fighter" cannot be added to access list
+│ "characters" because access list "characters" is not of "static" type. Teleport IaC tools support
+│ adding members only to "static" access lists.
+╵
+```
+
+Member's *spec.name* is not empty and not equal to *metadata.name*:
+
+```
+teleport_access_list_member.fighter: Creating...
+╷
+│ Error: Error creating Member
+│
+│   with teleport_access_list_member.fighter,
+│   on main.tf line 36, in resource "teleport_access_list_member" "fighter":
+│   36: resource "teleport_access_list_member" "fighter" {
+│
+│ request's member.header.metadata.name "fighter" and member.spec.name "wizard" must be equal
+│ (alternatively spec.name can be empty). Tip: There can be multiple members with the same
+│ metadata.name if they have different spec.access_list set (i.e. they belong to different access
+│ lists).
 ╵
 ```
 
@@ -284,14 +330,52 @@ static Access Lists and their members but:
 
 ### Backward compatibility
 
-**Breaking:** If a *static Access List* is created with owners field empty, then it is impossible
-to downgrade the cluster to the previous version without breaking the cache. This can be recovered
-only by deleting all static Access Lists **before the downgrade**. This is due to validation code
-in the cache which checks if Access Lists have non-empty owners set. The alternative is to set the
-owners, but it also has to happen before the downgrade.
+If a cluster with Access Lists of the new "static" type is created and the downgraded to a version
+not supporting the new type:
 
-This breaking change will be outlined in the changelog and Terraform *teleport_access_list_member*
-resource documentation.
+- if the static Access List is only being read, nothing happens
+- if the static Access List is modified in the UI in any way, including modifying its members it
+  ill be converted to a regular Access List, with audit set
+
+To better illustrate this, let's consider this scenario:
+
+- a static Access List is created with Terraform
+- cluster is downgraded
+- the static list is modified in the downgraded cluster version
+- the cluster is upgraded back again
+
+When Terraform is being run again, there will be errors like this:
+
+```
+╷
+│ Error: Error updating AccessList
+│
+│   with teleport_access_list.characters,
+│   on main.tf line 14, in resource "teleport_access_list" "characters":
+│   14: resource "teleport_access_list" "characters" {
+│
+│ audit not supported for non-reviewable access_list of type "static"
+╵
+```
+
+```
+╷
+│ Error: Error reading Member
+│
+│   with teleport_access_list_member.npcs,
+│   on main.tf line 76, in resource "teleport_access_list_member" "npcs":
+│   76: resource "teleport_access_list_member" "npcs" {
+│
+│ rpc error: code = Unknown desc = member.spec.access_list must reference an access_list of static type (i.e. with spec.type set to "static"). Member "npcs" cannot be added to access list
+│ "characters" because access list "characters" is not of "static" type. Teleport IaC tools support adding members only to "static" access lists.
+╵
+```
+
+**NOTE:** This can be very confusing if the HA cluster runs two versions (one with the static Access
+*Lists support, and one without) and the feature is being used.
+
+It can mean, that in case of downgrade and upgrade everything has to be potentially removed
+(including the resources in the Terraform state) and started over again.
 
 ### Audit events
 
@@ -301,8 +385,9 @@ Audit events will be exactly the same as the current Access List membership rela
 
 *Access Lists* section of the test plan should be extended with points verifying that:
 
-- it is not possible to set *audit* and *owners* are optional
+- it is not possible to set *audit*
 - Access List type cannot be changed
 - appropriate web UI elements are disabled for static Access Lists
 - Access List members can be managed with Terraform only for Access List of type static
 - Member *.spec.name* defaults to the resource name
+- When *.spec.name != .metadata.name* a clean error is displayed
