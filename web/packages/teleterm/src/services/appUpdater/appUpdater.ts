@@ -121,7 +121,7 @@ export interface AppUpdaterStorage<
   },
 > {
   get(): T;
-  set(value: Partial<T>): void;
+  put(value: Partial<T>): void;
 }
 
 function registerEventHandlers(

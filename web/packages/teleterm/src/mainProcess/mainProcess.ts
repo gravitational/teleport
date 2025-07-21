@@ -878,7 +878,7 @@ function makeAppUpdaterStorage(fs: FileStorage): AppUpdaterStorage {
       const state = fs.get(APP_UPDATER_STATE_KEY) as object;
       return { managingClusterUri: '', ...state };
     },
-    set: value => {
+    put: value => {
       const state = fs.get(APP_UPDATER_STATE_KEY) as object;
       fs.put(APP_UPDATER_STATE_KEY, { ...state, ...value });
     },
