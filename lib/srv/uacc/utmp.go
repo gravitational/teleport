@@ -1,3 +1,5 @@
+//go:build linux
+
 /*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -27,6 +29,7 @@ package uacc
 import "C"
 
 import (
+	"net"
 	"os"
 	"strings"
 	"sync"
@@ -63,6 +66,62 @@ const (
 	wtmpAltFilePath = "/var/run/wtmp"
 	btmpFilePath    = "/var/log/btmp"
 )
+
+func init() {
+	wtmp := &wtmpBackend{}
+	_, err := os.Stat(utmpFilePath)
+	if err == nil {
+		wtmp.utmpPath = utmpFilePath
+	}
+	for _, wtmpPath := range []string{wtmpFilePath, wtmpAltFilePath} {
+		_, err = os.Stat(wtmpPath)
+		if err == nil {
+			wtmp.wtmpPath = wtmpPath
+			break
+		}
+	}
+	_, err = os.Stat(btmpFilePath)
+	if err == nil {
+		wtmp.btmpPath = btmpFilePath
+	}
+	if wtmp.utmpPath != "" || wtmp.wtmpPath != "" || wtmp.btmpPath != "" {
+		registerBackend(wtmp)
+	}
+}
+
+type wtmpBackend struct {
+	utmpPath string
+	wtmpPath string
+	btmpPath string
+}
+
+func (w *wtmpBackend) Name() string {
+	return "wtmp"
+}
+
+func (w *wtmpBackend) Login(ttyName, username, hostname string, remote net.Addr, ts time.Time) error {
+	return nil
+}
+
+func (w *wtmpBackend) loginUtmp(ttyName, username, hostname string, remote net.Addr, ts time.Time) error {
+	return nil
+}
+
+func (w *wtmpBackend) loginWtmp(ttyName, username, hostname string, remote net.Addr, ts time.Time) error {
+	return nil
+}
+
+func (w *wtmpBackend) Logout(ttyName string, ts time.Time) error {
+	return nil
+}
+
+func (w *wtmpBackend) FailedLogin(username, hostname string, remote net.Addr, ts time.Time) error {
+	return nil
+}
+
+func (w *wtmpBackend) IsUserLoggedIn(username string) (bool, error) {
+	return false, nil
+}
 
 // Open writes a new entry to the utmp database with a tag of `USER_PROCESS`.
 // This should be called when an interactive session is started.
