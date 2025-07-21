@@ -1097,7 +1097,7 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 	require.NoError(t, err)
 
 	// Provide an incorrect generation counter value.
-	response, err = authServer.RegisterUsingBoundKeypairMethod(
+	nextResponse, err := authServer.RegisterUsingBoundKeypairMethod(
 		ctx,
 		makeInitReq(
 			withJoinState(response.JoinState),
@@ -1131,7 +1131,7 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 	// Try registering again now that we know the lock is properly in force.
 	// This should produce a new error message.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		nextResponse, err := auth.RegisterUsingBoundKeypairMethod(
+		nextResponse, err := authServer.RegisterUsingBoundKeypairMethod(
 			ctx,
 			makeInitReq(
 				withJoinState(response.JoinState),
@@ -1288,7 +1288,7 @@ func TestServer_RegisterUsingBoundKeypairMethod_JoinStateFailure(t *testing.T) {
 	// or may not be in force, but we also need to be absolutely certain to try
 	// to generate at least 2 locking events.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		nextResponse, err := auth.RegisterUsingBoundKeypairMethod(
+		nextResponse, err := authServer.RegisterUsingBoundKeypairMethod(
 			ctx,
 			makeInitReq(withJoinState(firstResponse.JoinState)),
 			solver.solver(),
