@@ -27,7 +27,7 @@ func TestPassiveHealthCheck(t *testing.T) {
 			callbacks: []error{nil},
 		},
 		{
-			desc: "test failure threshold",
+			desc:      "test failure threshold",
 			errs:      []error{testErr, testErr, testErr, nil, nil, nil},
 			callbacks: []error{testErr, nil},
 		},
@@ -65,6 +65,7 @@ func TestPassiveHealthCheck(t *testing.T) {
 				return err
 			})
 			for h.busy.Load() {
+				time.Sleep(time.Millisecond * 100)
 			}
 			require.Equal(t, len(tc.errs), probes)
 			require.Equal(t, tc.callbacks, callbacks)
