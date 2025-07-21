@@ -174,6 +174,9 @@ func RoleWithVersionForUser(u types.User, v string) types.Role {
 			KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
 			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			MCP: &types.MCPPermissions{
+				Tools: []string{types.Wildcard},
+			},
 			Rules: []types.Rule{
 				types.NewRule(types.KindRole, RW()),
 				types.NewRule(types.KindAuthConnector, RW()),
@@ -613,6 +616,11 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 		outCond.Roles = apiutils.Deduplicate(outCond.Roles)
 		outCond.Where = inCond.Where
 		r.SetImpersonateConditions(condition, outCond)
+
+		if mcp := r.GetMCPPermissions(condition); mcp != nil {
+			mcp.Tools = applyValueTraitsSlice(mcp.Tools, traits, "mcp.tools")
+			r.SetMCPPermissions(condition, mcp)
+		}
 	}
 
 	return r, nil
@@ -696,7 +704,7 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 				constants.TraitDBNames, constants.TraitDBUsers, constants.TraitDBRoles,
 				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
 				constants.TraitGCPServiceAccounts, constants.TraitJWT,
-				constants.TraitGitHubOrgs:
+				constants.TraitGitHubOrgs, constants.TraitMCPTools:
 			default:
 				return trace.BadParameter("unsupported variable %q", name)
 			}
@@ -1030,12 +1038,56 @@ func (result *EnumerationResult) WildcardDenied() bool {
 	return result.wildcardDenied
 }
 
+// ToEntities converts result back to allowed and denied entity slices.
+//
+// If wildcard is denied, only "*" is returned for the denied slice.
+// If wildcard is allowed, allowed entities will be appended to the allowed
+// slice after the "*" as a hint for users to select.
+// Denied entities is only included if the wildcard is allowed.
+func (result *EnumerationResult) ToEntities() (allowed, denied []string) {
+	if result.wildcardDenied {
+		return nil, []string{types.Wildcard}
+	}
+	if result.wildcardAllowed {
+		return append([]string{types.Wildcard}, result.Allowed()...), result.Denied()
+	}
+	return result.Allowed(), nil
+}
+
 // NewEnumerationResult returns new EnumerationResult.
 func NewEnumerationResult() EnumerationResult {
 	return EnumerationResult{
 		allowedDeniedMap: map[string]bool{},
 		wildcardAllowed:  false,
 		wildcardDenied:   false,
+	}
+}
+
+// NewEnumerationResultFromEntities creates a new EnumerationResult and
+// populates the result with provided allowed and denied entries.
+func NewEnumerationResultFromEntities(allowed, denied []string) EnumerationResult {
+	var wildcardAllowed bool
+	var wildcardDenied bool
+	allowedDeniedMap := make(map[string]bool)
+	for _, allow := range allowed {
+		if allow == types.Wildcard {
+			wildcardAllowed = true
+		} else {
+			allowedDeniedMap[allow] = true
+		}
+	}
+	for _, deny := range denied {
+		if deny == types.Wildcard {
+			wildcardDenied = true
+			wildcardAllowed = false
+			break
+		}
+		allowedDeniedMap[deny] = false
+	}
+	return EnumerationResult{
+		allowedDeniedMap: allowedDeniedMap,
+		wildcardAllowed:  wildcardAllowed,
+		wildcardDenied:   wildcardDenied,
 	}
 }
 
@@ -3675,4 +3727,24 @@ func AccessStateFromSSHIdentity(ctx context.Context, ident *sshca.Identity, chec
 	state.EnableDeviceVerification = true
 	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(ident)
 	return state, nil
+}
+
+// MCPToolMatcher matches a role against MCP tool.
+type MCPToolMatcher struct {
+	Name string
+}
+
+// Match matches MCP tool name against provided role and condition.
+func (m *MCPToolMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	mcpSpec := role.GetMCPPermissions(condition)
+	if mcpSpec == nil {
+		return false, nil
+	}
+	match, err := utils.SliceMatchesRegex(m.Name, mcpSpec.Tools)
+	return match, trace.Wrap(err)
+}
+
+// String returns the matcher's string representation.
+func (m *MCPToolMatcher) String() string {
+	return fmt.Sprintf("MCPToolMatcher(Name=%v)", m.Name)
 }

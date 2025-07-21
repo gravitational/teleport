@@ -80,6 +80,7 @@ import (
 	benchmarkdb "github.com/gravitational/teleport/lib/benchmark/db"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
+	dbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/client/reexec"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -643,6 +644,10 @@ type CLIConf struct {
 
 	// checkManagedUpdates initiates check of managed update after client connects to cluster.
 	checkManagedUpdates bool
+
+	// databaseMCPRegistryOverride overrides database access MCP servers
+	// registry. used in tests.
+	databaseMCPRegistryOverride dbmcp.Registry
 }
 
 func (c *CLIConf) isForkAuthChild() bool {
@@ -752,24 +757,26 @@ const (
 	headlessSkipConfirmEnvVar = "TELEPORT_HEADLESS_SKIP_CONFIRM"
 	// TELEPORT_SITE uses the older deprecated "site" terminology to refer to a
 	// cluster. All new code should use TELEPORT_CLUSTER instead.
-	siteEnvVar               = "TELEPORT_SITE"
-	userEnvVar               = "TELEPORT_USER"
-	addKeysToAgentEnvVar     = "TELEPORT_ADD_KEYS_TO_AGENT"
-	useLocalSSHAgentEnvVar   = "TELEPORT_USE_LOCAL_SSH_AGENT"
-	globalTshConfigEnvVar    = "TELEPORT_GLOBAL_TSH_CONFIG"
-	mfaModeEnvVar            = "TELEPORT_MFA_MODE"
-	mlockModeEnvVar          = "TELEPORT_MLOCK_MODE"
-	identityFileEnvVar       = "TELEPORT_IDENTITY_FILE"
-	gcloudSecretEnvVar       = "TELEPORT_GCLOUD_SECRET"
-	awsAccessKeyIDEnvVar     = "TELEPORT_AWS_ACCESS_KEY_ID"
-	awsSecretAccessKeyEnvVar = "TELEPORT_AWS_SECRET_ACCESS_KEY"
-	awsRegionEnvVar          = "TELEPORT_AWS_REGION"
-	awsKeystoreEnvVar        = "TELEPORT_AWS_KEYSTORE"
-	awsWorkgroupEnvVar       = "TELEPORT_AWS_WORKGROUP"
-	proxyKubeConfigEnvVar    = "TELEPORT_KUBECONFIG"
-	noResumeEnvVar           = "TELEPORT_NO_RESUME"
-	requestModeEnvVar        = "TELEPORT_REQUEST_MODE"
-	toolsCheckUpdateEnvVar   = "TELEPORT_TOOLS_CHECK_UPDATE"
+	siteEnvVar                = "TELEPORT_SITE"
+	userEnvVar                = "TELEPORT_USER"
+	addKeysToAgentEnvVar      = "TELEPORT_ADD_KEYS_TO_AGENT"
+	useLocalSSHAgentEnvVar    = "TELEPORT_USE_LOCAL_SSH_AGENT"
+	globalTshConfigEnvVar     = "TELEPORT_GLOBAL_TSH_CONFIG"
+	mfaModeEnvVar             = "TELEPORT_MFA_MODE"
+	mlockModeEnvVar           = "TELEPORT_MLOCK_MODE"
+	identityFileEnvVar        = "TELEPORT_IDENTITY_FILE"
+	gcloudSecretEnvVar        = "TELEPORT_GCLOUD_SECRET"
+	awsAccessKeyIDEnvVar      = "TELEPORT_AWS_ACCESS_KEY_ID"
+	awsSecretAccessKeyEnvVar  = "TELEPORT_AWS_SECRET_ACCESS_KEY"
+	awsRegionEnvVar           = "TELEPORT_AWS_REGION"
+	awsKeystoreEnvVar         = "TELEPORT_AWS_KEYSTORE"
+	awsWorkgroupEnvVar        = "TELEPORT_AWS_WORKGROUP"
+	proxyKubeConfigEnvVar     = "TELEPORT_KUBECONFIG"
+	noResumeEnvVar            = "TELEPORT_NO_RESUME"
+	requestModeEnvVar         = "TELEPORT_REQUEST_MODE"
+	mcpClientConfigEnvVar     = "TELEPORT_MCP_CLIENT_CONFIG"
+	mcpConfigJSONFormatEnvVar = "TELEPORT_MCP_CONFIG_JSON_FORMAT"
+	toolsCheckUpdateEnvVar    = "TELEPORT_TOOLS_CHECK_UPDATE"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -829,7 +836,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// run early to enable debug logging if env var is set.
 	// this makes it possible to debug early startup functionality, particularly command aliases.
-	if err := initLogger(&cf, parseLoggingOptsFromEnv()); err != nil {
+	if _, err := initLogger(&cf, utils.LoggingForCLI, parseLoggingOptsFromEnv()); err != nil {
 		printInitLoggerError(err)
 	}
 
@@ -1428,6 +1435,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	gitCmd := newGitCommands(app)
 	pivCmd := newPIVCommands(app)
+	mcpCmd := newMCPCommands(app, &cf)
 
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
@@ -1546,7 +1554,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// Enable debug logging if requested by --debug.
 	// If TELEPORT_DEBUG was set and --debug/--no-debug was not passed, debug logs were already
 	// enabled by a prior call to initLogger.
-	if err := initLogger(&cf, parseLoggingOptsFromEnvAndArgv(&cf)); err != nil {
+	if _, err := initLogger(&cf, utils.LoggingForCLI, parseLoggingOptsFromEnvAndArgv(&cf)); err != nil {
 		printInitLoggerError(err)
 	}
 
@@ -1863,6 +1871,16 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = pivCmd.agent.run(&cf)
 	case updateCommand.update.FullCommand():
 		err = updateCommand.update.run(&cf)
+	case mcpCmd.dbStart.FullCommand():
+		err = mcpCmd.dbStart.run()
+	case mcpCmd.dbConfig.FullCommand():
+		err = mcpCmd.dbConfig.run()
+	case mcpCmd.connect.FullCommand():
+		err = mcpCmd.connect.run()
+	case mcpCmd.list.FullCommand():
+		err = mcpCmd.list.run()
+	case mcpCmd.config.FullCommand():
+		err = mcpCmd.config.run()
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -3320,14 +3338,7 @@ func getDBUsers(db types.Database, accessChecker services.AccessChecker) *dbUser
 		)
 		return &dbUsers{}
 	}
-	var denied []string
-	allowed := users.Allowed()
-	if users.WildcardAllowed() {
-		// start the list with *.
-		allowed = append([]string{types.Wildcard}, allowed...)
-		// only include denied users if the wildcard is allowed.
-		denied = append(denied, users.Denied()...)
-	}
+	allowed, denied := users.ToEntities()
 	return &dbUsers{
 		Allowed: allowed,
 		Denied:  denied,
@@ -3392,9 +3403,6 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 	}
 
 	dbUsers := getDBUsers(database, accessChecker)
-	if len(dbUsers.Allowed) == 0 {
-		return "(none)"
-	}
 
 	// Add a note for auto-provisioned user.
 	if database.IsAutoUsersEnabled() {
@@ -3411,10 +3419,7 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 		}
 	}
 
-	if len(dbUsers.Denied) == 0 {
-		return fmt.Sprintf("%v", dbUsers.Allowed)
-	}
-	return fmt.Sprintf("%v, except: %v", dbUsers.Allowed, dbUsers.Denied)
+	return common.FormatAllowedEntities(dbUsers.Allowed, dbUsers.Denied)
 }
 
 // TODO(greedy52) more refactoring on db printing and move them to db_print.go.

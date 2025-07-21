@@ -162,6 +162,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/ingress"
+	"github.com/gravitational/teleport/lib/srv/mcp"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/srv/transport/transportv1"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -5121,9 +5122,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Register ALPN handler that will be accepting connections for plain
 	// TCP applications.
+	// Use the same handler for MCP protocols, for now.
 	if alpnRouter != nil {
 		alpnRouter.Add(alpnproxy.HandlerDecs{
 			MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolTCP),
+			Handler:   webServer.HandleConnection,
+		})
+		alpnRouter.Add(alpnproxy.HandlerDecs{
+			MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolMCP),
 			Handler:   webServer.HandleConnection,
 		})
 	}
@@ -6122,6 +6128,7 @@ func (process *TeleportProcess) initApps() {
 	// "app_service" section, that is considered enabling "app_service".
 	if len(process.Config.Apps.Apps) == 0 &&
 		!process.Config.Apps.DebugApp &&
+		!process.Config.Apps.MCPDemoServer &&
 		len(process.Config.Apps.ResourceMatchers) == 0 {
 		return
 	}
@@ -6250,12 +6257,21 @@ func (process *TeleportProcess) initApps() {
 				UseAnyProxyPublicAddr: app.UseAnyProxyPublicAddr,
 				CORS:                  makeApplicationCORS(app.CORS),
 				TCPPorts:              makeApplicationTCPPorts(app.TCPPorts),
+				MCP:                   app.MCP,
 			})
 			if err != nil {
 				return trace.Wrap(err)
 			}
 
 			applications = append(applications, a)
+		}
+
+		if process.Config.Apps.MCPDemoServer {
+			if mcpDemoServer, err := mcp.NewDemoServerApp(); err != nil {
+				logger.ErrorContext(process.ExitContext(), "Failed to create MCP demo server app")
+			} else {
+				applications = append(applications, mcpDemoServer)
+			}
 		}
 
 		lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
@@ -6327,6 +6343,7 @@ func (process *TeleportProcess) initApps() {
 			ConnectionMonitor: connMonitor,
 			ServiceComponent:  teleport.ComponentApp,
 			Logger:            logger,
+			MCPDemoServer:     process.Config.Apps.MCPDemoServer,
 		})
 		if err != nil {
 			return trace.Wrap(err)

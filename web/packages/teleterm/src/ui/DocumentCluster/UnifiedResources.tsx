@@ -50,7 +50,7 @@ import {
   openStatusInfoPanel,
 } from 'shared/components/UnifiedResources/shared/StatusInfo';
 import { Attempt } from 'shared/hooks/useAsync';
-import { NodeSubKind } from 'shared/services';
+import { AppSubKind, NodeSubKind } from 'shared/services';
 import {
   DbProtocol,
   DbType,
@@ -566,6 +566,8 @@ const mapToSharedResource = (
     }
     case 'app': {
       const { resource: app } = resource;
+      const addrWithProtocol = getAppAddrWithProtocol(app);
+      const isMCP = addrWithProtocol.startsWith('mcp+');
 
       return {
         resource: {
@@ -573,15 +575,19 @@ const mapToSharedResource = (
           labels: app.labels,
           name: app.name,
           id: app.name,
-          addrWithProtocol: getAppAddrWithProtocol(app),
+          addrWithProtocol: addrWithProtocol,
           awsConsole: app.awsConsole,
           description: app.desc,
           friendlyName: app.friendlyName,
           samlApp: app.samlApp,
           requiresRequest: resource.requiresRequest,
+          subKind: isMCP ? AppSubKind.MCP : undefined,
         },
         ui: {
-          ActionButton: <ConnectAppActionButton app={app} />,
+          // TODO(greedy52) decide what to do with MCP servers.
+          ActionButton: isMCP ? undefined : (
+            <ConnectAppActionButton app={app} />
+          ),
         },
       };
     }

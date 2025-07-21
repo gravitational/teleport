@@ -183,6 +183,8 @@ type SampleFlags struct {
 	AppName string
 	// AppURI is the internal address of the application to proxy
 	AppURI string
+	// MCPDemoServer enables the "Teleport Demo" MCP server.
+	MCPDemoServer bool
 	// NodeLabels is list of labels in the format `foo=bar,baz=bax` to add to newly created nodes.
 	NodeLabels string
 	// CAPin is the SKPI hash of the CA used to verify the Auth Server. Can be
@@ -409,17 +411,24 @@ func makeSampleProxyConfig(conf *servicecfg.Config, flags SampleFlags, enabled b
 func makeSampleAppsConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) (Apps, error) {
 	var apps Apps
 	// assume users want app role if they added app name and/or uri but didn't add app role
-	if enabled || flags.AppURI != "" || flags.AppName != "" {
-		if flags.AppURI == "" || flags.AppName == "" {
-			return Apps{}, trace.BadParameter("please provide both --app-name and --app-uri")
-		}
-
+	if enabled || flags.AppURI != "" || flags.AppName != "" || flags.MCPDemoServer {
 		apps.EnabledFlag = "yes"
-		apps.Apps = []*App{
-			{
-				Name: flags.AppName,
-				URI:  flags.AppURI,
-			},
+		apps.MCPDemoServer = flags.MCPDemoServer
+
+		switch {
+		case flags.AppURI != "" && flags.AppName != "":
+			apps.Apps = []*App{
+				{
+					Name: flags.AppName,
+					URI:  flags.AppURI,
+				},
+			}
+
+		case flags.MCPDemoServer && flags.AppURI == "" && flags.AppName == "":
+			// This is ok if only MCPDemoServer is set.
+
+		default:
+			return Apps{}, trace.BadParameter("please provide both --app-name and --app-uri")
 		}
 	}
 
@@ -2082,6 +2091,9 @@ type Apps struct {
 	// DebugApp turns on a header debugging application.
 	DebugApp bool `yaml:"debug_app"`
 
+	// MCPDemoServer enables the "Teleport Demo" MCP server.
+	MCPDemoServer bool `yaml:"mcp_demo_server"`
+
 	// Apps is a list of applications that will be run by this service.
 	Apps []*App `yaml:"apps"`
 
@@ -2143,6 +2155,9 @@ type App struct {
 	// If this field is not empty, URI is expected to contain no port number and start with the tcp
 	// protocol.
 	TCPPorts []PortRange `yaml:"tcp_ports,omitempty"`
+
+	// MCP contains MCP server-related configurations.
+	MCP *MCP `yaml:"mcp,omitempty"`
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -2199,6 +2214,17 @@ type PortRange struct {
 	// greater than Port and less than or equal to 65535. When describing a single port, it must be
 	// set to 0.
 	EndPort int `yaml:"end_port,omitempty"`
+}
+
+// MCP contains MCP server-related configurations.
+type MCP struct {
+	// Command to launch stdio-based MCP servers.
+	Command string `yaml:"command,omitempty"`
+	// Args to execute with the command.
+	Args []string `yaml:"args,omitempty"`
+	// RunAsHostUser is the host user account under which the command will be
+	// executed. Required for stdio-based MCP servers.
+	RunAsHostUser string `yaml:"run_as_host_user,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:

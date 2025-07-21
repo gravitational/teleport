@@ -72,6 +72,8 @@ func TestAppAccess(t *testing.T) {
 	t.Run("NoHeaderOverrides", bind(pack, testNoHeaderOverrides))
 	t.Run("AuditEvents", bind(pack, testAuditEvents))
 
+	t.Run("MCP", bind(pack, testMCP))
+
 	// This test should go last because it stops/starts app servers.
 	t.Run("TestAppServersHA", bind(pack, testServersHA))
 }

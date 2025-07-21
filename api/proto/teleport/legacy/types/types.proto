@@ -1122,6 +1122,19 @@ message AppSpecV3 {
   // want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec,
   // setting this value to true will overwrite that public address in the web UI.
   bool UseAnyProxyPublicAddr = 14 [(gogoproto.jsontag) = "use_any_proxy_public_addr,omitempty"];
+  // MCP contains MCP server related configurations.
+  MCP MCP = 15 [(gogoproto.jsontag) = "mcp,omitempty"];
+}
+
+// MCP contains MCP server-related configurations.
+message MCP {
+  // Command to launch stdio-based MCP servers.
+  string command = 1;
+  // Args to execute with the command.
+  repeated string args = 2;
+  // RunAsHostUser is the host user account under which the command will be
+  // executed. Required for stdio-based MCP servers.
+  string run_as_host_user = 3;
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
@@ -3800,6 +3813,9 @@ message RoleConditions {
   // WorkloadIdentityLabelsExpression is a predicate expression used to
   // allow/deny access to issuing a WorkloadIdentity.
   string WorkloadIdentityLabelsExpression = 45 [(gogoproto.jsontag) = "workload_identity_labels_expression,omitempty"];
+
+  // MCPPermissions defines MCP servers related permissions.
+  MCPPermissions MCP = 46 [(gogoproto.jsontag) = "mcp,omitempty"];
 }
 
 // IdentityCenterAccountAssignment captures an AWS Identity Center account
@@ -3812,6 +3828,15 @@ message IdentityCenterAccountAssignment {
 // GitHubPermission defines GitHub integration related permissions.
 message GitHubPermission {
   repeated string organizations = 1 [(gogoproto.jsontag) = "orgs,omitempty"];
+}
+
+// MCPPermissions defines MCP servers related permissions.
+message MCPPermissions {
+  // Tools defines the list of tools allowed or denied for this role. Each entry
+  // can be a literal string, a glob pattern (e.g. "prefix_*"), or a regular
+  // expression (must start with '^' and end with '$'). If the list is empty, no
+  // tools are allowed.
+  repeated string tools = 1;
 }
 
 // SPIFFERoleCondition sets out which SPIFFE identities this role is allowed or
