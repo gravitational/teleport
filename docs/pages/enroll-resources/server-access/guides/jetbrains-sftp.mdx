@@ -13,6 +13,13 @@ machine without using a third-party client.
 
 This guide explains how to use Teleport and a JetBrains IDE to access files with SFTP.
 
+## How it works
+
+JetBrains IDEs can use the local SSH client to access a remote server. You can
+use Teleport to generate a configuration for your local SSH client that
+instructs the client to connect to a Teleport-protected Linux server using a
+Teleport-issued OpenSSH certificate. 
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs-not-admin.mdx!)
