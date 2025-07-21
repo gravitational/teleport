@@ -17,6 +17,7 @@ import (
 	jamffake "github.com/gravitational/teleport/e/lib/jamf/fake"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/utils/log"
 )
 
 // DefaultUsers are the users added by default to the fake Jamf API.
@@ -126,8 +127,13 @@ func New(opts *Opts) (*E, error) {
 		e.Clock = clockwork.NewRealClock()
 	}
 
+	level := slog.LevelError + 1 // Silence logging by default.
+	if testing.Verbose() {
+		// The API client logs requests only in trace level.
+		level = log.TraceLevel
+	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelError + 1, // Silence logging for tests.
+		Level: level,
 	}))
 	e.Logger = logger
 

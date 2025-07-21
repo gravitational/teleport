@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/e/lib/jamf"
 	jamffake "github.com/gravitational/teleport/e/lib/jamf/fake"
@@ -184,11 +185,30 @@ func TestClient_clientCredentialsAuthn(t *testing.T) {
 		mustGetComputersInventory(t, client)
 	})
 
+	t.Run("renew token just before expiration", func(t *testing.T) {
+		tokenBefore := client.AuthToken().GetAccessToken()
+		clock.Advance(jamffake.CredentialExpiryPeriod - 4*time.Second)
+		mustGetComputersInventory(t, client)
+		require.NotEqual(t, tokenBefore, client.AuthToken().GetAccessToken(),
+			"Client AuthToken not refreshed",
+		)
+	})
+
+	// Unlikely to happen due to the client checking the expiry of the token before sending a request.
+	// But it does simulate a situation in which the API disagrees with the client wrt token expiry.
 	t.Run("acquire new token after expiration", func(t *testing.T) {
+		// Advance time to make the API consider the token to be expired.
 		clock.Advance(jamffake.CredentialExpiryPeriod + 1*time.Second)
 
-		// Absence of errors is good enough for us.
+		// Make the client think the token is still valid.
+		authToken := client.AuthToken()
+		authToken.Expires = clock.Now().Add(3 * time.Hour)
+		client.SetAuthToken(authToken)
+
 		mustGetComputersInventory(t, client)
+		require.NotEqual(t, authToken.GetAccessToken(), client.AuthToken().GetAccessToken(),
+			"Client AuthToken not refreshed",
+		)
 	})
 }
 

@@ -51,11 +51,10 @@ type clientSecretCreds struct {
 }
 
 func (c *Client) renewClientSecretLocked(ctx context.Context) error {
-	// Renew a few seconds earlier than we need to, just in case.
+	// We want the token to be valid for the next 5 seconds to avoid issues in case of time skew.
 	// Typically these tokens expire in 1m.
-	const renewThreshold = 5 * time.Second
-	now := c.nowUTC().Add(-renewThreshold)
-	if c.currentToken != nil && c.currentToken.GetExpires().After(now) {
+	const minValidFor = 5 * time.Second
+	if c.currentToken != nil && c.currentToken.GetExpires().Sub(c.nowUTC()) > minValidFor {
 		return nil
 	}
 
