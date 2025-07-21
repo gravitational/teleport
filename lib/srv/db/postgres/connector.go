@@ -210,7 +210,6 @@ func (c *connector) getConnectConfig(ctx context.Context) (*pgconn.Config, error
 			}
 			return tlsConn, nil
 		}
-		break
 	case types.DatabaseTypeAzure:
 		config.Password, err = c.auth.GetAzureAccessToken(ctx)
 		if err != nil {
