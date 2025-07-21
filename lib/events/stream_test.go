@@ -397,9 +397,6 @@ func TestSummarization(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-			defer cancel()
-
 			summarizerProvider := &summarizerv1.SummarizerProvider{}
 			uploader := eventstest.NewMemoryUploader()
 			streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
@@ -423,7 +420,7 @@ func TestSummarization(t *testing.T) {
 					Once()
 			}
 
-			stream, err := streamer.CreateAuditStream(ctx, sid)
+			stream, err := streamer.CreateAuditStream(t.Context(), sid)
 			require.NoError(t, err)
 
 			preparer, err := events.NewPreparer(events.PreparerConfig{
@@ -437,27 +434,14 @@ func TestSummarization(t *testing.T) {
 				preparedEvent, err := preparer.PrepareSessionEvent(evt)
 				require.NoError(t, err)
 
-				err = stream.RecordEvent(ctx, preparedEvent)
+				err = stream.RecordEvent(t.Context(), preparedEvent)
 				require.NoError(t, err)
 			}
 
-			err = stream.Complete(ctx)
+			err = stream.Complete(t.Context())
 			require.NoError(t, err)
 
 			mockSummarizer.AssertExpectations(t)
-
-			// doneC := make(chan struct{})
-			// go func() {
-			// 	defer close(doneC)
-			// 	stream.Complete(ctx)
-			// 	stream.Close(ctx)
-			// }()
-
-			// select {
-			// case <-ctx.Done():
-			// 	t.Fatal("Timeout waiting for emitter to complete")
-			// case <-doneC:
-			// }
 		})
 	}
 }
