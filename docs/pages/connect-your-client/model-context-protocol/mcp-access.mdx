@@ -31,9 +31,9 @@ fs             Filesystem MCP Server                      stdio env=prod
 mcp-everything This MCP server attempts to exercise al... stdio env=dev,sandbox=true
 ```
 
-The MCP client configuration can be created using the `tsh mcp login` command.
-You can choose which servers to configure by using the `—labels` flag to filter
-by labels or by specifying `—all`, which will configure all MCP servers you have
+The MCP client configuration can be created using the `tsh mcp config` command.
+You can choose which servers to configure by using the `--labels` flag to filter
+by labels or by specifying `--all`, which will configure all MCP servers you have
 access to.
 
 This command can either generate a configuration file (using the `mcpServers`
