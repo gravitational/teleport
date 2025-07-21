@@ -36,7 +36,7 @@ type Client struct {
 	clt      *http.Client
 }
 
-// Takes a string address and attempts to parse it into a valid URL.
+// parseAddress takes a string address and attempts to parse it into a valid URL.
 // The input can either be a valid string URL or a <host>:<port> pair.
 func parseAddress(addr string) (*url.URL, error) {
 	u, err := url.Parse(addr)
@@ -57,7 +57,7 @@ func parseAddress(addr string) (*url.URL, error) {
 	return u, nil
 }
 
-// Creates a new Client for a given address.
+// NewClient creates a new Client for a given address.
 func NewClient(addr string) (*Client, error) {
 	clt, err := defaults.HTTPClient()
 	if err != nil {
@@ -79,7 +79,7 @@ func NewClient(addr string) (*Client, error) {
 	}, nil
 }
 
-// GetMetrics returns metrics as a map keyed by metric name.
+// GetMetrics returns prometheus metrics as a map keyed by metric name.
 func (c *Client) GetMetrics(ctx context.Context) (map[string]*dto.MetricFamily, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.endpoint, http.NoBody)
 	if err != nil {

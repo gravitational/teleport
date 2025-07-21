@@ -68,14 +68,14 @@ func (c *Command) newMetricsClient(ctx context.Context) (string, MetricsClient, 
 	if debugErr == nil {
 		return debugClient.SocketPath(), debugClient, nil
 	}
-	debugErr = trace.Wrap(debugErr, "failed to get metrics from debug service")
+	debugErr = trace.Wrap(debugErr, "retrieving metrics from debug service")
 
 	// Try default diagnostic address
 	diagClient, defErr := diag.NewClient(defaultDiagAddr)
 	if defErr != nil {
 		return "", nil, trace.NewAggregate(
 			trace.Errorf("unable to connect to Teleport service"),
-			trace.Wrap(defErr, "failed to create diagnostics client for default address %q", defaultDiagAddr),
+			trace.Wrap(defErr, "creating diagnostics client for default address %q", defaultDiagAddr),
 			debugErr)
 	}
 
@@ -86,7 +86,7 @@ func (c *Command) newMetricsClient(ctx context.Context) (string, MetricsClient, 
 
 	return "", nil, trace.NewAggregate(
 		trace.Errorf("unable to connect to Teleport service"),
-		trace.Wrap(defErr, "failed to get metrics from diagnostics client at default address %q", defaultDiagAddr),
+		trace.Wrap(defErr, "getting metrics from diagnostics client at default address %q", defaultDiagAddr),
 		debugErr,
 	)
 }
