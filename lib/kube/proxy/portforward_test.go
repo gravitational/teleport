@@ -42,7 +42,7 @@ import (
 	"k8s.io/client-go/transport/spdy"
 
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestPortForwardKubeService(t *testing.T) {
@@ -284,7 +284,7 @@ func TestPortForwardProxy_run_connsClosed(t *testing.T) {
 			context:       context.Background(),
 			onPortForward: func(addr string, success bool) {},
 		},
-		logger:                utils.NewSlogLoggerForTests(),
+		logger:                logtest.NewLogger(),
 		sourceConn:            sourceConn,
 		targetConn:            targetConn,
 		streamChan:            make(chan httpstream.Stream),

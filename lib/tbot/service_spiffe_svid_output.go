@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
@@ -59,13 +60,17 @@ type SPIFFESVIDOutputService struct {
 	getBotIdentity getBotIdentityFn
 	log            *slog.Logger
 	resolver       reversetunnelclient.Resolver
+	statusReporter readyz.Reporter
 	// trustBundleCache is the cache of trust bundles. It only needs to be
 	// provided when running in daemon mode.
 	trustBundleCache *workloadidentity.TrustBundleCache
 }
 
 func (s *SPIFFESVIDOutputService) String() string {
-	return fmt.Sprintf("spiffe-svid-output (%s)", s.cfg.Destination.String())
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("spiffe-svid-output (%s)", s.cfg.Destination.String()),
+	)
 }
 
 func (s *SPIFFESVIDOutputService) OneShot(ctx context.Context) error {
@@ -94,6 +99,10 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 		return trace.Wrap(err, "getting trust bundle set")
 	}
 
+	if s.statusReporter == nil {
+		s.statusReporter = readyz.NoopReporter()
+	}
+
 	jitter := retryutils.DefaultJitter
 	var res *machineidv1pb.SignX509SVIDsResponse
 	var privateKey crypto.Signer
@@ -104,10 +113,8 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 	for {
 		var retryAfter <-chan time.Time
 		if failures > 0 {
-			backoffTime := time.Second * time.Duration(math.Pow(2, float64(failures-1)))
-			if backoffTime > time.Minute {
-				backoffTime = time.Minute
-			}
+			s.statusReporter.Report(readyz.Unhealthy)
+			backoffTime := min(time.Second*time.Duration(math.Pow(2, float64(failures-1))), time.Minute)
 			backoffTime = jitter(backoffTime)
 			s.log.WarnContext(
 				ctx,
@@ -156,6 +163,7 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 			failures++
 			continue
 		}
+		s.statusReporter.Report(readyz.Healthy)
 		failures = 0
 	}
 }

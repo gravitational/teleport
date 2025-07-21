@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -50,7 +50,7 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 	// This test is more for overall behavior. Use the _field test for
 	// each individual field.
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 	tests := []struct {
 		name string
 		att  *workloadidentityv1pb.WorkloadAttrs
@@ -288,7 +288,7 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 
 func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 	tests := []struct {
 		field       string
 		matching    *workloadidentityv1pb.WorkloadAttrs
@@ -441,7 +441,7 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	// Make a new auth server.
 	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))

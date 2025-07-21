@@ -514,7 +514,7 @@ func InitTestAuthCache(p TestAuthCacheParams) error {
 		AccessLists:             p.AuthServer.Services.AccessLists,
 		AccessMonitoringRules:   p.AuthServer.Services.AccessMonitoringRules,
 		AppSession:              p.AuthServer.Services.Identity,
-		Apps:                    p.AuthServer.Services.Apps,
+		Apps:                    p.AuthServer.Services.Applications,
 		ClusterConfig:           p.AuthServer.Services.ClusterConfigurationInternal,
 		CrownJewels:             p.AuthServer.Services.CrownJewels,
 		DatabaseObjects:         p.AuthServer.Services.DatabaseObjects,
@@ -552,6 +552,8 @@ func InitTestAuthCache(p TestAuthCacheParams) error {
 		PluginStaticCredentials: p.AuthServer.Services.PluginStaticCredentials,
 		GitServers:              p.AuthServer.Services.GitServers,
 		HealthCheckConfig:       p.AuthServer.Services.HealthCheckConfig,
+		BotInstance:             p.AuthServer.Services.BotInstance,
+		Plugin:                  p.AuthServer.Services.Plugins,
 	})
 	if err != nil {
 		return trace.Wrap(err)

@@ -32,10 +32,11 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
+	apistream "github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/typical"
@@ -63,25 +64,27 @@ func NewPresenceService(b backend.Backend) *PresenceService {
 }
 
 // GetServerInfos returns a stream of ServerInfos.
-func (s *PresenceService) GetServerInfos(ctx context.Context) stream.Stream[types.ServerInfo] {
+func (s *PresenceService) GetServerInfos(ctx context.Context) apistream.Stream[types.ServerInfo] {
 	startKey := backend.ExactKey(serverInfoPrefix)
 	endKey := backend.RangeEnd(startKey)
-	items := backend.StreamRange(ctx, s, startKey, endKey, apidefaults.DefaultChunkSize)
-	return stream.FilterMap(items, func(item backend.Item) (types.ServerInfo, bool) {
-		si, err := services.UnmarshalServerInfo(
-			item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision),
-		)
-		if err != nil {
-			s.logger.WarnContext(ctx, "Failed to unmarshal server info",
-				"key", item.Key,
-				"error", err,
+	return stream.IntoLegacy(stream.FilterMap(
+		s.Backend.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey}),
+		func(item backend.Item) (types.ServerInfo, bool) {
+			si, err := services.UnmarshalServerInfo(
+				item.Value,
+				services.WithExpires(item.Expires),
+				services.WithRevision(item.Revision),
 			)
-			return nil, false
-		}
-		return si, true
-	})
+			if err != nil {
+				s.logger.WarnContext(ctx, "Failed to unmarshal server info",
+					"key", item.Key,
+					"error", err,
+				)
+				return nil, false
+			}
+			return si, true
+		},
+	))
 }
 
 // GetServerInfo returns a ServerInfo by name.
@@ -1293,45 +1296,35 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 		filter.PredicateExpression = expression
 	}
 
-	// Get most limit+1 results to determine if there will be a next key.
 	reqLimit := int(req.Limit)
-	maxLimit := reqLimit + 1
-	var resources []types.ResourceWithLabels
-	if err := backend.IterateRange(ctx, s.Backend, rangeStart, rangeEnd, maxLimit, func(items []backend.Item) (stop bool, err error) {
-		for _, item := range items {
-			if len(resources) == maxLimit {
-				break
-			}
-
-			resource, err := unmarshalItemFunc(item)
-			if err != nil {
-				return false, trace.Wrap(err)
-			}
-
-			switch match, err := services.MatchResourceByFilters(resource, filter, nil /* ignore dup matches */); {
-			case err != nil:
-				return false, trace.Wrap(err)
-			case match:
-				resources = append(resources, resource)
-			}
+	var resp types.ListResourcesResponse
+	for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
+		StartKey: rangeStart,
+		EndKey:   rangeEnd,
+	}) {
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
-		return len(resources) == maxLimit, nil
-	}); err != nil {
-		return nil, trace.Wrap(err)
+		resource, err := unmarshalItemFunc(item)
+		if err != nil {
+			continue
+		}
+
+		switch match, err := services.MatchResourceByFilters(resource, filter, nil /* ignore dup matches */); {
+		case err != nil:
+			return nil, trace.Wrap(err)
+		case match:
+			if len(resp.Resources) >= reqLimit {
+				resp.NextKey = backend.GetPaginationKey(resource)
+				return &resp, nil
+			}
+
+			resp.Resources = append(resp.Resources, resource)
+		}
 	}
 
-	var nextKey string
-	if len(resources) > reqLimit {
-		nextKey = backend.GetPaginationKey(resources[len(resources)-1])
-		// Truncate the last item that was used to determine next row existence.
-		resources = resources[:reqLimit]
-	}
-
-	return &types.ListResourcesResponse{
-		Resources: resources,
-		NextKey:   nextKey,
-	}, nil
+	return &resp, nil
 }
 
 // listResourcesWithSort supports sorting by falling back to retrieving all resources

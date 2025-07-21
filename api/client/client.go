@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"log/slog"
 	"net"
 	"slices"
@@ -3227,6 +3228,59 @@ func (c *Client) GetApps(ctx context.Context) ([]types.Application, error) {
 		apps[i] = items.Apps[i]
 	}
 	return apps, nil
+}
+
+// ListApps returns a page of application resources.
+//
+// Note that application resources here refers to "dynamically-added"
+// applications such as applications created by `tctl create`, or the CreateApp
+// API. Applications defined in the `app_service.apps` section of the service
+// YAML configuration are not collected in this API.
+//
+// For a page of registered applications that are served by an application
+// service, use ListResources instead.
+func (c *Client) ListApps(ctx context.Context, limit int, start string) ([]types.Application, string, error) {
+	resp, err := c.grpc.ListApps(ctx, &proto.ListAppsRequest{
+		Limit:    int32(limit),
+		StartKey: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	apps := make([]types.Application, 0, len(resp.Applications))
+	for _, app := range resp.Applications {
+		apps = append(apps, app)
+	}
+	return apps, resp.NextKey, nil
+}
+
+// Apps returns application resources within the range [start, end).
+func (c *Client) Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error] {
+	return func(yield func(types.Application, error) bool) {
+		for {
+			apps, next, err := c.ListApps(ctx, 0, start)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			for _, app := range apps {
+				if end != "" && app.GetName() >= end {
+					return
+				}
+
+				if !yield(app, nil) {
+					return
+				}
+			}
+
+			if next == "" {
+				return
+			}
+
+			start = next
+		}
+	}
 }
 
 // DeleteApp deletes specified application resource.

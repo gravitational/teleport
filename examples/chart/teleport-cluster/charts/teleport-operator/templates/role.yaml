@@ -16,6 +16,8 @@ rules:
       - teleportrolesv6/status
       - teleportrolesv7
       - teleportrolesv7/status
+      - teleportrolesv8
+      - teleportrolesv8/status
       - teleportusers
       - teleportusers/status
       - teleportgithubconnectors

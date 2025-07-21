@@ -110,6 +110,7 @@ import (
 	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
+	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/inventory"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -521,7 +522,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		ClusterConfigurationInternal:    cfg.ClusterConfiguration,
 		AutoUpdateService:               cfg.AutoUpdateService,
 		Restrictions:                    cfg.Restrictions,
-		Apps:                            cfg.Apps,
+		Applications:                    cfg.Apps,
 		Kubernetes:                      cfg.Kubernetes,
 		Databases:                       cfg.Databases,
 		DatabaseServices:                cfg.DatabaseServices,
@@ -755,7 +756,7 @@ type Services struct {
 	services.DynamicAccessExt
 	services.ClusterConfigurationInternal
 	services.Restrictions
-	services.Apps
+	services.Applications
 	services.Kubernetes
 	services.Databases
 	services.DatabaseServices
@@ -1204,6 +1205,10 @@ type Server struct {
 	// GithubUserAndTeamsOverride overrides the user and teams that would
 	// normally be fetched from the GitHub API. Used for testing.
 	GithubUserAndTeamsOverride func() (*GithubUserResponse, []GithubTeamResponse, error)
+
+	// AWSRolesAnywhereCreateSessionOverride overrides the AWS Roles Anywhere Create Session API wrapper with a mocked one.
+	// Used for testing.
+	AWSRolesAnywhereCreateSessionOverride func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error)
 
 	// sigstorePolicyEvaluator checks workload signatures and attestations
 	// against Sigstore policies.
@@ -3430,6 +3435,14 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
+	// Generate AWS credential process credentials if the user is trying to access an App with an AWS Roles Anywhere Integration.
+	awsCredentialProcessCredentials, err := generateAWSConfigCredentialProcessCredentials(ctx, a, req, notAfter)
+	switch {
+	case errors.Is(err, errNotIntegrationApp):
+	case err != nil:
+		return nil, trace.Wrap(err)
+	}
+
 	identity := tlsca.Identity{
 		Username:          req.user.GetName(),
 		Impersonator:      req.impersonator,
@@ -3442,15 +3455,16 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		KubernetesGroups:  kubeGroups,
 		KubernetesUsers:   kubeUsers,
 		RouteToApp: tlsca.RouteToApp{
-			SessionID:         req.appSessionID,
-			URI:               req.appURI,
-			TargetPort:        req.appTargetPort,
-			PublicAddr:        req.appPublicAddr,
-			ClusterName:       req.appClusterName,
-			Name:              req.appName,
-			AWSRoleARN:        req.awsRoleARN,
-			AzureIdentity:     req.azureIdentity,
-			GCPServiceAccount: req.gcpServiceAccount,
+			SessionID:                       req.appSessionID,
+			URI:                             req.appURI,
+			TargetPort:                      req.appTargetPort,
+			PublicAddr:                      req.appPublicAddr,
+			ClusterName:                     req.appClusterName,
+			Name:                            req.appName,
+			AWSRoleARN:                      req.awsRoleARN,
+			AWSCredentialProcessCredentials: awsCredentialProcessCredentials,
+			AzureIdentity:                   req.azureIdentity,
+			GCPServiceAccount:               req.gcpServiceAccount,
 		},
 		TeleportCluster: clusterName,
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -5508,10 +5522,7 @@ func (a *Server) checkResourcesRequestable(ctx context.Context, resourceIDs []ty
 		return nil
 	}
 
-	err := okta.CheckResourcesRequestable(ctx, resourceIDs, okta.AccessPoint{
-		Plugins:              a.Plugins,
-		UnifiedResourceCache: a.UnifiedResourceCache,
-	})
+	err := okta.CheckResourcesRequestable(ctx, resourceIDs, a)
 	if errors.Is(err, okta.OktaResourceNotRequestableError) {
 		return trace.Wrap(err)
 	} else if err != nil {
