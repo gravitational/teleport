@@ -2131,7 +2131,7 @@ func (process *TeleportProcess) initAuthService() error {
 		ClusterName:          cn,
 		AuthPreferenceGetter: clusterConfig,
 		FIPS:                 cfg.FIPS,
-		HealthCallback:       cfg.KeystoreHealthCallback,
+		HealthCallback:       process.onHeartbeatWithRecovery(teleport.ComponentAuthKeystore, 0),
 	}
 
 	switch {
@@ -2346,7 +2346,6 @@ func (process *TeleportProcess) initAuthService() error {
 			Tracer:                      process.TracingProvider.Tracer(teleport.ComponentAuth),
 			Logger:                      logger,
 			RunWhileLockedRetryInterval: cfg.Testing.RunWhileLockedRetryInterval,
-			KeystoreHealthCallback:      process.onHeartbeatWithRecovery(teleport.ComponentAuthKeystore, 0),
 		}, func(as *auth.Server) error {
 			if !process.Config.CachePolicy.Enabled {
 				return nil
