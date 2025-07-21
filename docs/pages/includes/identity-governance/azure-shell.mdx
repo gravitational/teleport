@@ -1,7 +1,7 @@
 Open Azure Cloud Shell by navigating to <a href="https://shell.azure.com">shell.azure.com</a>,
 or by clicking the Cloud Shell icon in the Azure Portal. Make sure to use the bash version of Cloud Shell.
 Once a Cloud Shell instance opens, paste the generated bash script that downloads the Teleport binary in your 
-Azure Shell and runs the `teleport integration configure azure-oidc` command. 
+Azure Shell and run the `teleport integration configure azure-oidc` command. 
 The command performs the following actions:
 - Creates an enterprise application.
 - Configures Teleport as an OIDC IdP for the application.
@@ -10,9 +10,9 @@ The command performs the following actions:
 
 ```code
 # Azure Shell
-$ bash -c "$(curl 'https://example.com/webapi/scripts/integrations/configure/azureoidc.sh?authConnectorName=entra-id')"
+$ bash -c "$(curl 'https://example.teleport.sh/webapi/scripts/integrations/configure/azureoidc.sh?authConnectorName=entra-id')"
 
-> teleport integration configure azure-oidc --proxy-public-addr=https://example.com --auth-connector-name=entra-id 
+> teleport integration configure azure-oidc --proxy-public-addr=https://example.teleport.sh --auth-connector-name=entra-id 
 ...
 Success! Use the following information to finish the integration onboarding in Teleport:
 Tenant ID: entra-tenant-id
