@@ -22,6 +22,8 @@ import api from 'teleport/services/api';
 import { ResourcesResponse, UnifiedResource } from '../agents';
 import auth, { MfaChallengeScope } from '../auth/auth';
 import { MfaChallengeResponse } from '../mfa';
+import { yamlService } from '../yaml';
+import { YamlSupportedResourceKind } from '../yaml/types';
 import {
   CreateOrOverwriteGitServer,
   DefaultAuthConnector,
@@ -29,6 +31,7 @@ import {
   makeResource,
   makeResourceList,
   Resource,
+  Role,
   RoleResource,
 } from './';
 import { makeUnifiedResource } from './makeUnifiedResource';
@@ -110,7 +113,7 @@ class ResourceService {
     items: RoleResource[];
     startKey: string;
   }> {
-    return await api.get(cfg.getListRolesUrl(params));
+    return await api.get(cfg.getRoleUrl({ action: 'list', params }));
   }
 
   fetchPresetRoles() {
@@ -119,11 +122,19 @@ class ResourceService {
       .then(res => makeResourceList<'role'>(res));
   }
 
+  /**
+   * @deprecated use standalone fetchRole function defined below this class
+   */
   async fetchRole(name: string): Promise<RoleResource> {
     return makeResource<'role'>(
-      await api.get(cfg.getRoleUrl(name), undefined, undefined, {
-        allowRoleNotFound: true,
-      })
+      await api.get(
+        cfg.getRoleUrl({ action: 'get', name }),
+        undefined,
+        undefined,
+        {
+          allowRoleNotFound: true,
+        }
+      )
     );
   }
 
@@ -136,7 +147,7 @@ class ResourceService {
   createRole(content: string, mfaResponse?: MfaChallengeResponse) {
     return api
       .post(
-        cfg.getRoleUrl(),
+        cfg.api.role.create,
         { content },
         undefined /* abort signal */,
         mfaResponse
@@ -156,9 +167,12 @@ class ResourceService {
       .then(res => makeResource<'trusted_cluster'>(res));
   }
 
+  /**
+   * @deprecated use standalone updateRole function defined below this class
+   */
   updateRole(name: string, content: string) {
     return api
-      .put(cfg.getRoleUrl(name), { content })
+      .put(cfg.getRoleUrl({ action: 'update', name }), { content })
       .then(res => makeResource<'role'>(res));
   }
 
@@ -179,7 +193,7 @@ class ResourceService {
   }
 
   deleteRole(name: string) {
-    return api.delete(cfg.getRoleUrl(name));
+    return api.delete(cfg.getRoleUrl({ action: 'delete', name }));
   }
 
   deleteGithubConnector(name: string) {
@@ -188,3 +202,46 @@ class ResourceService {
 }
 
 export default ResourceService;
+
+export async function fetchRole(
+  name: string,
+  signal?: AbortSignal
+): Promise<RoleResource> {
+  return makeResource<'role'>(
+    await api.get(cfg.getRoleUrl({ action: 'get', name }), signal, undefined, {
+      allowRoleNotFound: true,
+    })
+  );
+}
+
+export async function fetchRoleWithYamlParse(name: string): Promise<Role> {
+  const { content } = await fetchRole(name);
+  return yamlService.parse<Role>(YamlSupportedResourceKind.Role, {
+    yaml: content,
+  });
+}
+
+export async function updateRoleWithYamlConversion({
+  name,
+  role,
+}: {
+  name: string;
+  role: Role;
+}) {
+  const content = await yamlService.stringify(YamlSupportedResourceKind.Role, {
+    resource: role,
+  });
+  return updateRole({ name, content });
+}
+
+export async function updateRole({
+  name,
+  content,
+}: {
+  name: string;
+  content: string;
+}): Promise<RoleResource> {
+  return api
+    .put(cfg.getRoleUrl({ action: 'update', name }), { content })
+    .then(res => makeResource<'role'>(res));
+}

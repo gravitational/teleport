@@ -314,9 +314,15 @@ const cfg = {
     userWithUsernamePath: '/v1/webapi/users/:username',
     createPrivilegeTokenPath: '/v1/webapi/users/privilege/token',
 
-    listRolesPath:
-      '/v1/webapi/roles?startKey=:startKey?&search=:search?&limit=:limit?',
-    rolePath: '/v1/webapi/roles/:name?',
+    role: {
+      create: '/v1/webapi/roles',
+      get: '/v1/webapi/roles/:name',
+      delete: '/v1/webapi/roles/:name',
+      update: '/v1/webapi/roles/:name',
+      list: '/v1/webapi/roles?startKey=:startKey?&search=:search?&limit=:limit?',
+      listWithoutQueryParam: '/v1/webapi/roles',
+    },
+
     presetRolesPath: '/v1/webapi/presetroles',
     githubConnectorsPath: '/v1/webapi/github/:name?',
     githubConnectorPath: '/v1/webapi/github/connector/:name',
@@ -1068,16 +1074,32 @@ const cfg = {
     return generatePath(cfg.api.trustedClustersPath, { name });
   },
 
-  getListRolesUrl(params?: UrlListRolesParams) {
-    return generatePath(cfg.api.listRolesPath, {
-      search: params?.search || undefined,
-      startKey: params?.startKey || undefined,
-      limit: params?.limit || undefined,
-    });
-  },
-
-  getRoleUrl(name?: string) {
-    return generatePath(cfg.api.rolePath, { name });
+  getRoleUrl(
+    req:
+      | {
+          action: 'get' | 'delete' | 'update';
+          name: string;
+        }
+      | { action: 'list'; params?: UrlListRolesParams }
+  ) {
+    const action = req.action;
+    switch (action) {
+      case 'get':
+        return generatePath(cfg.api.role.get, { name: req.name });
+      case 'delete':
+        return generatePath(cfg.api.role.delete, { name: req.name });
+      case 'update':
+        return generatePath(cfg.api.role.update, { name: req.name });
+      case 'list':
+        const params = req.params;
+        return generatePath(cfg.api.role.list, {
+          search: params?.search || undefined,
+          startKey: params?.startKey || undefined,
+          limit: params?.limit || undefined,
+        });
+      default:
+        action satisfies never;
+    }
   },
 
   getDiscoveryConfigUrl(clusterId: string) {
