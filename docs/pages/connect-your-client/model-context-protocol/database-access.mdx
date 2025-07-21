@@ -14,12 +14,32 @@ This guide explains how to connect to your **PostgreSQL** Teleport databases wit
   the [AWS RDS PostgreSQL](../../enroll-resources/database-access/enroll-aws-databases/rds.mdx)
   and [self-hosted PostgreSQL](../../enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted.mdx) guides.
 
-### Security considerations
-
+<Admonition type="warning" title="Security considerations">
 Since language models can execute any query on your database, we advise creating
 a database user with only the permissions you want the models to have. Setting
 up a user with read-only permissions will help prevent accidental changes to
 your database.
+
+Here's an example of how to create a PostgreSQL user with read-only access to
+the database:
+
+```sql
+CREATE ROLE mcp_read_only WITH LOGIN;
+GRANT CONNECT ON DATABASE mydatabase TO mcp_read_only;
+GRANT USAGE ON SCHEMA public TO mcp_read_only;
+GRANT SELECT ON mytable TO mcp_read_only;                     -- To grant read access to a single table.
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO mcp_read_only; -- To grant read access to all tables in the "public" schema.
+
+GRANT rds_iam TO mcp_read_only; -- If connecting to a PostgreSQL RDS database.
+```
+
+Remember that you will also need sufficient permissions on your Teleport user to
+access the database using this user.
+
+You can also set up fine-grained permissions for use with MCP using [Auto-user
+provisioning](../../enroll-resources/database-access/auto-user-provisioning/postgres.mdx)
+or [Database Access Controls](../../enroll-resources/database-access/rbac.mdx).
+</Admonition>
 
 ### Step 1/2. Installation
 
@@ -34,16 +54,16 @@ retrieve the list of databases and their connection options using `tsh db ls`:
   
 ```code
 $ tsh db ls
-# Name            Description          Allowed Users Labels 
-# --------------- -------------------- ------------- -------
-# postgres-dev    Development database [* postgres]  env=dev
-# postgres-prod   Production database  [readonly]    env=prod
+# Name            Description          Allowed Users      Labels 
+# --------------- -------------------- ------------------ -------
+# postgres-dev    Development database [* postgres]       env=dev
+# postgres-prod   Production database  [mcp_read_only]    env=prod
 ```
 
-Each database you want accessible through MCP must be configured with your MCP client individually.
-This is done using the `tsh mcp db config` command. Like `tsh db connect`, this
-command requires you to select the database user and database name that the MCP
-connections will use.
+Each database you want accessible through MCP must be configured with your MCP
+client individually. This is done using the `tsh mcp db config` command. Like
+`tsh db connect`, this command requires you to select the database user and
+database name that the MCP connections will use.
 
 This command can either generate a configuration file (using the `mcpServers`
 format) for manual MCP client updates or automatically update the MCP client
@@ -57,7 +77,7 @@ include Teleport's configuration:
 ```code
 $ tsh mcp db config --db-user=postgres --db-name=employees --client-config=claude postgres-dev
 Added database "postgres-dev" on the client configuration at:
-/path/to/Claude/claude_desktop_config.json
+~/Library/Application Support/Claude/claude_desktop_config.json
 
 Teleport database access MCP server is named "teleport-databases" in this configuration.
 
