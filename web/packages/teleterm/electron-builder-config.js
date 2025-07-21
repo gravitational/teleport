@@ -116,6 +116,7 @@ module.exports = {
     notarize: true,
     hardenedRuntime: true,
     gatekeeperAssess: false,
+    entitlementsInherit: 'build_resources/entitlements.mac.plist',
     // If CONNECT_TSH_APP_PATH is provided, we assume that tsh.app is already signed.
     signIgnore: env.CONNECT_TSH_APP_PATH && ['tsh.app'],
     icon: 'build_resources/icon-mac.png',
