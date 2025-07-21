@@ -64,9 +64,9 @@ func TestPassiveHealthCheck(t *testing.T) {
 				probes++
 				return err
 			})
-			for h.busy.Load() {
-				time.Sleep(time.Millisecond * 100)
-			}
+			h.lock.Lock()
+			defer h.lock.Unlock()
+
 			require.Equal(t, len(tc.errs), probes)
 			require.Equal(t, tc.callbacks, callbacks)
 		})

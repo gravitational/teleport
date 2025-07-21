@@ -6,7 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	kmstypes "github.com/aws/aws-sdk-go-v2/service/kms/types"
@@ -27,7 +27,7 @@ var retryInterval = time.Second * 10
 // until it passes the success threshold.
 type passiveHealthChecker struct {
 	callback func(error)
-	busy     atomic.Bool
+	lock     sync.Mutex
 	log      *slog.Logger
 	clock    clockwork.Clock
 }
@@ -38,7 +38,7 @@ type probeFunc func(context.Context) error
 // calls passes the successThreshold. This is a noop if a previous probe is still
 // running.
 func (h *passiveHealthChecker) tryProbe(ctx context.Context, probe probeFunc) {
-	if swapped := h.busy.CompareAndSwap(false, true); !swapped {
+	if !h.lock.TryLock() {
 		return
 	}
 	go h.probeUntilHealthy(ctx, probe)
@@ -48,7 +48,7 @@ func (h *passiveHealthChecker) probeUntilHealthy(ctx context.Context, probe prob
 	var oks, fails uint
 	start := h.clock.Now()
 	timer := h.clock.NewTimer(retryInterval)
-	defer h.busy.Store(false)
+	defer h.lock.Unlock()
 
 	for {
 		h.log.DebugContext(ctx, "Trying passive health check probe", "duration", h.clock.Since(start), "fails", fails, "oks", oks)
