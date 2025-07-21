@@ -48,7 +48,7 @@ func ConvertError(err error) error {
 	}
 	// Unwrap original error first.
 	err = trace.Unwrap(err)
-	
+
 	var pgErr pgError
 	if errors.As(err, &pgErr) {
 		return ConvertError(pgErr.Unwrap())
