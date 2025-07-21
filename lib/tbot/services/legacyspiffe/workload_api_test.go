@@ -44,6 +44,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/anypb"
 
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
@@ -53,8 +54,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	libtestutils "github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
-
-	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
 func TestFilterSVIDRequests(t *testing.T) {
