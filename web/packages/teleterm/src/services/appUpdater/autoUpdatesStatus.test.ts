@@ -76,6 +76,15 @@ test.each([
     expected: {
       enabled: false,
       reason: 'no-cluster-with-auto-update',
+      candidateClusters: [
+        {
+          clusterUri: '/clusters/cluster-a',
+          toolsAutoUpdate: false,
+          toolsVersion: '14.0.0',
+          minToolsVersion: '13.0.0',
+          otherCompatibleClusters: [],
+        },
+      ],
       unreachableClusters: [],
     },
   },
@@ -103,12 +112,13 @@ test.each([
         kind: 'managing-cluster',
         clusterUri: '/clusters/cluster-a',
         candidateClusters: [
-          expect.objectContaining({
+          {
             clusterUri: '/clusters/cluster-a',
+            toolsAutoUpdate: true,
             toolsVersion: '14.0.0',
             minToolsVersion: '13.0.0',
             otherCompatibleClusters: [],
-          }),
+          },
         ],
         unreachableClusters: [],
       },
@@ -144,18 +154,20 @@ test.each([
       source: {
         kind: 'most-compatible',
         candidateClusters: [
-          expect.objectContaining({
+          {
             clusterUri: '/clusters/cluster-a',
+            toolsAutoUpdate: true,
             toolsVersion: '14.0.0',
             minToolsVersion: '13.0.0',
             otherCompatibleClusters: ['/clusters/cluster-b'],
-          }),
-          expect.objectContaining({
+          },
+          {
             clusterUri: '/clusters/cluster-b',
+            toolsAutoUpdate: true,
             toolsVersion: '14.0.0',
             minToolsVersion: '13.0.0',
             otherCompatibleClusters: ['/clusters/cluster-a'],
-          }),
+          },
         ],
         unreachableClusters: [],
         clustersUri: ['/clusters/cluster-a', '/clusters/cluster-b'],
@@ -192,18 +204,20 @@ test.each([
       source: {
         kind: 'most-compatible',
         candidateClusters: [
-          expect.objectContaining({
+          {
             clusterUri: '/clusters/cluster-a',
+            toolsAutoUpdate: true,
             toolsVersion: '14.1.0',
             minToolsVersion: '13.0.0',
             otherCompatibleClusters: ['/clusters/cluster-b'],
-          }),
-          expect.objectContaining({
+          },
+          {
             clusterUri: '/clusters/cluster-b',
+            toolsAutoUpdate: true,
             toolsVersion: '14.2.0',
             minToolsVersion: '13.0.0',
             otherCompatibleClusters: ['/clusters/cluster-a'],
-          }),
+          },
         ],
         unreachableClusters: [],
         clustersUri: ['/clusters/cluster-b'],
@@ -241,18 +255,20 @@ test.each([
       source: {
         kind: 'most-compatible',
         candidateClusters: [
-          expect.objectContaining({
+          {
             clusterUri: '/clusters/cluster-a',
+            toolsAutoUpdate: true,
             toolsVersion: '16.0.0',
             minToolsVersion: '15.0.0',
             otherCompatibleClusters: [],
-          }),
-          expect.objectContaining({
+          },
+          {
             clusterUri: '/clusters/cluster-b',
+            toolsAutoUpdate: true,
             toolsVersion: '15.0.0',
             minToolsVersion: '14.0.0',
             otherCompatibleClusters: ['/clusters/cluster-a'],
-          }),
+          },
         ],
         unreachableClusters: [],
         clustersUri: ['/clusters/cluster-b'],
@@ -270,7 +286,7 @@ test.each([
             clusterUri: '/clusters/cluster-a',
             toolsVersion: '18.0.0',
             minToolsVersion: '17.0.0',
-            toolsAutoUpdate: true,
+            toolsAutoUpdate: false,
           },
           {
             clusterUri: '/clusters/cluster-b',
@@ -293,24 +309,27 @@ test.each([
       enabled: false,
       reason: 'no-compatible-version',
       candidateClusters: [
-        expect.objectContaining({
+        {
           clusterUri: '/clusters/cluster-a',
+          toolsAutoUpdate: false,
           toolsVersion: '18.0.0',
           minToolsVersion: '17.0.0',
           otherCompatibleClusters: [],
-        }),
-        expect.objectContaining({
+        },
+        {
           clusterUri: '/clusters/cluster-b',
+          toolsAutoUpdate: true,
           toolsVersion: '16.0.0',
           minToolsVersion: '15.0.0',
           otherCompatibleClusters: ['/clusters/cluster-c'],
-        }),
-        expect.objectContaining({
+        },
+        {
           clusterUri: '/clusters/cluster-c',
+          toolsAutoUpdate: true,
           toolsVersion: '16.1.0',
           minToolsVersion: '15.0.0',
           otherCompatibleClusters: ['/clusters/cluster-b'],
-        }),
+        },
       ],
       unreachableClusters: [],
     },
