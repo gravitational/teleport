@@ -120,11 +120,10 @@ func UnmarshalYAMLConfig[T any](reader io.Reader) (*T, error) {
 		err = decoder.Decode(&target)
 	}
 
-	if err == nil {
-		return &target, nil
-	} else {
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return &target, nil
 }
 
 type configUnmarshaler interface {
