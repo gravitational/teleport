@@ -26,7 +26,6 @@ import { DiscoverEvent } from 'teleport/services/userEvent';
 
 import { KubeWrapper } from './KubeWrapper';
 import { HelmChart } from './SelfHosted';
-import { SetupAccess } from './SetupAccess';
 import { TestConnection } from './TestConnection';
 
 export const KubernetesResource: ResourceViewConfig = {
@@ -70,11 +69,6 @@ export const KubernetesResource: ResourceViewConfig = {
 
     return [
       ...configuredResourceViews,
-      {
-        title: 'Set Up Access',
-        component: SetupAccess,
-        eventName: DiscoverEvent.PrincipalsConfigure,
-      },
       {
         title: 'Test Connection',
         component: TestConnection,

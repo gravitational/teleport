@@ -88,8 +88,6 @@ export function TestConnection({
   function makeTestConnRequest(): KubeImpersonation {
     return {
       namespace,
-      user: selectedUser?.value,
-      groups: selectedGroups?.map(g => g.value),
     };
   }
 
@@ -127,56 +125,12 @@ export function TestConnection({
               />
             </Box>
           </StyledBox>
-          <StyledBox mb={5}>
-            <header>
-              <H3>Step 2</H3>
-              <Subtitle3 mb={3}>Select groups and a user to test.</Subtitle3>
-            </header>
-            <Box width="500px">
-              <FieldSelect
-                label="Kubernetes Groups"
-                placeholder={
-                  groupOpts.length === 0
-                    ? 'No groups defined'
-                    : 'Click to select groups'
-                }
-                isSearchable
-                isMulti
-                isClearable={false}
-                value={selectedGroups}
-                onChange={values => setSelectedGroups(values as Option[])}
-                options={groupOpts}
-                isDisabled={
-                  attempt.status === 'processing' || groupOpts.length === 0
-                }
-              />
-            </Box>
-            <Box width="500px">
-              <FieldSelect
-                label={'Kubernetes User'}
-                helperText={
-                  userOpts.length === 0
-                    ? 'Defaulted to your teleport username'
-                    : ''
-                }
-                isSearchable
-                isClearable={true}
-                placeholder="Select a user"
-                value={selectedUser}
-                onChange={(o: Option) => setSelectedUser(o)}
-                options={userOpts}
-                isDisabled={
-                  attempt.status === 'processing' || userOpts.length === 0
-                }
-              />
-            </Box>
-          </StyledBox>
           <ConnectionDiagnosticResult
             attempt={attempt}
             diagnosis={diagnosis}
             canTestConnection={canTestConnection}
             testConnection={() => handleTestConnection(validator)}
-            stepNumber={3}
+            stepNumber={2}
             stepDescription="Verify that the Kubernetes is accessible"
           />
           <StyledBox>
