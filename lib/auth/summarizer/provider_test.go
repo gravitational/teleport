@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package summarizerv1
+package summarizer
 
 import (
 	"context"
@@ -42,6 +42,13 @@ func TestProvideSummarizer(t *testing.T) {
 	provider.SetSummarizer(nil)
 	assert.IsType(t, &NoopSummarizer{}, provider.ProvideSummarizer(),
 		"after setting a nil summarizer, the provider should return a noop one instead")
+
+	var ss SessionSummarizer
+	var ds *dummySummarizer = nil
+	ss = ds
+	provider.SetSummarizer(ss)
+	assert.IsType(t, &NoopSummarizer{}, provider.ProvideSummarizer(),
+		"after setting a nil summarizer wrapped in a non-nil interface pointer, the provider should return a noop one instead")
 }
 
 type dummySummarizer struct{}

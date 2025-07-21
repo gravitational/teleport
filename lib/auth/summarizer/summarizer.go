@@ -23,8 +23,9 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 )
 
-// Summarizer summarizes session recordings using language model inference.
-type Summarizer interface {
+// SessionSummarizer summarizes session recordings using language model
+// inference.
+type SessionSummarizer interface {
 	// Summarize summarizes a session recording with a given ID. The
 	// sessionEndEvent is optional, but should be specified if possible, as an
 	// optimization to skip reading the session stream in order to find the end

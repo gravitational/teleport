@@ -14,14 +14,14 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package summarizerv1
+package summarizer
 
 import (
 	"context"
-	"sync/atomic"
+	"reflect"
+	"sync"
 
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -42,45 +42,44 @@ import (
 // a setter method; doing so would pollute the interface and require some
 // unnecessary stub implementations.
 type SummarizerProvider struct {
-	summarizer atomic.Pointer[summarizer.Summarizer]
+	summarizer SessionSummarizer
+	mu         sync.RWMutex
 }
 
 // ProvideSummarizer provides the summarizer service. It is safe to call this
 // function from any thread. Allows being called on a nil provider and
 // guarantees that the summarizer returned is never nil.
-func (p *SummarizerProvider) ProvideSummarizer() summarizer.Summarizer {
+func (p *SummarizerProvider) ProvideSummarizer() SessionSummarizer {
 	if p == nil {
 		return &NoopSummarizer{}
 	}
 
-	sptr := p.summarizer.Load()
-	if sptr == nil {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	if p.summarizer == nil || reflect.ValueOf(p.summarizer).IsNil() {
 		return &NoopSummarizer{}
 	}
 
-	s := *sptr
-	if s == nil {
-		return &NoopSummarizer{}
-	}
-
-	return s
+	return p.summarizer
 }
 
 // SetSummarizer sets the summarizer service to be provided. It is safe to call
 // this function from any thread.
-func (p *SummarizerProvider) SetSummarizer(s summarizer.Summarizer) {
-	p.summarizer.Store(&s)
+func (p *SummarizerProvider) SetSummarizer(s SessionSummarizer) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.summarizer = s
 }
 
 // NewSummarizerProvider creates a new SummarizerProvider without a summarizer.
 func NewSummarizerProvider() *SummarizerProvider {
 	sp := &SummarizerProvider{}
-	var noop summarizer.Summarizer = &NoopSummarizer{}
-	sp.summarizer.Store(&noop)
+	sp.SetSummarizer(&NoopSummarizer{})
 	return sp
 }
 
-// NoopSummarizer is a no-op implementation of the summarizer.Summarizer
+// NoopSummarizer is a no-op implementation of the [SessionSummarizer]
 // interface.
 type NoopSummarizer struct{}
 

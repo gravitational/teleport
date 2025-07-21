@@ -98,7 +98,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
-	"github.com/gravitational/teleport/lib/auth/summarizer/summarizerv1"
+	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
@@ -2177,7 +2177,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
-	summarizerProvider := summarizerv1.NewSummarizerProvider()
+	summarizerProvider := summarizer.NewSummarizerProvider()
 
 	// create the audit log, which will be consuming (and recording) all events
 	// and recording all sessions.
