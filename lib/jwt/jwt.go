@@ -35,7 +35,6 @@ import (
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/cryptosigner"
 	"github.com/go-jose/go-jose/v3/jwt"
-	gojwt "github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -534,18 +533,19 @@ func (p *PROXYVerifyParams) Check() error {
 	return nil
 }
 
-func (k *Key) validate(rawToken string) (map[string]interface{}, error) {
-	tok, err := gojwt.Parse(rawToken, func(t *gojwt.Token) (interface{}, error) {
-		return k.config.PublicKey, nil
-	})
+// Parses a JWT and validates arbitrary claims
+func (k *Key) validate(rawToken string) (map[string]any, error) {
+	tok, err := jwt.ParseSigned(rawToken)
 	if err != nil {
-		return nil, trace.Wrap(err, "Failed to validate JWT")
+		return nil, trace.Errorf("failed to parse jwt")
 	}
 
-	claims, ok := tok.Claims.(gojwt.MapClaims)
-	if !ok {
-		return nil, trace.Errorf("Failed to extract claims from JWT")
+	claims := map[string]any{}
+	err = tok.Claims(k.config.PublicKey, &claims)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to validate JWT signature")
 	}
+
 	return claims, nil
 }
 
@@ -809,8 +809,8 @@ func (k *Key) VerifyPluginToken(token string, claims PluginTokenParam) (*Claims,
 	return k.verify(token, expectedClaims)
 }
 
-// SignOAuthRequest signs a JWT token for an OIDC OAuth request.
-func (k *Key) SignOAuthRequest(claims any) (string, error) {
+// SignArbitrary creates a signed JWT with an arbitrary claims set
+func (k *Key) SignAny(claims map[string]any) (string, error) {
 	var kid string
 	var err error
 	if kid, err = KeyID(k.config.PublicKey); err != nil {
@@ -830,8 +830,8 @@ func (k *Key) SignOAuthRequest(claims any) (string, error) {
 	})
 }
 
-// Validate parses JWT and verifies its signature. Returns *all* claims,
+// ValidateAny parses JWT and verifies its signature. Returns *all* claims,
 // not just registered claims
-func (k *Key) Validate(rawToken string) (map[string]interface{}, error) {
+func (k *Key) ValidateAny(rawToken string) (map[string]any, error) {
 	return k.validate(rawToken)
 }
