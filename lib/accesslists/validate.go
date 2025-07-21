@@ -20,7 +20,6 @@ package accesslists
 
 import (
 	"context"
-	"time"
 
 	"github.com/gravitational/trace"
 
@@ -72,8 +71,7 @@ func validateAccessList(a *accesslist.AccessList) error {
 		}
 
 		if a.Spec.Audit.Notifications.Start == 0 {
-			twoWeeks := 24 * time.Hour * 14
-			a.Spec.Audit.Notifications.Start = twoWeeks
+			return trace.BadParameter("notifications start is not set")
 		}
 	} else {
 		if !isZero(a.Spec.Audit) {
