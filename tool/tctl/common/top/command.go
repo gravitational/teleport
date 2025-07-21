@@ -66,7 +66,7 @@ func (c *Command) newMetricsClient(ctx context.Context) (string, MetricsClient, 
 	debugClient := debug.NewClient(c.config.DataDir)
 	_, debugErr := debugClient.GetMetrics(ctx)
 	if debugErr == nil {
-		return c.config.DataDir, debugClient, nil
+		return debugClient.SocketPath(), debugClient, nil
 	}
 	debugErr = trace.Wrap(debugErr, "failed to get metrics from debug service")
 
