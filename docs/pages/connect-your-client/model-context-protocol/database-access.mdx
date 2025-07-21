@@ -25,9 +25,9 @@ the database:
 
 ```sql
 CREATE ROLE mcp_read_only WITH LOGIN;
-GRANT CONNECT ON DATABASE mydatabase TO mcp_read_only;
+GRANT CONNECT ON DATABASE my_database TO mcp_read_only;
 GRANT USAGE ON SCHEMA public TO mcp_read_only;
-GRANT SELECT ON mytable TO mcp_read_only;                     -- To grant read access to a single table.
+GRANT SELECT ON my_table TO mcp_read_only;                     -- To grant read access to a single table.
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO mcp_read_only; -- To grant read access to all tables in the "public" schema.
 
 GRANT rds_iam TO mcp_read_only; -- If connecting to a PostgreSQL RDS database.
