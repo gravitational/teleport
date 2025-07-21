@@ -18,6 +18,7 @@ package diag
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/url"
 
@@ -35,6 +36,27 @@ type Client struct {
 	clt      *http.Client
 }
 
+// Takes a string address and attempts to parse it into a valid URL.
+// The input can either be a valid string URL or a <host>:<port>.
+func parseAddress(addr string) (*url.URL, error) {
+	u, err := url.Parse(addr)
+
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		// It's possible the address is hostport format
+		_, _, err = net.SplitHostPort(addr)
+		if err != nil {
+			return nil, trace.Errorf("address %s is neither a valid URL nor <host>:<port>", addr)
+		}
+
+		u = &url.URL{
+			Scheme: "http",
+			Host:   addr,
+		}
+	}
+
+	return u, nil
+}
+
 // Creates a new Client for a given address.
 func NewClient(addr string) (*Client, error) {
 	clt, err := defaults.HTTPClient()
@@ -42,15 +64,17 @@ func NewClient(addr string) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	u, err := url.Parse(addr)
+	u, err := parseAddress(addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	u.Path = "metrics"
+	if u.Scheme != "http" {
+		return nil, trace.Errorf("unsupported scheme: %s, please provide a http address", u.Scheme)
+	}
 
 	return &Client{
-		endpoint: u.String(),
+		endpoint: u.JoinPath("metrics").String(),
 		clt:      clt,
 	}, nil
 }
