@@ -46,13 +46,13 @@ configuration.
 include Teleport's configuration:
 
 ```code
-$ tsh mcp login --all --config-client=claude
+$ tsh mcp config --all --config-client=claude
 Found MCP servers:
 fs
 mcp-everything
 
 Updated client configuration at:
-/path/to/Claude/claude_desktop_config.json
+~/Library/Application Support/Claude/claude_desktop_config.json
 
 Teleport MCP servers will be prefixed with "teleport-mcp-" in this
 configuration.
@@ -64,7 +64,7 @@ restart your client after logging in a new tsh session.
 
 You can also provide a custom path for your Claude Desktop MCPs configuration:
 ```code
-$ tsh mcp login --all --config-client=/path/to/config.json
+$ tsh mcp config --all --config-client=/path/to/config.json
 ```
 
 After updating the configuration, you need to restart the Claude Desktop app
@@ -76,7 +76,7 @@ before using the newly added MCPs.
 Teleport's configuration:
 
 ```code
-$ tsh mcp login --all --config-client=cursor
+$ tsh mcp config --all --config-client=cursor
 Found MCP servers:
 fs
 mcp-everything
@@ -95,7 +95,7 @@ restart your client after logging in a new tsh session.
 You can also update a Cursor project MCP servers by providing the path to the
 file:
 ```code
-$ tsh mcp login --all --config-client=/path/to/project/.cursor/mcp.jsonclaude
+$ tsh mcp config --all --config-client=/path/to/project/.cursor/mcp.json
 ```
 </TabItem>
 
@@ -106,7 +106,7 @@ will output configuration used to start Teleport's STDIO MCP server. You can use
 this as a base and modify it to suit your MCP client needs.
 
 ```code
-$ tsh mcp login --all
+$ tsh mcp config --all
 Found MCP servers:
 fs
 mcp-everything
