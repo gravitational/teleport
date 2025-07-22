@@ -19,6 +19,11 @@ teleport:
   join_params:
   # ...
   proxy_server: teleport.example.com:443
+  # optional duration value, how long the Relay should wait while broadcasting
+  # its termination status before actually beginning its shutdown; should be set
+  # to a value long enough for all agents pointed at the group to successfully
+  # open new connections to new members of the group during rollouts
+  shutdown_delay: '1m'
 auth_service:
   enabled: false
 proxy_service:
@@ -33,11 +38,6 @@ relay_service:
   # how many tunnels to distinct Relays should be opened by the Teleport
   # instances pointed at this group
   target_connection_count: 2
-  # optional duration value, how long the Relay should wait while broadcasting
-  # its termination status before actually beginning its shutdown; should be set
-  # to a value long enough for all agents pointed at the group to successfully
-  # open new connections to new members of the group during rollouts
-  shutdown_delay: '1m'
   # hostnames or IP addresses that the API endpoint is expected to be reached at
   # by clients and agents alike; normally it will just be one, but can be set to
   # multiple names in case the address should be changed, for seamless migrations
