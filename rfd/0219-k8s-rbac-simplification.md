@@ -64,11 +64,12 @@ existing customers.
 
 We will introduce the following new preset roles:
 
-- `kube-access`: Provides read-only access to some Kubernetes resources.
-  configmaps, endpoints, persistentvolumes, pods, replicationcontrollers, serviceaccounts, services, bindings, events, limitranges, namespaces , resourcequotas, endpointslices, controllerervisions, deamonsets, deployments, replicasets, statefulsets, horizontalpodautoscalers, cronjobs, jobs, ingresses, networkpolicies, poddistributionbudgets.
-- `kube-editor`: Provides full access to all Kubernetes resources.
-
-The Kubernetes clusterroles will mirror the current values of `view` and `cluster-admin`.
+- `kube-access`: Maps to the Kubernetes preset `edit`. Can CRUD most basic
+  builtin resources and read some limited administrative resources.
+- `kube-editor`: Maps to the Kubernetes preset `cluster-admin`. Provides full
+  access to all Kubernetes resources, including CRDs.
+- `kube-auditor`: Maps the the Kubernetes preset `view`. Provides read-only
+  access to some Kubernetes resources.
 
 The Teleport roles will look like this:
 
@@ -109,6 +110,24 @@ spec:
         name: '*'
         verbs:
           - '*'
+---
+kind: role
+version: v8
+metadata:
+  name: kube-auditor
+spec:
+  allow:
+    kubernetes_groups:
+      - 'teleport:preset:auditor'
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+      - api_group: '*'
+        kind: '*'
+        namespace: '*'
+        name: '*'
+        verbs:
+          - '*'
 ```
 
 ### Provisioning
@@ -129,12 +148,12 @@ authToken: foo
 proxyAddr: example.devteleport.com:443
 kubeClusterName: myCluster
 rbac:
-  accessClusterRoleName: teleport:preset:access
   accessClusterRoleBindingName: teleport:preset:access
   accessGroupName: teleport:preset:access
-  editorClusterRoleName: teleport:preset:editor
   editorClusterRoleBindingName: teleport:preset:editor
   editorGroupName: teleport:preset:editor
+  auditorClusterRoleBindingName: teleport:preset:auditor
+  auditorGroupName: teleport:preset:auditor
 ```
 
 Note that if a user decides to change the preset names, they will not be able
