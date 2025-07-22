@@ -356,6 +356,10 @@ func (a *AccessList) CheckAndSetDefaults() error {
 				return trace.Wrap(err, "setting initial audit date")
 			}
 		}
+		if a.Spec.Audit.Notifications.Start == 0 {
+			twoWeeks := 24 * time.Hour * 14
+			a.Spec.Audit.Notifications.Start = twoWeeks
+		}
 	}
 
 	// Deduplicate owners. The backend will currently prevent this, but it's possible that access lists
