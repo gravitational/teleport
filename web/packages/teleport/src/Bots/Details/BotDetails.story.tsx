@@ -21,10 +21,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory } from 'history';
 import { MemoryRouter, Route, Router } from 'react-router';
 
+import Box from 'design/Box';
+
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
+import { listBotInstancesSuccess } from 'teleport/test/helpers/botInstances';
 import {
   editBotSuccess,
   getBotError,
@@ -69,11 +72,63 @@ const successHandler = getBotSuccess({
   },
 });
 
+const listBotInstancesSuccessHandler = listBotInstancesSuccess({
+  bot_instances: [
+    {
+      bot_name: 'ansible-worker',
+      instance_id: crypto.randomUUID(),
+      active_at_latest: '2025-07-22T10:54:00Z',
+      host_name_latest: 'svr-lon-01-ab23cd',
+      join_method_latest: 'github',
+      os_latest: 'linux',
+      version_latest: '4.4.16',
+    },
+    {
+      bot_name: 'ansible-worker',
+      instance_id: crypto.randomUUID(),
+      active_at_latest: '2025-07-22T10:54:00Z',
+      host_name_latest: 'win-123a',
+      join_method_latest: 'tpm',
+      os_latest: 'windows',
+      version_latest: '3.1.0+ab12hd',
+    },
+    {
+      bot_name: 'ansible-worker',
+      instance_id: crypto.randomUUID(),
+      active_at_latest: '2025-07-22T10:54:00Z',
+      host_name_latest: 'mac-007',
+      join_method_latest: 'kubernetes',
+      os_latest: 'darwin',
+      version_latest: '2.9.99',
+    },
+    {
+      bot_name: 'ansible-worker',
+      instance_id: crypto.randomUUID(),
+      active_at_latest: '2025-07-22T10:54:00Z',
+      host_name_latest: 'aws:g49dh27dhjm3',
+      join_method_latest: 'ec2',
+      os_latest: 'linux',
+      version_latest: '1.3.2',
+    },
+    {
+      bot_name: 'ansible-worker',
+      instance_id: crypto.randomUUID(),
+      active_at_latest: '2025-07-22T10:54:00Z',
+      host_name_latest: 'ios-build-42',
+      join_method_latest: 'kubernetes',
+      os_latest: 'darwin',
+      version_latest: '5.0.0-dev',
+    },
+  ],
+  next_page_token: '',
+});
+
 export const Happy: Story = {
   parameters: {
     msw: {
       handlers: [
         successHandler,
+        listBotInstancesSuccessHandler,
         successGetRoles({
           startKey: '',
           items: ['access', 'editor', 'terraform-provider'].map(r => ({
@@ -89,7 +144,7 @@ export const Happy: Story = {
   },
 };
 
-export const HappyWithNoTraitsOrRoles: Story = {
+export const HappyWithNoTraitsOrRolesOrInstances: Story = {
   parameters: {
     msw: {
       handlers: [
@@ -100,6 +155,10 @@ export const HappyWithNoTraitsOrRoles: Story = {
           max_session_ttl: {
             seconds: 43200,
           },
+        }),
+        listBotInstancesSuccess({
+          bot_instances: [],
+          next_page_token: '',
         }),
         successGetRoles({
           startKey: '',
@@ -124,6 +183,31 @@ export const HappyWithoutEditPermission: Story = {
     msw: {
       handlers: [
         successHandler,
+        listBotInstancesSuccessHandler,
+        successGetRoles({
+          startKey: '',
+          items: ['access', 'editor', 'terraform-provider'].map(r => ({
+            content: r,
+            id: r,
+            name: r,
+            kind: 'role',
+          })),
+        }),
+        editBotSuccess(),
+      ],
+    },
+  },
+};
+
+export const HappyWithoutBotInstanceListPermission: Story = {
+  args: {
+    hasBotInstanceListPermission: false,
+  },
+  parameters: {
+    msw: {
+      handlers: [
+        successHandler,
+        listBotInstancesSuccessHandler,
         successGetRoles({
           startKey: '',
           items: ['access', 'editor', 'terraform-provider'].map(r => ({
@@ -183,8 +267,16 @@ const queryClient = new QueryClient({
   },
 });
 
-function Wrapper(props?: { hasBotsRead?: boolean; hasBotsEdit?: boolean }) {
-  const { hasBotsRead = true, hasBotsEdit = true } = props ?? {};
+function Wrapper(props?: {
+  hasBotsRead?: boolean;
+  hasBotsEdit?: boolean;
+  hasBotInstanceListPermission?: boolean;
+}) {
+  const {
+    hasBotsRead = true,
+    hasBotsEdit = true,
+    hasBotInstanceListPermission = true,
+  } = props ?? {};
 
   const history = createMemoryHistory({
     initialEntries: ['/web/bot/ansible-worker'],
@@ -200,6 +292,10 @@ function Wrapper(props?: { hasBotsRead?: boolean; hasBotsEdit?: boolean }) {
       ...defaultAccess,
       list: true,
     },
+    botInstances: {
+      ...defaultAccess,
+      list: hasBotInstanceListPermission,
+    },
   });
 
   const ctx = createTeleportContext({
@@ -212,7 +308,9 @@ function Wrapper(props?: { hasBotsRead?: boolean; hasBotsEdit?: boolean }) {
         <TeleportProviderBasic teleportCtx={ctx}>
           <Router history={history}>
             <Route path={cfg.routes.bot}>
-              <BotDetails />
+              <Box height={800} overflow={'auto'}>
+                <BotDetails />
+              </Box>
             </Route>
           </Router>
         </TeleportProviderBasic>

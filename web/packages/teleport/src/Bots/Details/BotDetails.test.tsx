@@ -39,6 +39,7 @@ import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { EditBotRequest } from 'teleport/services/bot/types';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
+import { listBotInstancesSuccess } from 'teleport/test/helpers/botInstances';
 import {
   editBotSuccess,
   getBotError,
@@ -89,6 +90,7 @@ describe('BotDetails', () => {
     history.goBack = jest.fn();
 
     withFetchSuccess();
+    withFetchInstancesSuccess();
     renderComponent({ history });
     await waitForLoading();
 
@@ -100,6 +102,7 @@ describe('BotDetails', () => {
 
   it('should show page title', async () => {
     withFetchSuccess();
+    withFetchInstancesSuccess();
     renderComponent();
     await waitForLoading();
 
@@ -111,6 +114,7 @@ describe('BotDetails', () => {
 
   it('should show bot metadata', async () => {
     withFetchSuccess();
+    withFetchInstancesSuccess();
     renderComponent();
     await waitForLoading();
 
@@ -125,6 +129,7 @@ describe('BotDetails', () => {
 
   it('should show bot roles', async () => {
     withFetchSuccess();
+    withFetchInstancesSuccess();
     renderComponent();
     await waitForLoading();
 
@@ -139,6 +144,7 @@ describe('BotDetails', () => {
 
   it('should show bot traits', async () => {
     withFetchSuccess();
+    withFetchInstancesSuccess();
     renderComponent();
     await waitForLoading();
 
@@ -151,6 +157,22 @@ describe('BotDetails', () => {
     expect(within(panel!).getByText('value-1')).toBeInTheDocument();
     expect(within(panel!).getByText('value-2')).toBeInTheDocument();
     expect(within(panel!).getByText('value-3')).toBeInTheDocument();
+  });
+
+  it('should show bot instances', async () => {
+    withFetchSuccess();
+    withFetchInstancesSuccess();
+    renderComponent();
+    await waitForLoading();
+
+    const panel = screen
+      .getByRole('heading', { name: 'Active Instances' })
+      .closest('section');
+    expect(panel).toBeInTheDocument();
+
+    expect(
+      within(panel!).getByText('c11250e0-00c2-4f52-bcdf-b367f80b9461')
+    ).toBeInTheDocument();
   });
 
   it('should show an unauthorised error state', async () => {
@@ -172,6 +194,7 @@ describe('BotDetails', () => {
   describe('Edit', () => {
     it('should disable edit action if no edit permission', async () => {
       withFetchSuccess();
+      withFetchInstancesSuccess();
       renderComponent({
         customAcl: makeAcl({
           bots: {
@@ -188,6 +211,7 @@ describe('BotDetails', () => {
 
     it('should show edit form on edit action', async () => {
       withFetchSuccess();
+      withFetchInstancesSuccess();
       renderComponent();
       await waitForLoading();
 
@@ -209,6 +233,7 @@ describe('BotDetails', () => {
 
     it("should update the bot's details on edit success", async () => {
       withFetchSuccess();
+      withFetchInstancesSuccess();
       renderComponent();
       await waitForLoading();
 
@@ -305,6 +330,25 @@ const withFetchSuccess = () => {
   server.use(getBotSuccess());
 };
 
+function withFetchInstancesSuccess() {
+  server.use(
+    listBotInstancesSuccess({
+      bot_instances: [
+        {
+          bot_name: 'ansible-worker',
+          instance_id: 'c11250e0-00c2-4f52-bcdf-b367f80b9461',
+          active_at_latest: '2025-07-22T10:54:00Z',
+          host_name_latest: 'svr-lon-01-ab23cd',
+          join_method_latest: 'github',
+          os_latest: 'linux',
+          version_latest: '4.4.16',
+        },
+      ],
+      next_page_token: '',
+    })
+  );
+}
+
 const withSaveSuccess = (
   version: 1 | 2 = 2,
   overrides?: Partial<EditBotRequest>
@@ -336,6 +380,10 @@ function makeWrapper(options?: {
         edit: true,
       },
       roles: {
+        ...defaultAccess,
+        list: true,
+      },
+      botInstances: {
         ...defaultAccess,
         list: true,
       },

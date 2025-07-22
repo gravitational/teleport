@@ -24,12 +24,14 @@ import { Alert } from 'design/Alert/Alert';
 import Box from 'design/Box/Box';
 import { ButtonSecondary } from 'design/Button/Button';
 import ButtonIcon from 'design/ButtonIcon/ButtonIcon';
+import Card from 'design/Card';
+import { CardTile } from 'design/CardTile/CardTile';
 import Flex from 'design/Flex/Flex';
 import { ArrowLeft } from 'design/Icon/Icons/ArrowLeft';
 import { Pencil } from 'design/Icon/Icons/Pencil';
 import { Question } from 'design/Icon/Icons/Question';
 import { Indicator } from 'design/Indicator/Indicator';
-import { Outline } from 'design/Label/Label';
+import { SecondaryOutlined } from 'design/Label/Label';
 import Text from 'design/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
@@ -47,6 +49,7 @@ import { EditDialog } from '../Edit/EditDialog';
 import { formatDuration } from '../formatDuration';
 import { useGetBot } from '../hooks';
 import { InfoGuide } from '../InfoGuide';
+import { InstancesPanel } from './InstancesPanel';
 import { Panel } from './Panel';
 
 export function BotDetails() {
@@ -133,79 +136,87 @@ export function BotDetails() {
               action={{
                 label: 'Edit',
                 onClick: handleEdit,
-                icon: <Pencil size={'medium'} />,
+                iconLeft: <Pencil size={'medium'} />,
                 disabled: !hasEditPermission,
               }}
             />
             <Divider />
 
             <Panel title="Metadata" isSubPanel>
-              <Grid>
-                <GridLabel>Botname</GridLabel>
-                <Flex inline alignItems={'center'} gap={1} mr={0}>
-                  <MonoText>{data.name}</MonoText>
-                  <CopyButton name={data.name} />
-                </Flex>
-                <GridLabel>Max session duration</GridLabel>
-                {data.max_session_ttl
-                  ? formatDuration(data.max_session_ttl, {
-                      separator: ' ',
-                    })
-                  : '-'}
-              </Grid>
+              <PanelContentContainer>
+                <Grid>
+                  <GridLabel>Botname</GridLabel>
+                  <Flex inline alignItems={'center'} gap={1} mr={0}>
+                    <MonoText>{data.name}</MonoText>
+                    <CopyButton name={data.name} />
+                  </Flex>
+                  <GridLabel>Max session duration</GridLabel>
+                  {data.max_session_ttl
+                    ? formatDuration(data.max_session_ttl, {
+                        separator: ' ',
+                      })
+                    : '-'}
+                </Grid>
+              </PanelContentContainer>
             </Panel>
 
             <PaddedDivider />
 
             <Panel title="Roles" isSubPanel>
-              {data.roles.length ? (
-                <Flex>
-                  {data.roles.toSorted().map(r => (
-                    <Outline mr="1" key={r}>
-                      {r}
-                    </Outline>
-                  ))}
-                </Flex>
-              ) : (
-                'No roles assigned'
-              )}
+              <PanelContentContainer>
+                {data.roles.length ? (
+                  <Flex>
+                    {data.roles.toSorted().map(r => (
+                      <SecondaryOutlined mr="1" key={r}>
+                        {r}
+                      </SecondaryOutlined>
+                    ))}
+                  </Flex>
+                ) : (
+                  'No roles assigned'
+                )}
+              </PanelContentContainer>
             </Panel>
 
             <PaddedDivider />
 
             <Panel title="Traits" isSubPanel>
-              {data.traits.length ? (
-                <Grid>
-                  {data.traits
-                    .toSorted((a, b) => a.name.localeCompare(b.name))
-                    .map(r => (
-                      <React.Fragment key={r.name}>
-                        <GridLabel>
-                          <Trait traitName={r.name} />
-                        </GridLabel>
-                        <div>
-                          {r.values.length > 0
-                            ? r.values.toSorted().map(v => (
-                                <Outline mr="1" key={v}>
-                                  {v}
-                                </Outline>
-                              ))
-                            : 'no values'}
-                        </div>
-                      </React.Fragment>
-                    ))}
-                </Grid>
-              ) : (
-                'No traits set'
-              )}
+              <PanelContentContainer>
+                {data.traits.length ? (
+                  <Grid>
+                    {data.traits
+                      .toSorted((a, b) => a.name.localeCompare(b.name))
+                      .map(r => (
+                        <React.Fragment key={r.name}>
+                          <GridLabel>
+                            <Trait traitName={r.name} />
+                          </GridLabel>
+                          <div>
+                            {r.values.length > 0
+                              ? r.values.toSorted().map(v => (
+                                  <SecondaryOutlined mr="1" key={v}>
+                                    {v}
+                                  </SecondaryOutlined>
+                                ))
+                              : 'no values'}
+                          </div>
+                        </React.Fragment>
+                      ))}
+                  </Grid>
+                ) : (
+                  'No traits set'
+                )}
+              </PanelContentContainer>
             </Panel>
 
             <Divider />
 
-            <Panel title="Join Tokens">Coming soon</Panel>
+            <Panel title="Join Tokens">
+              <PanelContentContainer>Coming soon</PanelContentContainer>
+            </Panel>
           </ColumnContainer>
-          <ColumnContainer>
-            <Panel title="Active Instances">Coming soon</Panel>
+          <ColumnContainer maxWidth={400}>
+            <InstancesPanel botName={params.botName} />
           </ColumnContainer>
 
           {isEditing ? (
@@ -221,16 +232,22 @@ export function BotDetails() {
   );
 }
 
-const Container = styled(Flex).attrs({ gap: 3 })`
-  flex-wrap: wrap;
+const Container = styled(Flex).attrs({ gap: 2 })`
+  flex: 1;
+  overflow: auto;
 `;
 
-const ColumnContainer = styled(Flex)`
-  flex: 1;
+const ColumnContainer = styled(CardTile)`
   flex-direction: column;
-  min-width: 300px;
-  background-color: ${p => p.theme.colors.levels.surface};
-  border-radius: ${props => props.theme.space[1]}px;
+  overflow: auto;
+  padding: 0;
+  gap: 0;
+  margin: ${props => props.theme.space[1]}px;
+`;
+
+const PanelContentContainer = styled.div`
+  padding: ${props => props.theme.space[3]}px;
+  padding-top: 0;
 `;
 
 const Divider = styled.div`
