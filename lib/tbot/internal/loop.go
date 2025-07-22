@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package internal
 
 import (
 	"context"
@@ -33,26 +33,26 @@ import (
 )
 
 var (
-	loopIterationsCounter = prometheus.NewCounterVec(
+	LoopIterationsCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "tbot_task_iterations_total",
 			Help: "Number of task iteration attempts, not counting retries",
 		}, []string{"service", "name"},
 	)
-	loopIterationsSuccessCounter = prometheus.NewHistogramVec(
+	LoopIterationsSuccessCounter = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "tbot_task_iterations_successful",
 			Help:    "Histogram of task iterations that ultimately succeeded, bucketed by number of retries before success",
 			Buckets: []float64{0, 1, 2, 3, 4, 5},
 		}, []string{"service", "name"},
 	)
-	loopIterationsFailureCounter = prometheus.NewCounterVec(
+	LoopIterationsFailureCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "tbot_task_iterations_failed",
 			Help: "Number of task iterations that ultimately failed, not counting retries",
 		}, []string{"service", "name"},
 	)
-	loopIterationTime = prometheus.NewHistogramVec(
+	LoopIterationTime = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "tbot_task_iteration_duration_seconds",
 			Help:    "Time between beginning and ultimate end of one task iteration regardless of outcome, including all retries",
@@ -61,119 +61,119 @@ var (
 	)
 )
 
-type runOnIntervalConfig struct {
-	service string
-	name    string
-	f       func(ctx context.Context) error
-	clock   clockwork.Clock
-	// reloadCh allows the task to be triggered immediately, ideal for handling
+type RunOnIntervalConfig struct {
+	Service string
+	Name    string
+	F       func(ctx context.Context) error
+	Clock   clockwork.Clock
+	// ReloadCh allows the task to be triggered immediately, ideal for handling
 	// CA rotations or a manual signal from a user.
-	// reloadCh can be nil, in which case, the task will only run on the
+	// ReloadCh can be nil, in which case, the task will only run on the
 	// interval.
-	reloadCh             chan struct{}
-	log                  *slog.Logger
-	interval             time.Duration
-	retryLimit           int
-	exitOnRetryExhausted bool
-	waitBeforeFirstRun   bool
-	// identityReadyCh allows the service to wait until the internal bot identity
+	ReloadCh             <-chan struct{}
+	Log                  *slog.Logger
+	Interval             time.Duration
+	RetryLimit           int
+	ExitOnRetryExhausted bool
+	WaitBeforeFirstRun   bool
+	// IdentityReadyCh allows the service to wait until the internal bot identity
 	// renewal has completed before running, to avoid spamming the logs if the
 	// service doesn't support gracefully degrading when there is no API client
 	// available.
-	identityReadyCh <-chan struct{}
-	statusReporter  readyz.Reporter
+	IdentityReadyCh <-chan struct{}
+	StatusReporter  readyz.Reporter
 }
 
-func (cfg *runOnIntervalConfig) checkAndSetDefaults() error {
+func (cfg *RunOnIntervalConfig) CheckAndSetDefaults() error {
 	switch {
-	case cfg.interval <= 0:
+	case cfg.Interval <= 0:
 		return trace.BadParameter("interval must be greater than 0")
-	case cfg.retryLimit < 0:
+	case cfg.RetryLimit < 0:
 		return trace.BadParameter("retryLimit must be greater than or equal to 0")
-	case cfg.log == nil:
+	case cfg.Log == nil:
 		return trace.BadParameter("log is required")
-	case cfg.f == nil:
+	case cfg.F == nil:
 		return trace.BadParameter("f is required")
-	case cfg.name == "":
+	case cfg.Name == "":
 		return trace.BadParameter("name is required")
 	}
 
-	if cfg.clock == nil {
-		cfg.clock = clockwork.NewRealClock()
+	if cfg.Clock == nil {
+		cfg.Clock = clockwork.NewRealClock()
 	}
-	if cfg.statusReporter == nil {
-		cfg.statusReporter = readyz.NoopReporter()
+	if cfg.StatusReporter == nil {
+		cfg.StatusReporter = readyz.NoopReporter()
 	}
 
 	return nil
 }
 
-// runOnInterval runs a function on a given interval, with retries and jitter.
+// RunOnInterval runs a function on a given interval, with retries and jitter.
 //
 // TODO(noah): Emit Prometheus metrics for:
 // - Time of next attempt
-func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
-	if err := cfg.checkAndSetDefaults(); err != nil {
+func RunOnInterval(ctx context.Context, cfg RunOnIntervalConfig) error {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return err
 	}
 
-	log := cfg.log.With("task", cfg.name)
+	log := cfg.Log.With("task", cfg.Name)
 
-	if cfg.identityReadyCh != nil {
+	if cfg.IdentityReadyCh != nil {
 		select {
-		case <-cfg.identityReadyCh:
+		case <-cfg.IdentityReadyCh:
 		default:
 			log.InfoContext(ctx, "Waiting for internal bot identity to be renewed before running")
 			select {
-			case <-cfg.identityReadyCh:
+			case <-cfg.IdentityReadyCh:
 			case <-ctx.Done():
 				return nil
 			}
 		}
 	}
 
-	ticker := cfg.clock.NewTicker(cfg.interval)
+	ticker := cfg.Clock.NewTicker(cfg.Interval)
 	defer ticker.Stop()
 	jitter := retryutils.DefaultJitter
 	firstRun := true
 	for {
-		if !firstRun || (firstRun && cfg.waitBeforeFirstRun) {
+		if !firstRun || (firstRun && cfg.WaitBeforeFirstRun) {
 			select {
 			case <-ctx.Done():
 				return nil
 			case <-ticker.Chan():
-			case <-cfg.reloadCh:
+			case <-cfg.ReloadCh:
 			}
 		}
 		firstRun = false
 
-		loopIterationsCounter.WithLabelValues(cfg.service, cfg.name).Inc()
+		LoopIterationsCounter.WithLabelValues(cfg.Service, cfg.Name).Inc()
 		startTime := time.Now()
 
 		var err error
-		for attempt := 1; attempt <= cfg.retryLimit; attempt++ {
+		for attempt := 1; attempt <= cfg.RetryLimit; attempt++ {
 			log.InfoContext(
 				ctx,
 				"Attempting task",
 				"attempt", attempt,
-				"retry_limit", cfg.retryLimit,
+				"retry_limit", cfg.RetryLimit,
 			)
-			err = cfg.f(ctx)
+			err = cfg.F(ctx)
 			if err == nil {
-				cfg.statusReporter.Report(readyz.Healthy)
-				loopIterationsSuccessCounter.WithLabelValues(cfg.service, cfg.name).Observe(float64(attempt - 1))
+				cfg.StatusReporter.Report(readyz.Healthy)
+				LoopIterationsSuccessCounter.WithLabelValues(cfg.Service, cfg.Name).Observe(float64(attempt - 1))
 				break
 			}
 
-			if attempt != cfg.retryLimit {
+			if attempt != cfg.RetryLimit {
 				// exponentially back off with jitter, starting at 1 second.
 				backoffTime := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
 				backoffTime = jitter(backoffTime)
-				cfg.log.WarnContext(
+				cfg.Log.WarnContext(
 					ctx,
 					"Task failed. Backing off and retrying",
 					"attempt", attempt,
-					"retry_limit", cfg.retryLimit,
+					"retry_limit", cfg.RetryLimit,
 					"backoff", backoffTime,
 					"error", err,
 				)
@@ -183,37 +183,37 @@ func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
 					// probably won't be collected if we're shutting down,
 					// anyway.
 					return nil
-				case <-cfg.clock.After(backoffTime):
+				case <-cfg.Clock.After(backoffTime):
 				}
 			}
 		}
 
-		loopIterationTime.WithLabelValues(cfg.service, cfg.name).Observe(time.Since(startTime).Seconds())
+		LoopIterationTime.WithLabelValues(cfg.Service, cfg.Name).Observe(time.Since(startTime).Seconds())
 
 		if err != nil {
-			cfg.statusReporter.ReportReason(readyz.Unhealthy, err.Error())
-			loopIterationsFailureCounter.WithLabelValues(cfg.service, cfg.name).Inc()
+			cfg.StatusReporter.ReportReason(readyz.Unhealthy, err.Error())
+			LoopIterationsFailureCounter.WithLabelValues(cfg.Service, cfg.Name).Inc()
 
-			if cfg.exitOnRetryExhausted {
+			if cfg.ExitOnRetryExhausted {
 				log.ErrorContext(
 					ctx,
 					"All retry attempts exhausted. Exiting",
 					"error", err,
-					"retry_limit", cfg.retryLimit,
+					"retry_limit", cfg.RetryLimit,
 				)
 				return trace.Wrap(err)
 			}
 			log.WarnContext(
 				ctx,
 				"All retry attempts exhausted. Will wait for next interval",
-				"retry_limit", cfg.retryLimit,
-				"interval", cfg.interval,
+				"retry_limit", cfg.RetryLimit,
+				"interval", cfg.Interval,
 			)
 		} else {
 			log.InfoContext(
 				ctx,
 				"Task succeeded. Waiting interval",
-				"interval", cfg.interval,
+				"interval", cfg.Interval,
 			)
 		}
 	}

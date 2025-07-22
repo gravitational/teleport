@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package internal
 
 import (
 	"context"
@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
-func Test_runOnInterval(t *testing.T) {
+func Test_RunOnInterval(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -41,23 +41,23 @@ func Test_runOnInterval(t *testing.T) {
 	taskCh := make(chan struct{}, 3)
 	log := logtest.NewLogger()
 	clock := clockwork.NewFakeClock()
-	cfg := runOnIntervalConfig{
-		name:  "test",
-		clock: clock,
-		log:   log,
-		f: func(ctx context.Context) error {
+	cfg := RunOnIntervalConfig{
+		Name:  "test",
+		Clock: clock,
+		Log:   log,
+		F: func(ctx context.Context) error {
 			taskCh <- struct{}{}
 			return nil
 		},
-		retryLimit: 3,
-		interval:   time.Minute * 10,
+		RetryLimit: 3,
+		Interval:   time.Minute * 10,
 	}
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		assert.NoError(t, runOnInterval(ctx, cfg))
+		assert.NoError(t, RunOnInterval(ctx, cfg))
 	}()
 
 	// Wait for three iterations to have been completed.
@@ -66,12 +66,12 @@ func Test_runOnInterval(t *testing.T) {
 		clock.Advance(time.Minute * 11)
 	}
 
-	// Cancel the ctx and make sure runOnInterval returns
+	// Cancel the ctx and make sure RunOnInterval returns
 	cancel()
 	wg.Wait()
 }
 
-func Test_runOnInterval_failureExit(t *testing.T) {
+func Test_RunOnInterval_failureExit(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -81,24 +81,24 @@ func Test_runOnInterval_failureExit(t *testing.T) {
 
 	log := logtest.NewLogger()
 	testErr := fmt.Errorf("test error")
-	cfg := runOnIntervalConfig{
-		name:  "test",
-		clock: clockwork.NewRealClock(),
-		log:   log,
-		f: func(ctx context.Context) error {
+	cfg := RunOnIntervalConfig{
+		Name:  "test",
+		Clock: clockwork.NewRealClock(),
+		Log:   log,
+		F: func(ctx context.Context) error {
 			callCount.Add(1)
 			return testErr
 		},
-		retryLimit:           2,
-		interval:             time.Second,
-		exitOnRetryExhausted: true,
+		RetryLimit:           2,
+		Interval:             time.Second,
+		ExitOnRetryExhausted: true,
 	}
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		assert.ErrorIs(t, runOnInterval(ctx, cfg), testErr)
+		assert.ErrorIs(t, RunOnInterval(ctx, cfg), testErr)
 	}()
 
 	wg.Wait()
