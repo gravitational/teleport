@@ -736,19 +736,19 @@ Examples:
 	case dbConfigureCreate.FullCommand():
 		err = onDumpDatabaseConfig(dbConfigCreateFlags)
 	case dbConfigureAWSPrintIAM.FullCommand():
-		err = onConfigureDatabasesAWSPrint(configureDatabaseAWSPrintFlags)
+		err = onConfigureDatabasesAWSPrint(ctx, configureDatabaseAWSPrintFlags)
 	case dbConfigureAWSCreateIAM.FullCommand():
-		err = onConfigureDatabasesAWSCreate(configureDatabaseAWSCreateFlags)
+		err = onConfigureDatabasesAWSCreate(ctx, configureDatabaseAWSCreateFlags)
 	case dbConfigureBootstrap.FullCommand():
 		configureDiscoveryBootstrapFlags.config.Service = configurators.DatabaseService
-		err = onConfigureDiscoveryBootstrap(configureDiscoveryBootstrapFlags)
+		err = onConfigureDiscoveryBootstrap(ctx, configureDiscoveryBootstrapFlags)
 	case systemdInstall.FullCommand():
 		err = onDumpSystemdUnitFile(systemdInstallFlags)
 	case installAutoDiscoverNode.FullCommand():
 		err = onInstallAutoDiscoverNode(installAutoDiscoverNodeFlags)
 	case discoveryBootstrapCmd.FullCommand():
 		configureDiscoveryBootstrapFlags.config.Service = configurators.DiscoveryService
-		err = onConfigureDiscoveryBootstrap(configureDiscoveryBootstrapFlags)
+		err = onConfigureDiscoveryBootstrap(ctx, configureDiscoveryBootstrapFlags)
 	case joinOpenSSH.FullCommand():
 		err = onJoinOpenSSH(ccf, conf)
 	case integrationConfDeployServiceCmd.FullCommand():
