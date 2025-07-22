@@ -54,14 +54,20 @@ func (a *Server) SampleAgentsFromAutoUpdateGroup(ctx context.Context, groupName 
 			return false
 		}
 
-		// If this is not the catch-all group, we can only check if the agent group is the right one.
-		if !isCatchAll {
+		// If the agent group matches, we keep it.
+		if handle.Hello().UpdaterInfo.UpdateGroup == groupName {
 			// No need to check for UpdaterInfo being nil, it would have been filtered
 			// out by filterHandler().
-			return handle.Hello().UpdaterInfo.UpdateGroup == groupName
+			return true
 		}
+
+		// If this is not the catch-all group, we filter the agent out
+		if !isCatchAll {
+			return false
+		}
+
 		// This is the catch-call group, it matches agents from every group not in groups.
-		_, ok := groupSet[groupName]
+		_, ok := groupSet[handle.Hello().UpdaterInfo.UpdateGroup]
 		// If the agent group is not in the group list, it falls into the catch-all.
 		return !ok
 	}
