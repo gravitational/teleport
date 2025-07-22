@@ -2,6 +2,12 @@
 
 ## 17.6.0 (07/22/25)
 
+## VNet for SSH
+
+Teleport VNet now has native support for SSH, enabling any SSH client to connect to Teleport SSH servers with zero configuration. Advanced Teleport features like per-session MFA now have first-class support for a seamless user experience.
+
+### Other fixes and improvements
+
 * `tctl` top now supports the local unix sock debug endpoint. [#57027](https://github.com/gravitational/teleport/pull/57027)
 * Added support to `tsh` App Access commands for Azure CLI (`az`) version `2.73.0` and newer. [#56951](https://github.com/gravitational/teleport/pull/56951)
 * Fixed a bug in the Teleport install scripts when running on MacOS. The install scripts now error instead of trying to install non existing MacOS FIPS binaries. [#56942](https://github.com/gravitational/teleport/pull/56942)
