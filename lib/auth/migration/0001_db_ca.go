@@ -34,7 +34,7 @@ import (
 // Database CA for all existing clusters that do not already
 // have one. Introduced in v10.
 type createDBAuthority struct {
-	trustServiceFn  func(b backend.Backend) services.Trust
+	trustServiceFn  func(b backend.Backend) *local.CA
 	configServiceFn func(b backend.Backend) (services.ClusterConfiguration, error)
 }
 
@@ -54,9 +54,7 @@ func (d createDBAuthority) Up(ctx context.Context, b backend.Backend) error {
 	defer span.End()
 
 	if d.trustServiceFn == nil {
-		d.trustServiceFn = func(b backend.Backend) services.Trust {
-			return local.NewCAService(b)
-		}
+		d.trustServiceFn = local.NewCAService
 	}
 
 	if d.configServiceFn == nil {
@@ -103,7 +101,7 @@ func (d createDBAuthority) Down(ctx context.Context, b backend.Backend) error {
 	defer span.End()
 
 	if d.trustServiceFn == nil {
-		d.trustServiceFn = func(b backend.Backend) services.Trust {
+		d.trustServiceFn = func(b backend.Backend) *local.CA {
 			return local.NewCAService(b)
 		}
 	}

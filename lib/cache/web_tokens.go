@@ -34,9 +34,12 @@ func newWebTokenCollection(upstream types.WebTokenInterface, w types.WatchKind) 
 	}
 
 	return &collection[types.WebToken, webTokenIndex]{
-		store: newStore(map[webTokenIndex]func(types.WebToken) string{
-			webTokenNameIndex: types.WebToken.GetName,
-		}),
+		store: newStore(
+			types.KindWebToken,
+			types.WebToken.Clone,
+			map[webTokenIndex]func(types.WebToken) string{
+				webTokenNameIndex: types.WebToken.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WebToken, error) {
 			installers, err := upstream.List(ctx)
 			return installers, trace.Wrap(err)
@@ -67,7 +70,6 @@ func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (
 			token, err := c.Config.WebToken.Get(ctx, req)
 			return token, trace.Wrap(err)
 		},
-		clone: types.WebToken.Clone,
 	}
 	out, err := getter.get(ctx, req.Token)
 	return out, trace.Wrap(err)

@@ -35,9 +35,12 @@ func newInstallerCollection(upstream services.ClusterConfiguration, w types.Watc
 	}
 
 	return &collection[types.Installer, installerIndex]{
-		store: newStore(map[installerIndex]func(types.Installer) string{
-			installerNameIndex: types.Installer.GetName,
-		}),
+		store: newStore(
+			types.KindInstaller,
+			types.Installer.Clone,
+			map[installerIndex]func(types.Installer) string{
+				installerNameIndex: types.Installer.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Installer, error) {
 			installers, err := upstream.GetInstallers(ctx)
 			return installers, trace.Wrap(err)
@@ -65,7 +68,6 @@ func (c *Cache) GetInstaller(ctx context.Context, name string) (types.Installer,
 		collection:  c.collections.installers,
 		index:       installerNameIndex,
 		upstreamGet: c.Config.ClusterConfig.GetInstaller,
-		clone:       types.Installer.Clone,
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)

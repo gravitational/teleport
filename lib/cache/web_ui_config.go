@@ -35,9 +35,12 @@ func newWebUIConfigCollection(upstream services.ClusterConfiguration, w types.Wa
 	}
 
 	return &collection[types.UIConfig, webUIConfigIndex]{
-		store: newStore(map[webUIConfigIndex]func(types.UIConfig) string{
-			webUIConfigNameIndex: types.UIConfig.GetName,
-		}),
+		store: newStore(
+			types.KindUIConfig,
+			types.UIConfig.Clone,
+			map[webUIConfigIndex]func(types.UIConfig) string{
+				webUIConfigNameIndex: types.UIConfig.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.UIConfig, error) {
 			uiConfig, err := upstream.GetUIConfig(ctx)
 			if err != nil {
@@ -72,7 +75,6 @@ func (c *Cache) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
 			cfg, err := c.Config.ClusterConfig.GetUIConfig(ctx)
 			return cfg, trace.Wrap(err)
 		},
-		clone: types.UIConfig.Clone,
 	}
 	out, err := getter.get(ctx, types.MetaNameUIConfig)
 	return out, trace.Wrap(err)

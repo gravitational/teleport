@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -73,7 +74,7 @@ func (a *LegacyDestinationDirArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Lo
 		// output for that directory.
 		cfg.Services = []config.ServiceConfig{
 			&config.IdentityOutput{
-				Destination: &config.DestinationDirectory{
+				Destination: &destination.Directory{
 					Path: a.DestinationDir,
 				},
 			},
@@ -128,6 +129,8 @@ type LegacyCommand struct {
 	// DiagAddr is the address the diagnostics http service should listen on.
 	// If not set, no diagnostics listener is created.
 	DiagAddr string
+
+	oneshotSetByUser bool
 }
 
 // NewLegacyCommand initializes and returns a command supporting
@@ -151,7 +154,7 @@ func NewLegacyCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode C
 	c.cmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").DurationVar(&c.CertificateTTL)
 	c.cmd.Flag("renewal-interval", "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.").DurationVar(&c.RenewalInterval)
 	c.cmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).EnumVar(&c.JoinMethod, config.SupportedJoinMethods...)
-	c.cmd.Flag("oneshot", "If set, quit after the first renewal.").BoolVar(&c.Oneshot)
+	c.cmd.Flag("oneshot", "If set, quit after the first renewal.").IsSetByUser(&c.oneshotSetByUser).BoolVar(&c.Oneshot)
 	c.cmd.Flag("diag-addr", "If set and the bot is in debug mode, a diagnostics service will listen on specified address.").StringVar(&c.DiagAddr)
 
 	return c
@@ -183,8 +186,8 @@ func (c *LegacyCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error
 		}
 	}
 
-	if c.Oneshot {
-		cfg.Oneshot = true
+	if c.oneshotSetByUser {
+		cfg.Oneshot = c.Oneshot
 	}
 
 	if c.CertificateTTL != 0 {

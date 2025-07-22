@@ -20,6 +20,7 @@ import { MemoryRouter } from 'react-router';
 
 import { botsFixture } from 'teleport/Bots/fixtures';
 import { BotList } from 'teleport/Bots/List/BotList';
+import { TeleportProviderBasic } from 'teleport/mocks/providers';
 
 import { EmptyState } from './EmptyState/EmptyState';
 
@@ -30,7 +31,9 @@ export default {
 export const Empty = () => {
   return (
     <MemoryRouter>
-      <EmptyState />
+      <TeleportProviderBasic>
+        <EmptyState />
+      </TeleportProviderBasic>
     </MemoryRouter>
   );
 };

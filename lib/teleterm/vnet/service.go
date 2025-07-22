@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -29,10 +30,12 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
 	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	apiteleterm "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1"
+	diagv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/diag/v1"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -41,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/vnet"
+	"github.com/gravitational/teleport/lib/vnet/diag"
 )
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, "term:vnet")
@@ -61,7 +65,7 @@ type Service struct {
 	mu                 sync.Mutex
 	status             status
 	usageReporter      usageReporter
-	processManager     *vnet.ProcessManager
+	vnetProcess        *vnet.UserProcess
 	clusterConfigCache *vnet.ClusterConfigCache
 	networkStackInfo   *vnetv1.NetworkStackInfo
 }
@@ -91,6 +95,7 @@ type Config struct {
 	// reporting.
 	InstallationID string
 	Clock          clockwork.Clock
+	profilePath    string
 }
 
 // CheckAndSetDefaults checks and sets the defaults
@@ -109,6 +114,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
+	}
+
+	if c.profilePath == "" {
+		c.profilePath = profile.FullProfilePath(os.Getenv(types.HomeEnvVar))
 	}
 
 	return nil
@@ -160,15 +169,13 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		clientApplication.usageReporter = usageReporter
 	}
 
-	processManager, nsi, err := vnet.RunUserProcess(ctx, &vnet.UserProcessConfig{
-		ClientApplication: clientApplication,
-	})
+	vnetProcess, err := vnet.RunUserProcess(ctx, clientApplication)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	go func() {
-		err := processManager.Wait()
+		err := vnetProcess.Wait()
 		if err != nil && !errors.Is(err, context.Canceled) {
 			log.ErrorContext(ctx, "VNet closed with an error", "error", err)
 		} else {
@@ -179,7 +186,7 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		defer s.mu.Unlock()
 
 		// Handle unexpected shutdown.
-		// If processManager.Wait has returned but status is stil "running", then it means that VNet
+		// If vnetProcess.Wait has returned but status is stil "running", then it means that VNet
 		// unexpectedly shut down rather than stopped through the Stop RPC.
 		if s.status == statusRunning {
 			s.status = statusNotRunning
@@ -194,8 +201,8 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		}
 	}()
 
-	s.processManager = processManager
-	s.networkStackInfo = nsi
+	s.vnetProcess = vnetProcess
+	s.networkStackInfo = vnetProcess.NetworkStackInfo()
 	s.usageReporter = clientApplication.usageReporter
 	s.status = statusRunning
 	return &api.StartResponse{}, nil
@@ -214,86 +221,104 @@ func (s *Service) Stop(ctx context.Context, req *api.StopRequest) (*api.StopResp
 	return &api.StopResponse{}, nil
 }
 
-// ListDNSZones returns DNS zones of all root and leaf clusters with non-expired user certs. This
-// includes the proxy service hostnames and custom DNS zones configured in vnet_config.
-//
-// This is fetched independently of what the Electron app thinks the current state of the cluster
-// looks like, since the VNet admin process also fetches this data independently of the Electron
-// app.
-//
-// Just like the admin process, it skips root and leaf clusters for which DNS couldn't be fetched
-// (due to e.g., a network error or an expired cert).
-func (s *Service) ListDNSZones(ctx context.Context, req *api.ListDNSZonesRequest) (*api.ListDNSZonesResponse, error) {
+// GetServiceInfo returns info about the running VNet service.
+func (s *Service) GetServiceInfo(ctx context.Context, _ *api.GetServiceInfoRequest) (*api.GetServiceInfoResponse, error) {
 	// Acquire the lock just to check the status of the service. We don't want the actual process of
 	// listing DNS zones to block the user from performing other operations.
 	s.mu.Lock()
+	if s.status != statusRunning {
+		s.mu.Unlock()
+		return nil, trace.CompareFailed("VNet is not running")
+	}
+	unifiedClusterConfigProvider := s.vnetProcess.GetUnifiedClusterConfigProvider()
+	s.mu.Unlock()
+
+	unifiedClusterConfig, err := unifiedClusterConfigProvider.GetUnifiedClusterConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshConfigChecker, err := diag.NewSSHConfigChecker(s.cfg.profilePath)
+	if err != nil {
+		return nil, trace.Wrap(err, "building SSH config checker")
+	}
+	_, sshConfigured, err := sshConfigChecker.OpenSSHConfigIncludesVNetSSHConfig()
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err, "checking SSH configuration")
+	}
+
+	return &api.GetServiceInfoResponse{
+		AppDnsZones:       unifiedClusterConfig.AppDNSZones(),
+		Clusters:          unifiedClusterConfig.ClusterNames,
+		SshConfigured:     sshConfigured,
+		VnetSshConfigPath: sshConfigChecker.VNetSSHConfigPath,
+	}, nil
+}
+
+// RunDiagnostics runs a set of heuristics to determine if VNet actually works
+// on the device. It requires VNet to be started.
+func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsRequest) (*api.RunDiagnosticsResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	if s.status != statusRunning {
 		return nil, trace.CompareFailed("VNet is not running")
 	}
 
-	defer s.mu.Unlock()
+	if s.networkStackInfo.InterfaceName == "" {
+		return nil, trace.BadParameter("no interface name, this is a bug")
+	}
 
-	profileNames, err := s.cfg.DaemonService.ListProfileNames()
+	if s.networkStackInfo.Ipv6Prefix == "" {
+		return nil, trace.BadParameter("no IPv6 prefix, this is a bug")
+	}
+
+	nsa := &diagv1.NetworkStackAttempt{}
+	if ns, err := s.getNetworkStack(ctx); err != nil {
+		nsa.Status = diagv1.CheckAttemptStatus_CHECK_ATTEMPT_STATUS_ERROR
+		nsa.Error = err.Error()
+	} else {
+		nsa.Status = diagv1.CheckAttemptStatus_CHECK_ATTEMPT_STATUS_OK
+		nsa.NetworkStack = ns
+	}
+
+	diagChecks, err := s.platformDiagChecks(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	dnsZones, _ := s.listDNSZonesAndCIDRRanges(ctx, profileNames)
+	report, err := diag.GenerateReport(ctx, diag.ReportPrerequisites{
+		Clock:               s.cfg.Clock,
+		NetworkStackAttempt: nsa,
+		DiagChecks:          diagChecks,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return &api.ListDNSZonesResponse{
-		DnsZones: dnsZones,
+	return &api.RunDiagnosticsResponse{
+		Report: report,
 	}, nil
 }
 
-func (s *Service) listDNSZonesAndCIDRRanges(ctx context.Context, profileNames []string) (dnsZones []string, cidrRanges []string) {
-	for _, profileName := range profileNames {
-		rootClusterURI := uri.NewClusterURI(profileName)
-		cLog := log.With("cluster", rootClusterURI)
-
-		rootClient, err := s.cfg.DaemonService.GetCachedClient(ctx, rootClusterURI)
-		if err != nil {
-			cLog.WarnContext(ctx, "Failed to create root cluster client, profile may be expired, skipping DNS zones of this cluster", "error", err)
-			continue
-		}
-		clusterConfig, err := s.clusterConfigCache.GetClusterConfig(ctx, rootClient)
-		if err != nil {
-			cLog.WarnContext(ctx, "Failed to load VNet configuration, profile may be expired, skipping DNS zones of this cluster", "error", err)
-			continue
-		}
-
-		dnsZones = append(dnsZones, clusterConfig.DNSZones...)
-		cidrRanges = append(cidrRanges, clusterConfig.IPv4CIDRRange)
-
-		leafClusters, err := s.cfg.DaemonService.ListLeafClusters(ctx, rootClusterURI.String())
-		if err != nil {
-			cLog.WarnContext(ctx, "Failed to list leaf clusters, profile may be expired, skipping DNS zones from leaf clusters of this cluster", "error", err)
-			continue
-		}
-
-		for _, leafCluster := range leafClusters {
-			cLog := log.With("cluster", leafCluster.URI.String())
-
-			clusterClient, err := s.cfg.DaemonService.GetCachedClient(ctx, leafCluster.URI)
-			if err != nil {
-				cLog.WarnContext(ctx, "Failed to create leaf cluster client, skipping DNS zones for this leaf cluster", "error", err)
-				continue
-			}
-			clusterConfig, err := s.clusterConfigCache.GetClusterConfig(ctx, clusterClient)
-			if err != nil {
-				cLog.WarnContext(ctx, "Failed to load VNet configuration, skipping DNS zones for this leaf cluster", "error", err)
-				continue
-			}
-
-			dnsZones = append(dnsZones, clusterConfig.DNSZones...)
-			cidrRanges = append(cidrRanges, clusterConfig.IPv4CIDRRange)
-		}
+func (s *Service) getNetworkStack(ctx context.Context) (*diagv1.NetworkStack, error) {
+	unifiedClusterConfig, err := s.vnetProcess.GetUnifiedClusterConfigProvider().GetUnifiedClusterConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	return &diagv1.NetworkStack{
+		InterfaceName:  s.networkStackInfo.InterfaceName,
+		Ipv6Prefix:     s.networkStackInfo.Ipv6Prefix,
+		Ipv4CidrRanges: unifiedClusterConfig.IPv4CidrRanges,
+		DnsZones:       unifiedClusterConfig.AllDNSZones(),
+	}, nil
+}
 
-	dnsZones = utils.Deduplicate(dnsZones)
-	cidrRanges = utils.Deduplicate(cidrRanges)
-
-	return dnsZones, cidrRanges
+// AutoConfigureSSH automatically configures OpenSSH-compatible clients for
+// connections to Teleport SSH servers through VNet.
+func (s *Service) AutoConfigureSSH(ctx context.Context, _ *api.AutoConfigureSSHRequest) (*api.AutoConfigureSSHResponse, error) {
+	err := vnet.AutoConfigureOpenSSH(ctx, s.cfg.profilePath)
+	return nil, trace.Wrap(err)
 }
 
 func (s *Service) stopLocked() error {
@@ -305,8 +330,8 @@ func (s *Service) stopLocked() error {
 		return nil
 	}
 
-	s.processManager.Close()
-	err := s.processManager.Wait()
+	s.vnetProcess.Close()
+	err := s.vnetProcess.Wait()
 	if err != nil && !errors.Is(err, context.Canceled) {
 		return trace.Wrap(err)
 	}
@@ -449,6 +474,43 @@ func (p *clientApplication) ReissueAppCert(ctx context.Context, appInfo *vnetv1.
 	return cert, nil
 }
 
+// UserTLSCert returns the user TLS certificate for the given profile.
+func (p *clientApplication) UserTLSCert(ctx context.Context, profileName string) (tls.Certificate, error) {
+	// We don't have easy access to the user TLS cert from here, the only way
+	// I've found is to reach through the ProxyClient as this does below.
+	clusterClient, err := p.getCachedClient(ctx, profileName, "")
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	clientConfig, err := clusterClient.ProxyClient.ClientConfig(ctx, "")
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err, "getting user client config")
+	}
+	if len(clientConfig.Credentials) < 1 {
+		return tls.Certificate{}, trace.Errorf("user client config has no credentials")
+	}
+	cred := clientConfig.Credentials[0]
+	tlsConfig, err := cred.TLSConfig()
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err, "getting user TLS config")
+	}
+	switch {
+	case len(tlsConfig.Certificates) > 0:
+		return tlsConfig.Certificates[0], nil
+	case tlsConfig.GetClientCertificate != nil:
+		// This is the actual path we currently take at the time of writing,
+		// api/client.configureTLS always sets tlsConfig.GetClientCertificate
+		// and unsets tlsConfig.Certificates.
+		tlsCert, err := tlsConfig.GetClientCertificate(nil)
+		if err != nil {
+			return tls.Certificate{}, trace.Wrap(err, "getting client TLS certificate")
+		}
+		return *tlsCert, nil
+	default:
+		return tls.Certificate{}, trace.Errorf("user TLS config has no certificates")
+	}
+}
+
 // GetDialOptions returns ALPN dial options for the profile.
 func (p *clientApplication) GetDialOptions(ctx context.Context, profileName string) (*vnetv1.DialOptions, error) {
 	cluster, tc, err := p.daemonService.ResolveClusterURI(uri.NewClusterURI(profileName))
@@ -461,20 +523,32 @@ func (p *clientApplication) GetDialOptions(ctx context.Context, profileName stri
 		AlpnConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
 		InsecureSkipVerify:      p.insecureSkipVerify,
 	}
-	if dialOpts.AlpnConnUpgradeRequired {
-		dialOpts.RootClusterCaCertPool, err = tc.RootClusterCACertPoolPEM(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err, "loading root cluster CA cert pool")
-		}
+	dialOpts.RootClusterCaCertPool, err = tc.RootClusterCACertPoolPEM(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "loading root cluster CA cert pool")
 	}
 	return dialOpts, nil
 }
 
-// OnNewConnection submits a usage event once per clientApplication lifetime.
-// That is, if a user makes multiple connections to a single app, OnNewConnection submits a single
+// OnNewSSHSession submits a usage event for a new SSH session.
+func (p *clientApplication) OnNewSSHSession(ctx context.Context, profileName, targetClusterName string) {
+	// Enqueue the event from a separate goroutine since we don't care about errors anyway and we also
+	// don't want to slow down VNet connections.
+	go func() {
+		// Not passing ctx to ReportSSHSession since ctx is tied to the
+		// lifetime of a short-lived API call, inheriting the context could
+		// interrupt reporting.
+		if err := p.usageReporter.ReportSSHSession(profileName, targetClusterName); err != nil {
+			log.ErrorContext(ctx, "Failed to submit SSH usage event")
+		}
+	}()
+}
+
+// OnNewAppConnection submits an app usage event once per clientApplication lifetime.
+// That is, if a user makes multiple connections to a single app, OnNewAppConnection submits a single
 // event. This is to mimic how Connect submits events for its app gateways. This lets us compare
 // popularity of VNet and app gateways.
-func (p *clientApplication) OnNewConnection(ctx context.Context, appKey *vnetv1.AppKey) error {
+func (p *clientApplication) OnNewAppConnection(ctx context.Context, appKey *vnetv1.AppKey) error {
 	// Enqueue the event from a separate goroutine since we don't care about errors anyway and we also
 	// don't want to slow down VNet connections.
 	go func() {
@@ -482,9 +556,8 @@ func (p *clientApplication) OnNewConnection(ctx context.Context, appKey *vnetv1.
 
 		// Not passing ctx to ReportApp since ctx is tied to the lifetime of the connection.
 		// If it's a short-lived connection, inheriting its context would interrupt reporting.
-		err := p.usageReporter.ReportApp(uri)
-		if err != nil {
-			log.ErrorContext(ctx, "Failed to submit usage event", "app", uri, "error", err)
+		if err := p.usageReporter.ReportApp(uri); err != nil {
+			log.ErrorContext(ctx, "Failed to submit app usage event", "app", uri, "error", err)
 		}
 	}()
 
@@ -546,6 +619,7 @@ func (p *clientApplication) OnInvalidLocalPort(ctx context.Context, appInfo *vne
 
 type usageReporter interface {
 	ReportApp(uri.ResourceURI) error
+	ReportSSHSession(profileName, rootClusterName string) error
 	Stop()
 }
 
@@ -615,6 +689,51 @@ func newDaemonUsageReporter(cfg daemonUsageReporterConfig) (*daemonUsageReporter
 	}, nil
 }
 
+// ReportSSHSession adds an event for a new SSH session to the events queue.
+// It reports a new event for each new SSH session, in contrast to ReportApp
+// which only reports each unique app once, to align with how Connect reports
+// usage events for SSH sessions.
+func (r *daemonUsageReporter) ReportSSHSession(profileName, rootClusterName string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.closed.Load() {
+		return trace.CompareFailed("usage reporter has been stopped")
+	}
+
+	rootClusterURI := uri.NewClusterURI(profileName)
+	_, tc, err := r.cfg.ClientCache.ResolveClusterURI(rootClusterURI)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clusterID, ok := r.cfg.ClusterIDCache.Load(rootClusterURI)
+	if !ok {
+		return trace.NotFound("cluster ID for %q not found", rootClusterURI)
+	}
+
+	log.DebugContext(context.Background(), "Reporting SSH usage event", "profile", profileName, "root_cluster", rootClusterName)
+	if err := r.cfg.EventConsumer.ReportUsageEvent(&apiteleterm.ReportUsageEventRequest{
+		AuthClusterId: clusterID,
+		PrehogReq: &prehogv1alpha.SubmitConnectEventRequest{
+			DistinctId: r.cfg.InstallationID,
+			Timestamp:  timestamppb.Now(),
+			Event: &prehogv1alpha.SubmitConnectEventRequest_ProtocolUse{
+				ProtocolUse: &prehogv1alpha.ConnectProtocolUseEvent{
+					ClusterName:   rootClusterName,
+					UserName:      tc.Username,
+					Protocol:      "ssh",
+					Origin:        "vnet",
+					AccessThrough: "vnet",
+				},
+			},
+		},
+	}); err != nil {
+		return trace.Wrap(err, "adding SSH usage event to queue")
+	}
+	return nil
+}
+
 // ReportApp adds an event related to the given app to the events queue, if the app wasn't reported
 // already. Only one invocation of ReportApp can be in flight at a time.
 func (r *daemonUsageReporter) ReportApp(appURI uri.ResourceURI) error {
@@ -656,9 +775,9 @@ func (r *daemonUsageReporter) ReportApp(appURI uri.ResourceURI) error {
 		return trace.NotFound("cluster ID for %q not found", rootClusterURI)
 	}
 
-	log.DebugContext(ctx, "Reporting usage event", "app", appURI.String())
+	log.DebugContext(ctx, "Reporting app usage event", "app", appURI.String())
 
-	err = r.cfg.EventConsumer.ReportUsageEvent(&apiteleterm.ReportUsageEventRequest{
+	if err := r.cfg.EventConsumer.ReportUsageEvent(&apiteleterm.ReportUsageEventRequest{
 		AuthClusterId: clusterID,
 		PrehogReq: &prehogv1alpha.SubmitConnectEventRequest{
 			DistinctId: r.cfg.InstallationID,
@@ -673,9 +792,8 @@ func (r *daemonUsageReporter) ReportApp(appURI uri.ResourceURI) error {
 				},
 			},
 		},
-	})
-	if err != nil {
-		return trace.Wrap(err, "adding usage event to queue")
+	}); err != nil {
+		return trace.Wrap(err, "adding app usage event to queue")
 	}
 
 	r.reportedApps[appURI.String()] = struct{}{}
@@ -702,7 +820,12 @@ func (r *daemonUsageReporter) Stop() {
 type disabledTelemetryUsageReporter struct{}
 
 func (r *disabledTelemetryUsageReporter) ReportApp(appURI uri.ResourceURI) error {
-	log.DebugContext(context.Background(), "Skipping usage event, usage reporting is turned off", "app", appURI.String())
+	log.DebugContext(context.Background(), "Skipping app usage event, usage reporting is turned off", "app", appURI.String())
+	return nil
+}
+
+func (r *disabledTelemetryUsageReporter) ReportSSHSession(profileName, rootClusterName string) error {
+	log.DebugContext(context.Background(), "Skipping SSH usage event, usage reporting is turned off", "profile", profileName, "root_cluster", rootClusterName)
 	return nil
 }
 

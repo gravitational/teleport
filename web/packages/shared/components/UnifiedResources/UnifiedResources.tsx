@@ -24,6 +24,7 @@ import React, {
   useLayoutEffect,
   useRef,
   useState,
+  type JSX,
 } from 'react';
 import styled from 'styled-components';
 
@@ -55,6 +56,7 @@ import {
 } from 'shared/hooks/useInfiniteScroll';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { ResourcesResponse } from 'teleport/services/agents';
 
 import { useInfoGuide } from '../SlidingSidePanel/InfoGuide';
@@ -201,7 +203,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     onShowStatusInfo,
   } = props;
 
-  const containerRef = useRef<HTMLDivElement>();
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const { setTrigger } = useInfiniteScroll({
     fetch: fetchResources,
@@ -617,10 +619,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                   },
                 }),
                 key: generateUnifiedResourceKey(resource),
-                // TODO(kimlisa): teleterm will pass this field as "null"
-                // to add support later.
-                onShowStatusInfo: () =>
-                  onShowStatusInfo ? onShowStatusInfo(resource) : null,
+                onShowStatusInfo: () => onShowStatusInfo(resource),
                 showingStatusInfo:
                   infoGuideConfig?.id &&
                   infoGuideConfig.id === getResourceId(resource),

@@ -47,7 +47,7 @@ func NewSystemAutomaticAccessApproverRole() types.Role {
 	}
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.SystemAutomaticAccessApprovalRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -113,7 +113,7 @@ func NewPresetEditorRole() types.Role {
 	// YAML.
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetEditorRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -215,6 +215,9 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindGitServer, RW()),
 					types.NewRule(types.KindWorkloadIdentityX509Revocation, RW()),
 					types.NewRule(types.KindHealthCheckConfig, RW()),
+					types.NewRule(types.KindSigstorePolicy, RW()),
+					types.NewRule(types.KindWorkloadIdentityX509IssuerOverride, RW()),
+					types.NewRule(types.KindWorkloadIdentityX509IssuerOverrideCSR, RW()),
 				},
 			},
 		},
@@ -231,7 +234,7 @@ func NewPresetAccessRole() types.Role {
 	// YAML.
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAccessRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -281,6 +284,7 @@ func NewPresetAccessRole() types.Role {
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  "",
 					},
 				},
 				GitHubPermissions: []types.GitHubPermission{{
@@ -295,6 +299,9 @@ func NewPresetAccessRole() types.Role {
 					},
 					types.NewRule(types.KindInstance, RO()),
 					types.NewRule(types.KindClusterMaintenanceConfig, RO()),
+				},
+				MCP: &types.MCPPermissions{
+					Tools: []string{teleport.TraitInternalMCPTools},
 				},
 			},
 		},
@@ -323,7 +330,7 @@ func NewPresetAuditorRole() types.Role {
 	// YAML.
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAuditorRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -368,7 +375,7 @@ func NewPresetReviewerRole() types.Role {
 
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetReviewerRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -395,7 +402,7 @@ func NewPresetRequesterRole() types.Role {
 
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetRequesterRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -422,7 +429,7 @@ func NewPresetGroupAccessRole() types.Role {
 
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetGroupAccessRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -456,7 +463,7 @@ func NewPresetDeviceAdminRole() types.Role {
 
 	return &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetDeviceAdminRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -485,7 +492,7 @@ func NewPresetDeviceEnrollRole() types.Role {
 
 	return &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetDeviceEnrollRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -515,7 +522,7 @@ func NewPresetRequireTrustedDeviceRole() types.Role {
 
 	return &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetRequireTrustedDeviceRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -563,7 +570,7 @@ func NewPresetRequireTrustedDeviceRole() types.Role {
 func NewPresetWildcardWorkloadIdentityIssuerRole() types.Role {
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetWildcardWorkloadIdentityIssuerRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -586,6 +593,76 @@ func NewPresetWildcardWorkloadIdentityIssuerRole() types.Role {
 	return role
 }
 
+// NewPresetAccessPluginRole returns a new pre-defined role for self-hosted
+// access request plugins.
+func NewPresetAccessPluginRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetAccessPluginRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Default access plugin role",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindAccessRequest, RO()),
+					types.NewRule(types.KindAccessPluginData, RW()),
+					types.NewRule(types.KindAccessMonitoringRule, RO()),
+					types.NewRule(types.KindAccessList, RO()),
+					types.NewRule(types.KindRole, RO()),
+					types.NewRule(types.KindUser, RO()),
+				},
+				ReviewRequests: &types.AccessReviewConditions{
+					PreviewAsRoles: []string{
+						teleport.PresetListAccessRequestResourcesRoleName,
+					},
+				},
+			},
+		},
+	}
+	return role
+}
+
+// NewPresetListAccessRequestResourcesRole returns a new pre-defined role that
+// allows reading access request resources.
+func NewPresetListAccessRequestResourcesRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetListAccessRequestResourcesRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Default list access request resources role",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindNode, RO()),
+					types.NewRule(types.KindApp, RO()),
+					types.NewRule(types.KindDatabase, RO()),
+					types.NewRule(types.KindKubernetesCluster, RO()),
+				},
+				// To enable all access plugin features, the role requires read
+				// access to all of the following resources.
+				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+				GroupLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			},
+		},
+	}
+	return role
+}
+
 // SystemOktaAccessRoleName is the name of the system role that allows
 // access to Okta resources. This will be used by the Okta requester role to
 // search for Okta resources.
@@ -596,7 +673,7 @@ func NewSystemOktaAccessRole() types.Role {
 
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.SystemOktaAccessRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -632,7 +709,7 @@ func NewSystemOktaRequesterRole() types.Role {
 
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.SystemOktaRequesterRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -659,7 +736,7 @@ func NewSystemIdentityCenterAccessRole() types.Role {
 	}
 	return &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.SystemIdentityCenterAccessRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -686,7 +763,7 @@ func NewSystemIdentityCenterAccessRole() types.Role {
 func NewPresetTerraformProviderRole() types.Role {
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetTerraformProviderRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -799,10 +876,12 @@ func bootstrapRoleMetadataLabels() map[string]map[string]string {
 }
 
 var defaultAllowRulesMap = map[string][]types.Rule{
-	teleport.PresetAuditorRoleName:           NewPresetAuditorRole().GetRules(types.Allow),
-	teleport.PresetEditorRoleName:            NewPresetEditorRole().GetRules(types.Allow),
-	teleport.PresetAccessRoleName:            NewPresetAccessRole().GetRules(types.Allow),
-	teleport.PresetTerraformProviderRoleName: NewPresetTerraformProviderRole().GetRules(types.Allow),
+	teleport.PresetAuditorRoleName:                    NewPresetAuditorRole().GetRules(types.Allow),
+	teleport.PresetEditorRoleName:                     NewPresetEditorRole().GetRules(types.Allow),
+	teleport.PresetAccessRoleName:                     NewPresetAccessRole().GetRules(types.Allow),
+	teleport.PresetTerraformProviderRoleName:          NewPresetTerraformProviderRole().GetRules(types.Allow),
+	teleport.PresetAccessPluginRoleName:               NewPresetAccessPluginRole().GetRules(types.Allow),
+	teleport.PresetListAccessRequestResourcesRoleName: NewPresetListAccessRequestResourcesRole().GetRules(types.Allow),
 }
 
 // defaultAllowRules has the Allow rules that should be set as default when
@@ -832,6 +911,13 @@ func defaultAllowLabels(enterprise bool) map[string]types.RoleConditions {
 			DatabaseLabels:       wildcardLabels,
 			NodeLabels:           wildcardLabels,
 			WindowsDesktopLabels: wildcardLabels,
+		},
+		teleport.PresetListAccessRequestResourcesRoleName: {
+			AppLabels:        wildcardLabels,
+			DatabaseLabels:   wildcardLabels,
+			GroupLabels:      wildcardLabels,
+			KubernetesLabels: wildcardLabels,
+			NodeLabels:       wildcardLabels,
 		},
 	}
 
@@ -986,6 +1072,7 @@ func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
 			types.KindNode,
 			types.KindUserGroup,
 			types.KindWindowsDesktop,
+			types.KindKubernetesCluster,
 		} {
 			var labels types.Labels
 			switch kind {
@@ -1001,6 +1088,8 @@ func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
 				labels = defaultLabels.GroupLabels
 			case types.KindWindowsDesktop:
 				labels = defaultLabels.WindowsDesktopLabels
+			case types.KindKubernetesCluster:
+				labels = defaultLabels.KubernetesLabels
 			}
 			labelsUpdated, err := updateAllowLabels(role, kind, labels)
 			if err != nil {
@@ -1036,6 +1125,15 @@ func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
 			role.SetGitHubPermissions(types.Allow, []types.GitHubPermission{{
 				Organizations: githubOrgs,
 			}})
+			changed = true
+		}
+	}
+
+	if role.GetMCPPermissions(types.Allow) == nil {
+		if mcpTools := defaultMCPTools()[role.GetName()]; len(mcpTools) > 0 {
+			role.SetMCPPermissions(types.Allow, &types.MCPPermissions{
+				Tools: mcpTools,
+			})
 			changed = true
 		}
 	}
@@ -1155,5 +1253,11 @@ func updateAllowLabels(role types.Role, kind string, defaultLabels types.Labels)
 func defaultGitHubOrgs() map[string][]string {
 	return map[string][]string{
 		teleport.PresetAccessRoleName: []string{teleport.TraitInternalGitHubOrgs},
+	}
+}
+
+func defaultMCPTools() map[string][]string {
+	return map[string][]string{
+		teleport.PresetAccessRoleName: []string{teleport.TraitInternalMCPTools},
 	}
 }

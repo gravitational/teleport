@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState } from 'react';
+import { useState, type JSX } from 'react';
 
 import isMatch, { MatchCallback } from 'design/utils/match';
 
@@ -108,6 +108,27 @@ export default function useTable<T>(props: TableProps<T>) {
     }
   };
 
+  // TODO(ravicious): Instead of storing `data` in state and updating it on prop change, it should
+  // be calculated dynamically and memoized.
+  // The below code was added to replace useEffect which caused <Table> to render twice.
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+  const [prevData, setPrevData] = useState(data);
+  const [prevServersideProps, setPrevServersideProps] =
+    useState(serversideProps);
+  if (data !== prevData || serversideProps !== prevServersideProps) {
+    setPrevData(data);
+    setPrevServersideProps(serversideProps);
+
+    if (serversideProps || disableFilter) {
+      setState({
+        ...state,
+        data,
+      });
+    } else {
+      updateData(state.sort, state.searchValue);
+    }
+  }
+
   function onSort(column: TableColumn<T>) {
     if (customSort) {
       customSort.onSort({
@@ -165,17 +186,6 @@ export default function useTable<T>(props: TableProps<T>) {
         : undefined,
     }));
   }
-
-  useEffect(() => {
-    if (serversideProps || disableFilter) {
-      setState({
-        ...state,
-        data,
-      });
-    } else {
-      updateData(state.sort, state.searchValue);
-    }
-  }, [data, serversideProps]);
 
   return {
     state,

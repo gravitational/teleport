@@ -1,6 +1,9 @@
 ---
 title: Access Azure Portal and CLI 
 description: Access Azure Portal and CLI by authenticating with Teleport SAML IdP
+labels:
+ - how-to
+ - identity-governance
 ---
 
 This guide explains how to integrate the Teleport SAML IdP with [Microsoft Entra External ID](https://learn.microsoft.com/en-us/entra/external-id/)
@@ -158,7 +161,7 @@ Click the `Review + assign` button to finish the role assignment.
 We've now created a role and resource assignment, where users that are member of `teleport-dev-vm` group can access 
 resource under the `teleport-dev-vm-pool` resource group with the privilege granted by the "Virtual Machine Contributor" role.
 
-##  Step 5/5. Link Azure subscription to Microsoft Entra External ID
+## Step 5/5. Link Azure subscription to Microsoft Entra External ID
 
 The Microsoft Entra External ID must be linked with an existing billing subscription. 
 

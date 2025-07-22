@@ -74,6 +74,8 @@ const (
 	PluginTypeDiscord = "discord"
 	// PluginTypeGitlab indicates the Gitlab access plugin
 	PluginTypeGitlab = "gitlab"
+	// PluginTypeGithub indicates the Github access plugin
+	PluginTypeGithub = "github"
 	// PluginTypeEntraID indicates the Entra ID sync plugin
 	PluginTypeEntraID = "entra-id"
 	// PluginTypeSCIM indicates a generic SCIM integration
@@ -118,6 +120,7 @@ type Plugin interface {
 	SetCredentials(PluginCredentials) error
 	SetStatus(PluginStatus) error
 	GetGeneration() string
+	CloneWithoutSecrets() Plugin
 }
 
 // PluginCredentials are the credentials embedded in Plugin
@@ -398,6 +401,17 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")
 		}
+	case *PluginSpecV1_Github:
+		if settings.Github == nil {
+			return trace.BadParameter("missing Github settings")
+		}
+		if err := settings.Github.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("Github plugin must be used with the static credentials ref type")
+		}
 	default:
 		return nil
 	}
@@ -405,7 +419,8 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 	return nil
 }
 
-// WithoutSecrets returns an instance of resource without secrets.
+// WithoutSecrets returns the Plugin as a Resource, with secrets removed.
+// If you want to have a copy of the Plugin without secrets use CloneWithoutSecrets instead.
 func (p *PluginV1) WithoutSecrets() Resource {
 	if p.Credentials == nil {
 		return p
@@ -414,6 +429,15 @@ func (p *PluginV1) WithoutSecrets() Resource {
 	p2 := p.Clone().(*PluginV1)
 	p2.SetCredentials(nil)
 	return p2
+}
+
+// CloneWithoutSecrets returns a deep copy of the Plugin instance with secrets removed.
+// Use this when you need a separate Plugin object without secrets,
+// rather than a Resource interface value as returned by WithoutSecrets.
+func (p *PluginV1) CloneWithoutSecrets() Plugin {
+	out := p.Clone().(*PluginV1)
+	out.SetCredentials(nil)
+	return out
 }
 
 func (p *PluginV1) setStaticFields() {
@@ -556,6 +580,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeServiceNow
 	case *PluginSpecV1_Gitlab:
 		return PluginTypeGitlab
+	case *PluginSpecV1_Github:
+		return PluginTypeGithub
 	case *PluginSpecV1_EntraId:
 		return PluginTypeEntraID
 	case *PluginSpecV1_Scim:
@@ -739,14 +765,9 @@ func (c *PluginEntraIDSettings) Validate() error {
 }
 
 func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
-	if c.DefaultRole == "" {
-		return trace.BadParameter("default_role must be set")
-	}
-
 	if c.SamlConnectorName == "" {
 		return trace.BadParameter("saml_connector_name must be set")
 	}
-
 	return nil
 }
 
@@ -759,6 +780,17 @@ func (c *PluginDatadogAccessSettings) CheckAndSetDefaults() error {
 	}
 	return nil
 }
+
+const (
+	// AWSICRolesSyncModeAll indicates that the AWS Identity Center integration
+	// should create and maintain roles for all possible Account Assignments.
+	AWSICRolesSyncModeAll string = "ALL"
+
+	// AWSICRolesSyncModeNone indicates that the AWS Identity Center integration
+	// should *not* create any roles representing potential account Account
+	// Assignments.
+	AWSICRolesSyncModeNone string = "NONE"
+)
 
 func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
 
@@ -961,5 +993,16 @@ func (c *PluginNetIQSettings) Validate() error {
 		return trace.BadParameter("api_endpoint endpoint must be a valid URL")
 	}
 
+	return nil
+}
+
+// CheckAndSetDefaults checks that the required fields for the Github plugin are set.
+func (c *PluginGithubSettings) Validate() error {
+	if c.ClientId == "" {
+		return trace.BadParameter("client_id must be set")
+	}
+	if c.OrganizationName == "" {
+		return trace.BadParameter("organization_name must be set")
+	}
 	return nil
 }

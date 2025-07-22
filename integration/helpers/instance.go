@@ -71,7 +71,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/web"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/terminal"
@@ -354,7 +353,7 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = slog.New(logutils.DiscardHandler{})
+		cfg.Logger = slog.New(slog.DiscardHandler)
 	}
 
 	// generate instance secrets (keys):
@@ -461,7 +460,7 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 func (i *TeleInstance) GetSiteAPI(siteName string) authclient.ClientI {
 	siteTunnel, err := i.Tunnel.GetSite(siteName)
 	if err != nil {
-		i.Log.WarnContext(context.Background(), "failed to get site", "error", err, "siter", siteName)
+		i.Log.WarnContext(context.Background(), "failed to get site", "error", err, "site", siteName)
 		return nil
 	}
 	siteAPI, err := siteTunnel.GetClient()
@@ -910,7 +909,7 @@ func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.Telep
 	}
 
 	processes := make([]*service.TeleportProcess, 0, len(configs))
-	for j := 0; j < len(configs); j++ {
+	for range configs {
 		result := <-results
 		if result.tmpDir != "" {
 			i.tempDirs = append(i.tempDirs, result.tmpDir)

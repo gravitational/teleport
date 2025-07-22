@@ -24,7 +24,6 @@ import (
 	"os/user"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"golang.org/x/sys/windows"
 	"google.golang.org/grpc"
 	grpccredentials "google.golang.org/grpc/credentials"
@@ -38,37 +37,37 @@ import (
 // interface that the admin process uses to query application names and get user
 // certificates for apps. It returns a [ProcessManager] which controls the
 // lifecycle of both the user and admin processes.
-func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (*ProcessManager, *vnetv1.NetworkStackInfo, error) {
+func (p *UserProcess) runPlatformUserProcess(processCtx context.Context) error {
 	ipcCreds, err := newIPCCredentials()
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "creating credentials for IPC")
+		return trace.Wrap(err, "creating credentials for IPC")
 	}
 	serverTLSConfig, err := ipcCreds.server.serverTLSConfig()
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "generating gRPC server TLS config")
+		return trace.Wrap(err, "generating gRPC server TLS config")
 	}
 
 	u, err := user.Current()
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "getting current OS user")
+		return trace.Wrap(err, "getting current OS user")
 	}
 	// Uid is documented to be the user's SID on Windows.
 	userSID := u.Uid
 
 	credDir, err := os.MkdirTemp("", "vnet_service_certs")
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "creating temp dir for service certs")
+		return trace.Wrap(err, "creating temp dir for service certs")
 	}
 	if err := secureCredDir(credDir, userSID); err != nil {
-		return nil, nil, trace.Wrap(err, "applying permissions to service credential dir")
+		return trace.Wrap(err, "applying permissions to service credential dir")
 	}
 	if err := ipcCreds.client.write(credDir, 0200); err != nil {
-		return nil, nil, trace.Wrap(err, "writing service IPC credentials")
+		return trace.Wrap(err, "writing service IPC credentials")
 	}
 
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "listening on tcp socket")
+		return trace.Wrap(err, "listening on tcp socket")
 	}
 	// grpcServer.Serve takes ownership of (and closes) the listener.
 	grpcServer := grpc.NewServer(
@@ -76,21 +75,17 @@ func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (*Pr
 		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
 		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
 	)
-	clock := clockwork.NewRealClock()
-	appProvider := newLocalAppProvider(config.ClientApplication, clock)
-	svc := newClientApplicationService(appProvider)
-	vnetv1.RegisterClientApplicationServiceServer(grpcServer, svc)
+	vnetv1.RegisterClientApplicationServiceServer(grpcServer, p.clientApplicationService)
 
-	pm, processCtx := newProcessManager()
-	pm.AddCriticalBackgroundTask("admin process", func() error {
+	p.processManager.AddCriticalBackgroundTask("admin process", func() error {
 		log.InfoContext(processCtx, "Starting Windows service")
 		defer func() {
 			// Delete service credentials after the service terminates.
 			if ipcCreds.client.remove(credDir); err != nil {
-				log.ErrorContext(ctx, "Failed to remove service credential files", "error", err)
+				log.ErrorContext(processCtx, "Failed to remove service credential files", "error", err)
 			}
 			if err := os.RemoveAll(credDir); err != nil {
-				log.ErrorContext(ctx, "Failed to remove service credential directory", "error", err)
+				log.ErrorContext(processCtx, "Failed to remove service credential directory", "error", err)
 			}
 		}()
 		return trace.Wrap(runService(processCtx, &windowsAdminProcessConfig{
@@ -99,13 +94,13 @@ func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (*Pr
 			userSID:                      userSID,
 		}))
 	})
-	pm.AddCriticalBackgroundTask("gRPC service", func() error {
+	p.processManager.AddCriticalBackgroundTask("gRPC service", func() error {
 		log.InfoContext(processCtx, "Starting gRPC service",
 			"addr", listener.Addr().String())
 		return trace.Wrap(grpcServer.Serve(listener),
 			"serving VNet user process gRPC service")
 	})
-	pm.AddCriticalBackgroundTask("gRPC server closer", func() error {
+	p.processManager.AddCriticalBackgroundTask("gRPC server closer", func() error {
 		// grpcServer.Serve does not stop on its own when processCtx is done, so
 		// this task waits for processCtx and then explicitly stops grpcServer.
 		<-processCtx.Done()
@@ -114,10 +109,11 @@ func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (*Pr
 	})
 
 	select {
-	case nsi := <-svc.networkStackInfo:
-		return pm, nsi, nil
+	case nsi := <-p.clientApplicationService.networkStackInfo:
+		p.networkStackInfo = nsi
+		return nil
 	case <-processCtx.Done():
-		return nil, nil, trace.Wrap(pm.Wait(), "process manager exited before network stack info was received")
+		return trace.Wrap(p.processManager.Wait(), "process manager exited before network stack info was received")
 	}
 }
 

@@ -186,6 +186,18 @@ var SystemConnectors = []string{
 	HeadlessConnector,
 }
 
+// OIDCPKCEMode represents the mode of PKCE (Proof Key for Code Exchange).
+type OIDCPKCEMode string
+
+const (
+	// OIDCPKCEModeUnknown indicates an unknown or uninitialized state of the PKCE mode.
+	OIDCPKCEModeUnknown OIDCPKCEMode = ""
+	// OIDCPKCEModeEnabled indicates that PKCE is enabled for the OIDC flow.
+	OIDCPKCEModeEnabled OIDCPKCEMode = "enabled"
+	// OIDCPKCEModeDisabled indicates that PKCE is disabled for the OIDC flow.
+	OIDCPKCEModeDisabled OIDCPKCEMode = "disabled"
+)
+
 // SecondFactorType is the type of 2FA authentication.
 type SecondFactorType string
 
@@ -405,6 +417,9 @@ const (
 	// TraitGitHubOrgs is the name of the variable to specify the GitHub
 	// organizations for GitHub integration.
 	TraitGitHubOrgs = "github_orgs"
+	// TraitMCPTools is the name of the variable to specify the MCP tools for
+	// MCP servers.
+	TraitMCPTools = "mcp_tools"
 )
 
 const (
@@ -515,6 +530,8 @@ const (
 	EnvVarTerraformIdentityFile = "TF_TELEPORT_IDENTITY_FILE"
 	// EnvVarTerraformIdentityFileBase64 is the environment variable containing the base64-encoded identity file used by the Terraform provider.
 	EnvVarTerraformIdentityFileBase64 = "TF_TELEPORT_IDENTITY_FILE_BASE64"
+	// EnvVarTerraformInsecure is the environment variable used to control whether the Terraform provider will skip verifying the proxy server's TLS certificate.
+	EnvVarTerraformInsecure = "TF_TELEPORT_INSECURE"
 	// EnvVarTerraformRetryBaseDuration is the environment variable configuring the base duration between two Terraform provider retries.
 	EnvVarTerraformRetryBaseDuration = "TF_TELEPORT_RETRY_BASE_DURATION"
 	// EnvVarTerraformRetryCapDuration is the environment variable configuring the maximum duration between two Terraform provider retries.
@@ -539,3 +556,8 @@ const (
 
 // MaxPIVPINCacheTTL defines the maximum allowed TTL for PIV PIN client caches.
 const MaxPIVPINCacheTTL = time.Hour
+
+// AutoUpdateAgentReportPeriod is the period of the autoupdate agent reporting
+// routine running in every auth server. Any report older than this period should
+// be considered stale.
+const AutoUpdateAgentReportPeriod = time.Minute

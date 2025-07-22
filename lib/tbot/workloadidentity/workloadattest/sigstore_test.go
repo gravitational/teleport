@@ -32,8 +32,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
+
+var loopbackPrefixes = []string{"127.0.0.1/8", "::1/128"}
 
 func TestSigstoreAttestorConfig_CheckAndSetDefaults(t *testing.T) {
 	testCases := map[string]struct {
@@ -72,6 +74,13 @@ func TestSigstoreAttestorConfig_CheckAndSetDefaults(t *testing.T) {
 			},
 			err: "registries must be valid RFC 3986 URI authorities",
 		},
+		"allowed_private_network_prefixes is invalid": {
+			cfg: SigstoreAttestorConfig{
+				Enabled:                       true,
+				AllowedPrivateNetworkPrefixes: []string{"::1/128", "NOT VALID"},
+			},
+			err: "parsing allowed_private_network_prefixes[1]",
+		},
 	}
 	for desc, tc := range testCases {
 		t.Run(desc, func(t *testing.T) {
@@ -105,10 +114,11 @@ func TestSigstoreAttestor_Attest_WithCredentials(t *testing.T) {
 
 	attestor, err := NewSigstoreAttestor(
 		SigstoreAttestorConfig{
-			Enabled:         true,
-			CredentialsPath: dockerConfigFile,
+			Enabled:                       true,
+			CredentialsPath:               dockerConfigFile,
+			AllowedPrivateNetworkPrefixes: loopbackPrefixes,
 		},
-		utils.NewSlogLoggerForTests(),
+		logtest.NewLogger(),
 	)
 	require.NoError(t, err)
 
@@ -138,9 +148,10 @@ func TestSigstoreAttestor_Attest_Caching(t *testing.T) {
 
 	attestor, err := NewSigstoreAttestor(
 		SigstoreAttestorConfig{
-			Enabled: true,
+			Enabled:                       true,
+			AllowedPrivateNetworkPrefixes: loopbackPrefixes,
 		},
-		utils.NewSlogLoggerForTests(),
+		logtest.NewLogger(),
 	)
 	require.NoError(t, err)
 

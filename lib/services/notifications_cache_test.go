@@ -100,8 +100,7 @@ func TestUserNotificationsCache(t *testing.T) {
 	svcs, cache := newUserNotificationPack(t)
 	defer cache.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// To test that the streaming of notifications for a user is correct, we will have the mock list of user-specific notifications
 	// contain notifications for two users: alice and bob.
@@ -317,8 +316,7 @@ func TestGlobalNotificationsCache(t *testing.T) {
 	svcs, cache := newGlobalNotificationPack(t)
 	defer cache.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	testNotificationTitles := []string{
 		"gn-1",

@@ -18,14 +18,12 @@ package cache
 
 import (
 	"context"
-	"strings"
 
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -39,18 +37,19 @@ func newUserCollection(u services.UsersService, w types.WatchKind) (*collection[
 	}
 
 	return &collection[types.User, userIndex]{
-		store: newStore(map[userIndex]func(types.User) string{
-			userNameIndex: func(u types.User) string {
-				return u.GetName()
-			},
-		}),
+		store: newStore(
+			types.KindUser,
+			types.User.Clone,
+			map[userIndex]func(types.User) string{
+				userNameIndex: types.User.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.User, error) {
 			return u.GetUsers(ctx, loadSecrets)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.User {
 			return &types.UserV2{
-				Kind:    types.KindUser,
-				Version: types.V2,
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
 				Metadata: types.Metadata{
 					Name: hdr.Metadata.Name,
 				},
@@ -173,8 +172,7 @@ func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*
 		}
 
 		if len(resp.Users) == pageSize {
-			key := backend.RangeEnd(backend.ExactKey(u.GetName())).String()
-			resp.NextPageToken = strings.Trim(key, string(backend.Separator))
+			resp.NextPageToken = u.GetName()
 			break
 		}
 

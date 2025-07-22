@@ -8,6 +8,10 @@ spec:
     # However, it has no login set, so it cannot SSH on them
     node_labels:
       "*": ["*"]
+    app_labels:
+      "*": ["*"]
+    db_labels:
+      "*": ["*"]
     rules:
       - resources:
           - role
@@ -91,6 +95,38 @@ spec:
           - delete
       - resources:
           - workload_identity
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - app
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - autoupdate_version
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - autoupdate_config
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - db
         verbs:
           - list
           - create

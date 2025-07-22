@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestKubeAppFetcher_Get(t *testing.T) {
@@ -276,7 +277,6 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 
@@ -292,7 +292,7 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 				FilterLabels:     tt.matcherLabels,
 				Namespaces:       tt.matcherNamespaces,
 				ProtocolChecker:  tt.protoChecker,
-				Logger:           utils.NewSlogLoggerForTests(),
+				Logger:           logtest.NewLogger(),
 			})
 			require.NoError(t, err)
 

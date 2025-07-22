@@ -35,11 +35,12 @@ func newPluginStaticCredentialsCollection(upstream services.PluginStaticCredenti
 	}
 
 	return &collection[types.PluginStaticCredentials, pluginStaticCredentialsIndex]{
-		store: newStore(map[pluginStaticCredentialsIndex]func(types.PluginStaticCredentials) string{
-			pluginStaticCredentialsNameIndex: func(r types.PluginStaticCredentials) string {
-				return r.GetMetadata().Name
-			},
-		}),
+		store: newStore(
+			types.KindPluginStaticCredentials,
+			types.PluginStaticCredentials.Clone,
+			map[pluginStaticCredentialsIndex]func(types.PluginStaticCredentials) string{
+				pluginStaticCredentialsNameIndex: types.PluginStaticCredentials.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.PluginStaticCredentials, error) {
 			creds, err := upstream.GetAllPluginStaticCredentials(ctx)
 			return creds, trace.Wrap(err)
@@ -70,7 +71,6 @@ func (c *Cache) GetPluginStaticCredentials(ctx context.Context, name string) (ty
 		collection:  c.collections.pluginStaticCredentials,
 		index:       pluginStaticCredentialsNameIndex,
 		upstreamGet: c.Config.PluginStaticCredentials.GetPluginStaticCredentials,
-		clone:       types.PluginStaticCredentials.Clone,
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)

@@ -2,6 +2,9 @@
 title: AWS KMS
 description: Configure Teleport to store CA private keys in the AWS Key Management Service
 h1: Store Teleport Private Keys in AWS KMS
+labels:
+ - how-to
+ - platform-wide
 ---
 
 This guide will show you how to set up your Teleport cluster to use the AWS Key
@@ -145,7 +148,9 @@ $ iptables -A OUTPUT -m owner ! --uid-owner 0 -d 169.254.169.254 -j REJECT
 CA key parameters are statically configured in the `teleport.yaml` configuration
 file of the Teleport Auth Service instances in your cluster.
 
-Include the following `ca_key_params` configuration in the `auth_service` section.
+Include the following `ca_key_params` configuration in the `auth_service`
+section. Assign <Var name="AWS account"/> to your AWS account ID and 
+"<Var name="AWS region"/>" to the name of your AWS region:
 
 ```yaml
 # /etc/teleport.yaml

@@ -27,7 +27,6 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/srv"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func TestParseProxyRequest(t *testing.T) {
@@ -92,7 +91,7 @@ func TestParseProxyRequest(t *testing.T) {
 	server := &Server{
 		hostname:  "redhorse",
 		proxyMode: true,
-		logger:    slog.New(logutils.DiscardHandler{}),
+		logger:    slog.New(slog.DiscardHandler),
 	}
 
 	for i, tt := range testCases {
@@ -116,7 +115,7 @@ func TestParseBadRequests(t *testing.T) {
 	server := &Server{
 		hostname:  "redhorse",
 		proxyMode: true,
-		logger:    slog.New(logutils.DiscardHandler{}),
+		logger:    slog.New(slog.DiscardHandler),
 	}
 
 	ctx := &srv.ServerContext{}

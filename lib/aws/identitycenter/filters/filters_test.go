@@ -120,6 +120,85 @@ func TestFilterItems(t *testing.T) {
 				{ID: "4", Name: "avocado"},
 			},
 		},
+		{
+			name: "Exclude by ID",
+			filters: Filters{
+				&types.AWSICResourceFilter{Exclude: &types.AWSICResourceFilter_ExcludeId{ExcludeId: "2"}},
+			},
+			params: Params[TestItem]{
+				Items: items,
+				GetID: func(item TestItem) string {
+					return item.ID
+				},
+				GetName: func(item TestItem) string {
+					return item.Name
+				},
+			},
+			expected: []TestItem{
+				{ID: "1", Name: "apple"},
+				{ID: "3", Name: "cherry"},
+				{ID: "4", Name: "avocado"},
+			},
+		},
+		{
+			name: "Exclude by NameRegex",
+			filters: Filters{
+				&types.AWSICResourceFilter{Exclude: &types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: "a*"}},
+			},
+			params: Params[TestItem]{
+				Items: items,
+				GetID: func(item TestItem) string {
+					return item.ID
+				},
+				GetName: func(item TestItem) string {
+					return item.Name
+				},
+			},
+			expected: []TestItem{
+				{ID: "2", Name: "banana"},
+				{ID: "3", Name: "cherry"},
+			},
+		},
+		{
+			name: "Include and Exclude - exclude wins",
+			filters: Filters{
+				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "*"}},
+				&types.AWSICResourceFilter{Exclude: &types.AWSICResourceFilter_ExcludeId{ExcludeId: "1"}},
+			},
+			params: Params[TestItem]{
+				Items: items,
+				GetID: func(item TestItem) string {
+					return item.ID
+				},
+				GetName: func(item TestItem) string {
+					return item.Name
+				},
+			},
+			expected: []TestItem{
+				{ID: "2", Name: "banana"},
+				{ID: "3", Name: "cherry"},
+				{ID: "4", Name: "avocado"},
+			},
+		},
+		{
+			name: "Include and Exclude - exclude wins case 2",
+			filters: Filters{
+				&types.AWSICResourceFilter{Exclude: &types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: "*cado"}},
+				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "a*"}},
+			},
+			params: Params[TestItem]{
+				Items: items,
+				GetID: func(item TestItem) string {
+					return item.ID
+				},
+				GetName: func(item TestItem) string {
+					return item.Name
+				},
+			},
+			expected: []TestItem{
+				{ID: "1", Name: "apple"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -140,6 +219,14 @@ func TestPoorlyFormedFiltersAreAnError(t *testing.T) {
 			name: "Bad regex",
 			filters: Filters{
 				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "^[)$"}},
+			},
+			errorAssertion: require.Error,
+		},
+
+		{
+			name: "Bad exclude regex",
+			filters: Filters{
+				&types.AWSICResourceFilter{Exclude: &types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: "^[)$"}},
 			},
 			errorAssertion: require.Error,
 		},

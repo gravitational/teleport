@@ -56,8 +56,8 @@ var (
 )
 
 // errorIsType is a helper that takes an error and yields an ErrorAssertionFunc.
-func errorIsType(errType interface{}) require.ErrorAssertionFunc {
-	return func(t require.TestingT, err error, i ...interface{}) {
+func errorIsType(errType any) require.ErrorAssertionFunc {
+	return func(t require.TestingT, err error, i ...any) {
 		require.Error(t, err)
 		err = trace.Unwrap(err)
 		require.IsType(t, errType, err)
@@ -165,7 +165,6 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

@@ -21,6 +21,7 @@ package discovery
 import (
 	"context"
 	"log/slog"
+	"maps"
 	"testing"
 	"time"
 
@@ -49,7 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
-	libutils "github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestServer_getKubeFetchers(t *testing.T) {
@@ -406,7 +407,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 						AWS: tc.awsMatchers,
 					},
 					Emitter:        authClient,
-					Log:            libutils.NewSlogLoggerForTests(),
+					Log:            logtest.NewLogger(),
 					DiscoveryGroup: mainDiscoveryGroup,
 				})
 
@@ -468,9 +469,7 @@ func mustConvertEKSToKubeServerV1(t *testing.T, eksCluster *ekstypes.Cluster, re
 
 func mustConvertEKSToKubeServerV2(t *testing.T, eksCluster *ekstypes.Cluster, resourceID, _ string) types.KubeServer {
 	eksTags := make(map[string]string, len(eksCluster.Tags))
-	for k, v := range eksCluster.Tags {
-		eksTags[k] = v
-	}
+	maps.Copy(eksTags, eksCluster.Tags)
 	eksTags[types.OriginLabel] = types.OriginCloud
 	eksTags[types.InternalResourceIDLabel] = resourceID
 

@@ -170,12 +170,14 @@ func (d *Database) ToDatabase() (types.Database, error) {
 		},
 		DynamicLabels: types.LabelsToV2(d.DynamicLabels),
 		AD: types.AD{
-			KeytabFile:  d.AD.KeytabFile,
-			Krb5File:    d.AD.Krb5File,
-			Domain:      d.AD.Domain,
-			SPN:         d.AD.SPN,
-			LDAPCert:    d.AD.LDAPCert,
-			KDCHostName: d.AD.KDCHostName,
+			KeytabFile:             d.AD.KeytabFile,
+			Krb5File:               d.AD.Krb5File,
+			Domain:                 d.AD.Domain,
+			SPN:                    d.AD.SPN,
+			LDAPCert:               d.AD.LDAPCert,
+			KDCHostName:            d.AD.KDCHostName,
+			LDAPServiceAccountName: d.AD.LDAPServiceAccountName,
+			LDAPServiceAccountSID:  d.AD.LDAPServiceAccountSID,
 		},
 		Azure: types.Azure{
 			ResourceID:    d.Azure.ResourceID,
@@ -300,6 +302,10 @@ type DatabaseAD struct {
 	LDAPCert string
 	// KDCHostName is the Key Distribution Center Hostname for x509 authentication
 	KDCHostName string
+	// LDAPServiceAccountName is the name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+	LDAPServiceAccountName string
+	// LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+	LDAPServiceAccountSID string
 }
 
 // DatabaseAzure contains Azure database configuration.

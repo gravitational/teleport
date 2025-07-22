@@ -53,10 +53,11 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -650,7 +651,7 @@ func TestMux(t *testing.T) {
 		httpServer.Close()
 		s.Stop()
 		// wait for both servers to finish
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			err := <-errCh
 			require.NoError(t, err)
 		}

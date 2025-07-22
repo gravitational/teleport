@@ -160,7 +160,7 @@ func (s *MattermostSuiteOSS) TestMattermostMessagePosting() {
 	// Then we check that our fake Mattermost has received the messages.
 	var posts []mattermost.Post
 	postSet := make(MattermostDataPostSet)
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		post, err := s.fakeMattermost.CheckNewPost(ctx)
 		require.NoError(t, err, "no new messages posted")
 		postSet.Add(accessrequest.MessageData{ChannelID: post.ChannelID, MessageID: post.ID})
@@ -536,7 +536,7 @@ func (s *MattermostSuiteEnterprise) TestRace() {
 	}
 
 	process := lib.NewProcess(ctx)
-	for i := 0; i < s.raceNumber; i++ {
+	for range s.raceNumber {
 		process.SpawnCritical(func(ctx context.Context) error {
 			req, err := types.NewAccessRequest(uuid.New().String(), integration.Requester1UserName, "editor")
 			if err != nil {
@@ -556,7 +556,7 @@ func (s *MattermostSuiteEnterprise) TestRace() {
 	//
 	// Multiplier SIX means that we handle TWO messages for each request and also
 	// TWO comments for each message: 2 * (1 message + 2 comments).
-	for i := 0; i < 6*s.raceNumber; i++ {
+	for range 6 * s.raceNumber {
 		process.SpawnCritical(func(ctx context.Context) error {
 			post, err := s.fakeMattermost.CheckNewPost(ctx)
 			if err := trace.Wrap(err); err != nil {
@@ -616,7 +616,7 @@ func (s *MattermostSuiteEnterprise) TestRace() {
 	}
 
 	// Multiplier TWO means that we handle updates for each of the two messages posted to reviewers.
-	for i := 0; i < 2*2*s.raceNumber; i++ {
+	for range 2 * 2 * s.raceNumber {
 		process.SpawnCritical(func(ctx context.Context) error {
 			post, err := s.fakeMattermost.CheckPostUpdate(ctx)
 			if err != nil {
@@ -638,7 +638,7 @@ func (s *MattermostSuiteEnterprise) TestRace() {
 	require.NoError(t, raceErr)
 
 	assert.Equal(t, int32(2*s.raceNumber), postsCount)
-	postIDs.Range(func(key, value interface{}) bool {
+	postIDs.Range(func(key, value any) bool {
 		next := true
 
 		val, loaded := reviewCommentCounters.LoadAndDelete(key)

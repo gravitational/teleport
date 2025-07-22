@@ -52,12 +52,12 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/clocki"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -94,7 +94,7 @@ func firestoreParams() backend.Params {
 		endpoint = e
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"collection_name":                       collection,
 		"project_id":                            projectID,
 		"endpoint":                              endpoint,
@@ -109,7 +109,7 @@ func ensureTestsEnabled(t *testing.T) {
 	}
 }
 
-func ensureEmulatorRunning(t *testing.T, cfg map[string]interface{}) {
+func ensureEmulatorRunning(t *testing.T, cfg map[string]any) {
 	endpoint, _ := cfg["endpoint"].(string)
 	if endpoint == "" {
 		return
@@ -161,7 +161,7 @@ func TestFirestoreDB(t *testing.T) {
 }
 
 // newBackend creates a self-closing firestore backend
-func newBackend(t *testing.T, cfg map[string]interface{}) *Backend {
+func newBackend(t *testing.T, cfg map[string]any) *Backend {
 	clock := clockwork.NewFakeClock()
 
 	uut, err := New(context.Background(), cfg, Options{Clock: clock})
@@ -373,12 +373,11 @@ func TestDeleteDocuments(t *testing.T) {
 	}
 
 	for _, tt := range cases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			docs := make([]*firestore.DocumentSnapshot, 0, tt.documents)
-			for i := 0; i < tt.documents; i++ {
+			for i := range tt.documents {
 				docs = append(docs, &firestore.DocumentSnapshot{
 					Ref: &firestore.DocumentRef{
 						Path: fmt.Sprintf("projects/test-project/databases/test-db/documents/test/%d", i+1),
@@ -469,6 +468,11 @@ func TestFirestoreMigration(t *testing.T) {
 	uut, err := New(context.Background(), cfg, Options{Clock: clock})
 	require.NoError(t, err)
 
+	// Empty the collection to make sure previous tests don't interfere
+	snapshot, err := uut.svc.Collection(uut.CollectionName).Documents(context.Background()).GetAll()
+	require.NoError(t, err)
+	require.NoError(t, uut.deleteDocuments(snapshot))
+
 	type byteAlias []byte
 	type badRecord struct {
 		Key        byteAlias `firestore:"key,omitempty"`
@@ -479,8 +483,8 @@ func TestFirestoreMigration(t *testing.T) {
 		RevisionV1 string    `firestore:"-"`
 	}
 
-	for i := 0; i < 301; i++ {
-		key := []byte(fmt.Sprintf("test-%d", i))
+	for i := range 301 {
+		key := fmt.Appendf(nil, "test-%d", i)
 		_, err = uut.svc.Collection(uut.CollectionName).
 			Doc(base64.URLEncoding.EncodeToString(key)).
 			Set(context.Background(), &badRecord{

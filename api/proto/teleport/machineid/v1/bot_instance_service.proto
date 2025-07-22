@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.machineid.v1;
 
 import "google/protobuf/empty.proto";
+import "teleport/legacy/types/types.proto";
 import "teleport/machineid/v1/bot_instance.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1";
@@ -43,6 +44,10 @@ message ListBotInstancesRequest {
   // The page_token value returned from a previous ListBotInstances request, if
   // any.
   string page_token = 3;
+  // A search term used to filter the results. If non-empty, it's used to match against supported fields.
+  string filter_search_term = 4;
+  // The sort config to use for the results. If empty, the default sort field and order is used.
+  types.SortBy sort = 5;
 }
 
 // Response for ListBotInstances.

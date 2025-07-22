@@ -41,7 +41,7 @@ export default {
           HttpResponse.json({})
         ),
         mfaRequired: [
-          http.post(cfg.getMfaRequiredUrl(), () =>
+          http.post(cfg.getMfaRequiredUrl(cfg.proxyCluster), () =>
             HttpResponse.json({ required: false })
           ),
         ],

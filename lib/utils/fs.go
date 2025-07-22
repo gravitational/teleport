@@ -339,7 +339,7 @@ func removeSecure(filePath string, fi os.FileInfo) error {
 	if runtime.GOOS == "windows" {
 		// Windows can't unlink the file before overwriting.
 		if f != nil {
-			for i := 0; i < 3; i++ {
+			for range 3 {
 				if err := overwriteFile(f, fi); err != nil {
 					break
 				}
@@ -352,7 +352,7 @@ func removeSecure(filePath string, fi os.FileInfo) error {
 	} else {
 		removeErr := os.Remove(filePath)
 		if f != nil {
-			for i := 0; i < 3; i++ {
+			for range 3 {
 				if err := overwriteFile(f, fi); err != nil {
 					break
 				}

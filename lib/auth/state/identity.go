@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"net"
 	"slices"
 	"strings"
 
@@ -129,16 +130,24 @@ func (i *Identity) HasPrincipals(additionalPrincipals []string) bool {
 	return true
 }
 
-// HasDNSNames returns true if TLS certificate has required DNS names
-func (i *Identity) HasDNSNames(dnsNames []string) bool {
+// HasDNSNames returns true if TLS certificate has required DNS names or IP
+// addresses.
+func (i *Identity) HasDNSNames(requested []string) bool {
 	if i.XCert == nil {
 		return false
 	}
-	set := utils.StringsSet(i.XCert.DNSNames)
-	for _, dnsName := range dnsNames {
-		if _, ok := set[dnsName]; !ok {
-			return false
+	for _, dnsName := range requested {
+		if slices.Contains(i.XCert.DNSNames, dnsName) {
+			continue
 		}
+		// this matches the check done by the auth as part of
+		// (*tlsca.CertAuthority).GenerateCertificate (there's only a list of
+		// "dns names" but ip addresses are rendered as IP SANs rather than DNS
+		// SANs)
+		if ip := net.ParseIP(dnsName); ip != nil && slices.ContainsFunc(i.XCert.IPAddresses, ip.Equal) {
+			continue
+		}
+		return false
 	}
 	return true
 }
@@ -299,10 +308,8 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 	if len(cert.ValidPrincipals) < 1 {
 		return nil, trace.BadParameter("valid principals: at least one valid principal is required")
 	}
-	for _, validPrincipal := range cert.ValidPrincipals {
-		if validPrincipal == "" {
-			return nil, trace.BadParameter("valid principal can not be empty: %q", cert.ValidPrincipals)
-		}
+	if slices.Contains(cert.ValidPrincipals, "") {
+		return nil, trace.BadParameter("valid principal can not be empty: %q", cert.ValidPrincipals)
 	}
 
 	// check permissions on certificate

@@ -42,11 +42,11 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -197,6 +197,9 @@ func TestManager(t *testing.T) {
 		onConfigUpdate: func() {
 			eventsCh <- configUpdateTestEvent(prodDB.GetName())
 		},
+		onClose: func() {
+			eventsCh <- closedTestEvent(prodDB.GetName())
+		},
 	})
 	require.NoError(t, err)
 
@@ -218,6 +221,9 @@ func TestManager(t *testing.T) {
 		},
 		onConfigUpdate: func() {
 			eventsCh <- configUpdateTestEvent(devDB.GetName())
+		},
+		onClose: func() {
+			eventsCh <- closedTestEvent(devDB.GetName())
 		},
 	})
 	require.NoError(t, err)
@@ -388,6 +394,14 @@ func TestManager(t *testing.T) {
 
 	// prodDB should still be disabled
 	requireTargetHealth(t, prodDB, types.TargetHealthStatusUnknown, types.TargetHealthTransitionReasonDisabled)
+	err = mgr.RemoveTarget(prodDB)
+	require.NoError(t, err)
+
+	// make sure the workers have stopped.
+	awaitTestEvents(t, eventsCh, clock,
+		advanceByHCC(prodHCC, devHCC),
+		expect(closedTestEvent(devDB.GetName()), closedTestEvent(prodDB.GetName())),
+	)
 }
 
 func healthCheckConfigFixture(t *testing.T, name string) *healthcheckconfigv1.HealthCheckConfig {
@@ -552,10 +566,18 @@ type testEvent struct {
 type testEventName string
 
 const (
+	closed         testEventName = "closed"
 	configUpdate   testEventName = "configUpdate"
 	lastResultPass testEventName = "lastResultPass"
 	lastResultFail testEventName = "lastResultFail"
 )
+
+func closedTestEvent(targetName string) testEvent {
+	return testEvent{
+		name:   closed,
+		target: targetName,
+	}
+}
 
 func configUpdateTestEvent(targetName string) testEvent {
 	return testEvent{

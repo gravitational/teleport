@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { type JSX } from 'react';
 import styled, { css } from 'styled-components';
 
-import { Box, ButtonBorder, Indicator, Mark, Text } from 'design';
+import { Box, ButtonBorder, Indicator, Text } from 'design';
 import { Alert } from 'design/Alert';
 import Flex from 'design/Flex';
 import {
@@ -38,7 +39,12 @@ import { useInfiniteScroll } from 'shared/hooks';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { pluralize } from 'shared/utils/text';
 
-import { SharedResourceServer, UnifiedResourceDefinition } from '../types';
+import {
+  DatabaseServer,
+  ResourceHealthStatus,
+  SharedResourceServer,
+  UnifiedResourceDefinition,
+} from '../types';
 import { SingleLineBox } from './SingleLineBox';
 import { getDatabaseIconName } from './viewItemsFactory';
 
@@ -61,7 +67,7 @@ export function UnhealthyStatusInfo({
     fetch({ force: true });
   }
 
-  const unhealthyOrUnknownServers = servers.filter(
+  const unhealthyOrUnknownServers = servers?.filter(
     s => s.targetHealth?.status !== 'healthy'
   );
 
@@ -69,12 +75,14 @@ export function UnhealthyStatusInfo({
     <>
       <Box>
         <ConnectionHeader resource={resource} />
-        <InfoParagraph>
-          <StatusDescription
-            resource={resource}
-            numUnhealthyServers={unhealthyOrUnknownServers.length}
-          />
-        </InfoParagraph>
+        {unhealthyOrUnknownServers.length > 0 && (
+          <InfoParagraph>
+            <StatusDescription
+              fetchedServers={unhealthyOrUnknownServers}
+              resource={resource}
+            />
+          </InfoParagraph>
+        )}
         <InfoParagraph mb={4}>
           <ButtonBorder
             as="a"
@@ -103,7 +111,9 @@ export function UnhealthyStatusInfo({
         )}
         <InfoParagraph>
           {attempt.status === 'success' && !servers?.length && (
-            <Text bold>No Results</Text>
+            // Refresh might be required if all health checks passed
+            // while unified resources page has been stale.
+            <Text bold>No Results. Try refreshing the page.</Text>
           )}
           {attempt.status === 'success' && servers?.length > 0 && (
             <Box
@@ -179,52 +189,65 @@ function ConnectionHeader({
 }
 
 function StatusDescription({
+  fetchedServers,
   resource,
-  numUnhealthyServers,
 }: {
+  fetchedServers: DatabaseServer[];
   resource: UnifiedResourceDefinition;
-  numUnhealthyServers: number;
 }) {
   if (resource.kind === 'db') {
-    const health = resource.targetHealth;
-    const startingWord = numUnhealthyServers > 1 ? 'Some' : 'A';
-    const servicedWord = numUnhealthyServers
-      ? pluralize(numUnhealthyServers, 'service')
-      : 'service';
-    switch (health.status) {
-      case 'unhealthy':
-        return (
-          <>
-            {startingWord} Teleport database {servicedWord} proxying access to
-            this database cannot reach the database endpoint.
-          </>
-        );
-      case 'unknown':
-        return (
-          <>
-            {startingWord} Teleport database {servicedWord} proxying access to
-            this database {numUnhealthyServers > 1 ? 'are' : 'is'} not running
-            network health checks for the database endpoint. User connections
-            will not be routed through affected Teleport database services as
-            long as other database services report a healthy connection to the
-            database.
-          </>
-        );
-      default: // empty
-        return (
-          <>
-            {startingWord} Teleport database {servicedWord} proxying access to
-            this database requires upgrading to Teleport version{' '}
-            <Mark>18.0.0</Mark> to run network health checks.
-          </>
-        );
+    const unhealthyServers = fetchedServers.filter(
+      s => s.targetHealth?.status === 'unhealthy'
+    ).length;
+    const unknownHealthServers = fetchedServers.filter(
+      s => s.targetHealth?.status === 'unknown'
+    ).length;
+
+    if (unhealthyServers && unknownHealthServers) {
+      return (
+        <StyledUl>
+          <li>{unhealthyStatus(unhealthyServers)}</li>
+          <li>{unknownStatus(unknownHealthServers)}</li>
+        </StyledUl>
+      );
     }
+
+    if (unhealthyServers) {
+      return <>{unhealthyStatus(unhealthyServers)}</>;
+    }
+
+    return <>{unknownStatus(unknownHealthServers)}</>;
   }
+}
+
+function unhealthyStatus(numServers: number) {
+  const startingWord = numServers > 1 ? 'Some' : 'A';
+  const serviceWord = numServers ? pluralize(numServers, 'service') : 'service';
+  return (
+    <>
+      {startingWord} Teleport database {serviceWord} proxying access to this
+      database cannot reach the database endpoint.
+    </>
+  );
+}
+
+function unknownStatus(numServers: number) {
+  const startingWord = numServers > 1 ? 'Some' : 'A';
+  const serviceWord = numServers ? pluralize(numServers, 'service') : 'service';
+  return (
+    <>
+      {startingWord} Teleport database {serviceWord} proxying access to this
+      database {numServers > 1 ? 'are' : 'is'} not running network health checks
+      for the database endpoint. User connections will not be routed through
+      affected Teleport database services as long as other database services
+      report a healthy connection to the database.
+    </>
+  );
 }
 
 function getTroubleShootingLink(resource: UnifiedResourceDefinition) {
   if (resource.kind == 'db') {
-    return 'https://goteleport.com/docs/enroll-resources/database-access/getting-started/#troubleshooting';
+    return 'https://goteleport.com/docs/enroll-resources/database-access/troubleshooting';
   }
 }
 
@@ -259,9 +282,18 @@ function UnhealthyServerList({ servers }: { servers: SharedResourceServer[] }) {
       <Text>
         <InfoField>UUID:</InfoField> {server.hostId}
       </Text>
+      <Text>
+        <InfoField>Status:</InfoField>{' '}
+        {server.targetHealth?.status || 'unknown'}
+      </Text>
+      {server.targetHealth?.message && (
+        <Text>
+          <InfoField>Message:</InfoField> {server.targetHealth.message}
+        </Text>
+      )}
       {server.targetHealth?.error && (
         <Text>
-          <InfoField>Reason:</InfoField> {server.targetHealth.error}
+          <InfoField>Error:</InfoField> {server.targetHealth.error}
         </Text>
       )}
     </Flex>
@@ -310,3 +342,19 @@ export function openStatusInfoPanel({
     });
   }
 }
+
+/**
+ * Returns true if any status is unhealthy or if there are a mix of different
+ * health statuses.
+ */
+export function shouldWarnResourceStatus(
+  status: ResourceHealthStatus
+): boolean {
+  return status === 'mixed' || status === 'unhealthy';
+}
+
+export const StyledUl = styled.ul`
+  margin: 0;
+  padding-left: ${p => p.theme.space[4]}px;
+  padding-bottom: ${p => p.theme.space[1]}px;
+`;

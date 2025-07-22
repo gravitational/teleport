@@ -70,6 +70,7 @@ export type IntegrationTemplate<
   details?: string;
   statusCode: IntegrationStatusCode;
   status?: SD;
+  credentials?: PluginCredentials;
 };
 // IntegrationKind string values should be in sync
 // with the backend value for defining the integration
@@ -228,6 +229,26 @@ export type PluginStatus<D = any> = {
    * contains provider-specific status information
    */
   details?: D;
+  /**
+   * credentials contains information about the plugin's credentials,
+   * if applicable, only on creation.
+   */
+  credentials?: PluginCredentials;
+};
+
+export type PluginCredentials = {
+  OAuthCredentials?: PluginOAuthCredentials;
+};
+
+type PluginOAuthCredentials = {
+  /**
+   * clientId is the OAuth client ID
+   */
+  clientId: string;
+  /**
+   * clientSecret is the OAuth client secret
+   */
+  clientSecret: string;
 };
 
 /**
@@ -301,10 +322,14 @@ export type PluginOktaSpec = {
   enableBidirectionalSync?: boolean;
   // Whether User Sync is enabled
   enableUserSync?: boolean;
+  // Whether the builtin okta-requester role should be assigned to synced users.
+  assignDefaultRoles?: boolean;
   // Whether Access List Sync is enabled. Should match App/Group sync.
   enableAccessListSync?: boolean;
   // Whether App/Group Sync is enabled. Should match Access List sync.
   enableAppGroupSync?: boolean;
+  // Whether Audit Logs syncing to Identity Security is enabled. Should match Identity Security sync.
+  enableSystemLogExport?: boolean;
   // Information about currently configured credentials for the plugin
   credentialsInfo?: CredentialsInfo;
 };
@@ -581,7 +606,7 @@ export type ResourceTypeSummary = {
   // discoverLastSync contains the time when this integration tried to auto-enroll resources.
   discoverLastSync: number;
   // unresolvedUserTasks contains the count of unresolved user tasks related to this integration and resource type.
-  unresolvedUserTasks: number;
+  unresolvedUserTasks?: number;
   // ecsDatabaseServiceCount is the total number of DatabaseServices that were deployed into Amazon ECS.
   // Only applicable for AWS RDS resource summary.
   ecsDatabaseServiceCount: number;

@@ -66,14 +66,16 @@ import (
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	cryptosuites.PrecomputeRSATestKeys(m)
 	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
@@ -165,6 +167,7 @@ func SetUpSuite(t *testing.T) *Suite {
 
 func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s := &Suite{}
+	s.closeContext, s.closeFunc = context.WithCancel(t.Context())
 
 	s.clock = clockwork.NewFakeClock()
 	s.dataDir = t.TempDir()
@@ -182,12 +185,15 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 	t.Cleanup(func() { s.authServer.Close() })
 
+	recordingMode := types.RecordOff
 	if config.ServerStreamer != nil {
-		_, err = s.authServer.AuthServer.UpsertSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
-			Spec: types.SessionRecordingConfigSpecV2{Mode: types.RecordAtNodeSync},
-		})
-		require.NoError(t, err)
+		recordingMode = types.RecordAtNodeSync
 	}
+
+	_, err = s.authServer.AuthServer.UpsertSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
+		Spec: types.SessionRecordingConfigSpecV2{Mode: recordingMode},
+	})
+	require.NoError(t, err)
 
 	s.tlsServer, err = s.authServer.NewTestTLSServer()
 	require.NoError(t, err)
@@ -228,8 +234,6 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	// Create user for regular tests.
 	s.user, err = auth.CreateUser(context.Background(), s.tlsServer.Auth(), "foo", s.role)
 	require.NoError(t, err)
-
-	s.closeContext, s.closeFunc = context.WithCancel(context.Background())
 
 	// Create a in-memory HTTP server that will respond with a UUID. This value
 	// will be checked in the client later to ensure a connection was made.
@@ -375,11 +379,11 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 
 	inventoryHandle, err := inventory.NewDownstreamHandle(s.authClient.InventoryControlStream,
-		func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
-			return proto.UpstreamInventoryHello{
+		func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
+			return &proto.UpstreamInventoryHello{
 				ServerID: s.hostUUID,
 				Version:  teleport.Version,
-				Services: []types.SystemRole{types.RoleApp},
+				Services: types.SystemRoles{types.RoleApp}.StringSlice(),
 				Hostname: "test",
 			}, nil
 		})
@@ -387,19 +391,20 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	s.appServer, err = New(s.closeContext, &Config{
-		Clock:              s.clock,
-		AccessPoint:        s.authClient,
-		AuthClient:         s.authClient,
-		HostID:             s.hostUUID,
-		Hostname:           "test",
-		GetRotation:        testRotationGetter,
-		Apps:               apps,
-		OnHeartbeat:        func(err error) {},
-		ResourceMatchers:   config.ResourceMatchers,
-		OnReconcile:        config.OnReconcile,
-		CloudLabels:        config.CloudImporter,
-		ConnectionsHandler: connectionsHandler,
-		InventoryHandle:    inventoryHandle,
+		Clock:                s.clock,
+		AccessPoint:          s.authClient,
+		AuthClient:           s.authClient,
+		HostID:               s.hostUUID,
+		Hostname:             "test",
+		GetRotation:          testRotationGetter,
+		Apps:                 apps,
+		OnHeartbeat:          func(err error) {},
+		ResourceMatchers:     config.ResourceMatchers,
+		OnReconcile:          config.OnReconcile,
+		CloudLabels:          config.CloudImporter,
+		ConnectionsHandler:   connectionsHandler,
+		InventoryHandle:      inventoryHandle,
+		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
 	})
 	require.NoError(t, err)
 
@@ -412,7 +417,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		case sender := <-inventoryHandle.Sender():
 			appServer, err := s.appServer.getServerInfo(app)
 			require.NoError(t, err)
-			require.NoError(t, sender.Send(s.closeContext, proto.InventoryHeartbeat{
+			require.NoError(t, sender.Send(s.closeContext, &proto.InventoryHeartbeat{
 				AppServer: appServer,
 			}))
 		case <-time.After(20 * time.Second):
@@ -551,7 +556,6 @@ func TestShutdown(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 

@@ -20,6 +20,7 @@ package identity
 
 import (
 	"bytes"
+	"slices"
 
 	"github.com/gravitational/teleport/api/client/proto"
 )
@@ -50,13 +51,7 @@ func (a *Artifact) Matches(kinds ...ArtifactKind) bool {
 		return true
 	}
 
-	for _, kind := range kinds {
-		if a.Kind == kind {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(kinds, a.Kind)
 }
 
 var artifacts = []Artifact{

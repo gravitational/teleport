@@ -84,6 +84,8 @@ func Run(args []string, stdout io.Writer) error {
 	configureCmd := app.Command("configure", "Creates a config file based on flags provided, and writes it to stdout or a file (-c <path>).")
 	configureCmd.Flag("output", "Path to write the generated configuration file to rather than write to stdout.").Short('o').StringVar(&configureOutPath)
 
+	keypairCmd := app.Command("keypair", "Manage keypairs for bound-keypair joining")
+
 	// TODO: consider discarding config flag for non-legacy. These should always be self contained.
 
 	// Initialize all new-style commands.
@@ -115,6 +117,10 @@ func Run(args []string, stdout io.Writer) error {
 
 		cli.NewKubeCredentialsCommand(kubeCmd, func(kubeCredentialsCmd *cli.KubeCredentialsCommand) error {
 			return onKubeCredentialsCommand(ctx, kubeCredentialsCmd)
+		}),
+
+		cli.NewKeypairCreateCommand(keypairCmd, func(keypairCreateCmd *cli.KeypairCreateCommand) error {
+			return onKeypairCreateCommand(ctx, globalCfg, keypairCreateCmd)
 		}),
 
 		// `start` and `configure` commands
@@ -349,8 +355,13 @@ func onConfigure(
 		out = f
 	}
 
-	// Ensure they have provided a join method to use in the configuration.
-	if cfg.Onboarding.JoinMethod == types.JoinMethodUnspecified {
+	// Ensure they have provided either a valid joining URI, or a
+	// join method to use in the configuration.
+	if cfg.JoinURI != "" {
+		if _, err := config.ParseJoinURI(cfg.JoinURI); err != nil {
+			return trace.Wrap(err, "invalid joining URI")
+		}
+	} else if cfg.Onboarding.JoinMethod == types.JoinMethodUnspecified {
 		return trace.BadParameter("join method must be provided")
 	}
 

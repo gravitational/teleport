@@ -87,7 +87,13 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 		return trace.Wrap(err)
 	}
 
-	urlString := makeAppRedirectURL(r, h.c.WebPublicAddr, addr.Host(), p)
+	var proxyPublicAddrs []string
+	for _, proxyAddr := range h.c.ProxyPublicAddrs {
+		// preserving full `host:port` to support proxy hosted on non-standard HTTPS port.
+		proxyPublicAddrs = append(proxyPublicAddrs, proxyAddr.String())
+	}
+	proxyDNSName := utils.FindMatchingProxyDNS(r.Host, proxyPublicAddrs)
+	urlString := makeAppRedirectURL(r, proxyDNSName, addr.Host(), p)
 	http.Redirect(w, r, urlString, http.StatusFound)
 	return nil
 }
@@ -120,9 +126,11 @@ func writeError(w http.ResponseWriter, err error) {
 }
 
 type routerFunc func(http.ResponseWriter, *http.Request, httprouter.Params) error
+
 type routerAuthFunc func(http.ResponseWriter, *http.Request, httprouter.Params, *session) error
 
 type handlerAuthFunc func(http.ResponseWriter, *http.Request, *session) error
+
 type handlerFunc func(http.ResponseWriter, *http.Request) error
 
 type launcherURLParams struct {

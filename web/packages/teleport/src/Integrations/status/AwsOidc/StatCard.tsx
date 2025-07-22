@@ -104,7 +104,7 @@ export function StatCard({ name, item, resource, summary }: StatCardProps) {
             </Flex>
           </Flex>
         </Flex>
-        {updated && <SyncStamp date={updated} />}
+        <SyncStamp date={updated} />
       </Flex>
     </CardTile>
   );

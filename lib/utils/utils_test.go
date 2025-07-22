@@ -31,12 +31,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -57,7 +57,7 @@ func TestRandomDuration(t *testing.T) {
 
 	expectedMin := time.Duration(0)
 	expectedMax := time.Second * 10
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		dur := RandomDuration(expectedMax)
 		require.GreaterOrEqual(t, dur, expectedMin)
 		require.Less(t, dur, expectedMax)
@@ -113,7 +113,7 @@ func TestMinVersions(t *testing.T) {
 	}
 	for _, testCase := range failTestCases {
 		t.Run(testCase.info, func(t *testing.T) {
-			fixtures.AssertBadParameter(t, CheckMinVersion(testCase.client, testCase.minClient))
+			require.True(t, trace.IsBadParameter(CheckMinVersion(testCase.client, testCase.minClient)))
 			assert.False(t, MeetsMinVersion(testCase.client, testCase.minClient), "MeetsMinVersion expected to fail")
 		})
 	}
@@ -146,7 +146,7 @@ func TestMaxVersions(t *testing.T) {
 	}
 	for _, testCase := range failTestCases {
 		t.Run(testCase.info, func(t *testing.T) {
-			fixtures.AssertBadParameter(t, CheckMaxVersion(testCase.client, testCase.maxClient))
+			require.True(t, trace.IsBadParameter(CheckMaxVersion(testCase.client, testCase.maxClient)))
 			assert.False(t, MeetsMaxVersion(testCase.client, testCase.maxClient), "MeetsMinVersion expected to fail")
 		})
 	}
@@ -214,7 +214,7 @@ func TestParseAdvertiseAddr(t *testing.T) {
 	for _, testCase := range failTestCases {
 		t.Run(testCase.info, func(t *testing.T) {
 			_, _, err := ParseAdvertiseAddr(testCase.in)
-			fixtures.AssertBadParameter(t, err)
+			require.True(t, trace.IsBadParameter(err))
 		})
 	}
 }
@@ -478,8 +478,8 @@ func TestMarshalYAML(t *testing.T) {
 	}
 	testCases := []struct {
 		comment  string
-		val      interface{}
-		expected interface{}
+		val      any
+		expected any
 		isDoc    bool
 	}{
 		{
@@ -488,23 +488,23 @@ func TestMarshalYAML(t *testing.T) {
 		},
 		{
 			comment: "list of yaml types",
-			val:     []interface{}{"hello", "there"},
+			val:     []any{"hello", "there"},
 		},
 		{
 			comment:  "list of yaml documents",
-			val:      []interface{}{kv{Key: "a"}, kv{Key: "b"}},
-			expected: []interface{}{map[string]interface{}{"Key": "a"}, map[string]interface{}{"Key": "b"}},
+			val:      []any{kv{Key: "a"}, kv{Key: "b"}},
+			expected: []any{map[string]any{"Key": "a"}, map[string]any{"Key": "b"}},
 			isDoc:    true,
 		},
 		{
 			comment:  "list of pointers to yaml docs",
-			val:      []interface{}{kv{Key: "a"}, &kv{Key: "b"}},
-			expected: []interface{}{map[string]interface{}{"Key": "a"}, map[string]interface{}{"Key": "b"}},
+			val:      []any{kv{Key: "a"}, &kv{Key: "b"}},
+			expected: []any{map[string]any{"Key": "a"}, map[string]any{"Key": "b"}},
 			isDoc:    true,
 		},
 		{
 			comment: "list of maps",
-			val:     []interface{}{map[string]interface{}{"Key": "a"}, map[string]interface{}{"Key": "b"}},
+			val:     []any{map[string]any{"Key": "a"}, map[string]any{"Key": "b"}},
 			isDoc:   true,
 		},
 	}
@@ -536,7 +536,7 @@ func TestTryReadValueAsFile(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = TryReadValueAsFile("/tmp/non-existent-token-for-teleport-tests-not-found")
-	fixtures.AssertNotFound(t, err)
+	require.True(t, trace.IsNotFound(err))
 
 	dir := t.TempDir()
 	tokenPath := filepath.Join(dir, "token")

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { PropsWithChildren, ReactNode } from 'react';
+import React, { PropsWithChildren, ReactNode, type JSX } from 'react';
 
 import { Box, Flex, Indicator, P1, Text } from 'design';
 import * as Icons from 'design/Icon';
@@ -104,7 +104,10 @@ export default function Table<T>(props: TableProps<T>) {
   const renderBody = (data: T[]) => {
     const rows: ReactNode[] = [];
 
-    if (fetching?.fetchStatus === 'loading') {
+    if (
+      fetching?.fetchStatus === 'loading' &&
+      !fetching.disableLoadingIndicator
+    ) {
       return <LoadingIndicator colSpan={columns.length} />;
     }
     data.map((item, rowIdx) => {

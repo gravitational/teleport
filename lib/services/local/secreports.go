@@ -122,12 +122,6 @@ func (s *SecReportsService) GetSecurityReports(ctx context.Context) ([]*secrepor
 	return reports, trace.Wrap(err)
 }
 
-// GetSecurityReportsStates returns security report states.
-func (s *SecReportsService) GetSecurityReportsStates(ctx context.Context) ([]*secreports.ReportState, error) {
-	states, err := s.securityReportStateSvc.GetResources(ctx)
-	return states, trace.Wrap(err)
-}
-
 // GetSecurityAuditQuery returns audit query by name.
 func (s *SecReportsService) GetSecurityAuditQuery(ctx context.Context, name string) (*secreports.AuditQuery, error) {
 	r, err := s.auditQuerySvc.GetResource(ctx, name)

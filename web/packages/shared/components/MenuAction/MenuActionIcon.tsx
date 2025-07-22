@@ -60,7 +60,9 @@ export default class MenuActionIcon extends React.Component<
         <HoverTooltip tipContent={this.props.tooltip} position="bottom">
           <ButtonIcon
             {...buttonIconProps}
-            setRef={e => (this.anchorEl = e)}
+            ref={e => {
+              this.anchorEl = e;
+            }}
             onClick={this.onOpen}
             data-testid="button"
           >
@@ -90,7 +92,9 @@ export default class MenuActionIcon extends React.Component<
   }
 
   renderItems(children: React.ReactNode) {
-    const filtered = React.Children.toArray(children) as React.ReactElement[];
+    const filtered = React.Children.toArray(
+      children
+    ) as React.ReactElement<any>[];
     const cloned = filtered.map(child => {
       return React.cloneElement(child, {
         onClick: this.makeOnClick(child.props.onClick),

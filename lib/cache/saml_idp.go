@@ -22,6 +22,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -31,34 +33,19 @@ const samlIdPServiceProviderNameIndex samlIdPServiceProviderIndex = "name"
 
 func newSAMLIdPServiceProviderCollection(upstream services.SAMLIdPServiceProviders, w types.WatchKind) (*collection[types.SAMLIdPServiceProvider, samlIdPServiceProviderIndex], error) {
 	if upstream == nil {
-		return nil, trace.BadParameter("missing parameter SAMLIdPSession")
+		return nil, trace.BadParameter("missing parameter SAMLIdPServiceProviders")
 	}
 
 	return &collection[types.SAMLIdPServiceProvider, samlIdPServiceProviderIndex]{
-		store: newStore(map[samlIdPServiceProviderIndex]func(types.SAMLIdPServiceProvider) string{
-			samlIdPServiceProviderNameIndex: func(r types.SAMLIdPServiceProvider) string {
-				return r.GetMetadata().Name
-			},
-		}),
+		store: newStore(
+			types.KindSAMLIdPServiceProvider,
+			types.SAMLIdPServiceProvider.Copy,
+			map[samlIdPServiceProviderIndex]func(types.SAMLIdPServiceProvider) string{
+				samlIdPServiceProviderNameIndex: types.SAMLIdPServiceProvider.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.SAMLIdPServiceProvider, error) {
-			var startKey string
-			var sps []types.SAMLIdPServiceProvider
-			for {
-				var samlProviders []types.SAMLIdPServiceProvider
-				var err error
-				samlProviders, startKey, err = upstream.ListSAMLIdPServiceProviders(ctx, 0, startKey)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				sps = append(sps, samlProviders...)
-
-				if startKey == "" {
-					break
-				}
-			}
-
-			return sps, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListSAMLIdPServiceProviders))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.SAMLIdPServiceProvider {
 			return &types.SAMLIdPServiceProviderV1{
@@ -89,7 +76,6 @@ func (c *Cache) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, p
 		nextToken: func(t types.SAMLIdPServiceProvider) string {
 			return t.GetMetadata().Name
 		},
-		clone: types.SAMLIdPServiceProvider.Copy,
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)
@@ -105,90 +91,7 @@ func (c *Cache) GetSAMLIdPServiceProvider(ctx context.Context, name string) (typ
 		collection:  c.collections.samlIdPServiceProviders,
 		index:       samlIdPServiceProviderNameIndex,
 		upstreamGet: c.Config.SAMLIdPServiceProviders.GetSAMLIdPServiceProvider,
-		clone:       types.SAMLIdPServiceProvider.Copy,
 	}
 	out, err := getter.get(ctx, name)
-	return out, trace.Wrap(err)
-}
-
-type samlIdPSessionIndex string
-
-const samlIdPSessionNameIndex samlIdPSessionIndex = "name"
-
-func newSAMLIdPSessionCollection(upstream services.SAMLIdPSession, w types.WatchKind) (*collection[types.WebSession, samlIdPSessionIndex], error) {
-	if upstream == nil {
-		return nil, trace.BadParameter("missing parameter SAMLIdPSession")
-	}
-
-	return &collection[types.WebSession, samlIdPSessionIndex]{
-		store: newStore(map[samlIdPSessionIndex]func(types.WebSession) string{
-			samlIdPSessionNameIndex: func(r types.WebSession) string {
-				return r.GetMetadata().Name
-			},
-		}),
-		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WebSession, error) {
-			var startKey string
-			var sessions []types.WebSession
-			for {
-				webSessions, nextKey, err := upstream.ListSAMLIdPSessions(ctx, 0, startKey, "")
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				if !loadSecrets {
-					for i := 0; i < len(webSessions); i++ {
-						webSessions[i] = webSessions[i].WithoutSecrets()
-					}
-				}
-
-				sessions = append(sessions, webSessions...)
-
-				if nextKey == "" {
-					break
-				}
-				startKey = nextKey
-			}
-			return sessions, nil
-		},
-		headerTransform: func(hdr *types.ResourceHeader) types.WebSession {
-			return &types.WebSessionV2{
-				Kind:    hdr.Kind,
-				SubKind: hdr.SubKind,
-				Version: hdr.Version,
-				Metadata: types.Metadata{
-					Name: hdr.Metadata.Name,
-				},
-			}
-		},
-		watch: w,
-	}, nil
-}
-
-// GetSAMLIdPSession gets a SAML IdP session.
-func (c *Cache) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSAMLIdPSession")
-	defer span.End()
-
-	var upstreamRead bool
-	getter := genericGetter[types.WebSession, samlIdPSessionIndex]{
-		cache:      c,
-		collection: c.collections.samlIdPSessions,
-		index:      samlIdPSessionNameIndex,
-		upstreamGet: func(ctx context.Context, s string) (types.WebSession, error) {
-			upstreamRead = true
-
-			session, err := c.Config.SAMLIdPSession.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{SessionID: s})
-			return session, trace.Wrap(err)
-		},
-		clone: types.WebSession.Copy,
-	}
-	out, err := getter.get(ctx, req.SessionID)
-	if trace.IsNotFound(err) && !upstreamRead {
-		// fallback is sane because method is never used
-		// in construction of derivative caches.
-		if item, err := c.Config.SAMLIdPSession.GetSAMLIdPSession(ctx, req); err == nil {
-			return item, nil
-		}
-	}
 	return out, trace.Wrap(err)
 }

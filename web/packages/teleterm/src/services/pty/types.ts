@@ -82,14 +82,6 @@ export type TshLoginCommand = PtyCommandBase & {
   leafClusterId: string | undefined;
 };
 
-export type TshKubeLoginCommand = PtyCommandBase & {
-  kind: 'pty.tsh-kube-login';
-  kubeId: string;
-  kubeConfigRelativePath: string;
-  rootClusterId: string;
-  leafClusterId?: string;
-};
-
 export type GatewayCliClientCommand = PtyCommandBase & {
   kind: 'pty.gateway-cli-client';
   // path is an absolute path to the CLI client. It is resolved on tshd side by GO's
@@ -114,7 +106,6 @@ type PtyCommandBase = {
 export type PtyCommand =
   | ShellCommand
   | TshLoginCommand
-  | TshKubeLoginCommand
   | GatewayCliClientCommand;
 
 export type SshOptions = {

@@ -80,10 +80,17 @@ const (
 	// JoinMethodOracle indicates that the node will join using the Oracle join
 	// method.
 	JoinMethodOracle JoinMethod = "oracle"
+	// JoinMethodAzureDevops indicates that the node will join using the Azure
+	// Devops join method.
+	JoinMethodAzureDevops JoinMethod = "azure_devops"
+	// JoinMethodBoundKeypair indicates the node will join using the Bound
+	// Keypair join method. See lib/boundkeypair for more.
+	JoinMethodBoundKeypair JoinMethod = "bound_keypair"
 )
 
 var JoinMethods = []JoinMethod{
 	JoinMethodAzure,
+	JoinMethodAzureDevops,
 	JoinMethodBitbucket,
 	JoinMethodCircleCI,
 	JoinMethodEC2,
@@ -97,6 +104,7 @@ var JoinMethods = []JoinMethod{
 	JoinMethodTPM,
 	JoinMethodTerraformCloud,
 	JoinMethodOracle,
+	JoinMethodBoundKeypair,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
@@ -182,6 +190,26 @@ func NewProvisionTokenFromSpec(token string, expires time.Time, spec ProvisionTo
 			Expires: &expires,
 		},
 		Spec: spec,
+	}
+	if err := t.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return t, nil
+}
+
+// NewProvisionTokenFromSpecAndStatus returns a new provision token with the given spec.
+func NewProvisionTokenFromSpecAndStatus(
+	token string, expires time.Time,
+	spec ProvisionTokenSpecV2,
+	status *ProvisionTokenStatusV2,
+) (ProvisionToken, error) {
+	t := &ProvisionTokenV2{
+		Metadata: Metadata{
+			Name:    token,
+			Expires: &expires,
+		},
+		Spec:   spec,
+		Status: status,
 	}
 	if err := t.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -400,6 +428,25 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		}
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "spec.oracle: failed validation")
+		}
+	case JoinMethodAzureDevops:
+		providerCfg := p.Spec.AzureDevops
+		if providerCfg == nil {
+			return trace.BadParameter(
+				"spec.azure_devops: must be configured for the join method %q",
+				JoinMethodAzureDevops,
+			)
+		}
+		if err := providerCfg.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "spec.azure_devops: failed validation")
+		}
+	case JoinMethodBoundKeypair:
+		if p.Spec.BoundKeypair == nil {
+			p.Spec.BoundKeypair = &ProvisionTokenSpecV2BoundKeypair{}
+		}
+
+		if err := p.Spec.BoundKeypair.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "spec.bound_keypair: failed validation")
 		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
@@ -949,5 +996,54 @@ func (a *ProvisionTokenSpecV2Oracle) checkAndSetDefaults() error {
 			)
 		}
 	}
+	return nil
+}
+
+// checkAndSetDefaults checks and sets defaults on the Azure Devops spec.
+func (a *ProvisionTokenSpecV2AzureDevops) checkAndSetDefaults() error {
+	switch {
+	case len(a.Allow) == 0:
+		return trace.BadParameter(
+			"the %q join method requires at least one allow rule",
+			JoinMethodAzureDevops,
+		)
+	case a.OrganizationID == "":
+		return trace.BadParameter(
+			"organization_id: must be set",
+		)
+	}
+
+	for i, rule := range a.Allow {
+		subSet := rule.Sub != ""
+		projectNameSet := rule.ProjectName != ""
+		projectIDSet := rule.ProjectID != ""
+		if !subSet && !projectNameSet && !projectIDSet {
+			return trace.BadParameter(
+				"allow[%d]: at least one of ['sub', 'project_name', 'project_id'] must be set",
+				i,
+			)
+		}
+	}
+	return nil
+}
+
+func (a *ProvisionTokenSpecV2BoundKeypair) checkAndSetDefaults() error {
+	if a.Onboarding == nil {
+		a.Onboarding = &ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{}
+	}
+
+	if a.Recovery == nil {
+		a.Recovery = &ProvisionTokenSpecV2BoundKeypair_RecoverySpec{}
+	}
+
+	// Limit must be >= 1 for the token to be useful. If zero, assume it's unset
+	// and provide a sane default.
+	if a.Recovery.Limit == 0 {
+		a.Recovery.Limit = 1
+	}
+
+	// Note: Recovery.Mode will be interpreted at joining time; it's zero value
+	// ("") is mapped to RecoveryModeStandard.
+
 	return nil
 }

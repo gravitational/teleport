@@ -32,30 +32,38 @@ import (
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"gopkg.in/ini.v1"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
 // WorkloadIdentityAWSRAService is a service that retrieves X.509 certificates
 // and exchanges them for AWS credentials using the AWS Roles Anywhere service.
 type WorkloadIdentityAWSRAService struct {
-	botAuthClient     *authclient.Client
-	botCfg            *config.BotConfig
-	cfg               *config.WorkloadIdentityAWSRAService
-	getBotIdentity    getBotIdentityFn
-	log               *slog.Logger
-	resolver          reversetunnelclient.Resolver
-	reloadBroadcaster *channelBroadcaster
+	botAuthClient      *apiclient.Client
+	botIdentityReadyCh <-chan struct{}
+	botCfg             *config.BotConfig
+	cfg                *config.WorkloadIdentityAWSRAService
+	getBotIdentity     getBotIdentityFn
+	log                *slog.Logger
+	reloadBroadcaster  *internal.ChannelBroadcaster
+	statusReporter     readyz.Reporter
+	identityGenerator  *identity.Generator
+	clientBuilder      *client.Builder
 }
 
 // String returns a human-readable description of the service.
 func (s *WorkloadIdentityAWSRAService) String() string {
-	return fmt.Sprintf("workload-identity-aws-roles-anywhere (%s)", s.cfg.Destination.String())
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("workload-identity-aws-roles-anywhere (%s)", s.cfg.Destination.String()),
+	)
 }
 
 // OneShot runs the service once, generating the output and writing it to the
@@ -67,17 +75,19 @@ func (s *WorkloadIdentityAWSRAService) OneShot(ctx context.Context) error {
 // Run runs the service in a loop, generating the output and writing it to the
 // destination at regular intervals.
 func (s *WorkloadIdentityAWSRAService) Run(ctx context.Context) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
+	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
 	defer unsubscribe()
 
-	err := runOnInterval(ctx, runOnIntervalConfig{
-		service:    s.String(),
-		name:       "output-renewal",
-		f:          s.generate,
-		interval:   s.cfg.SessionRenewalInterval,
-		retryLimit: renewalRetryLimit,
-		log:        s.log,
-		reloadCh:   reloadCh,
+	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
+		Service:         s.String(),
+		Name:            "output-renewal",
+		F:               s.generate,
+		Interval:        s.cfg.SessionRenewalInterval,
+		RetryLimit:      renewalRetryLimit,
+		Log:             s.log,
+		ReloadCh:        reloadCh,
+		IdentityReadyCh: s.botIdentityReadyCh,
+		StatusReporter:  s.statusReporter,
 	})
 	return trace.Wrap(err)
 }
@@ -91,7 +101,14 @@ func (s *WorkloadIdentityAWSRAService) generate(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "marshaling private key")
 	}
-	svid, err := x509svid.ParseRaw(res.GetX509Svid().Cert, pkcs8)
+	certWithChain := new(bytes.Buffer)
+	_, _ = certWithChain.Write(res.GetX509Svid().GetCert())
+	// If external PKI is configured, we need to append the chain to the leaf
+	// certificate before calling x509svid.ParseRaw.
+	for _, cert := range res.GetX509Svid().GetChain() {
+		_, _ = certWithChain.Write(cert)
+	}
+	svid, err := x509svid.ParseRaw(certWithChain.Bytes(), pkcs8)
 	if err != nil {
 		return trace.Wrap(err, "parsing x509 svid")
 	}
@@ -158,28 +175,18 @@ func (s *WorkloadIdentityAWSRAService) requestSVID(
 	)
 	defer span.End()
 
-	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
-	if err != nil {
-		return nil, nil, trace.Wrap(err, "fetching roles")
-	}
-
-	id, err := generateIdentity(
-		ctx,
-		s.botAuthClient,
-		s.getBotIdentity(),
-		roles,
+	id, err := s.identityGenerator.GenerateFacade(ctx,
 		// We only need this to issue the X509 SVID, so we don't need the full
 		// lifetime.
-		time.Minute*10,
-		nil,
+		identity.WithLifetime(time.Minute*10, 0),
+		identity.WithLogger(s.log),
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "generating identity")
 	}
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
-	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
-	impersonatedClient, err := clientForFacade(ctx, s.log, s.botCfg, facade, s.resolver)
+	impersonatedClient, err := s.clientBuilder.Build(ctx, id)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -226,7 +233,7 @@ func (s *WorkloadIdentityAWSRAService) requestSVID(
 }
 
 func loadExistingAWSCredentialFile(
-	ctx context.Context, dest bot.Destination, artifactName string,
+	ctx context.Context, dest destination.Destination, artifactName string,
 ) (*ini.File, error) {
 	// Load the existing credential file if it exists so we can merge with
 	// it.

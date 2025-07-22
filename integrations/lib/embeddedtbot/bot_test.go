@@ -33,15 +33,16 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestBotJoinAuth(t *testing.T) {
 	// Configure and start Teleport server
 	clusterName := "root.example.com"
 	ctx := context.Background()
-	logger := utils.NewSlogLoggerForTests()
+	logger := logtest.NewLogger()
 	teleportServer := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: clusterName,
 		HostID:      uuid.New().String(),
@@ -123,8 +124,9 @@ func TestBotJoinAuth(t *testing.T) {
 			TokenValue: tokenName,
 			JoinMethod: types.JoinMethodToken,
 		},
-		AuthServer: authAddr.Addr,
-		CredentialLifetime: config.CredentialLifetime{
+		AuthServer:            authAddr.Addr,
+		AuthServerAddressMode: config.AllowProxyAsAuthServer,
+		CredentialLifetime: bot.CredentialLifetime{
 			TTL:             defaultCertificateTTL,
 			RenewalInterval: defaultRenewalInterval,
 		},

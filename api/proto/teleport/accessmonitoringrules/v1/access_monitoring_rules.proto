@@ -83,7 +83,7 @@ message AutomaticReview {
   // the rule. Set this value to `builtin` to monitor the rule with Teleport.
   string integration = 1;
   // decision specifies the proposed state of the access review. This can be
-  // either 'approved' or 'denied'.
+  // either 'APPROVED' or 'DENIED'.
   string decision = 2;
 }
 

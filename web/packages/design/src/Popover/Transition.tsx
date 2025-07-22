@@ -31,7 +31,7 @@ export function Transition({
 }: React.PropsWithChildren<{
   onEntering: () => void;
   enablePaperResizeObserver: boolean | undefined;
-  paperRef: RefObject<HTMLElement>;
+  paperRef: RefObject<HTMLElement | null>;
   onPaperResize: () => void;
 }>) {
   // Note: useLayoutEffect to prevent flickering improperly positioned popovers.

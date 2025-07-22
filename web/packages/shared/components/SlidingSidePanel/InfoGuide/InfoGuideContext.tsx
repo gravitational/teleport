@@ -18,10 +18,13 @@
 
 import {
   createContext,
+  FC,
   PropsWithChildren,
   useContext,
   useEffect,
+  useMemo,
   useState,
+  type JSX,
 } from 'react';
 
 import { generalInfoPanelWidth } from './const';
@@ -79,20 +82,23 @@ export type InfoGuideConfig = {
 
 const InfoGuidePanelContext = createContext<InfoGuidePanelContextState>(null);
 
-export const InfoGuidePanelProvider: React.FC<
+export const InfoGuidePanelProvider: FC<
   PropsWithChildren<{ defaultPanelWidth?: number }>
 > = ({ children, defaultPanelWidth = generalInfoPanelWidth }) => {
   const [infoGuideConfig, setInfoGuideConfig] =
     useState<InfoGuideConfig | null>(null);
 
+  const providerValue = useMemo(
+    () => ({
+      infoGuideConfig,
+      setInfoGuideConfig,
+      panelWidth: infoGuideConfig?.panelWidth || defaultPanelWidth,
+    }),
+    [defaultPanelWidth, infoGuideConfig]
+  );
+
   return (
-    <InfoGuidePanelContext.Provider
-      value={{
-        infoGuideConfig,
-        setInfoGuideConfig,
-        panelWidth: infoGuideConfig?.panelWidth || defaultPanelWidth,
-      }}
-    >
+    <InfoGuidePanelContext.Provider value={providerValue}>
       {children}
     </InfoGuidePanelContext.Provider>
   );
