@@ -57,7 +57,7 @@ func TestGitServers(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		deleteAll: p.gitServers.DeleteAllGitServers,
-		cacheList: func(ctx context.Context) ([]types.Server, error) {
+		cacheList: func(ctx context.Context, pageSize int) ([]types.Server, error) {
 			return stream.Collect(clientutils.Resources(ctx, p.cache.ListGitServers))
 		},
 		cacheGet: p.cache.GetGitServer,

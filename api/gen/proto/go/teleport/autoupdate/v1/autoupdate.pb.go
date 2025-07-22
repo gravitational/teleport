@@ -481,7 +481,11 @@ type AgentAutoUpdateGroup struct {
 	StartHour int32 `protobuf:"varint,3,opt,name=start_hour,json=startHour,proto3" json:"start_hour,omitempty"`
 	// wait_hours after last group succeeds before this group can run. This can only be used when the strategy is "halt-on-failure".
 	// This field must be positive.
-	WaitHours     int32 `protobuf:"varint,5,opt,name=wait_hours,json=waitHours,proto3" json:"wait_hours,omitempty"`
+	WaitHours int32 `protobuf:"varint,5,opt,name=wait_hours,json=waitHours,proto3" json:"wait_hours,omitempty"`
+	// canary_count is the number of canary agents that will be updated before the whole group is updated.
+	// when set to 0, the group does not enter the canary phase. This number is capped to 5.
+	// This number must always be lower than the total number of agents in the group, else the rollout will be stuck.
+	CanaryCount   int32 `protobuf:"varint,6,opt,name=canary_count,json=canaryCount,proto3" json:"canary_count,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -540,6 +544,13 @@ func (x *AgentAutoUpdateGroup) GetStartHour() int32 {
 func (x *AgentAutoUpdateGroup) GetWaitHours() int32 {
 	if x != nil {
 		return x.WaitHours
+	}
+	return 0
+}
+
+func (x *AgentAutoUpdateGroup) GetCanaryCount() int32 {
+	if x != nil {
+		return x.CanaryCount
 	}
 	return 0
 }
@@ -1627,14 +1638,15 @@ const file_teleport_autoupdate_v1_autoupdate_proto_rawDesc = "" +
 	"\x1bmaintenance_window_duration\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\x19maintenanceWindowDuration\x12N\n" +
 	"\tschedules\x18\x06 \x01(\v20.teleport.autoupdate.v1.AgentAutoUpdateSchedulesR\tschedulesJ\x04\b\x05\x10\x06R\x0fagent_schedules\"b\n" +
 	"\x18AgentAutoUpdateSchedules\x12F\n" +
-	"\aregular\x18\x01 \x03(\v2,.teleport.autoupdate.v1.AgentAutoUpdateGroupR\aregular\"\x8d\x01\n" +
+	"\aregular\x18\x01 \x03(\v2,.teleport.autoupdate.v1.AgentAutoUpdateGroupR\aregular\"\xb0\x01\n" +
 	"\x14AgentAutoUpdateGroup\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04days\x18\x02 \x03(\tR\x04days\x12\x1d\n" +
 	"\n" +
 	"start_hour\x18\x03 \x01(\x05R\tstartHour\x12\x1d\n" +
 	"\n" +
-	"wait_hours\x18\x05 \x01(\x05R\twaitHoursJ\x04\b\x04\x10\x05R\twait_days\"\xd9\x01\n" +
+	"wait_hours\x18\x05 \x01(\x05R\twaitHours\x12!\n" +
+	"\fcanary_count\x18\x06 \x01(\x05R\vcanaryCountJ\x04\b\x04\x10\x05R\twait_days\"\xd9\x01\n" +
 	"\x11AutoUpdateVersion\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"context"
@@ -33,7 +33,9 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -45,7 +47,7 @@ func TestSSOMFAChallenge_Creation(t *testing.T) {
 	ctx := context.Background()
 
 	fakeClock := clockwork.NewFakeClock()
-	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: fakeClock,
 	})
@@ -70,11 +72,11 @@ func TestSSOMFAChallenge_Creation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a standard user.
-	standardUser, _, err := CreateUserAndRole(a, "standard", []string{"role"}, nil)
+	standardUser, _, err := authtest.CreateUserAndRole(a, "standard", []string{"role"}, nil)
 	require.NoError(t, err)
 
 	// Create a fake saml user with MFA disabled.
-	noMFASAMLUser, noMFASAMLRole, err := CreateUserAndRole(a, "saml-user-no-mfa", []string{"role"}, nil)
+	noMFASAMLUser, noMFASAMLRole, err := authtest.CreateUserAndRole(a, "saml-user-no-mfa", []string{"role"}, nil)
 	require.NoError(t, err)
 
 	noMFASAMLConnector, err := types.NewSAMLConnector("saml-no-mfa", types.SAMLConnectorSpecV2{
@@ -91,7 +93,7 @@ func TestSSOMFAChallenge_Creation(t *testing.T) {
 	require.NoError(t, err)
 
 	noMFASAMLUser.SetCreatedBy(types.CreatedBy{
-		Time: a.clock.Now(),
+		Time: a.GetClock().Now(),
 		Connector: &types.ConnectorRef{
 			ID:   noMFASAMLConnector.GetName(),
 			Type: noMFASAMLConnector.GetKind(),
@@ -101,7 +103,7 @@ func TestSSOMFAChallenge_Creation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a fake saml user with MFA enabled.
-	samlUser, samlRole, err := CreateUserAndRole(a, "saml-user", []string{"role"}, nil)
+	samlUser, samlRole, err := authtest.CreateUserAndRole(a, "saml-user", []string{"role"}, nil)
 	require.NoError(t, err)
 
 	samlConnector, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{
@@ -123,7 +125,7 @@ func TestSSOMFAChallenge_Creation(t *testing.T) {
 	require.NoError(t, err)
 
 	samlUser.SetCreatedBy(types.CreatedBy{
-		Time: a.clock.Now(),
+		Time: a.GetClock().Now(),
 		Connector: &types.ConnectorRef{
 			ID:   samlConnector.GetName(),
 			Type: samlConnector.GetKind(),
@@ -133,7 +135,7 @@ func TestSSOMFAChallenge_Creation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a fake oidc user with MFA enabled.
-	oidcUser, oidcRole, err := CreateUserAndRole(a, "oidc-user", []string{"role"}, nil)
+	oidcUser, oidcRole, err := authtest.CreateUserAndRole(a, "oidc-user", []string{"role"}, nil)
 	require.NoError(t, err)
 
 	oidcConnector, err := types.NewOIDCConnector("oidc", types.OIDCConnectorSpecV3{
@@ -158,7 +160,7 @@ func TestSSOMFAChallenge_Creation(t *testing.T) {
 	require.NoError(t, err)
 
 	oidcUser.SetCreatedBy(types.CreatedBy{
-		Time: a.clock.Now(),
+		Time: a.GetClock().Now(),
 		Connector: &types.ConnectorRef{
 			ID:   oidcConnector.GetName(),
 			Type: oidcConnector.GetKind(),
@@ -343,7 +345,7 @@ func TestSSOMFAChallenge_Creation(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			userClient, err := testServer.NewClient(TestUser(tt.username))
+			userClient, err := testServer.NewClient(authtest.TestUser(tt.username))
 			require.NoError(t, err)
 
 			if tt.setup != nil {
@@ -361,7 +363,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 	ctx := context.Background()
 
 	fakeClock := clockwork.NewFakeClock()
-	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: fakeClock,
 	})
@@ -372,11 +374,11 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 	a := testServer.Auth()
 
 	// Create a standard user.
-	standardUser, _, err := CreateUserAndRole(a, "standard", []string{"role"}, nil)
+	standardUser, _, err := authtest.CreateUserAndRole(a, "standard", []string{"role"}, nil)
 	require.NoError(t, err)
 
 	// Create a fake saml user with MFA enabled.
-	samlUser, samlRole, err := CreateUserAndRole(a, "saml-user", []string{"role"}, nil)
+	samlUser, samlRole, err := authtest.CreateUserAndRole(a, "saml-user", []string{"role"}, nil)
 	require.NoError(t, err)
 
 	samlConnector, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{
@@ -397,7 +399,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 	_, err = a.UpsertSAMLConnector(ctx, samlConnector)
 	require.NoError(t, err)
 
-	userCreatedAt := a.clock.Now().UTC()
+	userCreatedAt := a.GetClock().Now().UTC()
 	samlUser.SetCreatedBy(types.CreatedBy{
 		Time: userCreatedAt,
 		Connector: &types.ConnectorRef{
@@ -418,7 +420,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a fake saml user with MFA disabled.
-	noMFASAMLUser, noMFASAMLRole, err := CreateUserAndRole(a, "saml-user-no-mfa", []string{"role"}, nil)
+	noMFASAMLUser, noMFASAMLRole, err := authtest.CreateUserAndRole(a, "saml-user-no-mfa", []string{"role"}, nil)
 	require.NoError(t, err)
 
 	noMFASAMLConnector, err := types.NewSAMLConnector("saml-no-mfa", types.SAMLConnectorSpecV2{
@@ -435,7 +437,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 	require.NoError(t, err)
 
 	noMFASAMLUser.SetCreatedBy(types.CreatedBy{
-		Time: a.clock.Now(),
+		Time: a.GetClock().Now(),
 		Connector: &types.ConnectorRef{
 			ID:   noMFASAMLConnector.GetName(),
 			Type: noMFASAMLConnector.GetKind(),
@@ -722,7 +724,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 }
 
 type fakeSSOService struct {
-	a *Server
+	a *auth.Server
 }
 
 func (s *fakeSSOService) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {

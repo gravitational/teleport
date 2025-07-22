@@ -95,7 +95,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
-	libutils "github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
@@ -731,7 +731,7 @@ func TestDiscoveryServer(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			logger := libutils.NewSlogLoggerForTests()
+			logger := logtest.NewLogger()
 
 			reporter := &mockUsageReporter{}
 			installer := &mockSSMInstaller{
@@ -858,7 +858,7 @@ func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTas
 func TestDiscoveryServerConcurrency(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := libutils.NewSlogLoggerForTests()
+	logger := logtest.NewLogger()
 
 	defaultDiscoveryGroup := "dg01"
 	awsMatcher := types.AWSMatcher{
@@ -1452,7 +1452,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				require.NoError(t, r.Close())
 				require.NoError(t, w.Close())
 			})
-			logger := libutils.NewSlogLoggerForTests()
+			logger := logtest.NewLogger()
 
 			clustersNotUpdated := make(chan string, 10)
 			go func() {
@@ -3009,7 +3009,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			logger := libutils.NewSlogLoggerForTests()
+			logger := logtest.NewLogger()
 
 			emitter := &mockEmitter{}
 			reporter := &mockUsageReporter{}
@@ -3316,7 +3316,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			logger := libutils.NewSlogLoggerForTests()
+			logger := logtest.NewLogger()
 			emitter := &mockEmitter{}
 			reporter := &mockUsageReporter{}
 			installer := &mockGCPInstaller{
@@ -3377,7 +3377,7 @@ func TestServer_onCreate(t *testing.T) {
 		Config: &Config{
 			DiscoveryGroup: "test-cluster",
 			AccessPoint:    accessPoint,
-			Log:            libutils.NewSlogLoggerForTests(),
+			Log:            logtest.NewLogger(),
 		},
 	}
 

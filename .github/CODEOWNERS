@@ -5,7 +5,7 @@
 /build.assets/tooling/cmd/difftest/ @klizhentas @russjones @r0mant @zmb3 @rosstimothy
 
 # Owners for JS dependency updates.
-/pnpm-lock.yaml @avatus @gzdunek @ravicious
+/pnpm-lock.yaml @avatus @gzdunek @ravicious @zmb3 @r0mant
 /web/packages/teleterm/package.json @gzdunek @ravicious
 
 # Owners for Go dependency updates.
