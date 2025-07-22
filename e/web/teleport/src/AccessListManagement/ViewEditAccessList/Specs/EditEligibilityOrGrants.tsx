@@ -136,11 +136,11 @@ export function EditEligibilityOrGrantRoles({
       );
   }
 
-  let dialogTitle = 'Edit Granted Member Permissions';
-  let editBtnTitle = 'Save Permissions';
+  let dialogTitle = 'Edit Member Permissions Granted';
+  let editBtnTitle = 'Save Permissions Granted';
 
   if (editKind === 'OwnerGrants') {
-    dialogTitle = 'Edit Granted Owner Permissions';
+    dialogTitle = 'Edit Owner Permissions Granted';
   } else if (editKind === 'Member' || editKind === 'Owner') {
     dialogTitle = `Edit ${editKind} Eligibility`;
     editBtnTitle = `Save Eligibility`;

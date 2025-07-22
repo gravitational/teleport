@@ -9,7 +9,7 @@ import {
 
 import { TraitConvenience } from '../../Traits';
 import { DeleteMemberWarning } from '../DeleteUserConfirmDialog';
-import { AccessListMemberTable } from '../Members/MembersList';
+import { AccessListMemberTable } from '../Members/Members';
 import { List } from './Shared';
 import { getMembersDeleted } from './utils';
 

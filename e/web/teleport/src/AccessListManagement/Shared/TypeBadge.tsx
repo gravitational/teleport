@@ -40,6 +40,7 @@ export const TypeBadge = ({ type }: { type: AccessListOrigin }) => {
         height: 22px;
         color: ${p => p.theme.colors.text.slightlyMuted};
       `}
+      data-testid={`badge-${type}`}
     >
       <RenderBadge />
     </Flex>

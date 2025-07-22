@@ -118,7 +118,7 @@ export function EditAudit({ onClose, accessList, updateAccessList }: Props) {
               disabled={attempt.status === 'processing'}
               onClick={() => handleOnCreate(validator)}
             >
-              Edit Audit
+              Save Audit
             </ButtonPrimary>
             <ButtonSecondary
               disabled={attempt.status === 'processing'}

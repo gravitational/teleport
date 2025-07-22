@@ -2,214 +2,63 @@ import { StoryObj } from '@storybook/react-vite';
 import { http, HttpResponse } from 'msw';
 import { generatePath, MemoryRouter } from 'react-router';
 
+import { Alert } from 'design/Alert';
+
 import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import cfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-import {
-  AccessListMemberKind,
-  IneligibleStatus,
-  ReviewDayOfMonth,
-  ReviewFrequency,
-} from 'e-teleport/services/accessmanagement';
 import { ContextProvider } from 'teleport';
 import { Route, Switch } from 'teleport/components/Router';
 import { getAcl } from 'teleport/mocks/contexts';
 
+import {
+  rawAccessList,
+  rawAccessListAsMember,
+  rawAccessListAsOwner,
+  rawAccessListOkta,
+  rawEmptyAccessList,
+  rawNestedAccessList,
+  rawReviewsResponse,
+} from './fixtures';
 import { ViewEditAccessList } from './ViewEditAccessList';
-
-const mockAccessList = {
-  metadata: {
-    name: 'mock-access-list-id',
-    labels: {
-      'okta/org': 'https://some-url',
-    },
-  },
-  members: [
-    {
-      name: 'member1',
-      joined: '2023-05-24T17:48:15.78579Z',
-      expires: '0001-01-01T00:00:00Z',
-      reason: 'some reason',
-      added_by: 'lisa@goteleport.com',
-      ineligible_status: IneligibleStatus.Expired,
-      membership_kind: AccessListMemberKind.User,
-    },
-    {
-      name: 'mock-nested-access-list-id',
-      joined: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      expires: '',
-      added_by: 'maxim@goteleport.com',
-      membership_kind: AccessListMemberKind.List,
-    },
-    {
-      name: 'member2',
-      joined: '2023-12-12T17:48:15.78579Z',
-      expires: '0001-01-01T00:00:00Z',
-      added_by: 'llama',
-      membership_kind: AccessListMemberKind.User,
-    },
-    {
-      name: 'member3',
-      joined: '2023-12-12T17:48:15.78579Z',
-      expires: '2024-12-12T17:48:15.78579Z',
-      added_by: 'llama',
-      membership_kind: AccessListMemberKind.User,
-    },
-  ],
-  // this is a bit of a hack, since we're using the same obj for the list resp and the single resp.
-  inherited_member_grants: {
-    roles: [],
-    traits: {},
-  },
-  spec: {
-    title: 'Mock Access List Title',
-    description:
-      'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua',
-    owners: [
-      {
-        name: 'owner1',
-        description: 'some description',
-        membership_kind: AccessListMemberKind.User,
-      },
-      {
-        name: 'george.washington@goteleport.com',
-        ineligible_status: IneligibleStatus.MissingRequirements,
-        membership_kind: AccessListMemberKind.User,
-      },
-      {
-        name: 'llama',
-        membership_kind: AccessListMemberKind.User,
-      }, // owner
-    ],
-    grants: {
-      roles: ['access', 'editor'],
-      traits: { fruit: ['apple'] },
-    },
-    owner_grants: {
-      roles: ['admin', 'almighty'],
-      traits: { status: ['pro'] },
-    },
-    audit: {
-      recurrence: {
-        frequency: ReviewFrequency.OneMonth,
-        dayOfMonth: ReviewDayOfMonth.FifteenthDayOfMonth,
-      },
-      next_audit_date: new Date().toString(),
-    },
-    ownership_requires: {
-      roles: ['admin'],
-      traits: { fruit: ['banana', 'apple'], drink: ['coffee'] },
-    },
-    membership_requires: {
-      roles: ['reviewer', 'auditor'],
-      traits: { fruit: ['carrot'] },
-    },
-  },
-};
-
-const mockNestedAccessList = {
-  metadata: {
-    name: 'mock-nested-access-list-id',
-    labels: {},
-  },
-  members: [
-    {
-      name: 'member1',
-      joined: '2023-05-24T17:48:15.78579Z',
-      expires: '0001-01-01T00:00:00Z',
-      reason: 'some reason',
-      added_by: 'maxim@goteleport.com',
-      ineligible_status: IneligibleStatus.Expired,
-      membership_kind: AccessListMemberKind.User,
-    },
-    {
-      name: 'member2',
-      joined: '2023-12-12T17:48:15.78579Z',
-      expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      added_by: 'maxim@goteleport.com',
-      ineligible_status: undefined,
-      membership_kind: AccessListMemberKind.User,
-    },
-  ],
-  inherited_member_grants: mockAccessList.spec.grants,
-  spec: {
-    title: 'Mock Nested Access List',
-    description:
-      'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua',
-    owners: [
-      {
-        name: 'owner1',
-        description: 'some description',
-        membership_kind: AccessListMemberKind.User,
-      },
-      {
-        name: 'llama',
-        membership_kind: AccessListMemberKind.User,
-      },
-    ],
-    grants: {
-      roles: ['access'],
-      traits: { fruit: ['orange'] },
-    },
-    owner_grants: {
-      roles: [],
-      traits: {},
-    },
-    audit: {
-      recurrence: {
-        frequency: ReviewFrequency.OneYear,
-        dayOfMonth: ReviewDayOfMonth.FirstDayOfMonth,
-      },
-      next_audit_date: new Date(
-        Date.now() + 365 * 24 * 60 * 60 * 1000
-      ).toISOString(),
-    },
-    ownership_requires: {
-      roles: [],
-      traits: {},
-    },
-    membership_requires: {
-      roles: [],
-      traits: {},
-    },
-  },
-};
 
 export default {
   title: 'TeleportE/AccessLists/View',
-  decorators: [
-    Story => {
-      return <Story />;
-    },
-  ],
 };
 
-// Note the disabled buttons.
-// Owners are limited to member edits.
-export const ViewingAsOwner: StoryObj = {
+export const ViewingAsOwnerWithNoRbac: StoryObj = {
   parameters: {
     msw: {
       handlers: [
         http.get(
-          cfg.getAccessManagementListUrl(mockAccessList.metadata.name),
+          cfg.getAccessManagementListUrl(rawAccessList.metadata.name),
           () => {
             return HttpResponse.json({
-              accessList: mockAccessList,
+              accessList: rawAccessListAsOwner,
             });
           }
         ),
         http.get(
-          cfg.getAccessManagementListUrl(mockNestedAccessList.metadata.name),
+          cfg.getAccessListUrl({
+            action: 'reviews',
+            params: { accessListId: rawAccessListAsOwner.metadata.name },
+          }),
+          () => {
+            return HttpResponse.json(rawReviewsResponse);
+          }
+        ),
+        http.get(
+          cfg.getAccessManagementListUrl(rawNestedAccessList.metadata.name),
           () => {
             return HttpResponse.json({
-              accessList: mockNestedAccessList,
+              accessList: rawNestedAccessList,
             });
           }
         ),
         http.get(cfg.getAccessManagementListUrl(), () => {
           return new HttpResponse(
             JSON.stringify({
-              accessLists: [mockAccessList, mockNestedAccessList],
+              accessLists: [rawAccessListAsOwner, rawNestedAccessList],
             })
           );
         }),
@@ -222,80 +71,44 @@ export const ViewingAsOwner: StoryObj = {
         customAcl={getAcl({ noAccess: true })}
         initialEntries={[
           generatePath(cfg.routes.accessLists, {
-            accessListId: mockAccessList.metadata.name,
+            accessListId: rawAccessList.metadata.name,
           }),
         ]}
       >
+        <Alert kind="neutral">
+          Devs: largely read-only, but can edit members, start reviews, and view
+          past audits
+        </Alert>
         <ViewEditAccessList />
       </Provider>
     );
   },
 };
 
-// Note the disabled buttons.
-// Members can't edit and view other members.
 export const ViewingAsMember: StoryObj = {
   parameters: {
     msw: {
       handlers: [
         http.get(
-          cfg.getAccessManagementListUrl(mockNestedAccessList.metadata.name),
+          cfg.getAccessManagementListUrl(rawNestedAccessList.metadata.name),
           () => {
             return HttpResponse.json({
-              accessList: mockNestedAccessList,
+              accessList: rawAccessListAsMember,
             });
           }
         ),
         http.get(cfg.getAccessManagementListUrl(), () => {
           return new HttpResponse(
             JSON.stringify({
-              accessLists: [
-                {
-                  ...mockAccessList,
-                  spec: {
-                    ...mockAccessList.spec,
-                    owners: [
-                      {
-                        name: 'owner1',
-                        description: 'some description',
-                        membership_kind: AccessListMemberKind.User,
-                      },
-                      {
-                        name: 'george.washington@goteleport.com',
-                        ineligible_status: IneligibleStatus.MissingRequirements,
-                        membership_kind: AccessListMemberKind.User,
-                      },
-                    ],
-                  },
-                },
-                mockNestedAccessList,
-              ],
+              accessLists: [rawAccessListAsMember, rawNestedAccessList],
             })
           );
         }),
         http.get(
-          cfg.getAccessManagementListUrl(mockAccessList.metadata.name),
+          cfg.getAccessManagementListUrl(rawAccessList.metadata.name),
           () => {
             return HttpResponse.json({
-              accessList: {
-                ...mockAccessList,
-                spec: {
-                  ...mockAccessList.spec,
-                  // No owners
-                  owners: [
-                    {
-                      name: 'owner1',
-                      description: 'some description',
-                      membership_kind: AccessListMemberKind.User,
-                    },
-                    {
-                      name: 'george.washington@goteleport.com',
-                      ineligible_status: IneligibleStatus.MissingRequirements,
-                      membership_kind: AccessListMemberKind.User,
-                    },
-                  ],
-                },
-              },
+              accessList: rawAccessListAsMember,
             });
           }
         ),
@@ -308,41 +121,53 @@ export const ViewingAsMember: StoryObj = {
         customAcl={getAcl({ noAccess: true })}
         initialEntries={[
           generatePath(cfg.routes.accessLists, {
-            accessListId: mockAccessList.metadata.name,
+            accessListId: rawAccessList.metadata.name,
           }),
         ]}
       >
+        <Alert kind="neutral">
+          Devs: read-only, no member list, no audit review list, no starting
+          reviews, but can see owners list
+        </Alert>
         <ViewEditAccessList />
       </Provider>
     );
   },
 };
 
-// Note that admin will have access to all actions.
 export const ViewingAsAdmin: StoryObj = {
   parameters: {
     msw: {
       handlers: [
         http.get(
-          cfg.getAccessManagementListUrl(mockAccessList.metadata.name),
+          cfg.getAccessListUrl({
+            action: 'reviews',
+            params: { accessListId: rawAccessList.metadata.name },
+          }),
+          () => {
+            return HttpResponse.json(rawReviewsResponse);
+          }
+        ),
+        http.get(
+          cfg.getAccessManagementListUrl(rawAccessList.metadata.name),
           () => {
             return HttpResponse.json({
-              accessList: mockAccessList,
+              accessList: rawAccessList,
             });
           }
         ),
         http.get(
-          cfg.getAccessManagementListUrl(mockNestedAccessList.metadata.name),
+          cfg.getAccessManagementListUrl(rawNestedAccessList.metadata.name),
           () => {
             return HttpResponse.json({
-              accessList: mockNestedAccessList,
+              accessList: rawNestedAccessList,
             });
           }
         ),
         http.get(cfg.getAccessManagementListUrl(), () => {
           return new HttpResponse(
             JSON.stringify({
-              accessLists: [mockAccessList, mockNestedAccessList],
+              accessLists: [rawAccessList, rawNestedAccessList],
             })
           );
         }),
@@ -374,10 +199,136 @@ export const ViewingAsAdmin: StoryObj = {
       <Provider
         initialEntries={[
           generatePath(cfg.routes.accessLists, {
-            accessListId: mockAccessList.metadata.name,
+            accessListId: rawAccessList.metadata.name,
           }),
         ]}
       >
+        <Alert kind="neutral">Devs: can perform any action</Alert>
+        <ViewEditAccessList />
+      </Provider>
+    );
+  },
+};
+
+export const ViewingAsAdminOktaList: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(
+          cfg.getAccessListUrl({
+            action: 'reviews',
+            params: { accessListId: rawAccessListOkta.metadata.name },
+          }),
+          () => {
+            return HttpResponse.json(rawReviewsResponse);
+          }
+        ),
+        http.get(
+          cfg.getAccessManagementListUrl(rawAccessListOkta.metadata.name),
+          () => {
+            return HttpResponse.json({
+              accessList: rawAccessListOkta,
+            });
+          }
+        ),
+        http.get(
+          cfg.getAccessManagementListUrl(rawNestedAccessList.metadata.name),
+          () => {
+            return HttpResponse.json({
+              accessList: rawNestedAccessList,
+            });
+          }
+        ),
+        http.get(cfg.getAccessManagementListUrl(), () => {
+          return new HttpResponse(
+            JSON.stringify({
+              accessLists: [rawAccessListOkta, rawNestedAccessList],
+            })
+          );
+        }),
+        http.get(cfg.oss.getUsersUrl(), () => {
+          return HttpResponse.json([
+            { name: 'apple' },
+            {
+              name: 'carrot',
+            },
+          ]);
+        }),
+        http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
+          return HttpResponse.json([]);
+        }),
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider
+        initialEntries={[
+          generatePath(cfg.routes.accessLists, {
+            accessListId: rawAccessList.metadata.name,
+          }),
+        ]}
+      >
+        <Alert kind="neutral">
+          Devs: has okta badge next to title, can&apos;t modify title and
+          can&apos;t modify granted permissions
+        </Alert>
+        <ViewEditAccessList />
+      </Provider>
+    );
+  },
+};
+
+export const ViewingAsAdminEmptyList: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(
+          cfg.getAccessListUrl({
+            action: 'reviews',
+            params: { accessListId: rawEmptyAccessList.metadata.name },
+          }),
+          () => {
+            return HttpResponse.json({});
+          }
+        ),
+        http.get(
+          cfg.getAccessManagementListUrl(rawEmptyAccessList.metadata.name),
+          () => {
+            return HttpResponse.json({
+              accessList: rawEmptyAccessList,
+            });
+          }
+        ),
+        http.get(cfg.getAccessManagementListUrl(), () => {
+          return new HttpResponse(
+            JSON.stringify({
+              accessLists: [],
+            })
+          );
+        }),
+        http.get(cfg.oss.getUsersUrl(), () => {
+          return HttpResponse.json([]);
+        }),
+        http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
+          return HttpResponse.json([]);
+        }),
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider
+        initialEntries={[
+          generatePath(cfg.routes.accessLists, {
+            accessListId: rawAccessList.metadata.name,
+          }),
+        ]}
+      >
+        <Alert kind="neutral">
+          Devs: only title and audit review frequency and date is defined, but
+          can perform any action
+        </Alert>
         <ViewEditAccessList />
       </Provider>
     );
@@ -389,7 +340,7 @@ export const Failed: StoryObj = {
     msw: {
       handlers: [
         http.get(
-          cfg.getAccessManagementListUrl(mockAccessList.metadata.name),
+          cfg.getAccessManagementListUrl(rawAccessList.metadata.name),
           () => {
             return HttpResponse.json(
               {
@@ -407,7 +358,7 @@ export const Failed: StoryObj = {
       <Provider
         initialEntries={[
           generatePath(cfg.routes.accessLists, {
-            accessListId: mockAccessList.metadata.name,
+            accessListId: rawAccessList.metadata.name,
           }),
         ]}
       >

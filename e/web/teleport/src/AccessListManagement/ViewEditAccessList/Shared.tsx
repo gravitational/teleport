@@ -1,9 +1,9 @@
-import React, { type PropsWithChildren } from 'react';
+import React, { Ref, type PropsWithChildren } from 'react';
 import styled from 'styled-components';
 
 import { Alert, Box, ButtonIcon, ButtonSecondary, Flex } from 'design';
 import { Cell } from 'design/DataTable';
-import { Pencil } from 'design/Icon';
+import { Pencil, UserCheck, UserIdBadge } from 'design/Icon';
 import Link from 'design/Link';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 import { AccessListUserAssignmentType } from 'gen-proto-ts/teleport/accesslist/v1/accesslist_pb';
@@ -22,7 +22,6 @@ import {
   AccessListOwner,
   AccessListRequires,
 } from 'e-teleport/services/accessmanagement';
-import type TeleportContextE from 'e-teleport/teleportContextE';
 import type { Access } from 'teleport/services/user';
 
 import { accessListRequiresReview } from '../AccessListManagementContext';
@@ -115,9 +114,8 @@ export const getPerms = ({
 
 export const modifyAccessList = (
   acl: AccessList,
-  acls: (AccessList | AccessListWithModifiedGrants)[],
-  ctx: TeleportContextE
-): [AccessListModified, Perms] => {
+  acls: (AccessList | AccessListWithModifiedGrants)[]
+): AccessListModified => {
   const modifiedAccessList: AccessListModified = {
     ...acl,
     grants: {
@@ -146,9 +144,7 @@ export const modifyAccessList = (
     ),
   };
 
-  const accessListAccess = ctx.storeUser.getAccessListAccess();
-
-  return [modifiedAccessList, getPerms({ accessListAccess, accessList: acl })];
+  return modifiedAccessList;
 };
 
 export const getTitlesForNestedListOwnersMembers = (
@@ -328,11 +324,15 @@ export function ButtonPencil({
   disabled = false,
   title = '',
   mt = 0,
+  ref,
+  dataTestId,
 }: {
   onClick(): void;
   disabled?: boolean;
   title?: string;
   mt?: number;
+  ref?: Ref<HTMLButtonElement>;
+  dataTestId?: string;
 }) {
   return (
     <ButtonIcon
@@ -340,6 +340,8 @@ export function ButtonPencil({
       disabled={disabled}
       title={title}
       css={mt && { marginTop: `${mt}px` }}
+      ref={ref}
+      data-testid={dataTestId}
     >
       <Pencil size={16} />
     </ButtonIcon>
@@ -352,71 +354,96 @@ const TextNoEllipsis = styled(Box)`
 
 const renderTruncatingLabels = (
   labels: string[] = [],
-  showEllipses?: boolean
+  labekKind: 'trait' | 'role'
 ) => {
-  const labelsToUse = labels.slice(
-    0,
-    showEllipses ? MAX_DISPLAYED_INHERITED_ROLES_TRAITS : labels.length
-  );
-  const $labels = labelsToUse.map((label, index) => (
-    <TruncatingLabel
-      mr={index === labelsToUse.length - 1 ? 0 : 1}
-      key={`${label}${index}`}
-      kind="secondary"
-      title={label}
-    >
-      {label}
-    </TruncatingLabel>
-  ));
-
+  const forRole = labekKind === 'role';
   return (
-    <Flex flexWrap="wrap">
-      {$labels}
-      {showEllipses && (
-        <TruncatingLabel kind="secondary" ml={1}>
-          + {labels.length - MAX_DISPLAYED_INHERITED_ROLES_TRAITS} more
+    <>
+      {labels.map((label, index) => (
+        <TruncatingLabel
+          key={`${label}${index}`}
+          kind="secondary"
+          title={`${forRole ? '[Role]' : '[Trait]'} ${label}`}
+          labelForRole={forRole}
+        >
+          {forRole ? (
+            <UserIdBadge size={16} mr={1} />
+          ) : (
+            <UserCheck size={14} mr={1} />
+          )}
+          {label}
         </TruncatingLabel>
-      )}
-    </Flex>
+      ))}
+    </>
   );
 };
 
 export const RoleAndTraitLabels = ({
   roles,
   traits,
-  required = false,
-  truncate = false,
+  accessKind,
+  editDisabled,
+  onEdit,
+  toolTipContent,
+  userKind,
 }: {
   roles: string[];
   traits: string[];
   required?: boolean;
-  truncate?: boolean;
+  accessKind: 'requirements' | 'grants' | 'inherited';
+  userKind: 'member' | 'owner';
+  editDisabled?: boolean;
+  onEdit?(): void;
+  toolTipContent?: string;
 }) => {
-  const renderRoles = required ? roles.length > 0 : true;
-  const renderTraits = required ? traits.length > 0 : true;
+  let prefix;
+  let tipContent;
+  switch (accessKind) {
+    case 'requirements':
+      prefix = 'Required Permissions';
+      tipContent = `If a ${userKind} does not meet all required roles and traits defined here, ${userKind}ship will have no effect; ${userKind}s will not be granted any additional roles or traits.`;
+      break;
+    case 'grants':
+      prefix = 'Granted Permissions';
+      break;
+    case 'inherited':
+      prefix = 'Inherited Permissions';
+      tipContent = `Additional permission grants inherited as a result of this Access List being nested into another Access List.`;
+      break;
+  }
 
-  return renderRoles || renderTraits ? (
-    <Flex flexDirection="column" gap={1} alignItems="start">
-      {renderRoles && (
-        <Flex alignItems="start" gap={2}>
-          <TextNoEllipsis mt={1}>Roles:</TextNoEllipsis>
-          {renderTruncatingLabels(
-            roles,
-            truncate && roles.length > MAX_DISPLAYED_INHERITED_ROLES_TRAITS
+  return (
+    <Flex alignItems="center">
+      <HoverTooltip tipContent={tipContent}>
+        <TextNoEllipsis css={{ minWidth: '128px' }}>
+          {accessKind === 'inherited' ? (
+            <Link
+              target="_blank"
+              href="https://goteleport.com/docs/admin-guides/access-controls/access-lists/nested-access-lists/"
+            >
+              {prefix}
+            </Link>
+          ) : (
+            prefix
           )}
-        </Flex>
-      )}
-      {renderTraits && (
-        <Flex alignItems="start" gap={2}>
-          <TextNoEllipsis mt={1}>Traits:</TextNoEllipsis>
-          {renderTruncatingLabels(
-            traits,
-            truncate && traits.length > MAX_DISPLAYED_INHERITED_ROLES_TRAITS
-          )}
-        </Flex>
-      )}
+          :
+        </TextNoEllipsis>
+      </HoverTooltip>
+      <Flex alignItems="center" gap={1} flexWrap="wrap">
+        {renderTruncatingLabels(roles, 'role')}
+        {renderTruncatingLabels(traits, 'trait')}
+        {onEdit && (
+          <HoverTooltip tipContent={toolTipContent}>
+            <ButtonPencil
+              onClick={onEdit}
+              disabled={editDisabled}
+              dataTestId={`btn-${userKind}-${accessKind}`}
+            />
+          </HoverTooltip>
+        )}
+      </Flex>
     </Flex>
-  ) : null;
+  );
 };
 
 export const EnrollingNestedListsAlert = ({

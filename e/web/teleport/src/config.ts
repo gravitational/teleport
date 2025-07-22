@@ -256,7 +256,11 @@ const cfg = {
     const action = req.action;
     switch (action) {
       case 'reviews':
-        return generatePath(cfg.api.accessList.reviews, req.params);
+        return generatePath(cfg.api.accessList.reviews, {
+          accessListId: req.params.accessListId,
+          limit: req.params.limit || undefined,
+          startKey: req.params.startKey || undefined,
+        });
       default:
         action satisfies never;
     }

@@ -4,6 +4,7 @@ import cfg from 'e-teleport/config';
 import api from 'teleport/services/api';
 import auth from 'teleport/services/auth/auth';
 import { makeTraits } from 'teleport/services/user/makeUser';
+import { withGenericUnsupportedError } from 'teleport/services/version/unsupported';
 
 import {
   AccessList,
@@ -37,32 +38,36 @@ export const accessManagementService = {
     params: { startKey: string; limit: number },
     abortSignal?: AbortSignal
   ): Promise<{ reviews: AccessListReview[]; startKey: string }> {
-    return api
-      .get(
-        cfg.getAccessListUrl({
-          action: 'reviews',
-          params: {
-            accessListId,
-            ...params,
-          },
-        }),
-        abortSignal
-      )
-      .then(resp => {
-        const madeReviews = resp.reviews?.map(r => {
-          const spec = r.spec ?? {};
+    return (
+      api
+        .get(
+          cfg.getAccessListUrl({
+            action: 'reviews',
+            params: {
+              accessListId,
+              ...params,
+            },
+          }),
+          abortSignal
+        )
+        .then(resp => {
+          const madeReviews = resp.reviews?.map(r => {
+            const spec = r.spec ?? {};
+            return {
+              notes: spec.notes,
+              reviewDate: new Date(spec.review_date),
+              reviewers: spec.reviewers,
+              raw: r,
+            };
+          });
           return {
-            notes: spec.notes,
-            reviewDate: new Date(spec.review_date),
-            reviewers: spec.reviewers,
-            raw: r,
+            reviews: madeReviews ?? [],
+            startKey: resp.startKey,
           };
-        });
-        return {
-          reviews: madeReviews ?? [],
-          startKey: resp.startKey,
-        };
-      });
+        })
+        // TODO(kimlisa): DELETE IN v20.0
+        .catch(err => withGenericUnsupportedError(err, '18.1.0'))
+    );
   },
   fetchAccessList(accessListId: string): Promise<AccessList> {
     return api

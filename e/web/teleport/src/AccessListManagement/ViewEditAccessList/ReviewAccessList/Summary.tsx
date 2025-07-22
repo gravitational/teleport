@@ -9,7 +9,6 @@ import {
 } from 'e-teleport/AccessListManagement/Shared/Audit';
 import { AccessListMember } from 'e-teleport/services/accessmanagement';
 
-import { AccessListMemberTable } from '../Members/MembersList';
 import {
   AccessListWithNestedOwnersMembersTitles,
   RoleAndTraitLabels,
@@ -43,7 +42,7 @@ export function Summary({
 }) {
   return (
     <>
-      <Box mb={5}>
+      <Box mb={4}>
         {isOwner ? (
           <H2 mb={2}>Membership Requirements (Read Only)</H2>
         ) : (
@@ -58,18 +57,8 @@ export function Summary({
           traits={editedMembershipRequires.traitLabels.map(
             l => `${l.name}: ${l.value}`
           )}
-        />
-      </Box>
-      <Box mb={6}>
-        <EditButton
-          title="Members"
-          setStep={() => setReviewStep(ReviewStep.EditMembers)}
-          disabled={disabled}
-        />
-        <AccessListMemberTable
-          members={editedMembers}
-          canEditMembers={true}
-          hideIneligibleReason={true}
+          accessKind="requirements"
+          userKind="member"
         />
       </Box>
       <ReviewAudit

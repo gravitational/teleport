@@ -395,12 +395,25 @@ const StyledOnHover = styled(Text)`
   max-width: 350px;
 `;
 
-export const TruncatingLabel = styled(Label)<{ inverse?: boolean }>`
+export const TruncatingLabel = styled(Label)<{
+  inverse?: boolean;
+  labelForRole?: boolean;
+  truncate?: boolean;
+}>`
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  max-width: 160px;
   ${inverseLabel}
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  ${p => (p.truncate ? `max-width: 160px;` : '')}
+  ${p => (p.truncate ? `flex-wrap: wrap;` : '')}
+
+  ${p =>
+    p.labelForRole
+      ? `background-color: ${p.theme.colors.interactive.tonal.informational[0]};`
+      : ''}
 `;
 
 export function matchRoles(
@@ -450,6 +463,13 @@ export const NestedListLink = styled('button')`
   column-gap: ${p => p.theme.space[2]}px;
   padding: 0;
   font-family: ${p => p.theme.fonts.sansSerif};
+  color: ${p => p.theme.colors.text.main};
+  display: inline-block;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: fit-content;
+  flex-shrink: 1;
 
   ${p => p.theme.typography.body2};
 

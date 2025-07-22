@@ -135,32 +135,49 @@ export const renderRolesAndTraits = ({
   roles: string[];
   traits: string[];
 }) => {
-  const combinedRolesAndGrants = [...roles, ...traits];
-  const $labels = combinedRolesAndGrants.map((label, index) => (
+  const roleLabels = roles.map((label, index) => (
     <TruncatingLabel
-      mr={index === combinedRolesAndGrants.length - 1 ? 0 : 1}
       key={`${label}${index}`}
       kind="secondary"
       title={label}
+      truncate
+      labelForRole
     >
-      {label}
+      <Text>{label}</Text>
     </TruncatingLabel>
   ));
+
+  const traitLabels = traits.map((label, index) => (
+    <TruncatingLabel
+      key={`${label}${index}`}
+      kind="secondary"
+      title={label}
+      truncate
+    >
+      <Text>{label}</Text>
+    </TruncatingLabel>
+  ));
+
+  const $labels = [...roleLabels, ...traitLabels];
 
   // Render at least 2 labels and two lines of label.
   if ($labels.length > 2) {
     const truncatedLabels = $labels.slice(0, 2);
     const otherLabels = $labels.slice(2);
     return (
-      <Flex flexWrap="wrap" alignItems="baseline">
-        {truncatedLabels}
+      <Flex flexWrap="wrap" alignItems="baseline" gap={1}>
+        <Flex gap={1}>{truncatedLabels}</Flex>
         <HoverTooltip
           position="bottom"
-          tipContent={otherLabels.map(label =>
-            // Labels in the tip content need to be rendered in inverse colors,
-            // or they will be illegible.
-            cloneElement(label, { inverse: true })
-          )}
+          tipContent={
+            <Flex gap={1} flexWrap="wrap">
+              {otherLabels.map(label =>
+                // Labels in the tip content need to be rendered in inverse colors,
+                // or they will be illegible.
+                cloneElement(label, { inverse: true })
+              )}
+            </Flex>
+          }
         >
           <Text typography="body4">+ {otherLabels.length} more</Text>
         </HoverTooltip>

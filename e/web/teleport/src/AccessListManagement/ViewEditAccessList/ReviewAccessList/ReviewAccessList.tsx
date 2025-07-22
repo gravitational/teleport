@@ -187,6 +187,8 @@ export function ReviewAccessList({
                 <>
                   <H2 mb={3}>Membership Requirements (Read Only)</H2>
                   <RoleAndTraitLabels
+                    accessKind="requirements"
+                    userKind="member"
                     roles={editedMembershipRequires.roles}
                     traits={editedMembershipRequires.traitLabels.map(
                       l => `${l.name}: ${l.value}`

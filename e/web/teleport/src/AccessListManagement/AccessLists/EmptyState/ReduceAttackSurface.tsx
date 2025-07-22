@@ -1,6 +1,6 @@
 import { Box } from 'design';
 
-import { AccessListMemberTable } from 'e-teleport/AccessListManagement/ViewEditAccessList/Members/MembersList';
+import { AccessListMemberTable } from 'e-teleport/AccessListManagement/ViewEditAccessList/Members/Members';
 import type { AccessListModified } from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
 import { AccessListMemberKind } from 'e-teleport/services/accessmanagement';
 
@@ -38,7 +38,6 @@ export const ReduceAttackSurfacePreview = () => {
         members={mockedMembers}
         canEditMembers={true}
         onDeleteMember={() => null}
-        hideReasonCol={true}
       />
     </Box>
   );

@@ -1,15 +1,23 @@
-import { format } from 'date-fns';
 import { useEffect, useState } from 'react';
 import { useHistory, useLocation, useParams } from 'react-router';
 
-import { Alert, Box, ButtonSecondary, Flex, H1, Indicator, Text } from 'design';
-import { DATE_FORMAT } from 'design/datetime/constants';
 import {
-  ArrowBack,
-  ArrowForward,
-  Info,
-  ListMagnifyingGlass,
-} from 'design/Icon';
+  Alert,
+  Box,
+  ButtonIcon,
+  ButtonSecondary,
+  Flex,
+  H1,
+  Indicator,
+  Text,
+} from 'design';
+import { ArrowBack } from 'design/Icon';
+import {
+  TabBorder,
+  TabContainer,
+  TabsContainer,
+  useSlidingBottomBorderTabs,
+} from 'design/Tabs';
 import { HoverTooltip } from 'design/Tooltip';
 import type { Option } from 'shared/components/Select';
 import useAttempt from 'shared/hooks/useAttemptNext';
@@ -22,22 +30,20 @@ import {
   AccessListMemberKind,
   AccessListOrigin,
   accessManagementService,
-  isReviewable,
   type AccessList,
   type AccessListMember,
 } from 'e-teleport/services/accessmanagement';
 import useTeleport from 'e-teleport/useTeleportE';
-import {
-  FeatureBox,
-  FeatureHeader,
-  FeatureHeaderTitle,
-} from 'teleport/components/Layout';
+import { FeatureBox } from 'teleport/components/Layout';
 
 import { TypeBadge } from '../Shared/TypeBadge';
+import { AuditAndReviews } from './AuditAndReviews/AuditAndReviews';
 import { DeleteAccessListConfirmDialog } from './DeleteAccessListConfirmDialog';
-import { MembersList } from './Members/MembersList';
-import { OwnersList } from './Owners/OwnersList';
+import { noEditAcessMsg } from './errors';
+import { Members } from './Members/Members';
+import { Owners } from './Owners/Owners';
 import { ReviewAccessList } from './ReviewAccessList';
+import { ReviewBanner } from './ReviewBanner';
 import {
   ButtonPencil,
   getPerms,
@@ -47,10 +53,13 @@ import {
   type Perms,
 } from './Shared';
 import { EditTitle } from './Specs/EditTitle';
-import { Specs } from './Specs/Specs';
 
-const genericNoAccessMsg =
-  'You do not have permission to edit this Access List';
+enum Tab {
+  ListMembers = 'tab-members',
+  ListOwners = 'tab-owners',
+  Audits = 'tab-audits',
+}
+
 const noAccessDeleteMsg =
   'You do not have permission to delete this Access List';
 const oktaTitleMsg =
@@ -61,7 +70,7 @@ const readOnlyOktaDeleteMsg =
 export function ViewEditAccessList() {
   const ctx = useTeleport();
   const {
-    attempt,
+    attempt: fetchAccessListsAttempt,
     accessLists,
     userOptions,
     fetchRoleOptions,
@@ -74,11 +83,14 @@ export function ViewEditAccessList() {
   const history = useHistory();
   const { accessListId } = useParams<{ accessListId: string }>();
 
-  const scopedAttempt = useAttempt('processing');
+  const {
+    attempt: fetchViewingAccessListAttempt,
+    setAttempt: setFetchViewingAccessListAttempt,
+  } = useAttempt('processing');
+
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [accessList, setAccessList] = useState<AccessListModified>();
 
-  const [perms, setPerms] = useState<Perms>(getPerms({}));
   const [showEditTitle, setShowEditTitle] = useState(false);
 
   const isOktaList = accessList?.origin === AccessListOrigin.Okta;
@@ -104,7 +116,7 @@ export function ViewEditAccessList() {
       [0, 0]
     );
 
-    const [modifiedAccessList, newPerms] = modifyAccessList(
+    const modifiedAccessList = modifyAccessList(
       {
         ...newAccessList,
         // These fields are only calculated on the backend, so their existing state
@@ -113,11 +125,9 @@ export function ViewEditAccessList() {
         membersCount,
         memberListCount,
       },
-      accessLists,
-      ctx
+      accessLists
     );
     setAccessList(modifiedAccessList);
-    setPerms(newPerms);
 
     // We also want to update the 'allAccessLists' state with the new access list.
     processAccessLists(prev =>
@@ -127,10 +137,11 @@ export function ViewEditAccessList() {
     );
   }
 
-  // When `allAccessLists` changes, we need to set the name of any nested lists.
+  // When fetched accessLists changes, the nested list titles
+  // also need to be updated.
   useEffect(() => {
     if (
-      attempt.attempt.status !== 'success' ||
+      fetchAccessListsAttempt.attempt.status !== 'success' ||
       !accessList ||
       !accessLists?.length
     ) {
@@ -148,29 +159,33 @@ export function ViewEditAccessList() {
       ),
     };
     setAccessList(updatedList);
-    // We only want to run if/when `allAccessLists` is re-fetched.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attempt.attempt.status, !!accessList, accessLists?.length]);
+  }, [
+    fetchAccessListsAttempt.attempt.status,
+    !!accessList,
+    accessLists?.length,
+  ]);
 
   // If this api call succeeded, user is either an owner or
   // has `access_list` list/read rules defined.
   function fetchAccessList() {
-    scopedAttempt.setAttempt({ status: 'processing' });
+    setFetchViewingAccessListAttempt({ status: 'processing' });
 
     accessManagementService
       .fetchAccessList(accessListId)
       .then(fetchedAccessList => {
-        const [modifiedAccessList, newPerms] = modifyAccessList(
+        const modifiedAccessList = modifyAccessList(
           fetchedAccessList,
-          accessLists,
-          ctx
+          accessLists
         );
         setAccessList(modifiedAccessList);
-        setPerms(newPerms);
-        scopedAttempt.setAttempt({ status: 'success' });
+        setFetchViewingAccessListAttempt({ status: 'success' });
       })
       .catch((e: Error) =>
-        scopedAttempt.setAttempt({ status: 'failed', statusText: e.message })
+        setFetchViewingAccessListAttempt({
+          status: 'failed',
+          statusText: e.message,
+        })
       );
   }
 
@@ -193,9 +208,14 @@ export function ViewEditAccessList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessListId]);
 
+  const perms = getPerms({
+    accessListAccess: ctx.storeUser.getAccessListAccess(),
+    accessList,
+  });
+
   showReview: if (
     location.hash === '#review' &&
-    attempt.attempt.status === 'success' &&
+    fetchAccessListsAttempt.attempt.status === 'success' &&
     !!accessList
   ) {
     const canReview = perms.isOwner || perms.adminWhoCanEdit;
@@ -226,37 +246,40 @@ export function ViewEditAccessList() {
 
   return (
     <FeatureBox>
-      <FeatureHeader alignItems="center" justifyContent="space-between">
+      <Flex
+        alignItems="center"
+        justifyContent="space-between"
+        my={3}
+        gap={3}
+        data-testid="header"
+      >
         {/* Note: FeatureHeaderTitle normally inserts an H1 element, we're gonna
             do it ourselves instead. */}
-        <FeatureHeaderTitle as="div">
-          <Flex alignItems="center">
-            <div
-              data-testid="back-button"
-              css={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
-              onClick={() => {
-                // If location.key is unset, or 'default', this is the first history entry in-app in the session.
-                if (!location.key || location.key === 'default') {
-                  history.push(cfg.getAccessListManagementRoute());
-                } else {
-                  history.goBack();
-                }
-              }}
-              aria-label="Back"
-              role="button"
-              tabIndex={0}
-            >
-              <ArrowBack mr={2} size="large" color="text.main" />
-            </div>
-            <FeatureTitle
-              perms={perms}
-              isOktaList={isOktaList}
-              attempt={scopedAttempt.attempt}
-              accessList={accessList}
-              setShowEditTitle={setShowEditTitle}
-            />
-          </Flex>
-        </FeatureHeaderTitle>
+        <Flex alignItems="center" gap={3}>
+          <ButtonIcon
+            data-testid="back-button"
+            onClick={() => {
+              // If location.key is unset, or 'default', this is the first history entry in-app in the session.
+              if (!location.key || location.key === 'default') {
+                history.push(cfg.getAccessListManagementRoute());
+              } else {
+                history.goBack();
+              }
+            }}
+            aria-label="Back"
+            role="button"
+            tabIndex={0}
+          >
+            <ArrowBack size="large" color="text.muted" />
+          </ButtonIcon>
+          <FeatureTitle
+            perms={perms}
+            isOktaList={isOktaList}
+            attempt={fetchViewingAccessListAttempt}
+            accessList={accessList}
+            setShowEditTitle={setShowEditTitle}
+          />
+        </Flex>
         {accessList && (
           <HoverTooltip
             tipContent={
@@ -266,12 +289,12 @@ export function ViewEditAccessList() {
                   ? readOnlyOktaDeleteMsg
                   : undefined
             }
-            position="bottom"
+            placement="left"
           >
             <ButtonSecondary
               onClick={() => setDeleteConfirm(true)}
               disabled={
-                scopedAttempt.attempt.status === 'processing' ||
+                fetchViewingAccessListAttempt.status === 'processing' ||
                 !perms.adminWhoCanDelete ||
                 isReadOnlyOktaList
               }
@@ -280,17 +303,28 @@ export function ViewEditAccessList() {
             </ButtonSecondary>
           </HoverTooltip>
         )}
-      </FeatureHeader>
-      <MainContent
-        perms={perms}
-        attempt={scopedAttempt.attempt}
-        accessList={accessList}
-        userOptions={userOptions}
-        accessLists={accessLists}
-        fetchRoleOptions={fetchRoleOptions}
-        isReadOnlyOktaList={isReadOnlyOktaList}
-        updateAccessList={updateAccessList}
-      />
+      </Flex>
+      {fetchViewingAccessListAttempt.status === 'processing' && (
+        <Box textAlign="center" m={10}>
+          <Indicator />
+        </Box>
+      )}
+      {fetchViewingAccessListAttempt.status === 'failed' && (
+        <Alert kind="outline-danger">
+          {fetchViewingAccessListAttempt.statusText}
+        </Alert>
+      )}
+      {fetchViewingAccessListAttempt.status === 'success' && (
+        <MainContent
+          perms={perms}
+          accessList={accessList}
+          userOptions={userOptions}
+          accessLists={accessLists}
+          fetchRoleOptions={fetchRoleOptions}
+          isReadOnlyOktaList={isReadOnlyOktaList}
+          updateAccessList={updateAccessList}
+        />
+      )}
       {deleteConfirm && (
         <DeleteAccessListConfirmDialog
           isOkta={accessList.origin === AccessListOrigin.Okta}
@@ -328,7 +362,7 @@ const FeatureTitle = ({
       return <>Access List</>;
     case 'success':
       return (
-        <Box>
+        <Flex flexDirection="column">
           <Flex alignItems="center" mr={3} gap={1}>
             <H1>{accessList.title}</H1>
             {accessList.origin !== AccessListOrigin.Unspecified && (
@@ -337,23 +371,26 @@ const FeatureTitle = ({
             <HoverTooltip
               tipContent={
                 !perms.adminWhoCanEdit
-                  ? genericNoAccessMsg
+                  ? noEditAcessMsg
                   : isOktaList
                     ? oktaTitleMsg
                     : undefined
               }
-              position="right"
+              placement="right"
             >
               <ButtonPencil
                 onClick={() => setShowEditTitle(true)}
                 disabled={!perms.adminWhoCanEdit || isOktaList}
+                dataTestId="btn-title"
               />
             </HoverTooltip>
           </Flex>
           {accessList.description && (
-            <Text typography="body3">{accessList.description}</Text>
+            <Text fontSize={3} color="text.slightlyMuted">
+              {accessList.description}
+            </Text>
           )}
-        </Box>
+        </Flex>
       );
     default:
       return null;
@@ -362,7 +399,6 @@ const FeatureTitle = ({
 
 const MainContent = ({
   perms,
-  attempt,
   userOptions,
   accessList,
   accessLists,
@@ -371,7 +407,6 @@ const MainContent = ({
   updateAccessList,
 }: {
   perms: Perms;
-  attempt: ReturnType<typeof useAttempt>['attempt'];
   userOptions: UserOption[];
   accessList: AccessListModified;
   accessLists: AccessListWithModifiedGrants[];
@@ -382,19 +417,12 @@ const MainContent = ({
     members?: AccessListMember[]
   ) => void;
 }) => {
-  if (attempt.status === 'processing') {
-    return (
-      <Box textAlign="center" m={10}>
-        <Indicator />
-      </Box>
-    );
-  }
-  if (attempt.status === 'failed') {
-    return <Alert kind="outline-danger">{attempt.statusText}</Alert>;
-  }
-  if (attempt.status !== 'success') {
-    return null;
-  }
+  const [activeTab, setActiveTab] = useState(Tab.ListMembers);
+
+  const { borderRef, parentRef } = useSlidingBottomBorderTabs({ activeTab });
+
+  const memberCount = accessList.members.length;
+  const ownerCount = accessList.owners.length;
 
   return (
     <>
@@ -403,88 +431,67 @@ const MainContent = ({
         isReadOnlyOktaList={isReadOnlyOktaList}
         perms={perms}
       />
-      <Box mb={6}>
-        <Specs
-          fetchRoleOptions={fetchRoleOptions}
-          accessList={accessList}
-          updateAccessList={updateAccessList}
-          canEditSpecs={perms.adminWhoCanEdit}
-          isReadOnlyOktaList={isReadOnlyOktaList}
-        />
-      </Box>
-      <Box mb={6}>
-        <OwnersList
+
+      <TabsContainer ref={parentRef} mb={3}>
+        <TabContainer
+          data-tab-id={Tab.ListMembers}
+          selected={activeTab === Tab.ListMembers}
+          onClick={() => setActiveTab(Tab.ListMembers)}
+        >
+          Members {memberCount > 0 ? `(${memberCount})` : ''}
+        </TabContainer>
+        <TabContainer
+          data-tab-id={Tab.ListOwners}
+          selected={activeTab === Tab.ListOwners}
+          onClick={() => setActiveTab(Tab.ListOwners)}
+        >
+          Owners {ownerCount > 0 ? `(${ownerCount})` : ''}
+        </TabContainer>
+        <TabContainer
+          data-tab-id={Tab.Audits}
+          selected={activeTab === Tab.Audits}
+          onClick={() => setActiveTab(Tab.Audits)}
+        >
+          Audits
+        </TabContainer>
+        <TabBorder ref={borderRef} />
+      </TabsContainer>
+
+      {activeTab === Tab.ListOwners && (
+        <Owners
           canEditOwners={perms.adminWhoCanEdit}
           userOptions={userOptions}
           accessList={accessList}
           updateAccessList={updateAccessList}
           accessLists={accessLists}
           isReadOnlyOktaList={isReadOnlyOktaList}
+          canEditSpecs={perms.adminWhoCanEdit}
+          fetchRoleOptions={fetchRoleOptions}
         />
-      </Box>
-      {(perms.isOwner || perms.adminWhoCanRead) && (
-        <MembersList
+      )}
+
+      {activeTab === Tab.ListMembers && (
+        <Members
           canEditMembers={perms.isOwner || perms.adminWhoCanEdit}
+          canReadMembers={perms.isOwner || perms.adminWhoCanRead}
           userOptions={userOptions}
           accessList={accessList}
           updateAccessList={updateAccessList}
           accessLists={accessLists}
           isReadOnlyOktaList={isReadOnlyOktaList}
+          canEditSpecs={perms.adminWhoCanEdit}
+          fetchRoleOptions={fetchRoleOptions}
+        />
+      )}
+
+      {activeTab === Tab.Audits && (
+        <AuditAndReviews
+          canListReviews={perms.isOwner || perms.adminWhoCanEdit}
+          accessList={accessList}
+          canEditSpecs={perms.adminWhoCanEdit}
+          updateAccessList={updateAccessList}
         />
       )}
     </>
   );
-};
-
-const ReviewBanner = ({
-  accessList,
-  perms,
-  isReadOnlyOktaList = false,
-}: {
-  accessList: AccessListModified;
-  perms: Perms;
-  isReadOnlyOktaList?: boolean;
-}) => {
-  const location = useLocation();
-  const history = useHistory();
-
-  const canReview = perms.isOwner || perms.adminWhoCanEdit;
-  const requiresReview =
-    isReviewable(accessList.type) &&
-    !isReadOnlyOktaList &&
-    (accessList.requiresReview || accessList.audit.nextDate < new Date());
-
-  if (!requiresReview && canReview && location.hash === '#review') {
-    return (
-      <Alert kind="neutral" icon={Info}>
-        {isReadOnlyOktaList
-          ? 'This Access List does not require review; it is managed by Okta and is read-only in Teleport.'
-          : `This Access List does not require review until ${format(accessList.audit.nextDate, DATE_FORMAT)}.`}
-      </Alert>
-    );
-  }
-
-  if (requiresReview && canReview) {
-    return (
-      <Alert
-        kind="outline-info"
-        icon={ListMagnifyingGlass}
-        primaryAction={{
-          content: (
-            <>
-              Start Review
-              <ArrowForward size={18} ml={2} />
-            </>
-          ),
-          onClick: () =>
-            history.push(`${location.pathname}#review`, location.state),
-        }}
-      >
-        This Access List requires review by{' '}
-        {format(accessList.audit.nextDate, DATE_FORMAT)}.
-      </Alert>
-    );
-  }
-
-  return null;
 };

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { Box, ButtonSecondary, ButtonText, Flex, H2, Text } from 'design';
+import { Box, ButtonSecondary, ButtonText, Flex, Text } from 'design';
 import Table, { StyledPanel } from 'design/DataTable';
 import InputSearch from 'design/DataTable/InputSearch';
 import { ClientSidePager } from 'design/DataTable/Pager';
@@ -8,87 +8,162 @@ import { useClientSidePager } from 'design/DataTable/Pager/ClientSidePager/useCl
 import { StyledTable } from 'design/DataTable/StyledTable';
 import { getPagerPosition } from 'design/DataTable/Table';
 import type { PagedTableProps } from 'design/DataTable/types';
-import { Add, ArrowRight, UsersTriple } from 'design/Icon';
+import { Add, ArrowRight } from 'design/Icon';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
+import type { Option } from 'shared/components/Select';
 
 import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
 import { getFormattedDate } from 'e-teleport/AccessListManagement/Shared/date';
 import { useOnClickNestedList } from 'e-teleport/AccessListManagement/Shared/nav';
+import { convertToTraitConvenience } from 'e-teleport/AccessListManagement/Traits';
 import {
   AccessListMember,
   AccessListMemberKind,
+  AccessListOrigin,
   type AccessList,
 } from 'e-teleport/services/accessmanagement';
 
-import { NestedListLink, type UserOption } from '../../Shared/Shared';
+import { EditKind, NestedListLink, type UserOption } from '../../Shared/Shared';
 import { DeleteUserConfirmDialog } from '../DeleteUserConfirmDialog';
+import { noEditAcessMsg, oktaReadOnlyMsg } from '../errors';
 import {
   CustomCell,
+  RoleAndTraitLabels,
   UserRevokeButtonCell,
   type AccessListModified,
 } from '../Shared';
+import { EditEligibilityOrGrantRoles } from '../Specs/EditEligibilityOrGrants';
 import { EnrollNewMembers } from './EnrollNewMembers';
 
-const genericNoAccessMsg = 'You do not have permission to edit members';
-const readOnlyOktaMembersMsg =
-  'Editing members is disabled; this Access List is managed by Okta and is read-only in Teleport';
+const oktaReadOnlyMembersMsg = oktaReadOnlyMsg({
+  userKind: 'member',
+  accessKind: 'edit-user',
+});
+const oktaReadOnlyEligibilityMsg = oktaReadOnlyMsg({
+  userKind: 'member',
+  accessKind: 'eligibility',
+});
+const oktaReadOnlyGrantsMsg = oktaReadOnlyMsg({
+  userKind: 'member',
+  accessKind: 'granted-perms',
+});
 
-export function MembersList({
+export function Members({
   accessList,
   userOptions,
   canEditMembers,
+  canReadMembers,
   updateAccessList,
   accessLists,
   isReadOnlyOktaList,
+  canEditSpecs,
+  fetchRoleOptions,
 }: {
   userOptions: UserOption[];
   canEditMembers: boolean;
+  canReadMembers: boolean;
   updateAccessList(accessList: AccessList, members?: AccessListMember[]): void;
   accessList: AccessListModified;
   accessLists: AccessListWithModifiedGrants[];
   isReadOnlyOktaList?: boolean;
+  fetchRoleOptions: (input: string) => Promise<Option[]>;
+  canEditSpecs: boolean;
 }) {
-  const { members } = accessList;
+  const { members, membershipRequires, inheritedMemberGrants, grants } =
+    accessList;
   const [showEnrollNewMembers, setShowEnrollNewMembers] = useState(false);
   const [deleteMember, setDeleteMember] =
     useState<(typeof accessList)['members'][number]>();
 
+  const [editPermKind, setEditPermKind] = useState<EditKind>();
+
+  const inheritedMemberRoles = inheritedMemberGrants.roles;
+  const inheritedMemberTraits = convertToTraitConvenience(
+    inheritedMemberGrants.traits
+  ).traitList;
+
+  const isOktaList = accessList.origin === AccessListOrigin.Okta;
+
   return (
-    <>
-      <Box>
-        <Flex justifyContent="space-between" mb={2}>
-          <Flex alignItems="center">
-            <UsersTriple />
-            <H2 ml={1} mr={2}>
-              Members
-            </H2>
+    <Box data-testid="members-content">
+      <Flex justifyContent="space-between" gap={1} alignItems="flex-start">
+        <Flex flexDirection="column" gap={3}>
+          <Flex mb={4} flexDirection="column" gap={1}>
+            <RoleAndTraitLabels
+              roles={membershipRequires.roles}
+              traits={membershipRequires.traitList}
+              accessKind="requirements"
+              toolTipContent={
+                (!canEditSpecs && noEditAcessMsg) ||
+                (isReadOnlyOktaList && oktaReadOnlyEligibilityMsg) ||
+                undefined
+              }
+              onEdit={() => setEditPermKind('Member')}
+              editDisabled={!canEditSpecs || isReadOnlyOktaList}
+              userKind="member"
+            />
+
+            <RoleAndTraitLabels
+              roles={grants.roles}
+              traits={grants.traitList}
+              accessKind="grants"
+              toolTipContent={
+                (!canEditSpecs && noEditAcessMsg) ||
+                (isOktaList && oktaReadOnlyGrantsMsg) ||
+                undefined
+              }
+              onEdit={() => setEditPermKind('Grants')}
+              editDisabled={!canEditSpecs || isOktaList}
+              required
+              userKind="member"
+            />
+
+            {/* inherited  permissions from nested access list */}
+            {(inheritedMemberRoles?.length > 0 ||
+              inheritedMemberTraits?.length > 0) && (
+              <RoleAndTraitLabels
+                roles={inheritedMemberRoles}
+                traits={inheritedMemberTraits}
+                required
+                accessKind="inherited"
+                toolTipContent=""
+                editDisabled={false}
+                userKind="member"
+              />
+            )}
           </Flex>
-          <HoverTooltip
-            tipContent={
-              !canEditMembers
-                ? genericNoAccessMsg
-                : isReadOnlyOktaList
-                  ? readOnlyOktaMembersMsg
-                  : undefined
-            }
-          >
-            <ButtonText
-              disabled={!canEditMembers || isReadOnlyOktaList}
-              onClick={() => setShowEnrollNewMembers(true)}
-              mr={0}
-            >
-              <Add size={16} mr={2} />
-              Enroll New Members or Access Lists
-            </ButtonText>
-          </HoverTooltip>
         </Flex>
-      </Box>
-      <AccessListMemberTable
-        members={members}
-        canEditMembers={canEditMembers}
-        isReadOnlyOktaList={isReadOnlyOktaList}
-        onDeleteMember={setDeleteMember}
-      />
+      </Flex>
+      {canReadMembers && (
+        <>
+          <Box textAlign="right">
+            <HoverTooltip
+              tipContent={
+                (!canEditMembers && noEditAcessMsg) ||
+                (isReadOnlyOktaList && oktaReadOnlyMembersMsg) ||
+                undefined
+              }
+            >
+              <ButtonText
+                disabled={!canEditMembers || isReadOnlyOktaList}
+                onClick={() => setShowEnrollNewMembers(true)}
+                gap={2}
+                fill="border"
+              >
+                <Add size="small" />
+                Add New Members or Access Lists
+              </ButtonText>
+            </HoverTooltip>
+          </Box>
+          <AccessListMemberTable
+            members={members}
+            canEditMembers={canEditMembers}
+            isReadOnlyOktaList={isReadOnlyOktaList}
+            onDeleteMember={setDeleteMember}
+          />
+        </>
+      )}
+
       {showEnrollNewMembers && (
         <EnrollNewMembers
           onClose={() => setShowEnrollNewMembers(false)}
@@ -117,7 +192,16 @@ export function MembersList({
           }
         />
       )}
-    </>
+      {editPermKind && (
+        <EditEligibilityOrGrantRoles
+          onClose={() => setEditPermKind(null)}
+          editKind={editPermKind}
+          fetchRoleOptions={fetchRoleOptions}
+          updateAccessList={updateAccessList}
+          accessList={accessList}
+        />
+      )}
+    </Box>
   );
 }
 
@@ -127,7 +211,6 @@ export const AccessListMemberTable = ({
   isReadOnlyOktaList,
   onDeleteMember = null,
   hideIneligibleReason = false,
-  hideReasonCol = false,
   isReviewing = false,
 }: {
   members: AccessListModified['members'];
@@ -135,7 +218,6 @@ export const AccessListMemberTable = ({
   isReadOnlyOktaList?: boolean;
   onDeleteMember?(m: AccessListModified['members'][number]): void;
   hideIneligibleReason?: boolean;
-  hideReasonCol?: boolean;
   isReviewing?: boolean;
 }) => {
   const onClickNestedList = useOnClickNestedList();
@@ -191,14 +273,6 @@ export const AccessListMemberTable = ({
                       }
                       onClick={() => onClickNestedList(name)}
                       disabled={!hideIneligibleReason && !rest.accessListExists}
-                      css={`
-                        display: inline-block;
-                        text-overflow: ellipsis;
-                        overflow: hidden;
-                        white-space: nowrap;
-                        max-width: fit-content;
-                        flex-shrink: 1;
-                      `}
                     >
                       {title}
                     </NestedListLink>
@@ -231,16 +305,6 @@ export const AccessListMemberTable = ({
             </CustomCell>
           ),
         },
-        !hideReasonCol && {
-          key: 'reason',
-          headerText: 'Reason',
-          isSortable: true,
-          render: ({ reason, ineligibleReason }) => (
-            <CustomCell disabled={!hideIneligibleReason && !!ineligibleReason}>
-              {reason}
-            </CustomCell>
-          ),
-        },
         {
           key: 'joined',
           headerText: 'Date Added',
@@ -258,9 +322,14 @@ export const AccessListMemberTable = ({
 
             return 0;
           },
-          render: ({ joined, ineligibleReason }) => (
+          render: ({ joined, ineligibleReason, reason }) => (
             <CustomCell disabled={!hideIneligibleReason && !!ineligibleReason}>
-              {getFormattedDate(joined)}
+              <HoverTooltip tipContent={reason && `Reason: ${reason}`}>
+                <Flex gap={2}>
+                  <div>{getFormattedDate(joined)}</div>
+                  {reason && <Text>&quot;{reason}&quot;</Text>}
+                </Flex>
+              </HoverTooltip>
             </CustomCell>
           ),
         },
@@ -284,9 +353,9 @@ export const AccessListMemberTable = ({
               disabled={!canEditMembers || isReadOnlyOktaList}
               tooltip={
                 !canEditMembers
-                  ? genericNoAccessMsg
+                  ? noEditAcessMsg
                   : isReadOnlyOktaList
-                    ? readOnlyOktaMembersMsg
+                    ? oktaReadOnlyMembersMsg
                     : undefined
               }
               onClick={() => onDeleteMember(member)}
@@ -297,7 +366,7 @@ export const AccessListMemberTable = ({
           ),
         },
       ]}
-      emptyText="No Users Found"
+      emptyText="No Members Found"
       isSearchable
       pagination={{
         pageSize: 10,
@@ -366,7 +435,7 @@ function CustomTable<T>({
         >
           <ButtonSecondary
             textTransform="none"
-            width="160px"
+            width="180px"
             disabled={isNextDisabled}
             onClick={nextPage}
           >

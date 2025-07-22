@@ -1,35 +1,53 @@
 import { useState } from 'react';
 
-import { ButtonText, Flex, H2 } from 'design';
+import { Box, ButtonText, Flex } from 'design';
 import Table from 'design/DataTable';
-import { Add, Wrench } from 'design/Icon';
+import { Add } from 'design/Icon';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
+import type { Option } from 'shared/components/Select';
 
 import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
 import { useOnClickNestedList } from 'e-teleport/AccessListManagement/Shared/nav';
 import { AccessList } from 'e-teleport/services/accessmanagement';
-import { AccessListMemberKind } from 'e-teleport/services/accessmanagement/types';
+import {
+  AccessListMemberKind,
+  AccessListOrigin,
+} from 'e-teleport/services/accessmanagement/types';
 
-import { NestedListLink, type UserOption } from '../../Shared/Shared';
+import { EditKind, NestedListLink, type UserOption } from '../../Shared/Shared';
 import { DeleteUserConfirmDialog } from '../DeleteUserConfirmDialog';
+import { noEditAcessMsg, oktaReadOnlyMsg } from '../errors';
 import {
   CustomCell,
+  RoleAndTraitLabels,
   UserRevokeButtonCell,
   type AccessListModified,
 } from '../Shared';
+import { EditEligibilityOrGrantRoles } from '../Specs/EditEligibilityOrGrants';
 import { EnrollNewOwners } from './EnrollNewOwners';
 
-const genericNoAccessMsg = 'You do not have permission to edit owners';
-const readOnlyOktaOwnersMsg =
-  'Editing owners is disabled; this Access List is managed by Okta and is read-only in Teleport';
+const oktaReadOnlyOwnersMsg = oktaReadOnlyMsg({
+  userKind: 'owner',
+  accessKind: 'edit-user',
+});
+const oktaReadOnlyEligibilityMsg = oktaReadOnlyMsg({
+  userKind: 'owner',
+  accessKind: 'eligibility',
+});
+const oktaReadOnlyGrantMsg = oktaReadOnlyMsg({
+  userKind: 'owner',
+  accessKind: 'granted-perms',
+});
 
-export function OwnersList({
+export function Owners({
   accessList,
   canEditOwners,
   userOptions,
   updateAccessList,
   accessLists,
   isReadOnlyOktaList,
+  canEditSpecs,
+  fetchRoleOptions,
 }: {
   userOptions: UserOption[];
   canEditOwners: boolean;
@@ -37,62 +55,78 @@ export function OwnersList({
   accessList: AccessListModified;
   accessLists: AccessListWithModifiedGrants[];
   isReadOnlyOktaList?: boolean;
+  fetchRoleOptions: (input: string) => Promise<Option[]>;
+  canEditSpecs: boolean;
 }) {
-  const { owners } = accessList;
+  const { owners, ownershipRequires, ownerGrants } = accessList;
   const [showEnrollNewMembers, setShowEnrollNewMembers] = useState(false);
   const [deleteOwner, setDeleteOwner] =
     useState<(typeof accessList)['owners'][number]>();
   const onClickNestedList = useOnClickNestedList();
 
+  const [editPermKind, setEditPermKind] = useState<EditKind>();
+
+  const isOktaList = accessList.origin === AccessListOrigin.Okta;
+
   return (
-    <>
-      <Flex justifyContent="space-between" mb={2}>
-        <Flex mb={2} alignItems="center">
-          <Wrench />
-          <H2 ml={1} mr={2}>
-            Owners
-          </H2>
+    <Box data-testid="owners-content">
+      <Flex justifyContent="space-between" gap={1} alignItems="flex-start">
+        <Flex flexDirection="column" gap={3}>
+          <Flex mb={4} flexDirection="column" gap={1}>
+            <RoleAndTraitLabels
+              roles={ownershipRequires.roles}
+              traits={ownershipRequires.traitList}
+              accessKind="requirements"
+              toolTipContent={
+                (!canEditSpecs && noEditAcessMsg) ||
+                (isReadOnlyOktaList && oktaReadOnlyEligibilityMsg) ||
+                undefined
+              }
+              onEdit={() => setEditPermKind('Owner')}
+              editDisabled={!canEditSpecs || isReadOnlyOktaList}
+              userKind="owner"
+            />
+
+            <RoleAndTraitLabels
+              roles={ownerGrants.roles}
+              traits={ownerGrants.traitList}
+              accessKind="grants"
+              toolTipContent={
+                (!canEditSpecs && noEditAcessMsg) ||
+                (isOktaList && oktaReadOnlyGrantMsg) ||
+                undefined
+              }
+              onEdit={() => setEditPermKind('OwnerGrants')}
+              editDisabled={!canEditSpecs || isOktaList}
+              userKind="owner"
+            />
+          </Flex>
         </Flex>
+      </Flex>
+      <Flex justifyContent="end">
         <HoverTooltip
           tipContent={
             !canEditOwners
-              ? genericNoAccessMsg
+              ? noEditAcessMsg
               : isReadOnlyOktaList
-                ? readOnlyOktaOwnersMsg
+                ? oktaReadOnlyOwnersMsg
                 : undefined
           }
         >
           <ButtonText
             disabled={!canEditOwners || isReadOnlyOktaList}
             onClick={() => setShowEnrollNewMembers(true)}
-            mr={0}
+            gap={2}
+            fill="border"
           >
-            <Add size={16} mr={2} />
-            Enroll New Owners or Access Lists
+            <Add size="small" />
+            Add New Owners or Access Lists
           </ButtonText>
         </HoverTooltip>
       </Flex>
       <Table
         data={owners}
         columns={[
-          {
-            key: 'membershipKind',
-            headerText: 'Type',
-            isSortable: true,
-            onSort: (a, b) => {
-              if (a?.membershipKind === b?.membershipKind) {
-                return 0;
-              }
-              return a?.membershipKind === AccessListMemberKind.List ? -1 : 1;
-            },
-            render: ({ membershipKind, ineligibleReason }) => (
-              <CustomCell disabled={!!ineligibleReason}>
-                {membershipKind === AccessListMemberKind.List
-                  ? 'Access List'
-                  : 'User'}
-              </CustomCell>
-            ),
-          },
           {
             key: 'name',
             headerText: 'Name',
@@ -116,14 +150,6 @@ export function OwnersList({
                         }
                         onClick={() => onClickNestedList(name)}
                         disabled={!rest.accessListExists}
-                        css={`
-                          display: inline-block;
-                          text-overflow: ellipsis;
-                          overflow: hidden;
-                          white-space: nowrap;
-                          max-width: fit-content;
-                          flex-shrink: 1;
-                        `}
                       >
                         {title}
                       </NestedListLink>
@@ -147,6 +173,24 @@ export function OwnersList({
             },
           },
           {
+            key: 'membershipKind',
+            headerText: 'Type',
+            isSortable: true,
+            onSort: (a, b) => {
+              if (a?.membershipKind === b?.membershipKind) {
+                return 0;
+              }
+              return a?.membershipKind === AccessListMemberKind.List ? -1 : 1;
+            },
+            render: ({ membershipKind, ineligibleReason }) => (
+              <CustomCell disabled={!!ineligibleReason}>
+                {membershipKind === AccessListMemberKind.List
+                  ? 'Access List'
+                  : 'User'}
+              </CustomCell>
+            ),
+          },
+          {
             key: 'description',
             headerText: 'Description',
             isSortable: true,
@@ -162,11 +206,9 @@ export function OwnersList({
               <UserRevokeButtonCell
                 disabled={!canEditOwners || isReadOnlyOktaList}
                 tooltip={
-                  !canEditOwners
-                    ? genericNoAccessMsg
-                    : isReadOnlyOktaList
-                      ? readOnlyOktaOwnersMsg
-                      : undefined
+                  (!canEditOwners && noEditAcessMsg) ||
+                  (isReadOnlyOktaList && oktaReadOnlyOwnersMsg) ||
+                  undefined
                 }
                 onClick={() => setDeleteOwner(owner)}
                 ineligibleReason={owner.ineligibleReason}
@@ -174,7 +216,7 @@ export function OwnersList({
             ),
           },
         ]}
-        emptyText="No Users Found"
+        emptyText="No Owners Found"
         isSearchable
         pagination={{ pageSize: 5 }}
         initialSort={{ key: 'name', dir: 'ASC' }}
@@ -202,6 +244,15 @@ export function OwnersList({
           updateAccessList={updateAccessList}
         />
       )}
-    </>
+      {editPermKind && (
+        <EditEligibilityOrGrantRoles
+          onClose={() => setEditPermKind(null)}
+          editKind={editPermKind}
+          fetchRoleOptions={fetchRoleOptions}
+          updateAccessList={updateAccessList}
+          accessList={accessList}
+        />
+      )}
+    </Box>
   );
 }
