@@ -6,8 +6,8 @@ app_service:
     # be useful when extending your application.
     debug_app: true
     # Enables the builtin Teleport demo MCP server that shows current user and
-    # session information. Wildcard must be allowed for "app_labels" by your
-    # role to access this MCP server.
+    # session information. To access it, this MCP server uses the app label
+    # "teleport.internal/resource-type" with the value "demo".
     mcp_demo_server: true
 
     # Matchers for dynamic application resources
