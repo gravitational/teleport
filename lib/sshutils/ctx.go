@@ -31,8 +31,8 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils/networking"
-	"github.com/gravitational/teleport/lib/teleagent"
 )
 
 // ConnectionContext manages connection-level state.
@@ -114,7 +114,7 @@ func NewConnectionContext(ctx context.Context, nconn net.Conn, sconn *ssh.Server
 	return ctx, ccx
 }
 
-// agentChannel implements the extended teleteleagent.Agent interface,
+// agentChannel implements the extended telesshagent.AgentCloser interface,
 // allowing the underlying ssh.Channel to be closed when the agent
 // is no longer needed.
 type agentChannel struct {
@@ -159,7 +159,7 @@ func (c *ConnectionContext) SetSessionID(sessionID rsession.ID) {
 // StartAgentChannel sets up a new agent forwarding channel against this connection.  The channel
 // is automatically closed when either ConnectionContext, or the supplied context.Context
 // gets canceled.
-func (c *ConnectionContext) StartAgentChannel() (teleagent.Agent, error) {
+func (c *ConnectionContext) StartAgentChannel() (sshagent.Client, error) {
 	// refuse to start an agent if forwardAgent has not yet been set.
 	if !c.GetForwardAgent() {
 		return nil, trace.AccessDenied("agent forwarding has not been requested")
