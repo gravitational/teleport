@@ -5,11 +5,11 @@ description: How to deploy and use a Teleport Relay service
 
 <Admonition type="warning">
 
-This page refers to an unreleased Teleport feature and is thus subject to change. The following documentation applies to version `v18.0.2-dev.jsonpath.1-relay.2`.
+This page refers to an unreleased Teleport feature and is thus subject to change. The following documentation applies to version `v18.0.2-dev.jsonpath.1-relay.3`.
 
 </Admonition>
 
-A Relay service group consists of one or more Teleport instances configured to run the Relay service with the same relay group name, all accessible behind the same load balancer. The Relay service uses two endpoints, one for "API" access (nominally, on port 3040) used by clients for the SSH transport and by agents for configuration discovery, and one for "tunnel" access (nominally, on port 3042) used by agents to run reverse tunnels. Both of those ports should be accessible through a load balancer that forwards connections to all the agents in the same Relay group.
+A Relay service group consists of one or more Teleport instances configured to run the Relay service with the same relay group name, all accessible behind the same load balancer. The Relay service uses two endpoints, one for "API" access (nominally, on port 3040) used by clients for the SSH transport and by agents for configuration discovery, and one for "tunnel" access (nominally, on port 3042) used by agents to run reverse tunnels. Both of those ports should be accessible through a load balancer that forwards connections to all the agents in the same Relay group. The Relay service instances connect to each other for the purpose of forwarding connections over the internal "peer" port (nominally port 3041).
 
 The configuration for the Relay service is described as follows:
 
@@ -47,12 +47,6 @@ relay_service:
   tunnel_listen_addr: 0.0.0.0:3042
   tunnel_public_addr: relay-api-load-balancer.example.com:3042
 ```
-
-<Admonition type="warning">
-
-The current version of the Relay service requires agents to be connected to each Relay in the group, so the `target_connection_count` should match the amount of replicas in the Relay deployment. This is a temporary limitation, and the final release of the feature will support bouncing connections between Relay instances, to support horizontal scaling of the Relay deployment.
-
-</Admonition>
 
 <Admonition type="warning">
 
@@ -96,8 +90,8 @@ joinParams:
   token_name: tokenname
 
 relayGroup: groupname
-# targetConnectionCount: 2
-# shutdownDelay: '0s'
+#targetConnectionCount: 2
+shutdownDelay: '1m'
 
 apiPublicHostnames:
   - relay-api-load-balancer.example.com
@@ -108,9 +102,14 @@ image:
   # required for the prerelease, will be automatic on final
   # release (except maybe for an "enterprise" flag)
   repository: 'public.ecr.aws/gravitational-staging/teleport-ent-distroless-debug'
+  # defaults to the version of the chart, can be overridden
+  #tag: '18.0.2-dev.jsonpath.1-relay.3'
+
+#deploymentSpec:
+#  replicas: 2
 
 # should account for the optional shutdown delay
-#terminationGracePeriodSeconds: 30
+terminationGracePeriodSeconds: 300
 ```
 
 Other options are described in [the chart's default `values.yaml`](https://github.com/gravitational/teleport/blob/v18.0.2-dev.jsonpath.1-relay.2/examples/chart/teleport-relay/values.yaml); options such as `serviceSpec` and `serviceAnnotations` can be quite useful to configure the properties of the load balancer, for example.
@@ -118,5 +117,11 @@ Other options are described in [the chart's default `values.yaml`](https://githu
 <Admonition type="warning">
 
 The Relay service does not support in-place restarts or reusing the same host ID and the `teleport-relay` chart runs as a deployment and does not maintain any state (unlike the `teleport-kube-agent` chart), so the use of a secretless join method (`iam` through EKS Pod Identity, for example) is strongly recommended.
+
+</Admonition>
+
+<Admonition type="warning">
+
+The listeners behind the load balancer don't currently support parsing the client IP with a PROXY protocol header, so for correct auditing (as well as the correct functioning of SSH connection resumption) we recommend using a load balancer that can transparently present the correct source IP address for forwarded connections (an AWS NLB in IP mode can do this, for example).
 
 </Admonition>
