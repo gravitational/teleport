@@ -23,6 +23,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
 const WorkloadIdentityX509OutputType = "workload-identity-x509"
@@ -69,14 +71,14 @@ type WorkloadIdentityX509Service struct {
 	// used to issue WICs.
 	Selector WorkloadIdentitySelector `yaml:"selector"`
 	// Destination is where the credentials should be written to.
-	Destination bot.Destination `yaml:"destination"`
+	Destination destination.Destination `yaml:"destination"`
 	// IncludeFederatedTrustBundles controls whether to include federated trust
 	// bundles in the output.
 	IncludeFederatedTrustBundles bool `yaml:"include_federated_trust_bundles,omitempty"`
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
+	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
@@ -90,7 +92,7 @@ func (o *WorkloadIdentityX509Service) Init(ctx context.Context) error {
 }
 
 // GetDestination returns the destination.
-func (o *WorkloadIdentityX509Service) GetDestination() bot.Destination {
+func (o *WorkloadIdentityX509Service) GetDestination() destination.Destination {
 	return o.Destination
 }
 
@@ -131,7 +133,7 @@ func (o *WorkloadIdentityX509Service) Type() string {
 // MarshalYAML marshals the WorkloadIdentityX509Service into YAML.
 func (o *WorkloadIdentityX509Service) MarshalYAML() (interface{}, error) {
 	type raw WorkloadIdentityX509Service
-	return withTypeHeader((*raw)(o), WorkloadIdentityX509OutputType)
+	return encoding.WithTypeHeader((*raw)(o), WorkloadIdentityX509OutputType)
 }
 
 // UnmarshalYAML unmarshals the WorkloadIdentityX509Service from YAML.
@@ -149,8 +151,8 @@ func (o *WorkloadIdentityX509Service) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (o *WorkloadIdentityX509Service) GetCredentialLifetime() CredentialLifetime {
+func (o *WorkloadIdentityX509Service) GetCredentialLifetime() bot.CredentialLifetime {
 	lt := o.CredentialLifetime
-	lt.skipMaxTTLValidation = true
+	lt.SkipMaxTTLValidation = true
 	return lt
 }

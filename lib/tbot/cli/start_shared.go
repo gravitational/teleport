@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
@@ -275,7 +275,7 @@ func newSharedDestinationArgs(cmd *kingpin.CmdClause) *sharedDestinationArgs {
 	return args
 }
 
-func (s *sharedDestinationArgs) BuildDestination() (bot.Destination, error) {
+func (s *sharedDestinationArgs) BuildDestination() (destination.Destination, error) {
 	dest, err := config.DestinationFromURI(s.Destination)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -285,7 +285,7 @@ func (s *sharedDestinationArgs) BuildDestination() (bot.Destination, error) {
 		// These flags are only supported on directory destinations, so ensure
 		// that's what was built.
 
-		dd, ok := dest.(*config.DestinationDirectory)
+		dd, ok := dest.(*destination.Directory)
 		if !ok {
 			return nil, trace.BadParameter("--reader-user and --reader-group are only compatible with file destinations")
 		}

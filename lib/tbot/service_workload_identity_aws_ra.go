@@ -34,7 +34,7 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -232,7 +232,7 @@ func (s *WorkloadIdentityAWSRAService) requestSVID(
 }
 
 func loadExistingAWSCredentialFile(
-	ctx context.Context, dest bot.Destination, artifactName string,
+	ctx context.Context, dest destination.Destination, artifactName string,
 ) (*ini.File, error) {
 	// Load the existing credential file if it exists so we can merge with
 	// it.

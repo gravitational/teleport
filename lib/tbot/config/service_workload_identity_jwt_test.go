@@ -20,13 +20,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 )
 
 func TestWorkloadIdentityJWTService_YAML(t *testing.T) {
 	t.Parallel()
 
-	dest := &DestinationMemory{}
+	dest := &destination.Memory{}
 	tests := []testYAMLCase[WorkloadIdentityJWTService]{
 		{
 			name: "full",
@@ -36,7 +38,7 @@ func TestWorkloadIdentityJWTService_YAML(t *testing.T) {
 					Name: "my-workload-identity",
 				},
 				Audiences: []string{"audience1", "audience2"},
-				CredentialLifetime: CredentialLifetime{
+				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             time.Minute,
 					RenewalInterval: 30 * time.Second,
 				},
@@ -57,7 +59,7 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 					Selector: WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -75,7 +77,7 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 							"key": {"value"},
 						},
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -91,7 +93,7 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 					Selector: WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -105,7 +107,7 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 			in: func() *WorkloadIdentityJWTService {
 				return &WorkloadIdentityJWTService{
 					Selector: WorkloadIdentitySelector{},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -125,7 +127,7 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 							"key": {"value"},
 						},
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,

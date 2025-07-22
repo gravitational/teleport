@@ -29,7 +29,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/identityfile"
-	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -221,7 +221,7 @@ func writeCockroachDatabaseFiles(
 	log *slog.Logger,
 	routedIdentity *identity.Identity,
 	databaseCAs []types.CertAuthority,
-	dest bot.Destination,
+	dest destination.Destination,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -259,7 +259,7 @@ func writeMongoDatabaseFiles(
 	log *slog.Logger,
 	routedIdentity *identity.Identity,
 	databaseCAs []types.CertAuthority,
-	dest bot.Destination,
+	dest destination.Destination,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,

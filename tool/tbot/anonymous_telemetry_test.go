@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -68,16 +69,16 @@ func TestSendTelemetry(t *testing.T) {
 			},
 			Services: config.ServiceConfigs{
 				&config.IdentityOutput{
-					Destination: &config.DestinationDirectory{},
+					Destination: &destination.Directory{},
 				},
 				&config.KubernetesOutput{
-					Destination: &config.DestinationDirectory{},
+					Destination: &destination.Directory{},
 				},
 				&config.ApplicationOutput{
-					Destination: &config.DestinationDirectory{},
+					Destination: &destination.Directory{},
 				},
 				&config.DatabaseOutput{
-					Destination: &config.DestinationDirectory{},
+					Destination: &destination.Directory{},
 				},
 			},
 		}

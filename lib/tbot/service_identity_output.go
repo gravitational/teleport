@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/config/openssh"
-	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -236,7 +236,7 @@ func renderSSHConfig(
 	log *slog.Logger,
 	proxyPing *proxyPingResponse,
 	clusterNames []string,
-	dest bot.Destination,
+	dest destination.Destination,
 	certAuthGetter certAuthGetter,
 	getExecutablePath func() (string, error),
 	alpnTester alpnTester,
@@ -279,7 +279,7 @@ func renderSSHConfig(
 	}
 
 	// We only want to proceed further if we have a directory destination
-	destDirectory, ok := dest.(*config.DestinationDirectory)
+	destDirectory, ok := dest.(*destination.Directory)
 	if !ok {
 		return nil
 	}

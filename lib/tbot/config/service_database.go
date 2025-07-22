@@ -26,6 +26,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
 const DatabaseOutputType = "database"
@@ -79,7 +81,7 @@ type DatabaseOutput struct {
 	// Name of the service for logs and the /readyz endpoint.
 	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
-	Destination bot.Destination `yaml:"destination"`
+	Destination destination.Destination `yaml:"destination"`
 	// Roles is the list of roles to request for the generated credentials.
 	// If empty, it defaults to all the bot's roles.
 	Roles []string `yaml:"roles,omitempty"`
@@ -100,7 +102,7 @@ type DatabaseOutput struct {
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
+	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
@@ -132,7 +134,7 @@ func (o *DatabaseOutput) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (o *DatabaseOutput) GetDestination() bot.Destination {
+func (o *DatabaseOutput) GetDestination() destination.Destination {
 	return o.Destination
 }
 
@@ -187,7 +189,7 @@ func (o *DatabaseOutput) Describe() []FileDescription {
 
 func (o *DatabaseOutput) MarshalYAML() (interface{}, error) {
 	type raw DatabaseOutput
-	return withTypeHeader((*raw)(o), DatabaseOutputType)
+	return encoding.WithTypeHeader((*raw)(o), DatabaseOutputType)
 }
 
 func (o *DatabaseOutput) UnmarshalYAML(node *yaml.Node) error {
@@ -208,7 +210,7 @@ func (o *DatabaseOutput) Type() string {
 	return DatabaseOutputType
 }
 
-func (o *DatabaseOutput) GetCredentialLifetime() CredentialLifetime {
+func (o *DatabaseOutput) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }
 

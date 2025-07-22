@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/lib/embeddedtbot"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	tbotconfig "github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -528,7 +529,7 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 				TokenEnvVarName: gitlabIDTokenEnvVar,
 			},
 		},
-		CredentialLifetime: tbotconfig.CredentialLifetime{
+		CredentialLifetime: bot.CredentialLifetime{
 			TTL:             time.Hour,
 			RenewalInterval: 20 * time.Minute,
 		},
