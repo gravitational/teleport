@@ -337,7 +337,7 @@ func TestPortForwardProxy_run_targetConnClosed(t *testing.T) {
 	targetConn := newfakeSPDYConnection()
 	h := &portForwardProxy{
 		portForwardRequest: portForwardRequest{
-			context:       context.Background(),
+			context:       t.Context(),
 			onPortForward: func(addr string, success bool) {},
 		},
 		logger:                logtest.NewLogger(),
