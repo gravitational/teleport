@@ -1804,11 +1804,17 @@ $ tctl tokens rm [<token>]
 
 Reports diagnostic information.
 
-The diagnostic metrics endpoint must be enabled with `teleport start --diag-addr=<bind-addr>` for `tctl top` to work.
+`tctl top` can consume metrics from a HTTP diagnostic endpoint.
 
 ```code
 $ tctl top [<diag-addr>] [<refresh>]
 ```
+
+When a specific endpoint is provided, `tctl top` will always attempt to connect to it.
+The endpoint should be a valid HTTP URL, corresponding to a matching
+diagnostic metrics service configuration such as `teleport start --diag-addr=<bind-addr>`.
+
+When no endpoint is specified, `tctl top` will attempt to connect via the debug UNIX socket endpoint, falling back to localhost.
 
 ### Argument
 
@@ -1821,6 +1827,8 @@ $ tctl top [<diag-addr>] [<refresh>]
 $ sudo teleport start --diag-addr=127.0.0.1:3000
 # View stats with a refresh period of 5 seconds
 $ tctl top http://127.0.0.1:3000 5s
+# Use configured defaults
+$ tctl top
 ```
 
 ## tctl users add
@@ -2113,7 +2121,7 @@ the two user filter flags imply that if a user
 - was provisioned into Teleport by Okta (from `--user-origin okta`), OR
 - has the label values `role=aws-admin` AND `dept=engineering` (from `--user-label "role=aws-admin,dept=engineering"`)
 
-then they will be provisioned into AWS Identity Center by Teleport. 
+then they will be provisioned into AWS Identity Center by Teleport.
 
 ## tctl plugins install okta
 
@@ -2130,7 +2138,7 @@ Install the Okta integration.
 | `--api-token` | none | string | Optional. Okta API token for the plugin to use. |
 | `--[no-]scim` | `--no-scim` | boolean | Optional. Enable SCIM Okta integration. |
 | `--[no-]users-sync` | `--users-sync` | none | Optional. Enable user synchronization. |
-| `-o`, `--owner` | none | string | Optional. Add a default owner for synced Access Lists. | 
+| `-o`, `--owner` | none | string | Optional. Add a default owner for synced Access Lists. |
 | `--[no-]accesslist-sync` | `--accesslist-sync` | none | Optional. Enable or disable group to Access List synchronization. |
 | `--[no-]appgroup-sync` | `--appgroup-sync` | none | Optional. Enable or disable Okta Applications and Groups sync. |
 | `-g`, `--group-filter` | none | string | Optional. Add a group filter. Supports globbing by default. Enclose in `^pattern$` for full regex support. |
