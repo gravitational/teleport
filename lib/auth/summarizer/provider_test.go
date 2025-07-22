@@ -22,7 +22,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -53,6 +52,6 @@ func TestProvideSummarizer(t *testing.T) {
 
 type dummySummarizer struct{}
 
-func (m *dummySummarizer) Summarize(ctx context.Context, sessionID session.ID, sessionEndEvent *events.OneOf) error {
+func (m dummySummarizer) Summarize(ctx context.Context, sessionID session.ID, sessionEndEvent AnySessionEndEvent) error {
 	return nil
 }

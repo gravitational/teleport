@@ -562,7 +562,7 @@ type sliceWriter struct {
 	// picked up after an auth server start from a point where the session end
 	// event has already been uploaded. If captured, it will be passed to the
 	// summarizer.
-	sessionEndEvent *apievents.OneOf
+	sessionEndEvent summarizer.AnySessionEndEvent
 }
 
 func (w *sliceWriter) updateCompletedParts(part StreamPart, lastEventIndex int64) {
@@ -671,7 +671,10 @@ func (w *sliceWriter) receiveAndUpload() error {
 			// for completeness' sake. The summarizer will only pick up the supported
 			// sessions anyway.
 			if isSessionEndEvent(event.oneof) {
-				w.sessionEndEvent = event.oneof
+				sev, ok := summarizer.AnySessionEndEventFromOneOf(event.oneof)
+				if ok {
+					w.sessionEndEvent = sev
+				}
 			}
 			if w.shouldUploadCurrentSlice() {
 				// this logic blocks the EmitAuditEvent in case if the

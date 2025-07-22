@@ -21,7 +21,6 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -76,7 +75,7 @@ func (p *SessionSummarizerProvider) SetSummarizer(s SessionSummarizer) {
 // without a summarizer.
 func NewSessionSummarizerProvider() *SessionSummarizerProvider {
 	sp := &SessionSummarizerProvider{}
-	sp.SetSummarizer(&NoopSummarizer{})
+	sp.SetSummarizer(NoopSummarizer{})
 	return sp
 }
 
@@ -84,6 +83,6 @@ func NewSessionSummarizerProvider() *SessionSummarizerProvider {
 // interface.
 type NoopSummarizer struct{}
 
-func (NoopSummarizer) Summarize(ctx context.Context, sessionID session.ID, sessionEndEvent *events.OneOf) error {
+func (NoopSummarizer) Summarize(ctx context.Context, sessionID session.ID, sessionEndEvent AnySessionEndEvent) error {
 	return nil
 }

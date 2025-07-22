@@ -30,5 +30,40 @@ type SessionSummarizer interface {
 	// sessionEndEvent is optional, but should be specified if possible, as an
 	// optimization to skip reading the session stream in order to find the end
 	// event.
-	Summarize(ctx context.Context, sessionID session.ID, sessionEndEvent *events.OneOf) error
+	Summarize(ctx context.Context, sessionID session.ID, sessionEndEvent AnySessionEndEvent) error
+}
+
+// AnySessionEndEvent holds a value of one of the event types supported by the
+// [SessionSummarizer] as a session-ending event. By default, it holds an empty
+// value (see [AnySessionEndEvent.IsEmpty]).
+type AnySessionEndEvent struct {
+	event *events.OneOf
+}
+
+// AnySessionEndEventFromOneOf converts an [events.OneOf] to an
+// [AnySessionEndEvent] if it contains a session end event. Returns false if
+// the event is not a session end event.
+func AnySessionEndEventFromOneOf(e *events.OneOf) (AnySessionEndEvent, bool) {
+	switch e.Event.(type) {
+	case *events.OneOf_SessionEnd, *events.OneOf_DatabaseSessionEnd:
+		return AnySessionEndEvent{event: e}, true
+	}
+	return AnySessionEndEvent{}, false
+}
+
+// IsEmpty checks if the AnySessionEndEvent holds a valid session end event.
+func (e AnySessionEndEvent) IsEmpty() bool {
+	return e.event == nil
+}
+
+// GetSessionEnd returns the underlying [events.SessionEnd] event if it's been
+// set.
+func (e AnySessionEndEvent) GetSessionEnd() *events.SessionEnd {
+	return e.event.GetSessionEnd()
+}
+
+// GetDatabaseSessionEnd returns the underlying [events.DatabaseSessionEnd]
+// event if it's been set.
+func (e AnySessionEndEvent) GetDatabaseSessionEnd() *events.DatabaseSessionEnd {
+	return e.event.GetDatabaseSessionEnd()
 }
