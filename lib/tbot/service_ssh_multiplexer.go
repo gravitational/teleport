@@ -53,10 +53,11 @@ import (
 	"github.com/gravitational/teleport/lib/config/openssh"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/resumption"
-	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/utils"
@@ -104,7 +105,7 @@ type SSHMultiplexerService struct {
 	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
 	proxyPingCache     *proxyPingCache
-	reloadBroadcaster  *channelBroadcaster
+	reloadBroadcaster  *internal.ChannelBroadcaster
 	statusReporter     readyz.Reporter
 
 	identityGenerator *identity.Generator
@@ -123,7 +124,7 @@ type SSHMultiplexerService struct {
 //
 // TODO(noah): Replace this with proper atomic writing.
 // https://github.com/gravitational/teleport/issues/25462
-func writeIfChanged(ctx context.Context, dest bot.Destination, log *slog.Logger, path string, data []byte) error {
+func writeIfChanged(ctx context.Context, dest destination.Destination, log *slog.Logger, path string, data []byte) error {
 	existingData, err := dest.Read(ctx, path)
 	if err != nil {
 		log.DebugContext(
@@ -157,7 +158,7 @@ func (s *SSHMultiplexerService) writeArtifacts(
 	proxyHost string,
 	authClient *apiclient.Client,
 ) error {
-	dest := s.cfg.Destination.(*config.DestinationDirectory)
+	dest := s.cfg.Destination.(*destination.Directory)
 
 	clusterNames, err := getClusterNames(ctx, authClient, s.identity.Get().ClusterName)
 	if err != nil {
@@ -399,12 +400,12 @@ func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity
 func (s *SSHMultiplexerService) identityRenewalLoop(
 	ctx context.Context, proxyHost string, authClient *apiclient.Client,
 ) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
+	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
 	defer unsubscribe()
-	err := runOnInterval(ctx, runOnIntervalConfig{
-		service: s.String(),
-		name:    "identity-renewal",
-		f: func(ctx context.Context) error {
+	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
+		Service: s.String(),
+		Name:    "identity-renewal",
+		F: func(ctx context.Context) error {
 			id, err := s.generateIdentity(ctx)
 			if err != nil {
 				return trace.Wrap(err, "generating identity")
@@ -412,10 +413,10 @@ func (s *SSHMultiplexerService) identityRenewalLoop(
 			s.identity.Set(id)
 			return s.writeArtifacts(ctx, proxyHost, authClient)
 		},
-		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
-		retryLimit: renewalRetryLimit,
-		log:        s.log,
-		reloadCh:   reloadCh,
+		Interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
+		RetryLimit: renewalRetryLimit,
+		Log:        s.log,
+		ReloadCh:   reloadCh,
 	})
 	return trace.Wrap(err)
 }
@@ -433,7 +434,7 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 	}
 	defer authClient.Close()
 
-	dest := s.cfg.Destination.(*config.DestinationDirectory)
+	dest := s.cfg.Destination.(*destination.Directory)
 	absPath, err := filepath.Abs(dest.Path)
 	if err != nil {
 		return trace.Wrap(err, "determining absolute path for destination")

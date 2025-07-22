@@ -114,12 +114,16 @@ func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httpr
 	}, nil
 }
 
-// ListProvisionTokensResponse returns a paginated list of provision tokens.
+// ListProvisionTokensResponse contains a paginated list of provision tokens.
 type ListProvisionTokensResponse struct {
 	Items         []webui.JoinToken `json:"items"`
 	NextPageToken string            `json:"next_page_token,omitempty"`
 }
 
+// listProvisionTokens returns a paginated list of provision tokens. Items can
+// be filtered by role and bot name. Tokens with ANY of the provided roles are
+// returned. If a bot name is provided, only tokens having a role of Bot are
+// returned.
 func (h *Handler) listProvisionTokens(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {

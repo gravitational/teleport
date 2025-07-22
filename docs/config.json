@@ -6,7 +6,7 @@
       "nodeIP": "ip-172-31-35-170"
     },
     "access_graph": {
-      "version": "1.24.4"
+      "version": "1.28.0"
     },
     "ansible": {
       "min_version": "2.9.6"
@@ -1038,6 +1038,11 @@
     {
       "source": "/admin-guides/management/export-audit-events/splunk/",
       "destination": "/zero-trust-access/export-audit-events/splunk/",
+      "permanent": true
+    },
+    {
+      "source": "/model-context-preview/",
+      "destination": "/connect-your-client/model-context-protocol/",
       "permanent": true
     }
   ]

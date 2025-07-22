@@ -50,8 +50,8 @@ func TestIntegrations(t *testing.T) {
 			return stream.Collect(clientutils.Resources(ctx, p.integrations.ListIntegrations))
 		},
 		cacheGet: p.cache.GetIntegration,
-		cacheList: func(ctx context.Context) ([]types.Integration, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.cache.ListIntegrations))
+		cacheList: func(ctx context.Context, pageSize int) ([]types.Integration, error) {
+			return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListIntegrations, pageSize))
 		},
 		update: func(ctx context.Context, i types.Integration) error {
 			_, err := p.integrations.UpdateIntegration(ctx, i)

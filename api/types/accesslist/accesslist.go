@@ -40,8 +40,6 @@ const (
 	ThreeMonths ReviewFrequency = 3
 	SixMonths   ReviewFrequency = 6
 	OneYear     ReviewFrequency = 12
-
-	twoWeeks = 24 * time.Hour * 14
 )
 
 func (r ReviewFrequency) String() string {
@@ -180,6 +178,11 @@ type Spec struct {
 type Type string
 
 const (
+	// TODO(kopiczko) v21: Remove DeprecatedDynamic. The only version setting this type is 17.5.4.
+
+	// DeprecatedDynamic is deprecated and should not be used. Use [Default] instead. It has
+	// the same semantic meaning.
+	DeprecatedDynamic Type = "dynamic"
 	// Default Access Lists are the default type supposed to be managed with the web UI. They
 	// require periodic audit reviews.
 	Default Type = ""
@@ -191,27 +194,19 @@ const (
 	SCIM Type = "scim"
 )
 
-func NewTypeFromString(s string) (Type, error) {
-	switch s {
-	case string(Default):
-		return Default, nil
-	case string(Static):
-		return Static, nil
-	case string(SCIM):
-		return SCIM, nil
-	default:
-		return "", trace.BadParameter("unknown access_list type %q", s)
-	}
-}
-
 // IsReviewable returns true if the AccessList type supports the audit reviews in the web UI.
 func (t Type) IsReviewable() bool {
 	switch t {
-	case Default:
+	case DeprecatedDynamic, Default:
 		return true
 	default:
 		return false
 	}
+}
+
+// Equals checks if the Type is equal to another.
+func (t Type) Equals(other Type) bool {
+	return t == other
 }
 
 // Owner is an owner of an access list.
@@ -330,7 +325,8 @@ func NewAccessList(metadata header.Metadata, spec Spec) (*AccessList, error) {
 	return accessList, nil
 }
 
-// CheckAndSetDefaults validates fields and populates empty fields with default values.
+// CheckAndSetDefaults performs very basic validation and populates empty fields with default
+// values. The main validation part is performed before the storage.
 func (a *AccessList) CheckAndSetDefaults() error {
 	a.SetKind(types.KindAccessList)
 	a.SetVersion(types.V1)
@@ -339,56 +335,30 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if _, err := NewTypeFromString(string(a.Spec.Type)); err != nil {
-		return trace.Wrap(err)
+	// Restore the type if the cluster was ever running in version 17.5.4.
+	if a.Spec.Type == DeprecatedDynamic {
+		a.Spec.Type = Default
 	}
 
 	if a.Spec.Title == "" {
 		return trace.BadParameter("access list title required")
 	}
 
-	switch a.Spec.Type {
-	case Static, SCIM:
-		// SCIM and Static access lists can have empty owners, as they are managed by external systems.
-	default:
-		if len(a.Spec.Owners) == 0 {
-			return trace.BadParameter("owners are missing")
-		}
-	}
-
 	if a.IsReviewable() {
 		if a.Spec.Audit.Recurrence.Frequency == 0 {
 			a.Spec.Audit.Recurrence.Frequency = SixMonths
 		}
-
-		switch a.Spec.Audit.Recurrence.Frequency {
-		case OneMonth, ThreeMonths, SixMonths, OneYear:
-		default:
-			return trace.BadParameter("recurrence frequency is an invalid value")
-		}
-
 		if a.Spec.Audit.Recurrence.DayOfMonth == 0 {
 			a.Spec.Audit.Recurrence.DayOfMonth = FirstDayOfMonth
 		}
-
-		switch a.Spec.Audit.Recurrence.DayOfMonth {
-		case FirstDayOfMonth, FifteenthDayOfMonth, LastDayOfMonth:
-		default:
-			return trace.BadParameter("recurrence day of month is an invalid value")
-		}
-
 		if a.Spec.Audit.NextAuditDate.IsZero() {
 			if err := a.setInitialAuditDate(clockwork.NewRealClock()); err != nil {
 				return trace.Wrap(err, "setting initial audit date")
 			}
 		}
-
 		if a.Spec.Audit.Notifications.Start == 0 {
+			twoWeeks := 24 * time.Hour * 14
 			a.Spec.Audit.Notifications.Start = twoWeeks
-		}
-	} else {
-		if !isZero(a.Spec.Audit) {
-			return trace.BadParameter("audit not supported for non-dynamic access_list")
 		}
 	}
 
