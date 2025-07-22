@@ -641,7 +641,7 @@ func NewPresetListAccessRequestResourcesRole() types.Role {
 					types.NewRule(types.KindDatabase, RO()),
 					types.NewRule(types.KindKubernetesCluster, RO()),
 				},
-				// To enable all access feature plugins, the role requires read
+				// To enable all access plugin features, the role requires read
 				// access to all of the following resources.
 				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
