@@ -405,6 +405,9 @@ importers:
       '@gravitational/teleport':
         specifier: workspace:*
         version: 'link:'
+      '@types/semver':
+        specifier: ^7.7.0
+        version: 7.7.0
       babel-plugin-transform-import-meta:
         specifier: 2.3.3
         version: 2.3.3(@babel/core@7.27.7)
