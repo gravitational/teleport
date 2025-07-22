@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package heartbeat
 
 import (
 	"context"
@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -36,7 +37,6 @@ import (
 	"github.com/gravitational/teleport"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -61,22 +61,18 @@ func TestHeartbeatService(t *testing.T) {
 	fhs := &fakeHeartbeatSubmitter{
 		ch: make(chan *machineidv1pb.SubmitHeartbeatRequest, 2),
 	}
-	svc := heartbeatService{
-		now: func() time.Time {
-			return time.Date(2024, time.April, 1, 12, 0, 0, 0, time.UTC)
-		},
-		log: log,
-		botCfg: &config.BotConfig{
-			Oneshot: false,
-			Onboarding: config.OnboardingConfig{
-				JoinMethod: types.JoinMethodGitHub,
-			},
-		},
-		startedAt:          time.Date(2024, time.April, 1, 11, 0, 0, 0, time.UTC),
-		heartbeatSubmitter: fhs,
-		interval:           time.Second,
-		retryLimit:         3,
-	}
+
+	now := time.Date(2024, time.April, 1, 12, 0, 0, 0, time.UTC)
+	svc, err := NewService(Config{
+		Interval:   time.Second,
+		RetryLimit: 3,
+		Client:     fhs,
+		Clock:      clockwork.NewFakeClockAt(now),
+		StartedAt:  time.Date(2024, time.April, 1, 11, 0, 0, 0, time.UTC),
+		Logger:     log,
+		JoinMethod: types.JoinMethodGitHub,
+	})
+	require.NoError(t, err)
 
 	hostName, err := os.Hostname()
 	require.NoError(t, err)
@@ -89,7 +85,7 @@ func TestHeartbeatService(t *testing.T) {
 	got := <-fhs.ch
 	want := &machineidv1pb.SubmitHeartbeatRequest{
 		Heartbeat: &machineidv1pb.BotInstanceStatusHeartbeat{
-			RecordedAt:   timestamppb.New(svc.now()),
+			RecordedAt:   timestamppb.New(now),
 			Hostname:     hostName,
 			IsStartup:    true,
 			OneShot:      false,

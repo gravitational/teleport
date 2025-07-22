@@ -49,6 +49,10 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/internal/carotation"
+	"github.com/gravitational/teleport/lib/tbot/internal/diagnostics"
+	"github.com/gravitational/teleport/lib/tbot/internal/heartbeat"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -152,10 +156,10 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	if err := metrics.RegisterPrometheusCollectors(
 		metrics.BuildCollector(),
 		clientMetrics,
-		loopIterationsCounter,
-		loopIterationsSuccessCounter,
-		loopIterationsFailureCounter,
-		loopIterationTime,
+		internal.LoopIterationsCounter,
+		internal.LoopIterationsSuccessCounter,
+		internal.LoopIterationsFailureCounter,
+		internal.LoopIterationTime,
 	); err != nil {
 		return trace.Wrap(err)
 	}
@@ -232,9 +236,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	// ReloadBroadcaster allows multiple entities to trigger a reload of
 	// all services. This allows os signals and other events such as CA
 	// rotations to trigger appropriate renewals.
-	reloadBroadcaster := &channelBroadcaster{
-		chanSet: map[chan struct{}]struct{}{},
-	}
+	reloadBroadcaster := internal.NewChannelBroadcaster()
 	// Trigger reloads from an configured reload channel.
 	if b.cfg.ReloadCh != nil {
 		// We specifically do not use the error group here as we do not want
@@ -245,7 +247,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				case <-egCtx.Done():
 					return
 				case <-b.cfg.ReloadCh:
-					reloadBroadcaster.broadcast()
+					reloadBroadcaster.Broadcast()
 				}
 			}
 		}()
@@ -302,42 +304,53 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 
 	// Setup all other services
 	if b.cfg.DiagAddr != "" {
-		services = append(services, &diagnosticsService{
-			diagAddr:       b.cfg.DiagAddr,
-			pprofEnabled:   b.cfg.Debug,
-			statusRegistry: statusRegistry,
-			log: b.log.With(
+		diagSvc, err := diagnostics.NewService(diagnostics.Config{
+			Address:        b.cfg.DiagAddr,
+			PProfEnabled:   b.cfg.Debug,
+			StatusRegistry: statusRegistry,
+			Logger: b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "diagnostics"),
 			),
 		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		services = append(services, diagSvc)
 	}
 
-	services = append(services, &heartbeatService{
-		now:       time.Now,
-		botCfg:    b.cfg,
-		startedAt: startedAt,
-		log: b.log.With(
-			teleport.ComponentKey, teleport.Component(componentTBot, "heartbeat"),
-		),
-		heartbeatSubmitter: machineidv1pb.NewBotInstanceServiceClient(
+	heartbeatSvc, err := heartbeat.NewService(heartbeat.Config{
+		Interval:   time.Minute * 30,
+		RetryLimit: 5,
+		Client: machineidv1pb.NewBotInstanceServiceClient(
 			b.botIdentitySvc.GetClient().GetConnection(),
 		),
-		botIdentityReadyCh: b.botIdentitySvc.Ready(),
-		interval:           time.Minute * 30,
-		retryLimit:         5,
-		statusReporter:     statusRegistry.AddService("heartbeat"),
+		JoinMethod:         b.cfg.Onboarding.JoinMethod,
+		StartedAt:          startedAt,
+		BotIdentityReadyCh: b.botIdentitySvc.Ready(),
+		StatusReporter:     statusRegistry.AddService("heartbeat"),
+		Logger: b.log.With(
+			teleport.ComponentKey, teleport.Component(componentTBot, "heartbeat"),
+		),
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	services = append(services, heartbeatSvc)
 
-	services = append(services, &caRotationService{
-		getBotIdentity:     b.botIdentitySvc.GetIdentity,
-		botClient:          b.botIdentitySvc.GetClient(),
-		botIdentityReadyCh: b.botIdentitySvc.Ready(),
-		log: b.log.With(
+	caRotationSvc, err := carotation.NewService(carotation.Config{
+		BroadcastFn:        reloadBroadcaster.Broadcast,
+		Client:             b.botIdentitySvc.GetClient(),
+		GetBotIdentityFn:   b.botIdentitySvc.GetIdentity,
+		BotIdentityReadyCh: b.botIdentitySvc.Ready(),
+		StatusReporter:     statusRegistry.AddService("ca-rotation"),
+		Logger: b.log.With(
 			teleport.ComponentKey, teleport.Component(componentTBot, "ca-rotation"),
 		),
-		reloadBroadcaster: reloadBroadcaster,
-		statusReporter:    statusRegistry.AddService("ca-rotation"),
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	services = append(services, caRotationSvc)
 
 	// We only want to create this service if it's needed by a dependent
 	// service.
