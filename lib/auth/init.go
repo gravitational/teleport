@@ -182,7 +182,7 @@ type InitConfig struct {
 	Restrictions services.Restrictions
 
 	// Apps is a service that manages application resources.
-	Apps services.Apps
+	Apps services.Applications
 
 	// Databases is a service that manages database resources.
 	Databases services.Databases
@@ -400,6 +400,9 @@ type InitConfig struct {
 	// especially when the list is also being modified concurrently by the background
 	// eligibility handler.
 	RunWhileLockedRetryInterval time.Duration
+
+	// ScopedAccess is a service that manages scoped access resources.
+	ScopedAccess services.ScopedAccess
 
 	// SummarizerResources manages summarization inference configuration resources.
 	SummarizerResources services.SummarizerResources
@@ -769,6 +772,35 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 		}
 
 		if err := asrv.CreateCertAuthority(ctx, ca); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
+	// Add [empty] CRLs to any issuers that are missing them.
+	// These are valid for 10 years and regenerated on CA rotation.
+	updated := false
+	for _, kp := range ca.GetActiveKeys().TLS {
+		if kp.CRL != nil {
+			continue
+		}
+		certBytes, signer, err := asrv.keyStore.GetTLSCertAndSigner(ctx, ca)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		cert, err := tlsca.ParseCertificatePEM(certBytes)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		crl, err := keystore.GenerateCRL(cert, signer)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		kp.CRL = crl
+		updated = true
+	}
+
+	if updated {
+		if ca, err = asrv.UpdateCertAuthority(ctx, ca); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 	}

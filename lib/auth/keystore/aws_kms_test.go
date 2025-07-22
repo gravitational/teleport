@@ -836,5 +836,16 @@ func TestMultiRegionKeyReplication(t *testing.T) {
 			}
 		})
 	}
+}
 
+type fakeAuthPreferenceGetter struct {
+	suite types.SignatureAlgorithmSuite
+}
+
+func (f *fakeAuthPreferenceGetter) GetAuthPreference(context.Context) (types.AuthPreference, error) {
+	return &types.AuthPreferenceV2{
+		Spec: types.AuthPreferenceSpecV2{
+			SignatureAlgorithmSuite: f.suite,
+		},
+	}, nil
 }

@@ -467,6 +467,10 @@ spec:
                       type: object
                     nullable: true
                     type: array
+                  enable_glob_matching:
+                    description: EnableGlobMatching enables glob-style matching for
+                      the space_id and caller_id fields in the rules.
+                    type: boolean
                   hostname:
                     description: Hostname is the hostname of the Spacelift tenant
                       that tokens will originate from. E.g `example.app.spacelift.io`

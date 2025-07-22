@@ -49,14 +49,14 @@ func TestDatabaseServices(t *testing.T) {
 		},
 		create: withKeepalive(p.databaseServices.UpsertDatabaseService),
 		list: func(ctx context.Context) ([]types.DatabaseService, error) {
-			resources, err := listAllResource(t, p.presenceS, types.KindDatabaseService)
+			resources, err := listAllResource(t, p.presenceS, types.KindDatabaseService, apidefaults.DefaultChunkSize)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return types.ResourcesWithLabels(resources).AsDatabaseServices()
 		},
-		cacheList: func(ctx context.Context) ([]types.DatabaseService, error) {
-			resources, err := listAllResource(t, p.cache, types.KindDatabaseService)
+		cacheList: func(ctx context.Context, pageSize int) ([]types.DatabaseService, error) {
+			resources, err := listAllResource(t, p.cache, types.KindDatabaseService, pageSize)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -84,10 +84,12 @@ func TestDatabases(t *testing.T) {
 				URI:      "localhost:5432",
 			})
 		},
-		create:    p.databases.CreateDatabase,
-		list:      p.databases.GetDatabases,
-		cacheGet:  p.cache.GetDatabase,
-		cacheList: p.cache.GetDatabases,
+		create:   p.databases.CreateDatabase,
+		list:     p.databases.GetDatabases,
+		cacheGet: p.cache.GetDatabase,
+		cacheList: func(ctx context.Context, pageSize int) ([]types.Database, error) {
+			return p.cache.GetDatabases(ctx)
+		},
 		update:    p.databases.UpdateDatabase,
 		deleteAll: p.databases.DeleteAllDatabases,
 	})
@@ -116,7 +118,7 @@ func TestDatabaseServers(t *testing.T) {
 			list: func(ctx context.Context) ([]types.DatabaseServer, error) {
 				return p.presenceS.GetDatabaseServers(ctx, apidefaults.Namespace)
 			},
-			cacheList: func(ctx context.Context) ([]types.DatabaseServer, error) {
+			cacheList: func(ctx context.Context, pageSize int) ([]types.DatabaseServer, error) {
 				return p.cache.GetDatabaseServers(ctx, apidefaults.Namespace)
 			},
 			update: withKeepalive(p.presenceS.UpsertDatabaseServer),
@@ -139,14 +141,14 @@ func TestDatabaseServers(t *testing.T) {
 			},
 			create: withKeepalive(p.presenceS.UpsertDatabaseServer),
 			list: func(ctx context.Context) ([]types.DatabaseServer, error) {
-				resources, err := listAllResource(t, p.presenceS, types.KindDatabaseServer)
+				resources, err := listAllResource(t, p.presenceS, types.KindDatabaseServer, apidefaults.DefaultChunkSize)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
 				return types.ResourcesWithLabels(resources).AsDatabaseServers()
 			},
-			cacheList: func(ctx context.Context) ([]types.DatabaseServer, error) {
-				resources, err := listAllResource(t, p.cache, types.KindDatabaseServer)
+			cacheList: func(ctx context.Context, pageSize int) ([]types.DatabaseServer, error) {
+				resources, err := listAllResource(t, p.cache, types.KindDatabaseServer, pageSize)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}

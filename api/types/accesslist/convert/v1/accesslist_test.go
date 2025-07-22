@@ -110,7 +110,13 @@ func TestRoundtrip(t *testing.T) {
 			},
 		},
 		{
-			name: "dynamic-type",
+			name: "deprecated-dynamic-type",
+			modificationFn: func(accessList *accesslist.AccessList) {
+				accessList.Spec.Type = accesslist.DeprecatedDynamic
+			},
+		},
+		{
+			name: "default-type",
 			modificationFn: func(accessList *accesslist.AccessList) {
 				accessList.Spec.Type = accesslist.Default
 			},
@@ -136,18 +142,13 @@ func TestRoundtrip(t *testing.T) {
 			converted, err := FromProto(ToProto(accessList))
 			require.NoError(t, err)
 
+			if accessList.Spec.Type == accesslist.DeprecatedDynamic {
+				accessList.Spec.Type = accesslist.Default
+			}
+
 			require.Empty(t, cmp.Diff(accessList, converted))
 		})
 	}
-}
-
-func Test_FromProto_withBadType(t *testing.T) {
-	accessList := newAccessList(t, "access-list")
-	accessList.Spec.Type = "test_bad_type"
-
-	_, err := FromProto(ToProto(accessList))
-	require.Error(t, err)
-	require.ErrorContains(t, err, `unknown access_list type "test_bad_type"`)
 }
 
 // Make sure that we don't panic if any of the message fields are missing.
@@ -167,7 +168,7 @@ func TestFromProtoNils(t *testing.T) {
 		accessList.Spec.Owners = nil
 
 		_, err := FromProto(accessList)
-		require.Error(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("audit", func(t *testing.T) {
@@ -216,6 +217,20 @@ func TestFromProtoNils(t *testing.T) {
 
 		_, err := FromProto(msg)
 		require.NoError(t, err)
+	})
+
+	t.Run("requires is not set to nil", func(t *testing.T) {
+		acl := newAccessList(t, "access-list")
+		acl.Spec.MembershipRequires = accesslist.Requires{}
+		acl.Spec.OwnershipRequires = accesslist.Requires{}
+		msg := ToProto(acl)
+		// Ensure Requires fields are not set to nil for backward compatibility.
+		// Older implementations of FromProto (e.g., in Teleport v16) may incorrectly set these fields to nil:
+		// https://github.com/gravitational/teleport/blob/branch/v16/api/types/accesslist/convert/v1/accesslist.go#L46
+		// Since FromProto is invoked client-side (e.g., by the Terraform provider),
+		// setting Requires to nil could introduce breaking changes for existing clients.
+		require.NotNil(t, msg.Spec.MembershipRequires)
+		require.NotNil(t, msg.Spec.OwnershipRequires)
 	})
 }
 
@@ -324,8 +339,10 @@ func TestConvAccessList(t *testing.T) {
 					},
 				},
 				Spec: &accesslistv1.AccessListSpec{
-					Title:       "test access list",
-					Description: "test description",
+					Title:              "test access list",
+					Description:        "test description",
+					OwnershipRequires:  &accesslistv1.AccessListRequires{},
+					MembershipRequires: &accesslistv1.AccessListRequires{},
 					Owners: []*accesslistv1.AccessListOwner{
 						{
 							Name: "test-user1",
@@ -364,8 +381,10 @@ func TestConvAccessList(t *testing.T) {
 					},
 				},
 				Spec: &accesslistv1.AccessListSpec{
-					Title:       "test access list",
-					Description: "test description",
+					Title:              "test access list",
+					Description:        "test description",
+					OwnershipRequires:  &accesslistv1.AccessListRequires{},
+					MembershipRequires: &accesslistv1.AccessListRequires{},
 					Owners: []*accesslistv1.AccessListOwner{
 						{
 							Name: "test-user1",
@@ -402,10 +421,12 @@ func TestConvAccessList(t *testing.T) {
 					},
 				},
 				Spec: &accesslistv1.AccessListSpec{
-					Type:        string(accesslist.SCIM),
-					Title:       "test access list",
-					Description: "test description",
-					Owners:      []*accesslistv1.AccessListOwner{},
+					Type:               string(accesslist.SCIM),
+					Title:              "test access list",
+					Description:        "test description",
+					Owners:             []*accesslistv1.AccessListOwner{},
+					OwnershipRequires:  &accesslistv1.AccessListRequires{},
+					MembershipRequires: &accesslistv1.AccessListRequires{},
 					Grants: &accesslistv1.AccessListGrants{
 						Roles: []string{"role1"},
 					},

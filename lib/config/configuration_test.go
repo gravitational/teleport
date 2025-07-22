@@ -52,10 +52,12 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type testConfigFiles struct {
@@ -102,7 +104,7 @@ func (tc testConfigFiles) cleanup() {
 }
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 
 	if err := writeTestConfigs(); err != nil {
 		testConfigs.cleanup()
@@ -2572,7 +2574,10 @@ func TestAppsCLF(t *testing.T) {
 		inAppURI         string
 		inAppCloud       string
 		inLegacyAppFlags bool
+		inMCPDemoServer  bool
+
 		outApps          []servicecfg.App
+		outMCPDemoServer bool
 		requireError     require.ErrorAssertionFunc
 	}{
 		{
@@ -2707,20 +2712,32 @@ func TestAppsCLF(t *testing.T) {
 				require.ErrorContains(t, err, "missing application \"foo\" URI")
 			},
 		},
+		{
+			desc:             "mcp demo server",
+			inRoles:          defaults.RoleApp,
+			inAppName:        "",
+			inAppURI:         "",
+			inMCPDemoServer:  true,
+			outApps:          nil,
+			outMCPDemoServer: true,
+			requireError:     require.NoError,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			clf := CommandLineFlags{
-				Roles:    tt.inRoles,
-				AppName:  tt.inAppName,
-				AppURI:   tt.inAppURI,
-				AppCloud: tt.inAppCloud,
+				Roles:         tt.inRoles,
+				AppName:       tt.inAppName,
+				AppURI:        tt.inAppURI,
+				AppCloud:      tt.inAppCloud,
+				MCPDemoServer: tt.inMCPDemoServer,
 			}
 			cfg := servicecfg.MakeDefaultConfig()
 			err := Configure(&clf, cfg, tt.inLegacyAppFlags)
 			tt.requireError(t, err)
 			require.Equal(t, tt.outApps, cfg.Apps.Apps)
+			require.Equal(t, tt.outMCPDemoServer, cfg.Apps.MCPDemoServer)
 		})
 	}
 }
@@ -5257,7 +5274,7 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 		},
 	} {
 		t.Run(desc, func(t *testing.T) {
-			modules.SetTestModules(t, &modules.TestModules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				TestFeatures: modules.Features{
 					Cloud: tc.cloud,
 				},

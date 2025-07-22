@@ -25,6 +25,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -32,7 +33,9 @@ import (
 	"io"
 	"log/slog"
 	"maps"
+	"math/big"
 	"slices"
+	"time"
 
 	kms "cloud.google.com/go/kms/apiv1"
 	"github.com/gravitational/trace"
@@ -190,6 +193,9 @@ type Options struct {
 	FIPS bool
 	// OAEPHash function to use with keystores that support OAEP with a configurable hash.
 	OAEPHash crypto.Hash
+	// RSAKeyPairSource is an optional function used by the software keystore when
+	// generating RSA keys.
+	RSAKeyPairSource RSAKeyPairSource
 
 	awsKMSClient kmsClient
 	mrkClient    mrkClient
@@ -232,7 +238,7 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 		return nil, trace.Wrap(err)
 	}
 
-	softwareBackend := newSoftwareKeyStore(&softwareConfig{})
+	softwareBackend := newSoftwareKeyStore(&softwareConfig{rsaKeyPairSource: opts.RSAKeyPairSource})
 	var backendForNewKeys backend = softwareBackend
 	usableBackends := []backend{softwareBackend}
 
@@ -595,15 +601,41 @@ func (m *Manager) newTLSKeyPair(ctx context.Context, clusterName string, alg cry
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	certificate, err := tlsca.ParseCertificatePEM(tlsCert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	crl, err := GenerateCRL(certificate, signer)
+	if err != nil {
+		return nil, err
+	}
 	return &types.TLSKeyPair{
 		Cert:    tlsCert,
 		Key:     tlsKey,
 		KeyType: keyType(tlsKey),
+		CRL:     crl,
 	}, nil
 }
 
-// New JWTKeyPair create a new JWT keypair in the keystore backend and returns
-// it.
+// GenerateCRL generates an empty x509 certificate revocation list.
+func GenerateCRL(caCert *x509.Certificate, signer crypto.Signer) ([]byte, error) {
+	revocationList := &x509.RevocationList{
+		Number:     big.NewInt(1),
+		ThisUpdate: time.Now().Add(-1 * time.Minute), // 1 min in the past to account for clock skew.
+
+		// Note the 10 year expiration date. CRLs are always empty, so they don't need to change frequently.
+		NextUpdate: time.Now().Add(10 * 365 * 24 * time.Hour),
+	}
+	crl, err := x509.CreateRevocationList(rand.Reader, revocationList, caCert, signer)
+	if err != nil {
+		return nil, trace.Wrap(err, "generating CRL")
+	}
+	return crl, nil
+}
+
+// NewJWTKeyPair create a new JWT keypair in the keystore backend and returns it.
 func (m *Manager) NewJWTKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.JWTKeyPair, error) {
 	alg, err := cryptosuites.AlgorithmForKey(ctx, m.currentSuiteGetter, purpose)
 	if err != nil {

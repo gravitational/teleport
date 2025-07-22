@@ -267,8 +267,22 @@ type ListRolesAnywhereProfilesRequest struct {
 	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// next_page_token is the page token.
 	NextPageToken string `protobuf:"bytes,3,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// ProfileNameFilters is a list of filters applied to the profile name.
+	// Only matching profiles will be returned.
+	// If empty, no filtering is applied.
+	//
+	// Filters can be globs, for example:
+	//
+	//	profile*
+	//	*name*
+	//
+	// Or regexes if they're prefixed and suffixed with ^ and $, for example:
+	//
+	//	^profile.*$
+	//	^.*name.*$
+	ProfileNameFilters []string `protobuf:"bytes,4,rep,name=profile_name_filters,json=profileNameFilters,proto3" json:"profile_name_filters,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *ListRolesAnywhereProfilesRequest) Reset() {
@@ -320,6 +334,13 @@ func (x *ListRolesAnywhereProfilesRequest) GetNextPageToken() string {
 		return x.NextPageToken
 	}
 	return ""
+}
+
+func (x *ListRolesAnywhereProfilesRequest) GetProfileNameFilters() []string {
+	if x != nil {
+		return x.ProfileNameFilters
+	}
+	return nil
 }
 
 // ListRolesAnywhereProfilesResponse contains the response for the ListRolesAnywhereProfiles operation.
@@ -487,11 +508,12 @@ const file_teleport_integration_v1_awsra_service_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x10\n" +
 	"\x03arn\x18\x02 \x01(\tR\x03arn\x12\x17\n" +
 	"\auser_id\x18\x03 \x01(\tR\x06userId\x12#\n" +
-	"\rprofile_count\x18\x04 \x01(\x05R\fprofileCount\"\x89\x01\n" +
+	"\rprofile_count\x18\x04 \x01(\x05R\fprofileCount\"\xbb\x01\n" +
 	" ListRolesAnywhereProfilesRequest\x12 \n" +
 	"\vintegration\x18\x01 \x01(\tR\vintegration\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12&\n" +
-	"\x0fnext_page_token\x18\x03 \x01(\tR\rnextPageToken\"\x96\x01\n" +
+	"\x0fnext_page_token\x18\x03 \x01(\tR\rnextPageToken\x120\n" +
+	"\x14profile_name_filters\x18\x04 \x03(\tR\x12profileNameFilters\"\x96\x01\n" +
 	"!ListRolesAnywhereProfilesResponse\x12I\n" +
 	"\bprofiles\x18\x01 \x03(\v2-.teleport.integration.v1.RolesAnywhereProfileR\bprofiles\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xab\x02\n" +

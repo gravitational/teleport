@@ -50,7 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
-	libutils "github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestServer_getKubeFetchers(t *testing.T) {
@@ -407,7 +407,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 						AWS: tc.awsMatchers,
 					},
 					Emitter:        authClient,
-					Log:            libutils.NewSlogLoggerForTests(),
+					Log:            logtest.NewLogger(),
 					DiscoveryGroup: mainDiscoveryGroup,
 				})
 
