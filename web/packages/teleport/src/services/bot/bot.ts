@@ -21,14 +21,14 @@ import api from 'teleport/services/api';
 import {
   canUseV1Edit,
   makeBot,
-  parseGetBotInstanceResponse,
-  parseListBotInstancesResponse,
   toApiGitHubTokenSpec,
+  validateGetBotInstanceResponse,
+  validateListBotInstancesResponse,
 } from 'teleport/services/bot/consts';
 import ResourceService, { RoleResource } from 'teleport/services/resources';
 import { FeatureFlags } from 'teleport/types';
 
-import { parseListJoinTokensResponse } from '../joinToken/consts';
+import { validateListJoinTokensResponse } from '../joinToken/consts';
 import { MfaChallengeResponse } from '../mfa';
 import { withGenericUnsupportedError } from '../version/unsupported';
 import {
@@ -101,8 +101,8 @@ export async function listBotTokens(
       skipAuthnRetry: variables.skipAuthnRetry,
     });
 
-    if (!parseListJoinTokensResponse(data)) {
-      throw new Error('failed to parse list join tokens response');
+    if (!validateListJoinTokensResponse(data)) {
+      throw new Error('failed to validate list join tokens response');
     }
 
     return data;
@@ -204,8 +204,8 @@ export async function listBotInstances(
 
   const data = await api.get(`${path}?${qs.toString()}`, signal);
 
-  if (!parseListBotInstancesResponse(data)) {
-    throw new Error('failed to parse list bot instances response');
+  if (!validateListBotInstancesResponse(data)) {
+    throw new Error('failed to validate list bot instances response');
   }
 
   return data;
@@ -222,8 +222,8 @@ export async function getBotInstance(
 
   const data = await api.get(path, signal);
 
-  if (!parseGetBotInstanceResponse(data)) {
-    throw new Error('failed to parse get bot instance response');
+  if (!validateGetBotInstanceResponse(data)) {
+    throw new Error('failed to validate get bot instance response');
   }
 
   return data;

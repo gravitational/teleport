@@ -18,7 +18,7 @@
 
 import { ListJoinTokensResponse } from './types';
 
-export function parseListJoinTokensResponse(
+export function validateListJoinTokensResponse(
   data: unknown
 ): data is ListJoinTokensResponse {
   if (typeof data !== 'object' || data === null) {
