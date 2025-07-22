@@ -41,11 +41,12 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -284,6 +285,12 @@ func checkToolsListResponse(t *testing.T, response mcp.JSONRPCMessage, wantID mc
 
 	var result mcp.ListToolsResult
 	require.NoError(t, json.Unmarshal(mcpResponse.Result, &result))
+	checkToolsListResult(t, &result, wantTools)
+}
+
+func checkToolsListResult(t *testing.T, result *mcp.ListToolsResult, wantTools []string) {
+	t.Helper()
+	require.NotNil(t, result)
 	var actualNames []string
 	for _, tool := range result.Tools {
 		actualNames = append(actualNames, tool.Name)

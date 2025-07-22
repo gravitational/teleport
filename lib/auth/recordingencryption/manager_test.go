@@ -42,7 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type oaepDecrypter struct {
@@ -134,9 +134,10 @@ func newManagerConfig(t *testing.T, bk backend.Backend, keyType types.PrivateKey
 
 	return recordingencryption.ManagerConfig{
 		Backend:       recordingEncryptionService,
+		Cache:         recordingEncryptionService,
 		ClusterConfig: clusterConfigService,
 		KeyStore:      &fakeKeyStore{keyType: keyType},
-		Logger:        utils.NewSlogLoggerForTests(),
+		Logger:        logtest.NewLogger(),
 		LockConfig: backend.RunWhileLockedConfig{
 			LockConfiguration: backend.LockConfiguration{
 				Backend:            bk,

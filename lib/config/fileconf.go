@@ -184,6 +184,8 @@ type SampleFlags struct {
 	AppName string
 	// AppURI is the internal address of the application to proxy
 	AppURI string
+	// MCPDemoServer enables the "Teleport Demo" MCP server.
+	MCPDemoServer bool
 	// NodeLabels is list of labels in the format `foo=bar,baz=bax` to add to newly created nodes.
 	NodeLabels string
 	// CAPin is the SKPI hash of the CA used to verify the Auth Server. Can be
@@ -410,17 +412,24 @@ func makeSampleProxyConfig(conf *servicecfg.Config, flags SampleFlags, enabled b
 func makeSampleAppsConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) (Apps, error) {
 	var apps Apps
 	// assume users want app role if they added app name and/or uri but didn't add app role
-	if enabled || flags.AppURI != "" || flags.AppName != "" {
-		if flags.AppURI == "" || flags.AppName == "" {
-			return Apps{}, trace.BadParameter("please provide both --app-name and --app-uri")
-		}
-
+	if enabled || flags.AppURI != "" || flags.AppName != "" || flags.MCPDemoServer {
 		apps.EnabledFlag = "yes"
-		apps.Apps = []*App{
-			{
-				Name: flags.AppName,
-				URI:  flags.AppURI,
-			},
+		apps.MCPDemoServer = flags.MCPDemoServer
+
+		switch {
+		case flags.AppURI != "" && flags.AppName != "":
+			apps.Apps = []*App{
+				{
+					Name: flags.AppName,
+					URI:  flags.AppURI,
+				},
+			}
+
+		case flags.MCPDemoServer && flags.AppURI == "" && flags.AppName == "":
+			// This is ok if only MCPDemoServer is set.
+
+		default:
+			return Apps{}, trace.BadParameter("please provide both --app-name and --app-uri")
 		}
 	}
 
@@ -732,6 +741,9 @@ type Auth struct {
 	// determines if the proxy will check the host key of the client or not.
 	ProxyChecksHostKeys *types.BoolOption `yaml:"proxy_checks_host_keys,omitempty"`
 
+	// SessionRecordingEncryption enables or disables encryption of session recordings.
+	SessionRecordingEncryption *types.BoolOption `yaml:"session_recording_encryption,omitempty"`
+
 	// LicenseFile is a path to the license file. The path can be either absolute or
 	// relative to the global data dir
 	LicenseFile string `yaml:"license_file,omitempty"`
@@ -873,7 +885,8 @@ func (a *Auth) hasCustomNetworkingConfig() bool {
 func (a *Auth) hasCustomSessionRecording() bool {
 	empty := Auth{}
 	return a.SessionRecording != empty.SessionRecording ||
-		a.ProxyChecksHostKeys != empty.ProxyChecksHostKeys
+		a.ProxyChecksHostKeys != empty.ProxyChecksHostKeys ||
+		a.SessionRecordingEncryption != empty.SessionRecordingEncryption
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -2078,6 +2091,9 @@ type Apps struct {
 
 	// DebugApp turns on a header debugging application.
 	DebugApp bool `yaml:"debug_app"`
+
+	// MCPDemoServer enables the "Teleport Demo" MCP server.
+	MCPDemoServer bool `yaml:"mcp_demo_server"`
 
 	// Apps is a list of applications that will be run by this service.
 	Apps []*App `yaml:"apps"`

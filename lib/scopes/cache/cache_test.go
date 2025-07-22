@@ -209,7 +209,16 @@ func TestCacheFiltering(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, item := range items {
+				_, ok := cache.Get(item.Key())
+				require.False(t, ok, "item %+v should not be in cache before Put", item)
+
 				cache.Put(item)
+
+				got, ok := cache.Get(item.Key())
+				require.True(t, ok, "item %+v should be in cache after Put", item)
+				require.Equal(t, item, got, "item %+v should match after Put", item)
+				require.Equal(t, 1, cloned)
+				cloned = 0 // reset cloned counter after each Put
 			}
 
 			var policiesApplicableTo []item[int]
@@ -264,7 +273,14 @@ func TestCacheConcurrency(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, item := range items {
+		_, ok := cache.Get(item.Key())
+		require.False(t, ok, "item %+v should not be in cache before Put", item)
+
 		cache.Put(item)
+
+		got, ok := cache.Get(item.Key())
+		require.True(t, ok, "item %+v should be in cache after Put", item)
+		require.Equal(t, item, got, "item %+v should match after Put", item)
 	}
 
 	// lockstepC is used to force the background queries to progress in lockstep
@@ -315,7 +331,7 @@ func TestCacheConcurrency(t *testing.T) {
 	// we can't really guarantee that the background writer is waiting, but we can
 	// be reasonably sure by stepping through multiple qery cycles and asserting that
 	// the writer hasn't completed at each iteration.
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		// perform initial check to verify that write hasn't succeeded (racy)
 		select {
 		case <-putDone:
@@ -628,7 +644,14 @@ func TestCursorScenarios(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, item := range tt.items {
+				_, ok := cache.Get(item.Key())
+				require.False(t, ok, "item %+v should not be in cache before Put", item)
+
 				cache.Put(item)
+
+				got, ok := cache.Get(item.Key())
+				require.True(t, ok, "item %+v should be in cache after Put", item)
+				require.Equal(t, item, got, "item %+v should match after Put", item)
 			}
 
 			// verify policies-applicable-to-resource iteration
@@ -797,7 +820,14 @@ func TestCursorPagination(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, item := range tt.items {
+				_, ok := cache.Get(item.Key())
+				require.False(t, ok, "item %+v should not be in cache before Put", item)
+
 				cache.Put(item)
+
+				got, ok := cache.Get(item.Key())
+				require.True(t, ok, "item %+v should be in cache after Put", item)
+				require.Equal(t, item, got, "item %+v should match after Put", item)
 			}
 
 			// verify policies-applicable-to-resource iteration

@@ -33,10 +33,11 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
@@ -149,7 +150,7 @@ func Test_renderSSHConfig(t *testing.T) {
 			dir := t.TempDir()
 
 			// identity is passed in, but not used.
-			dest := &config.DestinationDirectory{
+			dest := &destination.Directory{
 				Path:     dir,
 				Symlinks: botfs.SymlinksInsecure,
 				ACLs:     botfs.ACLOff,
@@ -157,7 +158,7 @@ func Test_renderSSHConfig(t *testing.T) {
 
 			err := renderSSHConfig(
 				context.Background(),
-				utils.NewSlogLoggerForTests(),
+				logtest.NewLogger(),
 				&proxyPingResponse{
 					PingResponse: &webclient.PingResponse{
 						ClusterName: mockClusterName,

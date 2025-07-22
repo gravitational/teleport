@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -38,12 +39,14 @@ import (
 	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/auth/state"
-	"github.com/gravitational/teleport/lib/client"
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -56,9 +59,10 @@ const botIdentityRenewalRetryLimit = 7
 // reload signal.
 type identityService struct {
 	log               *slog.Logger
-	reloadBroadcaster *channelBroadcaster
+	reloadBroadcaster *internal.ChannelBroadcaster
 	cfg               *config.BotConfig
-	resolver          reversetunnelclient.Resolver
+	statusReporter    readyz.Reporter
+	clientBuilder     *client.Builder
 
 	mu              sync.Mutex
 	client          *apiclient.Client
@@ -80,6 +84,22 @@ func (s *identityService) GetClient() *apiclient.Client {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.client
+}
+
+func (s *identityService) GetGenerator() (*identity.Generator, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return identity.NewGenerator(identity.GeneratorConfig{
+		Client:      s.client,
+		BotIdentity: s.facade,
+		FIPS:        s.cfg.FIPS,
+		Insecure:    s.cfg.Insecure,
+		Logger: s.log.With(
+			teleport.ComponentKey,
+			teleport.Component(componentTBot, "identity-generator"),
+		),
+	})
 }
 
 // Ready returns a channel that will be closed when the initial identity renewal
@@ -124,7 +144,7 @@ func hasTokenChanged(configTokenBytes, identityBytes []byte) bool {
 // If the persisted identity does not match the onboarding profile/join token,
 // a nil identity will be returned. If the identity certificate has expired, the
 // bool return value will be false.
-func (s *identityService) loadIdentityFromStore(ctx context.Context, store bot.Destination) (*identity.Identity, bool) {
+func (s *identityService) loadIdentityFromStore(ctx context.Context, store destination.Destination) (*identity.Identity, bool) {
 	ctx, span := tracer.Start(ctx, "identityService/loadIdentityFromStore")
 	defer span.End()
 	s.log.InfoContext(ctx, "Loading existing bot identity from store", "store", store)
@@ -244,7 +264,7 @@ func (s *identityService) Initialize(ctx context.Context) error {
 	} else {
 		if valid {
 			// If the identity is valid (not expired), try to renew it.
-			newIdentity, err = renewIdentity(ctx, s.log, s.cfg, s.resolver, loadedIdent)
+			newIdentity, err = renewIdentity(ctx, s.log, s.cfg, s.clientBuilder, loadedIdent)
 		} else {
 			// If the identity has expired, try to join again from scratch.
 			newIdentity, err = botIdentityFromToken(ctx, s.log, s.cfg, nil)
@@ -263,7 +283,7 @@ func (s *identityService) Initialize(ctx context.Context) error {
 		// connection and exit immediately if the connection is unavailable.
 		if err != nil {
 			facade := identity.NewFacade(s.cfg.FIPS, s.cfg.Insecure, loadedIdent)
-			client, clientErr := clientForFacade(ctx, s.log, s.cfg, facade, s.resolver)
+			client, clientErr := s.clientBuilder.Build(ctx, facade)
 			if clientErr != nil {
 				return trace.Wrap(clientErr)
 			}
@@ -285,17 +305,20 @@ func (s *identityService) Initialize(ctx context.Context) error {
 	}
 
 	facade := identity.NewFacade(s.cfg.FIPS, s.cfg.Insecure, newIdentity)
-	c, err := clientForFacade(ctx, s.log, s.cfg, facade, s.resolver)
+	c, err := s.clientBuilder.Build(ctx, facade)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	s.mu.Lock()
 	s.client = c
 	s.facade = facade
+	if s.statusReporter == nil {
+		s.statusReporter = readyz.NoopReporter()
+	}
 	s.mu.Unlock()
 
 	s.unblockWaiters()
-
+	s.statusReporter.Report(readyz.Healthy)
 	s.log.InfoContext(ctx, "Identity initialized successfully")
 	return nil
 }
@@ -318,7 +341,7 @@ func (s *identityService) OneShot(ctx context.Context) error {
 func (s *identityService) Run(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "identityService/Run")
 	defer span.End()
-	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
+	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
 	defer unsubscribe()
 
 	// Determine where the bot should write its internal data (renewable cert
@@ -361,24 +384,25 @@ func (s *identityService) Run(ctx context.Context) error {
 		"interval", s.cfg.CredentialLifetime.RenewalInterval,
 	)
 
-	err := runOnInterval(ctx, runOnIntervalConfig{
-		service: s.String(),
-		name:    "bot-identity-renewal",
-		f: func(ctx context.Context) error {
+	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
+		Service: s.String(),
+		Name:    "bot-identity-renewal",
+		F: func(ctx context.Context) error {
 			return s.renew(ctx, storageDestination)
 		},
-		interval:           s.cfg.CredentialLifetime.RenewalInterval,
-		retryLimit:         botIdentityRenewalRetryLimit,
-		log:                s.log,
-		reloadCh:           reloadCh,
-		waitBeforeFirstRun: true,
+		Interval:           s.cfg.CredentialLifetime.RenewalInterval,
+		RetryLimit:         botIdentityRenewalRetryLimit,
+		Log:                s.log,
+		ReloadCh:           reloadCh,
+		WaitBeforeFirstRun: true,
+		StatusReporter:     s.statusReporter,
 	})
 	return trace.Wrap(err)
 }
 
 func (s *identityService) renew(
 	ctx context.Context,
-	botDestination bot.Destination,
+	botDestination destination.Destination,
 ) error {
 	ctx, span := tracer.Start(ctx, "identityService/renew")
 	defer span.End()
@@ -389,7 +413,7 @@ func (s *identityService) renew(
 		return trace.Wrap(err, "Cannot write to destination %s, aborting.", botDestination)
 	}
 
-	newIdentity, err := renewIdentity(ctx, s.log, s.cfg, s.resolver, currentIdentity)
+	newIdentity, err := renewIdentity(ctx, s.log, s.cfg, s.clientBuilder, currentIdentity)
 	if err != nil {
 		return trace.Wrap(err, "renewing identity")
 	}
@@ -420,7 +444,7 @@ func renewIdentity(
 	ctx context.Context,
 	log *slog.Logger,
 	botCfg *config.BotConfig,
-	resolver reversetunnelclient.Resolver,
+	clientBuilder *client.Builder,
 	oldIdentity *identity.Identity,
 ) (*identity.Identity, error) {
 	ctx, span := tracer.Start(ctx, "renewIdentity")
@@ -429,7 +453,7 @@ func renewIdentity(
 	// made with the most recent identity and that a connection associated with
 	// an old identity will not be used.
 	facade := identity.NewFacade(botCfg.FIPS, botCfg.Insecure, oldIdentity)
-	authClient, err := clientForFacade(ctx, log, botCfg, facade, resolver)
+	authClient, err := clientBuilder.Build(ctx, facade)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating auth client")
 	}
@@ -555,7 +579,7 @@ func botIdentityFromToken(
 		CAPins:             cfg.Onboarding.CAPins,
 		CAPath:             cfg.Onboarding.CAPath,
 		FIPS:               cfg.FIPS,
-		GetHostCredentials: client.HostCredentials,
+		GetHostCredentials: libclient.HostCredentials,
 		CipherSuites:       cfg.CipherSuites(),
 	}
 	if authClient != nil {
@@ -595,9 +619,9 @@ func botIdentityFromToken(
 			EnvVarName: cfg.Onboarding.Gitlab.TokenEnvVarName,
 		}
 	case types.JoinMethodBoundKeypair:
-		joinSecret := cfg.Onboarding.BoundKeypair.InitialJoinSecret
+		joinSecret := cfg.Onboarding.BoundKeypair.RegistrationSecret
 
-		adapter := config.NewBoundkeypairDestinationAdapter(cfg.Storage.Destination)
+		adapter := destination.NewBoundkeypairDestinationAdapter(cfg.Storage.Destination)
 		boundKeypairState, err = boundkeypair.LoadClientState(ctx, adapter)
 		if trace.IsNotFound(err) && joinSecret != "" {
 			log.InfoContext(ctx, "No existing client state found, will attempt "+

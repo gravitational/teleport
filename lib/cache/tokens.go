@@ -21,8 +21,10 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 )
 
 type staticTokensIndex string
@@ -36,6 +38,7 @@ func newStaticTokensCollection(c services.ClusterConfiguration, w types.WatchKin
 
 	return &collection[types.StaticTokens, staticTokensIndex]{
 		store: newStore(
+			types.KindStaticTokens,
 			types.StaticTokens.Clone,
 			map[staticTokensIndex]func(types.StaticTokens) string{
 				staticTokensNameIndex: types.StaticTokens.GetName,
@@ -91,6 +94,7 @@ func newProvisionTokensCollection(p services.Provisioner, w types.WatchKind) (*c
 
 	return &collection[types.ProvisionToken, provisionTokenIndex]{
 		store: newStore(
+			types.KindToken,
 			types.ProvisionToken.Clone,
 			map[provisionTokenIndex]func(types.ProvisionToken) string{
 				provisionTokenStoreNameIndex: types.ProvisionToken.GetName,
@@ -168,4 +172,35 @@ func (c *Cache) GetToken(ctx context.Context, name string) (types.ProvisionToken
 	}
 
 	return t.Clone(), nil
+}
+
+// ListProvisionTokens returns a paginated list of provision tokens. Items can
+// be filtered by role and bot name. Tokens with ANY of the provided roles are
+// returned. If a bot name is provided, only tokens having a role of Bot are
+// returned.
+func (c *Cache) ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetTokens")
+	defer span.End()
+
+	lister := genericLister[types.ProvisionToken, provisionTokenIndex]{
+		cache:           c,
+		collection:      c.collections.provisionTokens,
+		index:           provisionTokenStoreNameIndex,
+		isDesc:          false,
+		defaultPageSize: defaults.DefaultChunkSize,
+		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.ProvisionToken, string, error) {
+			return c.Config.Provisioner.ListProvisionTokens(ctx, pageSize, pageToken, anyRoles, botName)
+		},
+		filter: func(t types.ProvisionToken) bool {
+			return local.MatchToken(t, anyRoles, botName)
+		},
+		nextToken: func(t types.ProvisionToken) string {
+			return t.GetName()
+		},
+	}
+	out, next, err := lister.list(ctx,
+		pageSize,
+		pageToken,
+	)
+	return out, next, trace.Wrap(err)
 }

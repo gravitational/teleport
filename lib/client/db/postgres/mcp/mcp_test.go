@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"net"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -85,13 +86,12 @@ func TestFormatErrors(t *testing.T) {
 		URI:      "localhost:5432",
 	})
 	require.NoError(t, err)
-	dbURI := clientmcp.NewDatabaseResourceURI("root", dbName).String()
+	dbURI := clientmcp.NewDatabaseResourceURI("root", dbName).WithoutParams().String()
 
 	for name, tc := range map[string]struct {
-		databaseURI            string
-		databases              []*dbmcp.Database
-		externalErrorRetriever dbmcp.ExternalErrorRetriever
-		expectErrorMessage     require.ValueAssertionFunc
+		databaseURI        string
+		databases          []*dbmcp.Database
+		expectErrorMessage require.ValueAssertionFunc
 	}{
 		"database not found": {
 			databaseURI: "teleport://clusters/root/databases/not-found",
@@ -113,7 +113,6 @@ func TestFormatErrors(t *testing.T) {
 					ClusterName:  "root",
 					DatabaseUser: "postgres",
 					DatabaseName: "postgres",
-					Addr:         listener.Addr().String(),
 					LookupFunc: func(_ context.Context, _ string) (addrs []string, err error) {
 						return []string{"memory"}, nil
 					},
@@ -128,16 +127,16 @@ func TestFormatErrors(t *testing.T) {
 			databaseURI: dbURI,
 			databases: []*dbmcp.Database{
 				&dbmcp.Database{
-					DB:                     db,
-					ClusterName:            "root",
-					DatabaseUser:           "postgres",
-					DatabaseName:           "postgres",
-					Addr:                   listener.Addr().String(),
-					ExternalErrorRetriever: &mockErrorRetriever{err: client.ErrClientCredentialsHaveExpired},
+					DB:           db,
+					ClusterName:  "root",
+					DatabaseUser: "postgres",
+					DatabaseName: "postgres",
 					LookupFunc: func(_ context.Context, _ string) (addrs []string, err error) {
 						return []string{"memory"}, nil
 					},
-					DialContextFunc: listener.DialContext,
+					DialContextFunc: func(ctx context.Context, network, addr string) (net.Conn, error) {
+						return nil, client.ErrClientCredentialsHaveExpired
+					},
 				},
 			},
 			expectErrorMessage: func(tt require.TestingT, i1 any, i2 ...any) {
@@ -224,11 +223,3 @@ func (mr *mockRows) CommandTag() pgconn.CommandTag {
 }
 
 func (mr *mockRows) Close() {}
-
-type mockErrorRetriever struct {
-	err error
-}
-
-func (mr *mockErrorRetriever) RetrieveError() error {
-	return mr.err
-}

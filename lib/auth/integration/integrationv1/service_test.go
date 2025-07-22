@@ -42,19 +42,21 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
 func TestIntegrationCRUD(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	clusterName := "test-cluster"
 	proxyPublicAddr := "127.0.0.1.nip.io"
@@ -465,15 +467,19 @@ func TestIntegrationCRUD(t *testing.T) {
 				_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, igName))
 				require.NoError(t, err)
 				// other existing plugin should not affect identity center plugin referenced integration.
+				_, err = localClient.CreateIntegration(ctx, sampleIntegrationFn(t, "another-plugin"))
+				require.NoError(t, err)
 				require.NoError(t, localClient.CreatePlugin(ctx, NewMattermostPlugin()))
 				require.NoError(t, localClient.CreatePlugin(ctx, NewIdentityCenterPlugin(igName, igName)))
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: igName})
+				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: "another-plugin"})
+				require.NoError(t, err)
+				require.NoError(t, localClient.DeletePlugin(ctx, types.PluginTypeMattermost))
+				_, err = resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: igName})
 				return err
 			},
 			Cleanup: func(t *testing.T, igName string) {
-				require.NoError(t, localClient.DeletePlugin(ctx, types.PluginTypeMattermost))
 				require.NoError(t, localClient.DeletePlugin(ctx, types.PluginTypeAWSIdentityCenter))
 			},
 			ErrAssertion: trace.IsBadParameter,
@@ -885,11 +891,17 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		PluginStaticCredentialsService: localCredService,
 	}
 
+	keystoreManager, err := keystore.NewManager(t.Context(), &servicecfg.KeystoreConfig{}, &keystore.Options{
+		ClusterName:          &types.ClusterNameV2{Metadata: types.Metadata{Name: clusterName}},
+		AuthPreferenceGetter: clusterConfigSvc,
+	})
+	require.NoError(t, err)
+
 	resourceSvc, err := NewService(&ServiceConfig{
 		Backend:         backendSvc,
 		Authorizer:      authorizer,
 		Cache:           cache,
-		KeyStoreManager: keystore.NewSoftwareKeystoreForTests(t),
+		KeyStoreManager: keystoreManager,
 		Emitter:         events.NewDiscardEmitter(),
 		awsRolesAnywhereCreateSessionFn: func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
 			return &createsession.CreateSessionResponse{

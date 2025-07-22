@@ -20,6 +20,8 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
 
@@ -32,6 +34,8 @@ var (
 // WorkloadIdentityAPIService is the configuration for the
 // WorkloadIdentityAPIService
 type WorkloadIdentityAPIService struct {
+	// Name of the service for logs and the /readyz endpoint.
+	Name string `yaml:"name,omitempty"`
 	// Listen is the address on which the SPIFFE Workload API server should
 	// listen. This should either be prefixed with "unix://" or "tcp://".
 	Listen string `yaml:"listen"`
@@ -43,7 +47,7 @@ type WorkloadIdentityAPIService struct {
 
 	// CredentialLifetime contains configuration for how long X.509 SVIDs will
 	// last and the frequency at which they'll be renewed.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
+	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
 }
 
 // CheckAndSetDefaults checks the SPIFFESVIDOutput values and sets any defaults.
@@ -60,6 +64,11 @@ func (o *WorkloadIdentityAPIService) CheckAndSetDefaults() error {
 	return nil
 }
 
+// GetName returns the user-given name of the service, used for validation purposes.
+func (o *WorkloadIdentityAPIService) GetName() string {
+	return o.Name
+}
+
 // Type returns the type of the service.
 func (o *WorkloadIdentityAPIService) Type() string {
 	return WorkloadIdentityAPIServiceType
@@ -68,7 +77,7 @@ func (o *WorkloadIdentityAPIService) Type() string {
 // MarshalYAML marshals the WorkloadIdentityOutput into YAML.
 func (o *WorkloadIdentityAPIService) MarshalYAML() (any, error) {
 	type raw WorkloadIdentityAPIService
-	return withTypeHeader((*raw)(o), WorkloadIdentityAPIServiceType)
+	return encoding.WithTypeHeader((*raw)(o), WorkloadIdentityAPIServiceType)
 }
 
 // UnmarshalYAML unmarshals the WorkloadIdentityOutput from YAML.
@@ -81,8 +90,8 @@ func (o *WorkloadIdentityAPIService) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (o *WorkloadIdentityAPIService) GetCredentialLifetime() CredentialLifetime {
+func (o *WorkloadIdentityAPIService) GetCredentialLifetime() bot.CredentialLifetime {
 	lt := o.CredentialLifetime
-	lt.skipMaxTTLValidation = true
+	lt.SkipMaxTTLValidation = true
 	return lt
 }

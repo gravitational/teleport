@@ -25,27 +25,14 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/client/mcp"
+	"github.com/gravitational/teleport/lib/utils"
 )
-
-// ExtenralErrorRetriever returns an external error that might have happened.
-//
-// MCP servers don't have knowledge of other processes that might fail during
-// their execution, such as authentication failures. This provider can be used
-// to give them the necessary context to provide more accurate user messages.
-type ExternalErrorRetriever interface {
-	// RetrieveError retrieves the error if any.
-	RetrieveError() error
-}
 
 // FormatErrorMessage formats the database MCP error messages.
 // format.
-func FormatErrorMessage(retreiver ExternalErrorRetriever, err error) error {
-	if retreiver != nil {
-		err = trace.NewAggregate(retreiver.RetrieveError(), err)
-	}
-
+func FormatErrorMessage(err error) error {
 	switch {
-	case errors.Is(err, apiclient.ErrClientCredentialsHaveExpired):
+	case errors.Is(err, apiclient.ErrClientCredentialsHaveExpired) || utils.IsCertExpiredError(err):
 		return trace.BadParameter(mcp.ReloginRequiredErrorMessage)
 	case strings.Contains(err.Error(), "connection reset by peer") || errors.Is(err, io.ErrClosedPipe):
 		return trace.BadParameter(LocalProxyConnectionErrorMessage)

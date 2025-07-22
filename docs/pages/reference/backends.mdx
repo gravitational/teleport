@@ -1,6 +1,9 @@
 ---
 title: Storage Backends
 description: How to configure Teleport deployment for high-availability using storage backends
+labels:
+ - conceptual
+ - platform-wide
 ---
 
 A Teleport cluster stores different types of data in different locations. By
@@ -1002,7 +1005,6 @@ the following Terraform script:
 
 To configure Teleport to use Athena:
 
-- Make sure you are using **Teleport version 14.0.0** or newer.
 - Prepare infrastructure
 - Specify an Athena URL inside the `audit_events_uri` array in your Teleport
   configuration file:

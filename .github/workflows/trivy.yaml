@@ -6,7 +6,7 @@ on:
 
 jobs:
   trivy:
-    uses: gravitational/shared-workflows/.github/workflows/trivy.yaml@main
+    uses: gravitational/shared-workflows/.github/workflows/trivy.yaml@664e788d45a7f56935cf63094b4fb52a41b12015 # workflows/v0.0.2
     permissions:
       actions: read
       contents: read

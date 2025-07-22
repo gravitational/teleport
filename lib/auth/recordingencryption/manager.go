@@ -46,16 +46,22 @@ type KeyStore interface {
 	GetDecrypter(ctx context.Context, keyPair *types.EncryptionKeyPair) (crypto.Decrypter, error)
 }
 
+// A Cache fetches a cached [*recordingencryptionv1.RecordingEncryption].
+type Cache interface {
+	GetRecordingEncryption(context.Context) (*recordingencryptionv1.RecordingEncryption, error)
+}
+
 // ManagerConfig captures all of the dependencies required to instantiate a Manager.
 type ManagerConfig struct {
 	Backend       services.RecordingEncryption
 	ClusterConfig services.ClusterConfigurationInternal
 	KeyStore      KeyStore
+	Cache         Cache
 	Logger        *slog.Logger
 	LockConfig    backend.RunWhileLockedConfig
 }
 
-// NewManager returns a new Manager using the given ManagerConfig.
+// NewManager returns a new Manager using the given [ManagerConfig].
 func NewManager(cfg ManagerConfig) (*Manager, error) {
 	switch {
 	case cfg.Backend == nil:
@@ -64,6 +70,8 @@ func NewManager(cfg ManagerConfig) (*Manager, error) {
 		return nil, trace.BadParameter("cluster config is required")
 	case cfg.KeyStore == nil:
 		return nil, trace.BadParameter("key store is required")
+	case cfg.Cache == nil:
+		return nil, trace.BadParameter("cache is required")
 	}
 
 	if cfg.Logger == nil {
@@ -74,6 +82,7 @@ func NewManager(cfg ManagerConfig) (*Manager, error) {
 		RecordingEncryption:          cfg.Backend,
 		ClusterConfigurationInternal: cfg.ClusterConfig,
 
+		cache:      cfg.Cache,
 		keyStore:   cfg.KeyStore,
 		lockConfig: cfg.LockConfig,
 		logger:     cfg.Logger,
@@ -87,6 +96,7 @@ type Manager struct {
 	services.RecordingEncryption
 	services.ClusterConfigurationInternal
 
+	cache      Cache
 	logger     *slog.Logger
 	lockConfig backend.RunWhileLockedConfig
 	keyStore   KeyStore
@@ -162,6 +172,11 @@ func (m *Manager) UpsertSessionRecordingConfig(ctx context.Context, cfg types.Se
 	})
 
 	return sessionRecordingConfig, trace.Wrap(err)
+}
+
+// SetCache overwrites the configured Cache implementation. It should only be called if the `Manager` is not in use.
+func (m *Manager) SetCache(cache Cache) {
+	m.cache = cache
 }
 
 // ensureActiveRecordingEncryption returns the configured RecordingEncryption resource if it exists with active keys. If it does not,
@@ -367,7 +382,7 @@ func (m *Manager) searchActiveKeys(ctx context.Context, activeKeys []*recordinge
 
 // FindDecryptionKey returns the first accessible decryption key that matches one of the given public keys.
 func (m *Manager) FindDecryptionKey(ctx context.Context, publicKeys ...[]byte) (*types.EncryptionKeyPair, error) {
-	encryption, err := m.RecordingEncryption.GetRecordingEncryption(ctx)
+	encryption, err := m.cache.GetRecordingEncryption(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

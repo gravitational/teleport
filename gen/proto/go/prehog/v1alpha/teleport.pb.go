@@ -209,6 +209,10 @@ const (
 	//
 	// PostHog property value: "bot"
 	UserKind_USER_KIND_BOT UserKind = 2
+	// Indicates that the user associated with this event is a system component e.g. Okta service.
+	//
+	// PostHog property value: "system"
+	UserKind_USER_KIND_SYSTEM UserKind = 3
 )
 
 // Enum value maps for UserKind.
@@ -217,11 +221,13 @@ var (
 		0: "USER_KIND_UNSPECIFIED",
 		1: "USER_KIND_HUMAN",
 		2: "USER_KIND_BOT",
+		3: "USER_KIND_SYSTEM",
 	}
 	UserKind_value = map[string]int32{
 		"USER_KIND_UNSPECIFIED": 0,
 		"USER_KIND_HUMAN":       1,
 		"USER_KIND_BOT":         2,
+		"USER_KIND_SYSTEM":      3,
 	}
 )
 
@@ -10573,11 +10579,12 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	"\x17RESOURCE_KIND_DB_SERVER\x10\x04\x12!\n" +
 	"\x1dRESOURCE_KIND_WINDOWS_DESKTOP\x10\x05\x12\x1e\n" +
 	"\x1aRESOURCE_KIND_NODE_OPENSSH\x10\x06\x12#\n" +
-	"\x1fRESOURCE_KIND_NODE_OPENSSH_EICE\x10\a*M\n" +
+	"\x1fRESOURCE_KIND_NODE_OPENSSH_EICE\x10\a*c\n" +
 	"\bUserKind\x12\x19\n" +
 	"\x15USER_KIND_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fUSER_KIND_HUMAN\x10\x01\x12\x11\n" +
-	"\rUSER_KIND_BOT\x10\x02*\xc0\x0f\n" +
+	"\rUSER_KIND_BOT\x10\x02\x12\x14\n" +
+	"\x10USER_KIND_SYSTEM\x10\x03*\xc0\x0f\n" +
 	"\x10DiscoverResource\x12!\n" +
 	"\x1dDISCOVER_RESOURCE_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18DISCOVER_RESOURCE_SERVER\x10\x01\x12 \n" +

@@ -1596,6 +1596,24 @@ message ReplaceRemoteLocksRequest {
   repeated types.LockV2 Locks = 2;
 }
 
+// ListAppsRequest is a request for a page of registered applications.
+message ListAppsRequest {
+  // Limit is the maximum amount of resources to retrieve.
+  int32 limit = 1;
+  // StartKey is used to start listing resources from a specific spot. It
+  // should be set to the previous NextKey value if using pagination, or
+  // left empty.
+  string start_key = 2;
+}
+
+// ListAppsResponse contains a page of registered applications.
+message ListAppsResponse {
+  // Applictaions is a list of applications.
+  repeated types.AppV3 applications = 1;
+  // NextKey is the key for the next page of applications.
+  string next_key = 2;
+}
+
 // GetWindowsDesktopServicesResponse contains all registered Windows desktop services.
 message GetWindowsDesktopServicesResponse {
   // Services is a list of Windows desktop services.
@@ -1618,6 +1636,35 @@ message GetWindowsDesktopServiceResponse {
 message DeleteWindowsDesktopServiceRequest {
   // Name is the Windows desktop service name.
   string Name = 1 [(gogoproto.jsontag) = "name"];
+}
+
+// ListWindowsDesktopsRequest is a request for a page of registered Windows desktop hosts.
+message ListWindowsDesktopsRequest {
+  // Limit is the maximum amount of resources to retrieve.
+  int32 limit = 1;
+  // StartKey is used to start listing resources from a specific spot. It
+  // should be set to the previous NextKey value if using pagination, or
+  // left empty.
+  string start_key = 2;
+  // Labels is a label-based matcher if non-empty.
+  map<string, string> labels = 3;
+  // PredicateExpression defines boolean conditions that will be matched against the resource.
+  string predicate_expression = 4;
+  // SearchKeywords is a list of search keywords to match against resource field values.
+  repeated string search_keywords = 5;
+  // WindowsDesktopFilter specifies windows desktop specific filters.
+  types.WindowsDesktopFilter windows_desktop_filter = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "windows_desktop_filter,omitempty"
+  ];
+}
+
+// ListWindowsDesktopsResponse contains a page of registered Windows desktop hosts.
+message ListWindowsDesktopsResponse {
+  // Desktops is a list of Windows desktop hosts.
+  repeated types.WindowsDesktopV3 desktops = 1;
+  // NextKey is the key for the next page of desktops.
+  string next_key = 2;
 }
 
 // GetWindowsDesktopsResponse contains all registered Windows desktop hosts.
@@ -2649,6 +2696,35 @@ message AccessRequestAllowedPromotionResponse {
   types.AccessRequestAllowedPromotions allowedPromotions = 1;
 }
 
+// ListProvisionTokensRequest is used to retrieve a paginated list of provision tokens.
+message ListProvisionTokensRequest {
+  // Limit is the maximum amount of items per page.
+  int32 Limit = 1;
+
+  // StartKey is used to resume a query in order to enable pagination.
+  // If the previous response had NextKey set then this should be
+  // set to its value. Otherwise leave empty.
+  string StartKey = 2;
+
+  // FilterRoles allows filtering for tokens with the provided roles. Tokens
+  // with ANY of the provided roles are returned.
+  repeated string FilterRoles = 3;
+
+  // FilterBotName allows filtering for tokens associated with the
+  // named bot. In addition, only items with a role of Bot are returned.
+  string FilterBotName = 4;
+}
+
+// ListProvisionTokensResponse is used to retrieve a paginated list of provision tokens.
+message ListProvisionTokensResponse {
+  // Tokens is the list of tokens.
+  repeated types.ProvisionTokenV2 Tokens = 1;
+
+  // NextKey is used to resume a query in order to enable pagination.
+  // Leave empty to start at the beginning.
+  string NextKey = 2;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -3123,6 +3199,8 @@ service AuthService {
   rpc GetToken(types.ResourceRequest) returns (types.ProvisionTokenV2);
   // GetToken retrieves all tokens.
   rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
+  // ListToken retrieves a paginated list of filtered provision tokens.
+  rpc ListProvisionTokens(ListProvisionTokensRequest) returns (ListProvisionTokensResponse);
   // CreateTokenV2 creates a token in a backend.
   rpc CreateTokenV2(CreateTokenV2Request) returns (google.protobuf.Empty);
   // UpsertTokenV2 upserts a token in a backend.
@@ -3216,6 +3294,8 @@ service AuthService {
 
   // GetApps returns all registered applications.
   rpc GetApps(google.protobuf.Empty) returns (types.AppV3List);
+  // ListApps returns a page of registered applications.
+  rpc ListApps(ListAppsRequest) returns (ListAppsResponse);
   // GetApp returns an application by name.
   rpc GetApp(types.ResourceRequest) returns (types.AppV3);
   // CreateApp creates a new application resource.
@@ -3266,6 +3346,8 @@ service AuthService {
 
   // GetWindowsDesktops returns all registered Windows desktop hosts matching the supplied filter.
   rpc GetWindowsDesktops(types.WindowsDesktopFilter) returns (GetWindowsDesktopsResponse);
+  // ListWindowsDesktops returns a page of registered Windows desktop hosts.
+  rpc ListWindowsDesktops(ListWindowsDesktopsRequest) returns (ListWindowsDesktopsResponse);
   // CreateWindowsDesktop registers a new Windows desktop host.
   rpc CreateWindowsDesktop(types.WindowsDesktopV3) returns (google.protobuf.Empty);
   // UpdateWindowsDesktop updates an existing Windows desktop host.

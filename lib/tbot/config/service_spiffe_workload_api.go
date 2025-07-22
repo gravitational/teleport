@@ -25,6 +25,8 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
 
@@ -114,6 +116,8 @@ func (o SVIDRequestRule) LogValue() slog.Value {
 // SPIFFEWorkloadAPIService is the configuration for the SPIFFE Workload API
 // service.
 type SPIFFEWorkloadAPIService struct {
+	// Name of the service for logs and the /readyz endpoint.
+	Name string `yaml:"name,omitempty"`
 	// Listen is the address on which the SPIFFE Workload API server should
 	// listen. This should either be prefixed with "unix://" or "tcp://".
 	Listen string `yaml:"listen"`
@@ -129,7 +133,12 @@ type SPIFFEWorkloadAPIService struct {
 
 	// CredentialLifetime contains configuration for how long X.509 SVIDs will
 	// last and the frequency at which they'll be renewed.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
+	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
+}
+
+// GetName returns the user-given name of the service, used for validation purposes.
+func (o *SPIFFEWorkloadAPIService) GetName() string {
+	return o.Name
 }
 
 func (s *SPIFFEWorkloadAPIService) Type() string {
@@ -138,7 +147,7 @@ func (s *SPIFFEWorkloadAPIService) Type() string {
 
 func (s *SPIFFEWorkloadAPIService) MarshalYAML() (any, error) {
 	type raw SPIFFEWorkloadAPIService
-	return withTypeHeader((*raw)(s), SPIFFEWorkloadAPIServiceType)
+	return encoding.WithTypeHeader((*raw)(s), SPIFFEWorkloadAPIServiceType)
 }
 
 func (s *SPIFFEWorkloadAPIService) UnmarshalYAML(node *yaml.Node) error {
@@ -168,6 +177,6 @@ func (s *SPIFFEWorkloadAPIService) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (o *SPIFFEWorkloadAPIService) GetCredentialLifetime() CredentialLifetime {
+func (o *SPIFFEWorkloadAPIService) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }

@@ -27,7 +27,9 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
 const UnstableClientCredentialOutputType = "unstable_client_credential"
@@ -47,9 +49,17 @@ var (
 // be modified. This output is currently part of an experiment and could be
 // removed in a future release.
 type UnstableClientCredentialOutput struct {
+	// Name of the service for logs and the /readyz endpoint.
+	Name string `yaml:"name,omitempty"`
+
 	mu     sync.Mutex
 	facade *identity.Facade
 	ready  chan struct{}
+}
+
+// GetName returns the user-given name of the service, used for validation purposes.
+func (o *UnstableClientCredentialOutput) GetName() string {
+	return o.Name
 }
 
 // Ready returns a channel which closes when the Output is ready to be used
@@ -141,7 +151,7 @@ func (o *UnstableClientCredentialOutput) CheckAndSetDefaults() error {
 // as YAML including the type header.
 func (o *UnstableClientCredentialOutput) MarshalYAML() (any, error) {
 	type raw UnstableClientCredentialOutput
-	return withTypeHeader((*raw)(o), UnstableClientCredentialOutputType)
+	return encoding.WithTypeHeader((*raw)(o), UnstableClientCredentialOutputType)
 }
 
 // Type returns a human readable description of this output.
@@ -149,6 +159,6 @@ func (o *UnstableClientCredentialOutput) Type() string {
 	return UnstableClientCredentialOutputType
 }
 
-func (o *UnstableClientCredentialOutput) GetCredentialLifetime() CredentialLifetime {
-	return CredentialLifetime{}
+func (o *UnstableClientCredentialOutput) GetCredentialLifetime() bot.CredentialLifetime {
+	return bot.CredentialLifetime{}
 }

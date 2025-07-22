@@ -1,6 +1,9 @@
 ---
 title: Machine ID with Application Access
 description: How to use Machine ID to access applications
+labels:
+ - how-to
+ - mwi
 ---
 
 Teleport protects and controls access to HTTP and TCP applications. Machine ID
@@ -101,6 +104,9 @@ services:
 Replace:
 - `dumper` with the name of the application you registered in Teleport.
 - `listen` with the address and port you wish the service to bind to.
+
+Ensure that `tbot` is not configured to run in one-shot mode, as the application
+tunnel will not start in this mode.
 
 Restart `tbot` to apply the new configuration.
 </TabItem>

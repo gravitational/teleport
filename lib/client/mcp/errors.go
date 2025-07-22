@@ -80,5 +80,5 @@ type serverInfoChangedError struct {
 }
 
 func (e *serverInfoChangedError) Error() string {
-	return fmt.Sprintf("server info has changed, expected %s, got %s", e.expectedInfo, e.currentInfo)
+	return fmt.Sprintf("server info has changed, expected %v, got %v", e.expectedInfo, e.currentInfo)
 }

@@ -23,6 +23,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
 // SSHMultiplexerServiceType is the type of the `ssh-proxy` service.
@@ -30,9 +32,11 @@ const SSHMultiplexerServiceType = "ssh-multiplexer"
 
 // SSHMultiplexerService is the configuration for the `ssh-proxy` service
 type SSHMultiplexerService struct {
+	// Name of the service for logs and the /readyz endpoint.
+	Name string `yaml:"name,omitempty"`
 	// Destination is where the config and tunnel should be written to. It
 	// should be a DestinationDirectory.
-	Destination bot.Destination `yaml:"destination"`
+	Destination destination.Destination `yaml:"destination"`
 	// EnableResumption controls whether to enable session resumption for the
 	// SSH proxy.
 	// Call `SessionResumptionEnabled` to get the value with defaults applied.
@@ -51,7 +55,12 @@ type SSHMultiplexerService struct {
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
+	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
+}
+
+// GetName returns the user-given name of the service, used for validation purposes.
+func (o *SSHMultiplexerService) GetName() string {
+	return o.Name
 }
 
 func (s *SSHMultiplexerService) SessionResumptionEnabled() bool {
@@ -67,7 +76,7 @@ func (s *SSHMultiplexerService) Type() string {
 
 func (s *SSHMultiplexerService) MarshalYAML() (any, error) {
 	type raw SSHMultiplexerService
-	return withTypeHeader((*raw)(s), SSHMultiplexerServiceType)
+	return encoding.WithTypeHeader((*raw)(s), SSHMultiplexerServiceType)
 }
 
 func (s *SSHMultiplexerService) UnmarshalYAML(node *yaml.Node) error {
@@ -88,7 +97,7 @@ func (s *SSHMultiplexerService) CheckAndSetDefaults() error {
 	if s.Destination == nil {
 		return trace.BadParameter("destination: must be specified")
 	}
-	_, ok := s.Destination.(*DestinationDirectory)
+	_, ok := s.Destination.(*destination.Directory)
 	if !ok {
 		return trace.BadParameter("destination: must be of type `directory`")
 	}
@@ -98,6 +107,6 @@ func (s *SSHMultiplexerService) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (o *SSHMultiplexerService) GetCredentialLifetime() CredentialLifetime {
+func (o *SSHMultiplexerService) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }

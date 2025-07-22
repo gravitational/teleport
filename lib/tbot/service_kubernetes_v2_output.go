@@ -38,11 +38,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
-	"github.com/gravitational/teleport/lib/client"
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -59,15 +62,20 @@ type KubernetesV2OutputService struct {
 	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
 	proxyPingCache     *proxyPingCache
-	reloadBroadcaster  *channelBroadcaster
-	resolver           reversetunnelclient.Resolver
+	reloadBroadcaster  *internal.ChannelBroadcaster
+	statusReporter     readyz.Reporter
 	// executablePath is called to get the path to the tbot executable.
 	// Usually this is os.Executable
-	executablePath func() (string, error)
+	executablePath    func() (string, error)
+	identityGenerator *identity.Generator
+	clientBuilder     *client.Builder
 }
 
 func (s *KubernetesV2OutputService) String() string {
-	return fmt.Sprintf("kubernetes-v2-output (%s)", s.cfg.Destination.String())
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("kubernetes-v2-output (%s)", s.cfg.Destination.String()),
+	)
 }
 
 func (s *KubernetesV2OutputService) OneShot(ctx context.Context) error {
@@ -75,18 +83,19 @@ func (s *KubernetesV2OutputService) OneShot(ctx context.Context) error {
 }
 
 func (s *KubernetesV2OutputService) Run(ctx context.Context) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
+	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
 	defer unsubscribe()
 
-	return trace.Wrap(runOnInterval(ctx, runOnIntervalConfig{
-		service:         s.String(),
-		name:            "output-renewal",
-		f:               s.generate,
-		interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
-		retryLimit:      renewalRetryLimit,
-		log:             s.log,
-		reloadCh:        reloadCh,
-		identityReadyCh: s.botIdentityReadyCh,
+	return trace.Wrap(internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
+		Service:         s.String(),
+		Name:            "output-renewal",
+		F:               s.generate,
+		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
+		RetryLimit:      renewalRetryLimit,
+		Log:             s.log,
+		ReloadCh:        reloadCh,
+		IdentityReadyCh: s.botIdentityReadyCh,
+		StatusReporter:  s.statusReporter,
 	}))
 }
 
@@ -110,30 +119,18 @@ func (s *KubernetesV2OutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err, "verifying destination")
 	}
 
-	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
-	if err != nil {
-		return trace.Wrap(err, "fetching default roles")
-	}
-
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
-	id, err := generateIdentity(
-		ctx,
-		s.botAuthClient,
-		s.getBotIdentity(),
-		roles,
-		effectiveLifetime.TTL,
-		nil,
+	id, err := s.identityGenerator.GenerateFacade(ctx,
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
 	)
 	if err != nil {
 		return trace.Wrap(err, "generating identity")
 	}
 
-	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
-
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
-	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
-	impersonatedClient, err := clientForFacade(ctx, s.log, s.botCfg, facade, s.resolver)
+	impersonatedClient, err := s.clientBuilder.Build(ctx, id)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -155,7 +152,7 @@ func (s *KubernetesV2OutputService) generate(ctx context.Context) error {
 		ctx,
 		"Generated identity for Kubernetes access",
 		"matched_cluster_count", len(clusterNames),
-		"identity", describeTLSIdentity(ctx, s.log, id),
+		"identity", describeTLSIdentity(ctx, s.log, id.Get()),
 	)
 
 	// Ping the proxy to resolve connection addresses.
@@ -173,7 +170,7 @@ func (s *KubernetesV2OutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	keyRing, err := NewClientKeyRing(id, hostCAs)
+	keyRing, err := NewClientKeyRing(id.Get(), hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -186,7 +183,7 @@ func (s *KubernetesV2OutputService) generate(ctx context.Context) error {
 		kubernetesClusterNames: clusterNames,
 	}
 
-	return trace.Wrap(s.render(ctx, status, id, hostCAs))
+	return trace.Wrap(s.render(ctx, status, id.Get(), hostCAs))
 }
 
 // kubernetesStatus holds teleport client information necessary to populate a
@@ -195,7 +192,7 @@ type kubernetesStatusV2 struct {
 	clusterAddr            string
 	teleportClusterName    string
 	tlsServerName          string
-	credentials            *client.KeyRing
+	credentials            *libclient.KeyRing
 	kubernetesClusterNames []string
 }
 
@@ -285,7 +282,7 @@ func (s *KubernetesV2OutputService) render(
 	// We only support directory mode for this since the exec plugin needs
 	// to know the path to read the credentials from, and this is
 	// unpredictable with other types of destination.
-	destinationDir, isDirectoryDest := s.cfg.Destination.(*config.DestinationDirectory)
+	destinationDir, isDirectoryDest := s.cfg.Destination.(*destination.Directory)
 	if !s.cfg.DisableExecPlugin {
 		if !isDirectoryDest {
 			slog.InfoContext(

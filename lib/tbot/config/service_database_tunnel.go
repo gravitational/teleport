@@ -24,12 +24,17 @@ import (
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
 const DatabaseTunnelServiceType = "database-tunnel"
 
 // DatabaseTunnelService opens an authenticated tunnel for Database Access.
 type DatabaseTunnelService struct {
+	// Name of the service for logs and the /readyz endpoint.
+	Name string `yaml:"name,omitempty"`
 	// Listen is the address on which database tunnel should listen. Example:
 	// - "tcp://127.0.0.1:3306"
 	// - "tcp://0.0.0.0:3306
@@ -48,11 +53,16 @@ type DatabaseTunnelService struct {
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
+	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
 
 	// Listener overrides "listen" and directly provides an opened listener to
 	// use.
 	Listener net.Listener `yaml:"-"`
+}
+
+// GetName returns the user-given name of the service, used for validation purposes.
+func (o *DatabaseTunnelService) GetName() string {
+	return o.Name
 }
 
 func (s *DatabaseTunnelService) Type() string {
@@ -61,7 +71,7 @@ func (s *DatabaseTunnelService) Type() string {
 
 func (s *DatabaseTunnelService) MarshalYAML() (any, error) {
 	type raw DatabaseTunnelService
-	return withTypeHeader((*raw)(s), DatabaseTunnelServiceType)
+	return encoding.WithTypeHeader((*raw)(s), DatabaseTunnelServiceType)
 }
 
 func (s *DatabaseTunnelService) UnmarshalYAML(node *yaml.Node) error {
@@ -90,6 +100,6 @@ func (s *DatabaseTunnelService) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (s *DatabaseTunnelService) GetCredentialLifetime() CredentialLifetime {
+func (s *DatabaseTunnelService) GetCredentialLifetime() bot.CredentialLifetime {
 	return s.CredentialLifetime
 }

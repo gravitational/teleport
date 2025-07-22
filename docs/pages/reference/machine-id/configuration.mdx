@@ -2,6 +2,9 @@
 title: Machine ID Configuration Reference
 description: Configuration reference for Teleport Machine ID.
 tocDepth: 4
+labels:
+ - reference
+ - mwi
 ---
 
 This reference documents the various options that can be configured in the `tbot`
@@ -19,8 +22,6 @@ destination as part of the process of generating an output. Examples of
 artifacts include configuration files, certificates, and cryptographic key
 material. Usually, artifacts are files, but this term is explicitly avoided
 because a destination isn't required to be a filesystem.
-
-From Teleport 14, `tbot` supports the v2 configuration version.
 
 ```yaml
 # version specifies the version of the configuration file in use. `v2` is the
@@ -121,6 +122,11 @@ onboarding:
     # multiple Teleport clusters from a single GitLab CI job.
     token_env_var_name: "MY_GITLAB_ID_TOKEN"
 
+  # bound_keypair holds parameters specific to the "bound_keypair" join method
+  bound_keypair:
+    # registration_secret is an optional secret to use on first join in lieu of
+    # a preregistered keypair.
+    registration_secret: "secret"
 
 # storage specifies the destination that `tbot` should use to store its
 # internal state. This state is sensitive, and you should ensure that the
@@ -216,7 +222,7 @@ output used in context.
 # always be `identity`.
 type: identity
 # ssh_config controls whether the identity output will attempt to generate an
-# OpenSSH configuration file. This requires that `tbot` can connect to the 
+# OpenSSH configuration file. This requires that `tbot` can connect to the
 # Teleport Proxy Service. Must be "on" or "off". If unspecified, this defaults to
 # "on".
 ssh_config: on
@@ -366,6 +372,11 @@ renewal_interval: 15m
 # plugin is used to automatically refresh the credentials within a single
 # invocation of `kubectl`. Defaults to `false`.
 disable_exec_plugin: false
+
+# name optionally overrides the name of the service used in logs and the `/readyz`
+# endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
+# symbols.
+name: my-service-name
 ```
 
 Each Kubernetes cluster matching a selector will result in a new context in the
@@ -456,6 +467,10 @@ audiences:
  - foo.example.com
 (!docs/pages/includes/machine-id/workload-identity-selector-config.yaml!)
 (!docs/pages/includes/machine-id/common-output-config.yaml!)
+# name optionally overrides the name of the service used in logs and the `/readyz`
+# endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
+# symbols.
+name: my-service-name
 ```
 
 ### `workload-identity-aws-roles-anywhere`
@@ -523,6 +538,10 @@ artifact_name: my-credentials-file
 # defaults to `false`.
 overwrite_credential_file: false
 (!docs/pages/includes/machine-id/workload-identity-selector-config.yaml!)
+# name optionally overrides the name of the service used in logs and the `/readyz`
+# endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
+# symbols.
+name: my-service-name
 ```
 
 ### `spiffe-svid`
@@ -598,6 +617,9 @@ workload identity API, intended to serve workload identity credentials
 
 For more information about this, see the
 [Workload Identity API and Workload Attestation reference](../workload-identity/workload-identity-api-and-workload-attestation.mdx)
+
+The `workload-identity-api` service will not start if `tbot` has been configured
+to run in one-shot mode.
 
 ### `spiffe-workload-api`
 
@@ -777,6 +799,10 @@ svids:
           #
           # If unspecified, the GID is not checked.
           gid: 50
+# name optionally overrides the name of the service used in logs and the `/readyz`
+# endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
+# symbols.
+name: my-service-name
 ```
 
 #### Envoy SDS
@@ -944,7 +970,14 @@ database: postgres
 # username is the name of the user on the specified database server to open a
 # tunnel for.
 username: postgres
+# name optionally overrides the name of the service used in logs and the `/readyz`
+# endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
+# symbols.
+name: my-service-name
 ```
+
+The `database-tunnel` service will not start if `tbot` has been configured
+to run in one-shot mode.
 
 ### `application-tunnel`
 
@@ -972,7 +1005,14 @@ listen: tcp://127.0.0.1:8084
 # app_name is the name of the application, as configured in Teleport, that
 # the service should open a tunnel to.
 app_name: my-application
+# name optionally overrides the name of the service used in logs and the `/readyz`
+# endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
+# symbols.
+name: my-service-name
 ```
+
+The `application-tunnel` service will not start if `tbot` has been configured
+to run in one-shot mode.
 
 ### `ssh-multiplexer`
 
@@ -1027,6 +1067,10 @@ proxy_command:
 #
 # If unspecified, proxy templates will not be used.
 proxy_templates_path: /etc/my-proxy-templates.yaml
+# name optionally overrides the name of the service used in logs and the `/readyz`
+# endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
+# symbols.
+name: my-service-name
 ```
 
 Once configured, `tbot` will create the following artifacts in the specified
@@ -1038,6 +1082,9 @@ destination:
    a server's identity.
 - `v1.sock`: the Unix socket that the multiplexer listens on.
 - `agent.sock`: the Unix socket that the SSH agent listens on.
+
+The `ssh-multiplexer` service will not start if `tbot` has been configured
+to run in one-shot mode.
 
 #### Using the SSH multiplexer programmatically
 
