@@ -46,7 +46,7 @@ func FormatErrorMessage(retreiver ExternalErrorRetriever, err error) error {
 
 	switch {
 	case errors.Is(err, apiclient.ErrClientCredentialsHaveExpired):
-		return trace.BadParameter(ReloginRequiredErrorMessage)
+		return trace.BadParameter(mcp.ReloginRequiredErrorMessage)
 	case strings.Contains(err.Error(), "connection reset by peer") || errors.Is(err, io.ErrClosedPipe):
 		return trace.BadParameter(LocalProxyConnectionErrorMessage)
 	}
@@ -55,12 +55,6 @@ func FormatErrorMessage(retreiver ExternalErrorRetriever, err error) error {
 }
 
 const (
-	// ReloginRequiredErrorMessage is the message returned to the MCP client
-	// when the tsh session expired.
-	ReloginRequiredErrorMessage = `It looks like your Teleport session expired,
-you must relogin (using "tsh login" on a terminal) before continue using this
-tool. After that, there is no need to update or relaunch the MCP client - just
-try using it again.`
 	// LocalProxyConnectionErrorMessage is the message returned to the MCP client when
 	// the database client cannot connect to the local proxy.
 	LocalProxyConnectionErrorMessage = `Teleport MCP server is having issue while

@@ -26,6 +26,15 @@ import (
 	"github.com/gravitational/trace"
 )
 
+const (
+	// ReloginRequiredErrorMessage is the message returned to the MCP client
+	// when the tsh session expired.
+	ReloginRequiredErrorMessage = `It looks like your Teleport session expired,
+you must relogin (using "tsh login" on a terminal) before continue using this
+tool. After that, there is no need to update or relaunch the MCP client - just
+try using it again.`
+)
+
 // IsLikelyTemporaryNetworkError returns true if the error is likely a temporary
 // network error.
 func IsLikelyTemporaryNetworkError(err error) bool {

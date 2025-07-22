@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/iterutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
-	clientdbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
 	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
 	"github.com/gravitational/teleport/lib/client/mcp/claude"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -434,7 +433,7 @@ By default, tsh automatically starts a new remote MCP session if the previous
 one is interrupted by network issues or tsh session expiration.
 Auto-reconnection is recommended when MCP sessions are stateless across
 requests. To disable it, use the --no-auto-reconnect flag. If disabled, you may
-need to manually restart your client when encountering “disconnected” errors.`)
+need to manually restart your client when encountering "disconnected" errors.`)
 	return trace.Wrap(err)
 }
 
@@ -493,15 +492,15 @@ func makeMCPReconnectUserMessage(err error) string {
 		userMessage = "A network error occurred while trying to connect to Teleport." +
 			" This issue is likely temporary — the server may be unavailable, or your internet connection may be unstable." +
 			" Please check your network and try again in a few moments." +
-			" If your network appears to be working, try restarting your AI tool to see if the problem is resolved."
+			" If your network appears to be working, try restarting your MCP client to see if the problem is resolved."
 	case client.IsErrorResolvableWithRelogin(err):
-		userMessage = clientdbmcp.ReloginRequiredErrorMessage
+		userMessage = clientmcp.ReloginRequiredErrorMessage
 	default:
 		userMessage = "An error was encountered while sending the request to Teleport." +
 			" This does not appear to be a transient error." +
-			" Please ensure your tsh session is valid and restart your AI tool to see if the problem is resolved."
+			" Please ensure your tsh session is valid and restart your MCP client to see if the problem is resolved."
 	}
 
-	userMessage += " If the issue persists, check the debug log for more details or contact your Teleport admin."
+	userMessage += " If the issue persists, check the MCP logs for more details or contact your Teleport admin."
 	return userMessage
 }
