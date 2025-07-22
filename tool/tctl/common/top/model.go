@@ -30,7 +30,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/dustin/go-humanize"
-	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/guptarohit/asciigraph"
 
@@ -46,16 +45,18 @@ type topModel struct {
 	selected        int
 	help            help.Model
 	refreshInterval time.Duration
-	clt             *roundtrip.Client
+	clt             MetricsClient
 	report          *Report
 	reportError     error
+	addr            string
 }
 
-func newTopModel(refreshInterval time.Duration, clt *roundtrip.Client) *topModel {
+func newTopModel(refreshInterval time.Duration, clt MetricsClient, addr string) *topModel {
 	return &topModel{
 		help:            help.New(),
 		clt:             clt,
 		refreshInterval: refreshInterval,
+		addr:            addr,
 	}
 }
 
@@ -171,15 +172,16 @@ func (m *topModel) footerView() string {
 
 	if m.reportError != nil {
 		if trace.IsConnectionProblem(m.reportError) {
-			leftContent = fmt.Sprintf("Could not connect to metrics service: %v", m.clt.Endpoint())
+			leftContent = fmt.Sprintf("Could not connect to metrics service: %v", m.addr)
 		} else {
 			leftContent = fmt.Sprintf("Failed to generate report: %v", m.reportError)
 		}
 	}
 	if leftContent == "" && m.report != nil {
-		leftContent = fmt.Sprintf("Report generated at %s for host %s",
+		leftContent = fmt.Sprintf("Report generated at %s for host %s (%s)",
 			m.report.Timestamp.Format(constants.HumanDateFormatSeconds),
 			m.report.Hostname,
+			m.addr,
 		)
 	}
 	left := lipgloss.NewStyle().
