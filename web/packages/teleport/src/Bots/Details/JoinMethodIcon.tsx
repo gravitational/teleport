@@ -44,6 +44,7 @@ export function JoinMethodIcon(props: {
   );
 }
 
+// TODO(nicholasmarais1158): Add missing icons once designed
 const iconForMethod = (method: string) => {
   switch (method) {
     case 'token':

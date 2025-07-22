@@ -198,7 +198,8 @@ export interface FeatureFlags {
   deviceTrust: boolean;
   locks: boolean;
   newLocks: boolean;
-  tokens: boolean;
+  createTokens: boolean;
+  listTokens: boolean;
   accessMonitoring: boolean;
   accessGraph: boolean;
   accessGraphIntegrations: boolean;

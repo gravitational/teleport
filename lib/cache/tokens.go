@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -170,4 +171,40 @@ func (c *Cache) GetToken(ctx context.Context, name string) (types.ProvisionToken
 	}
 
 	return t.Clone(), nil
+}
+
+// ListProvisionTokens returns a paginated list of provision tokens.
+func (c *Cache) ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetTokens")
+	defer span.End()
+
+	lister := genericLister[types.ProvisionToken, provisionTokenIndex]{
+		cache:           c,
+		collection:      c.collections.provisionTokens,
+		index:           provisionTokenStoreNameIndex,
+		isDesc:          false,
+		defaultPageSize: defaults.DefaultChunkSize,
+		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.ProvisionToken, string, error) {
+			return c.Config.Provisioner.ListProvisionTokens(ctx, pageSize, pageToken, anyRoles, botName)
+		},
+		filter: func(t types.ProvisionToken) bool {
+			if len(anyRoles) > 0 {
+				return t.GetRoles().IncludeAny(anyRoles...)
+			}
+
+			if botName != "" {
+				return t.GetRoles().Include(types.RoleBot) && t.GetBotName() == botName
+			}
+
+			return true
+		},
+		nextToken: func(t types.ProvisionToken) string {
+			return t.GetName()
+		},
+	}
+	out, next, err := lister.list(ctx,
+		pageSize,
+		pageToken,
+	)
+	return out, next, trace.Wrap(err)
 }

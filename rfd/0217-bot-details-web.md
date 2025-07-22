@@ -187,17 +187,17 @@ In order to keep the implementation modular, each logical section of the page fe
 
 Fetch a bot by name, including roles and traits. Endpoint exists and will be reused. 
 
-##### `GET /v1/webapi/tokens?role=Bot&bot=:name`
+##### `GET /v2/webapi/tokens?role=bot&bot=:name`
 
 Fetch join tokens linked to a bot by name.
 
 **Approach**
 
-Reuse the existing endpoint and create a new RPC which supports filtering and pagination (although not required by this work). Filtering by role and bot name will be supported.
+New endpoint and RPC which supports filtering and pagination (although not required by this work). Filtering by role and bot name will be supported. The endpoint will be protected by MFA for Admin Actions just like its `v1` counterpart.
 
 ``` protobuf
-// ListTokensRequest is used to retrieve a paginated list of tokens.
-message ListTokensRequest {
+// ListProvisionTokensRequest is used to retrieve a paginated list of provision tokens.
+message ListProvisionTokensRequest {
     // Limit is the maximum amount of items per page.
     int32 Limit = 1;
 
@@ -206,16 +206,16 @@ message ListTokensRequest {
     // set to its value. Otherwise leave empty.
     string StartKey = 2;
 
-    // FilterRole allows filtering for tokens with the provided role.
-    string FilterRole = 3;
+    // FilterRoles allows filtering for tokens with the provided role.
+    repeated string FilterRoles = 3;
 
-    // FilterBotName allows filtering for tokens associated with the 
+    // FilterBotName allows filtering for tokens associated with the
     // named bot. This is a no-op unless FilterRole is 'Bot'.
     string FilterBotName = 4;
 }
 
-// ListTokensResponse is used to retrieve a paginated list of tokens.
-message ListTokensResponse {
+// ListProvisionTokensResponse is used to retrieve a paginated list of provision tokens.
+message ListProvisionTokensResponse {
     // Tokens is the list of tokens.
     repeated types.ProvisionTokenV2 Tokens = 1;
 
@@ -225,8 +225,8 @@ message ListTokensResponse {
 }
 
 service AuthService {
-  // ListTokens retrieves a paginated list of tokens.
-  rpc ListTokens(ListTokensRequest) returns (ListTokensResponse);
+  // ListProvisionTokens retrieves a paginated list of provision tokens.
+  rpc ListProvisionTokens(ListProvisionTokensRequest) returns (ListProvisionTokensResponse);
 }
 ```
 _api/proto/teleport/legacy/client/proto/authservice.proto_
@@ -237,7 +237,7 @@ While the endpoint will support pagination it wont be used in this case - a page
 
 **Backwards compatibility**
 
-In a scenario where an older version proxy is in place, the endpoint will return without an error, but will return all tokens including those not associated with the bot being viewed. This is because the filter parameters will be ignored and the previous RPC will be used (`GetTokens`). To mitigate this, the frontend will filter for only applicable items (those with a role of "Bot" and the bots name associated) and disregard the rest.
+In a scenario where an older version proxy is in place, the api will return a 404 (including a `proxyVersion` field), as the new endpoint wont exist. In this case, the frontend will detect the version mismatch and provide the user with an explanation.
 
 ##### `GET /v1/webapi/sites/:site/machine-id/bot-instance?search=:bot-name`
 

@@ -106,7 +106,7 @@ export function InstancesPanel(props: { botName: string }) {
       <Divider />
 
       {isLoading ? (
-        <Box data-testid="loading" textAlign="center" m={10}>
+        <Box data-testid="loading-instances" textAlign="center" m={10}>
           <Indicator />
         </Box>
       ) : undefined}

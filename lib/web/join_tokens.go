@@ -27,6 +27,7 @@ import (
 	"net/url"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -110,6 +111,47 @@ func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httpr
 
 	return GetTokensResponse{
 		Items: uiTokens,
+	}, nil
+}
+
+// ListProvisionTokensResponse returns a paginated list of provision tokens.
+type ListProvisionTokensResponse struct {
+	Items         []webui.JoinToken `json:"items"`
+	NextPageToken string            `json:"next_page_token,omitempty"`
+}
+
+func (h *Handler) listProvisionTokens(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var pageSize int64 = 20
+	if r.URL.Query().Has("page_size") {
+		pageSize, err = strconv.ParseInt(r.URL.Query().Get("page_size"), 10, 32)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse page_size")
+		}
+	}
+
+	roles, err := types.NewTeleportRoles(r.URL.Query()["role"])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	items, nextToken, err := clt.ListProvisionTokens(r.Context(), int(pageSize), r.URL.Query().Get("page_token"), roles, r.URL.Query().Get("bot_name"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uiTokens, err := webui.MakeJoinTokens(items)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ListProvisionTokensResponse{
+		Items:         uiTokens,
+		NextPageToken: nextToken,
 	}, nil
 }
 

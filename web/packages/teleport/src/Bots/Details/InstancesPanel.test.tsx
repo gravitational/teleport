@@ -100,7 +100,9 @@ describe('InstancesPanel', () => {
 });
 
 const waitForLoading = async () => {
-  await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
+  await waitForElementToBeRemoved(() =>
+    screen.queryByTestId('loading-instances')
+  );
 };
 
 function withFetchSuccess() {

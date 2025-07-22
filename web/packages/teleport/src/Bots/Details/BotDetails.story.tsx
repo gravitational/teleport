@@ -34,7 +34,13 @@ import {
   getBotForever,
   getBotSuccess,
 } from 'teleport/test/helpers/bots';
+import { mfaAuthnChallengeSuccess } from 'teleport/test/helpers/mfa';
 import { successGetRoles } from 'teleport/test/helpers/roles';
+import {
+  listV2TokensError,
+  listV2TokensMfaError,
+  listV2TokensSuccess,
+} from 'teleport/test/helpers/tokens';
 
 import { BotDetails } from './BotDetails';
 
@@ -52,7 +58,9 @@ export default meta;
 
 const successHandler = getBotSuccess({
   name: 'ansible-worker',
-  roles: ['terraform-provider'],
+  roles: Array.from({ length: 8 }, (_, k) => k).map(
+    r => `testing-role-${r + 1}`
+  ),
   traits: [
     {
       name: 'logins',
@@ -64,7 +72,9 @@ const successHandler = getBotSuccess({
     },
     {
       name: 'custom_idp',
-      values: ['val-1', 'val-2', 'val-3'],
+      values: Array.from({ length: 8 }, (_, k) => k).map(
+        r => `test-value-${r + 1}`
+      ),
     },
   ],
   max_session_ttl: {
@@ -128,13 +138,14 @@ export const Happy: Story = {
     msw: {
       handlers: [
         successHandler,
+        listV2TokensSuccess(),
         listBotInstancesSuccessHandler,
         successGetRoles({
           startKey: '',
-          items: ['access', 'editor', 'terraform-provider'].map(r => ({
-            content: r,
-            id: r,
-            name: r,
+          items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
+            content: `role-${r}`,
+            id: `role-${r}`,
+            name: `role-${r}`,
             kind: 'role',
           })),
         }),
@@ -144,7 +155,7 @@ export const Happy: Story = {
   },
 };
 
-export const HappyWithNoTraitsOrRolesOrInstances: Story = {
+export const HappyWithEmpty: Story = {
   parameters: {
     msw: {
       handlers: [
@@ -156,6 +167,10 @@ export const HappyWithNoTraitsOrRolesOrInstances: Story = {
             seconds: 43200,
           },
         }),
+        listV2TokensSuccess({
+          isEmpty: true,
+        }),
+        mfaAuthnChallengeSuccess(),
         listBotInstancesSuccess({
           bot_instances: [],
           next_page_token: '',
@@ -183,6 +198,107 @@ export const HappyWithoutEditPermission: Story = {
     msw: {
       handlers: [
         successHandler,
+        listV2TokensSuccess(),
+        listBotInstancesSuccessHandler,
+        successGetRoles({
+          startKey: '',
+          items: ['access', 'editor', 'terraform-provider'].map(r => ({
+            content: r,
+            id: r,
+            name: r,
+            kind: 'role',
+          })),
+        }),
+        editBotSuccess(),
+      ],
+    },
+  },
+};
+
+export const HappyWithoutTokenListPermission: Story = {
+  args: {
+    hasTokensList: false,
+  },
+  parameters: {
+    msw: {
+      handlers: [
+        successHandler,
+        listV2TokensSuccess(),
+        listBotInstancesSuccessHandler,
+        successGetRoles({
+          startKey: '',
+          items: ['access', 'editor', 'terraform-provider'].map(r => ({
+            content: r,
+            id: r,
+            name: r,
+            kind: 'role',
+          })),
+        }),
+        editBotSuccess(),
+      ],
+    },
+  },
+};
+
+export const HappyWithMFAPrompt: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        successHandler,
+        listV2TokensMfaError(),
+        mfaAuthnChallengeSuccess(),
+        listBotInstancesSuccessHandler,
+        successGetRoles({
+          startKey: '',
+          items: ['access', 'editor', 'terraform-provider'].map(r => ({
+            content: r,
+            id: r,
+            name: r,
+            kind: 'role',
+          })),
+        }),
+        editBotSuccess(),
+      ],
+    },
+  },
+};
+
+export const HappyWithTokensError: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        successHandler,
+        listV2TokensError(500, 'something went wrong'),
+        listBotInstancesSuccessHandler,
+        successGetRoles({
+          startKey: '',
+          items: ['access', 'editor', 'terraform-provider'].map(r => ({
+            content: r,
+            id: r,
+            name: r,
+            kind: 'role',
+          })),
+        }),
+        editBotSuccess(),
+      ],
+    },
+  },
+};
+
+export const HappyWithTokensOutdatedProxy: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        successHandler,
+        listV2TokensError(404, 'path not found', {
+          proxyVersion: {
+            major: 19,
+            minor: 0,
+            patch: 0,
+            preRelease: 'dev',
+            string: '18.0.0',
+          },
+        }),
         listBotInstancesSuccessHandler,
         successGetRoles({
           startKey: '',
@@ -207,6 +323,7 @@ export const HappyWithoutBotInstanceListPermission: Story = {
     msw: {
       handlers: [
         successHandler,
+        listV2TokensSuccess(),
         listBotInstancesSuccessHandler,
         successGetRoles({
           startKey: '',
@@ -270,11 +387,13 @@ const queryClient = new QueryClient({
 function Wrapper(props?: {
   hasBotsRead?: boolean;
   hasBotsEdit?: boolean;
+  hasTokensList?: boolean;
   hasBotInstanceListPermission?: boolean;
 }) {
   const {
     hasBotsRead = true,
     hasBotsEdit = true,
+    hasTokensList = true,
     hasBotInstanceListPermission = true,
   } = props ?? {};
 
@@ -291,6 +410,10 @@ function Wrapper(props?: {
     roles: {
       ...defaultAccess,
       list: true,
+    },
+    tokens: {
+      ...defaultAccess,
+      list: hasTokensList,
     },
     botInstances: {
       ...defaultAccess,

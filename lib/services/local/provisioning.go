@@ -20,11 +20,13 @@ package local
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -189,11 +191,59 @@ func (s *ProvisioningService) GetTokens(ctx context.Context) ([]types.ProvisionT
 			services.WithRevision(item.Revision),
 		)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "unmarshaling token (key: %q)", item.Key)
 		}
 		tokens[i] = t
 	}
 	return tokens, nil
+}
+
+// ListProvisionTokens returns a paginated list of provision tokens.
+func (s *ProvisioningService) ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error) {
+	// Bound page size (0 - 1_000)
+	if pageSize <= 0 || pageSize > int(defaults.MaxIterationLimit) {
+		pageSize = int(defaults.MaxIterationLimit)
+	}
+
+	prefix := backend.NewKey(tokensPrefix)
+	var out []types.ProvisionToken
+	for item, err := range s.Items(ctx, backend.ItemsParams{
+		StartKey: prefix.AppendKey(backend.KeyFromString(pageToken)),
+		EndKey:   backend.RangeEnd(prefix.ExactKey()),
+	}) {
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		t, err := services.UnmarshalProvisionToken(
+			item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+		if err != nil {
+			return nil, "", trace.Wrap(err, "unmarshaling token (key: %q)", item.Key)
+		}
+
+		if len(out) == pageSize {
+			nextKey := strings.TrimPrefix(
+				item.Key.TrimPrefix(backend.ExactKey(tokensPrefix)).String(),
+				string(backend.Separator),
+			)
+			return out, nextKey, nil
+		}
+
+		if len(anyRoles) > 0 && !t.GetRoles().IncludeAny(anyRoles...) {
+			continue
+		}
+
+		if botName != "" && (!t.GetRoles().Include(types.RoleBot) || t.GetBotName() != botName) {
+			continue
+		}
+
+		out = append(out, t)
+	}
+
+	return out, "", nil
 }
 
 const tokensPrefix = "tokens"
