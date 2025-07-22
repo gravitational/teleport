@@ -79,90 +79,89 @@ export function InstancesPanel(props: { botName: string }) {
   };
 
   return (
-    <section>
-      <Container>
-        <TitleContainer>
-          <Text as={'h2'} typography={'h2'} fontWeight={fontWeights.bold}>
-            Active Instances
-          </Text>
-          {isSuccess ? (
-            <ActionButton onClick={handleToggleSort}>
-              Recent
-              {sort === 'active_at_latest:desc' ? (
-                <SortDescending size={'medium'} />
-              ) : (
-                <SortAscending size={'medium'} />
-              )}
-            </ActionButton>
-          ) : undefined}
-        </TitleContainer>
-
-        <Divider />
-
-        {isLoading ? (
-          <Box data-testid="loading" textAlign="center" m={10}>
-            <Indicator />
-          </Box>
-        ) : undefined}
-
-        {!hasListPermission ? (
-          <Box p={3}>
-            <Alert kind="info">
-              You do not have permission to view bot instances. Missing role
-              permissions: <code>botInstances.list</code>
-            </Alert>
-          </Box>
-        ) : undefined}
-
-        {isError ? (
-          <Box p={3}>
-            <Alert kind="danger">Error: {error.message}</Alert>
-          </Box>
-        ) : undefined}
-
+    <Container>
+      <TitleContainer>
+        <Text as={'h2'} typography={'h2'} fontWeight={fontWeights.bold}>
+          Active Instances
+        </Text>
         {isSuccess ? (
-          <>
-            {data.pages.length > 0 && data.pages[0].bot_instances.length > 0 ? (
-              <ContentContainer>
-                {data.pages.map((page, i) =>
-                  page.bot_instances.map((instance, j) => (
-                    <React.Fragment key={`${instance.instance_id}`}>
-                      {i === 0 && j === 0 ? undefined : <Divider />}
-                      <Instance
-                        id={instance.instance_id}
-                        activeAt={instance.active_at_latest}
-                        hostname={instance.host_name_latest}
-                        method={instance.join_method_latest}
-                        version={instance.version_latest}
-                        versionDiff={diff(instance.version_latest)}
-                        os={instance.os_latest}
-                      />
-                    </React.Fragment>
-                  ))
-                )}
-
-                <Divider />
-
-                <LoadMoreContainer>
-                  <ButtonSecondary
-                    onClick={() => fetchNextPage()}
-                    disabled={!hasNextPage || isFetchingNextPage}
-                  >
-                    Load More
-                  </ButtonSecondary>
-                </LoadMoreContainer>
-              </ContentContainer>
+          <ActionButton onClick={handleToggleSort}>
+            Recent
+            {sort === 'active_at_latest:desc' ? (
+              <SortDescending size={'medium'} />
             ) : (
-              <Box p={3}>No active instances</Box>
+              <SortAscending size={'medium'} />
             )}
-          </>
+          </ActionButton>
         ) : undefined}
-      </Container>
-    </section>
+      </TitleContainer>
+
+      <Divider />
+
+      {isLoading ? (
+        <Box data-testid="loading" textAlign="center" m={10}>
+          <Indicator />
+        </Box>
+      ) : undefined}
+
+      {!hasListPermission ? (
+        <Box p={3}>
+          <Alert kind="info">
+            You do not have permission to view bot instances. Missing role
+            permissions: <code>botInstances.list</code>
+          </Alert>
+        </Box>
+      ) : undefined}
+
+      {isError ? (
+        <Box p={3}>
+          <Alert kind="danger">Error: {error.message}</Alert>
+        </Box>
+      ) : undefined}
+
+      {isSuccess ? (
+        <>
+          {data.pages.length > 0 && data.pages[0].bot_instances.length > 0 ? (
+            <ContentContainer>
+              {data.pages.map((page, i) =>
+                page.bot_instances.map((instance, j) => (
+                  <React.Fragment key={`${instance.instance_id}`}>
+                    {i === 0 && j === 0 ? undefined : <Divider />}
+                    <Instance
+                      id={instance.instance_id}
+                      activeAt={instance.active_at_latest}
+                      hostname={instance.host_name_latest}
+                      method={instance.join_method_latest}
+                      version={instance.version_latest}
+                      versionDiff={diff(instance.version_latest)}
+                      os={instance.os_latest}
+                    />
+                  </React.Fragment>
+                ))
+              )}
+
+              <Divider />
+
+              <LoadMoreContainer>
+                <ButtonSecondary
+                  onClick={() => fetchNextPage()}
+                  disabled={!hasNextPage || isFetchingNextPage}
+                >
+                  Load More
+                </ButtonSecondary>
+              </LoadMoreContainer>
+            </ContentContainer>
+          ) : (
+            <Box p={3}>No active instances</Box>
+          )}
+        </>
+      ) : undefined}
+    </Container>
   );
 }
 
-const Container = styled(Flex)`
+const Container = styled.section`
+  display: flex;
   flex-direction: column;
   height: 100%;
 `;
