@@ -355,14 +355,11 @@ func TestPortForwardProxy_run_targetConnClosed(t *testing.T) {
 	targetConn.Close()
 
 	// Look for the source connection to close
-	require.Eventually(t, func() bool {
-		select {
+	select {
 		case <-sourceConn.closed:
-			return true
-		default:
-			return false
-		}
-	}, 5*time.Second, time.Millisecond, "expected source connection to close")
+		case <-time.After(5*time.Second):
+			t.Fatal("expected source connection to close")
+	}
 }
 
 type fakeSPDYStream struct {
