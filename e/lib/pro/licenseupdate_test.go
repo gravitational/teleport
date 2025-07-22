@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/clocki"
 )
@@ -220,7 +221,7 @@ func TestLicenseUpdateServiceRun(t *testing.T) {
 
 	features := modules.Features{}
 	features.Entitlements = feature.GetLicenseEntitlements(originalLicense.License.GetEntitlements())
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: features,
 	})
 

@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/clocki"
 )
@@ -109,7 +110,7 @@ func initAccessListSync(t *testing.T, ctx context.Context) *accessListSyncTestCo
 	ap := newTestAccessPoint(t, clockwork.NewFakeClock())
 	emitter := eventstest.NewChannelEmitter(1)
 	stopCh := make(chan struct{}, 1)
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 	})
 
@@ -118,7 +119,7 @@ func initAccessListSync(t *testing.T, ctx context.Context) *accessListSyncTestCo
 	_, err = ap.UpsertRole(ctx, services.NewSystemOktaRequesterRole())
 	require.NoError(t, err)
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Cloud: true,

@@ -30,6 +30,7 @@ import (
 	osstestenv "github.com/gravitational/teleport/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -121,7 +122,7 @@ func WithLimiter(l devicetrustv1.RateLimiter) Opt {
 }
 
 // MustNew creates a new [E] or panics.
-// Prefer [NewUsingT], as it configures [modules.TestModules] automatically.
+// Prefer [NewUsingT], as it configures [modulestest.Modules] automatically.
 func MustNew(opts ...Opt) *E {
 	env, err := New(opts...)
 	if err != nil {
@@ -132,7 +133,7 @@ func MustNew(opts ...Opt) *E {
 
 // NewUsingT creates a new [E] using t to report failures or register the
 // appropriate cleanups.
-// Additionally, it also sets [modules.SetTestModules] to an Enterprise build
+// Additionally, it also sets [modulestest.SetTestModules] to an Enterprise build
 // type.
 func NewUsingT(t *testing.T, opts ...Opt) *E {
 	env, err := New(opts...)
@@ -143,7 +144,7 @@ func NewUsingT(t *testing.T, opts ...Opt) *E {
 
 	// Set the build to Enterprise (required by a few OSS checks) and enable the
 	// device trust feature.
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{

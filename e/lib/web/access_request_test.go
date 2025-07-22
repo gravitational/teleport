@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -571,24 +572,15 @@ func (m *mockedAccessRequestAPIGetter) SubmitAccessReview(ctx context.Context, p
 	return nil, trace.NotImplemented("mockSubmitAccessReview not implemented")
 }
 
-type fakeBuildModule struct {
-	modules.TestModules
-}
-
-func (f *fakeBuildModule) GenerateAccessRequestPromotions(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
-	return accessrequest.GenerateAccessRequestPromotions(ctx, accessListGetter, accessReq)
-}
-
 func TestSuggestAccessLists(t *testing.T) {
-	modules.SetTestModules(t, &fakeBuildModule{
-		TestModules: modules.TestModules{
-			TestBuildType: modules.BuildEnterprise,
-			TestFeatures: modules.Features{
-				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.Identity: {Enabled: true},
-				},
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
 			},
 		},
+		GenerateAccessRequestPromotionsFn: accessrequest.GenerateAccessRequestPromotions,
 	})
 
 	ctx := context.Background()
@@ -738,16 +730,15 @@ func TestSuggestAccessLists(t *testing.T) {
 }
 
 func TestPromoteAccessRequest(t *testing.T) {
-	modules.SetTestModules(t, &fakeBuildModule{
-		TestModules: modules.TestModules{
-			TestBuildType: modules.BuildEnterprise,
-			TestFeatures: modules.Features{
-				AdvancedAccessWorkflows: true,
-				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.Identity: {Enabled: true},
-				},
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			AdvancedAccessWorkflows: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
 			},
 		},
+		GenerateAccessRequestPromotionsFn: accessrequest.GenerateAccessRequestPromotions,
 	})
 
 	ctx := context.Background()

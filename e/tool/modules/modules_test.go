@@ -12,13 +12,14 @@ import (
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 func TestSetModules_RecoveryCodes(t *testing.T) {
 	// Setting the env var cloud.EnvVarHostPort tells the cluster
 	// that it is running on a cloud environment.
 	t.Setenv(cloud.EnvVarHostPort, "cloud-hostport")
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			RecoveryCodes: false,
 			Cloud:         false,
@@ -40,7 +41,7 @@ func TestSetModules_RecoveryCodes(t *testing.T) {
 
 	// Cleaning the env var will make it not a cloud env
 	t.Setenv(cloud.EnvVarHostPort, "")
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			RecoveryCodes: false,
 		},

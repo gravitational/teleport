@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
@@ -280,8 +281,8 @@ func TestService_authz(t *testing.T) {
 		})
 	}
 
-	// Safe because NewUsingT sets a modules.TestModule.
-	m := modules.GetModules().(*modules.TestModules)
+	// Safe because NewUsingT sets a modulestest.Module.
+	m := modules.GetModules().(*modulestest.Modules)
 	m.TestFeatures.Entitlements[entitlements.DeviceTrust] = modules.EntitlementInfo{Enabled: false}
 
 	// Test system behavior when the feature is disabled.
@@ -2489,7 +2490,7 @@ func TestService_GetResourceDevicesUsage(t *testing.T) {
 	ctx := context.Background()
 
 	// Safe because of NewUsingT.
-	m := modules.GetModules().(*modules.TestModules)
+	m := modules.GetModules().(*modulestest.Modules)
 
 	// Enroll a device so the count is not zero.
 	if _, _, err := createAndEnroll(ctx, devices, &devicepb.Device{
@@ -2605,7 +2606,7 @@ func TestService_EnrollDevice_issuesDevicesLimitEvent(t *testing.T) {
 	ctx := context.Background()
 
 	// Safe because of NewUsingT.
-	m := modules.GetModules().(*modules.TestModules)
+	m := modules.GetModules().(*modulestest.Modules)
 	m.TestFeatures.IsUsageBasedBilling = true
 	m.TestFeatures.Entitlements[entitlements.DeviceTrust] = modules.EntitlementInfo{Enabled: true, Limit: 1}
 

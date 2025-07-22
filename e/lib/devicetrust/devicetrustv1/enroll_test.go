@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 func TestService_EnrollDevice(t *testing.T) {
@@ -646,9 +647,9 @@ func TestService_EnrollDevice_usageBasedLimits(t *testing.T) {
 	ctx := context.Background()
 
 	// Set usage-based and device limits.
-	// This is safe to do because NewUsingT sets modules.TestModules when called.
+	// This is safe to do because NewUsingT sets modulestest.Modules when called.
 	// We'll also rely on the already-registered cleanup.
-	m := modules.GetModules().(*modules.TestModules)
+	m := modules.GetModules().(*modulestest.Modules)
 	m.TestFeatures.IsUsageBasedBilling = true
 	const devicesLimit = 3
 	m.TestFeatures.Entitlements[entitlements.DeviceTrust] = modules.EntitlementInfo{Enabled: true, Limit: devicesLimit}

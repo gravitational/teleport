@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -62,7 +63,7 @@ func TestResourceMonitor(t *testing.T) {
 		slog.New(logutils.NewSlogTextHandler(
 			os.Stderr, logutils.SlogTextHandlerConfig{Level: slog.LevelDebug})))
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{

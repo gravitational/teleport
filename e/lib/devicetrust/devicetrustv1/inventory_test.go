@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 type syncInventoryTest struct {
@@ -1182,7 +1183,7 @@ func TestService_SyncInventory_missingDevices(t *testing.T) {
 func TestService_SyncInventory_usageBasedDisallowed(t *testing.T) {
 	env := testenv.NewUsingT(t)
 
-	m := modules.GetModules().(*modules.TestModules)
+	m := modules.GetModules().(*modulestest.Modules)
 	m.TestFeatures.Entitlements[entitlements.MobileDeviceManagement] = modules.EntitlementInfo{Enabled: false}
 
 	devices := env.DevicesClient

@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -587,7 +588,7 @@ func TestEncryptedSAML(t *testing.T) {
 // parameters for Ping backends (PingOne, PingFederate, etc) when
 // `provider: ping` is set.
 func TestPingSAMLWorkaround(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.SAML: {Enabled: true},
@@ -689,7 +690,7 @@ func TestPingSAMLWorkaround(t *testing.T) {
 }
 
 func TestServer_getConnectorAndProvider(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.SAML: {Enabled: true},
@@ -903,7 +904,7 @@ func installLoginRule(ctx context.Context, t *testing.T, a *auth.Server, b backe
 }
 
 func TestServer_ValidateSAMLResponse(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.SAML: {Enabled: true},
@@ -1183,7 +1184,7 @@ func TestParseSAMLInResponseTo(t *testing.T) {
 }
 
 func TestSAMLAuthRequest(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.SAML: {Enabled: true},
@@ -1370,7 +1371,7 @@ func TestSAMLAuthRequest(t *testing.T) {
 // Auth service on major version N should support proxies on version N and N-1,
 // which may send a single user public key or split SSH and TLS public keys.
 func TestSAMLAuthCompat(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 			entitlements.SAML: {Enabled: true},
 		}},
@@ -1595,7 +1596,7 @@ func TestServer_ValidateSAMLResponse_MFA(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClockAt(time.Date(2022, 4, 25, 9, 0, 0, 0, time.UTC))
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.SAML: {Enabled: true},
@@ -1733,7 +1734,7 @@ func newConnector(t *testing.T, name, ssoURL, issuer, cert, preferredBinding str
 }
 
 func TestSAMLPreferredBinding(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 			entitlements.SAML: {Enabled: true},
 		}},

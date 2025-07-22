@@ -17,6 +17,7 @@ import (
 	jamffake "github.com/gravitational/teleport/e/lib/jamf/fake"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -76,7 +77,7 @@ type Opts struct {
 
 // MustNew creates a new [E] or panics.
 // Prefer [NewUsingT] when enabling the Device Trust env, as it configures
-// [modules.TestModules] automatically.
+// [modulestest.Modules] automatically.
 func MustNew(opts *Opts) *E {
 	env, err := New(opts)
 	if err != nil {
@@ -92,7 +93,7 @@ func NewUsingT(t *testing.T, opts *Opts) *E {
 	// Configure device trust settings?
 	if opts != nil && opts.DeviceTrustEnv {
 		// Set build type and features.
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
 				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{

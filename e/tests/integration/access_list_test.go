@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 // TestNestedAccessListCycleValidation tests the concurrent safety of nested Access List cycle validation.
@@ -319,7 +320,7 @@ func TestAccessListMaxDepthValidation(t *testing.T) {
 // - should not be able to add themselves as a member
 // - If an owner is also a member, they should be able to add a new member
 func TestAccessListOwnerPermissions(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{

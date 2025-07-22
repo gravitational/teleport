@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/idp/saml/testenv"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -475,7 +476,7 @@ func TestOAuthPluginStart(t *testing.T) {
 }
 
 func TestPluginUpdate(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 	})
 	s := newWebSuite(t)
@@ -519,7 +520,7 @@ func TestPluginUpdate(t *testing.T) {
 }
 
 func TestPluginCleanup(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 	})
 
@@ -566,7 +567,7 @@ func TestPluginCleanup(t *testing.T) {
 }
 
 func TestValidatePluginEntraID(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 	})
 

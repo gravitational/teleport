@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 const (
@@ -47,7 +48,7 @@ func setupPreconditions(t *testing.T, auth *auth.Server) {
 }
 
 func TestGenerateDraftExternalAuditStorage(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Cloud: true,
@@ -85,7 +86,7 @@ func TestGenerateDraftExternalAuditStorage(t *testing.T) {
 }
 
 func TestBuildExternalAuditStorageBootstrapScript(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Cloud: true,
@@ -267,7 +268,7 @@ func TestBuildExternalAuditStorageBootstrapScript(t *testing.T) {
 }
 
 func TestExternalAuditStoragePromote(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Cloud: true,
@@ -306,7 +307,7 @@ func TestExternalAuditStoragePromote(t *testing.T) {
 }
 
 func TestExternalAuditStorageGetCluster(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Cloud: true,
@@ -352,7 +353,7 @@ func TestExternalAuditStorageGetCluster(t *testing.T) {
 }
 
 func TestExternalAuditStorageGetDraft(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Cloud: true,
@@ -396,7 +397,7 @@ func TestExternalAuditStorageGetDraft(t *testing.T) {
 }
 
 func TestExternalAuditStorageDeleteCluster(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Cloud: true,
@@ -442,7 +443,7 @@ func TestExternalAuditStorageDeleteCluster(t *testing.T) {
 }
 
 func TestExternalAuditStorageDeleteDraft(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Cloud: true,

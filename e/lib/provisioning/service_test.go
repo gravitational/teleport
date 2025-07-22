@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
@@ -34,8 +35,7 @@ func TestMain(m *testing.M) {
 	// Almost every test in this package requires the Access List feature, so
 	// we enable it once here, as opposed to using [modules.SetTestModules()] in
 	// every test, which would also force each test to run in series.
-
-	modules.SetModules(&modules.TestModules{
+	modules.SetModules(&modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{

@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/clocki"
 )
@@ -3668,7 +3669,7 @@ func TestS_DevicesUsageLimit(t *testing.T) {
 		Enabled: true,
 		Limit:   devicesLimit,
 	}
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures:  features,
 	})
@@ -3765,7 +3766,7 @@ func TestS_DevicesUsageLimit(t *testing.T) {
 	// Add limit back to Device Trust & disable Identity
 	features.Entitlements[entitlements.Identity] = modules.EntitlementInfo{Enabled: false, Limit: 0}
 	features.Entitlements[entitlements.DeviceTrust] = modules.EntitlementInfo{Enabled: true, Limit: 1}
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures:  features,
 	})

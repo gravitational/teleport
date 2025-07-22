@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
@@ -129,7 +130,7 @@ var _ pluginUpdateHandler = testOktaDescriptor{}
 // newTestOktaPluginFixture creates a set of related
 func newTestOktaPluginFixture(t *testing.T, opts ...webSuiteOption) (*webSuite, *authWebPack) {
 	// Enable SAML/SSO for testing
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -237,7 +238,7 @@ func TestOktaPluginUpdate(t *testing.T) {
 		string(entitlements.Identity): {Enabled: true},
 	}
 	s.webPlugin.h.SetClusterFeatures(features)
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -499,7 +500,7 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 			}
 			s.webPlugin.h.SetClusterFeatures(features)
 
-			modules.SetTestModules(t, &modules.TestModules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				TestBuildType: modules.BuildEnterprise,
 				TestFeatures: modules.Features{
 					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -801,7 +802,7 @@ func TestOktaPluginInstallWithExistingSAMLConnector(t *testing.T) {
 				string(entitlements.OktaSCIM): {Enabled: testCase.enableOktaSCIMEntitlement},
 			}
 			s.webPlugin.h.SetClusterFeatures(features)
-			modules.SetTestModules(t, &modules.TestModules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				TestBuildType: modules.BuildEnterprise,
 				TestFeatures: modules.Features{
 					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -950,7 +951,7 @@ func TestOktaPluginInstallFailsWithInvalidFormValues(t *testing.T) {
 		string(entitlements.OktaSCIM): {Enabled: true},
 	}
 	s.webPlugin.h.SetClusterFeatures(features)
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{

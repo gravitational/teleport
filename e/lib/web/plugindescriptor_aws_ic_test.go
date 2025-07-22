@@ -28,6 +28,7 @@ import (
 	awsicui "github.com/gravitational/teleport/e/lib/web/ui/awsic"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -347,7 +348,7 @@ func newAWSIdentityCenterPluginTestSuite(t *testing.T, opts ...icSuitOpt) (*webS
 
 	s.webPlugin.pluginDescriptors[types.PluginTypeAWSIdentityCenter] = cfg
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{

@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/clocki"
@@ -35,7 +36,7 @@ import (
 )
 
 func TestListReportStates(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.AccessMonitoring: {Enabled: true, Limit: int32(100)},
@@ -176,7 +177,7 @@ func TestService(t *testing.T) {
 	maxLimit := 7
 	overLimit := 120
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.AccessMonitoring: {Enabled: true, Limit: int32(maxLimit)},
@@ -309,7 +310,7 @@ func TestService(t *testing.T) {
 		}, time.Second*2, time.Millisecond*100)
 	})
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.AccessMonitoring: {Enabled: true, Limit: 0},
@@ -525,7 +526,7 @@ var (
 )
 
 func TestScheduleReportUpdate(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.AccessMonitoring: {Enabled: true},
@@ -596,7 +597,7 @@ func TestReportUpdateThreshold(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Enabled & Unlimited Access Monitoring", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestFeatures: modules.Features{
 				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 					entitlements.AccessMonitoring: {Enabled: true},
@@ -644,7 +645,7 @@ func TestReportUpdateThreshold(t *testing.T) {
 	})
 
 	t.Run("no-IGS license", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestFeatures: modules.Features{
 				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 					entitlements.AccessMonitoring: {Enabled: true, Limit: 30},
@@ -711,7 +712,7 @@ func TestGetReportExecutionDaysRange(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			modules.SetTestModules(t, &modules.TestModules{TestFeatures: tc.features})
+			modulestest.SetTestModules(t, modulestest.Modules{TestFeatures: tc.features})
 			got := getReportExecutionDaysRange()
 			require.Equal(t, tc.want, got)
 
