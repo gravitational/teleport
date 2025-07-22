@@ -116,6 +116,9 @@ module.exports = {
     notarize: true,
     hardenedRuntime: true,
     gatekeeperAssess: false,
+    // Use the same entitlements for Electron subprocesses (e.g., renderer, GPU)
+    // as those defined for the main app.
+    entitlementsInherit: 'build_resources/entitlements.mac.plist',
     // If CONNECT_TSH_APP_PATH is provided, we assume that tsh.app is already signed.
     signIgnore: env.CONNECT_TSH_APP_PATH && ['tsh.app'],
     icon: 'build_resources/icon-mac.png',
