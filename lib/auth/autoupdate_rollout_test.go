@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestSampleAgentsFromGroup(t *testing.T) {
@@ -50,7 +50,7 @@ func TestSampleAgentsFromGroup(t *testing.T) {
 		cancelFunc: func() {},
 		clock:      clock,
 		ServerID:   uuid.NewString(),
-		logger:     utils.NewSlogLoggerForTests(),
+		logger:     logtest.NewLogger(),
 		Services: &Services{
 			// The inventory is running heartbeats on the background.
 			// If we don't create a presence service this will cause panics.
@@ -145,7 +145,7 @@ func TestLookupAgentInInventory(t *testing.T) {
 		cancelFunc: func() {},
 		clock:      clock,
 		ServerID:   uuid.NewString(),
-		logger:     utils.NewSlogLoggerForTests(),
+		logger:     logtest.NewLogger(),
 		Services: &Services{
 			// The inventory is running heartbeats on the background.
 			// If we don't create a presence service this will cause panics.
@@ -228,7 +228,9 @@ func TestHandlerSampler(t *testing.T) {
 	generateHandles := func(i int) iter.Seq[inventory.UpstreamHandle] {
 		return func(yield func(inventory.UpstreamHandle) bool) {
 			for j := range i {
-				yield(&fakeHandle{id: j})
+				if !yield(&fakeHandle{id: j}) {
+					return
+				}
 			}
 		}
 	}

@@ -96,6 +96,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/tool/common"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
@@ -131,7 +132,7 @@ func TestMain(m *testing.M) {
 	modules.SetModules(&cliModules{})
 	modules.SetInsecureTestMode(true)
 
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	cryptosuites.PrecomputeRSATestKeys(m)
 	os.Exit(m.Run())
 }
@@ -3887,7 +3888,7 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 	cfg.SSH.Addr = *utils.MustParseAddr("127.0.0.1:0")
 	cfg.SSH.PublicAddrs = []utils.NetAddr{cfg.SSH.Addr}
 	cfg.SSH.DisableCreateHostUser = true
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Logger = logtest.NewLogger()
 	// Disabling debug service for tests so that it doesn't break if the data
 	// directory path is too long.
 	cfg.DebugService.Enabled = false
@@ -3936,7 +3937,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.Proxy.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.Proxy.DisableWebInterface = true
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Logger = logtest.NewLogger()
 	// Disabling debug service for tests so that it doesn't break if the data
 	// directory path is too long.
 	cfg.DebugService.Enabled = false
@@ -3988,7 +3989,7 @@ func mockSSOLogin(authServer *auth.Server, user types.User) client.SSOLoginFunc 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+		sshCert, tlsCert, err := authServer.GenerateUserTestCertsWithContext(ctx, auth.GenerateUserTestCertsRequest{
 			SSHPubKey:               keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
 			TLSPubKey:               tlsPub,
 			Username:                user.GetName(),
@@ -4028,7 +4029,7 @@ func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user types.User) c
 		require.NoError(t, err)
 		tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
 		require.NoError(t, err)
-		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+		sshCert, tlsCert, err := authServer.GenerateUserTestCertsWithContext(ctx, auth.GenerateUserTestCertsRequest{
 			SSHPubKey:      keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
 			TLSPubKey:      tlsPub,
 			Username:       user.GetName(),

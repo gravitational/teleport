@@ -35,9 +35,10 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -110,7 +111,7 @@ aws_session_token=existing
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dest := &config.DestinationMemory{}
+			dest := &destination.Memory{}
 			require.NoError(t, dest.CheckAndSetDefaults())
 			require.NoError(t, dest.Init(ctx, []string{}))
 
@@ -144,7 +145,7 @@ type mockCreateSessionInputBody struct {
 func TestBotWorkloadIdentityAWSRA(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	tests := []struct {
 		name        string
@@ -304,7 +305,7 @@ func TestBotWorkloadIdentityAWSRA(t *testing.T) {
 					Selector: config.WorkloadIdentitySelector{
 						Name: workloadIdentity.GetMetadata().GetName(),
 					},
-					Destination: &config.DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: tmpDir,
 					},
 					RoleARN:                roleArn,

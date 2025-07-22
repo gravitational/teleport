@@ -142,9 +142,9 @@ func (m *Modules) SetFeatures(features modules.Features) {}
 //	}
 //
 // TODO(tross): Get rid of global modules so this can be removed.
-func SetTestModules(t *testing.T, testModules Modules) {
+func SetTestModules(tb testing.TB, testModules Modules) {
 	defaultModules := modules.GetModules()
-	t.Cleanup(func() { modules.SetModules(defaultModules) })
-	t.Setenv("TELEPORT_TEST_NOT_SAFE_FOR_PARALLEL", "true")
+	tb.Cleanup(func() { modules.SetModules(defaultModules) })
+	tb.Setenv("TELEPORT_TEST_NOT_SAFE_FOR_PARALLEL", "true")
 	modules.SetModules(&testModules)
 }

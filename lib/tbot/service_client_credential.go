@@ -28,6 +28,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
@@ -43,7 +44,7 @@ type ClientCredentialOutputService struct {
 	cfg                *config.UnstableClientCredentialOutput
 	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
-	reloadBroadcaster  *channelBroadcaster
+	reloadBroadcaster  *internal.ChannelBroadcaster
 	statusReporter     readyz.Reporter
 	identityGenerator  *identity.Generator
 }
@@ -60,19 +61,19 @@ func (s *ClientCredentialOutputService) OneShot(ctx context.Context) error {
 }
 
 func (s *ClientCredentialOutputService) Run(ctx context.Context) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
+	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
 	defer unsubscribe()
 
-	err := runOnInterval(ctx, runOnIntervalConfig{
-		service:         s.String(),
-		name:            "output-renewal",
-		f:               s.generate,
-		interval:        s.botCfg.CredentialLifetime.RenewalInterval,
-		retryLimit:      renewalRetryLimit,
-		log:             s.log,
-		reloadCh:        reloadCh,
-		identityReadyCh: s.botIdentityReadyCh,
-		statusReporter:  s.statusReporter,
+	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
+		Service:         s.String(),
+		Name:            "output-renewal",
+		F:               s.generate,
+		Interval:        s.botCfg.CredentialLifetime.RenewalInterval,
+		RetryLimit:      renewalRetryLimit,
+		Log:             s.log,
+		ReloadCh:        reloadCh,
+		IdentityReadyCh: s.botIdentityReadyCh,
+		StatusReporter:  s.statusReporter,
 	})
 	return trace.Wrap(err)
 }

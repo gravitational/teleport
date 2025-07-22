@@ -37,7 +37,7 @@ func TestInstallers(t *testing.T) {
 		list: func(ctx context.Context) ([]types.Installer, error) {
 			return p.clusterConfigS.GetInstallers(ctx)
 		},
-		cacheList: func(ctx context.Context) ([]types.Installer, error) {
+		cacheList: func(ctx context.Context, pageSize int) ([]types.Installer, error) {
 			return p.cache.GetInstallers(ctx)
 		},
 		deleteAll: func(ctx context.Context) error {

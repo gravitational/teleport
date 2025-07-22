@@ -129,3 +129,21 @@ export const editBotError = (
   http.put(cfg.api.bot.updateV2, () => {
     return HttpResponse.json({ error: { message: error }, fields }, { status });
   });
+
+export const getBotForever = () =>
+  http.get(
+    cfg.api.bot.read,
+    () =>
+      new Promise(() => {
+        /* never resolved */
+      })
+  );
+
+export const editBotForever = () =>
+  http.put(
+    cfg.api.bot.updateV2,
+    () =>
+      new Promise(() => {
+        /* never resolved */
+      })
+  );

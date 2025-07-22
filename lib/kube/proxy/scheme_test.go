@@ -26,13 +26,13 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // TestNewClusterSchemaBuilder tests that newClusterSchemaBuilder doesn't panic
 // when it's given types already registered in the global scheme.
 func Test_newClusterSchemaBuilder(t *testing.T) {
-	_, _, _, err := newClusterSchemaBuilder(utils.NewSlogLoggerForTests(), &clientSet{})
+	_, _, _, err := newClusterSchemaBuilder(logtest.NewLogger(), &clientSet{})
 	require.NoError(t, err)
 }
 
