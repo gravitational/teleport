@@ -29,14 +29,14 @@ On *older Teleport versions*:
    with the updater:
 
    ```code
-   $ TELEPORT_DOMAIN=<Var name="example.teleport.com:443" />
+   $ TELEPORT_DOMAIN=<Var name="teleport.example.com:443" />
    $ TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/automaticupgrades/channel/default/version | sed 's/v//')"
    ```
 
    Otherwise, get the version of your Teleport cluster:
 
    ```code
-   $ TELEPORT_DOMAIN=<Var name="example.teleport.com:443" />
+   $ TELEPORT_DOMAIN=<Var name="teleport.example.com:443" />
    $ TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/ping | jq -r '.server_version')"
    ```
 

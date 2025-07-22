@@ -168,6 +168,7 @@ type testPack struct {
 	healthCheckConfig       *local.HealthCheckConfigService
 	botInstanceService      *local.BotInstanceService
 	recordingEncryption     *local.RecordingEncryptionService
+	plugin                  *local.PluginsService
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -176,7 +177,7 @@ type testFuncs[T types.Resource] struct {
 	create         func(context.Context, T) error
 	list           func(context.Context) ([]T, error)
 	cacheGet       func(context.Context, string) (T, error)
-	cacheList      func(context.Context) ([]T, error)
+	cacheList      func(context.Context, int) ([]T, error)
 	update         func(context.Context, T) error
 	deleteAll      func(context.Context) error
 	changeResource func(T)
@@ -446,6 +447,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	p.plugin = local.NewPluginsService(p.backend)
 
 	return p, nil
 }
@@ -504,6 +506,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		WorkloadIdentity:        p.workloadIdentity,
 		BotInstanceService:      p.botInstanceService,
 		RecordingEncryption:     p.recordingEncryption,
+		Plugin:                  p.plugin,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -772,6 +775,7 @@ func TestCompletenessInit(t *testing.T) {
 			GitServers:              p.gitServers,
 			HealthCheckConfig:       p.healthCheckConfig,
 			BotInstanceService:      p.botInstanceService,
+			Plugin:                  p.plugin,
 		}))
 		require.NoError(t, err)
 
@@ -858,6 +862,7 @@ func TestCompletenessReset(t *testing.T) {
 		GitServers:              p.gitServers,
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
+		Plugin:                  p.plugin,
 	}))
 	require.NoError(t, err)
 
@@ -1017,6 +1022,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		GitServers:              p.gitServers,
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
+		Plugin:                  p.plugin,
 	}))
 	require.NoError(t, err)
 
@@ -1115,6 +1121,7 @@ func initStrategy(t *testing.T) {
 		GitServers:              p.gitServers,
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
+		Plugin:                  p.plugin,
 	}))
 	require.NoError(t, err)
 
@@ -1271,6 +1278,14 @@ func withSkipPaginationTest() optionsFunc {
 	}
 }
 
+// defaultTestPageSize is the default page size used in tests.
+// to test the cache pagination logic.
+// The test setup creates defaultTestPageSize + 1 items and forwards the
+// defaultTestPageSize to the cache.cacheList(context.Context, pageSize method.
+// where the test implementation needs to forward the pageSize to the
+// resource list request/call.
+const defaultTestPageSize = 2
+
 // testResources is a generic tester for resources.
 func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T], opts ...optionsFunc) {
 	t.Helper()
@@ -1314,7 +1329,7 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	// Wait until the information has been replicated to the cache.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Make sure the cache has a single resource in it.
-		out, err = funcs.cacheList(ctx)
+		out, err = funcs.cacheList(ctx, defaultTestPageSize)
 		assert.NoError(t, err)
 		assert.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 	}, time.Second*2, time.Millisecond*250)
@@ -1329,6 +1344,15 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 
 	// update is optional as not every resource implements it
 	if funcs.update != nil {
+		// Not all create functions will result in resource being updated
+		// with the latest revision. To avoid any conditional update
+		// failures caused by mismatched revisions, an updated
+		// copy of the resource is loaded prior to updating.
+		if funcs.cacheGet != nil {
+			var err error
+			r, err = funcs.cacheGet(ctx, r.GetName())
+			require.NoError(t, err)
+		}
 		// Update the resource and upsert it into the backend again.
 		funcs.changeResource(r)
 		err = funcs.update(ctx, r)
@@ -1344,7 +1368,7 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	// Check that information has been replicated to the cache.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Make sure the cache has a single resource in it.
-		out, err = funcs.cacheList(ctx)
+		out, err = funcs.cacheList(ctx, defaultTestPageSize)
 		assert.NoError(t, err)
 		assert.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 	}, time.Second*2, time.Millisecond*250)
@@ -1355,10 +1379,11 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	// Check that information has been replicated to the cache.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Check that the cache is now empty.
-		out, err = funcs.cacheList(ctx)
+		out, err = funcs.cacheList(ctx, defaultTestPageSize)
 		assert.NoError(t, err)
 		assert.Empty(t, out)
 	}, time.Second*2, time.Millisecond*250)
+
 }
 
 // testResources153 is a generic tester for RFD153-style resources.
@@ -1888,6 +1913,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindIdentityCenterAccount:             types.Resource153ToLegacy(newIdentityCenterAccount("some_account")),
 		types.KindIdentityCenterAccountAssignment:   types.Resource153ToLegacy(newIdentityCenterAccountAssignment("some_account_assignment")),
 		types.KindIdentityCenterPrincipalAssignment: types.Resource153ToLegacy(newIdentityCenterPrincipalAssignment("some_principal_assignment")),
+		types.KindPlugin:                            &types.PluginV1{},
 		types.KindPluginStaticCredentials:           &types.PluginStaticCredentialsV1{},
 		types.KindGitServer:                         &types.ServerV2{},
 		types.KindWorkloadIdentity:                  types.Resource153ToLegacy(newWorkloadIdentity("some_identifier")),
@@ -2588,7 +2614,7 @@ func fetchEvent(t *testing.T, w types.Watcher, timeout time.Duration) types.Even
 
 func testResourcePagination[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	t.Helper()
-	totalItems := apidefaults.DefaultChunkSize + 1
+	totalItems := defaultTestPageSize + 1
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -2615,7 +2641,7 @@ func testResourcePagination[T types.Resource](t *testing.T, p *testPack, funcs t
 	}
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		out, err := funcs.cacheList(ctx)
+		out, err := funcs.cacheList(ctx, totalItems)
 		require.NoError(t, err)
 		require.Len(t, out, totalItems)
 		all, err := funcs.list(ctx)
@@ -2623,7 +2649,7 @@ func testResourcePagination[T types.Resource](t *testing.T, p *testPack, funcs t
 		require.Len(t, all, totalItems)
 	}, time.Second*3, time.Millisecond*100)
 
-	out, err := funcs.cacheList(ctx)
+	out, err := funcs.cacheList(ctx, defaultTestPageSize)
 	require.NoError(t, err)
 
 	seen := make(map[string]bool, totalItems)
@@ -2643,7 +2669,7 @@ func testResourcePagination[T types.Resource](t *testing.T, p *testPack, funcs t
 	// Wait for the cache to be empty.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Check that the cache is now empty.
-		out, err = funcs.cacheList(ctx)
+		out, err = funcs.cacheList(ctx, defaultTestPageSize)
 		assert.NoError(t, err)
 		assert.Empty(t, out)
 	}, time.Second*3, time.Millisecond*100)
@@ -2653,13 +2679,13 @@ type resourcesLister interface {
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
-func listAllResource(t *testing.T, lister resourcesLister, kind string) ([]types.ResourceWithLabels, error) {
+func listAllResource(t *testing.T, lister resourcesLister, kind string, pageSize int) ([]types.ResourceWithLabels, error) {
 	return stream.Collect(clientutils.Resources(
 		t.Context(),
 		func(ctx context.Context, limit int, startKey string) ([]types.ResourceWithLabels, string, error) {
 			resp, err := lister.ListResources(t.Context(), proto.ListResourcesRequest{
 				ResourceType: kind,
-				Limit:        int32(limit),
+				Limit:        int32(pageSize),
 				StartKey:     startKey,
 			})
 			if err != nil {

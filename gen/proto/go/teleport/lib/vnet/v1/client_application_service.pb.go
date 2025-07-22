@@ -1247,8 +1247,8 @@ func (x *SignForAppResponse) GetSignature() []byte {
 	return nil
 }
 
-// OnNewConnectionRequest is a request for OnNewConnection.
-type OnNewConnectionRequest struct {
+// OnNewAppConnectionRequest is a request for OnNewAppConnection.
+type OnNewAppConnectionRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// AppKey identifies the app the connection is being made for.
 	AppKey        *AppKey `protobuf:"bytes,1,opt,name=app_key,json=appKey,proto3" json:"app_key,omitempty"`
@@ -1256,20 +1256,20 @@ type OnNewConnectionRequest struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *OnNewConnectionRequest) Reset() {
-	*x = OnNewConnectionRequest{}
+func (x *OnNewAppConnectionRequest) Reset() {
+	*x = OnNewAppConnectionRequest{}
 	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *OnNewConnectionRequest) String() string {
+func (x *OnNewAppConnectionRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*OnNewConnectionRequest) ProtoMessage() {}
+func (*OnNewAppConnectionRequest) ProtoMessage() {}
 
-func (x *OnNewConnectionRequest) ProtoReflect() protoreflect.Message {
+func (x *OnNewAppConnectionRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1281,39 +1281,39 @@ func (x *OnNewConnectionRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OnNewConnectionRequest.ProtoReflect.Descriptor instead.
-func (*OnNewConnectionRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use OnNewAppConnectionRequest.ProtoReflect.Descriptor instead.
+func (*OnNewAppConnectionRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{20}
 }
 
-func (x *OnNewConnectionRequest) GetAppKey() *AppKey {
+func (x *OnNewAppConnectionRequest) GetAppKey() *AppKey {
 	if x != nil {
 		return x.AppKey
 	}
 	return nil
 }
 
-// OnNewConnectionRequest is a response for OnNewConnection.
-type OnNewConnectionResponse struct {
+// OnNewAppConnectionResponse is a response for OnNewAppConnection.
+type OnNewAppConnectionResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *OnNewConnectionResponse) Reset() {
-	*x = OnNewConnectionResponse{}
+func (x *OnNewAppConnectionResponse) Reset() {
+	*x = OnNewAppConnectionResponse{}
 	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *OnNewConnectionResponse) String() string {
+func (x *OnNewAppConnectionResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*OnNewConnectionResponse) ProtoMessage() {}
+func (*OnNewAppConnectionResponse) ProtoMessage() {}
 
-func (x *OnNewConnectionResponse) ProtoReflect() protoreflect.Message {
+func (x *OnNewAppConnectionResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1325,8 +1325,8 @@ func (x *OnNewConnectionResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OnNewConnectionResponse.ProtoReflect.Descriptor instead.
-func (*OnNewConnectionResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use OnNewAppConnectionResponse.ProtoReflect.Descriptor instead.
+func (*OnNewAppConnectionResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{21}
 }
 
@@ -2187,10 +2187,10 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\x0fpss_salt_length\x18\x03 \x01(\x05H\x00R\rpssSaltLength\x88\x01\x01B\x12\n" +
 	"\x10_pss_salt_length\"2\n" +
 	"\x12SignForAppResponse\x12\x1c\n" +
-	"\tsignature\x18\x01 \x01(\fR\tsignature\"O\n" +
-	"\x16OnNewConnectionRequest\x125\n" +
-	"\aapp_key\x18\x01 \x01(\v2\x1c.teleport.lib.vnet.v1.AppKeyR\x06appKey\"\x19\n" +
-	"\x17OnNewConnectionResponse\"v\n" +
+	"\tsignature\x18\x01 \x01(\fR\tsignature\"R\n" +
+	"\x19OnNewAppConnectionRequest\x125\n" +
+	"\aapp_key\x18\x01 \x01(\v2\x1c.teleport.lib.vnet.v1.AppKeyR\x06appKey\"\x1c\n" +
+	"\x1aOnNewAppConnectionResponse\"v\n" +
 	"\x19OnInvalidLocalPortRequest\x128\n" +
 	"\bapp_info\x18\x01 \x01(\v2\x1d.teleport.lib.vnet.v1.AppInfoR\aappInfo\x12\x1f\n" +
 	"\vtarget_port\x18\x02 \x01(\rR\n" +
@@ -2237,7 +2237,7 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\x04Hash\x12\x14\n" +
 	"\x10HASH_UNSPECIFIED\x10\x00\x12\r\n" +
 	"\tHASH_NONE\x10\x01\x12\x0f\n" +
-	"\vHASH_SHA256\x10\x022\xbc\f\n" +
+	"\vHASH_SHA256\x10\x022\xc5\f\n" +
 	"\x18ClientApplicationService\x12z\n" +
 	"\x13AuthenticateProcess\x120.teleport.lib.vnet.v1.AuthenticateProcessRequest\x1a1.teleport.lib.vnet.v1.AuthenticateProcessResponse\x12\x83\x01\n" +
 	"\x16ReportNetworkStackInfo\x123.teleport.lib.vnet.v1.ReportNetworkStackInfoRequest\x1a4.teleport.lib.vnet.v1.ReportNetworkStackInfoResponse\x12M\n" +
@@ -2245,8 +2245,8 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\vResolveFQDN\x12(.teleport.lib.vnet.v1.ResolveFQDNRequest\x1a).teleport.lib.vnet.v1.ResolveFQDNResponse\x12k\n" +
 	"\x0eReissueAppCert\x12+.teleport.lib.vnet.v1.ReissueAppCertRequest\x1a,.teleport.lib.vnet.v1.ReissueAppCertResponse\x12_\n" +
 	"\n" +
-	"SignForApp\x12'.teleport.lib.vnet.v1.SignForAppRequest\x1a(.teleport.lib.vnet.v1.SignForAppResponse\x12n\n" +
-	"\x0fOnNewConnection\x12,.teleport.lib.vnet.v1.OnNewConnectionRequest\x1a-.teleport.lib.vnet.v1.OnNewConnectionResponse\x12w\n" +
+	"SignForApp\x12'.teleport.lib.vnet.v1.SignForAppRequest\x1a(.teleport.lib.vnet.v1.SignForAppResponse\x12w\n" +
+	"\x12OnNewAppConnection\x12/.teleport.lib.vnet.v1.OnNewAppConnectionRequest\x1a0.teleport.lib.vnet.v1.OnNewAppConnectionResponse\x12w\n" +
 	"\x12OnInvalidLocalPort\x12/.teleport.lib.vnet.v1.OnInvalidLocalPortRequest\x1a0.teleport.lib.vnet.v1.OnInvalidLocalPortResponse\x12\x89\x01\n" +
 	"\x18GetTargetOSConfiguration\x125.teleport.lib.vnet.v1.GetTargetOSConfigurationRequest\x1a6.teleport.lib.vnet.v1.GetTargetOSConfigurationResponse\x12b\n" +
 	"\vUserTLSCert\x12(.teleport.lib.vnet.v1.UserTLSCertRequest\x1a).teleport.lib.vnet.v1.UserTLSCertResponse\x12k\n" +
@@ -2291,8 +2291,8 @@ var file_teleport_lib_vnet_v1_client_application_service_proto_goTypes = []any{
 	(*SignForAppRequest)(nil),                // 18: teleport.lib.vnet.v1.SignForAppRequest
 	(*SignRequest)(nil),                      // 19: teleport.lib.vnet.v1.SignRequest
 	(*SignForAppResponse)(nil),               // 20: teleport.lib.vnet.v1.SignForAppResponse
-	(*OnNewConnectionRequest)(nil),           // 21: teleport.lib.vnet.v1.OnNewConnectionRequest
-	(*OnNewConnectionResponse)(nil),          // 22: teleport.lib.vnet.v1.OnNewConnectionResponse
+	(*OnNewAppConnectionRequest)(nil),        // 21: teleport.lib.vnet.v1.OnNewAppConnectionRequest
+	(*OnNewAppConnectionResponse)(nil),       // 22: teleport.lib.vnet.v1.OnNewAppConnectionResponse
 	(*OnInvalidLocalPortRequest)(nil),        // 23: teleport.lib.vnet.v1.OnInvalidLocalPortRequest
 	(*OnInvalidLocalPortResponse)(nil),       // 24: teleport.lib.vnet.v1.OnInvalidLocalPortResponse
 	(*GetTargetOSConfigurationRequest)(nil),  // 25: teleport.lib.vnet.v1.GetTargetOSConfigurationRequest
@@ -2323,7 +2323,7 @@ var file_teleport_lib_vnet_v1_client_application_service_proto_depIdxs = []int32
 	14, // 9: teleport.lib.vnet.v1.SignForAppRequest.app_key:type_name -> teleport.lib.vnet.v1.AppKey
 	19, // 10: teleport.lib.vnet.v1.SignForAppRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
 	0,  // 11: teleport.lib.vnet.v1.SignRequest.hash:type_name -> teleport.lib.vnet.v1.Hash
-	14, // 12: teleport.lib.vnet.v1.OnNewConnectionRequest.app_key:type_name -> teleport.lib.vnet.v1.AppKey
+	14, // 12: teleport.lib.vnet.v1.OnNewAppConnectionRequest.app_key:type_name -> teleport.lib.vnet.v1.AppKey
 	13, // 13: teleport.lib.vnet.v1.OnInvalidLocalPortRequest.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
 	27, // 14: teleport.lib.vnet.v1.GetTargetOSConfigurationResponse.target_os_configuration:type_name -> teleport.lib.vnet.v1.TargetOSConfiguration
 	15, // 15: teleport.lib.vnet.v1.UserTLSCertResponse.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
@@ -2335,7 +2335,7 @@ var file_teleport_lib_vnet_v1_client_application_service_proto_depIdxs = []int32
 	8,  // 21: teleport.lib.vnet.v1.ClientApplicationService.ResolveFQDN:input_type -> teleport.lib.vnet.v1.ResolveFQDNRequest
 	16, // 22: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:input_type -> teleport.lib.vnet.v1.ReissueAppCertRequest
 	18, // 23: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:input_type -> teleport.lib.vnet.v1.SignForAppRequest
-	21, // 24: teleport.lib.vnet.v1.ClientApplicationService.OnNewConnection:input_type -> teleport.lib.vnet.v1.OnNewConnectionRequest
+	21, // 24: teleport.lib.vnet.v1.ClientApplicationService.OnNewAppConnection:input_type -> teleport.lib.vnet.v1.OnNewAppConnectionRequest
 	23, // 25: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:input_type -> teleport.lib.vnet.v1.OnInvalidLocalPortRequest
 	25, // 26: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:input_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationRequest
 	28, // 27: teleport.lib.vnet.v1.ClientApplicationService.UserTLSCert:input_type -> teleport.lib.vnet.v1.UserTLSCertRequest
@@ -2349,7 +2349,7 @@ var file_teleport_lib_vnet_v1_client_application_service_proto_depIdxs = []int32
 	9,  // 35: teleport.lib.vnet.v1.ClientApplicationService.ResolveFQDN:output_type -> teleport.lib.vnet.v1.ResolveFQDNResponse
 	17, // 36: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:output_type -> teleport.lib.vnet.v1.ReissueAppCertResponse
 	20, // 37: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:output_type -> teleport.lib.vnet.v1.SignForAppResponse
-	22, // 38: teleport.lib.vnet.v1.ClientApplicationService.OnNewConnection:output_type -> teleport.lib.vnet.v1.OnNewConnectionResponse
+	22, // 38: teleport.lib.vnet.v1.ClientApplicationService.OnNewAppConnection:output_type -> teleport.lib.vnet.v1.OnNewAppConnectionResponse
 	24, // 39: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:output_type -> teleport.lib.vnet.v1.OnInvalidLocalPortResponse
 	26, // 40: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:output_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationResponse
 	29, // 41: teleport.lib.vnet.v1.ClientApplicationService.UserTLSCert:output_type -> teleport.lib.vnet.v1.UserTLSCertResponse

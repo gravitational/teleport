@@ -53,8 +53,8 @@ func TestUserGroups(t *testing.T) {
 			return stream.Collect(clientutils.Resources(ctx, p.userGroups.ListUserGroups))
 		},
 		cacheGet: p.cache.GetUserGroup,
-		cacheList: func(ctx context.Context) ([]types.UserGroup, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.cache.ListUserGroups))
+		cacheList: func(ctx context.Context, pageSize int) ([]types.UserGroup, error) {
+			return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListUserGroups, pageSize))
 		},
 		update:    p.userGroups.UpdateUserGroup,
 		deleteAll: p.userGroups.DeleteAllUserGroups,
