@@ -1,5 +1,3 @@
-//go:build linux
-
 package uacc
 
 import (
@@ -68,7 +66,7 @@ func (w *wtmpdbBackend) Logout(id string, ts time.Time) error {
 		return trace.Wrap(err, int64(idInt))
 	}
 	defer stmt.Close()
-	_, err = stmt.Exec(ts.UnixMicro(), id)
+	_, err = stmt.Exec(ts.UnixMicro(), idInt)
 	return trace.Wrap(err)
 }
 
