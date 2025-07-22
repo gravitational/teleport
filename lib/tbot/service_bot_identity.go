@@ -41,7 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/state"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -143,7 +143,7 @@ func hasTokenChanged(configTokenBytes, identityBytes []byte) bool {
 // If the persisted identity does not match the onboarding profile/join token,
 // a nil identity will be returned. If the identity certificate has expired, the
 // bool return value will be false.
-func (s *identityService) loadIdentityFromStore(ctx context.Context, store bot.Destination) (*identity.Identity, bool) {
+func (s *identityService) loadIdentityFromStore(ctx context.Context, store destination.Destination) (*identity.Identity, bool) {
 	ctx, span := tracer.Start(ctx, "identityService/loadIdentityFromStore")
 	defer span.End()
 	s.log.InfoContext(ctx, "Loading existing bot identity from store", "store", store)
@@ -401,7 +401,7 @@ func (s *identityService) Run(ctx context.Context) error {
 
 func (s *identityService) renew(
 	ctx context.Context,
-	botDestination bot.Destination,
+	botDestination destination.Destination,
 ) error {
 	ctx, span := tracer.Start(ctx, "identityService/renew")
 	defer span.End()
@@ -620,7 +620,7 @@ func botIdentityFromToken(
 	case types.JoinMethodBoundKeypair:
 		joinSecret := cfg.Onboarding.BoundKeypair.RegistrationSecret
 
-		adapter := config.NewBoundkeypairDestinationAdapter(cfg.Storage.Destination)
+		adapter := destination.NewBoundkeypairDestinationAdapter(cfg.Storage.Destination)
 		boundKeypairState, err = boundkeypair.LoadClientState(ctx, adapter)
 		if trace.IsNotFound(err) && joinSecret != "" {
 			log.InfoContext(ctx, "No existing client state found, will attempt "+
