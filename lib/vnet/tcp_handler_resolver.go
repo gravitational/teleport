@@ -37,9 +37,11 @@ type tcpHandlerResolver struct {
 }
 
 type tcpHandlerResolverConfig struct {
-	clt         *clientApplicationServiceClient
-	appProvider *appProvider
-	clock       clockwork.Clock
+	clt                      *clientApplicationServiceClient
+	appProvider              *appProvider
+	sshProvider              *sshProvider
+	clock                    clockwork.Clock
+	alwaysTrustRootClusterCA bool
 }
 
 func newTCPHandlerResolver(cfg *tcpHandlerResolverConfig) *tcpHandlerResolver {
@@ -67,9 +69,10 @@ func (r *tcpHandlerResolver) resolveTCPHandler(ctx context.Context, fqdn string)
 		return &tcpHandlerSpec{
 			ipv4CIDRRange: appInfo.GetIpv4CidrRange(),
 			tcpHandler: newTCPAppHandler(&tcpAppHandlerConfig{
-				appInfo:     appInfo,
-				appProvider: r.cfg.appProvider,
-				clock:       r.cfg.clock,
+				appInfo:                  appInfo,
+				appProvider:              r.cfg.appProvider,
+				clock:                    r.cfg.clock,
+				alwaysTrustRootClusterCA: r.cfg.alwaysTrustRootClusterCA,
 			}),
 		}, nil
 	}
@@ -85,11 +88,9 @@ func (r *tcpHandlerResolver) resolveTCPHandler(ctx context.Context, fqdn string)
 		// TCP connection if this may match an SSH node or an app that may be
 		// added later so we return an undecidedHandler.
 		handler, err := newUndecidedHandler(&undecidedHandlerConfig{
-			clt:          r.cfg.clt,
-			appProvider:  r.cfg.appProvider,
-			clock:        r.cfg.clock,
-			fqdn:         fqdn,
-			webProxyAddr: matchedCluster.GetWebProxyAddr(),
+			tcpHandlerResolverConfig: r.cfg,
+			fqdn:                     fqdn,
+			webProxyAddr:             matchedCluster.GetWebProxyAddr(),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -118,9 +119,7 @@ type undecidedHandler struct {
 }
 
 type undecidedHandlerConfig struct {
-	clt          *clientApplicationServiceClient
-	appProvider  *appProvider
-	clock        clockwork.Clock
+	*tcpHandlerResolverConfig
 	fqdn         string
 	webProxyAddr string
 }
@@ -163,14 +162,16 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 	if err != nil {
 		return trace.Wrap(err, "resolving target in undecidedHandler")
 	}
+	log := log.With("fqdn", h.cfg.fqdn)
 	if matchedTCPApp := resp.GetMatchedTcpApp(); matchedTCPApp != nil {
 		// If matched a TCP app, build a tcpAppHandler that will be used for this
 		// and all subsequent connections to this address.
-		log.DebugContext(ctx, "Resolved FQDN to a matched TCP app", "fqdn", h.cfg.fqdn)
+		log.DebugContext(ctx, "Resolved FQDN to a matched TCP app")
 		tcpAppHandler := newTCPAppHandler(&tcpAppHandlerConfig{
-			appInfo:     matchedTCPApp.GetAppInfo(),
-			appProvider: h.cfg.appProvider,
-			clock:       h.cfg.clock,
+			appInfo:                  matchedTCPApp.GetAppInfo(),
+			appProvider:              h.cfg.appProvider,
+			clock:                    h.cfg.clock,
+			alwaysTrustRootClusterCA: h.cfg.alwaysTrustRootClusterCA,
 		})
 		h.setDecidedHandler(tcpAppHandler)
 		return tcpAppHandler.handleTCPConnector(ctx, localPort, connector)
@@ -178,13 +179,38 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 	if matchedWebApp := resp.GetMatchedWebApp(); matchedWebApp != nil && localPort == h.webProxyPort {
 		// If matched a web app, build a webAppHandler that will be used for this
 		// and all subsequent connections to this address.
-		log.DebugContext(ctx, "Resolved FQDN to a matched web app", "fqdn", h.cfg.fqdn)
+		log.DebugContext(ctx, "Resolved FQDN to a matched web app")
 		webAppHandler := newWebAppHandler(h.cfg.webProxyAddr, h.webProxyPort)
 		h.setDecidedHandler(webAppHandler)
 		return webAppHandler.handleTCPConnector(ctx, localPort, connector)
 	}
 	if matchedCluster := resp.GetMatchedCluster(); matchedCluster != nil && localPort == 22 {
-		return trace.NotImplemented("SSH connection forwarding not yet implemented")
+		// Matched a cluster, this FQDN could potentially match an SSH node.
+		log.DebugContext(ctx, "Resolved FQDN to a matched cluster")
+		// Attempt a dial to the target SSH node to see if it exists.
+		target := computeDialTarget(matchedCluster, h.cfg.fqdn)
+		agent := newSSHAgent()
+		targetConn, err := h.cfg.sshProvider.dial(ctx, target, agent)
+		if err != nil {
+			if trace.IsConnectionProblem(err) {
+				log.DebugContext(ctx, "Failed TCP dial to target, node might be offline")
+				return nil
+			}
+			return trace.Wrap(err, "unexpected error TCP dialing to target node at %s", h.cfg.fqdn)
+		}
+		defer targetConn.Close()
+		log.DebugContext(ctx, "TCP dial to target SSH node succeeded", "fqdn", h.cfg.fqdn)
+		// Now that we know there is a matching SSH node, this handler will
+		// permanently handle SSH connections at this address and avoid app
+		// queries on subsequent connections.
+		sshHandler := newSSHHandler(sshHandlerConfig{
+			sshProvider: h.cfg.sshProvider,
+			target:      target,
+		})
+		h.setDecidedHandler(sshHandler)
+		// Handle the incoming connection with the TCP connection to the target
+		// SSH node that has already been established.
+		return sshHandler.handleTCPConnectorWithTargetConn(ctx, connector, targetConn, agent)
 	}
 	return trace.Errorf("rejecting connection to %s:%d", h.cfg.fqdn, localPort)
 }
