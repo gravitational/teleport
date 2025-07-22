@@ -4564,15 +4564,13 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 			})
 			require.NoError(t, err)
 
-			// Start (and defer close) a agent that runs during this integration test.
-			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(&creds.KeyRing)
-			require.NoError(t, err)
-			defer helpers.CloseAgent(teleAgent, socketDirPath)
+			// Start an agent that runs during this integration test.
+			agentListener := helpers.CreateAgentServer(t, &creds.KeyRing)
 
 			// Create a *exec.Cmd that will execute the external SSH command.
 			execCmd, err := helpers.ExternalSSHCommand(helpers.CommandOptions{
 				ForwardAgent: tt.inForwardAgent,
-				SocketPath:   socketPath,
+				SocketPath:   agentListener.Path(),
 				ProxyPort:    helpers.PortStr(t, teleport.SSHProxy),
 				NodePort:     helpers.PortStr(t, teleport.SSH),
 				Command:      tt.inCommand,
@@ -4660,10 +4658,8 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 			})
 			require.NoError(t, err)
 
-			// Start (and defer close) a agent that runs during this integration test.
-			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(&creds.KeyRing)
-			require.NoError(t, err)
-			defer helpers.CloseAgent(teleAgent, socketDirPath)
+			// Start an agent that runs during this integration test.
+			agentListener := helpers.CreateAgentServer(t, &creds.KeyRing)
 
 			// Create and run an exec command twice with the passed in ControlPath. This
 			// will cause re-use of the connection and creation of two sessions within
@@ -4673,7 +4669,7 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 					ForcePTY:     true,
 					ForwardAgent: true,
 					ControlPath:  controlPath,
-					SocketPath:   socketPath,
+					SocketPath:   agentListener.Path(),
 					ProxyPort:    helpers.PortStr(t, teleport.SSHProxy),
 					NodePort:     helpers.PortStr(t, teleport.SSH),
 					Command:      "echo hello",
@@ -4758,9 +4754,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// Start an agent that runs during this integration test.
-			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(&creds.KeyRing)
-			require.NoError(t, err)
-			t.Cleanup(func() { helpers.CloseAgent(teleAgent, socketDirPath) })
+			agentListener := helpers.CreateAgentServer(t, &creds.KeyRing)
 
 			for _, withControlMaster := range []bool{false, true} {
 				t.Run(fmt.Sprintf("controlMaster=%v", withControlMaster), func(t *testing.T) {
@@ -4783,7 +4777,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 							ForwardAgent:  true,
 							X11Forwarding: true,
 							ControlPath:   controlPath,
-							SocketPath:    socketPath,
+							SocketPath:    agentListener.Path(),
 							ProxyPort:     helpers.PortStr(t, teleport.SSHProxy),
 							NodePort:      helpers.PortStr(t, teleport.SSH),
 						})

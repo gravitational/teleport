@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/srv/uacc"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/networking"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -820,28 +821,20 @@ func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File
 		return listenerFD, []string{listener.Addr().String()}, trace.Wrap(err)
 
 	case networking.NetworkingOperationListenAgent:
-		// Create a temp directory to hold the agent socket.
-		sockDir, err := os.MkdirTemp("", "teleport-")
+		listener, err := sshagent.NewUnixListener()
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-
-		sockPath := filepath.Join(sockDir, "agent.sock")
-
-		listener, err := net.Listen("unix", sockPath)
-		if err != nil {
-			os.RemoveAll(sockDir)
-			return nil, nil, trace.Wrap(err)
-		}
-		defer listener.Close()
+		// Close the listener without removing the listener socket file and dir.
+		defer listener.UnixListener.Close()
 
 		listenerFD, err := getListenerFile(listener)
 		if err != nil {
-			os.RemoveAll(sockDir)
+			listener.Close()
 			return nil, nil, trace.Wrap(err)
 		}
 
-		return listenerFD, []string{sockPath, sockDir}, nil
+		return listenerFD, []string{listener.Path(), listener.Dir()}, nil
 
 	case networking.NetworkingOperationListenX11:
 		listener, display, err := x11.OpenNewXServerListener(req.X11Request.DisplayOffset, req.X11Request.MaxDisplay, req.X11Request.ScreenNumber)

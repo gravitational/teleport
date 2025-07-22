@@ -23,7 +23,6 @@ import (
 	"crypto"
 	"fmt"
 	"net"
-	"os"
 	"os/exec"
 	"os/user"
 	"path/filepath"
@@ -139,54 +138,29 @@ func ExternalSSHCommand(o CommandOptions) (*exec.Cmd, error) {
 	return cmd, nil
 }
 
-// CreateAgent creates a SSH agent with the passed in key ring that can be used
+// CreateAgentServer creates a SSH agent with the passed in key ring that can be used
 // in tests. This is useful so tests don't clobber your system agent.
-func CreateAgent(keyRing *client.KeyRing) (*sshagent.AgentServer, string, string, error) {
-	// create a path to the unix socket
-	sockDirName := "int-test"
-	sockName := "agent.sock"
-
+func CreateAgentServer(t *testing.T, keyRing *client.KeyRing) *sshagent.UnixListener {
 	agentKey, err := keyRing.AsAgentKey()
-	if err != nil {
-		return nil, "", "", trace.Wrap(err)
-	}
+	require.NoError(t, err)
 
 	// create a (unstarted) agent and add the agent key(s) to it
 	keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
-	if !ok {
-		return nil, "", "", trace.Errorf("unexpected keyring type: %T, expected agent.ExtendedKeyring", keyring)
-	}
+	require.True(t, ok, "unexpected keyring type: %T, expected agent.ExtendedKeyring", keyring)
 
-	if err := keyring.Add(agentKey); err != nil {
-		return nil, "", "", trace.Wrap(err)
-	}
+	err = keyring.Add(agentKey)
+	require.NoError(t, err)
 
-	agentServer := sshagent.NewServer(func() (sshagent.AgentCloser, error) {
-		return sshagent.NopCloser(keyring), nil
-	})
+	listener, err := sshagent.NewUnixListener()
+	require.NoError(t, err)
+
+	agentServer, err := sshagent.NewServer(keyring, listener)
+	require.NoError(t, err)
+	t.Cleanup(func() { agentServer.Close() })
 
 	// start the SSH agent
-	err = agentServer.ListenUnixSocket(sockDirName, sockName, nil)
-	if err != nil {
-		return nil, "", "", trace.Wrap(err)
-	}
 	go agentServer.Serve()
-
-	return agentServer, agentServer.Dir, agentServer.Path, nil
-}
-
-func CloseAgent(agent *sshagent.AgentServer, socketDirPath string) error {
-	err := agent.Close()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = os.RemoveAll(socketDirPath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return listener
 }
 
 func MustCreateUserKeyRing(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) *client.KeyRing {

@@ -1754,7 +1754,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			// to maintain interoperability with OpenSSH, agent forwarding requests
 			// should never fail, all errors should be logged and we should continue
 			// processing requests.
-			err := s.handleAgentForwardNode(ctx, req, serverContext)
+			err := s.handleAgentForwardNode(ctx, serverContext)
 			if err != nil {
 				serverContext.Logger.WarnContext(ctx, "failure forwarding agent", "error", err)
 			}
@@ -1801,7 +1801,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		// to maintain interoperability with OpenSSH, agent forwarding requests
 		// should never fail, all errors should be logged and we should continue
 		// processing requests.
-		err := s.handleAgentForwardNode(ctx, req, serverContext)
+		err := s.handleAgentForwardNode(ctx, serverContext)
 		if err != nil {
 			serverContext.Logger.WarnContext(ctx, "failure forwarding agent", "error", err)
 		}
@@ -1821,7 +1821,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 
 // handleAgentForwardNode will create a unix socket and serve the agent running
 // on the client on it.
-func (s *Server) handleAgentForwardNode(ctx context.Context, _ *ssh.Request, scx *srv.ServerContext) error {
+func (s *Server) handleAgentForwardNode(ctx context.Context, scx *srv.ServerContext) error {
 	// check if the user's RBAC role allows agent forwarding
 	err := s.authHandlers.CheckAgentForward(scx)
 	if err != nil {
@@ -1850,14 +1850,17 @@ func (s *Server) serveAgent(ctx context.Context, scx *srv.ServerContext) error {
 		return trace.Wrap(err)
 	}
 
-	// start an agent server on a unix socket.  each incoming connection
+	// start an agent server on a unix socket. Each incoming connection
 	// will result in a separate agent request.
-	agentServer := sshagent.NewServer(scx.Parent().StartAgentChannel)
-	agentServer.SetListener(listener)
+	agentServer, err := sshagent.NewServer(sshagent.NewClient(scx.Parent().StartAgentChannel), listener)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	scx.Parent().AddCloser(agentServer)
 	scx.Parent().SetEnv(teleport.SSHAuthSock, listener.Addr().String())
 	scx.Parent().SetEnv(teleport.SSHAgentPID, fmt.Sprintf("%v", os.Getpid()))
-	scx.Logger.DebugContext(ctx, "Starting agent server for user", "teleport_user", scx.Identity.TeleportUser, "socket", agentServer.Path)
+	scx.Logger.DebugContext(ctx, "Starting agent server for user", "teleport_user", scx.Identity.TeleportUser, "addr", agentServer.Addr())
 	go func() {
 		if err := agentServer.Serve(); err != nil {
 			scx.Logger.ErrorContext(ctx, "agent server for user stopped", "teleport_user", scx.Identity.TeleportUser, "error", err)

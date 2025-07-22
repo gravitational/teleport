@@ -25,7 +25,6 @@ import (
 	"log/slog"
 	"net"
 	"os"
-	"os/user"
 	"path/filepath"
 	"time"
 
@@ -33,7 +32,6 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // AgentCloser extends the [agent.ExtendedAgent] interface with the
@@ -61,54 +59,26 @@ func NopCloser(std agent.ExtendedAgent) AgentCloser {
 // Getter is a function used to get an agent instance.
 type Getter func() (AgentCloser, error)
 
-// AgentServer is implementation of SSH agent server
-type AgentServer struct {
-	getAgent Getter
+// Server is implementation of SSH agent server
+type Server struct {
+	agent    agent.ExtendedAgent
 	listener net.Listener
-	Path     string
-	Dir      string
 }
 
-// NewServer returns new instance of agent server
-func NewServer(getter Getter) *AgentServer {
-	return &AgentServer{getAgent: getter}
-}
-
-func (a *AgentServer) SetListener(l net.Listener) {
-	a.listener = l
-	a.Path = l.Addr().String()
-	a.Dir = filepath.Dir(a.Path)
-}
-
-// ListenUnixSocket starts listening on a new unix socket.
-func (a *AgentServer) ListenUnixSocket(sockDir, sockName string, _ *user.User) error {
-	// Create a temp directory to hold the agent socket.
-	sockDir, err := os.MkdirTemp(os.TempDir(), sockDir+"-")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	sockPath := filepath.Join(sockDir, sockName)
-	l, err := net.Listen("unix", sockPath)
-	if err != nil {
-		a.Close()
-		return trace.Wrap(err)
-	}
-
-	a.SetListener(l)
-	return nil
+// NewServer returns a new ssh agent server.
+func NewServer(agent agent.ExtendedAgent, listener net.Listener) (*Server, error) {
+	return &Server{
+		agent:    agent,
+		listener: listener,
+	}, nil
 }
 
 // Serve starts serving on the listener, assumes that Listen was called before
-func (a *AgentServer) Serve() error {
-	if a.listener == nil {
-		return trace.BadParameter("Serve needs a Listen call first")
-	}
-
+func (s *Server) Serve() error {
 	ctx := context.Background()
 	var tempDelay time.Duration // how long to sleep on accept failure
 	for {
-		conn, err := a.listener.Accept()
+		conn, err := s.listener.Accept()
 		if err != nil {
 			var neterr net.Error
 			if !errors.As(err, &neterr) {
@@ -135,18 +105,10 @@ func (a *AgentServer) Serve() error {
 		}
 		tempDelay = 0
 
-		// get an agent instance for serving this conn
-		instance, err := a.getAgent()
-		if err != nil {
-			slog.ErrorContext(ctx, "Failed to get agent", "error", err)
-			return trace.Wrap(err)
-		}
-
 		// serve agent protocol against conn in a
 		// separate goroutine.
 		go func() {
-			defer instance.Close()
-			if err := agent.ServeAgent(instance, conn); err != nil && !errors.Is(err, io.EOF) {
+			if err := agent.ServeAgent(s.agent, conn); err != nil && !errors.Is(err, io.EOF) {
 				slog.ErrorContext(ctx, "Serving agent terminated unexpectedly", "error", err)
 			}
 		}()
@@ -154,25 +116,68 @@ func (a *AgentServer) Serve() error {
 }
 
 // Close closes listener and stops serving agent
-func (a *AgentServer) Close() error {
+func (s *Server) Close() error {
+	slog.DebugContext(context.Background(), "AgentServer is closing", "listen_addr", s.Addr())
+	return s.listener.Close()
+}
+
+// Addr returns the ssh agent server listener's network address.
+func (s *Server) Addr() string {
+	return s.listener.Addr().String()
+}
+
+// UnixListener is an ssh agent server unix listener. It is a thin wrapper
+// around [net.UnixListener] with additional cleanup logic to ensure the
+// temporary ssh agent dir and socket are removed.
+type UnixListener struct {
+	*net.UnixListener
+}
+
+// NewUnixListener creates a new teleport ssh agent listener.
+func NewUnixListener() (*UnixListener, error) {
+	// Create a temp directory to hold the agent socket.
+	sockDir, err := os.MkdirTemp("", "teleport-")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sockPath := filepath.Join(sockDir, "agent.sock")
+	sockAddr, err := net.ResolveUnixAddr("unix", sockPath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	l, err := net.ListenUnix("unix", sockAddr)
+	if err != nil {
+		os.RemoveAll(sockDir)
+		return nil, trace.Wrap(err)
+	}
+
+	return &UnixListener{l}, nil
+}
+
+// Dir returns the unix socket path.
+func (l *UnixListener) Path() string {
+	return l.UnixListener.Addr().String()
+}
+
+// Dir returns the unix socket's temporary directory.
+func (l *UnixListener) Dir() string {
+	return filepath.Dir(l.UnixListener.Addr().String())
+}
+
+// Close the unix socket and fully remove the unix socket file and directory.
+func (l *UnixListener) Close() error {
 	var errors []error
-	if a.listener != nil {
-		slog.DebugContext(context.Background(), "AgentServer is closing",
-			"listen_addr", logutils.StringerAttr(a.listener.Addr()),
-		)
-		if err := a.listener.Close(); err != nil {
-			errors = append(errors, trace.ConvertSystemError(err))
-		}
+	if err := l.UnixListener.Close(); err != nil {
+		errors = append(errors, trace.ConvertSystemError(err))
 	}
-	if a.Path != "" {
-		if err := os.Remove(a.Path); err != nil {
-			errors = append(errors, trace.ConvertSystemError(err))
-		}
+	// Ensure the listener file and directory is fully removed.
+	if err := os.Remove(l.Path()); err != nil {
+		errors = append(errors, trace.ConvertSystemError(err))
 	}
-	if a.Dir != "" {
-		if err := os.RemoveAll(a.Dir); err != nil {
-			errors = append(errors, trace.ConvertSystemError(err))
-		}
+	if err := os.RemoveAll(l.Dir()); err != nil {
+		errors = append(errors, trace.ConvertSystemError(err))
 	}
 	return trace.NewAggregate(errors...)
 }

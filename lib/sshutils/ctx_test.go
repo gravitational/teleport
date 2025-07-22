@@ -27,7 +27,7 @@ import (
 
 func TestAgentChannelClose(t *testing.T) {
 	aChannel := agentChannel{
-		ch: &mockChannel{
+		Channel: &mockChannel{
 			ReadWriter: fakeReaderWriter{},
 		},
 	}

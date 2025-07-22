@@ -28,10 +28,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 
 	rsession "github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils/networking"
 )
 
@@ -118,8 +116,7 @@ func NewConnectionContext(ctx context.Context, nconn net.Conn, sconn *ssh.Server
 // allowing the underlying ssh.Channel to be closed when the agent
 // is no longer needed.
 type agentChannel struct {
-	agent.ExtendedAgent
-	ch ssh.Channel
+	ssh.Channel
 }
 
 // Close closes the agent channel.
@@ -137,8 +134,8 @@ func (a *agentChannel) Close() error {
 	//
 	// channel 1: chan_shutdown_read: shutdown() failed for fd 8 [i0 o1]: Not a socket
 	return trace.NewAggregate(
-		a.ch.CloseWrite(),
-		a.ch.Close())
+		a.Channel.CloseWrite(),
+		a.Channel.Close())
 }
 
 // GetSessionID returns the Teleport session ID that all child ServerContexts will inherit.
@@ -159,7 +156,7 @@ func (c *ConnectionContext) SetSessionID(sessionID rsession.ID) {
 // StartAgentChannel sets up a new agent forwarding channel against this connection.  The channel
 // is automatically closed when either ConnectionContext, or the supplied context.Context
 // gets canceled.
-func (c *ConnectionContext) StartAgentChannel() (sshagent.AgentCloser, error) {
+func (c *ConnectionContext) StartAgentChannel() (io.ReadWriteCloser, error) {
 	// refuse to start an agent if forwardAgent has not yet been set.
 	if !c.GetForwardAgent() {
 		return nil, trace.AccessDenied("agent forwarding has not been requested")
@@ -170,9 +167,9 @@ func (c *ConnectionContext) StartAgentChannel() (sshagent.AgentCloser, error) {
 		return nil, trace.Wrap(err)
 	}
 	go ssh.DiscardRequests(reqC)
+
 	return &agentChannel{
-		ExtendedAgent: agent.NewClient(ch),
-		ch:            ch,
+		Channel: ch,
 	}, nil
 }
 

@@ -41,6 +41,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
@@ -61,7 +62,6 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
@@ -669,7 +669,7 @@ func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.C
 	}
 }
 
-type connectWithMFAFn = func(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent sshagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error)
+type connectWithMFAFn = func(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, sshAgent agent.ExtendedAgent, signer agentless.SignerCreator) (*client.NodeClient, error)
 
 // connectToHost establishes a connection to the target host. To reduce connection
 // latency if per session mfa is required, connections are tried with the existing
@@ -685,9 +685,6 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws terminal.WSConn, 
 		return nil, trace.Wrap(err)
 	}
 
-	getAgent := func() (sshagent.AgentCloser, error) {
-		return sshagent.NopCloser(tc.LocalAgent()), nil
-	}
 	cert, err := t.ctx.GetSSHCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -714,7 +711,7 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws terminal.WSConn, 
 	mfaCtx, mfaCancel := context.WithCancel(ctx)
 	go func() {
 		// try connecting to the node with the certs we already have
-		clt, err := t.connectToNode(directCtx, ws, tc, accessChecker, getAgent, signer)
+		clt, err := t.connectToNode(directCtx, ws, tc, accessChecker, tc.LocalAgent(), signer)
 		directResultC <- clientRes{clt: clt, err: err}
 	}()
 
@@ -722,7 +719,7 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws terminal.WSConn, 
 	// function returns early
 	go func() {
 		// try performing mfa and then connecting with the single use certs
-		clt, err := connectToNodeWithMFA(mfaCtx, ws, tc, accessChecker, getAgent, signer)
+		clt, err := connectToNodeWithMFA(mfaCtx, ws, tc, accessChecker, tc.LocalAgent(), signer)
 		mfaResultC <- clientRes{clt: clt, err: err}
 	}()
 
@@ -899,8 +896,8 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 
 // connectToNode attempts to connect to the host with the already
 // provisioned certs for the user.
-func (t *sshBaseHandler) connectToNode(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent sshagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
-	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker.CheckAccessToRemoteCluster, getAgent, signer)
+func (t *sshBaseHandler) connectToNode(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, sshAgent agent.ExtendedAgent, signer agentless.SignerCreator) (*client.NodeClient, error) {
+	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker.CheckAccessToRemoteCluster, sshAgent, signer)
 	if err != nil {
 		t.logger.WarnContext(ctx, "Unable to stream terminal - failed to dial host", "error", err)
 
@@ -952,19 +949,19 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, ws terminal.WSConn, 
 
 // connectToNodeWithMFA attempts to perform the mfa ceremony and then dial the
 // host with the retrieved single use certs.
-func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent sshagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
+func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, sshAgent agent.ExtendedAgent, signer agentless.SignerCreator) (*client.NodeClient, error) {
 	// perform mfa ceremony and retrieve new certs
 	authMethods, err := t.issueSessionMFACerts(ctx, tc, t.stream.WSStream)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return t.connectToNodeWithMFABase(ctx, ws, tc, accessChecker, getAgent, signer, authMethods)
+	return t.connectToNodeWithMFABase(ctx, ws, tc, accessChecker, sshAgent, signer, authMethods)
 }
 
 // connectToNodeWithMFABase attempts to dial the host with the provided auth
 // methods.
-func (t *sshBaseHandler) connectToNodeWithMFABase(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent sshagent.Getter, signer agentless.SignerCreator, authMethods []ssh.AuthMethod) (*client.NodeClient, error) {
+func (t *sshBaseHandler) connectToNodeWithMFABase(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, sshAgent agent.ExtendedAgent, signer agentless.SignerCreator, authMethods []ssh.AuthMethod) (*client.NodeClient, error) {
 	sshConfig := &ssh.ClientConfig{
 		User:            tc.HostLogin,
 		Auth:            authMethods,
@@ -973,7 +970,7 @@ func (t *sshBaseHandler) connectToNodeWithMFABase(ctx context.Context, ws termin
 	}
 
 	// connect to the node again with the new certs
-	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker.CheckAccessToRemoteCluster, getAgent, signer)
+	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker.CheckAccessToRemoteCluster, sshAgent, signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/forward"
-	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -847,28 +846,10 @@ func (s *remoteSite) DialTCP(params reversetunnelclient.DialParams) (net.Conn, e
 }
 
 func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
-	if params.GetUserAgent == nil && !params.IsAgentlessNode {
-		return nil, trace.BadParameter("user agent getter is required for teleport nodes")
-	}
 	s.logger.DebugContext(s.ctx, "Initiating dial and forward request",
 		"source_addr", logutils.StringerAttr(params.From),
 		"target_addr", logutils.StringerAttr(params.To),
 	)
-
-	// request user agent connection if a SSH user agent is set
-	var userAgent sshagent.AgentCloser
-	if params.GetUserAgent != nil {
-		ua, err := params.GetUserAgent()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		userAgent = ua
-		defer func() {
-			if retErr != nil {
-				retErr = trace.NewAggregate(retErr, userAgent.Close())
-			}
-		}()
-	}
 
 	// Get a host certificate for the forwarding node from the cache.
 	hostCertificate, err := s.certificateCache.getHostCertificate(s.ctx, params.Address, params.Principals)
@@ -894,7 +875,7 @@ func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ ne
 	serverConfig := forward.ServerConfig{
 		LocalAuthClient:          s.localClient,
 		TargetClusterAccessPoint: s.remoteAccessPoint,
-		UserAgent:                userAgent,
+		SSHAgentForwardingClient: params.SSHAgent,
 		IsAgentlessNode:          params.IsAgentlessNode,
 		AgentlessSigner:          params.AgentlessSigner,
 		TargetConn:               targetConn,

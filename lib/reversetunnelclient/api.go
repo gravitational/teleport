@@ -26,13 +26,13 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
-	"github.com/gravitational/teleport/lib/sshagent"
 )
 
 // ConnectedProxyGetter provides the ability to retrieve which proxy instances
@@ -50,9 +50,10 @@ type DialParams struct {
 	// To is the destination address.
 	To net.Addr
 
-	// GetUserAgent gets an SSH agent for use in connecting to the remote host. Used by the
-	// forwarding proxy.
-	GetUserAgent sshagent.Getter
+	// SSHAgent is an SSH agent client. It is used to connect to OpenSSH nodes
+	// through a forwarding proxy. It is also used for ssh agent forwarding
+	// when requested for OpenSSH, Agentless, and Teleport nodes.
+	SSHAgent agent.ExtendedAgent
 
 	// IsAgentlessNode indicates whether the Node is an OpenSSH Node.
 	// This includes Nodes whose sub kind is OpenSSH and OpenSSHEICE.

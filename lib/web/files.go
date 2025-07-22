@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
@@ -171,9 +170,6 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.Wrap(err)
 	}
 
-	getAgent := func() (sshagent.AgentCloser, error) {
-		return sshagent.NopCloser(tc.LocalAgent()), nil
-	}
 	cert, err := sctx.GetSSHCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -194,7 +190,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		"0",
 		tc.SiteName,
 		accessChecker.CheckAccessToRemoteCluster,
-		getAgent,
+		tc.LocalAgent(),
 		signer,
 	)
 	if err != nil {

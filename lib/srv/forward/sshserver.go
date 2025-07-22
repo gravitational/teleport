@@ -53,7 +53,6 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
@@ -110,8 +109,10 @@ type Server struct {
 	// authenticated on sconn (like system login, Teleport username, roles).
 	identityContext srv.IdentityContext
 
-	// userAgent is the SSH user agent that was forwarded to the proxy.
-	userAgent sshagent.AgentCloser
+	// sshAgentForwardingClient is an SSH agent forwarding client. It is used to connect
+	// to OpenSSH nodes through a forwarding proxy. It is also used for ssh agent forwarding
+	// when requested for OpenSSH, Agentless, and Teleport nodes.
+	sshAgentForwardingClient agent.ExtendedAgent
 
 	// agentlessSigner is used for client authentication when no SSH
 	// user agent is provided, ie when connecting to agentless nodes.
@@ -197,7 +198,10 @@ type ServerConfig struct {
 	// of the server being connected to, whether it is the local cluster or a
 	// remote cluster.
 	TargetClusterAccessPoint srv.AccessPoint
-	UserAgent                sshagent.AgentCloser
+	// SSHAgentForwardingClient is an SSH agent forwarding client. It is used to connect
+	// to OpenSSH nodes through a forwarding proxy. It is also used for ssh agent forwarding
+	// when requested for OpenSSH, Agentless, and Teleport nodes.
+	SSHAgentForwardingClient agent.ExtendedAgent
 	TargetConn               net.Conn
 	SrcAddr                  net.Addr
 	DstAddr                  net.Addr
@@ -290,8 +294,8 @@ func (s *ServerConfig) CheckDefaults() error {
 		}
 	}
 
-	if s.UserAgent == nil && !s.IsAgentlessNode {
-		return trace.BadParameter("user agent required for teleport nodes (agentless)")
+	if s.SSHAgentForwardingClient == nil {
+		return trace.BadParameter("ssh agent forwarding client is required")
 	}
 	if s.TargetConn == nil {
 		return trace.BadParameter("connection to target connection required")
@@ -349,28 +353,28 @@ func New(c ServerConfig) (*Server, error) {
 			"src_addr", c.SrcAddr.String(),
 			"dst_addr", c.DstAddr.String(),
 		),
-		id:              uuid.New().String(),
-		targetConn:      c.TargetConn,
-		serverConn:      utils.NewTrackingConn(serverConn),
-		clientConn:      clientConn,
-		userAgent:       c.UserAgent,
-		agentlessSigner: c.AgentlessSigner,
-		hostCertificate: c.HostCertificate,
-		useTunnel:       c.UseTunnel,
-		address:         c.Address,
-		authClient:      c.LocalAuthClient,
-		authService:     c.LocalAuthClient,
-		dataDir:         c.DataDir,
-		clock:           c.Clock,
-		hostUUID:        c.HostUUID,
-		StreamEmitter:   c.Emitter,
-		parentContext:   c.ParentContext,
-		lockWatcher:     c.LockWatcher,
-		tracerProvider:  c.TracerProvider,
-		targetID:        c.TargetID,
-		targetAddr:      c.TargetAddr,
-		targetHostname:  c.TargetHostname,
-		targetServer:    c.TargetServer,
+		id:                       uuid.New().String(),
+		targetConn:               c.TargetConn,
+		serverConn:               utils.NewTrackingConn(serverConn),
+		clientConn:               clientConn,
+		sshAgentForwardingClient: c.SSHAgentForwardingClient,
+		agentlessSigner:          c.AgentlessSigner,
+		hostCertificate:          c.HostCertificate,
+		useTunnel:                c.UseTunnel,
+		address:                  c.Address,
+		authClient:               c.LocalAuthClient,
+		authService:              c.LocalAuthClient,
+		dataDir:                  c.DataDir,
+		clock:                    c.Clock,
+		hostUUID:                 c.HostUUID,
+		StreamEmitter:            c.Emitter,
+		parentContext:            c.ParentContext,
+		lockWatcher:              c.LockWatcher,
+		tracerProvider:           c.TracerProvider,
+		targetID:                 c.TargetID,
+		targetAddr:               c.TargetAddr,
+		targetHostname:           c.TargetHostname,
+		targetServer:             c.TargetServer,
 	}
 
 	// Set the ciphers, KEX, and MACs that the in-memory server will send to the
@@ -598,9 +602,6 @@ func (s *Server) Serve() {
 			return
 		}
 
-		if s.userAgent != nil {
-			s.userAgent.Close()
-		}
 		s.targetConn.Close()
 		s.clientConn.Close()
 		s.serverConn.Close()
@@ -711,7 +712,6 @@ func (s *Server) Serve() {
 // Close will close all underlying connections that the forwarding server holds.
 func (s *Server) Close() error {
 	conns := []io.Closer{
-		s.userAgent,
 		s.sconn,
 		s.clientConn,
 		s.serverConn,
@@ -750,7 +750,7 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netCon
 		signers = []ssh.Signer{s.agentlessSigner}
 	} else {
 		var err error
-		signers, err = s.userAgent.Signers()
+		signers, err = s.sshAgentForwardingClient.Signers()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1271,7 +1271,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			// to maintain interoperability with OpenSSH, agent forwarding requests
 			// should never fail, all errors should be logged and we should continue
 			// processing requests.
-			err := s.handleAgentForward(ch, req, scx)
+			err := s.handleAgentForward(scx)
 			if err != nil {
 				scx.Logger.DebugContext(ctx, "failure forwarding agent", "error", err)
 			}
@@ -1306,7 +1306,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		// to maintain interoperability with OpenSSH, agent forwarding requests
 		// should never fail, all errors should be logged and we should continue
 		// processing requests.
-		err := s.handleAgentForward(ch, req, scx)
+		err := s.handleAgentForward(scx)
 		if err != nil {
 			scx.Logger.DebugContext(ctx, "failure forwarding agent", "error", err)
 		}
@@ -1324,32 +1324,22 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	}
 }
 
-func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
+func (s *Server) handleAgentForward(scx *srv.ServerContext) error {
 	// Check if the user's RBAC role allows agent forwarding.
-	err := s.authHandlers.CheckAgentForward(ctx)
+	err := s.authHandlers.CheckAgentForward(scx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Route authentication requests to the agent that was forwarded to the proxy.
-	// If no agent was forwarded to the proxy, create one now.
-	userAgent := s.userAgent
-	if userAgent == nil {
-		ctx.ConnectionContext.SetForwardAgent(true)
-		userAgent, err = ctx.StartAgentChannel()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		ctx.AddCloser(userAgent)
-	}
-
-	err = agent.ForwardToAgent(ctx.RemoteClient.Client, userAgent)
+	scx.ConnectionContext.SetForwardAgent(true)
+	err = agent.ForwardToAgent(scx.RemoteClient.Client, s.sshAgentForwardingClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Make an "auth-agent-req@openssh.com" request on the remote host.
-	err = agent.RequestAgentForwarding(ctx.RemoteSession.Session)
+	err = agent.RequestAgentForwarding(scx.RemoteSession.Session)
 	if err != nil {
 		return trace.Wrap(err)
 	}

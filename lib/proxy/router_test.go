@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -40,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services/readonly"
-	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -716,9 +716,9 @@ func TestRouter_DialHost(t *testing.T) {
 		},
 	}
 
-	agentGetter := func() (sshagent.AgentCloser, error) {
-		return nil, nil
-	}
+	sshAgent, ok := agent.NewKeyring().(agent.ExtendedAgent)
+	require.True(t, ok)
+
 	createSigner := func(_ context.Context, _ agentless.LocalAccessPoint, _ agentless.CertGenerator) (ssh.Signer, error) {
 		key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
 		if err != nil {
@@ -782,7 +782,7 @@ func TestRouter_DialHost(t *testing.T) {
 			assertion: func(t *testing.T, params reversetunnelclient.DialParams, conn net.Conn, err error) {
 				require.NoError(t, err)
 				require.Equal(t, srv, params.TargetServer)
-				require.NotNil(t, params.GetUserAgent)
+				require.NotNil(t, params.SSHAgent)
 				require.Nil(t, params.AgentlessSigner)
 				require.NotNil(t, conn)
 				require.Contains(t, params.Principals, "host")
@@ -801,7 +801,7 @@ func TestRouter_DialHost(t *testing.T) {
 			assertion: func(t *testing.T, params reversetunnelclient.DialParams, conn net.Conn, err error) {
 				require.NoError(t, err)
 				require.Equal(t, agentlessSrv, params.TargetServer)
-				require.Nil(t, params.GetUserAgent)
+				require.NotNil(t, params.SSHAgent)
 				require.NotNil(t, params.AgentlessSigner)
 				require.True(t, params.IsAgentlessNode)
 				require.NotNil(t, conn)
@@ -821,7 +821,7 @@ func TestRouter_DialHost(t *testing.T) {
 			assertion: func(t *testing.T, params reversetunnelclient.DialParams, conn net.Conn, err error) {
 				require.NoError(t, err)
 				require.Equal(t, agentlessEC2ICESrv, params.TargetServer)
-				require.Nil(t, params.GetUserAgent)
+				require.NotNil(t, params.SSHAgent)
 				require.Nil(t, params.AgentlessSigner)
 				require.True(t, params.IsAgentlessNode)
 				require.NotNil(t, conn)
@@ -833,7 +833,7 @@ func TestRouter_DialHost(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			conn, err := tt.router.DialHost(ctx, &utils.NetAddr{}, &utils.NetAddr{}, "host", "0", "test", nil, agentGetter, createSigner)
+			conn, err := tt.router.DialHost(ctx, &utils.NetAddr{}, &utils.NetAddr{}, "host", "0", "test", nil, sshAgent, createSigner)
 
 			var params reversetunnelclient.DialParams
 			if tt.router.localSite != nil {

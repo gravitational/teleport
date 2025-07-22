@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/uds"
@@ -247,7 +248,14 @@ func (p *Process) ListenAgent(ctx context.Context) (net.Listener, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return listener, trace.Wrap(err)
+
+	// If this is a unix listener, return as an [sshagent.UnixListener] to
+	// ensure the temporary socket dir is fully cleaned up on close.
+	if unixListener, ok := listener.(*net.UnixListener); ok {
+		return &sshagent.UnixListener{UnixListener: unixListener}, nil
+	}
+
+	return listener, nil
 }
 
 // ListenX11 requests a local XServer listener from the networking subprocess.

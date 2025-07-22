@@ -976,30 +976,24 @@ func TestList(t *testing.T) {
 }
 
 // create a new local agent key ring and serve it on $SSH_AUTH_SOCK for tests.
-func createAgent(t *testing.T) (agent.ExtendedAgent, string) {
+func createAgent(t *testing.T) string {
 	t.Helper()
-
-	sockDir := "test"
-	sockName := "agent.sock"
 
 	keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
 	require.True(t, ok)
 
-	agentServer := sshagent.NewServer(func() (sshagent.AgentCloser, error) {
-		return sshagent.NopCloser(keyring), nil
-	})
+	listener, err := sshagent.NewUnixListener()
+	require.NoError(t, err)
+
+	agentServer, err := sshagent.NewServer(keyring, listener)
+	require.NoError(t, err)
+	t.Cleanup(func() { agentServer.Close() })
 
 	// Start the SSH agent.
-	err := agentServer.ListenUnixSocket(sockDir, sockName, nil)
-	require.NoError(t, err)
 	go agentServer.Serve()
-	t.Cleanup(func() {
-		agentServer.Close()
-	})
+	t.Setenv(teleport.SSHAuthSock, agentServer.Addr())
 
-	t.Setenv(teleport.SSHAuthSock, agentServer.Path)
-
-	return keyring, agentServer.Path
+	return agentServer.Addr()
 }
 
 func disableAgent(t *testing.T) {
@@ -1076,7 +1070,7 @@ func runOpenSSHCommand(t *testing.T, configFile string, sshConnString string, po
 	sshPath, err := exec.LookPath("ssh")
 	require.NoError(t, err)
 
-	_, agentPath := createAgent(t)
+	agentPath := createAgent(t)
 	cmd := exec.Command(sshPath, ss...)
 	cmd.Env = []string{
 		fmt.Sprintf("%s=1", tshBinMainTestEnv),

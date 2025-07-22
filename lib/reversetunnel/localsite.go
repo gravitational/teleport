@@ -46,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/srv/git"
-	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	proxyutils "github.com/gravitational/teleport/lib/utils/proxy"
@@ -402,29 +401,10 @@ func (s *localSite) dialAndForwardGit(params reversetunnelclient.DialParams) (_ 
 
 func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
 	ctx := s.srv.ctx
-
-	if params.GetUserAgent == nil && !params.IsAgentlessNode {
-		return nil, trace.BadParameter("agentless node require an agent getter")
-	}
 	s.logger.DebugContext(ctx, "Initiating dial and forwarding request",
 		"source_addr", logutils.StringerAttr(params.From),
 		"target_addr", logutils.StringerAttr(params.To),
 	)
-
-	// request user agent connection if a SSH user agent is set
-	var userAgent sshagent.AgentCloser
-	if params.GetUserAgent != nil {
-		ua, err := params.GetUserAgent()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		userAgent = ua
-		defer func() {
-			if retErr != nil {
-				retErr = trace.NewAggregate(retErr, userAgent.Close())
-			}
-		}()
-	}
 
 	// If server ID matches a node that has self registered itself over the tunnel,
 	// return a connection to that node. Otherwise net.Dial to the target host.
@@ -449,7 +429,7 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 	serverConfig := forward.ServerConfig{
 		LocalAuthClient:          s.client,
 		TargetClusterAccessPoint: s.accessPoint,
-		UserAgent:                userAgent,
+		SSHAgentForwardingClient: params.SSHAgent,
 		IsAgentlessNode:          params.IsAgentlessNode,
 		AgentlessSigner:          params.AgentlessSigner,
 		TargetConn:               targetConn,
