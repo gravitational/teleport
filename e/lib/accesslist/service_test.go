@@ -24,7 +24,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
@@ -336,7 +336,7 @@ func TestService_UpsertAccessList(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Okta user can, though
-	oktaIdentity := auth.TestBuiltin(types.RoleOkta)
+	oktaIdentity := authtest.TestBuiltin(types.RoleOkta)
 	oktaUserCtx := authz.ContextWithUser(context.Background(), oktaIdentity.I)
 	_, err = c.svc.UpsertAccessList(oktaUserCtx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a5)})
 	require.NoError(t, err)
@@ -918,7 +918,7 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 		EventsService: eventService,
 	}
 
-	role, err := auth.CreateRole(ctx, clt, "access-lists", types.RoleSpecV6{
+	role, err := authtest.CreateRole(ctx, clt, "access-lists", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -930,7 +930,7 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 	})
 	require.NoError(t, err)
 
-	roleWhere, err := auth.CreateRole(ctx, clt, "access-lists-where", types.RoleSpecV6{
+	roleWhere, err := authtest.CreateRole(ctx, clt, "access-lists-where", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -946,7 +946,7 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 	})
 	require.NoError(t, err)
 
-	roleDenyWhere, err := auth.CreateRole(ctx, clt, "access-lists-deny-where", types.RoleSpecV6{
+	roleDenyWhere, err := authtest.CreateRole(ctx, clt, "access-lists-deny-where", types.RoleSpecV6{
 		Deny: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -962,7 +962,7 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 	})
 	require.NoError(t, err)
 
-	roleDenyAll, err := auth.CreateRole(ctx, clt, "access-lists-deny-all", types.RoleSpecV6{
+	roleDenyAll, err := authtest.CreateRole(ctx, clt, "access-lists-deny-all", types.RoleSpecV6{
 		Deny: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -974,16 +974,16 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 	})
 	require.NoError(t, err)
 
-	_, err = auth.CreateRole(ctx, clt, "mrole1", types.RoleSpecV6{})
+	_, err = authtest.CreateRole(ctx, clt, "mrole1", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	_, err = auth.CreateRole(ctx, clt, "mrole2", types.RoleSpecV6{})
+	_, err = authtest.CreateRole(ctx, clt, "mrole2", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	_, err = auth.CreateRole(ctx, clt, "orole1", types.RoleSpecV6{})
+	_, err = authtest.CreateRole(ctx, clt, "orole1", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	_, err = auth.CreateRole(ctx, clt, "orole2", types.RoleSpecV6{})
+	_, err = authtest.CreateRole(ctx, clt, "orole2", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	user, err := types.NewUser(testUser)
@@ -1842,7 +1842,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 	a2m1 := newAccessListMember(t, a2.GetName(), member3, accesslist.MembershipKindUser, c.clock)
 	a2m2 := newAccessListMemberWithIneligibleReason(t, a2.GetName(), "user4", c.clock, accesslist.MembershipKindUser, accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST)])
 
-	oktaIdentity := auth.TestBuiltin(types.RoleOkta)
+	oktaIdentity := authtest.TestBuiltin(types.RoleOkta)
 	oktaUserCtx := authz.ContextWithUser(context.Background(), oktaIdentity.I)
 	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, c.usageEvents, []*accesslist.AccessList{a1, a2, a3}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1})
 
@@ -2500,7 +2500,7 @@ func TestService_CreateAccessListReview(t *testing.T) {
 	})
 
 	// Create the Okta sourced access list.
-	oktaIdentity := auth.TestBuiltin(types.RoleOkta)
+	oktaIdentity := authtest.TestBuiltin(types.RoleOkta)
 	oktaUserCtx := authz.ContextWithUser(context.Background(), oktaIdentity.I)
 	createAccessListsAndMembers(t, oktaUserCtx, c.svc, c.emitter, c.usageEvents, []*accesslist.AccessList{a3}, []*accesslist.AccessListMember{a3m1, a3m2})
 

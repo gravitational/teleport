@@ -19,8 +19,8 @@ import (
 	"github.com/gravitational/teleport/e/lib/accessrequest"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -601,7 +601,7 @@ func TestSuggestAccessLists(t *testing.T) {
 
 	// create requester, access and godmode roles
 	const requesterRoleName = "requester"
-	_, err := auth.CreateRole(ctx, authServer, requesterRoleName, types.RoleSpecV6{
+	_, err := authtest.CreateRole(ctx, authServer, requesterRoleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				SearchAsRoles: []string{"access"},
@@ -610,7 +610,7 @@ func TestSuggestAccessLists(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = auth.CreateRole(ctx, authServer, "access", types.RoleSpecV6{
+	_, err = authtest.CreateRole(ctx, authServer, "access", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			NodeLabels: types.Labels{
 				"name": []string{"node"},
@@ -619,7 +619,7 @@ func TestSuggestAccessLists(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = auth.CreateRole(ctx, authServer, "godmode", types.RoleSpecV6{})
+	_, err = authtest.CreateRole(ctx, authServer, "godmode", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	// create a node, so we can request access to it
@@ -835,7 +835,7 @@ func TestPromoteAccessRequest(t *testing.T) {
 	}
 
 	upsertRole := func(roleName string, allow types.RoleConditions) {
-		_, err := auth.CreateRole(context.Background(), authServer, roleName, types.RoleSpecV6{
+		_, err := authtest.CreateRole(context.Background(), authServer, roleName, types.RoleSpecV6{
 			Allow: allow,
 		})
 		require.NoError(t, err)

@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
 	"github.com/gravitational/teleport/lib/backend"
@@ -86,7 +87,7 @@ func WithUnstartedCache(fixtureOpts *fixtureOptions) {
 
 func WithCache(args CacheArgs) auth.ServerOption {
 	return func(srv *auth.Server) error {
-		return auth.InitTestAuthCache(auth.TestAuthCacheParams{
+		return authtest.InitAuthCache(authtest.AuthCacheParams{
 			AuthServer: srv,
 			Unstarted:  !args.Started,
 		})
@@ -154,13 +155,13 @@ func NewFixture(t *testing.T, opts ...FixtureOption) *Fixture {
 	})
 	require.NoError(t, err)
 
-	authOpts := append(args.authOptions, auth.WithClock(clock))
+	authOpts := append(args.authOptions, authtest.WithClock(clock))
 	auth, err := auth.NewServer(&auth.InitConfig{
 		Authority:              authority.New(),
 		Backend:                backend,
 		ClusterName:            clusterName,
 		SkipPeriodicOperations: true,
-		VersionStorage:         auth.NewFakeTeleportVersion(),
+		VersionStorage:         authtest.NewFakeTeleportVersion(),
 	}, authOpts...)
 	require.NoError(t, err, "creating Auth server")
 	cleanup := sync.OnceFunc(func() { require.NoError(t, auth.Close()) })

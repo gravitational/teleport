@@ -15,7 +15,7 @@ import (
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -45,7 +45,7 @@ func TestAccessMonitoringSuite(t *testing.T) {
 
 type AccessMonitoringSuite struct {
 	suite.Suite
-	srv *auth.TestTLSServer
+	srv *authtest.TLSServer
 }
 
 func (s *AccessMonitoringSuite) SetupTest() {
@@ -129,7 +129,7 @@ func (s *AccessMonitoringSuite) TestAccessRequestApproved() {
 	go accessMonitoringService.Run(ctx)
 
 	// Setup access monitoring rules
-	adminClient, err := s.srv.NewClient(auth.TestUser(adminUserName))
+	adminClient, err := s.srv.NewClient(authtest.TestUser(adminUserName))
 	require.NoError(t, err)
 
 	rule := newApprovedRule("approve-dynamic-role", `
@@ -139,7 +139,7 @@ func (s *AccessMonitoringSuite) TestAccessRequestApproved() {
 	require.NoError(t, err)
 
 	// Create access request
-	requesterClient, err := s.srv.NewClient(auth.TestUser(requesterUserName))
+	requesterClient, err := s.srv.NewClient(authtest.TestUser(requesterUserName))
 	require.NoError(t, err)
 
 	req, err := services.NewAccessRequest(requesterUserName, dynamicRoleName)
@@ -172,7 +172,7 @@ func (s *AccessMonitoringSuite) TestAccessRequestDenied() {
 	go accessMonitoringService.Run(ctx)
 
 	// Setup access monitoring rules
-	adminClient, err := s.srv.NewClient(auth.TestUser(adminUserName))
+	adminClient, err := s.srv.NewClient(authtest.TestUser(adminUserName))
 	require.NoError(t, err)
 
 	rule := newDeniedRule("deny-dynamic-role", `
@@ -182,7 +182,7 @@ func (s *AccessMonitoringSuite) TestAccessRequestDenied() {
 	require.NoError(t, err)
 
 	// Create access request
-	requesterClient, err := s.srv.NewClient(auth.TestUser(requesterUserName))
+	requesterClient, err := s.srv.NewClient(authtest.TestUser(requesterUserName))
 	require.NoError(t, err)
 
 	req, err := services.NewAccessRequest(requesterUserName, dynamicRoleName)
@@ -201,8 +201,8 @@ func (s *AccessMonitoringSuite) TestAccessRequestDenied() {
 	}, 10*time.Second, 100*time.Millisecond)
 }
 
-func newTestTLSServer(t testing.TB) *auth.TestTLSServer {
-	as, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+func newTestTLSServer(t testing.TB) *authtest.TLSServer {
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)

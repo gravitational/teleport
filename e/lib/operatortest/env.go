@@ -13,6 +13,7 @@ import (
 	eauth "github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/plugin"
 )
@@ -29,7 +30,7 @@ func startAuthServer(t *testing.T) *client.Client {
 			AdvancedAccessWorkflows: true,
 		},
 	})
-	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
 		// Disable the retry interval to make tests unblock when
 		// RunWhileLocked is called.
@@ -49,7 +50,7 @@ func startAuthServer(t *testing.T) *client.Client {
 	registry := plugin.NewRegistry()
 	registry.Add(authPlugin)
 
-	server, err := auth.NewTestTLSServer(auth.TestTLSServerConfig{
+	server, err := authtest.NewTestTLSServer(authtest.TLSServerConfig{
 		APIConfig: &auth.APIConfig{
 			PluginRegistry: registry,
 			AuthServer:     authServer.AuthServer,
@@ -66,7 +67,7 @@ func startAuthServer(t *testing.T) *client.Client {
 		require.NoError(t, server.Close())
 	})
 
-	authClient, err := server.NewClient(auth.TestAdmin())
+	authClient, err := server.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
 	return authClient.APIClient

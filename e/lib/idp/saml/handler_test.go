@@ -21,7 +21,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/idp/saml/testenv"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
@@ -810,7 +810,7 @@ func setupUser(t *testing.T, svcs testenv.TEnv, expireTime time.Time) authz.Loca
 		Identity: svcs.UserService,
 	}
 
-	role, err := auth.CreateRole(ctx, clt, roleName, types.RoleSpecV6{
+	role, err := authtest.CreateRole(ctx, clt, roleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			AppLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			Rules: []types.Rule{

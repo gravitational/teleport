@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -276,7 +277,7 @@ func newOIDCSuite(t *testing.T, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
 	require.NoError(t, err)
 
 	authConfig := &auth.InitConfig{
-		VersionStorage:         auth.NewFakeTeleportVersion(),
+		VersionStorage:         authtest.NewFakeTeleportVersion(),
 		ClusterName:            clusterName,
 		Backend:                bk,
 		Authority:              authority.New(),

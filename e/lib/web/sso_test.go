@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -184,7 +184,7 @@ func getAuthRequestAndSwapID(t *testing.T, ctx context.Context, s *webSuite, id 
 }
 
 func mustCreateRole(t *testing.T, ctx context.Context, s *webSuite, name string) {
-	_, err := auth.CreateRole(ctx, s.testAuthServer.Auth(), name, types.RoleSpecV6{
+	_, err := authtest.CreateRole(ctx, s.testAuthServer.Auth(), name, types.RoleSpecV6{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.NewDuration(apidefaults.MaxCertDuration),
 		},

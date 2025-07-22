@@ -29,6 +29,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -350,7 +351,7 @@ func initService(t *testing.T) testServiceComponents {
 		ClusterName:            clusterName,
 		Backend:                backend,
 		ClusterConfiguration:   clusterConfigService,
-		VersionStorage:         auth.NewFakeTeleportVersion(),
+		VersionStorage:         authtest.NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 		Clock:                  clock,

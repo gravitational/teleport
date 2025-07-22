@@ -21,7 +21,7 @@ import (
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -181,7 +181,7 @@ func NewTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, ba
 
 // WithRole returns context with role.
 func WithRole(ctx context.Context, role types.SystemRole) context.Context {
-	identity := auth.TestBuiltin(role)
+	identity := authtest.TestBuiltin(role)
 	return authz.ContextWithUser(ctx, identity.I)
 }
 

@@ -6,12 +6,12 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 )
 
-func newTestTLSServer(t *testing.T, license License, opts ...auth.TestTLSServerOption) *auth.TestTLSServer {
+func newTestTLSServer(t *testing.T, license License, opts ...authtest.TestTLSServerOption) *authtest.TLSServer {
 	t.Helper()
-	as, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClock(),
 	})

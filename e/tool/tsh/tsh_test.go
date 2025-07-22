@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -117,7 +118,7 @@ func TestNodeAccess(t *testing.T) {
 
 	setupUserAndRole := func(t *testing.T, name string, roleSpec types.RoleSpecV6) {
 		// create role
-		role, err := auth.CreateRole(ctx, authServer, name, roleSpec)
+		role, err := authtest.CreateRole(ctx, authServer, name, roleSpec)
 		require.NoError(t, err)
 
 		// create user

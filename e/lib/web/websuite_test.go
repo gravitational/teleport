@@ -39,6 +39,7 @@ import (
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -63,7 +64,7 @@ type webSuite struct {
 	user                      string
 	webServer                 *httptest.Server
 	webServerURL              *url.URL
-	testAuthServer            *auth.TestServer
+	testAuthServer            *authtest.Server
 	webPlugin                 *Plugin
 	authPlugin                *eauth.Plugin
 	proxyClient               *authclient.Client
@@ -222,8 +223,8 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 		require.NoError(t, err)
 	}
 
-	s.testAuthServer, err = auth.NewTestServer(auth.TestServerConfig{
-		Auth: auth.TestAuthServerConfig{
+	s.testAuthServer, err = authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
 			Dir:   t.TempDir(),
 			Clock: s.clock,
 			AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
@@ -231,7 +232,7 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 			},
 			RunWhileLockedRetryInterval: options.runWhileLockedRetryInterval,
 		},
-		TLS: &auth.TestTLSServerConfig{
+		TLS: &authtest.TLSServerConfig{
 			APIConfig: &auth.APIConfig{PluginRegistry: pluginRegistry},
 		},
 	})
@@ -251,7 +252,7 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 	})
 	require.NoError(t, err)
 
-	s.proxyClient, err = s.testAuthServer.NewClient(auth.TestIdentity{
+	s.proxyClient, err = s.testAuthServer.NewClient(authtest.TestIdentity{
 		I: authz.BuiltinRole{
 			Role:     types.RoleProxy,
 			Username: "proxy",
@@ -357,7 +358,7 @@ func (s *webSuite) clientNoRedirects(opts ...roundtrip.ClientParam) *client.WebC
 }
 
 func (s *webSuite) newAdminAuthClient(ctx context.Context, t *testing.T) authclient.ClientI {
-	tlsConfig, err := s.testAuthServer.TLS.ClientTLSConfig(auth.TestIdentity{
+	tlsConfig, err := s.testAuthServer.TLS.ClientTLSConfig(authtest.TestIdentity{
 		I: authz.BuiltinRole{
 			Role:     types.RoleAdmin,
 			Username: "authcli",
@@ -525,7 +526,7 @@ func (s *webSuite) createUser(t *testing.T, user string, login string, pass stri
 		types.NewRule(types.KindIdentityCenter, services.RW()),
 	}
 	rules = append(rules, extraRules...)
-	role, err := auth.CreateRole(s.ctx, s.testAuthServer.Auth(), "editor", types.RoleSpecV6{
+	role, err := authtest.CreateRole(s.ctx, s.testAuthServer.Auth(), "editor", types.RoleSpecV6{
 		Options: types.RoleOptions{
 			CertificateFormat: constants.CertificateFormatStandard,
 			MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),

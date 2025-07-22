@@ -15,7 +15,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -242,7 +242,7 @@ func TestSearchPluginStaticCredentials(t *testing.T) {
 	}{
 		{
 			name:     "non admin or proxy",
-			identity: auth.TestUser("someuser").I,
+			identity: authtest.TestUser("someuser").I,
 			roles:    []string{},
 			expected: nil,
 			errAssertion: func(tt require.TestingT, err error, i ...any) {
@@ -251,7 +251,7 @@ func TestSearchPluginStaticCredentials(t *testing.T) {
 		},
 		{
 			name:     "admin gets arbitrary cred",
-			identity: auth.TestBuiltin(types.RoleAdmin).I,
+			identity: authtest.TestBuiltin(types.RoleAdmin).I,
 			roles:    []string{string(types.RoleAdmin)},
 			labels: map[string]string{
 				"label1": "value1",
@@ -263,7 +263,7 @@ func TestSearchPluginStaticCredentials(t *testing.T) {
 		},
 		{
 			name:     "proxy gets access denied asking for arbitrary cred",
-			identity: auth.TestBuiltin(types.RoleProxy).I,
+			identity: authtest.TestBuiltin(types.RoleProxy).I,
 			roles:    []string{string(types.RoleProxy)},
 			labels: map[string]string{
 				"label1": "value1",

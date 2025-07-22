@@ -18,7 +18,7 @@ import (
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/e/lib/okta/common/connected"
 	"github.com/gravitational/teleport/e/lib/teleport"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/clocki"
 )
@@ -423,7 +423,7 @@ func initUACSuite(t testing.TB, ctx context.Context, clock clockwork.Clock) *tes
 	testUser := "test-user@test.user"
 	testRole := "test-role"
 
-	role, err := auth.CreateRole(ctx, ap, testRole, types.RoleSpecV6{
+	role, err := authtest.CreateRole(ctx, ap, testRole, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			AppLabels: types.Labels{
 				types.Wildcard: []string{types.Wildcard},

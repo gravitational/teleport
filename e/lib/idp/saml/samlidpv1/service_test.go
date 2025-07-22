@@ -20,7 +20,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/e/lib/idp/saml/testenv"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -305,6 +305,6 @@ func setupUsers(t *testing.T, tEnv *tEnv) {
 }
 
 func withRole(ctx context.Context, role types.SystemRole) context.Context {
-	identity := auth.TestBuiltin(role)
+	identity := authtest.TestBuiltin(role)
 	return authz.ContextWithUser(ctx, identity.I)
 }

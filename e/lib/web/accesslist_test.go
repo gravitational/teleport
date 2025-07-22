@@ -19,7 +19,7 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -356,7 +356,7 @@ func createTestAccessList(t *testing.T, webPack *authWebPack, s *webSuite) strin
 	t.Helper()
 
 	// Create a valid user and role.
-	role, err := auth.CreateRole(s.ctx, s.testAuthServer.Auth(), "llama-role", types.RoleSpecV6{})
+	role, err := authtest.CreateRole(s.ctx, s.testAuthServer.Auth(), "llama-role", types.RoleSpecV6{})
 	require.NoError(t, err)
 	user, err := types.NewUser(mainOwner)
 	require.NoError(t, err)

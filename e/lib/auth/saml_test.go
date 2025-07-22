@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -95,7 +96,7 @@ func newSAMLTestFixture(t *testing.T) *samlTestFixture {
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterName,
 		Backend:                b,
-		VersionStorage:         auth.NewFakeTeleportVersion(),
+		VersionStorage:         authtest.NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}
@@ -613,7 +614,7 @@ func TestPingSAMLWorkaround(t *testing.T) {
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterName,
 		Backend:                b,
-		VersionStorage:         auth.NewFakeTeleportVersion(),
+		VersionStorage:         authtest.NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}
@@ -650,7 +651,7 @@ func TestPingSAMLWorkaround(t *testing.T) {
 	}
 
 	// SAML connector validation requires the roles in mappings exist.
-	role, err := auth.CreateRole(ctx, a, "admin", types.RoleSpecV6{})
+	role, err := authtest.CreateRole(ctx, a, "admin", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	connector, err := types.NewSAMLConnector("ping", types.SAMLConnectorSpecV2{
@@ -716,7 +717,7 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterName,
 		Backend:                b,
-		VersionStorage:         auth.NewFakeTeleportVersion(),
+		VersionStorage:         authtest.NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}
@@ -725,7 +726,7 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 	require.NoError(t, err)
 	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a, License: ValidLicense{}})
 
-	_, err = auth.CreateRole(ctx, a, "baz", types.RoleSpecV6{})
+	_, err = authtest.CreateRole(ctx, a, "baz", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	caKey, err := keys.ParsePrivateKey([]byte(fixtures.TLSCAKeyPEM))
@@ -920,7 +921,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "me.localhost",
 		Dir:         t.TempDir(),
 		Clock:       clock,
@@ -937,7 +938,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	require.Error(t, err)
 
 	// create role referenced in request.
-	_, err = auth.CreateRole(ctx, a, "access", types.RoleSpecV6{
+	_, err = authtest.CreateRole(ctx, a, "access", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{"dummy"},
 		},
@@ -1193,13 +1194,13 @@ func TestSAMLAuthRequest(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t, ValidLicense{})
 
-	emptyRole, err := auth.CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{})
+	emptyRole, err := authtest.CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	_, err = auth.CreateRole(ctx, srv.Auth(), "baz", types.RoleSpecV6{})
+	_, err = authtest.CreateRole(ctx, srv.Auth(), "baz", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	access1Role, err := auth.CreateRole(ctx, srv.Auth(), "test-access-1", types.RoleSpecV6{
+	access1Role, err := authtest.CreateRole(ctx, srv.Auth(), "test-access-1", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -1211,7 +1212,7 @@ func TestSAMLAuthRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	access2Role, err := auth.CreateRole(ctx, srv.Auth(), "test-access-2", types.RoleSpecV6{
+	access2Role, err := authtest.CreateRole(ctx, srv.Auth(), "test-access-2", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -1223,7 +1224,7 @@ func TestSAMLAuthRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	access3Role, err := auth.CreateRole(ctx, srv.Auth(), "test-access-3", types.RoleSpecV6{
+	access3Role, err := authtest.CreateRole(ctx, srv.Auth(), "test-access-3", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -1235,7 +1236,7 @@ func TestSAMLAuthRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	readerRole, err := auth.CreateRole(ctx, srv.Auth(), "test-access-4", types.RoleSpecV6{
+	readerRole, err := authtest.CreateRole(ctx, srv.Auth(), "test-access-4", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -1328,13 +1329,13 @@ func TestSAMLAuthRequest(t *testing.T) {
 		},
 	}
 
-	user, err := auth.CreateUser(ctx, srv.Auth(), "dummy")
+	user, err := authtest.CreateUser(ctx, srv.Auth(), "dummy")
 	require.NoError(t, err)
 
-	userReader, err := auth.CreateUser(ctx, srv.Auth(), "dummy-reader", readerRole)
+	userReader, err := authtest.CreateUser(ctx, srv.Auth(), "dummy-reader", readerRole)
 	require.NoError(t, err)
 
-	clientReader, err := srv.NewClient(auth.TestUser(userReader.GetName()))
+	clientReader, err := srv.NewClient(authtest.TestUser(userReader.GetName()))
 	require.NoError(t, err)
 
 	for _, tt := range tests {
@@ -1343,7 +1344,7 @@ func TestSAMLAuthRequest(t *testing.T) {
 			user, err = srv.Auth().UpsertUser(ctx, user)
 			require.NoError(t, err)
 
-			client, err := srv.NewClient(auth.TestUser(user.GetName()))
+			client, err := srv.NewClient(authtest.TestUser(user.GetName()))
 			require.NoError(t, err)
 
 			request, err := client.CreateSAMLAuthRequest(ctx, tt.request)
@@ -1376,7 +1377,7 @@ func TestSAMLAuthCompat(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	srv := newTestTLSServer(t, ValidLicense{}, func(cfg *auth.TestTLSServerConfig) {
+	srv := newTestTLSServer(t, ValidLicense{}, func(cfg *authtest.TLSServerConfig) {
 		authPlugin, err := NewPlugin(Config{License: ValidLicense{}})
 		require.NoError(t, err)
 		reg := plugin.NewRegistry()
@@ -1384,7 +1385,7 @@ func TestSAMLAuthCompat(t *testing.T) {
 		cfg.APIConfig.PluginRegistry = reg
 	})
 
-	_, err := auth.CreateRole(ctx, srv.Auth(), "access", types.RoleSpecV6{})
+	_, err := authtest.CreateRole(ctx, srv.Auth(), "access", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	// Create a fake SAML IdP that will authorize a fake user.
@@ -1416,7 +1417,7 @@ func TestSAMLAuthCompat(t *testing.T) {
 	_, err = srv.Auth().CreateSAMLConnector(context.Background(), postBindingConnector)
 	require.NoError(t, err)
 
-	proxyClient, err := srv.NewClient(auth.TestBuiltin(types.RoleProxy))
+	proxyClient, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 
 	sshKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
@@ -1573,7 +1574,7 @@ func TestSAMLLicense(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			srv := newTestTLSServer(t, tt.license)
 			roleName := conn.GetAttributesToRoles()[0].Roles[0]
-			_, err := auth.CreateRole(ctx, srv.Auth(), roleName, types.RoleSpecV6{})
+			_, err := authtest.CreateRole(ctx, srv.Auth(), roleName, types.RoleSpecV6{})
 			require.NoError(t, err)
 			_, err = srv.Auth().CreateSAMLConnector(ctx, conn)
 			require.NoError(t, err)
@@ -1611,7 +1612,7 @@ func TestServer_ValidateSAMLResponse_MFA(t *testing.T) {
 	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a, License: ValidLicense{}, Emitter: mockEmitter})
 
 	// create role referenced in request.
-	_, err := auth.CreateRole(ctx, a, "access", types.RoleSpecV6{
+	_, err := authtest.CreateRole(ctx, a, "access", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{"dummy"},
 		},
@@ -1739,14 +1740,14 @@ func TestSAMLPreferredBinding(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	srv := newTestTLSServer(t, ValidLicense{}, func(cfg *auth.TestTLSServerConfig) {
+	srv := newTestTLSServer(t, ValidLicense{}, func(cfg *authtest.TLSServerConfig) {
 		authPlugin, err := NewPlugin(Config{License: ValidLicense{}})
 		require.NoError(t, err)
 		reg := plugin.NewRegistry()
 		reg.Add(authPlugin)
 		cfg.APIConfig.PluginRegistry = reg
 	})
-	_, err := auth.CreateRole(ctx, srv.Auth(), "access", types.RoleSpecV6{})
+	_, err := authtest.CreateRole(ctx, srv.Auth(), "access", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	const (

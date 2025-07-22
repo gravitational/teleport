@@ -13,6 +13,7 @@ import (
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudv1 "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -90,7 +91,7 @@ func newCloudSuite(t *testing.T) cloudWithRolesTestSuite {
 		rolesNames[i] = r.GetName()
 	}
 
-	authIdentity := auth.TestAdmin().I
+	authIdentity := authtest.TestAdmin().I
 	authorizer := &mockAuthorizer{
 		authorize: func(ctx context.Context) (*authz.Context, error) {
 			return &authz.Context{

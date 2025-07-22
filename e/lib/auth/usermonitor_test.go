@@ -20,6 +20,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/okta/common/connected"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -619,7 +620,7 @@ func setupOktaUAC(t *testing.T, svc *UserMonitor) {
 func newUserMonitorService(t *testing.T) *UserMonitor {
 	t.Helper()
 
-	as, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClock(),
 	})
