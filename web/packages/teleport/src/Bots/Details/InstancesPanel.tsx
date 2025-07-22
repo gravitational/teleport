@@ -17,7 +17,7 @@
  */
 
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 import { Alert } from 'design/Alert/Alert';
@@ -39,6 +39,8 @@ export function InstancesPanel(props: { botName: string }) {
   const { botName } = props;
 
   const [sort, setSort] = useState('active_at_latest:desc');
+
+  const contentRef = React.useRef<HTMLDivElement>(null);
 
   const ctx = useTeleport();
   const flags = ctx.getFeatureFlags();
@@ -77,6 +79,11 @@ export function InstancesPanel(props: { botName: string }) {
         : 'active_at_latest:desc'
     );
   };
+
+  // Scrolls to the top when the selected sort changes
+  useEffect(() => {
+    contentRef.current?.scrollTo({ top: 0, behavior: 'instant' });
+  }, [sort]);
 
   return (
     <Container>
@@ -122,7 +129,7 @@ export function InstancesPanel(props: { botName: string }) {
       {isSuccess ? (
         <>
           {data.pages.length > 0 && data.pages[0].bot_instances.length > 0 ? (
-            <ContentContainer>
+            <ContentContainer ref={contentRef}>
               {data.pages.map((page, i) =>
                 page.bot_instances.map((instance, j) => (
                   <React.Fragment key={`${instance.instance_id}`}>
