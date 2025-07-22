@@ -106,7 +106,7 @@ async function initializeApp(): Promise<void> {
   } catch (error) {
     const message = 'Could not initialize the main process';
     logger.error(message, error);
-    dialog.showErrorBox(message, ensureError(error).message);
+    showDialogWithError(message, error);
     // app.exit(1) isn't equivalent to throwing an error, use an explicit return to stop further
     // execution. See https://github.com/gravitational/teleport/issues/56272.
     app.exit(1);
@@ -181,7 +181,7 @@ async function initializeApp(): Promise<void> {
   })().catch(error => {
     const message = 'Could not initialize the tshd client in the main process';
     logger.error(message, error);
-    dialog.showErrorBox(message, ensureError(error).message);
+    showDialogWithError(message, error);
     app.exit(1);
   });
 
@@ -203,7 +203,7 @@ async function initializeApp(): Promise<void> {
     .catch(error => {
       const message = 'Could not create the main app window';
       logger.error(message, error);
-      dialog.showErrorBox(message, ensureError(error).message);
+      showDialogWithError(message, error);
       app.exit(1);
     });
 
@@ -426,4 +426,11 @@ function launchDeepLink(
   // Always pass the result to the frontend app so that the error can be shown to the user.
   // Otherwise the app would receive focus but nothing would be visible in the UI.
   windowsManager.launchDeepLink(result);
+}
+
+function showDialogWithError(title: string, unknownError: unknown) {
+  const error = ensureError(unknownError);
+  // V8 includes the error message in the stack, so there's no need to append stack to message.
+  const content = error.stack || error.message;
+  dialog.showErrorBox(title, content);
 }
