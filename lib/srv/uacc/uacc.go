@@ -27,10 +27,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 )
 
-type UserAccountingBackend interface {
+type userAccountingBackend interface {
 	Name() string
 	Login(ttyName, username, hostname string, remote net.Addr, ts time.Time) (string, error)
 	Logout(id string, ts time.Time) error
@@ -38,14 +39,14 @@ type UserAccountingBackend interface {
 	IsUserLoggedIn(username string) (bool, error)
 }
 
-var backends []UserAccountingBackend
+var backends []userAccountingBackend
 
-func registerBackend(backend UserAccountingBackend) {
+func registerBackend(backend userAccountingBackend) {
 	backends = append(backends, backend)
 	slog.DebugContext(context.Background(), "registered user accounting backend", "backend", backend.Name())
 }
 
-func tryBackendOp(f func(bk UserAccountingBackend) error) error {
+func tryBackendOp(f func(bk userAccountingBackend) error) error {
 	errors := make([]error, 0, len(backends))
 	var success bool
 	for _, bk := range backends {
@@ -62,20 +63,58 @@ func tryBackendOp(f func(bk UserAccountingBackend) error) error {
 	return trace.NewAggregate(errors...)
 }
 
-func Login(ttyName, username, hostname string, remote net.Addr, ts time.Time) error {
-	return trace.Wrap(tryBackendOp(func(bk UserAccountingBackend) error {
-		return bk.Login(ttyName, username, hostname, remote, ts)
-	}))
+type UserAccounting struct {
+	keys map[string]map[string]string
 }
 
-func Logout(ttyName string, ts time.Time) error {
-	return trace.Wrap(tryBackendOp(func(bk UserAccountingBackend) error {
-		return bk.Logout(ttyName, ts)
-	}))
+func NewUserAccounting() (*UserAccounting, error) {
+	if len(backends) == 0 {
+		return nil, trace.NotImplemented("no user accounting backends available")
+	}
+	return &UserAccounting{
+		keys: make(map[string]map[string]string),
+	}, nil
+}
+
+func (uacc *UserAccounting) Login(ttyName, username, hostname string, remote net.Addr, ts time.Time) (string, error) {
+	keysPerBackend := make(map[string]string, len(backends))
+	err := tryBackendOp(func(bk userAccountingBackend) error {
+		key, err := bk.Login(ttyName, username, hostname, remote, ts)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		keysPerBackend[bk.Name()] = key
+		return nil
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	key := uuid.NewString()
+	uacc.keys[key] = keysPerBackend
+	return key, nil
+}
+
+func (uacc *UserAccounting) Logout(key string, ts time.Time) error {
+	keysPerBackend, ok := uacc.keys[key]
+	if !ok {
+		return trace.NotFound("no local user for key %q", key)
+	}
+	err := tryBackendOp(func(bk userAccountingBackend) error {
+		key, ok := keysPerBackend[bk.Name()]
+		if !ok {
+			return trace.NotFound("no local user for backend %q", bk.Name())
+		}
+		return trace.Wrap(bk.Logout(key, ts))
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	delete(uacc.keys, key)
+	return nil
 }
 
 func FailedLogin(username, hostname string, remote net.Addr, ts time.Time) error {
-	return trace.Wrap(tryBackendOp(func(bk UserAccountingBackend) error {
+	return trace.Wrap(tryBackendOp(func(bk userAccountingBackend) error {
 		return bk.FailedLogin(username, hostname, remote, ts)
 	}))
 }
@@ -83,7 +122,7 @@ func FailedLogin(username, hostname string, remote net.Addr, ts time.Time) error
 func IsUserLoggedIn(username string) (bool, error) {
 	var isUserLoggedIn bool
 	// TODO: too clever?
-	err := tryBackendOp(func(bk UserAccountingBackend) error {
+	err := tryBackendOp(func(bk userAccountingBackend) error {
 		loggedIn, err := bk.IsUserLoggedIn(username)
 		isUserLoggedIn = isUserLoggedIn || loggedIn
 		return err

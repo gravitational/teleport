@@ -30,15 +30,13 @@ import "C"
 
 import (
 	"net"
-	"os"
 	"strings"
 	"sync"
 	"time"
 	"unsafe"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // Due to thread safety design in glibc we must serialize all access to the accounting database.
@@ -69,19 +67,16 @@ const (
 
 func init() {
 	wtmp := &wtmpBackend{}
-	_, err := os.Stat(utmpFilePath)
-	if err == nil {
+	if utils.FileExists(utmpFilePath) {
 		wtmp.utmpPath = utmpFilePath
 	}
 	for _, wtmpPath := range []string{wtmpFilePath, wtmpAltFilePath} {
-		_, err = os.Stat(wtmpPath)
-		if err == nil {
+		if utils.FileExists(wtmpPath) {
 			wtmp.wtmpPath = wtmpPath
 			break
 		}
 	}
-	_, err = os.Stat(btmpFilePath)
-	if err == nil {
+	if utils.FileExists(btmpFilePath) {
 		wtmp.btmpPath = btmpFilePath
 	}
 	if wtmp.utmpPath != "" || wtmp.wtmpPath != "" || wtmp.btmpPath != "" {
@@ -100,42 +95,6 @@ func (w *wtmpBackend) Name() string {
 }
 
 func (w *wtmpBackend) Login(ttyName, username, hostname string, remote net.Addr, ts time.Time) error {
-	return nil
-}
-
-func (w *wtmpBackend) loginUtmp(ttyName, username, hostname string, remote net.Addr, ts time.Time) error {
-	return nil
-}
-
-func (w *wtmpBackend) loginWtmp(ttyName, username, hostname string, remote net.Addr, ts time.Time) error {
-	return nil
-}
-
-func (w *wtmpBackend) Logout(ttyName string, ts time.Time) error {
-	return nil
-}
-
-func (w *wtmpBackend) FailedLogin(username, hostname string, remote net.Addr, ts time.Time) error {
-	return nil
-}
-
-func (w *wtmpBackend) IsUserLoggedIn(username string) (bool, error) {
-	return false, nil
-}
-
-// Open writes a new entry to the utmp database with a tag of `USER_PROCESS`.
-// This should be called when an interactive session is started.
-//
-// `username`: Name of the user the interactive session is running under.
-// `hostname`: Name of the system the user is logged into.
-// `remote`: IPv6 address of the remote host.
-// `tty`: Pointer to the tty stream
-func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32, tty *os.File) error {
-	ttyName, err := os.Readlink(tty.Name())
-	if err != nil {
-		return trace.Errorf("failed to resolve soft proc tty link: %v", err)
-	}
-
 	// String parameter validation.
 	if len(username) > userMaxLen {
 		return trace.BadParameter("username length exceeds OS limits")
@@ -147,7 +106,7 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 		return trace.BadParameter("tty name length exceeds OS limits")
 	}
 
-	utmpPath, wtmpPath = getDefaultPaths(utmpPath, wtmpPath)
+	utmpPath, wtmpPath = getDefaultPaths(w.utmpPath, w.wtmpPath)
 	// Convert Go strings into C strings that we can pass over ffi.
 	cUtmpPath := C.CString(utmpPath)
 	defer C.free(unsafe.Pointer(cUtmpPath))
@@ -189,22 +148,13 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 	}
 }
 
-// Close marks an entry in the utmp database as DEAD_PROCESS.
-// This should be called when an interactive session exits.
-//
-// The `ttyName` parameter must be the name of the TTY including the `/dev/` prefix.
-func Close(utmpPath, wtmpPath string, tty *os.File) error {
-	ttyName, err := os.Readlink(tty.Name())
-	if err != nil {
-		return trace.Errorf("failed to resolve soft proc tty link: %v", err)
-	}
-
+func (w *wtmpBackend) Logout(ttyName string, ts time.Time) error {
 	// String parameter validation.
 	if len(ttyName) > (int)(C.max_len_tty_name()-1) {
 		return trace.BadParameter("tty name length exceeds OS limits")
 	}
 
-	utmpPath, wtmpPath = getDefaultPaths(utmpPath, wtmpPath)
+	utmpPath, wtmpPath = getDefaultPaths(w.utmpPath, w.wtmpPath)
 
 	// Convert Go strings into C strings that we can pass over ffi.
 	cUtmpPath := C.CString(utmpPath)
@@ -242,76 +192,7 @@ func Close(utmpPath, wtmpPath string, tty *os.File) error {
 	}
 }
 
-// getDefaultPaths sets the default paths for utmp and wtmp files if passed empty.
-// This function always returns both paths, even if they don't exist in the system.
-func getDefaultPaths(utmpPath, wtmpPath string) (string, string) {
-	if utmpPath == "" {
-		utmpPath = utmpFilePath
-	}
-
-	if wtmpPath == "" {
-		// Check where wtmp is located.
-		if utils.FileExists(wtmpFilePath) {
-			wtmpPath = wtmpFilePath
-		} else {
-			wtmpPath = wtmpAltFilePath
-		}
-	}
-
-	return utmpPath, wtmpPath
-}
-
-// getDefaultBtmpPaths sets the default paths for the btmp file if passed empty.
-// This function always returns a path, even if it doesn't exist in the system.
-func getDefaultBtmpPath(btmpPath string) string {
-	if btmpPath == "" {
-		return btmpFilePath
-	}
-	return btmpPath
-}
-
-// UserWithPtyInDatabase checks the user accounting database for the existence of an USER_PROCESS entry with the given username.
-func UserWithPtyInDatabase(utmpPath string, username string) error {
-	if len(username) > userMaxLen {
-		return trace.BadParameter("username length exceeds OS limits")
-	}
-
-	// Convert Go strings into C strings that we can pass over ffi.
-	var cUtmpPath *C.char
-	if len(utmpPath) > 0 {
-		cUtmpPath = C.CString(utmpPath)
-		defer C.free(unsafe.Pointer(cUtmpPath))
-	}
-	cUsername := C.CString(username)
-	defer C.free(unsafe.Pointer(cUsername))
-
-	accountDb.Lock()
-	defer accountDb.Unlock()
-	var uaccPathErr [uaccPathErrMaxLength]C.char
-	status, errno := C.uacc_has_entry_with_user(cUtmpPath, cUsername, &uaccPathErr[0])
-
-	switch status {
-	case C.UACC_UTMP_FAILED_OPEN:
-		return trace.AccessDenied("failed to open user account database, code: %d", errno)
-	case C.UACC_UTMP_ENTRY_DOES_NOT_EXIST:
-		return trace.NotFound("user not found")
-	case C.UACC_UTMP_FAILED_TO_SELECT_FILE:
-		return trace.BadParameter("failed to select file")
-	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:
-		return trace.NotFound("user accounting files are missing from the system, running in a container?")
-	default:
-		return decodeUnknownError(int(status), uaccPathErr)
-	}
-}
-
-// LogFailedLogin writes a new entry to the btmp failed login log.
-// This should be called when an interactive session fails due to a missing
-// local user.
-//
-// `username`: Name of the user the interactive session is running under.
-// `hostname`: Name of the system the user is logged into.
-// `remote`: IPv6 address of the remote host.
-func LogFailedLogin(btmpPath, username, hostname string, remote [4]int32) error {
+func (w *wtmpBackend) FailedLogin(username, hostname string, remote net.Addr, ts time.Time) error {
 	// String parameter validation.
 	if len(username) > userMaxLen {
 		return trace.BadParameter("username length exceeds OS limits")
@@ -320,7 +201,7 @@ func LogFailedLogin(btmpPath, username, hostname string, remote [4]int32) error 
 		return trace.BadParameter("hostname length exceeds OS limits")
 	}
 
-	btmpPath = getDefaultBtmpPath(btmpPath)
+	btmpPath = getDefaultBtmpPath(w.btmpPath)
 	// Convert Go strings into C strings that we can pass over ffi.
 	cBtmpPath := C.CString(btmpPath)
 	defer C.free(unsafe.Pointer(cBtmpPath))
@@ -345,6 +226,39 @@ func LogFailedLogin(btmpPath, username, hostname string, remote [4]int32) error 
 		return trace.AccessDenied("failed to add entry to btmp")
 	case C.UACC_UTMP_FAILED_OPEN:
 		return trace.AccessDenied("failed to open user account database, code: %d", errno)
+	case C.UACC_UTMP_FAILED_TO_SELECT_FILE:
+		return trace.BadParameter("failed to select file")
+	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:
+		return trace.NotFound("user accounting files are missing from the system, running in a container?")
+	default:
+		return decodeUnknownError(int(status), uaccPathErr)
+	}
+}
+
+func (w *wtmpBackend) IsUserLoggedIn(username string) (bool, error) {
+	if len(username) > userMaxLen {
+		return trace.BadParameter("username length exceeds OS limits")
+	}
+
+	// Convert Go strings into C strings that we can pass over ffi.
+	var cUtmpPath *C.char
+	if len(utmpPath) > 0 {
+		cUtmpPath = C.CString(utmpPath)
+		defer C.free(unsafe.Pointer(cUtmpPath))
+	}
+	cUsername := C.CString(username)
+	defer C.free(unsafe.Pointer(cUsername))
+
+	accountDb.Lock()
+	defer accountDb.Unlock()
+	var uaccPathErr [uaccPathErrMaxLength]C.char
+	status, errno := C.uacc_has_entry_with_user(cUtmpPath, cUsername, &uaccPathErr[0])
+
+	switch status {
+	case C.UACC_UTMP_FAILED_OPEN:
+		return trace.AccessDenied("failed to open user account database, code: %d", errno)
+	case C.UACC_UTMP_ENTRY_DOES_NOT_EXIST:
+		return trace.NotFound("user not found")
 	case C.UACC_UTMP_FAILED_TO_SELECT_FILE:
 		return trace.BadParameter("failed to select file")
 	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:
