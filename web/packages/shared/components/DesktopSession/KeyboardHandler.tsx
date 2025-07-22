@@ -19,6 +19,7 @@
 import { getPlatform, Platform } from 'design/platform';
 import { ButtonState, SyncKeys, TdpClient } from 'shared/libs/tdp';
 
+import { StuckKeys } from './StuckKeys';
 import { Withholder } from './Withholder';
 
 /**
@@ -26,6 +27,7 @@ import { Withholder } from './Withholder';
  */
 export class KeyboardHandler {
   private withholder: Withholder = new Withholder();
+  private stuckKeys: StuckKeys = new StuckKeys();
   /**
    * Tracks whether the next keydown or keyup event should sync the
    * local toggle key state to the remote machine.
@@ -95,6 +97,12 @@ export class KeyboardHandler {
    */
   private finishHandlingKeyboardEvent(params: KeyboardEventParams): void {
     const { cli, e, state } = params;
+
+    // Monitor Meta and Shift keys to prevent stuck keys from MacOS screenshot.
+    if (KeyboardHandler.isMac) {
+      this.stuckKeys.handleKeyboardEvent(params);
+    }
+
     // Special handling for CapsLock on Mac.
     if (e.code === 'CapsLock' && KeyboardHandler.isMac) {
       // On Mac, every UP or DOWN given to us by the browser corresponds
