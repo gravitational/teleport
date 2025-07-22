@@ -127,10 +127,10 @@ type ProtoStreamerConfig struct {
 	RetryConfig *retryutils.LinearConfig
 	// Encrypter wraps the final gzip writer with encryption.
 	Encrypter EncryptionWrapper
-	// SummarizerProvider is a provider of the summarizer service. It can be nil
-	// or provide a nil summarizer if summarization is not needed. The summarizer
-	// itself summarizes session recordings.
-	SummarizerProvider *summarizer.SummarizerProvider
+	// SessionSummarizerProvider is a provider of the session summarizer service.
+	// It can be nil or provide a nil summarizer if summarization is not needed.
+	// The summarizer itself summarizes session recordings.
+	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 }
 
 // CheckAndSetDefaults checks and sets streamer defaults
@@ -173,16 +173,16 @@ type ProtoStreamer struct {
 // this function is useful in tests
 func (s *ProtoStreamer) CreateAuditStreamForUpload(ctx context.Context, sid session.ID, upload StreamUpload) (apievents.Stream, error) {
 	return NewProtoStream(ProtoStreamConfig{
-		Upload:             upload,
-		BufferPool:         s.bufferPool,
-		SlicePool:          s.slicePool,
-		Uploader:           s.cfg.Uploader,
-		MinUploadBytes:     s.cfg.MinUploadBytes,
-		ConcurrentUploads:  s.cfg.ConcurrentUploads,
-		ForceFlush:         s.cfg.ForceFlush,
-		RetryConfig:        s.cfg.RetryConfig,
-		Encrypter:          s.cfg.Encrypter,
-		SummarizerProvider: s.cfg.SummarizerProvider,
+		Upload:                    upload,
+		BufferPool:                s.bufferPool,
+		SlicePool:                 s.slicePool,
+		Uploader:                  s.cfg.Uploader,
+		MinUploadBytes:            s.cfg.MinUploadBytes,
+		ConcurrentUploads:         s.cfg.ConcurrentUploads,
+		ForceFlush:                s.cfg.ForceFlush,
+		RetryConfig:               s.cfg.RetryConfig,
+		Encrypter:                 s.cfg.Encrypter,
+		SessionSummarizerProvider: s.cfg.SessionSummarizerProvider,
 	})
 }
 
@@ -205,15 +205,15 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 		return nil, trace.Wrap(err)
 	}
 	return NewProtoStream(ProtoStreamConfig{
-		Upload:             upload,
-		BufferPool:         s.bufferPool,
-		SlicePool:          s.slicePool,
-		Uploader:           s.cfg.Uploader,
-		MinUploadBytes:     s.cfg.MinUploadBytes,
-		CompletedParts:     parts,
-		RetryConfig:        s.cfg.RetryConfig,
-		Encrypter:          s.cfg.Encrypter,
-		SummarizerProvider: s.cfg.SummarizerProvider,
+		Upload:                    upload,
+		BufferPool:                s.bufferPool,
+		SlicePool:                 s.slicePool,
+		Uploader:                  s.cfg.Uploader,
+		MinUploadBytes:            s.cfg.MinUploadBytes,
+		CompletedParts:            parts,
+		RetryConfig:               s.cfg.RetryConfig,
+		Encrypter:                 s.cfg.Encrypter,
+		SessionSummarizerProvider: s.cfg.SessionSummarizerProvider,
 	})
 }
 
@@ -248,10 +248,10 @@ type ProtoStreamConfig struct {
 	RetryConfig *retryutils.LinearConfig
 	// Encrypter wraps the final gzip writer with encryption.
 	Encrypter EncryptionWrapper
-	// SummarizerProvider is a provider of the summarizer service. It can be nil
-	// or provide a nil summarizer if summarization is not needed. The summarizer
-	// itself summarizes session recordings.
-	SummarizerProvider *summarizer.SummarizerProvider
+	// SessionSummarizerProvider is a provider of the session summarizer service.
+	// It can be nil or provide a nil summarizer if summarization is not needed.
+	// The summarizer itself summarizes session recordings.
+	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -814,7 +814,7 @@ func (w *sliceWriter) completeStream() {
 			return
 		}
 
-		summarizer := w.proto.cfg.SummarizerProvider.ProvideSummarizer()
+		summarizer := w.proto.cfg.SessionSummarizerProvider.SessionSummarizer()
 		err = summarizer.Summarize(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID, w.sessionEndEvent)
 		if err != nil {
 			slog.WarnContext(w.proto.cancelCtx, "Failed to summarize upload", "error", err)

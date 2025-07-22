@@ -27,27 +27,27 @@ import (
 )
 
 func TestProvideSummarizer(t *testing.T) {
-	var provider *SummarizerProvider
-	assert.IsType(t, &NoopSummarizer{}, provider.ProvideSummarizer(),
+	var provider *SessionSummarizerProvider
+	assert.IsType(t, &NoopSummarizer{}, provider.SessionSummarizer(),
 		"nil provider should return a noop summarizer")
 
-	provider = NewSummarizerProvider()
-	assert.IsType(t, &NoopSummarizer{}, provider.ProvideSummarizer(),
+	provider = NewSessionSummarizerProvider()
+	assert.IsType(t, &NoopSummarizer{}, provider.SessionSummarizer(),
 		"new provider should return a noop summarizer")
 
 	s := &dummySummarizer{}
 	provider.SetSummarizer(s)
-	assert.Equal(t, s, provider.ProvideSummarizer(), "should return the set summarizer")
+	assert.Equal(t, s, provider.SessionSummarizer(), "should return the set summarizer")
 
 	provider.SetSummarizer(nil)
-	assert.IsType(t, &NoopSummarizer{}, provider.ProvideSummarizer(),
+	assert.IsType(t, &NoopSummarizer{}, provider.SessionSummarizer(),
 		"after setting a nil summarizer, the provider should return a noop one instead")
 
 	var ss SessionSummarizer
 	var ds *dummySummarizer = nil
 	ss = ds
 	provider.SetSummarizer(ss)
-	assert.IsType(t, &NoopSummarizer{}, provider.ProvideSummarizer(),
+	assert.IsType(t, &NoopSummarizer{}, provider.SessionSummarizer(),
 		"after setting a nil summarizer wrapped in a non-nil interface pointer, the provider should return a noop one instead")
 }
 

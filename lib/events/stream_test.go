@@ -397,11 +397,11 @@ func TestSummarization(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			summarizerProvider := &summarizer.SummarizerProvider{}
+			summarizerProvider := &summarizer.SessionSummarizerProvider{}
 			uploader := eventstest.NewMemoryUploader()
 			streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
-				Uploader:           uploader,
-				SummarizerProvider: summarizerProvider,
+				Uploader:                  uploader,
+				SessionSummarizerProvider: summarizerProvider,
 			})
 			require.NoError(t, err)
 

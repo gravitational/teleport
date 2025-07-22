@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 )
 
-// SummarizerProvider provides a reference to a Summarizer service
+// SessionSummarizerProvider provides a reference to a Summarizer service
 // implementation. Here is why it is needed:
 //
 // The actual summarizer service has to be created after the
@@ -41,15 +41,15 @@ import (
 // be replaced without ever needing to change the streamer interface by adding
 // a setter method; doing so would pollute the interface and require some
 // unnecessary stub implementations.
-type SummarizerProvider struct {
+type SessionSummarizerProvider struct {
 	summarizer SessionSummarizer
 	mu         sync.RWMutex
 }
 
-// ProvideSummarizer provides the summarizer service. It is safe to call this
-// function from any thread. Allows being called on a nil provider and
-// guarantees that the summarizer returned is never nil.
-func (p *SummarizerProvider) ProvideSummarizer() SessionSummarizer {
+// SessionSummarizer provides the configured [SessionSummarizer]. It is safe to
+// call this function from any thread. The returned [SessionSummarizer] is
+// guaranteed to never be nil.
+func (p *SessionSummarizerProvider) SessionSummarizer() SessionSummarizer {
 	if p == nil {
 		return &NoopSummarizer{}
 	}
@@ -66,15 +66,16 @@ func (p *SummarizerProvider) ProvideSummarizer() SessionSummarizer {
 
 // SetSummarizer sets the summarizer service to be provided. It is safe to call
 // this function from any thread.
-func (p *SummarizerProvider) SetSummarizer(s SessionSummarizer) {
+func (p *SessionSummarizerProvider) SetSummarizer(s SessionSummarizer) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.summarizer = s
 }
 
-// NewSummarizerProvider creates a new SummarizerProvider without a summarizer.
-func NewSummarizerProvider() *SummarizerProvider {
-	sp := &SummarizerProvider{}
+// NewSessionSummarizerProvider creates a new [SessionSummarizerProvider]
+// without a summarizer.
+func NewSessionSummarizerProvider() *SessionSummarizerProvider {
+	sp := &SessionSummarizerProvider{}
 	sp.SetSummarizer(&NoopSummarizer{})
 	return sp
 }
@@ -83,6 +84,6 @@ func NewSummarizerProvider() *SummarizerProvider {
 // interface.
 type NoopSummarizer struct{}
 
-func (*NoopSummarizer) Summarize(ctx context.Context, sessionID session.ID, sessionEndEvent *events.OneOf) error {
+func (NoopSummarizer) Summarize(ctx context.Context, sessionID session.ID, sessionEndEvent *events.OneOf) error {
 	return nil
 }
