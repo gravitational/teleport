@@ -98,7 +98,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/agentconn"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -4909,12 +4908,6 @@ func loopbackPool(proxyAddr string) *x509.CertPool {
 	}
 	logger.DebugContext(ctx, "using local pool for loopback proxy", "error", err)
 	return certPool
-}
-
-// connectToSSHAgent connects to the system SSH agent and returns an agent.Agent.
-func connectToSSHAgent() agent.ExtendedAgent {
-	socketPath := os.Getenv(teleport.SSHAuthSock)
-	return agentconn.NewSSHAgent(socketPath)
 }
 
 // Username returns the current user's username
