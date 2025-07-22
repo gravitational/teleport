@@ -41,14 +41,16 @@ func (h *passiveHealthChecker) tryProbe(ctx context.Context, probe probeFunc) {
 	if !h.lock.TryLock() {
 		return
 	}
-	go h.probeUntilHealthy(ctx, probe)
+	go func() {
+		defer h.lock.Unlock()
+		h.probeUntilHealthy(ctx, probe)
+	}()
 }
 
 func (h *passiveHealthChecker) probeUntilHealthy(ctx context.Context, probe probeFunc) {
 	var oks, fails uint
 	start := h.clock.Now()
 	timer := h.clock.NewTimer(retryInterval)
-	defer h.lock.Unlock()
 
 	for {
 		h.log.DebugContext(ctx, "Trying passive health check probe", "duration", h.clock.Since(start), "fails", fails, "oks", oks)
