@@ -39,14 +39,16 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 	)
 
 	testCases := []struct {
-		name         string
-		existingList []listWithMembersAndRoles
-		icData       icData
-		expectedList []listWithMembersAndRoles
-		groupFilters icfilters.Filters
+		name          string
+		rolesSyncMode RolesSyncMode
+		existingList  []listWithMembersAndRoles
+		icData        icData
+		expectedList  []listWithMembersAndRoles
+		groupFilters  icfilters.Filters
 	}{
 		{
-			name: "new integration with a fresh Access List from group and group member imports",
+			name:          "new integration with a fresh Access List from group and group member imports",
+			rolesSyncMode: RolesSyncModeAll,
 			icData: icData{
 				Accounts: []*icsdk.Account{account1, account2},
 				Groups: []groupWithMemberAndAssignment{
@@ -95,7 +97,8 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 			},
 		},
 		{
-			name: "matching existing access list with Identity Center groups (tests an existing integration)",
+			name:          "matching existing access list with Identity Center groups (tests an existing integration)",
+			rolesSyncMode: RolesSyncModeAll,
 			existingList: []listWithMembersAndRoles{
 				{
 					name:    "alist1",
@@ -167,7 +170,8 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 			},
 		},
 		{
-			name: "existing access list with different origin remains unchanged",
+			name:          "existing access list with different origin remains unchanged",
+			rolesSyncMode: RolesSyncModeAll,
 			existingList: []listWithMembersAndRoles{
 				{
 					name:    "alist1",
@@ -213,7 +217,8 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 			},
 		},
 		{
-			name: "identity center group should replace existing access list of the origin OriginAWSIdentityCenter",
+			name:          "identity center group should replace existing access list of the origin OriginAWSIdentityCenter",
+			rolesSyncMode: RolesSyncModeAll,
 			existingList: []listWithMembersAndRoles{
 				{
 					name:    "group1",
@@ -245,7 +250,8 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 			},
 		},
 		{
-			name: "identity center group members whose user account does not exist in Teleport should still be added as Access List members",
+			name:          "identity center group members whose user account does not exist in Teleport should still be added as Access List members",
+			rolesSyncMode: RolesSyncModeAll,
 			icData: icData{
 				Accounts: []*icsdk.Account{account1, account2},
 				Groups: []groupWithMemberAndAssignment{
@@ -268,7 +274,8 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 			},
 		},
 		{
-			name: "with an assignment that does not exist (faulty account and permission set map)",
+			name:          "with an assignment that does not exist (faulty account and permission set map)",
+			rolesSyncMode: RolesSyncModeAll,
 			icData: icData{
 				Accounts: []*icsdk.Account{account1, account2},
 				Groups: []groupWithMemberAndAssignment{
@@ -291,7 +298,8 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 			},
 		},
 		{
-			name: "groups import with filters",
+			name:          "groups import with filters",
+			rolesSyncMode: RolesSyncModeAll,
 			groupFilters: icfilters.Filters{
 				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_Id{Id: "id2"}},
 				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "acl3"}},
@@ -361,7 +369,9 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 			createAccessLists(t, ctx, tc.existingList, fixture.Auth)
 			createAccessListMembers(t, ctx, tc.existingList, fixture.Auth)
 
-			svc := newTestService(t, fixture, withLogger(slog.Default().With("test", t.Name())))
+			svc := newTestService(t, fixture,
+				withRolesSyncMode(tc.rolesSyncMode),
+				withLogger(slog.Default().With("test", t.Name())))
 
 			err := svc.importAndEmitStatus(ctx)
 			require.NoError(t, err)

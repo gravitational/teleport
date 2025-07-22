@@ -54,6 +54,23 @@ func TestIdentityCenterValidation(t *testing.T) {
 			},
 			expectError: require.Error,
 		},
+		{
+			name: "Role Sync Mode NONE with exclusive group filter is allowed",
+			mutate: func(s *types.PluginAWSICSettings) {
+				s.RolesSyncMode = types.AWSICRolesSyncModeNone
+				s.GroupSyncFilters = []*types.AWSICResourceFilter{
+					{Exclude: &types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: `*`}},
+				}
+			},
+			expectError: require.NoError,
+		},
+		{
+			name: "Role Sync Mode NONE with inclusive group filter is not allowed",
+			mutate: func(s *types.PluginAWSICSettings) {
+				s.RolesSyncMode = types.AWSICRolesSyncModeNone
+			},
+			expectError: require.Error,
+		},
 	}
 
 	for _, test := range testCases {

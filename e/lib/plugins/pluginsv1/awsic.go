@@ -46,7 +46,34 @@ func (awsicPluginHandler) validatePlugin(ctx context.Context, plugin *types.Plug
 		return trace.Wrap(err, "malformed Account Sync Filters")
 	}
 
+	// AWSICRolesSyncModeNone stops the IC integration from creating roles for each
+	// potential AWS Account Assignment. The AWS group importer expects these roles
+	// to exist when creating Access Lists so that it can preserve the group account
+	// assignments in Teleport. In order to avoid creating Access Lists that refer
+	// to non-existent roles we also need to avoid importing AWS groups, so we enforce
+	// a single exclude-everything GroupSyncFilter when RolesSyncMode is AWSICRolesSyncModeNone
+	if settings.RolesSyncMode == types.AWSICRolesSyncModeNone {
+		if !filterIsExcludesAll(settings.GroupSyncFilters) {
+			return trace.BadParameter("roleSyncMode NONE requires group_sync_filters: [excludeNameRegex: *]")
+		}
+	}
+
 	return nil
+}
+
+var excludeAll types.AWSICResourceFilter_ExcludeNameRegex = types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: "*"}
+
+func filterIsExcludesAll(filters []*types.AWSICResourceFilter) bool {
+	if len(filters) != 1 {
+		return false
+	}
+
+	f := filters[0]
+	if f.Include != nil || f.Exclude == nil {
+		return false
+	}
+
+	return excludeAll.Equal(f.Exclude)
 }
 
 // updatePlugin implements [awsicPluginHandler] for the [awsicPluginHandler].

@@ -1,6 +1,7 @@
 package awsic
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -39,6 +40,11 @@ func mustSetupAWSIdentityCenterIntegration(t *testing.T, authClient authclient.C
 	require.NoError(t, err)
 }
 
+func mustSetupOIDCIntegration(t *testing.T, authClient authclient.ClientI) {
+	_, err := authClient.CreateIntegration(t.Context(), awsOIDCIntegration())
+	require.NoError(t, err)
+}
+
 func awsOIDCIntegration() *types.IntegrationV1 {
 	return &types.IntegrationV1{
 		ResourceHeader: types.ResourceHeader{
@@ -56,7 +62,62 @@ func awsOIDCIntegration() *types.IntegrationV1 {
 	}
 }
 
-func awsICPluginRequest() *pluginspb.CreatePluginRequest {
+// createAWSIdentityCenterPlugin creates a new identity center plugin resource
+// via the supplied auth client.
+func createAWSIdentityCenterPlugin(ctx context.Context, authClient authclient.ClientI, options ...pluginOption) error {
+	_, err := authClient.PluginsClient().CreatePlugin(ctx, awsICPluginRequest(options...))
+	return err
+}
+
+type pluginOptions struct {
+	rolesSyncMode   string
+	groupSyncFilter []*types.AWSICResourceFilter
+}
+
+// pluginOption defines a customization function for creating plugin requests
+type pluginOption func(*pluginOptions)
+
+// withRolesSyncMode sets the supplied RolesSyncMode when creating a plugin creation request
+func withRolesSyncMode(m string) pluginOption {
+	return func(opts *pluginOptions) {
+		opts.rolesSyncMode = m
+	}
+}
+
+// withRolesSyncMode adds the supplied group include regex to the AWSIC plugin
+// GroupSyncFilters
+func withGroupSyncFilterInclude(re string) pluginOption {
+	return func(opts *pluginOptions) {
+		opts.groupSyncFilter = append(opts.groupSyncFilter,
+			&types.AWSICResourceFilter{
+				Include: &types.AWSICResourceFilter_NameRegex{NameRegex: re},
+			},
+		)
+	}
+}
+
+// withRolesSyncMode adds the supplied group exclude regex to the AWSIC plugin
+// GroupSyncFilters
+func withGroupSyncFilterExclude(re string) pluginOption {
+	return func(opts *pluginOptions) {
+		opts.groupSyncFilter = append(opts.groupSyncFilter,
+			&types.AWSICResourceFilter{
+				Exclude: &types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: re},
+			},
+		)
+	}
+}
+
+// awsICPluginRequest creates a potentially-customized plugin creation request
+// for an AWSIC plugin
+func awsICPluginRequest(options ...pluginOption) *pluginspb.CreatePluginRequest {
+	opts := pluginOptions{
+		rolesSyncMode: types.AWSICRolesSyncModeAll,
+	}
+	for _, optFn := range options {
+		optFn(&opts)
+	}
+
 	return &pluginspb.CreatePluginRequest{
 		Plugin: &types.PluginV1{
 			Metadata: types.Metadata{
@@ -76,6 +137,8 @@ func awsICPluginRequest() *pluginspb.CreatePluginRequest {
 							BaseUrl: "https://scim.us-east-1.amazonaws.com/11111111111-2222-3333-4444-555555555555/scim/v2",
 						},
 						SamlIdpServiceProviderName: "saml-provider",
+						RolesSyncMode:              opts.rolesSyncMode,
+						GroupSyncFilters:           opts.groupSyncFilter,
 					},
 				},
 			},
