@@ -13,7 +13,6 @@ Teleport VNet now has native support for SSH, enabling any SSH client to connect
 * Fixed a bug in the Teleport install scripts when running on MacOS. The install scripts now error instead of trying to install non existing MacOS FIPS binaries. [#56942](https://github.com/gravitational/teleport/pull/56942)
 * Fixed using relative path `TELEPORT_HOME` env with client tools managed update. [#56934](https://github.com/gravitational/teleport/pull/56934)
 * Client tools managed updates support multi-cluster environments and track each version in the configuration file. [#56934](https://github.com/gravitational/teleport/pull/56934)
-* VNet SSH enables any SSH client to connect to Teleport SSH servers with support for advanced Teleport features like per-session MFA. [#55313](https://github.com/gravitational/teleport/pull/55313)
 
 ## 17.5.6 (07/17/25)
 
