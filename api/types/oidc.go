@@ -124,10 +124,10 @@ type OIDCConnector interface {
 	// GetUserMatchers returns the set of glob patterns to narrow down which username(s) this auth connector should
 	// match for identifier-first login.
 	GetUserMatchers() []string
-	// GetEnableRequestObjects returns true if the connector should use JWT-Secured Authorization Requests when making auth requests
-	GetEnableRequestObjects() bool
-	// SetEnableRequestObjects enables/disables JWT-Secured Authorization Requests
-	SetEnableRequestObjects(bool)
+	// GetRequestObjectMode will return the RequestObjectMode of the connector.
+	GetRequestObjectMode() constants.OIDCRequestObjectMode
+	// SetRequestObjectMode sets the RequestObjectMode of the connector.
+	SetRequestObjectMode(mode constants.OIDCRequestObjectMode)
 	// SetUserMatchers sets the set of glob patterns to narrow down which username(s) this auth connector should match
 	// for identifier-first login.
 	SetUserMatchers([]string)
@@ -590,14 +590,14 @@ func (r *OIDCConnectorV3) GetUserMatchers() []string {
 	return r.Spec.UserMatchers
 }
 
-// GetEnableRequestObjects returns true if the connector should use JWT-Secured Authorization Requests when making auth requests
-func (r *OIDCConnectorV3) GetEnableRequestObjects() bool {
-	return r.Spec.EnableRequestObjects
+// GetRequestObjectMode returns the configured OIDC request object mode.
+func (r *OIDCConnectorV3) GetRequestObjectMode() constants.OIDCRequestObjectMode {
+	return constants.OIDCRequestObjectMode(r.Spec.RequestObjectMode)
 }
 
-// SetEnableRequestObjects enables/disables the use of JWT-Secured Authorization Requests when making auth requests
-func (r *OIDCConnectorV3) SetEnableRequestObjects(enable bool) {
-	r.Spec.EnableRequestObjects = enable
+// SetRequestObjectMode sets the OIDC request object mode.
+func (r *OIDCConnectorV3) SetRequestObjectMode(mode constants.OIDCRequestObjectMode) {
+	r.Spec.RequestObjectMode = string(mode)
 }
 
 // SetUserMatchers sets the set of glob patterns to narrow down which username(s) this auth connector should match
