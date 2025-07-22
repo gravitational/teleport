@@ -29,7 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -37,7 +37,7 @@ import (
 func TestExpiry(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 
-	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clock,
 		AuthPreferenceSpec: &types.AuthPreferenceSpecV2{

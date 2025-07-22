@@ -31,7 +31,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/label"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
@@ -151,7 +151,7 @@ func TestAutoUsersPostgres(t *testing.T) {
 			}
 
 			// Create user with role that allows user provisioning.
-			_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), "alice", []string{"auto"}, nil)
+			_, role, err := authtest.CreateUserAndRole(testCtx.tlsServer.Auth(), "alice", []string{"auto"}, nil)
 			require.NoError(t, err)
 			options := role.GetOptions()
 			options.CreateDatabaseUserMode = tc.mode
@@ -331,7 +331,7 @@ func TestAutoUsersMySQL(t *testing.T) {
 			go testCtx.startHandlingConnections()
 
 			// Create user with role that allows user provisioning.
-			_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), tc.teleportUser, []string{"auto"}, nil)
+			_, role, err := authtest.CreateUserAndRole(testCtx.tlsServer.Auth(), tc.teleportUser, []string{"auto"}, nil)
 			require.NoError(t, err)
 			options := role.GetOptions()
 			options.CreateDatabaseUserMode = tc.mode
@@ -414,7 +414,7 @@ func TestAutoUsersMongoDB(t *testing.T) {
 			go testCtx.startHandlingConnections()
 
 			// Create user with role that allows user provisioning.
-			_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), username, []string{"auto"}, nil)
+			_, role, err := authtest.CreateUserAndRole(testCtx.tlsServer.Auth(), username, []string{"auto"}, nil)
 			require.NoError(t, err)
 			options := role.GetOptions()
 			options.CreateDatabaseUserMode = test.mode

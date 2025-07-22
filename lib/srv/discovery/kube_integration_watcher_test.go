@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
@@ -141,7 +142,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 	)
 
 	// Create and start test auth server.
-	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)
@@ -346,7 +347,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 
 			ctx := context.Background()
 			// Create and start test auth server.
-			testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir: t.TempDir(),
 			})
 			require.NoError(t, err)
@@ -357,7 +358,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
 			// Auth client for discovery service.
-			identity := auth.TestServerID(types.RoleDiscovery, "hostID")
+			identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
 			authClient, err := tlsServer.NewClient(identity)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, authClient.Close()) })

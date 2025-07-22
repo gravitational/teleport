@@ -2925,7 +2925,7 @@ func TestGenerateHostCerts(t *testing.T) {
 	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	pubTLS, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	pubTLS, err := authtest.PrivateKeyToPublicKeyTLS(priv)
 	require.NoError(t, err)
 
 	certs, err := clt.GenerateHostCerts(ctx, &proto.HostCertsRequest{
@@ -2987,7 +2987,7 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	pubTLS, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	pubTLS, err := authtest.PrivateKeyToPublicKeyTLS(priv)
 	require.NoError(t, err)
 
 	req := proto.HostCertsRequest{

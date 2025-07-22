@@ -179,7 +179,9 @@ linters:
             - '!**/e/lib/idp/saml/testenv/**'
             - '!**/e/lib/operatortest/**'
             - '!**/e/tests/**'
+            - '!**/integration/db/fixture.go'
             - '!**/integration/helpers/**'
+            - '!**/integrations/lib/testing/**'
           deny:
             - pkg: github.com/gravitational/teleport/e/lib/aws/identitycenter/test
               desc: testing packages should not be imported outside of _test.go files

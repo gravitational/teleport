@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
@@ -1476,7 +1477,7 @@ func TestRedisNil(t *testing.T) {
 type testContext struct {
 	hostID         string
 	clusterName    string
-	tlsServer      *auth.TestTLSServer
+	tlsServer      *authtest.TLSServer
 	authServer     *auth.Server
 	authClient     *authclient.Client
 	proxyServer    *ProxyServer
@@ -2223,7 +2224,7 @@ func withClientIdleTimeout(clientIdleTimeout time.Duration) roleOptFn {
 // createUserAndRole creates Teleport user and role with specified names
 // and allowed database users/names properties.
 func (c *testContext) createUserAndRole(ctx context.Context, t testing.TB, userName, roleName string, dbUsers, dbNames []string, roleOpts ...roleOptFn) (types.User, types.Role) {
-	user, role, err := auth.CreateUserAndRole(c.tlsServer.Auth(), userName, []string{roleName}, nil)
+	user, role, err := authtest.CreateUserAndRole(c.tlsServer.Auth(), userName, []string{roleName}, nil)
 	require.NoError(t, err)
 	role.SetDatabaseUsers(types.Allow, dbUsers)
 	role.SetDatabaseNames(types.Allow, dbNames)
@@ -2296,7 +2297,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	t.Cleanup(func() { testCtx.Close() })
 
 	// Create and start test auth server.
-	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Clock:       testCtx.clock,
 		ClusterName: testCtx.clusterName,
 		AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
@@ -2341,7 +2342,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	require.NoError(t, err)
 
 	// Auth client for database service.
-	testCtx.authClient, err = testCtx.tlsServer.NewClient(auth.TestServerID(types.RoleDatabase, testCtx.hostID))
+	testCtx.authClient, err = testCtx.tlsServer.NewClient(authtest.TestServerID(types.RoleDatabase, testCtx.hostID))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testCtx.authClient.Close()) })
 
@@ -2349,7 +2350,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	require.NoError(t, err)
 
 	// Auth client, lock watcher and authorizer for database proxy.
-	proxyAuthClient, err := testCtx.tlsServer.NewClient(auth.TestBuiltin(types.RoleProxy))
+	proxyAuthClient, err := testCtx.tlsServer.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyAuthClient.Close()) })
 
@@ -2368,7 +2369,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	require.NoError(t, err)
 
 	// TLS config for database proxy and database service.
-	serverIdentity, err := auth.NewServerIdentity(authServer.AuthServer, testCtx.hostID, types.RoleDatabase)
+	serverIdentity, err := authtest.NewServerIdentity(authServer.AuthServer, testCtx.hostID, types.RoleDatabase)
 	require.NoError(t, err)
 	tlsConfig, err := serverIdentity.TLSConfig(nil)
 	require.NoError(t, err)
@@ -2517,7 +2518,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	p.setDefaults(c)
 
 	// Database service credentials.
-	serverIdentity, err := auth.NewServerIdentity(c.authServer, p.HostID, types.RoleDatabase)
+	serverIdentity, err := authtest.NewServerIdentity(c.authServer, p.HostID, types.RoleDatabase)
 	require.NoError(t, err)
 	tlsConfig, err := serverIdentity.TLSConfig(nil)
 	require.NoError(t, err)
@@ -2567,7 +2568,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	}
 
 	// Auth client for this database server identity.
-	clt, err := c.tlsServer.NewClient(auth.TestServerID(types.RoleDatabase, p.HostID))
+	clt, err := c.tlsServer.NewClient(authtest.TestServerID(types.RoleDatabase, p.HostID))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
