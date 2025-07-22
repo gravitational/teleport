@@ -471,15 +471,22 @@ func renewIdentity(
 		return newIdentity, nil
 	}
 
+	// Note: This simple expiration check is probably not the best possible
+	// solution to determine when to discard an existing identity: the client
+	// could have severe clock drift, or there could be non-expiry related
+	// reasons that an identity should be thrown out. We may improve this
+	// discard logic in the future if we determine we're still creating  excess
+	// bot instances.
 	now := time.Now()
 	if expiry, ok := facade.Expiry(); !ok || now.After(expiry) {
 		slog.WarnContext(
 			ctx,
 			"The bot identity appears to be expired and will not be used to "+
 				"authenticate the identity renewal. If it is possible to "+
-				"rejoin, a new bot instance will be issued. Ensure the "+
-				"configured certificate TTL is long enough to accommodate "+
-				"your environment and that no external issues will prevent "+
+				"rejoin, a new bot instance will be created. If this occurs "+
+				"repeatedly, ensure the local machine's clock is properly "+
+				"synchronized, the certificate TTL is adjusted to your "+
+				"environment, and that no external issues will prevent "+
 				"the bot from renewing its identity on schedule.",
 			"now", now,
 			"expiry", expiry,
