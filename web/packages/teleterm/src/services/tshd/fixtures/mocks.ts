@@ -122,9 +122,15 @@ export class MockTshClient implements TshdClient {
 export class MockVnetClient implements VnetClient {
   start = () => new MockedUnaryCall({});
   stop = () => new MockedUnaryCall({});
-  listDNSZones = () => new MockedUnaryCall({ dnsZones: [] });
+  getServiceInfo = () =>
+    new MockedUnaryCall({
+      appDnsZones: [],
+      clusters: [],
+      sshConfigured: false,
+      vnetSshConfigPath:
+        '/Users/user/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config',
+    });
   getBackgroundItemStatus = () => new MockedUnaryCall({ status: 0 });
-
   runDiagnostics() {
     return new MockedUnaryCall({
       report: {
@@ -133,4 +139,5 @@ export class MockVnetClient implements VnetClient {
       },
     });
   }
+  autoConfigureSSH = () => new MockedUnaryCall({});
 }

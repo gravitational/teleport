@@ -18,52 +18,45 @@
 
 import { useCallback, useMemo } from 'react';
 
+import { GetServiceInfoResponse } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
+import { ensureError } from 'shared/utils/error';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { VnetLauncherArgs } from 'teleterm/ui/services/workspacesService/documentsService/types';
 import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
-import { ResourceUri, routing } from 'teleterm/ui/uri';
+import { routing } from 'teleterm/ui/uri';
 
 import { useVnetContext } from './vnetContext';
 
-export type VnetAppLauncher = (args: VnetAppLauncherArgs) => Promise<void>;
+export type VnetLauncher = (args: VnetLauncherArgs) => Promise<void>;
 
-// NOTE: Almost every field added to VnetAppLauncherArgs will need to be added to DocumentVnetInfo.
-//
-// This is because during the first launch of VNet through useVnetAppLauncher, the act of launching
-// VNet is split into two parts. When a user clicks the "Connect" button next to a TCP app or opens
-// one from the search bar, a DocumentVnetInfo is opened first. Then the user can start VNet from
-// there, which should carry out the launch of that particular app. Hence the need to copy some
-// arguments from the app to the doc.
-type VnetAppLauncherArgs = {
-  addrToCopy: string | undefined;
-  /**
-   * resourceUri lets the VNet launcher establish which workspace to open the info doc in if
-   * there's a need to do it.
-   */
-  resourceUri: ResourceUri;
-  isMultiPort: boolean;
-};
-
-export const useVnetAppLauncher = (): {
+export const useVnetLauncher = (): {
   /**
    * launchVnet is a function that manages VNet start when:
    *
    * - The user clicks "Connect" next to a TCP app or selects one of the ports from the menu.
    * - The user selects a TCP app through the search bar.
+   * - The user clicks "Connect with VNet" on an SSH server.
    *
    * If the user is yet to start VNet, it opens the info doc. If they already started it in the past,
-   * it starts VNet and then copies the address of the app to the clipboard.
+   * it starts VNet and then copies the address of the resource to the clipboard.
    */
-  launchVnet: VnetAppLauncher;
+  launchVnet: VnetLauncher;
   /**
    * launchVnetWithoutFirstTimeCheck never opens the info doc, it starts VNet and then copies the
-   * address of the app to the clipboard.
+   * address of the resource to the clipboard.
    */
-  launchVnetWithoutFirstTimeCheck: (
-    args: Pick<VnetAppLauncherArgs, 'addrToCopy' | 'isMultiPort'>
-  ) => Promise<void>;
+  launchVnetWithoutFirstTimeCheck: (args?: VnetLauncherArgs) => Promise<void>;
 } => {
   const { notificationsService, workspacesService } = useAppContext();
-  const { start, status, startAttempt, hasEverStarted } = useVnetContext();
+  const {
+    start,
+    status,
+    startAttempt,
+    hasEverStarted,
+    currentServiceInfo,
+    openSSHConfigurationModal,
+  } = useVnetContext();
   const { open } = useConnectionsContext();
 
   const launchVnet: () => Promise<boolean> = useCallback(async () => {
@@ -82,8 +75,8 @@ export const useVnetAppLauncher = (): {
   }, [status.value, startAttempt.status, open, start]);
 
   const openInfoDoc = useCallback(
-    async ({ addrToCopy, resourceUri, isMultiPort }: VnetAppLauncherArgs) => {
-      const rootClusterUri = routing.ensureRootClusterUri(resourceUri);
+    async (args: VnetLauncherArgs) => {
+      const rootClusterUri = routing.ensureRootClusterUri(args.resourceUri);
       // Since VNet app launcher might be called from the search bar, we have to account for the
       // user being in a different workspace than the selected app.
       const { isAtDesiredWorkspace } =
@@ -105,37 +98,71 @@ export const useVnetAppLauncher = (): {
       // Update targetAddress so that clicking "Start VNet" from the info doc is going to copy that
       // address to clipboard.
       docsService.update(docUri, {
-        app: { targetAddress: addrToCopy, isMultiPort },
+        launcherArgs: args,
       });
     },
     [workspacesService]
   );
 
   const launchVnetAndCopyAddr = useCallback(
-    async ({
-      addrToCopy,
-      isMultiPort,
-    }: Pick<VnetAppLauncherArgs, 'addrToCopy' | 'isMultiPort'>) => {
+    async (args?: VnetLauncherArgs) => {
       if (!(await launchVnet())) {
         return;
       }
-
-      if (!addrToCopy) {
+      if (!args) {
+        // args are optional, if unset don't copy anything to the clipboard.
         return;
       }
+      const { addrToCopy, isMultiPortApp, resourceUri } = args;
+      const isApp = !!routing.parseAppUri(resourceUri)?.params?.appId;
+      const isServer = !!routing.parseServerUri(resourceUri)?.params?.serverId;
 
-      const copiedToClipboard = copyAddrToClipboard(addrToCopy);
-      notificationsService.notifyInfo(
-        [
-          `Connect via VNet by using ${addrToCopy}`,
-          copiedToClipboard && '(copied to clipboard)',
-          !isMultiPort && 'and any port',
-        ]
-          .filter(Boolean)
-          .join(' ') + '.'
-      );
+      let msgParts = [];
+      if (isApp) {
+        msgParts.push(`Connect via VNet by using ${addrToCopy}`);
+      } else if (isServer) {
+        msgParts.push(`Connect with any SSH client to ${addrToCopy}`);
+      } else {
+        msgParts.push(`Connect via VNet to ${addrToCopy}`);
+      }
+      if (copyAddrToClipboard(addrToCopy)) {
+        msgParts.push('(copied to clipboard)');
+      }
+      if (isApp && !isMultiPortApp) {
+        msgParts.push('and any port');
+      }
+      const msg = msgParts.join(' ') + '.';
+
+      if (isServer) {
+        let serviceInfo: GetServiceInfoResponse;
+        try {
+          serviceInfo = await currentServiceInfo();
+        } catch (err) {
+          notificationsService.notifyError({
+            title:
+              'Could not establish whether SSH clients are configured for VNet',
+            description: ensureError(err).message,
+          });
+          return;
+        }
+        if (!serviceInfo.sshConfigured) {
+          openSSHConfigurationModal({
+            vnetSSHConfigPath: serviceInfo.vnetSshConfigPath,
+            host: addrToCopy,
+            onSuccess: () => notificationsService.notifyInfo(msg),
+          });
+          return;
+        }
+      }
+
+      notificationsService.notifyInfo(msg);
     },
-    [launchVnet, notificationsService]
+    [
+      launchVnet,
+      notificationsService,
+      currentServiceInfo,
+      openSSHConfigurationModal,
+    ]
   );
 
   return useMemo(

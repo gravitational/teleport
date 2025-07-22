@@ -100,7 +100,7 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 	}
 	log.InfoContext(ctx, "Created TUN interface", "tun", tunName)
 
-	networkStackConfig, err := newNetworkStackConfig(device, clt)
+	networkStackConfig, err := newNetworkStackConfig(ctx, device, clt)
 	if err != nil {
 		return trace.Wrap(err, "creating network stack config")
 	}
@@ -116,7 +116,7 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 		return trace.Wrap(err, "reporting network stack info to client application")
 	}
 
-	osConfigProvider, err := newRemoteOSConfigProvider(remoteOSConfigProviderConfig{
+	osConfigProvider, err := newOSConfigProvider(osConfigProviderConfig{
 		clt:           clt,
 		tunName:       tunName,
 		ipv6Prefix:    networkStackConfig.ipv6Prefix.String(),
