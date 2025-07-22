@@ -25,18 +25,11 @@ import Box from 'design/Box/Box';
 import { ButtonSecondary } from 'design/Button/Button';
 import ButtonIcon from 'design/ButtonIcon/ButtonIcon';
 import Flex, { Stack } from 'design/Flex/Flex';
-import { AmazonAws } from 'design/Icon/Icons/AmazonAws';
 import { ArrowLeft } from 'design/Icon/Icons/ArrowLeft';
 import { FingerprintSimple } from 'design/Icon/Icons/FingerprintSimple';
-import { GitHub } from 'design/Icon/Icons/GitHub';
-import { Key } from 'design/Icon/Icons/Key';
-import { Keypair } from 'design/Icon/Icons/Keypair';
-import { Kubernetes } from 'design/Icon/Icons/Kubernetes';
-import { Memory } from 'design/Icon/Icons/Memory';
 import { NewTab } from 'design/Icon/Icons/NewTab';
 import { Pencil } from 'design/Icon/Icons/Pencil';
 import { Question } from 'design/Icon/Icons/Question';
-import { UserCheck } from 'design/Icon/Icons/UserCheck';
 import { Indicator } from 'design/Indicator/Indicator';
 import { Outline } from 'design/Label/Label';
 import Text from 'design/Text';
@@ -58,6 +51,7 @@ import { EditDialog } from '../Edit/EditDialog';
 import { formatDuration } from '../formatDuration';
 import { useGetBot, useListBotTokens } from '../hooks';
 import { InfoGuide } from '../InfoGuide';
+import { JoinMethodIcon } from './JoinMethodIcon';
 import { Panel } from './Panel';
 
 export function BotDetails() {
@@ -384,12 +378,15 @@ function JoinTokens(props: { botName: string; onViewAllClicked: () => void }) {
               {data.items
                 .toSorted((a, b) => a.safeName.localeCompare(b.safeName))
                 .map(t => {
-                  const Icon = iconForMethod(t.method);
                   return (
                     <Outline key={t.id}>
                       <HoverTooltip placement="top" tipContent={t.method}>
                         <Flex alignItems={'center'} gap={1}>
-                          <Icon size="small" />
+                          <JoinMethodIcon
+                            method={t.method}
+                            size={'small'}
+                            includeTooltip={false}
+                          />
                           {t.safeName}
                         </Flex>
                       </HoverTooltip>
@@ -424,42 +421,3 @@ const MfaText = styled(Text)`
 const MfaVerifyButton = styled(ButtonSecondary)`
   gap: ${props => props.theme.space[2]}px;
 `;
-
-const iconForMethod = (method: string) => {
-  switch (method) {
-    case 'token':
-      return Key;
-    case 'ec2':
-      return AmazonAws;
-    case 'iam':
-      return UserCheck;
-    case 'github':
-      return GitHub;
-    case 'circleci':
-      return Key; // Needs an icon created
-    case 'kubernetes':
-      return Kubernetes;
-    case 'azure':
-      return Key; // Needs an icon created
-    case 'gitlab':
-      return Key; // Needs an icon created
-    case 'gcp':
-      return Key; // Needs an icon created
-    case 'spacelift':
-      return Key; // Needs an icon created
-    case 'tpm':
-      return Memory;
-    case 'terraform_cloud':
-      return Key; // Needs an icon created
-    case 'bitbucket':
-      return Key; // Needs an icon created
-    case 'oracle':
-      return Key; // Needs an icon created
-    case 'azure_devops':
-      return Key; // Needs an icon created
-    case 'bound_keypair':
-      return Keypair;
-    default:
-      return Key;
-  }
-};
