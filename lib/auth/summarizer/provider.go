@@ -18,7 +18,6 @@ package summarizer
 
 import (
 	"context"
-	"reflect"
 	"sync"
 
 	"github.com/gravitational/teleport/lib/session"
@@ -50,14 +49,14 @@ type SessionSummarizerProvider struct {
 // guaranteed to never be nil.
 func (p *SessionSummarizerProvider) SessionSummarizer() SessionSummarizer {
 	if p == nil {
-		return &NoopSummarizer{}
+		return NoopSummarizer{}
 	}
 
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	if p.summarizer == nil || reflect.ValueOf(p.summarizer).IsNil() {
-		return &NoopSummarizer{}
+	if p.summarizer == nil {
+		return NoopSummarizer{}
 	}
 
 	return p.summarizer
