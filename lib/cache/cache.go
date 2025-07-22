@@ -222,6 +222,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindWorkloadIdentity},
 		{Kind: types.KindPluginStaticCredentials},
 		{Kind: types.KindGitServer},
+		{Kind: types.KindBotInstance},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -883,6 +884,8 @@ type Config struct {
 	PluginStaticCredentials services.PluginStaticCredentials
 	// GitServers is the Git server service.
 	GitServers services.GitServerGetter
+	// BotInstanceService is the upstream service that we're caching
+	BotInstanceService services.BotInstance
 }
 
 // CheckAndSetDefaults checks parameters and sets default values

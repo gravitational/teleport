@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 type mockIDTokenValidator struct {
@@ -401,9 +402,9 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Cleanup(idTokenValidator.reset)
 			if tt.setEnterprise {
-				modules.SetTestModules(
+				modulestest.SetTestModules(
 					t,
-					&modules.TestModules{TestBuildType: modules.BuildEnterprise},
+					modulestest.Modules{TestBuildType: modules.BuildEnterprise},
 				)
 			}
 			token, err := types.NewProvisionTokenFromSpec(

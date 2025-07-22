@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -147,67 +148,70 @@ func TestAccessListReminders_Single(t *testing.T) {
 		require.NoError(t, app.Err())
 	})
 
-	accessList, err := accesslist.NewAccessList(header.Metadata{
-		Name: "test-access-list",
-	}, accesslist.Spec{
-		Title:  "test access list",
-		Owners: []accesslist.Owner{{Name: "owner1"}, {Name: "not-found"}},
-		Grants: accesslist.Grants{
-			Roles: []string{"role"},
-		},
-		Audit: accesslist.Audit{
-			NextAuditDate: clock.Now().Add(28 * 24 * time.Hour), // Four weeks out from today
-			Notifications: accesslist.Notifications{
-				Start: oneDay * 14, // Start alerting at two weeks before audit date
+	for _, typ := range []accesslist.Type{accesslist.Default, accesslist.DeprecatedDynamic} {
+		accessList, err := accesslist.NewAccessList(header.Metadata{
+			Name: "test-access-list",
+		}, accesslist.Spec{
+			Type:   typ,
+			Title:  "test access list",
+			Owners: []accesslist.Owner{{Name: "owner1"}, {Name: "not-found"}},
+			Grants: accesslist.Grants{
+				Roles: []string{"role"},
 			},
-		},
-	})
-	require.NoError(t, err)
+			Audit: accesslist.Audit{
+				NextAuditDate: clock.Now().Add(28 * 24 * time.Hour), // Four weeks out from today
+				Notifications: accesslist.Notifications{
+					Start: oneDay * 14, // Start alerting at two weeks before audit date
+				},
+			},
+		})
+		require.NoError(t, err)
 
-	accessLists := []*accesslist.AccessList{accessList}
+		accessLists := []*accesslist.AccessList{accessList}
 
-	// No notifications for today
-	advanceAndLookForRecipients(t, bot, as, clock, 0, accessLists)
+		// No notifications for today
+		advanceAndLookForRecipients(t, bot, as, clock, 0, accessLists)
 
-	// Advance by one week, expect no notifications.
-	advanceAndLookForRecipients(t, bot, as, clock, oneDay*7, accessLists)
+		// Advance by one week, expect no notifications.
+		advanceAndLookForRecipients(t, bot, as, clock, oneDay*7, accessLists)
 
-	// Advance by one week, expect a notification. "not-found" will be missing as a recipient.
-	advanceAndLookForRecipients(t, bot, as, clock, oneDay*7, accessLists, "owner1")
+		// Advance by one week, expect a notification. "not-found" will be missing as a recipient.
+		advanceAndLookForRecipients(t, bot, as, clock, oneDay*7, accessLists, "owner1")
 
-	// Add a new owner.
-	accessList.Spec.Owners = append(accessList.Spec.Owners, accesslist.Owner{Name: "owner2"})
+		// Add a new owner.
+		accessList.Spec.Owners = append(accessList.Spec.Owners, accesslist.Owner{Name: "owner2"})
 
-	// Advance by one day, expect a notification only to the new owner.
-	advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessLists, "owner2")
+		// Advance by one day, expect a notification only to the new owner.
+		advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessLists, "owner2")
 
-	// Advance by one day, expect no notifications.
-	advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessLists)
+		// Advance by one day, expect no notifications.
+		advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessLists)
 
-	// Advance by five more days, to the next week, expect two notifications
-	advanceAndLookForRecipients(t, bot, as, clock, oneDay*5, accessLists, "owner1", "owner2")
+		// Advance by five more days, to the next week, expect two notifications
+		advanceAndLookForRecipients(t, bot, as, clock, oneDay*5, accessLists, "owner1", "owner2")
 
-	// Advance by one day, expect no notifications
-	advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessLists)
+		// Advance by one day, expect no notifications
+		advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessLists)
 
-	// Advance by one day, expect no notifications
-	advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessLists)
+		// Advance by one day, expect no notifications
+		advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessLists)
 
-	// Advance by five more days, to the next week, expect two notifications
-	advanceAndLookForRecipients(t, bot, as, clock, oneDay*5, accessLists, "owner1", "owner2")
+		// Advance by five more days, to the next week, expect two notifications
+		advanceAndLookForRecipients(t, bot, as, clock, oneDay*5, accessLists, "owner1", "owner2")
 
-	// Advance 60 days a day at a time, expect two notifications each time.
-	for i := 0; i < 60; i++ {
-		// Make sure we only get a notification once per day by iterating through each 6 hours at a time.
-		for j := 0; j < 3; j++ {
-			advanceAndLookForRecipients(t, bot, as, clock, 6*time.Hour, accessLists)
+		// Advance 60 days a day at a time, expect two notifications each time.
+		for range 60 {
+			// Make sure we only get a notification once per day by iterating through each 6 hours at a time.
+			for range 3 {
+				advanceAndLookForRecipients(t, bot, as, clock, 6*time.Hour, accessLists)
+			}
+			advanceAndLookForRecipients(t, bot, as, clock, 6*time.Hour, accessLists, "owner1", "owner2")
 		}
-		advanceAndLookForRecipients(t, bot, as, clock, 6*time.Hour, accessLists, "owner1", "owner2")
 	}
 }
 
 func TestAccessListReminders_Batched(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.Identity: {Enabled: true},

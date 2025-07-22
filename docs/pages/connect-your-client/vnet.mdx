@@ -32,6 +32,25 @@ features that traditional VPNs cannot provide.
 VNet is available on macOS and Windows in Teleport Connect and tsh, with plans
 for Linux support in a future version.
 
+<Admonition type="warning">
+VNet's VPN-like experience for app access means that any software running on
+the client machine can access Teleport apps at local DNS or IP addresses.
+
+**Avoid running VNet on shared or multi-user machines.**
+If multiple OS users share the same machine, any user could access Teleport TCP
+apps at their local VNet DNS or IP address.
+
+**Protect HTTP services behind VNet.**
+Untrusted websites can potentially use DNS rebinding attacks to bypass the
+browser’s Same-Origin Policy and issue plain HTTP requests to VNet IP addresses.
+If your Teleport cluster contains TCP apps serving plain HTTP APIs, it is
+strongly recommended to either avoid VNet or implement one or more of the
+following mitigations for DNS rebinding attacks:
+- upgrade these APIs to HTTPS or another protocol
+- enforce a Host header allowlist at the HTTP server
+- block browser access to HTTP websites
+</Admonition>
+
 ## Prerequisites
 
 <Tabs>

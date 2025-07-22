@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -47,6 +48,8 @@ type collectionHandler interface {
 // that the [Cache] supports.
 type collections struct {
 	byKind map[resourceKind]collectionHandler
+
+	botInstances *collection[*machineidv1.BotInstance, botInstanceIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -76,6 +79,14 @@ func setupCollections(c Config, legacyCollections map[resourceKind]legacyCollect
 
 		resourceKind := resourceKindFromWatchKind(watch)
 		switch watch.Kind {
+		case types.KindBotInstance:
+			collect, err := newBotInstanceCollection(c.BotInstanceService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.botInstances = collect
+			out.byKind[resourceKind] = out.botInstances
 		default:
 			_, legacyOk := legacyCollections[resourceKind]
 			if _, ok := out.byKind[resourceKind]; !ok && !legacyOk {

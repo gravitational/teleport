@@ -202,6 +202,7 @@ export interface FeatureFlags {
   accessGraphIntegrations: boolean;
   externalAuditStorage: boolean;
   listBots: boolean;
+  readBots: boolean;
   listBotInstances: boolean;
   addBots: boolean;
   editBots: boolean;
