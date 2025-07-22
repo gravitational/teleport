@@ -29,6 +29,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 
@@ -38,6 +39,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/mitchellh/mapstructure"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 
 	"github.com/gravitational/teleport/api/types"
@@ -533,11 +535,11 @@ func (p *PROXYVerifyParams) Check() error {
 	return nil
 }
 
-// Parses a JWT and validates arbitrary claims
-func (k *Key) validate(rawToken string) (map[string]any, error) {
+// verifyOnly parses a JWT and verifies its signature only
+func (k *Key) verifyOnly(rawToken string) (map[string]any, error) {
 	tok, err := jwt.ParseSigned(rawToken)
 	if err != nil {
-		return nil, trace.Errorf("failed to parse jwt")
+		return nil, trace.Errorf("failed to parse JWT")
 	}
 
 	claims := map[string]any{}
@@ -809,29 +811,99 @@ func (k *Key) VerifyPluginToken(token string, claims PluginTokenParam) (*Claims,
 	return k.verify(token, expectedClaims)
 }
 
-// SignArbitrary creates a signed JWT with an arbitrary claims set
-func (k *Key) SignAny(claims map[string]any) (string, error) {
-	var kid string
-	var err error
-	if kid, err = KeyID(k.config.PublicKey); err != nil {
-		return "", err
+// OIDCOauthRequestClaims defines the required parameters for a JWT-Secured Authorization Request object.
+type OIDCOauthRequestClaims struct {
+	// Required authorization request parameters
+	ClientID     string `mapstructure:"client_id"`
+	Scope        string `mapstructure:"scope"`
+	RedirectURI  string `mapstructure:"redirect_uri"`
+	ResponseType string `mapstructure:"response_type"`
+
+	// Optional parameters
+	OptionalParameters map[string]any `mapstructure:"-,remain"`
+}
+
+// Check validates that required parameters are set
+func (o *OIDCOauthRequestClaims) Check() error {
+	if o.ClientID == "" {
+		return trace.BadParameter("client id missing")
+	}
+	if o.Scope == "" {
+		return trace.BadParameter("scope missing")
+	}
+	if o.RedirectURI == "" {
+		return trace.BadParameter("redirect uri missing")
+	}
+	if o.ResponseType == "" {
+		return trace.BadParameter("response type missing")
+	}
+	return nil
+}
+
+func (o *OIDCOauthRequestClaims) toMap() map[string]any {
+	requestMap := map[string]any{}
+	maps.Copy(requestMap, o.OptionalParameters)
+
+	requestMap["client_id"] = o.ClientID
+	requestMap["scope"] = o.Scope
+	requestMap["redirect_uri"] = o.RedirectURI
+	requestMap["response_type"] = o.ResponseType
+
+	return requestMap
+}
+
+// oauthRequestFromClaims produces an OIDCOauthRequestClaims from a map containing
+// OIDC authorization request parameters. This function will return an error if any
+// required parameters are missing from the claims set.
+func oauthRequestFromClaims(claims map[string]any) (OIDCOauthRequestClaims, error) {
+	request := OIDCOauthRequestClaims{}
+	dec, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		Result: &request,
+		// Return an error if any field of OauthRequestClaims is unset
+		// with the exception of 'OptionalParameters'
+		ErrorUnset: true,
+	})
+	if err != nil {
+		return request, trace.Wrap(err, "error initializing decoder for oauth request claims")
+	}
+	err = dec.Decode(claims)
+	if err != nil {
+		return request, trace.Wrap(err, "failed to decode request object claims")
+	}
+	return request, err
+}
+
+// SignOIDCAuthRequestToken creates a JWT-Secured Authorization Request (JAR) object from the
+// authorization request.
+func (k *Key) SignOIDCAuthRequestToken(authRequest OIDCOauthRequestClaims) (string, error) {
+	err := authRequest.Check()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	kid, err := KeyID(k.config.PublicKey)
+	if err != nil {
+		return "", trace.Wrap(err, "failed to determine JWT key identifier")
 	}
 
-	var alg jose.SignatureAlgorithm
-	if alg, err = AlgorithmForPublicKey(k.config.PublicKey); err != nil {
-		return "", err
-	}
-
-	return k.sign(claims, &jose.SignerOptions{
-		ExtraHeaders: map[jose.HeaderKey]interface{}{
-			"alg": alg,
+	return k.sign(authRequest.toMap(), &jose.SignerOptions{
+		ExtraHeaders: map[jose.HeaderKey]any{
 			"kid": kid,
 		},
 	})
 }
 
-// ValidateAny parses JWT and verifies its signature. Returns *all* claims,
-// not just registered claims
-func (k *Key) ValidateAny(rawToken string) (map[string]any, error) {
-	return k.validate(rawToken)
+// VerifyOIDCAuthRequestToken parses and validates a JWT that is to be interpreted as
+// a JWT-Secured Authorization Request (JAR) object
+func (k *Key) VerifyOIDCAuthRequestToken(rawToken string) (OIDCOauthRequestClaims, error) {
+	claims, err := k.verifyOnly(rawToken)
+	if err != nil {
+		return OIDCOauthRequestClaims{}, trace.Wrap(err, "error verifying authorization request object signature")
+	}
+
+	request, err := oauthRequestFromClaims(claims)
+	if err != nil {
+		return OIDCOauthRequestClaims{}, trace.Wrap(err, "error validating authorization request object parameters")
+	}
+
+	return request, nil
 }
