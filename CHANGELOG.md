@@ -1,5 +1,14 @@
 # Changelog
 
+## 17.6.0 (07/22/25)
+
+* `tctl` top now supports the local unix sock debug endpoint. [#57027](https://github.com/gravitational/teleport/pull/57027)
+* Added support to `tsh` App Access commands for Azure CLI (`az`) version `2.73.0` and newer. [#56951](https://github.com/gravitational/teleport/pull/56951)
+* Fixed a bug in the Teleport install scripts when running on MacOS. The install scripts now error instead of trying to install non existing MacOS FIPS binaries. [#56942](https://github.com/gravitational/teleport/pull/56942)
+* Fixed using relative path `TELEPORT_HOME` env with client tools managed update. [#56934](https://github.com/gravitational/teleport/pull/56934)
+* Client tools managed updates support multi-cluster environments and track each version in the configuration file. [#56934](https://github.com/gravitational/teleport/pull/56934)
+* VNet SSH enables any SSH client to connect to Teleport SSH servers with support for advanced Teleport features like per-session MFA. [#55313](https://github.com/gravitational/teleport/pull/55313)
+
 ## 17.5.6 (07/17/25)
 
 * Fix backward compatibility issue introduced in the 17.5.5 / 18.0.1 release related to Access List type, causing the `unknown access_list type "dynamic"` validation error. [#56888](https://github.com/gravitational/teleport/pull/56888)
