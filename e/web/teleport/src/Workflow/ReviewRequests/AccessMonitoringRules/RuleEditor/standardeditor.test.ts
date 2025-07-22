@@ -213,6 +213,7 @@ test('buildRuleFromStandardEditor: partial configurable review fields defined', 
         values: [],
       },
       traitsCondition: null,
+      resourcesCondition: null,
     },
     errors: [],
     automaticReview: { value: 'builtin', label: 'builtin' },
@@ -475,6 +476,15 @@ describe('hasModifiedFields', () => {
               traitValues: [{ label: 'trait-val', value: 'trait-val' }],
             },
           ],
+        },
+      },
+    },
+    {
+      name: 'modify resources condition',
+      cfg: {
+        ...cfg,
+        ruleCondition: {
+          resourcesCondition: [{ name: 'env', value: 'dev' }],
         },
       },
     },

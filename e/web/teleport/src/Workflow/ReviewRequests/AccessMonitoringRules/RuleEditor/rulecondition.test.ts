@@ -163,6 +163,7 @@ describe('getReviewRuleCondition', () => {
           values: [],
         },
         traitsCondition: null,
+        resourcesCondition: null,
       },
     },
     {
@@ -186,6 +187,7 @@ describe('getReviewRuleCondition', () => {
             traitValues: [{ label: 'L1', value: 'L1' }],
           },
         ],
+        resourcesCondition: [],
       },
     },
     {
@@ -212,6 +214,7 @@ describe('getReviewRuleCondition', () => {
             ],
           },
         ],
+        resourcesCondition: [],
       },
     },
     {
@@ -241,6 +244,36 @@ describe('getReviewRuleCondition', () => {
           {
             traitKey: { label: 'team', value: 'team' },
             traitValues: [{ label: 'Cloud', value: 'Cloud' }],
+          },
+        ],
+        resourcesCondition: [],
+      },
+    },
+    {
+      name: 'resource labels condition',
+      predicate: `
+        contains_all(set("access"), access_request.spec.roles) &&
+        access_request.spec.resource_labels_intersection["env"].contains("dev") &&
+        access_request.spec.resource_labels_intersection["service"].contains("test")`,
+      cond: {
+        rolesCondition: {
+          field: {
+            label: accessRequestMatchConditionOptions.find(
+              a => a.value === AccessRequestMatchCondition.MatchAllRoles
+            ).label,
+            value: AccessRequestMatchCondition.MatchAllRoles,
+          },
+          values: [{ label: 'access', value: 'access' }],
+        },
+        traitsCondition: [],
+        resourcesCondition: [
+          {
+            name: 'env',
+            value: 'dev',
+          },
+          {
+            name: 'service',
+            value: 'test',
           },
         ],
       },
@@ -410,6 +443,24 @@ describe('convertRuleConditionToPredicateExpression', () => {
       exp: `contains_all(set("access", "editor"), access_request.spec.roles) &&
 contains_any(user.traits["level"], set("L1", "L2")) &&
 contains_any(user.traits["team"], set("Cloud"))`,
+    },
+    {
+      name: 'match resource traits',
+      cond: {
+        rolesCondition: {
+          field: {
+            label: '',
+            value: AccessRequestMatchCondition.MatchAllRoles,
+          },
+          values: [
+            { value: 'access', label: 'access' },
+            { value: 'editor', label: 'editor' },
+          ],
+        },
+        resourcesCondition: [{ name: 'env', value: 'dev' }],
+      },
+      exp: `contains_all(set("access", "editor"), access_request.spec.roles) &&
+access_request.spec.resource_labels_intersection["env"].contains("dev")`,
     },
   ];
 

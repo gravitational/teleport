@@ -4,6 +4,8 @@ import { RequestState } from 'shared/services/accessRequests';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
 import { parseQuotedWordsDelimitedByComma } from 'shared/utils/parseString';
 
+import { Label } from 'teleport/types';
+
 const ACCESS_REQUEST_SPEC_ROLES = 'access_request.spec.roles';
 const USER_TRAITS = 'user.traits';
 
@@ -58,6 +60,7 @@ export type AccessRequestStateOption = {
 export type RuleCondition = {
   rolesCondition?: RolesCondition;
   traitsCondition?: TraitsOption[];
+  resourcesCondition?: Label[];
 };
 
 export type RolesCondition = {
@@ -158,6 +161,7 @@ export function getNotificationRuleCondition(condition: string): RuleCondition {
 export function getReviewRuleCondition(condition: string): RuleCondition {
   let rolesCondition: RolesCondition;
   let traitsCondition: TraitsOption[] = [];
+  let resourcesCondition: Label[] = [];
 
   // Default to role condition.
   if (!condition) {
@@ -169,6 +173,7 @@ export function getReviewRuleCondition(condition: string): RuleCondition {
         values: [],
       },
       traitsCondition: null,
+      resourcesCondition: null,
     };
   }
 
@@ -201,12 +206,13 @@ export function getReviewRuleCondition(condition: string): RuleCondition {
   }
 
   // Parse remaining expressions for traits condition.
-  const traitsConditionExpr = expressions.slice(1);
+  const remainingExpr = expressions.slice(1);
+
   const containsTraitsRegex =
     /^contains_any\(user.traits\["(?<trait>[^"]+)"\], set\((?<set>"[^)]+")\)\)$/;
 
-  traitsConditionExpr.forEach(traitExpr => {
-    const templateMatchContainsTraits = containsTraitsRegex.exec(traitExpr);
+  remainingExpr.forEach(expr => {
+    const templateMatchContainsTraits = containsTraitsRegex.exec(expr);
     const gotContainsTraits = templateMatchContainsTraits?.groups;
     if (gotContainsTraits) {
       const trait = gotContainsTraits.trait;
@@ -222,14 +228,32 @@ export function getReviewRuleCondition(condition: string): RuleCondition {
     }
   });
 
-  // Return null if we couldn't parse any of the traits condition.
-  if (traitsCondition.length !== traitsConditionExpr.length) {
+  const resourceLabelsRegex =
+    /^access_request.spec.resource_labels_intersection\["(?<key>[^"]+)"\].contains\("(?<val>[^"]+)"\)$/;
+
+  remainingExpr.forEach(expr => {
+    const templateMatchResourceLabels = resourceLabelsRegex.exec(expr);
+    const gotResourceLabels = templateMatchResourceLabels?.groups;
+    if (gotResourceLabels) {
+      resourcesCondition.push({
+        name: gotResourceLabels.key,
+        value: gotResourceLabels.val,
+      });
+    }
+  });
+
+  // Return null if we couldn't parse any of the remainig expressions.
+  if (
+    traitsCondition.length + resourcesCondition.length !==
+    remainingExpr.length
+  ) {
     return null;
   }
 
   return {
     rolesCondition,
     traitsCondition,
+    resourcesCondition,
   };
 }
 
@@ -287,6 +311,20 @@ function convertTraitsConditionToPredicateExpression(
   return expressions.join(` &&\n`);
 }
 
+function convertResourcesConditionToPredicateExpression(
+  resourcesCondition?: Label[]
+) {
+  if (!resourcesCondition || resourcesCondition.length === 0) {
+    return ``;
+  }
+
+  const expressions = resourcesCondition.map(label => {
+    return `access_request.spec.resource_labels_intersection["${label.name}"].contains("${label.value}")`;
+  });
+
+  return expressions.join(` &&\n`);
+}
+
 export function convertRuleConditionToPredicateExpression(
   ruleCondition: RuleCondition
 ) {
@@ -300,15 +338,12 @@ export function convertRuleConditionToPredicateExpression(
   const traitsExpression = convertTraitsConditionToPredicateExpression(
     ruleCondition.traitsCondition
   );
+  const resourcesExpression = convertResourcesConditionToPredicateExpression(
+    ruleCondition.resourcesCondition
+  );
 
-  if (rolesExpression !== '' && traitsExpression !== '') {
-    return `${rolesExpression} &&\n${traitsExpression}`;
-  }
-  if (rolesExpression !== '') {
-    return rolesExpression;
-  }
-  if (traitsExpression !== '') {
-    return traitsExpression;
-  }
-  return '';
+  const expressions = [rolesExpression, traitsExpression, resourcesExpression]
+    .filter(str => str !== '')
+    .join(` &&\n`);
+  return expressions;
 }

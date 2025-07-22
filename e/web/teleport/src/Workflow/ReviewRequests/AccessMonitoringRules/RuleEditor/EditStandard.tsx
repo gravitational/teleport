@@ -20,6 +20,8 @@ import {
   AccessMonitoringRuleType,
   AccessMonitoringRuleWithYaml,
 } from 'e-teleport/services/accessmonitoringrule/types';
+import { LabelsInput } from 'teleport/components/LabelsInput';
+import { nonEmptyLabels } from 'teleport/components/LabelsInput/LabelsInput';
 import { Plugin } from 'teleport/services/integrations';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import useTeleport from 'teleport/useTeleport';
@@ -232,8 +234,8 @@ export const EditStandard = ({
                 <Text mb={2}>
                   {editor === AccessMonitoringRuleType.Review && (
                     <>
-                      Select one or more roles, and optionally user traits, to
-                      define when this rule applies.
+                      Select one or more roles, and optionally select resource
+                      labels or user traits, to define when this rule applies.
                     </>
                   )}
                 </Text>
@@ -257,22 +259,48 @@ export const EditStandard = ({
                     />
                   )}
                   {notifyStateComponent}
-                  {editor === AccessMonitoringRuleType.Review && (
-                    <TraitsEditor
-                      label="User traits to match (Optional)"
-                      isLoading={attempt.status === 'processing'}
-                      configuredTraits={
-                        standardEditor.ruleCondition?.traitsCondition || []
+                  <Box mb={2}>
+                    <Text typography="body3" mb={2}>
+                      Resource labels to match (Optional)
+                    </Text>
+                    <LabelsInput
+                      adjective="resource label"
+                      disableBtns={attempt.status === 'processing'}
+                      labels={
+                        standardEditor.ruleCondition?.resourcesCondition || []
                       }
-                      setConfiguredTraits={(o: TraitsOption[]) =>
+                      setLabels={labels =>
                         partialStandardEditorChange({
                           ruleCondition: {
                             ...ruleCondition,
-                            traitsCondition: o,
+                            resourcesCondition: labels,
                           },
                         })
                       }
+                      rule={nonEmptyLabels}
                     />
+                  </Box>
+                  {editor === AccessMonitoringRuleType.Review && (
+                    <>
+                      <Text typography="body3" mb={2}>
+                        User traits to match (Optional)
+                      </Text>
+                      <TraitsEditor
+                        label=""
+                        isLoading={attempt.status === 'processing'}
+                        configuredTraits={
+                          standardEditor.ruleCondition?.traitsCondition || []
+                        }
+                        setConfiguredTraits={(o: TraitsOption[]) =>
+                          partialStandardEditorChange({
+                            ruleCondition: {
+                              ...ruleCondition,
+                              traitsCondition: o,
+                            },
+                          })
+                        }
+                      />
+                    </>
                   )}
                 </Box>
               </Box>
@@ -396,7 +424,7 @@ const SelectCreateRoles = ({
       width="100%"
       placeholder="Start typing a role name and press enter"
       noOptionsMessage={() => 'Start typing a role name and press enter'}
-      label="Name of roles to match"
+      label="Name of requested roles to match"
       rule={requiredField('At least one role name is required')}
       isMulti
       isClearable

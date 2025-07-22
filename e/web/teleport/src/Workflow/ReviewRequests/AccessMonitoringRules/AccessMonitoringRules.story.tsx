@@ -38,7 +38,8 @@ const validCombinedRuleObject = {
       contains_all(set("access"), access_request.spec.roles) &&
       contains_any(user.traits["level"], set("L1")) &&
       contains_any(user.traits["team"], set("Dev")) &&
-      contains_any(user.traits["location"], set("Seattle"))`,
+      contains_any(user.traits["location"], set("Seattle")) &&
+      access_request.spec.resource_labels_intersection["env"].contains("dev")`,
     desired_state: 'reviewed',
     notification: {
       name: 'slack-plugin',
@@ -187,7 +188,8 @@ spec:
     contains_all(set("access"), access_request.spec.roles) &&
     contains_any(user.traits["level"], set("L1")) &&
     contains_any(user.traits["team"], set("Dev")) &&
-    contains_any(user.traits["location"], set("Seattle"))
+    contains_any(user.traits["location"], set("Seattle")) &&
+    access_request.spec.resource_labels_intersection["env"].contains("dev")
   desired_state: reviewed
   notification:
     name: slack-plugin

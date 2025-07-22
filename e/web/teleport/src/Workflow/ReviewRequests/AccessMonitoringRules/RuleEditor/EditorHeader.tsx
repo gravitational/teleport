@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { Box, ButtonText, Flex, H2, Link } from 'design';
+import { Box, ButtonText, Flex, H2 } from 'design';
 import { Trash } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 
@@ -88,22 +88,10 @@ function getDescriptionHeader(editor: AccessMonitoringRuleType) {
   switch (editor) {
     case AccessMonitoringRuleType.Review:
       return (
-        <>
-          <p>
-            With automatic review rules, access requests can be automatically
-            reviewed based on the <b>match condition</b>.
-          </p>
-          <p>
-            Note: Automatic reviews are only supported for{' '}
-            <Link
-              target="_blank"
-              href="https://goteleport.com/docs/admin-guides/access-controls/access-requests/role-requests"
-            >
-              Role Access Requests
-            </Link>{' '}
-            at this time.
-          </p>
-        </>
+        <p>
+          With automatic review rules, access requests can be automatically
+          reviewed based on the <b>match condition</b>.
+        </p>
       );
     case AccessMonitoringRuleType.Notification:
       return (
