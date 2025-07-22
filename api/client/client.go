@@ -2327,6 +2327,7 @@ func (c *Client) ListProvisionTokens(ctx context.Context, pageSize int, pageToke
 		return nil, "", trace.Wrap(err)
 	}
 
+	// Convert concrete type []*types.ProvisionTokenV2 to interface type []types.ProvisionToken
 	tokens := make([]types.ProvisionToken, len(resp.Tokens))
 	for i, token := range resp.Tokens {
 		tokens[i] = token

@@ -2706,11 +2706,12 @@ message ListProvisionTokensRequest {
   // set to its value. Otherwise leave empty.
   string StartKey = 2;
 
-  // FilterRoles allows filtering for tokens with the provided roles.
+  // FilterRoles allows filtering for tokens with the provided roles. Tokens
+  // with ANY of the provided roles are returned.
   repeated string FilterRoles = 3;
 
   // FilterBotName allows filtering for tokens associated with the
-  // named bot. This is a no-op unless FilterRole is 'Bot'.
+  // named bot. In addition, only items with a role of Bot are returned.
   string FilterBotName = 4;
 }
 

@@ -35,6 +35,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -391,9 +392,9 @@ func TestListProvisionTokens(t *testing.T) {
 		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 
 		require.Len(t, resp.Items, 2)
-		require.Equal(t, "test-token-3", resp.NextPageToken)
-		require.Equal(t, "test-token-1", resp.Items[0].ID)
-		require.Equal(t, "test-token-2", resp.Items[1].ID)
+		assert.Equal(t, "test-token-3", resp.NextPageToken)
+		assert.Equal(t, "test-token-1", resp.Items[0].ID)
+		assert.Equal(t, "test-token-2", resp.Items[1].ID)
 
 		re, err = pack.clt.Get(ctx, endpoint, url.Values{
 			"page_token": []string{resp.NextPageToken},
@@ -404,8 +405,8 @@ func TestListProvisionTokens(t *testing.T) {
 		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 
 		require.Len(t, resp.Items, 1)
-		require.Empty(t, resp.NextPageToken)
-		require.Equal(t, "test-token-3", resp.Items[0].ID)
+		assert.Empty(t, resp.NextPageToken)
+		assert.Equal(t, "test-token-3", resp.Items[0].ID)
 	})
 
 	t.Run("filter by roles", func(t *testing.T) {
@@ -424,8 +425,8 @@ func TestListProvisionTokens(t *testing.T) {
 		resp = ListProvisionTokensResponse{}
 		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 		require.Len(t, resp.Items, 2)
-		require.Equal(t, "test-token-1", resp.Items[0].ID)
-		require.Equal(t, "test-token-3", resp.Items[1].ID)
+		assert.Equal(t, "test-token-1", resp.Items[0].ID)
+		assert.Equal(t, "test-token-3", resp.Items[1].ID)
 
 		re, err = pack.clt.Get(ctx, endpoint, url.Values{
 			"role": []string{"Bot"},
@@ -434,8 +435,8 @@ func TestListProvisionTokens(t *testing.T) {
 		resp = ListProvisionTokensResponse{}
 		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 		require.Len(t, resp.Items, 2)
-		require.Equal(t, "test-token-2", resp.Items[0].ID)
-		require.Equal(t, "test-token-3", resp.Items[1].ID)
+		assert.Equal(t, "test-token-2", resp.Items[0].ID)
+		assert.Equal(t, "test-token-3", resp.Items[1].ID)
 	})
 
 	t.Run("filter by bot name", func(t *testing.T) {
@@ -454,7 +455,7 @@ func TestListProvisionTokens(t *testing.T) {
 		resp = ListProvisionTokensResponse{}
 		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 		require.Len(t, resp.Items, 1)
-		require.Equal(t, "test-token-2", resp.Items[0].ID)
+		assert.Equal(t, "test-token-2", resp.Items[0].ID)
 	})
 }
 

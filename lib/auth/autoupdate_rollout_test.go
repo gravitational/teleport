@@ -125,7 +125,7 @@ func TestSampleAgentsFromGroup(t *testing.T) {
 	require.Less(t, conflicts, 4)
 
 	// Test execution: check that agents not belonging to any group are sampled whe requesting the catch-all group.
-	canariesCatchAll, err := auth.SampleAgentsFromAutoUpdateGroup(t.Context(), testGroupName, sampleSize, []string{"group-a", testCatchAllGroupName})
+	canariesCatchAll, err := auth.SampleAgentsFromAutoUpdateGroup(t.Context(), testCatchAllGroupName, sampleSize, []string{"group-a", testCatchAllGroupName})
 	require.NoError(t, err)
 	require.Len(t, canariesCatchAll, sampleSize)
 	canarySet = make(map[string]*autoupdatev1pb.Canary)
@@ -134,6 +134,15 @@ func TestSampleAgentsFromGroup(t *testing.T) {
 	}
 	require.Len(t, canarySet, sampleSize, "some canary got duplicated")
 
+	// Test execution: check that agents belonging to the catch-all group are sampled.
+	canariesCatchAll, err = auth.SampleAgentsFromAutoUpdateGroup(t.Context(), testGroupName, sampleSize, []string{"group-a", testGroupName})
+	require.NoError(t, err)
+	require.Len(t, canariesCatchAll, sampleSize)
+	canarySet = make(map[string]*autoupdatev1pb.Canary)
+	for _, canary := range canariesCatchAll {
+		canarySet[canary.UpdaterId] = canary
+	}
+	require.Len(t, canarySet, sampleSize, "some canary got duplicated")
 }
 
 func TestLookupAgentInInventory(t *testing.T) {

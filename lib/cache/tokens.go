@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 )
 
 type staticTokensIndex string
@@ -173,7 +174,10 @@ func (c *Cache) GetToken(ctx context.Context, name string) (types.ProvisionToken
 	return t.Clone(), nil
 }
 
-// ListProvisionTokens returns a paginated list of provision tokens.
+// ListProvisionTokens returns a paginated list of provision tokens. Items can
+// be filtered by role and bot name. Tokens with ANY of the provided roles are
+// returned. If a bot name is provided, only tokens having a role of Bot are
+// returned.
 func (c *Cache) ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetTokens")
 	defer span.End()
@@ -188,15 +192,7 @@ func (c *Cache) ListProvisionTokens(ctx context.Context, pageSize int, pageToken
 			return c.Config.Provisioner.ListProvisionTokens(ctx, pageSize, pageToken, anyRoles, botName)
 		},
 		filter: func(t types.ProvisionToken) bool {
-			if len(anyRoles) > 0 {
-				return t.GetRoles().IncludeAny(anyRoles...)
-			}
-
-			if botName != "" {
-				return t.GetRoles().Include(types.RoleBot) && t.GetBotName() == botName
-			}
-
-			return true
+			return local.MatchToken(t, anyRoles, botName)
 		},
 		nextToken: func(t types.ProvisionToken) string {
 			return t.GetName()

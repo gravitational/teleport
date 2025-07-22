@@ -198,7 +198,10 @@ func (s *ProvisioningService) GetTokens(ctx context.Context) ([]types.ProvisionT
 	return tokens, nil
 }
 
-// ListProvisionTokens returns a paginated list of provision tokens.
+// ListProvisionTokens returns a paginated list of provision tokens. Items can
+// be filtered by role and bot name. Tokens with ANY of the provided roles are
+// returned. If a bot name is provided, only tokens having a role of Bot are
+// returned.
 func (s *ProvisioningService) ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error) {
 	// Bound page size (0 - 1_000)
 	if pageSize <= 0 || pageSize > int(defaults.MaxIterationLimit) {
@@ -232,11 +235,7 @@ func (s *ProvisioningService) ListProvisionTokens(ctx context.Context, pageSize 
 			return out, nextKey, nil
 		}
 
-		if len(anyRoles) > 0 && !t.GetRoles().IncludeAny(anyRoles...) {
-			continue
-		}
-
-		if botName != "" && (!t.GetRoles().Include(types.RoleBot) || t.GetBotName() != botName) {
+		if !MatchToken(t, anyRoles, botName) {
 			continue
 		}
 
@@ -244,6 +243,20 @@ func (s *ProvisioningService) ListProvisionTokens(ctx context.Context, pageSize 
 	}
 
 	return out, "", nil
+}
+
+// MatchToken validates a token against a set of roles and a bot name filters.
+// If a bot name is provided, it additionally checks if the token has a role of bot.
+func MatchToken(t types.ProvisionToken, anyRoles types.SystemRoles, botName string) bool {
+	if len(anyRoles) > 0 && !t.GetRoles().IncludeAny(anyRoles...) {
+		return false
+	}
+
+	if botName != "" && (!t.GetRoles().Include(types.RoleBot) || t.GetBotName() != botName) {
+		return false
+	}
+
+	return true
 }
 
 const tokensPrefix = "tokens"
