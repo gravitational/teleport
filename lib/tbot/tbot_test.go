@@ -1245,7 +1245,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 func TestBotJoiningURI(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	process := testenv.MakeTestServer(
 		t,
