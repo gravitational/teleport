@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
-	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -47,7 +47,7 @@ const renewalRetryLimit = 5
 
 // newBotConfigWriter returns a new BotConfigWriter that writes to the given
 // Destination.
-func newBotConfigWriter(ctx context.Context, dest bot.Destination, subPath string) *BotConfigWriter {
+func newBotConfigWriter(ctx context.Context, dest destination.Destination, subPath string) *BotConfigWriter {
 	return &BotConfigWriter{
 		ctx:     ctx,
 		dest:    dest,
@@ -61,7 +61,7 @@ type BotConfigWriter struct {
 	ctx context.Context
 
 	// dest is the Destination that will handle writing of files.
-	dest bot.Destination
+	dest destination.Destination
 
 	// subpath is the subdirectory within the Destination to which the files
 	// should be written.
@@ -125,7 +125,7 @@ func NewClientKeyRing(ident *identity.Identity, hostCAs []types.CertAuthority) (
 }
 
 func writeIdentityFile(
-	ctx context.Context, log *slog.Logger, keyRing *client.KeyRing, dest bot.Destination,
+	ctx context.Context, log *slog.Logger, keyRing *client.KeyRing, dest destination.Destination,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -157,7 +157,7 @@ func writeIdentityFile(
 // useful when writing out TLS certificates with alternative prefix and file
 // extensions for application compatibility reasons.
 func writeIdentityFileTLS(
-	ctx context.Context, log *slog.Logger, keyRing *client.KeyRing, dest bot.Destination,
+	ctx context.Context, log *slog.Logger, keyRing *client.KeyRing, dest destination.Destination,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -202,7 +202,7 @@ func concatCACerts(cas []types.CertAuthority) []byte {
 // TODO(noah): This is largely a copy of templateTLSCAs. We should reconsider
 // which CAs are actually worth writing for each type of service because
 // it seems inefficient to write the "Database" CA for a Kubernetes output.
-func writeTLSCAs(ctx context.Context, dest bot.Destination, hostCAs, userCAs, databaseCAs []types.CertAuthority) error {
+func writeTLSCAs(ctx context.Context, dest destination.Destination, hostCAs, userCAs, databaseCAs []types.CertAuthority) error {
 	ctx, span := tracer.Start(
 		ctx,
 		"writeTLSCAs",

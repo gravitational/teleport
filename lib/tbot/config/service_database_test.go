@@ -21,10 +21,13 @@ package config
 import (
 	"testing"
 	"time"
+
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 )
 
 func TestDatabaseOutput_YAML(t *testing.T) {
-	dest := &DestinationMemory{}
+	dest := &destination.Memory{}
 	tests := []testYAMLCase[DatabaseOutput]{
 		{
 			name: "full",
@@ -35,7 +38,7 @@ func TestDatabaseOutput_YAML(t *testing.T) {
 				Service:     "my-database-service",
 				Database:    "my-database",
 				Username:    "my-username",
-				CredentialLifetime: CredentialLifetime{
+				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
 				},
@@ -58,7 +61,7 @@ func TestDatabaseOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "valid",
 			in: func() *DatabaseOutput {
 				return &DatabaseOutput{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					Roles:       []string{"access"},
 					Database:    "db",
 					Service:     "service",
@@ -80,7 +83,7 @@ func TestDatabaseOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "missing service",
 			in: func() *DatabaseOutput {
 				return &DatabaseOutput{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 				}
 			},
 			wantErr: "service must not be empty",
@@ -89,7 +92,7 @@ func TestDatabaseOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "invalid format",
 			in: func() *DatabaseOutput {
 				return &DatabaseOutput{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					Service:     "service",
 					Format:      "no-such-format",
 				}

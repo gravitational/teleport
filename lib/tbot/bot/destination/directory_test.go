@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package destination
 
 import (
 	"context"
@@ -32,7 +32,7 @@ import (
 )
 
 func TestDestinationDirectory_Lock(t *testing.T) {
-	dd := &DestinationDirectory{
+	dd := &Directory{
 		Path:     t.TempDir(),
 		Symlinks: botfs.SymlinksInsecure,
 		ACLs:     botfs.ACLOff,
@@ -58,10 +58,10 @@ func TestDestinationDirectory_Lock(t *testing.T) {
 }
 
 func TestDestinationDirectory_YAML(t *testing.T) {
-	tests := []testYAMLCase[DestinationDirectory]{
+	tests := []testYAMLCase[Directory]{
 		{
 			name: "full",
-			in: DestinationDirectory{
+			in: Directory{
 				Path:     "/my/path",
 				ACLs:     botfs.ACLRequired,
 				Symlinks: botfs.SymlinksSecure,
@@ -69,13 +69,13 @@ func TestDestinationDirectory_YAML(t *testing.T) {
 		},
 		{
 			name: "minimal",
-			in: DestinationDirectory{
+			in: Directory{
 				Path: "/my/path",
 			},
 		},
 		{
 			name: "acl readers",
-			in: DestinationDirectory{
+			in: Directory{
 				Path: "/my/path",
 				ACLs: botfs.ACLRequired,
 				Readers: []*botfs.ACLSelector{
@@ -101,7 +101,7 @@ func TestDestinationDirectory_ACLs(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "test")
 
-	dd := DestinationDirectory{
+	dd := Directory{
 		Path: path,
 		ACLs: botfs.ACLRequired,
 		Readers: []*botfs.ACLSelector{

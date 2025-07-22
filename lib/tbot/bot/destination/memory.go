@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package destination
 
 import (
 	"context"
@@ -26,18 +26,27 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
-const DestinationMemoryType = "memory"
+const MemoryType = "memory"
 
-// DestinationMemory is a memory certificate Destination
-type DestinationMemory struct {
+// NewMemory returns an initialized and ready to use memory destination.
+func NewMemory() *Memory {
+	mem := &Memory{}
+	mem.CheckAndSetDefaults()
+	return mem
+}
+
+// Memory is a memory certificate Destination
+type Memory struct {
 	store map[string][]byte `yaml:"-"`
 	// mutex protects store in case other routines want to read its content
 	mutex sync.RWMutex
 }
 
-func (dm *DestinationMemory) UnmarshalYAML(node *yaml.Node) error {
+func (dm *Memory) UnmarshalYAML(node *yaml.Node) error {
 	// Accept either a bool or a raw (in this case empty) struct
 	//   memory: {}
 	// or:
@@ -51,11 +60,11 @@ func (dm *DestinationMemory) UnmarshalYAML(node *yaml.Node) error {
 		return nil
 	}
 
-	type rawMemory DestinationMemory
+	type rawMemory Memory
 	return trace.Wrap(node.Decode((*rawMemory)(dm)))
 }
 
-func (dm *DestinationMemory) CheckAndSetDefaults() error {
+func (dm *Memory) CheckAndSetDefaults() error {
 	// Initialize the store but only if it is nil. This allows the memory
 	// destination to persist across multiple "Starts" of a bot.
 	if dm.store == nil {
@@ -65,20 +74,20 @@ func (dm *DestinationMemory) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (dm *DestinationMemory) Init(_ context.Context, subdirs []string) error {
+func (dm *Memory) Init(_ context.Context, subdirs []string) error {
 	// Nothing to do.
 	return nil
 }
 
-func (dm *DestinationMemory) Verify(keys []string) error {
+func (dm *Memory) Verify(keys []string) error {
 	// Nothing to do.
 	return nil
 }
 
-func (dm *DestinationMemory) Write(ctx context.Context, name string, data []byte) error {
+func (dm *Memory) Write(ctx context.Context, name string, data []byte) error {
 	_, span := tracer.Start(
 		ctx,
-		"DestinationMemory/Write",
+		"Memory/Write",
 		oteltrace.WithAttributes(attribute.String("name", name)),
 	)
 	defer span.End()
@@ -90,10 +99,10 @@ func (dm *DestinationMemory) Write(ctx context.Context, name string, data []byte
 	return nil
 }
 
-func (dm *DestinationMemory) Read(ctx context.Context, name string) ([]byte, error) {
+func (dm *Memory) Read(ctx context.Context, name string) ([]byte, error) {
 	_, span := tracer.Start(
 		ctx,
-		"DestinationMemory/Read",
+		"Memory/Read",
 		oteltrace.WithAttributes(attribute.String("name", name)),
 	)
 	defer span.End()
@@ -108,11 +117,11 @@ func (dm *DestinationMemory) Read(ctx context.Context, name string) ([]byte, err
 	return b, nil
 }
 
-func (dm *DestinationMemory) String() string {
-	return DestinationMemoryType
+func (dm *Memory) String() string {
+	return MemoryType
 }
 
-func (dm *DestinationMemory) TryLock() (func() error, error) {
+func (dm *Memory) TryLock() (func() error, error) {
 	// As this is purely in-memory, no locking behavior is required for the
 	// Destination.
 	return func() error {
@@ -120,11 +129,11 @@ func (dm *DestinationMemory) TryLock() (func() error, error) {
 	}, nil
 }
 
-func (dm *DestinationMemory) MarshalYAML() (interface{}, error) {
-	type raw DestinationMemory
-	return withTypeHeader((*raw)(dm), DestinationMemoryType)
+func (dm *Memory) MarshalYAML() (any, error) {
+	type raw Memory
+	return encoding.WithTypeHeader((*raw)(dm), MemoryType)
 }
 
-func (dm *DestinationMemory) IsPersistent() bool {
+func (dm *Memory) IsPersistent() bool {
 	return false
 }

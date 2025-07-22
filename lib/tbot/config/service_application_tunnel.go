@@ -24,6 +24,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
 var (
@@ -50,7 +53,7 @@ type ApplicationTunnelService struct {
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
+	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
 
 	// Listener overrides "listen" and directly provides an opened listener to
 	// use.
@@ -68,7 +71,7 @@ func (o *ApplicationTunnelService) GetName() string {
 
 func (s *ApplicationTunnelService) MarshalYAML() (any, error) {
 	type raw ApplicationTunnelService
-	return withTypeHeader((*raw)(s), ApplicationTunnelServiceType)
+	return encoding.WithTypeHeader((*raw)(s), ApplicationTunnelServiceType)
 }
 
 func (s *ApplicationTunnelService) UnmarshalYAML(node *yaml.Node) error {
@@ -93,6 +96,6 @@ func (s *ApplicationTunnelService) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (o *ApplicationTunnelService) GetCredentialLifetime() CredentialLifetime {
+func (o *ApplicationTunnelService) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }

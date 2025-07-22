@@ -37,6 +37,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -115,7 +116,7 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 				Selector: config.WorkloadIdentitySelector{
 					Name: workloadIdentity.GetMetadata().GetName(),
 				},
-				Destination: &config.DestinationDirectory{
+				Destination: &destination.Directory{
 					Path: tmpDir,
 				},
 			},
@@ -161,7 +162,7 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 						"foo": {"bar"},
 					},
 				},
-				Destination: &config.DestinationDirectory{
+				Destination: &destination.Directory{
 					Path: tmpDir,
 				},
 			},

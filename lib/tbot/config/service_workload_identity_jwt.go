@@ -23,6 +23,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
 const WorkloadIdentityJWTOutputType = "workload-identity-jwt"
@@ -40,13 +42,13 @@ type WorkloadIdentityJWTService struct {
 	// used to issue WICs.
 	Selector WorkloadIdentitySelector `yaml:"selector"`
 	// Destination is where the credentials should be written to.
-	Destination bot.Destination `yaml:"destination"`
+	Destination destination.Destination `yaml:"destination"`
 	// Audiences is the list of audiences that the JWT should be valid for.
 	Audiences []string
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
+	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
@@ -93,7 +95,7 @@ func (o *WorkloadIdentityJWTService) Type() string {
 // MarshalYAML marshals the WorkloadIdentityJWTService into YAML.
 func (o *WorkloadIdentityJWTService) MarshalYAML() (interface{}, error) {
 	type raw WorkloadIdentityJWTService
-	return withTypeHeader((*raw)(o), WorkloadIdentityJWTOutputType)
+	return encoding.WithTypeHeader((*raw)(o), WorkloadIdentityJWTOutputType)
 }
 
 // UnmarshalYAML unmarshals the WorkloadIdentityJWTService from YAML.
@@ -112,12 +114,12 @@ func (o *WorkloadIdentityJWTService) UnmarshalYAML(node *yaml.Node) error {
 }
 
 // GetDestination returns the destination.
-func (o *WorkloadIdentityJWTService) GetDestination() bot.Destination {
+func (o *WorkloadIdentityJWTService) GetDestination() destination.Destination {
 	return o.Destination
 }
 
-func (o *WorkloadIdentityJWTService) GetCredentialLifetime() CredentialLifetime {
+func (o *WorkloadIdentityJWTService) GetCredentialLifetime() bot.CredentialLifetime {
 	lt := o.CredentialLifetime
-	lt.skipMaxTTLValidation = true
+	lt.SkipMaxTTLValidation = true
 	return lt
 }

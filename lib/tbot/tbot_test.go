@@ -62,7 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	apisshutils "github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -168,7 +168,7 @@ func defaultBotConfig(
 		AuthServerAddressMode: config.WarnIfAuthServerIsProxy,
 		Onboarding:            *onboarding,
 		Storage: &config.StorageConfig{
-			Destination: &config.DestinationMemory{},
+			Destination: &destination.Memory{},
 		},
 		Oneshot: true,
 		// Set insecure so the bot will trust the Proxy's webapi default signed
@@ -323,48 +323,48 @@ func TestBot(t *testing.T) {
 	)
 
 	identityOutput := &config.IdentityOutput{
-		Destination: &config.DestinationMemory{},
+		Destination: &destination.Memory{},
 	}
 	identityOutputWithRoles := &config.IdentityOutput{
-		Destination: &config.DestinationMemory{},
+		Destination: &destination.Memory{},
 		Roles:       []string{mainRole},
 	}
 	identityOutputWithReissue := &config.IdentityOutput{
-		Destination:  &config.DestinationMemory{},
+		Destination:  &destination.Memory{},
 		AllowReissue: true,
 	}
 	appOutput := &config.ApplicationOutput{
-		Destination: &config.DestinationMemory{},
+		Destination: &destination.Memory{},
 		AppName:     appName,
 	}
 	dbOutput := &config.DatabaseOutput{
-		Destination: &config.DestinationMemory{},
+		Destination: &destination.Memory{},
 		Service:     databaseServiceName,
 		Database:    databaseName,
 		Username:    databaseUsername,
 	}
 	dbDiscoveredNameOutput := &config.DatabaseOutput{
-		Destination: &config.DestinationMemory{},
+		Destination: &destination.Memory{},
 		Service:     databaseServiceDiscoveredName,
 		Database:    databaseName,
 		Username:    databaseUsername,
 	}
 	kubeOutput := &config.KubernetesOutput{
 		// DestinationDirectory required or output will fail.
-		Destination: &config.DestinationDirectory{
+		Destination: &destination.Directory{
 			Path: t.TempDir(),
 		},
 		KubernetesCluster: kubeClusterName,
 	}
 	kubeDiscoveredNameOutput := &config.KubernetesOutput{
 		// DestinationDirectory required or output will fail.
-		Destination: &config.DestinationDirectory{
+		Destination: &destination.Directory{
 			Path: t.TempDir(),
 		},
 		KubernetesCluster: kubeClusterDiscoveredName,
 	}
 	sshHostOutput := &config.SSHHostOutput{
-		Destination: &config.DestinationMemory{},
+		Destination: &destination.Memory{},
 		Principals:  []string{hostPrincipal},
 	}
 	botConfig := defaultBotConfig(
@@ -551,7 +551,7 @@ func requireValidOutputTLSIdent(t *testing.T, ident *tlsca.Identity, wantRoles [
 	require.Equal(t, wantRoles, ident.Groups)
 }
 
-func tlsIdentFromDest(ctx context.Context, t *testing.T, dest bot.Destination) *tlsca.Identity {
+func tlsIdentFromDest(ctx context.Context, t *testing.T, dest destination.Destination) *tlsca.Identity {
 	t.Helper()
 	keyBytes, err := dest.Read(ctx, identity.PrivateKeyKey)
 	require.NoError(t, err)
@@ -596,7 +596,7 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 
 	// Use a destination directory to ensure locking behaves correctly and
 	// the bot isn't left in a locked state.
-	directoryDest := &config.DestinationDirectory{
+	directoryDest := &destination.Directory{
 		Path:     t.TempDir(),
 		Symlinks: botfs.SymlinksInsecure,
 		ACLs:     botfs.ACLOff,
@@ -671,7 +671,7 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 		defaultBotConfigOpts{insecure: true},
 	)
 
-	dest := &config.DestinationDirectory{
+	dest := &destination.Directory{
 		Path:     t.TempDir(),
 		Symlinks: botfs.SymlinksInsecure,
 		ACLs:     botfs.ACLOff,
@@ -705,7 +705,7 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 	// Run it again in long-running mode, and it should eventually succeed once
 	// the network partition has healed.
 	botConfig.Oneshot = false
-	outputDest := newWriteNotifier(&config.DestinationMemory{})
+	outputDest := newWriteNotifier(&destination.Memory{})
 	require.NoError(t, outputDest.CheckAndSetDefaults())
 	botConfig.Services = append(botConfig.Services, &config.IdentityOutput{
 		Destination: outputDest,
@@ -745,7 +745,7 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 	}
 }
 
-func newWriteNotifier(dst bot.Destination) *writeNotifier {
+func newWriteNotifier(dst destination.Destination) *writeNotifier {
 	return &writeNotifier{
 		Destination: dst,
 		ch:          make(chan struct{}, 1),
@@ -753,7 +753,7 @@ func newWriteNotifier(dst bot.Destination) *writeNotifier {
 }
 
 type writeNotifier struct {
-	bot.Destination
+	destination.Destination
 
 	ch chan struct{}
 }
@@ -882,7 +882,7 @@ func TestBot_InsecureViaProxy(t *testing.T) {
 	)
 	// Use a destination directory to ensure locking behaves correctly and
 	// the bot isn't left in a locked state.
-	directoryDest := &config.DestinationDirectory{
+	directoryDest := &destination.Directory{
 		Path:     t.TempDir(),
 		Symlinks: botfs.SymlinksInsecure,
 		ACLs:     botfs.ACLOff,
@@ -1192,7 +1192,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	botConfig := defaultBotConfig(
 		t, process, onboarding, config.ServiceConfigs{
 			&config.SSHMultiplexerService{
-				Destination: &config.DestinationDirectory{
+				Destination: &destination.Directory{
 					Path: tmpDir,
 				},
 			},
@@ -1319,7 +1319,7 @@ func TestBotDeviceTrust(t *testing.T) {
 		t, process, onboarding,
 		config.ServiceConfigs{
 			&config.IdentityOutput{
-				Destination: &config.DestinationMemory{},
+				Destination: &destination.Memory{},
 			},
 		},
 		defaultBotConfigOpts{
