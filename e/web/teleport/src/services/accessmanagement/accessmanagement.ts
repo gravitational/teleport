@@ -248,8 +248,8 @@ function makeAccessList(json: any): AccessList {
     },
     audit: {
       recurrence: {
-        frequency: spec.audit?.recurrence?.frequency || 0,
-        dayOfMonth: spec.audit?.recurrence?.day_of_month || 0,
+        frequency: spec.audit?.recurrence?.frequency || '',
+        dayOfMonth: spec.audit?.recurrence?.day_of_month || '',
       },
       nextDate: spec.audit?.next_audit_date
         ? new Date(spec.audit?.next_audit_date)

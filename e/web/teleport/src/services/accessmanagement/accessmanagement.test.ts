@@ -51,8 +51,8 @@ test('fetch access lists, empty responses does not throw error', async () => {
       },
       audit: {
         recurrence: {
-          dayOfMonth: 0,
-          frequency: 0,
+          dayOfMonth: '',
+          frequency: '',
         },
         nextDate: undefined,
       },
@@ -73,8 +73,8 @@ test('fetch an access list, empty response does not throw error', async () => {
   const madeResponse = {
     audit: {
       recurrence: {
-        dayOfMonth: 0,
-        frequency: 0,
+        dayOfMonth: '',
+        frequency: '',
       },
       nextDate: undefined,
     },
