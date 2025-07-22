@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package teleagent
+package sshagent
 
 import (
 	"context"
@@ -36,13 +36,10 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-// TODO(Joerger): Remove once no longer used by /e
-//
-// Agent extends the agent.ExtendedAgent interface.
-// APIs which accept this interface promise to
-// call `Close()` when they are done using the
-// supplied agent.
-type Agent interface {
+// AgentCloser extends the [agent.ExtendedAgent] interface with the
+// `Close()` method. APIs which accept this interface promise to
+// call `Close()` when they are done using the supplied agent.
+type AgentCloser interface {
 	agent.ExtendedAgent
 	io.Closer
 }
@@ -57,12 +54,12 @@ func (n nopCloser) Close() error { return nil }
 
 // NopCloser wraps an agent.Agent with a NOP closer, allowing it
 // to be passed to APIs which expect the extended agent interface.
-func NopCloser(std agent.ExtendedAgent) Agent {
+func NopCloser(std agent.ExtendedAgent) AgentCloser {
 	return nopCloser{std}
 }
 
 // Getter is a function used to get an agent instance.
-type Getter func() (Agent, error)
+type Getter func() (AgentCloser, error)
 
 // AgentServer is implementation of SSH agent server
 type AgentServer struct {
@@ -154,16 +151,6 @@ func (a *AgentServer) Serve() error {
 			}
 		}()
 	}
-}
-
-// ListenAndServe is similar http.ListenAndServe
-func (a *AgentServer) ListenAndServe(addr utils.NetAddr) error {
-	l, err := net.Listen(addr.AddrNetwork, addr.Addr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	a.listener = l
-	return a.Serve()
 }
 
 // Close closes listener and stops serving agent
