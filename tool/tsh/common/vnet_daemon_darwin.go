@@ -61,7 +61,7 @@ func (c *vnetDaemonCommand) run(cf *CLIConf) error {
 		level = slog.LevelDebug
 	}
 
-	if err := utils.InitLogger(utils.LoggingForDaemon, level, utils.WithOSLog(subsystem)); err != nil {
+	if _, err := utils.InitLogger(utils.LoggingForDaemon, level, utils.WithOSLog(subsystem)); err != nil {
 		return trace.Wrap(err, "initializing logger")
 	}
 

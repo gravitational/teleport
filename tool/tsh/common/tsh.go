@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"maps"
 	"net"
 	"net/url"
@@ -79,7 +80,9 @@ import (
 	benchmarkdb "github.com/gravitational/teleport/lib/benchmark/db"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
+	dbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/client/reexec"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
@@ -140,6 +143,10 @@ var accessRequestModes = []string{
 	accessRequestModeResource,
 	accessRequestModeRole,
 }
+
+// ClientInitFunc defines a function that initiates a connection to
+// the Teleport cluster using the CLI configuration.
+type ClientInitFunc func(cf *CLIConf) (*client.TeleportClient, error)
 
 // CLIConf stores command line arguments and flags:
 type CLIConf struct {
@@ -527,8 +534,14 @@ type CLIConf struct {
 	// kubeNamespace allows to configure the default Kubernetes namespace.
 	kubeNamespace string
 
-	// kubeAllNamespaces allows users to search for pods in every namespace.
+	// kubeAllNamespaces allows users to search for resources in every namespace.
 	kubeAllNamespaces bool
+
+	// kubeResourceKind allows to search for resources.
+	kubeResourceKind string
+
+	// kubeAPIGroup allows to search for CRD and unknown resources.
+	kubeAPIGroup string
 
 	// KubeConfigPath is the location of the Kubeconfig for the current test.
 	// Setting this value allows Teleport tests to run `tsh login` commands in
@@ -618,6 +631,27 @@ type CLIConf struct {
 	// atomic here is overkill as the CLIConf is generally consumed sequentially. However, occasionally
 	// we need concurrency safety, such as for [forEachProfileParallel].
 	clientStoreSet int32
+
+	// ForkAfterAuthentication indicates that tsh should go into the background
+	// after authentication.
+	ForkAfterAuthentication bool
+	// forkSignalFd is the file descriptor for the child process to signal the
+	// parent when re-execing.
+	forkSignalFd uint64
+	// forkKillFd is the file descriptor for the child process to check the
+	// parent's state when re-execing.
+	forkKillFd uint64
+
+	// checkManagedUpdates initiates check of managed update after client connects to cluster.
+	checkManagedUpdates bool
+
+	// databaseMCPRegistryOverride overrides database access MCP servers
+	// registry. used in tests.
+	databaseMCPRegistryOverride dbmcp.Registry
+}
+
+func (c *CLIConf) isForkAuthChild() bool {
+	return isValidForkSignalFd(c.forkSignalFd) && isValidForkSignalFd(c.forkKillFd)
 }
 
 // Stdout returns the stdout writer.
@@ -723,23 +757,26 @@ const (
 	headlessSkipConfirmEnvVar = "TELEPORT_HEADLESS_SKIP_CONFIRM"
 	// TELEPORT_SITE uses the older deprecated "site" terminology to refer to a
 	// cluster. All new code should use TELEPORT_CLUSTER instead.
-	siteEnvVar               = "TELEPORT_SITE"
-	userEnvVar               = "TELEPORT_USER"
-	addKeysToAgentEnvVar     = "TELEPORT_ADD_KEYS_TO_AGENT"
-	useLocalSSHAgentEnvVar   = "TELEPORT_USE_LOCAL_SSH_AGENT"
-	globalTshConfigEnvVar    = "TELEPORT_GLOBAL_TSH_CONFIG"
-	mfaModeEnvVar            = "TELEPORT_MFA_MODE"
-	mlockModeEnvVar          = "TELEPORT_MLOCK_MODE"
-	identityFileEnvVar       = "TELEPORT_IDENTITY_FILE"
-	gcloudSecretEnvVar       = "TELEPORT_GCLOUD_SECRET"
-	awsAccessKeyIDEnvVar     = "TELEPORT_AWS_ACCESS_KEY_ID"
-	awsSecretAccessKeyEnvVar = "TELEPORT_AWS_SECRET_ACCESS_KEY"
-	awsRegionEnvVar          = "TELEPORT_AWS_REGION"
-	awsKeystoreEnvVar        = "TELEPORT_AWS_KEYSTORE"
-	awsWorkgroupEnvVar       = "TELEPORT_AWS_WORKGROUP"
-	proxyKubeConfigEnvVar    = "TELEPORT_KUBECONFIG"
-	noResumeEnvVar           = "TELEPORT_NO_RESUME"
-	requestModeEnvVar        = "TELEPORT_REQUEST_MODE"
+	siteEnvVar                = "TELEPORT_SITE"
+	userEnvVar                = "TELEPORT_USER"
+	addKeysToAgentEnvVar      = "TELEPORT_ADD_KEYS_TO_AGENT"
+	useLocalSSHAgentEnvVar    = "TELEPORT_USE_LOCAL_SSH_AGENT"
+	globalTshConfigEnvVar     = "TELEPORT_GLOBAL_TSH_CONFIG"
+	mfaModeEnvVar             = "TELEPORT_MFA_MODE"
+	mlockModeEnvVar           = "TELEPORT_MLOCK_MODE"
+	identityFileEnvVar        = "TELEPORT_IDENTITY_FILE"
+	gcloudSecretEnvVar        = "TELEPORT_GCLOUD_SECRET"
+	awsAccessKeyIDEnvVar      = "TELEPORT_AWS_ACCESS_KEY_ID"
+	awsSecretAccessKeyEnvVar  = "TELEPORT_AWS_SECRET_ACCESS_KEY"
+	awsRegionEnvVar           = "TELEPORT_AWS_REGION"
+	awsKeystoreEnvVar         = "TELEPORT_AWS_KEYSTORE"
+	awsWorkgroupEnvVar        = "TELEPORT_AWS_WORKGROUP"
+	proxyKubeConfigEnvVar     = "TELEPORT_KUBECONFIG"
+	noResumeEnvVar            = "TELEPORT_NO_RESUME"
+	requestModeEnvVar         = "TELEPORT_REQUEST_MODE"
+	mcpClientConfigEnvVar     = "TELEPORT_MCP_CLIENT_CONFIG"
+	mcpConfigJSONFormatEnvVar = "TELEPORT_MCP_CONFIG_JSON_FORMAT"
+	toolsCheckUpdateEnvVar    = "TELEPORT_TOOLS_CHECK_UPDATE"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -772,10 +809,6 @@ type CliOption func(*CLIConf) error
 //
 // DO NOT RUN TESTS that call Run() in parallel (unless you taken precautions).
 func Run(ctx context.Context, args []string, opts ...CliOption) error {
-	if err := tools.CheckAndUpdateLocal(ctx, args); err != nil {
-		return trace.Wrap(err)
-	}
-
 	cf := CLIConf{
 		Context:            ctx,
 		TracingProvider:    tracing.NoopProvider(),
@@ -783,9 +816,27 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		DTAutoEnroll:       dtenroll.AutoEnroll,
 	}
 
+	// We need to parse the arguments before executing managed updates to identify
+	// the profile name and the required version for the current cluster.
+	// All other commands and flags may change between versions, so full parsing
+	// should be performed only after managed updates are applied.
+	var proxyArg string
+	muApp := utils.InitCLIParser("tsh", "")
+	muApp.Flag("proxy", "Teleport proxy address").Envar(proxyEnvVar).Hidden().StringVar(&proxyArg)
+	muApp.Flag("check-update", "Check for availability of managed update.").Envar(toolsCheckUpdateEnvVar).Hidden().BoolVar(&cf.checkManagedUpdates)
+
+	if _, err := muApp.Parse(utils.FilterArguments(args, muApp.Model())); err != nil {
+		slog.WarnContext(ctx, "can't identify current profile", "error", err)
+	}
+	// Check local update for specific proxy from configuration.
+	name := utils.TryHost(strings.TrimPrefix(strings.ToLower(proxyArg), "https://"))
+	if err := tools.CheckAndUpdateLocal(ctx, name, args); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// run early to enable debug logging if env var is set.
 	// this makes it possible to debug early startup functionality, particularly command aliases.
-	if err := initLogger(&cf, parseLoggingOptsFromEnv()); err != nil {
+	if _, err := initLogger(&cf, utils.LoggingForCLI, parseLoggingOptsFromEnv()); err != nil {
 		printInitLoggerError(err)
 	}
 
@@ -812,6 +863,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("cert-format", "SSH certificate format").StringVar(&cf.CertificateFormat)
 	app.Flag("trace", "Capture and export distributed traces").Hidden().BoolVar(&cf.SampleTraces)
 	app.Flag("trace-exporter", "An OTLP exporter URL to send spans to. Note - only tsh spans will be included.").Hidden().StringVar(&cf.TraceExporter)
+	// This flag only applies to tsh ssh; it's defined here to make configuring
+	// the re-exec command easier.
+	app.Flag("fork-signal-fd", "File descriptor to signal parent on when forked. Overrides --fork-after-authentication. For internal use only.").Hidden().Uint64Var(&cf.forkSignalFd)
+	app.Flag("fork-kill-fd", "File descriptor to check parent health on when forked. For internal use only.").Hidden().Uint64Var(&cf.forkKillFd)
 
 	if !moduleCfg.IsBoringBinary() {
 		// The user is *never* allowed to do this in FIPS mode.
@@ -858,6 +913,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		StringVar(&cf.MlockMode)
 	app.HelpFlag.Short('h')
 	app.Flag("piv-slot", "Specify a PIV slot key to use for Hardware Key support instead of the default. Ex: \"9d\"").Envar("TELEPORT_PIV_SLOT").StringVar(&cf.PIVSlot)
+	app.Flag("check-update", "Check for availability of managed update.").Envar(toolsCheckUpdateEnvVar).Hidden().BoolVar(&cf.checkManagedUpdates)
 
 	ver := app.Command("version", "Print the tsh client and Proxy server versions for the current context.")
 	ver.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
@@ -891,6 +947,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
 	ssh.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command").Default("true").BoolVar(&cf.Relogin)
+	ssh.Flag("fork-after-authentication", "Run in background after authentication is complete.").Short('f').BoolVar(&cf.ForkAfterAuthentication)
 	// The following flags are OpenSSH compatibility flags. They are used for
 	// users that alias "ssh" to "tsh ssh." The following OpenSSH flags are
 	// implemented. From "man 1 ssh":
@@ -1275,10 +1332,46 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqReview.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z)").StringVar(&cf.AssumeStartTimeRaw)
 
 	reqSearch := req.Command("search", "Search for resources to request access to.")
-	reqSearch.Flag("kind",
-		fmt.Sprintf("Resource kind to search for (%s)",
-			strings.Join(types.RequestableResourceKinds, ", ")),
-	).Required().EnumVar(&cf.ResourceKind, types.RequestableResourceKinds...)
+	reqSearch.Flag("kind", fmt.Sprintf("Resource kind to search for (%s).", strings.Join(types.RequestableResourceKinds, ", "))).Required().StringVar(&cf.ResourceKind)
+	reqSearch.Flag("kube-kind", fmt.Sprintf("Kubernetes resource kind name (plural) to search for. Required with --kind=%q Ex: pods, deployements, namespaces, etc.", types.KindKubernetesResource)).StringVar(&cf.kubeResourceKind)
+	reqSearch.Flag("kube-api-group", "Kubernetes API group to search for resources.").StringVar(&cf.kubeAPIGroup)
+	reqSearch.PreAction(func(*kingpin.ParseContext) error {
+		// TODO(@creack): DELETE IN v20.0.0. Allow legacy kinds with a warning for now.
+		if slices.Contains(types.LegacyRequestableKubeResourceKinds, cf.ResourceKind) {
+			cf.kubeAPIGroup = types.KubernetesResourcesV7KindGroups[cf.ResourceKind]
+			if cf.ResourceKind == types.KindKubeNamespace {
+				cf.kubeResourceKind = "namespaces"
+			} else {
+				cf.kubeResourceKind = types.KubernetesResourcesKindsPlurals[cf.ResourceKind]
+			}
+			originalKubeKind := cf.ResourceKind
+			cf.ResourceKind = types.KindKubernetesResource
+
+			nsFlag := fmt.Sprintf("--kube-namespace=%q", cf.kubeNamespace)
+			if cf.kubeAllNamespaces {
+				nsFlag = "--all-kube-namespaces"
+			}
+			fmt.Fprintf(os.Stderr, "Warning: %q is deprecated, use:\n", originalKubeKind)
+			fmt.Fprintf(os.Stderr, ">tsh request search --kind=%q --kube-kind=%q --kube-api-group=%q %s\n\n", types.KindKubernetesResource, cf.kubeResourceKind, cf.kubeAPIGroup, nsFlag)
+		}
+		switch cf.ResourceKind {
+		case types.KindKubernetesResource:
+			if cf.kubeResourceKind == "" {
+				return trace.BadParameter("--kube-kind is required when using --kind=%q", types.KindKubernetesResource)
+			}
+			if _, ok := types.KubernetesCoreResourceKinds[cf.kubeResourceKind]; !ok && cf.kubeAPIGroup == "" && cf.kubeResourceKind != types.KindKubeNamespace {
+				return trace.BadParameter("--kube-api-group is required for resource kind %q", cf.kubeResourceKind)
+			}
+		case "":
+			return trace.BadParameter("required flag --kind not provided")
+		default:
+			if !slices.Contains(types.RequestableResourceKinds, cf.ResourceKind) {
+				return trace.BadParameter("--kind must be one of %s, got %q", strings.Join(types.RequestableResourceKinds, ", "), cf.ResourceKind)
+			}
+		}
+		return nil
+	})
+
 	reqSearch.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	reqSearch.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	reqSearch.Flag("labels", labelHelp).StringVar(&cf.Labels)
@@ -1319,6 +1412,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		puttyConfig.Hidden()
 	}
 
+	// Client-tools managed updates commands.
+	updateCommand := newUpdateCommand(app)
+
 	// FIDO2, TouchID and WebAuthnWin commands.
 	f2 := fido2.NewCommand(app)
 	tid := touchid.NewCommand(app)
@@ -1339,6 +1435,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	gitCmd := newGitCommands(app)
 	pivCmd := newPIVCommands(app)
+	mcpCmd := newMCPCommands(app, &cf)
 
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
@@ -1377,6 +1474,33 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 			)
 			return trace.BadParameter("recursive alias %q; correct alias definition and try again", aliasCommand)
 		}
+	}
+
+	// Handle fork after authentication.
+	if cf.ForkAfterAuthentication && !cf.isForkAuthChild() {
+		if len(cf.RemoteCommand) == 0 {
+			return trace.BadParameter("fork after authentication not allowed for interactive sessions")
+		}
+		forkParams := reexec.ForkAuthenticateParams{
+			GetArgs: func(signalFd, killFd uint64) []string {
+				return append([]string{
+					// fd flags go immediately after `tsh`.
+					"--fork-signal-fd", strconv.FormatUint(signalFd, 10),
+					"--fork-kill-fd", strconv.FormatUint(killFd, 10),
+				}, args...)
+			},
+			Stdin:  cf.Stdin(),
+			Stdout: cf.Stdout(),
+			Stderr: cf.Stderr(),
+		}
+		if err := reexec.RunForkAuthenticate(cf.Context, forkParams); err != nil {
+			var execErr *exec.ExitError
+			if errors.As(trace.Unwrap(err), &execErr) {
+				err = &common.ExitCodeError{Code: execErr.ExitCode()}
+			}
+			return trace.Wrap(err)
+		}
+		return nil
 	}
 
 	// Remove HTTPS:// in proxy parameter as https is automatically added
@@ -1430,7 +1554,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// Enable debug logging if requested by --debug.
 	// If TELEPORT_DEBUG was set and --debug/--no-debug was not passed, debug logs were already
 	// enabled by a prior call to initLogger.
-	if err := initLogger(&cf, parseLoggingOptsFromEnvAndArgv(&cf)); err != nil {
+	if _, err := initLogger(&cf, utils.LoggingForCLI, parseLoggingOptsFromEnvAndArgv(&cf)); err != nil {
 		printInitLoggerError(err)
 	}
 
@@ -1495,7 +1619,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	case ver.FullCommand():
 		err = onVersion(&cf)
 	case ssh.FullCommand():
-		err = onSSH(&cf)
+		err = onSSH(&cf, wrapInitClientWithUpdateCheck(makeClient, args))
 	case resolve.FullCommand():
 		err = onResolve(&cf)
 		// If quiet was specified for this command and
@@ -1628,7 +1752,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	case scan.keys.FullCommand():
 		err = scan.keys.run(&cf)
 	case proxySSH.FullCommand():
-		err = onProxyCommandSSH(&cf)
+		err = onProxyCommandSSH(&cf, wrapInitClientWithUpdateCheck(makeClient, args))
 	case proxyDB.FullCommand():
 		err = onProxyCommandDB(&cf)
 	case proxyApp.FullCommand():
@@ -1745,6 +1869,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.clone.run(&cf)
 	case pivCmd.agent.FullCommand():
 		err = pivCmd.agent.run(&cf)
+	case updateCommand.update.FullCommand():
+		err = updateCommand.update.run(&cf)
+	case mcpCmd.dbStart.FullCommand():
+		err = mcpCmd.dbStart.run()
+	case mcpCmd.dbConfig.FullCommand():
+		err = mcpCmd.dbConfig.run()
+	case mcpCmd.connect.FullCommand():
+		err = mcpCmd.connect.run()
+	case mcpCmd.list.FullCommand():
+		err = mcpCmd.list.run()
+	case mcpCmd.config.FullCommand():
+		err = mcpCmd.config.run()
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -2027,7 +2163,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 		// in case if parameters match, re-fetch kube clusters and print
 		// current status
 		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "" ||
-			host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
+			utils.TryHost(cf.Proxy) == utils.TryHost(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
@@ -2046,7 +2182,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 			return trace.Wrap(printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)))
 
 		// if the proxy names match but nothing else is specified; show motd and update active profile and kube configs
-		case host(cf.Proxy) == host(profile.ProxyURL.Host) &&
+		case utils.TryHost(cf.Proxy) == utils.TryHost(profile.ProxyURL.Host) &&
 			cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "":
 
 			// The user has typed `tsh login`, if the running binary needs to
@@ -2079,7 +2215,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but cluster is specified, treat this as selecting a new cluster
 		// for the same proxy
-		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.SiteName != "":
+		case (cf.Proxy == "" || utils.TryHost(cf.Proxy) == utils.TryHost(profile.ProxyURL.Host)) && cf.SiteName != "":
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
 				return trace.Wrap(err)
@@ -2109,7 +2245,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but desired roles or request ID is specified, treat this as a
 		// privilege escalation request for the same login session.
-		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && (cf.DesiredRoles != "" || cf.RequestID != "") && cf.IdentityFileOut == "":
+		case (cf.Proxy == "" || utils.TryHost(cf.Proxy) == utils.TryHost(profile.ProxyURL.Host)) && (cf.DesiredRoles != "" || cf.RequestID != "") && cf.IdentityFileOut == "":
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
 				return trace.Wrap(err)
@@ -3202,14 +3338,7 @@ func getDBUsers(db types.Database, accessChecker services.AccessChecker) *dbUser
 		)
 		return &dbUsers{}
 	}
-	var denied []string
-	allowed := users.Allowed()
-	if users.WildcardAllowed() {
-		// start the list with *.
-		allowed = append([]string{types.Wildcard}, allowed...)
-		// only include denied users if the wildcard is allowed.
-		denied = append(denied, users.Denied()...)
-	}
+	allowed, denied := users.ToEntities()
 	return &dbUsers{
 		Allowed: allowed,
 		Denied:  denied,
@@ -3274,9 +3403,6 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 	}
 
 	dbUsers := getDBUsers(database, accessChecker)
-	if len(dbUsers.Allowed) == 0 {
-		return "(none)"
-	}
 
 	// Add a note for auto-provisioned user.
 	if database.IsAutoUsersEnabled() {
@@ -3293,10 +3419,7 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 		}
 	}
 
-	if len(dbUsers.Denied) == 0 {
-		return fmt.Sprintf("%v", dbUsers.Allowed)
-	}
-	return fmt.Sprintf("%v, except: %v", dbUsers.Allowed, dbUsers.Denied)
+	return common.FormatAllowedEntities(dbUsers.Allowed, dbUsers.Denied)
 }
 
 // TODO(greedy52) more refactoring on db printing and move them to db_print.go.
@@ -4003,7 +4126,30 @@ func onResolve(cf *CLIConf) error {
 }
 
 // onSSH executes 'tsh ssh' command
-func onSSH(cf *CLIConf) error {
+func onSSH(cf *CLIConf, initFunc ClientInitFunc) error {
+	// Handle fork after authentication.
+	var disownSignal *os.File
+	var forkAuthSuccessful atomic.Bool
+	if cf.isForkAuthChild() {
+		ctx, cancel := context.WithCancel(cf.Context)
+		cf.Context = ctx
+		// Prep files.
+		disownSignal = newSignalFile(cf.forkSignalFd)
+		defer disownSignal.Close()
+		killSignal := newSignalFile(cf.forkKillFd)
+		defer killSignal.Close()
+
+		// Watch kill signal to check when parent exits. If the read returns before
+		// the child finishes authentication, the parent has died and the child
+		// needs to die too.
+		go func() {
+			err := <-reexec.NotifyFileSignal(killSignal)
+			if err != nil && !forkAuthSuccessful.Load() {
+				cancel()
+			}
+		}()
+	}
+
 	// If "tsh ssh -V" is invoked, tsh is in OpenSSH compatibility mode, show
 	// the version and exit.
 	if cf.ShowVersion {
@@ -4029,7 +4175,7 @@ func onSSH(cf *CLIConf) error {
 		return trace.BadParameter("required argument '[user@]host' not provided")
 	}
 
-	tc, err := makeClient(cf)
+	tc, err := initFunc(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4041,12 +4187,24 @@ func onSSH(cf *CLIConf) error {
 		cf.RemoteCommand = cf.RemoteCommand[1:]
 	}
 
-	tc.Stdin = os.Stdin
+	tc.Stdin = cf.Stdin()
 	err = retryWithAccessRequest(cf, tc, func() error {
 		sshFunc := func() error {
 			var opts []func(*client.SSHOptions)
 			if cf.LocalExec {
 				opts = append(opts, client.WithLocalCommandExecutor(runLocalCommand))
+			}
+
+			if disownSignal != nil {
+				opts = append(opts, client.WithForkAfterAuthentication(func() error {
+					newStdin, err := replaceStdin()
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					tc.Stdin = newStdin
+					forkAuthSuccessful.Store(true)
+					return trace.Wrap(reexec.SignalAndClose(disownSignal))
+				}))
 			}
 
 			return tc.SSH(cf.Context, cf.RemoteCommand, opts...)
@@ -4231,6 +4389,23 @@ func onSCP(cf *CLIConf) error {
 func makeClient(cf *CLIConf) (*client.TeleportClient, error) {
 	tc, err := makeClientForProxy(cf, cf.Proxy)
 	return tc, trace.Wrap(err)
+}
+
+// wrapInitClientWithUpdateCheck wraps the client initialization function to the Teleport cluster,
+// adding a managed update check immediately after the connection is established.
+func wrapInitClientWithUpdateCheck(clientInitFunc ClientInitFunc, reExecArgs []string) ClientInitFunc {
+	return func(cf *CLIConf) (*client.TeleportClient, error) {
+		tc, err := clientInitFunc(cf)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if cf.checkManagedUpdates {
+			if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		return tc, nil
+	}
 }
 
 // makeClient takes the command-line configuration and a proxy address and constructs & returns
@@ -5338,17 +5513,6 @@ func getTshEnv() map[string]string {
 		}
 	}
 	return env
-}
-
-// host is a utility function that extracts
-// host from the host:port pair, in case of any error
-// returns the original value
-func host(in string) string {
-	out, err := utils.Host(in)
-	if err != nil {
-		return in
-	}
-	return out
 }
 
 func awaitRequestResolution(ctx context.Context, clt authclient.ClientI, req types.AccessRequest) (types.AccessRequest, error) {

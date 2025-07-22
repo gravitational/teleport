@@ -29,6 +29,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -44,6 +45,7 @@ import (
 	mssql "github.com/microsoft/go-mssqldb"
 	opensearchclt "github.com/opensearch-project/opensearch-go/v2"
 	goredis "github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -53,6 +55,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
@@ -70,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -89,19 +93,20 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/objects"
 	"github.com/gravitational/teleport/lib/srv/db/opensearch"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
-	"github.com/gravitational/teleport/lib/srv/db/redis"
 	redisprotocol "github.com/gravitational/teleport/lib/srv/db/redis/protocol"
+	redis "github.com/gravitational/teleport/lib/srv/db/redis/testing"
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
-	"github.com/gravitational/teleport/lib/srv/db/spanner"
+	spanner "github.com/gravitational/teleport/lib/srv/db/spanner/testing"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	cryptosuites.PrecomputeRSATestKeys(m)
 	modules.SetInsecureTestMode(true)
 	registerTestSnowflakeEngine()
@@ -1111,7 +1116,7 @@ func TestMongoDBMaxMessageSize(t *testing.T) {
 
 // TestAccessDisabled makes sure database access can be disabled via modules.
 func TestAccessDisabled(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.DB: {Enabled: false},
@@ -2397,7 +2402,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 		ServerID:       testCtx.hostID,
 		Emitter:        testCtx.emitter,
 		EmitterContext: ctx,
-		Logger:         utils.NewSlogLoggerForTests(),
+		Logger:         logtest.NewLogger(),
 	})
 	require.NoError(t, err)
 
@@ -2551,7 +2556,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		ServerID:       p.HostID,
 		Emitter:        c.emitter,
 		EmitterContext: context.Background(),
-		Logger:         utils.NewSlogLoggerForTests(),
+		Logger:         logtest.NewLogger(),
 	})
 	require.NoError(t, err)
 
@@ -2624,20 +2629,16 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 
 	if !p.NoStart {
 		require.NoError(t, server.Start(ctx))
-
-		// Explicitly send a heartbeat for any statically defined dbs.
-		for _, db := range p.Databases {
-			select {
-			case sender := <-inventoryHandle.Sender():
-				dbServer, err := server.getServerInfo(ctx, db)
-				require.NoError(t, err)
-				require.NoError(t, sender.Send(ctx, &proto.InventoryHeartbeat{
-					DatabaseServer: dbServer,
-				}))
-			case <-time.After(20 * time.Second):
-				t.Fatal("timed out waiting for inventory handle sender")
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			dbServers, err := c.proxyServer.cfg.AccessPoint.GetDatabaseServers(ctx, apidefaults.Namespace)
+			if !assert.NoError(t, err) {
+				return
 			}
-		}
+			assert.Subset(t,
+				slices.Collect(types.ResourceNames(dbServers)),
+				slices.Collect(types.ResourceNames(p.Databases)),
+			)
+		}, 20*time.Second, 100*time.Millisecond, "waiting for database servers to become available")
 	}
 
 	return server
@@ -3214,12 +3215,15 @@ func withSelfHostedMongoWithAdminUser(name, adminUsername string, opts ...mongod
 
 func withSelfHostedRedis(name string, opts ...redis.TestServerOption) withDatabaseOption {
 	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
-		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
+		redisServer, err := redis.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
 			ClientAuth: tls.RequireAndVerifyClientCert,
 		}, opts...)
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			redisServer.Close()
+		})
 
 		database, err := types.NewDatabaseV3(types.Metadata{
 			Name: name,
@@ -3313,11 +3317,14 @@ func withClickhouseHTTP(name string) withDatabaseOption {
 
 func withElastiCacheRedis(name string, token, engineVersion string) withDatabaseOption {
 	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
-		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
+		redisServer, err := redis.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
 		}, redis.TestServerPassword(token))
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			redisServer.Close()
+		})
 
 		database, err := types.NewDatabaseV3(types.Metadata{
 			Name: name,
@@ -3350,11 +3357,14 @@ func withElastiCacheRedis(name string, token, engineVersion string) withDatabase
 
 func withMemoryDBRedis(name string, token, engineVersion string) withDatabaseOption {
 	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
-		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
+		redisServer, err := redis.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
 		}, redis.TestServerPassword(token))
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			redisServer.Close()
+		})
 
 		database, err := types.NewDatabaseV3(types.Metadata{
 			Name: name,
@@ -3387,11 +3397,14 @@ func withMemoryDBRedis(name string, token, engineVersion string) withDatabaseOpt
 
 func withAzureRedis(name string, token string) withDatabaseOption {
 	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
-		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
+		redisServer, err := redis.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
 		}, redis.TestServerPassword(token))
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			redisServer.Close()
+		})
 
 		database, err := types.NewDatabaseV3(types.Metadata{
 			Name: name,

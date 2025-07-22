@@ -78,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // teleportTestUser is additional user used for tests
@@ -91,7 +92,7 @@ var wildcardAllow = types.Labels{
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	modules.SetInsecureTestMode(true)
 	if srv.IsReexec() {
 		srv.RunAndExit(os.Args[1])
@@ -778,20 +779,40 @@ func TestLockInForce(t *testing.T) {
 		Target: types.LockTarget{Login: f.user},
 	})
 	require.NoError(t, err)
+
+	watcher := f.ssh.srv.GetLockWatcher()
+	sub, err := watcher.Subscribe(ctx, lock.Target())
+	require.NoError(t, err)
+
 	require.NoError(t, f.testSrv.Auth().UpsertLock(ctx, lock))
 
-	// When I let the session idle (with the clock running at approx 10x speed)...
-	sessionHasFinished := func() bool {
-		f.clock.Advance(1 * time.Second)
+	// Wait for the lock to appear before proceeding.
+	timeout := time.After(20 * time.Second)
+	for wait := true; wait; {
 		select {
-		case <-endCh:
-			return true
-		default:
-			return false
+		case evt := <-sub.Events():
+			if evt.Type != types.OpPut {
+				continue
+			}
+
+			eventLock, ok := evt.Resource.(types.Lock)
+			require.True(t, ok)
+			require.Empty(t, cmp.Diff(lock.Target(), eventLock.Target()))
+			wait = false
+		case <-sub.Done():
+			t.Fatalf("lock subscription terminated unexpectedly %v", sub.Error())
+		case <-timeout:
+			t.Fatal("timed out waiting for lock target event")
 		}
 	}
-	require.Eventually(t, sessionHasFinished, 10*time.Second, 100*time.Millisecond,
-		"Timed out waiting for session to finish")
+	require.NoError(t, sub.Close())
+
+	// Expect the session to eventually be terminated because of the lock.
+	select {
+	case <-endCh:
+	case <-time.After(15 * time.Second):
+		t.Fatal("timed out waiting for session to finish")
+	}
 
 	// Expect the lock-in-force message to have been delivered via stderr.
 	lockInForceMsg := services.LockInForceAccessDenied(lock).Error()

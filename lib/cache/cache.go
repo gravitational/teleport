@@ -33,17 +33,18 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
+	authproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/backendmetrics"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -201,10 +202,12 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindIdentityCenterAccount},
 		{Kind: types.KindIdentityCenterPrincipalAssignment},
 		{Kind: types.KindIdentityCenterAccountAssignment},
+		{Kind: types.KindPlugin, LoadSecrets: true},
 		{Kind: types.KindPluginStaticCredentials},
 		{Kind: types.KindGitServer},
 		{Kind: types.KindWorkloadIdentity},
 		{Kind: types.KindHealthCheckConfig},
+		{Kind: types.KindBotInstance},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -624,7 +627,7 @@ type Config struct {
 	// Restrictions is a restrictions service
 	Restrictions services.Restrictions
 	// Apps is an apps service.
-	Apps services.Apps
+	Apps services.Applications
 	// Kubernetes is an kubernetes service.
 	Kubernetes services.Kubernetes
 	// CrownJewels is a CrownJewels service.
@@ -678,8 +681,6 @@ type Config struct {
 	// WorkloadIdentity is the upstream Workload Identities service that we're
 	// caching
 	WorkloadIdentity services.WorkloadIdentities
-	// Backend is a backend for local cache
-	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
 	MaxRetryPeriod time.Duration
 	// WatcherInitTimeout is the maximum acceptable delay for an
@@ -713,6 +714,8 @@ type Config struct {
 	neverOK bool
 	// Tracer is used to create spans
 	Tracer oteltrace.Tracer
+	// Registerer is used to register prometheus metrics.
+	Registerer prometheus.Registerer
 	// Unstarted indicates that the cache should not be started during New. The
 	// cache is usable before it's started, but it will always hit the backend.
 	Unstarted bool
@@ -736,15 +739,15 @@ type Config struct {
 	GitServers services.GitServerGetter
 	// HealthCheckConfig is a health check config service.
 	HealthCheckConfig services.HealthCheckConfigReader
+	// BotInstanceService is the upstream service that we're caching
+	BotInstanceService services.BotInstance
+	Plugin             services.Plugins
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Events == nil {
 		return trace.BadParameter("missing Events parameter")
-	}
-	if c.Backend == nil {
-		return trace.BadParameter("missing Backend parameter")
 	}
 	if c.Context == nil {
 		c.Context = context.Background()
@@ -786,6 +789,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Tracer == nil {
 		c.Tracer = tracing.NoopTracer(c.Component)
 	}
+	if c.Registerer == nil {
+		c.Registerer = prometheus.DefaultRegisterer
+	}
 	if c.FanoutShards == 0 {
 		c.FanoutShards = 1
 	}
@@ -818,16 +824,20 @@ const (
 
 // New creates a new instance of Cache
 func New(config Config) (*Cache, error) {
-	if err := metrics.RegisterPrometheusCollectors(
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := backendmetrics.RegisterCollectors(config.Registerer); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := metrics.RegisterCollectors(config.Registerer,
 		cacheEventsReceived,
 		cacheStaleEventsReceived,
 		cacheHealth,
 		cacheLastReset,
 	); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1563,7 +1573,7 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 }
 
 // ListResources is a part of auth.Cache implementation
-func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+func (c *Cache) ListResources(ctx context.Context, req authproto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListResources")
 	defer span.End()
 
@@ -1588,7 +1598,7 @@ func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesReques
 	return resp, trace.Wrap(err)
 }
 
-func (c *Cache) listResourcesFallback(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+func (c *Cache) listResourcesFallback(ctx context.Context, req authproto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/listResourcesFallback")
 	defer span.End()
 
@@ -1629,7 +1639,7 @@ func (c *Cache) listResourcesFallback(ctx context.Context, req proto.ListResourc
 	return resp, trace.Wrap(err)
 }
 
-func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+func (c *Cache) listResources(ctx context.Context, req authproto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	_, span := c.Tracer.Start(ctx, "cache/listResources")
 	defer span.End()
 
@@ -1730,7 +1740,7 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 			func(r types.ResourceWithLabels) types.ResourceWithLabels {
 				unwrapper := r.(types.Resource153UnwrapperT[*identitycenterv1.Account])
 				return types.Resource153ToResourceWithLabels(services.IdentityCenterAccount{
-					Account: apiutils.CloneProtoMsg(unwrapper.UnwrapT()),
+					Account: proto.CloneOf(unwrapper.UnwrapT()),
 				})
 			},
 		)
@@ -1749,9 +1759,17 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 			func(r types.ResourceWithLabels) types.ResourceWithLabels {
 				unwrapper := r.(types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment])
 				return types.Resource153ToResourceWithLabels(services.IdentityCenterAccountAssignment{
-					AccountAssignment: apiutils.CloneProtoMsg(unwrapper.UnwrapT()),
+					AccountAssignment: proto.CloneOf(unwrapper.UnwrapT()),
 				})
 			},
+		)
+		return resp, trace.Wrap(err)
+	case types.KindSAMLIdPServiceProvider:
+		resp, err := buildListResourcesResponse(
+			c.collections.samlIdPServiceProviders.store.resources(samlIdPServiceProviderNameIndex, req.StartKey, ""),
+			limit,
+			filter,
+			types.SAMLIdPServiceProvider.CloneResource,
 		)
 		return resp, trace.Wrap(err)
 	default:

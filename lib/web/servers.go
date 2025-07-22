@@ -21,6 +21,7 @@ package web
 import (
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -75,8 +76,8 @@ func (h *Handler) clusterKubeResourcesGet(w http.ResponseWriter, r *http.Request
 		return nil, trace.BadParameter("missing param %q", "kind")
 	}
 
-	if !slices.Contains(types.KubernetesResourcesKinds, kind) {
-		return nil, trace.BadParameter("kind is not valid, valid kinds %v", types.KubernetesResourcesKinds)
+	if !slices.Contains(types.KubernetesResourcesKinds, kind) && !strings.HasPrefix(kind, types.AccessRequestPrefixKindKube) {
+		return nil, trace.BadParameter("kind is not valid, valid kinds %v %s<kind>", types.KubernetesResourcesKinds, types.AccessRequestPrefixKindKube)
 	}
 
 	clt, err := sctx.NewKubernetesServiceClient(r.Context(), h.cfg.ProxyWebAddr.Addr)
@@ -143,17 +144,30 @@ func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	dbServer, err := fetchDatabaseServerByDatabaseName(r.Context(), clt, r, databaseName)
+	dbServers, err := fetchDatabaseServersWithName(r.Context(), clt, r, databaseName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	aggregateStatus := types.AggregateHealthStatus(func(yield func(types.TargetHealthStatus) bool) {
+		for _, srv := range dbServers {
+			if !yield(srv.GetTargetHealthStatus()) {
+				return
+			}
+		}
+	})
+	dbServers[0].SetTargetHealthStatus(aggregateStatus)
 
 	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return webui.MakeDatabaseFromDatabaseServer(dbServer, accessChecker, h.cfg.DatabaseREPLRegistry, false /* requiresRequest */), nil
+	return webui.MakeDatabaseFromDatabaseServer(
+		dbServers[0],
+		accessChecker,
+		h.cfg.DatabaseREPLRegistry,
+		false, /* requiresRequest */
+	), nil
 }
 
 // clusterDatabaseServicesList returns a list of DatabaseServices (database agents) in a form the UI can present.

@@ -253,8 +253,12 @@ func (c *Client) readClientSize() error {
 	for {
 		s, err := c.cfg.Conn.ReadClientScreenSpec()
 		if err != nil {
-			c.cfg.Logger.DebugContext(context.Background(), "Failed to read client screen spec", "error", err)
-			continue
+			if trace.IsBadParameter(err) {
+				c.cfg.Logger.DebugContext(context.Background(), "Failed to read client screen spec", "error", err)
+				continue
+			} else {
+				return err
+			}
 		}
 
 		if c.cfg.hasSizeOverride() {
@@ -287,17 +291,21 @@ func (c *Client) readClientSize() error {
 }
 
 func (c *Client) readClientKeyboardLayout() error {
+	msgType, err := c.cfg.Conn.NextMessageType()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if msgType != tdp.TypeClientKeyboardLayout {
+		c.cfg.Logger.DebugContext(context.Background(), "Client did not send keyboard layout")
+		return nil
+	}
 	msg, err := c.cfg.Conn.ReadMessage()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	k, ok := msg.(tdp.ClientKeyboardLayout)
 	if !ok {
-		c.cfg.Logger.DebugContext(context.Background(), "Client did not send keyboard layout")
-		if err := c.handleTDPInput(msg); err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
+		return trace.BadParameter("Unexpected message %T", msg)
 	}
 	c.cfg.Logger.DebugContext(context.Background(), "Got RDP keyboard layout", "keyboard_layout", k.KeyboardLayout)
 	c.keyboardLayout = k.KeyboardLayout
@@ -493,7 +501,19 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 			continue
 		}
 
-		c.UpdateClientActivity()
+		// If the message was due to user input, then we update client activity
+		// in order to refresh the client_idle_timeout checks.
+		//
+		// Note: we count some of the directory sharing messages as client activity
+		// because we don't want a session to be closed due to inactivity during a large
+		// file transfer.
+		switch msg.(type) {
+		case tdp.KeyboardButton, tdp.MouseMove, tdp.MouseButton, tdp.MouseWheel,
+			tdp.SharedDirectoryAnnounce, tdp.SharedDirectoryInfoResponse,
+			tdp.SharedDirectoryReadResponse, tdp.SharedDirectoryWriteResponse:
+
+			c.UpdateClientActivity()
+		}
 
 		if withheldResize != nil {
 			c.cfg.Logger.DebugContext(context.Background(), "Sending withheld screen size to client")

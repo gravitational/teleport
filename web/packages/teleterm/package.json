@@ -36,7 +36,6 @@
     "winston": "^3.17.0"
   },
   "devDependencies": {
-    "@electron/notarize": "^3.0.1",
     "@gravitational/build": "workspace:*",
     "@gravitational/design": "workspace:*",
     "@gravitational/shared": "workspace:*",
@@ -46,7 +45,7 @@
     "@types/whatwg-url": "^13.0.0",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
-    "electron": "36.1.0",
+    "electron": "37.1.0",
     "electron-builder": "^26.0.12",
     "electron-vite": "^3.1.0",
     "events": "3.3.0",

@@ -31,6 +31,9 @@ const (
 	// TCPSessionType is the session_type in tp.session.start for TCP
 	// Application Access.
 	TCPSessionType = "app_tcp"
+	// MCPAppSessionType is the session_type in tp.session.start for MCP
+	// Access via App access.
+	MCPAppSessionType = "app_mcp"
 	// PortSessionType is the session_type in tp.session.start for SSH or Kube
 	// port forwarding.
 	//
@@ -55,6 +58,8 @@ func prehogUserKindFromEventKind(eventsKind apievents.UserKind) prehogv1a.UserKi
 		return prehogv1a.UserKind_USER_KIND_BOT
 	case apievents.UserKind_USER_KIND_HUMAN:
 		return prehogv1a.UserKind_USER_KIND_HUMAN
+	case apievents.UserKind_USER_KIND_SYSTEM:
+		return prehogv1a.UserKind_USER_KIND_SYSTEM
 	default:
 		return prehogv1a.UserKind_USER_KIND_UNSPECIFIED
 	}
@@ -368,6 +373,12 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: string(SAMLIdPSessionType),
+		}
+	case *apievents.MCPSessionStart:
+		return &SessionStartEvent{
+			UserName:    e.User,
+			SessionType: MCPAppSessionType,
+			UserKind:    prehogUserKindFromEventKind(e.UserKind),
 		}
 	}
 

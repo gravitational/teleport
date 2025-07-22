@@ -35,6 +35,7 @@ func newAuthServerCollection(p services.Presence, w types.WatchKind) (*collectio
 
 	return &collection[types.Server, authServerIndex]{
 		store: newStore(
+			types.KindAuthServer,
 			types.Server.DeepCopy,
 			map[authServerIndex]func(types.Server) string{
 				authServerNameIndex: types.Server.GetName,

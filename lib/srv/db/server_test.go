@@ -50,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
 	"github.com/gravitational/teleport/lib/srv/db/endpoints"
@@ -755,36 +754,13 @@ func TestHealthCheck(t *testing.T) {
 	for _, db := range databases {
 		t.Run(db.GetName(), func(t *testing.T) {
 			t.Parallel()
-			waitForHealthStatus(t, ctx, db.GetName(), testCtx.authServer, types.TargetHealthStatusHealthy)
+			dbServer, err := testCtx.server.getServerInfo(ctx, db)
+			require.NoError(t, err)
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				assert.Equal(t, types.TargetHealthStatusHealthy, dbServer.GetTargetHealthStatus())
+			}, 30*time.Second, time.Millisecond*250, "waiting for database %s to become healthy", db.GetName())
 		})
 	}
-}
-
-func waitForHealthStatus(t *testing.T, ctx context.Context, name string, serverGetter services.DatabaseServersGetter, want types.TargetHealthStatus) {
-	t.Helper()
-	timeout := 15 * time.Second
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		servers, err := serverGetter.GetDatabaseServers(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) {
-			return
-		}
-		var server types.DatabaseServer
-		for _, s := range servers {
-			if s.GetName() == name {
-				server = s
-				break
-			}
-		}
-		if server == nil {
-			assert.FailNowf(t, "failed to find db_server", "db_server=%s", name)
-			return
-		}
-		health := server.GetTargetHealth()
-		assert.Equal(t, string(want), health.Status)
-	}, timeout, time.Millisecond*250, "waiting for database %s to become healthy", name)
 }
 
 func newHealthCheckConfig(t *testing.T, name string) *healthcheckconfigv1.HealthCheckConfig {

@@ -38,6 +38,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 )
 
@@ -735,7 +736,7 @@ func TestAuthenticationConfig_RequireSessionMFA(t *testing.T) {
 
 func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 	// Device trust mode=required is an Enterprise feature.
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 	})
 
@@ -1284,6 +1285,49 @@ func TestMakeSampleFileConfig(t *testing.T) {
 		require.Equal(t, "no", fc.Proxy.EnabledFlag)
 		require.Equal(t, "no", fc.Auth.EnabledFlag)
 		require.Equal(t, "yes", fc.Apps.EnabledFlag)
+	})
+
+	t.Run("App role with MCP Demo server", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Roles:         "app",
+			MCPDemoServer: true,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "no", fc.SSH.EnabledFlag)
+		require.Equal(t, "no", fc.Proxy.EnabledFlag)
+		require.Equal(t, "no", fc.Auth.EnabledFlag)
+		require.Equal(t, "yes", fc.Apps.EnabledFlag)
+		require.True(t, fc.Apps.MCPDemoServer)
+	})
+
+	t.Run("App name and MCP Demo Server", func(t *testing.T) {
+		_, err := MakeSampleFileConfig(SampleFlags{
+			Roles:         "app",
+			AppURI:        "localhost:8080",
+			MCPDemoServer: true,
+		})
+		require.Error(t, err)
+
+		_, err = MakeSampleFileConfig(SampleFlags{
+			Roles:         "app",
+			AppName:       "nginx",
+			MCPDemoServer: true,
+		})
+		require.Error(t, err)
+
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Roles:         "app",
+			AppURI:        "localhost:8080",
+			AppName:       "nginx",
+			MCPDemoServer: true,
+		})
+		require.NoError(t, err)
+
+		require.Equal(t, "no", fc.SSH.EnabledFlag)
+		require.Equal(t, "no", fc.Proxy.EnabledFlag)
+		require.Equal(t, "no", fc.Auth.EnabledFlag)
+		require.Equal(t, "yes", fc.Apps.EnabledFlag)
+		require.True(t, fc.Apps.MCPDemoServer)
 	})
 
 	t.Run("Proxy role", func(t *testing.T) {

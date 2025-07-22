@@ -55,6 +55,7 @@ import { BotInstances } from './BotInstances/BotInstances';
 import { BotInstanceDetails } from './BotInstances/Details/BotInstanceDetails';
 import { Bots } from './Bots';
 import { AddBots } from './Bots/Add';
+import { BotDetails } from './Bots/Details/BotDetails';
 import { Clusters } from './Clusters';
 import { DeviceTrustLocked } from './DeviceTrust';
 import { Discover } from './Discover';
@@ -80,8 +81,7 @@ export function shouldHideFromNavigation(cfg: Cfg) {
 }
 
 class AccessRequests implements TeleportFeature {
-  category = NavigationCategory.Resources;
-  sideNavCategory = SideNavigationCategory.Resources;
+  category = NavigationCategory.IdentityGovernance;
 
   route = {
     title: 'Access Requests',
@@ -103,8 +103,6 @@ class AccessRequests implements TeleportFeature {
     },
     searchableTags: ['access requests'],
   };
-
-  topMenuItem = this.navigationItem;
 }
 
 export class FeatureJoinTokens implements TeleportFeature {
@@ -198,7 +196,6 @@ export class FeatureSessions implements TeleportFeature {
     },
     searchableTags: ['active sessions', 'active', 'sessions'],
   };
-  topMenuItem = this.navigationItem;
 }
 
 // ****************************
@@ -312,7 +309,23 @@ export class FeatureBotInstanceDetails implements TeleportFeature {
   route = {
     title: 'Bot instance details',
     path: cfg.routes.botInstance,
+    exact: true,
     component: BotInstanceDetails,
+  };
+
+  hasAccess() {
+    return true;
+  }
+}
+
+export class FeatureBotDetails implements TeleportFeature {
+  parent = FeatureBots;
+
+  route = {
+    title: 'Bot details',
+    path: cfg.routes.bot,
+    exact: true,
+    component: BotDetails,
   };
 
   hasAccess() {
@@ -812,6 +825,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     // - Access
     new FeatureUsers(),
     new FeatureBots(),
+    new FeatureBotDetails(),
     new FeatureBotInstances(),
     new FeatureBotInstanceDetails(),
     new FeatureAddBotsShortcut(),

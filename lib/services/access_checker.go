@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
@@ -273,6 +274,10 @@ type AccessChecker interface {
 	// EnumerateDatabaseNames specializes EnumerateEntities to enumerate db_names.
 	EnumerateDatabaseNames(database types.Database, extraNames ...string) EnumerationResult
 
+	// EnumerateMCPTools specializes EnumerateEntities to enumerate mcp.tools.
+	// mcp.tools support regexes and blobs so those expressions are returned.
+	EnumerateMCPTools(app types.Application) EnumerationResult
+
 	// GetAllowedLoginsForResource returns all of the allowed logins for the passed resource.
 	//
 	// Supports the following resource types:
@@ -427,14 +432,7 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
 	isLoggingEnabled := rbacLogger.Enabled(ctx, logutils.TraceLevel)
 
 	for _, resourceID := range a.info.AllowedResourceIDs {
-		if resourceID.ClusterName == a.localCluster &&
-			// If the allowed resource has `Kind=types.KindKubePod` or any other
-			// Kubernetes supported kinds - types.KubernetesResourcesKinds-, we allow the user to
-			// access the Kubernetes cluster that it belongs to.
-			// At this point, we do not verify that the accessed resource matches the
-			// allowed resources, but that verification happens in the caller function.
-			(resourceID.Kind == r.GetKind() || (slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) && r.GetKind() == types.KindKubernetesCluster)) &&
-			resourceID.Name == r.GetName() {
+		if resourceID.ClusterName == a.localCluster && matchesUCRResource(resourceID, r) {
 			// Allowed to access this resource by resource ID, move on to role checks.
 
 			if isLoggingEnabled {
@@ -464,6 +462,30 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
 	}
 
 	return trace.AccessDenied("access to %v denied, not in allowed resource IDs", r.GetKind())
+}
+
+// matchesUCRResource matches requested resource with its respective
+// resource type stored in the unified resource cache.
+func matchesUCRResource(requestedR types.ResourceID, r AccessCheckable) bool {
+	if requestedR.Name != r.GetName() {
+		return false
+	}
+	// If the allowed resource has `Kind=types.KindKubePod` or any other
+	// Kubernetes supported kinds - types.KubernetesResourcesKinds-, we allow the user to
+	// access the Kubernetes cluster that it belongs to.
+	// At this point, we do not verify that the accessed resource matches the
+	// allowed resources, but that verification happens in the caller function.
+	if slices.Contains(types.KubernetesResourcesKinds, requestedR.Kind) || strings.HasPrefix(requestedR.Kind, types.AccessRequestPrefixKindKube) {
+		return r.GetKind() == types.KindKubernetesCluster
+	}
+
+	// Identity Center account is stored as KindApp kind and
+	// KindIdentityCenterAccount subKind in the unified resource cache.
+	if requestedR.Kind == types.KindIdentityCenterAccount {
+		return r.GetKind() == types.KindApp && r.GetSubKind() == types.KindIdentityCenterAccount
+	}
+
+	return requestedR.Kind == r.GetKind()
 }
 
 // AccessInfo returns the AccessInfo that this access checker is based on.
@@ -516,7 +538,7 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 		if elem.Kind == types.KindKubeNamespace {
 			allowedResourceIDs = append(allowedResourceIDs, types.ResourceID{
 				ClusterName:     elem.ClusterName,
-				Kind:            "namespaces",
+				Kind:            types.AccessRequestPrefixKindKubeClusterWide + "namespaces",
 				SubResourceName: elem.SubResourceName,
 				Name:            elem.Name,
 			})
@@ -532,14 +554,15 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 			continue
 		}
 		switch {
-		case slices.Contains(types.KubernetesResourcesKinds, r.Kind):
+		case slices.Contains(types.KubernetesResourcesKinds, r.Kind) || strings.HasPrefix(r.Kind, types.AccessRequestPrefixKindKube):
 			namespace := ""
 			name := ""
-			// TODO(@creack): Make sure this gets handled in the AccessRequest PR.
-			if slices.Contains(types.KubernetesClusterWideResourceKinds, r.Kind) {
+			if slices.Contains(types.KubernetesClusterWideResourceKinds, r.Kind) || strings.HasPrefix(r.Kind, types.AccessRequestPrefixKindKubeClusterWide) {
 				// Cluster wide resources do not have a namespace.
 				name = r.SubResourceName
+				r.Kind = strings.TrimPrefix(r.Kind, types.AccessRequestPrefixKindKubeClusterWide)
 			} else {
+				r.Kind = strings.TrimPrefix(r.Kind, types.AccessRequestPrefixKindKubeNamespaced)
 				splitted := strings.SplitN(r.SubResourceName, "/", 3)
 				// This condition should never happen since SubResourceName is validated
 				// but it's better to validate it.
@@ -547,31 +570,44 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 					continue
 				}
 				namespace = splitted[0]
+				// namespace * would also include cluster-wide resources, if we
+				// have a wildcard with a known namespaced resource, use a pattern
+				// that will not match cluster-wide resources.
+				if namespace == types.Wildcard {
+					namespace = "^.+$"
+				}
 				name = splitted[1]
 			}
 
-			// TODO(@creack): Find a better way. For now this only enables support for existing access requests.
-			// It doesnt support CRDs.
+			// Map legacy names to the new ones.
 			kind := types.KubernetesResourcesKindsPlurals[r.Kind]
 			if kind == "" {
 				kind = r.Kind
 			}
-			// NOTE: The 'namespace' behavior changed, to maintain backwards compatibility,
+			// NOTE: The kind 'namespace' behavior changed, to maintain backwards compatibility,
 			// map the legacy value to wildcard.
 			if r.Kind == types.KindKubeNamespace {
-				kind = types.Wildcard
+				// When requesting the legacy "namespace" kind, we include all api groups.
+				kind = types.Wildcard + "." + types.Wildcard
 				namespace = name
+				// namespace * would also include cluster-wide resources, if we
+				// have a wildcard with the legacy "namespace" kind, use a pattern
+				// that will not match cluster-wide resources.
 				if namespace == types.Wildcard {
-					namespace = "^" + types.Wildcard + "$"
+					namespace = "^.+$"
 				}
 				name = types.Wildcard
 			}
+
+			gk := schema.ParseGroupKind(kind)
+			if gk.Group == "" {
+				gk.Group = types.KubernetesResourcesV7KindGroups[r.Kind]
+			}
 			r := types.KubernetesResource{
-				Kind:      kind,
+				Kind:      gk.Kind,
 				Namespace: namespace,
 				Name:      name,
-				// TODO(@creack): Add support for CRDs in AccessRequests.
-				APIGroup: types.Wildcard,
+				APIGroup:  gk.Group,
 			}
 			// matchKubernetesResource checks if the Kubernetes Resource matches the tuple
 			// (kind, namespace, kame) from the allowed/denied list and does not match the resource
@@ -588,7 +624,7 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 			return rolesAllowed, rolesDenied
 		}
 	}
-	return allowed, denied
+	return append(allowed, types.KubernetesResourceSelfSubjectAccessReview), denied
 }
 
 // matchKubernetesResource checks if the Kubernetes Resource does not match any
@@ -792,6 +828,26 @@ func (a *accessChecker) EnumerateDatabaseNames(database types.Database, extraNam
 		return &DatabaseNameMatcher{Name: dbName}
 	}
 	return a.EnumerateEntities(database, listFn, newMatcher, extraNames...)
+}
+
+// EnumerateMCPTools specializes EnumerateEntities to enumerate mcp.tools.
+func (a *accessChecker) EnumerateMCPTools(app types.Application) EnumerationResult {
+	listFn := func(role types.Role, condition types.RoleConditionType) []string {
+		if mcpSpec := role.GetMCPPermissions(condition); mcpSpec != nil {
+			return mcpSpec.Tools
+		}
+		return nil
+	}
+	// Do not use MCPToolMatcher. We are enumerating the expressions.
+	newMatcher := func(toolRegex string) RoleMatcher {
+		return RoleMatcherFunc(func(role types.Role, condition types.RoleConditionType) (bool, error) {
+			if mcpSpec := role.GetMCPPermissions(condition); mcpSpec != nil {
+				return slices.Contains(mcpSpec.Tools, toolRegex), nil
+			}
+			return false, nil
+		})
+	}
+	return a.EnumerateEntities(app, listFn, newMatcher)
 }
 
 // roleEntitiesListFn is used for listing a role's allowed/denied entities.
@@ -1027,9 +1083,7 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 			slog.Any("error", err),
 			slog.Any("allow", labelMatchers),
 		)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+
 		if matchLabels {
 			return nil
 		}
@@ -1315,6 +1369,9 @@ func AccessInfoFromLocalTLSIdentity(identity tlsca.Identity, access UserGetter) 
 	// empty traits are a valid use case in standard certs,
 	// so we only check for whether roles are empty.
 	if len(identity.Groups) == 0 {
+		if access == nil {
+			return nil, trace.BadParameter("UserGetter not provided")
+		}
 		u, err := access.GetUser(context.TODO(), identity.Username, false)
 		if err != nil {
 			return nil, trace.Wrap(err)

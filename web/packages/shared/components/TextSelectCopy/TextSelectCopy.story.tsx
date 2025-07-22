@@ -29,3 +29,9 @@ export const BashCommand = () => {
 export const NonBash = () => {
   return <Component text="some text to be copied" bash={false} />;
 };
+
+export const Obfuscated = () => {
+  return (
+    <Component text="Super-secret-donot-tell-anyone" bash={false} obfuscate />
+  );
+};

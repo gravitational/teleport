@@ -323,7 +323,7 @@ type Database struct {
 	// extract db from it:
 	// - webapi/sites/:site/databases/:database (singular)
 	// - webapi/sites/:site/resources (unified resources)
-	TargetHealth types.TargetHealth `json:"targetHealth,omitempty"`
+	TargetHealth types.TargetHealth `json:"targetHealth,omitzero"`
 }
 
 // AWS contains AWS specific fields.

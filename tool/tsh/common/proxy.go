@@ -51,8 +51,8 @@ import (
 // onProxyCommandSSH creates a local ssh proxy, dialing a node and transferring
 // data through stdin and stdout, to be used as an OpenSSH and PuTTY proxy
 // command.
-func onProxyCommandSSH(cf *CLIConf) error {
-	tc, err := makeClient(cf)
+func onProxyCommandSSH(cf *CLIConf, initFunc ClientInitFunc) error {
+	tc, err := initFunc(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -499,6 +499,10 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if app.IsMCP() {
+		return trace.BadParameter("MCP applications are not supported. Please see 'tsh mcp login --help' for more details.")
 	}
 
 	proxyApp, err := newLocalProxyAppWithPortMapping(cf.Context, tc, profile, appInfo.RouteToApp, app, portMapping, cf.InsecureSkipVerify)

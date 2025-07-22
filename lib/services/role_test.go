@@ -204,7 +204,7 @@ func TestRoleParse(t *testing.T) {
 					}
 				}`,
 			error:        trace.BadParameter(""),
-			matchMessage: "invalid or unsupported",
+			matchMessage: "kind \"abcd\" is not supported in role version \"v6\"",
 		},
 		{
 			name: "validation error, kubernetes_resources kind namespace not supported in v6",
@@ -2965,6 +2965,8 @@ func TestApplyTraits(t *testing.T) {
 		outKubeResources        []types.KubernetesResource
 		inGitHubPermissions     []types.GitHubPermission
 		outGitHubPermissions    []types.GitHubPermission
+		inMCPPermissions        *types.MCPPermissions
+		outMCPPermissions       *types.MCPPermissions
 	}
 	tests := []struct {
 		comment  string
@@ -3761,6 +3763,34 @@ func TestApplyTraits(t *testing.T) {
 				}},
 			},
 		},
+		{
+			comment: "MCP permissions in allow rule",
+			inTraits: map[string][]string{
+				"mcp_tools": {"get_*", "search_files"},
+			},
+			allow: rule{
+				inMCPPermissions: &types.MCPPermissions{
+					Tools: []string{"{{internal.mcp_tools}}"},
+				},
+				outMCPPermissions: &types.MCPPermissions{
+					Tools: []string{"get_*", "search_files"},
+				},
+			},
+		},
+		{
+			comment: "MCP permissions in deny rule",
+			inTraits: map[string][]string{
+				"mcp_tools": {"get_*", "search_files"},
+			},
+			deny: rule{
+				inMCPPermissions: &types.MCPPermissions{
+					Tools: []string{"{{internal.mcp_tools}}"},
+				},
+				outMCPPermissions: &types.MCPPermissions{
+					Tools: []string{"get_*", "search_files"},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
@@ -3793,6 +3823,7 @@ func TestApplyTraits(t *testing.T) {
 						HostSudoers:          tt.allow.inSudoers,
 						KubernetesResources:  tt.allow.inKubeResources,
 						GitHubPermissions:    tt.allow.inGitHubPermissions,
+						MCP:                  tt.allow.inMCPPermissions,
 					},
 					Deny: types.RoleConditions{
 						Logins:               tt.deny.inLogins,
@@ -3815,6 +3846,7 @@ func TestApplyTraits(t *testing.T) {
 						HostSudoers:          tt.deny.outSudoers,
 						KubernetesResources:  tt.deny.inKubeResources,
 						GitHubPermissions:    tt.deny.inGitHubPermissions,
+						MCP:                  tt.deny.inMCPPermissions,
 					},
 				},
 			}
@@ -4562,9 +4594,10 @@ func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 		Metadata: types.Metadata{Name: "allow_deny_same", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
-				Namespaces:    []string{apidefaults.Namespace},
-				DatabaseUsers: []string{"root"},
-				DatabaseNames: []string{"root"},
+				DatabaseLabels: types.Labels{"env": []string{"stage"}},
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseUsers:  []string{"root"},
+				DatabaseNames:  []string{"root"},
 			},
 			Deny: types.RoleConditions{
 				Namespaces:    []string{apidefaults.Namespace},
@@ -8042,6 +8075,7 @@ func TestGetKubeResources(t *testing.T) {
 			set := NewRoleSet(tc.roles...)
 			accessChecker := makeAccessCheckerWithRoleSet(set)
 			allowed, denied := accessChecker.GetKubeResources(cluster)
+			tc.expectAllowed = append(tc.expectAllowed, types.KubernetesResourceSelfSubjectAccessReview)
 			require.ElementsMatch(t, tc.expectAllowed, allowed, "allow list mismatch")
 			require.ElementsMatch(t, tc.expectDenied, denied, "deny list mismatch")
 		})
@@ -9964,6 +9998,261 @@ func TestCheckAccessToGitServer(t *testing.T) {
 			accessChecker := makeAccessCheckerWithRoleSet(test.roles)
 			err := accessChecker.CheckAccess(githubOrgServer, AccessState{})
 			test.requireErr(t, err)
+		})
+	}
+}
+
+func TestMatchRequestKubernetesResource(t *testing.T) {
+	tests := []struct {
+		input     gk
+		reference types.RequestKubernetesResource
+		cond      types.RoleConditionType
+		expected  bool
+	}{
+		// Deny not match.
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Deny, false},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "*"}, types.Deny, false},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "batch"}, types.Deny, false},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Deny, false},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "batch"}, types.Deny, false},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Deny, false},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "*"}, types.Deny, false},
+		{gk{kind: "deployments", group: "batch"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Deny, false},
+		{gk{kind: "deployments", group: "batch"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "*"}, types.Deny, false},
+		// Same checks with allow.
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Allow, false},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "*"}, types.Allow, false},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "batch"}, types.Allow, false},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Allow, false},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "batch"}, types.Allow, false},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Allow, false},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "*"}, types.Allow, false},
+		{gk{kind: "deployments", group: "batch"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Allow, false},
+		{gk{kind: "deployments", group: "batch"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "*"}, types.Allow, false},
+
+		// Deny match.
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Deny, true},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Deny, true},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Deny, true},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Deny, true},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Deny, true},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Deny, true},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Deny, true},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Deny, true},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Deny, true},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Deny, true},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Deny, true},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Deny, true},
+		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Deny, true},
+		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Deny, true},
+		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Deny, true},
+		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Deny, true},
+		{gk{kind: "deployments", group: "ap*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Deny, true},
+		{gk{kind: "deployments", group: "ap*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Deny, true},
+		{gk{kind: "deployments", group: "ap*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Deny, true},
+		{gk{kind: "deployments", group: "ap*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Deny, true},
+		{gk{kind: "*", group: "ap*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Deny, true},
+		{gk{kind: "*", group: "ap*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Deny, true},
+		{gk{kind: "*", group: "ap*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Deny, true},
+		{gk{kind: "*", group: "ap*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Deny, true},
+		// Same checks with allow.
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Allow, true},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Allow, true},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Allow, true},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Allow, true},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Allow, false},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Allow, false},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Allow, true},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Allow, true},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Allow, false},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Allow, true},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Allow, false},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Allow, true},
+		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Allow, false},
+		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Allow, false},
+		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Allow, false},
+		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Allow, true},
+		{gk{kind: "deployments", group: "ap*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Allow, false},
+		{gk{kind: "deployments", group: "ap*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Allow, true},
+		{gk{kind: "deployments", group: "ap*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Allow, false},
+		{gk{kind: "deployments", group: "ap*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Allow, true},
+		{gk{kind: "*", group: "ap*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Allow, false},
+		{gk{kind: "*", group: "ap*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Allow, false},
+		{gk{kind: "*", group: "ap*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Allow, false},
+		{gk{kind: "*", group: "ap*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Allow, true},
+
+		// Allow not match. Some dups from earlier, but keeping them for logic, before it was the counter-part of the deny, here it is the main check.
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Allow, false},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "*"}, types.Allow, false},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "batch"}, types.Allow, false},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "ba*"}, types.Allow, false},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Allow, false},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "*"}, types.Allow, false},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "batch"}, types.Allow, false},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Allow, false},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "a*"}, types.Allow, false},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "batch"}, types.Allow, false},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "batch"}, types.Allow, false},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "ba*"}, types.Allow, false},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Allow, false},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Allow, false},
+		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Allow, false},
+		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Allow, false},
+		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Allow, false},
+		// Same checks with deny.
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Deny, false},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "*"}, types.Deny, false},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "batch"}, types.Deny, false},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "ba*"}, types.Deny, false},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Deny, false},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "*"}, types.Deny, false},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "batch"}, types.Deny, true},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Deny, true},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "a*"}, types.Deny, true},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "batch"}, types.Deny, true},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "batch"}, types.Deny, false},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "ba*"}, types.Deny, false},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Deny, true},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Deny, true},
+		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Deny, true},
+		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Deny, true},
+		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Deny, true},
+
+		// Allow match. Some dups from earlier, but keeping them for logic, before it was the counter-part of the deny, here it is the main check.
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Allow, true},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Allow, true},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Allow, true},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Allow, true},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "ap*"}, types.Allow, true},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Allow, true},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Allow, true},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Allow, true},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Allow, true},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "ap*"}, types.Allow, true},
+		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Allow, true},
+		// Same checks with deny.
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Deny, true},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Deny, true},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Deny, true},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Deny, true},
+		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "ap*"}, types.Deny, true},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Deny, true},
+		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Deny, true},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Deny, true},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Deny, true},
+		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "ap*"}, types.Deny, true},
+		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Deny, true},
+	}
+
+	for i, test := range tests {
+		t.Run(fmt.Sprint(i), func(t *testing.T) {
+			if result := matchRequestKubernetesResources(test.input, test.reference, test.cond); result != test.expected {
+				checkType := "allow"
+				if test.cond == types.Deny {
+					checkType = "deny"
+				}
+				t.Fatalf("Checking '%s.%s' %s by '%s.%s', expected %t, got %t",
+					test.input.kind, test.input.group, checkType, test.reference.Kind, test.reference.APIGroup, test.expected, result)
+			}
+		})
+	}
+
+}
+
+func TestMCPToolMatcher(t *testing.T) {
+	roleWithSpecificAllow := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:      "ai_user",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				MCP: &types.MCPPermissions{
+					Tools: []string{
+						"allow_literal",
+						"^allow(_regex)+$",
+						"allow_glob*",
+					},
+				},
+			},
+		},
+	}
+
+	roleWithWildcardAllow := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:      "ai_user",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				MCP: &types.MCPPermissions{
+					Tools: []string{"*"},
+				},
+			},
+			Deny: types.RoleConditions{
+				MCP: &types.MCPPermissions{
+					Tools: []string{"deny_literal"},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		testToolName  string
+		testRole      types.Role
+		testCondition types.RoleConditionType
+		requireMatch  require.BoolAssertionFunc
+	}{
+		{
+			testToolName:  "deny_empty",
+			testRole:      roleWithSpecificAllow,
+			testCondition: types.Deny,
+			requireMatch:  require.False,
+		},
+		{
+			testToolName:  "allow_literal",
+			testRole:      roleWithSpecificAllow,
+			testCondition: types.Allow,
+			requireMatch:  require.True,
+		},
+		{
+			testToolName:  "allow_regex_regex",
+			testRole:      roleWithSpecificAllow,
+			testCondition: types.Allow,
+			requireMatch:  require.True,
+		},
+		{
+			testToolName:  "allow_globbb",
+			testRole:      roleWithSpecificAllow,
+			testCondition: types.Allow,
+			requireMatch:  require.True,
+		},
+		{
+			testToolName:  "allow_wildcard",
+			testRole:      roleWithWildcardAllow,
+			testCondition: types.Allow,
+			requireMatch:  require.True,
+		},
+		{
+			testToolName:  "deny_literal",
+			testRole:      roleWithWildcardAllow,
+			testCondition: types.Deny,
+			requireMatch:  require.True,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.testToolName, func(t *testing.T) {
+			matcher := MCPToolMatcher{
+				Name: tt.testToolName,
+			}
+			match, err := matcher.Match(tt.testRole, tt.testCondition)
+			require.NoError(t, err)
+			tt.requireMatch(t, match)
 		})
 	}
 }
