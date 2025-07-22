@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"net"
+	"os"
 	"strconv"
 	"time"
 
@@ -35,7 +36,11 @@ func (w *wtmpdbBackend) Name() string {
 	return "wtmpdb"
 }
 
-func (w *wtmpdbBackend) Login(ttyName, username, hostname string, remote net.Addr, ts time.Time) (string, error) {
+func (w *wtmpdbBackend) Login(tty *os.File, username string, remote net.Addr, ts time.Time) (string, error) {
+	ttyName, err := GetTTYName(tty)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
 	remoteHost, _, err := net.SplitHostPort(remote.String())
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -70,7 +75,7 @@ func (w *wtmpdbBackend) Logout(id string, ts time.Time) error {
 	return trace.Wrap(err)
 }
 
-func (w *wtmpdbBackend) FailedLogin(username, hostname string, remote net.Addr, ts time.Time) error {
+func (w *wtmpdbBackend) FailedLogin(username string, remote net.Addr, ts time.Time) error {
 	return trace.NotImplemented("wtmpdb backend does not support logging failed logins")
 }
 

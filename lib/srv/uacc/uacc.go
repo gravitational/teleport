@@ -33,9 +33,9 @@ import (
 
 type userAccountingBackend interface {
 	Name() string
-	Login(ttyName, username, hostname string, remote net.Addr, ts time.Time) (string, error)
+	Login(tty *os.File, username string, remote net.Addr, ts time.Time) (string, error)
 	Logout(id string, ts time.Time) error
-	FailedLogin(username, hostname string, remote net.Addr, ts time.Time) error
+	FailedLogin(username string, remote net.Addr, ts time.Time) error
 	IsUserLoggedIn(username string) (bool, error)
 }
 
@@ -76,10 +76,10 @@ func NewUserAccounting() (*UserAccounting, error) {
 	}, nil
 }
 
-func (uacc *UserAccounting) Login(ttyName, username, hostname string, remote net.Addr, ts time.Time) (string, error) {
+func (uacc *UserAccounting) Login(tty *os.File, username string, remote net.Addr, ts time.Time) (string, error) {
 	keysPerBackend := make(map[string]string, len(backends))
 	err := tryBackendOp(func(bk userAccountingBackend) error {
-		key, err := bk.Login(ttyName, username, hostname, remote, ts)
+		key, err := bk.Login(tty, username, remote, ts)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -113,13 +113,13 @@ func (uacc *UserAccounting) Logout(key string, ts time.Time) error {
 	return nil
 }
 
-func FailedLogin(username, hostname string, remote net.Addr, ts time.Time) error {
+func (uacc *UserAccounting) FailedLogin(username string, remote net.Addr, ts time.Time) error {
 	return trace.Wrap(tryBackendOp(func(bk userAccountingBackend) error {
-		return bk.FailedLogin(username, hostname, remote, ts)
+		return bk.FailedLogin(username, remote, ts)
 	}))
 }
 
-func IsUserLoggedIn(username string) (bool, error) {
+func (uacc *UserAccounting) IsUserLoggedIn(username string) (bool, error) {
 	var isUserLoggedIn bool
 	// TODO: too clever?
 	err := tryBackendOp(func(bk userAccountingBackend) error {
@@ -153,7 +153,7 @@ func PrepareAddr(addr net.Addr) ([4]int32, error) {
 	return groupedV6, nil
 }
 
-func getTTYName(tty *os.File) (string, error) {
+func GetTTYName(tty *os.File) (string, error) {
 	ttyFullName, err := os.Readlink(tty.Name())
 	if err != nil {
 		return "", trace.Wrap(err)
