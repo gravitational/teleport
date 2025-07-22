@@ -452,8 +452,16 @@ func mustMakeNewAppServer(t *testing.T, app *types.AppV3, host string) types.App
 	return appServer
 }
 
-func mustMakeMCPAppWithNameAndLabels(t *testing.T, name string, labels map[string]string) *types.AppV3 {
+func mustMakeMCPAppWithNameAndLabels(t *testing.T, name string, labels map[string]string, opts ...func(*types.MCP)) *types.AppV3 {
 	t.Helper()
+	mcpSpec := &types.MCP{
+		Command:       "test",
+		Args:          []string{"arg"},
+		RunAsHostUser: "test",
+	}
+	for _, opt := range opts {
+		opt(mcpSpec)
+	}
 	return mustMakeNewAppV3(t,
 		types.Metadata{
 			Name:        name,
@@ -461,11 +469,7 @@ func mustMakeMCPAppWithNameAndLabels(t *testing.T, name string, labels map[strin
 			Labels:      labels,
 		},
 		types.AppSpecV3{
-			MCP: &types.MCP{
-				Command:       "test",
-				Args:          []string{"arg"},
-				RunAsHostUser: "test",
-			},
+			MCP: mcpSpec,
 		},
 	)
 }
