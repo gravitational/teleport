@@ -117,6 +117,11 @@ $ tctl plugins install entraid \
     --auth-server <Var name="example.teleport.sh:443" /> 
 ```
 
+The `--name` flag specifies the resource name of the Entra ID plugin. 
+The `--auth-connector-name` flag specifies the name of the auth connector this integration will create.
+The `--default-owner` flag specifies default owners for the Access Lists that will be created
+in Teleport based on the groups imported from the Entra ID.
+
 The command will generate a configuration script in the current directory 
 from where the `tctl` is invoked. 
 
@@ -192,6 +197,13 @@ $ tctl plugins install entraid \
     --auth-server <Var name="example.teleport.sh:443" /> \
     --use-system-credentials 
 ```
+
+The `--name` flag specifies the resource name of the Entra ID plugin. 
+The `--auth-connector-name` flag specifies the name of the auth connector this integration will create.
+The `--default-owner` flag specifies default owners for the Access Lists that will be created
+in Teleport based on the groups imported from the Entra ID.
+The `--use-system-credentials` flag specifies the plugin will use the system credential configured
+for the Auth Service.
 
 The command will generate a configuration script in the current directory 
 from where the `tctl` is invoked. 
@@ -314,6 +326,12 @@ $ tctl plugins install entraid \
     --default-owner=<Var name="Access List Owner"/> \
     –-manual-setup
 ```
+
+The `--name` flag specifies the resource name of the Entra ID plugin. 
+The `--auth-connector-name` flag specifies the name of the auth connector this integration will create.
+The `--default-owner` flag specifies default owners for the Access Lists that will be created
+in Teleport based on the groups imported from the Entra ID.
+The `--manual-setup` flag specifies a manual Entra ID configuration is selected by the user.
 
 `tctl` will then prompt for Entra ID tenant ID and application ID of the enterprise 
 application created in step 1.
