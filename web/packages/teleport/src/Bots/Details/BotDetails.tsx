@@ -24,7 +24,6 @@ import { Alert } from 'design/Alert/Alert';
 import Box from 'design/Box/Box';
 import { ButtonSecondary } from 'design/Button/Button';
 import ButtonIcon from 'design/ButtonIcon/ButtonIcon';
-import Card from 'design/Card';
 import { CardTile } from 'design/CardTile/CardTile';
 import Flex from 'design/Flex/Flex';
 import { ArrowLeft } from 'design/Icon/Icons/ArrowLeft';
