@@ -309,8 +309,7 @@ func (h *portForwardProxy) run() {
 			// Backend pod lifecycle completed
 			h.logger.DebugContext(h.context, "Target connection closed")
 			// Close source connection
-			err := h.sourceConn.Close()
-			if err != nil {
+			if err := h.sourceConn.Close(); err != nil {
 				h.logger.ErrorContext(h.context, "Unable to close source connection", "error", err)
 			}
 			return
