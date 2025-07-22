@@ -20,11 +20,27 @@ package servicecfg
 type RelayConfig struct {
 	Enabled bool
 
-	// RelayGroup is the Relay group name, required if the relay service is
+	// RelayGroup is the Relay group name, required if the Relay service is
 	// enabled.
 	RelayGroup string
+
+	// TargetConnectionCount is the connection count that agents are supposed to
+	// maintain when connecting to the Relay group of this instance.
+	TargetConnectionCount int32
 
 	// APIPublicHostnames is the list of DNS names and IP addresses that the
 	// Relay service credentials should be authoritative for.
 	APIPublicHostnames []string
+
+	// APIListenAddr is the listen address for the API listener, in addr:port
+	// format. The default port used by the client if unspecified is 3040.
+	APIListenAddr string
+
+	// TunnelListenAddr is the listen address for the tunnel listener, in
+	// addr:port format. There is no default port expected by clients, but port
+	// 3042 is the intended default.
+	TunnelListenAddr string
+	// TunnelPublicAddr is the address that will be used by agents to connect to
+	// the tunnel service load balancer.
+	TunnelPublicAddr string
 }

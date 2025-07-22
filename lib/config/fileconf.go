@@ -597,12 +597,17 @@ type Global struct {
 	// v3
 	AuthServer  string `yaml:"auth_server,omitempty"`
 	ProxyServer string `yaml:"proxy_server,omitempty"`
+	RelayServer string `yaml:"relay_server,omitempty"`
 
 	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
 	Logger      Log              `yaml:"log,omitempty"`
 	Storage     backend.Config   `yaml:"storage,omitempty"`
 	AdvertiseIP string           `yaml:"advertise_ip,omitempty"`
 	CachePolicy CachePolicy      `yaml:"cache,omitempty"`
+
+	// ShutdownDelay is a delay between receiving a termination signal and the
+	// shutdown actually beginning.
+	ShutdownDelay time.Duration `yaml:"shutdown_delay,omitempty"`
 
 	// CipherSuites is a list of TLS ciphersuites that Teleport supports. If
 	// omitted, a Teleport selected list of defaults will be used.
@@ -2867,7 +2872,23 @@ type Relay struct {
 	// enabled.
 	RelayGroup string `yaml:"relay_group"`
 
+	// TargetConnectionCount is the connection count that agents are supposed to
+	// maintain when connecting to the Relay group of this instance.
+	TargetConnectionCount int `yaml:"target_connection_count"`
+
 	// APIPublicHostnames is the list of DNS names and IP addresses that the
 	// Relay service credentials should be authoritative for.
 	APIPublicHostnames []string `yaml:"api_public_hostnames"`
+
+	// APIListenAddr is the listen address for the API listener, in addr:port
+	// format. The default port used by the client if unspecified is 3040.
+	APIListenAddr string `yaml:"api_listen_addr"`
+
+	// TunnelListenAddr is the listen address for the tunnel listener, in
+	// addr:port format. There is no default port expected by clients, but port
+	// 3042 is the intended default.
+	TunnelListenAddr string `yaml:"tunnel_listen_addr"`
+	// TunnelPublicAddr is the address that will be used by agents to connect to
+	// the tunnel service load balancer.
+	TunnelPublicAddr string `yaml:"tunnel_public_addr"`
 }

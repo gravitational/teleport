@@ -72,6 +72,10 @@ type Config struct {
 	// ProxyServer is the address of the proxy
 	ProxyServer utils.NetAddr
 
+	// RelayServer is the optional address of the relay server this agent should
+	// be opening tunnels to for supported services.
+	RelayServer utils.NetAddr
+
 	// Identities is an optional list of pre-generated key pairs
 	// for teleport roles, this is helpful when server is preconfigured
 	Identities []*state.Identity
@@ -83,6 +87,10 @@ type Config struct {
 	// CachePolicy sets caching policy for nodes and proxies
 	// in case if they lose connection to auth servers
 	CachePolicy CachePolicy
+
+	// ShutdownDelay is a delay between receiving a termination signal and the
+	// shutdown actually beginning.
+	ShutdownDelay time.Duration
 
 	// Auth service configuration. Manages cluster state and configuration.
 	Auth AuthConfig

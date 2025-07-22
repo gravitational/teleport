@@ -145,6 +145,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	peerquic "github.com/gravitational/teleport/lib/proxy/peer/quic"
+	"github.com/gravitational/teleport/lib/relaytunnel"
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -287,6 +288,12 @@ const (
 	// TeleportExitEvent is generated when the Teleport process begins closing
 	// all listening sockets and exiting.
 	TeleportExitEvent = "TeleportExit"
+
+	// TeleportTerminatingEvent is generated when the Teleport process begins
+	// shutting down; it always happens before TeleportExitEvent and there might
+	// be a configured delay between this event and the actual beginning of the
+	// shut down.
+	TeleportTerminatingEvent = "TeleportTerminatingEvent"
 
 	// TeleportPhaseChangeEvent is generated to indicate that the CA rotation
 	// phase has been updated, used in tests.
@@ -2944,6 +2951,20 @@ func (process *TeleportProcess) newLocalCacheForProxy(clt authclient.ClientI, ca
 	return authclient.NewProxyWrapper(clt, cache), nil
 }
 
+func (process *TeleportProcess) newLocalCacheForRelay(clt authclient.ClientI, cacheName []string) (authclient.ReadRelayAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.NewLocalCache(clt, cache.ForRelay, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cache, nil
+}
+
 // newLocalCacheForRemoteProxy returns new instance of access point configured for a remote proxy.
 func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt authclient.ClientI, cacheName []string) (authclient.RemoteProxyAccessPoint, error) {
 	// if caching is disabled, return access point
@@ -3086,6 +3107,7 @@ func (process *TeleportProcess) initSSH() error {
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentNode, process.id))
 
 	proxyGetter := reversetunnel.NewConnectedProxyGetter()
+	relayInfoHolder := new(relaytunnel.RelayInfoHolder)
 
 	process.RegisterCriticalFunc("ssh.node", func() error {
 		// restartingOnGracefulShutdown will be set to true before the function
@@ -3249,6 +3271,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetX11ForwardingConfig(cfg.SSH.X11),
 			regular.SetAllowFileCopying(cfg.SSH.AllowFileCopying),
 			regular.SetConnectedProxyGetter(proxyGetter),
+			regular.SetRelayInfoGetter(relayInfoHolder.GetRelayInfo),
 			regular.SetCreateHostUser(!cfg.SSH.DisableCreateHostUser),
 			regular.SetStoragePresenceService(storagePresence),
 			regular.SetInventoryControlHandle(process.inventoryHandle),
@@ -3295,6 +3318,7 @@ func (process *TeleportProcess) initSSH() error {
 		}
 
 		var agentPool *reversetunnel.AgentPool
+		var relayTunnelClient *relaytunnel.Client
 		if useLocalListener {
 			listener, err := process.importOrCreateListener(ListenerNodeSSH, cfg.SSH.Addr.Addr)
 			if err != nil {
@@ -3345,7 +3369,7 @@ func (process *TeleportProcess) initSSH() error {
 			}
 		}
 
-		if conn.UseTunnel() {
+		if conn.UseTunnel() && os.Getenv("TELEPORT_UNSTABLE_DISABLE_REVERSE_TUNNEL") != "yes" {
 			var serverHandler reversetunnel.ServerHandler = s
 			if resumableServer != nil {
 				serverHandler = resumableServer
@@ -3376,6 +3400,34 @@ func (process *TeleportProcess) initSSH() error {
 			}
 			logger.InfoContext(process.ExitContext(), "Service is starting in tunnel mode.")
 		}
+		if conn.UseTunnel() && !cfg.RelayServer.IsEmpty() {
+			var serverHandler reversetunnel.ServerHandler = s
+			if resumableServer != nil {
+				serverHandler = resumableServer
+			}
+
+			relayTunnelClient, err = relaytunnel.NewClient(relaytunnel.ClientConfig{
+				Log: logger,
+
+				GetCertificate: conn.ClientGetCertificate,
+				GetPool:        conn.ClientGetPool,
+				Ciphersuites:   cfg.CipherSuites,
+
+				TunnelType: types.NodeTunnel,
+				RelayAddr:  cfg.RelayServer.Addr,
+
+				HandleConnection: serverHandler.HandleConnection,
+				RelayInfoSetter:  relayInfoHolder.SetRelayInfo,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := relayTunnelClient.Start(); err != nil {
+				return trace.Wrap(err)
+			}
+			defer relayTunnelClient.Close()
+			logger.InfoContext(process.ExitContext(), "Service is starting in relay tunnel mode.")
+		}
 
 		// Broadcast that the node has started.
 		process.BroadcastEvent(Event{Name: NodeSSHReady, Payload: nil})
@@ -3403,6 +3455,9 @@ func (process *TeleportProcess) initSSH() error {
 		s.Wait()
 		agentPool.Stop()
 		agentPool.Wait()
+		if relayTunnelClient != nil {
+			relayTunnelClient.Close()
+		}
 
 		logger.InfoContext(process.ExitContext(), "Exited.")
 		return nil
@@ -6499,23 +6554,42 @@ func (process *TeleportProcess) WaitWithContext(ctx context.Context) {
 // StartShutdown launches non-blocking graceful shutdown process that signals
 // completion, returns context that will be closed once the shutdown is done
 func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Context {
-	// by the time we get here we've already extracted the parent pipe, which is
-	// the only potential imported file descriptor that's not a listening
-	// socket, so closing every imported FD with a prefix of "" will close all
-	// imported listeners that haven't been used so far
-	warnOnErr(process.ExitContext(), process.closeImportedDescriptors(""), process.logger)
-	warnOnErr(process.ExitContext(), process.stopListeners(), process.logger)
+	delayTimer := process.Clock.NewTimer(process.Config.ShutdownDelay)
+	defer delayTimer.Stop()
 
 	hasChildren := process.forkedTeleportCount.Load() > 0
+	if hasChildren {
+		ctx = services.ProcessForkedContext(ctx)
+	}
+
+	process.BroadcastEvent(Event{Name: TeleportTerminatingEvent})
+
 	if process.inventoryHandle != nil {
 		deleteResources := !hasChildren
 		if err := process.inventoryHandle.SetAndSendGoodbye(ctx, deleteResources, hasChildren); err != nil {
 			process.logger.WarnContext(process.ExitContext(), "Failed sending inventory goodbye during shutdown", "error", err)
 		}
 	}
-	if hasChildren {
-		ctx = services.ProcessForkedContext(ctx)
+
+	if d := process.Config.ShutdownDelay; d > 0 {
+		if hasChildren {
+			process.logger.InfoContext(ctx, "Ignoring shutdown delay due to the presence of forked processes")
+		} else {
+			process.logger.InfoContext(ctx, "Waiting for shutdown delay", "shutdown_delay", d.String())
+			select {
+			case <-process.ExitContext().Done():
+			case <-delayTimer.Chan():
+			case <-ctx.Done():
+			}
+		}
 	}
+
+	// by the time we get here we've already extracted the parent pipe, which is
+	// the only potential imported file descriptor that's not a listening
+	// socket, so closing every imported FD with a prefix of "" will close all
+	// imported listeners that haven't been used so far
+	warnOnErr(process.ExitContext(), process.closeImportedDescriptors(""), process.logger)
+	warnOnErr(process.ExitContext(), process.stopListeners(), process.logger)
 
 	process.BroadcastEvent(Event{Name: TeleportExitEvent, Payload: ctx})
 	localCtx, cancel := context.WithCancel(ctx)
@@ -6557,6 +6631,7 @@ func (process *TeleportProcess) Shutdown(ctx context.Context) {
 
 // Close broadcasts close signals and exits immediately
 func (process *TeleportProcess) Close() error {
+	process.BroadcastEvent(Event{Name: TeleportTerminatingEvent})
 	process.BroadcastEvent(Event{Name: TeleportExitEvent})
 
 	var errors []error
