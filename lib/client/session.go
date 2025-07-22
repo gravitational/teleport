@@ -42,6 +42,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/escape"
+	"github.com/gravitational/teleport/lib/client/sshagent"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -259,7 +260,7 @@ func selectKeyAgent(tc *TeleportClient) agent.ExtendedAgent {
 	switch tc.ForwardAgent {
 	case ForwardAgentYes:
 		log.DebugContext(context.Background(), "Selecting system key agent")
-		return connectToSSHAgent()
+		return sshagent.NewClient()
 	case ForwardAgentLocal:
 		log.DebugContext(context.Background(), "Selecting local Teleport key agent")
 		return tc.localAgent.ExtendedAgent
