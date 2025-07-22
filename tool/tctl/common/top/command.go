@@ -73,10 +73,11 @@ func (c *Command) newMetricsClient(ctx context.Context) (string, MetricsClient, 
 	// Try default diagnostic address
 	diagClient, defErr := diag.NewClient(defaultDiagAddr)
 	if defErr != nil {
-		return "", nil, trace.NewAggregate(
-			trace.Errorf("unable to connect to Teleport service"),
-			trace.Wrap(defErr, "creating diagnostics client for default address %q", defaultDiagAddr),
-			debugErr)
+		return "", nil, trace.Wrap(
+			trace.NewAggregate(
+				trace.Wrap(defErr, "creating diagnostics client for default address %q", defaultDiagAddr),
+				debugErr),
+			"unable to connect to Teleport metrics server")
 	}
 
 	_, defErr = diagClient.GetMetrics(ctx)
@@ -84,11 +85,12 @@ func (c *Command) newMetricsClient(ctx context.Context) (string, MetricsClient, 
 		return defaultDiagAddr, diagClient, nil
 	}
 
-	return "", nil, trace.NewAggregate(
-		trace.Errorf("unable to connect to Teleport service"),
-		trace.Wrap(defErr, "getting metrics from diagnostics client at default address %q", defaultDiagAddr),
-		debugErr,
-	)
+	return "", nil, trace.Wrap(
+		trace.NewAggregate(
+			trace.Wrap(defErr, "getting metrics from diagnostics client at default address %q", defaultDiagAddr),
+			debugErr,
+		),
+		"connecting to Teleport metrics server")
 }
 
 // TryRun attempts to run subcommands.
