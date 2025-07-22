@@ -425,3 +425,98 @@ func TestKey_SignAndVerifyPluginToken(t *testing.T) {
 		})
 	}
 }
+
+func TestKey_SignAndVerifyOIDCOauthRequest(t *testing.T) {
+	t.Parallel()
+	for _, alg := range supportedAlgorithms {
+		t.Run(alg.String(), func(t *testing.T) {
+			privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(alg)
+			require.NoError(t, err)
+
+			clock := clockwork.NewFakeClockAt(time.Now())
+			const clusterName = "teleport-test"
+
+			// Create a new key that can sign and verify tokens.
+			key, err := New(&Config{
+				PrivateKey:  privateKey,
+				ClusterName: clusterName,
+				Clock:       clock,
+			})
+			require.NoError(t, err)
+
+			// Sign a token with the new key.
+			request := OIDCOauthRequestClaims{
+				ClientID:     "someid",
+				Scope:        "openid email",
+				RedirectURI:  "https://telelport.sh//v1/webapi/oidc/callback",
+				ResponseType: "code",
+				OptionalParameters: map[string]any{
+					"prompt": "select_account",
+					"state":  "e3a6140b4ca08acc05c785615146397b",
+				},
+			}
+			token, err := key.SignOIDCAuthRequestToken(request)
+			require.NoError(t, err)
+
+			parsedRequest, err := key.VerifyOIDCAuthRequestToken(token)
+			require.NoError(t, err)
+			require.Equal(t, request.ClientID, parsedRequest.ClientID)
+			require.Equal(t, request.Scope, parsedRequest.Scope)
+			require.Equal(t, request.RedirectURI, parsedRequest.RedirectURI)
+			require.Equal(t, request.ResponseType, parsedRequest.ResponseType)
+			require.Equal(t, request.OptionalParameters["prompt"], parsedRequest.OptionalParameters["prompt"])
+			require.Equal(t, request.OptionalParameters["state"], parsedRequest.OptionalParameters["state"])
+
+			// Request containing optional parameters that conflict with
+			// required OIDCOauthRequestClaims members
+			stutteringRequest := OIDCOauthRequestClaims{
+				ClientID:     "someid",
+				Scope:        "openid email",
+				RedirectURI:  "https://telelport.sh//v1/webapi/oidc/callback",
+				ResponseType: "code",
+				// Required parameters are re-declared as optional parameters
+				// Field definitions are canonical and should overwrite them
+				OptionalParameters: map[string]any{
+					"client_id":     "wrong",
+					"scope":         "wrong scopes",
+					"redirect_uri":  "https://incorrect",
+					"response_type": "not_code",
+				},
+			}
+
+			token, err = key.SignOIDCAuthRequestToken(stutteringRequest)
+			require.NoError(t, err)
+
+			parsedRequest, err = key.VerifyOIDCAuthRequestToken(token)
+			require.NoError(t, err)
+			require.Equal(t, stutteringRequest.ClientID, parsedRequest.ClientID)
+			require.Equal(t, stutteringRequest.Scope, parsedRequest.Scope)
+			require.Equal(t, stutteringRequest.RedirectURI, parsedRequest.RedirectURI)
+			require.Equal(t, stutteringRequest.ResponseType, parsedRequest.ResponseType)
+		})
+	}
+}
+
+func TestOauthRequestProcessing(t *testing.T) {
+
+	t.Run("missing fields", func(tt *testing.T) {
+		// Missing some required fields
+		_, err := oauthRequestFromClaims(map[string]any{
+			"client_id": "someid",
+			"prompt":    "select_account",
+			"state":     "e3a6140b4ca08acc05c785615146397b",
+		})
+		require.Error(tt, err)
+	})
+
+	t.Run("required fields only", func(tt *testing.T) {
+		// Strictly required parameters/claims
+		_, err := oauthRequestFromClaims(map[string]any{
+			"client_id":     "someid",
+			"scope":         "openid email",
+			"redirect_uri":  "https://telelport.sh//v1/webapi/oidc/callback",
+			"response_type": "code",
+		})
+		require.NoError(tt, err)
+	})
+}
