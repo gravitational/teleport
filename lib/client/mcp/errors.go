@@ -20,10 +20,12 @@ package mcp
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"syscall"
 
 	"github.com/gravitational/trace"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 const (
@@ -61,4 +63,22 @@ func isTemporarySyscallNetError(err error) bool {
 		errors.Is(err, syscall.ENETUNREACH) ||
 		errors.Is(err, syscall.ETIMEDOUT) ||
 		errors.Is(err, syscall.ECONNREFUSED)
+}
+
+// IsServerInfoChangedError returns true if the error indicates the remote MCP
+// server's info has changed from previous connections. Auto-reconnection
+// reports this scenario as an error case to be on the safe side in case things
+// like tools have changed.
+func IsServerInfoChangedError(err error) bool {
+	var serverInfoChangedError *serverInfoChangedError
+	return errors.As(err, &serverInfoChangedError)
+}
+
+type serverInfoChangedError struct {
+	expectedInfo mcp.Implementation
+	currentInfo  mcp.Implementation
+}
+
+func (e *serverInfoChangedError) Error() string {
+	return fmt.Sprintf("server info has changed, expected %s, got %s", e.expectedInfo, e.currentInfo)
 }

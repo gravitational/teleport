@@ -495,6 +495,9 @@ func makeMCPReconnectUserMessage(err error) string {
 			" If your network appears to be working, try restarting your MCP client to see if the problem is resolved."
 	case client.IsErrorResolvableWithRelogin(err):
 		userMessage = clientmcp.ReloginRequiredErrorMessage
+	case clientmcp.IsServerInfoChangedError(err):
+		userMessage = "The remote MCP server information has changed after the reconnection. " +
+			" Please restart your MCP client to use the new version."
 	default:
 		userMessage = "An error was encountered while sending the request to Teleport." +
 			" This does not appear to be a transient error." +
