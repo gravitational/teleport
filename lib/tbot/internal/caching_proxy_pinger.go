@@ -92,7 +92,7 @@ func (c *CachingProxyPinger) Ping(ctx context.Context) (*connection.ProxyPong, e
 		// Ping the auth server to determine the proxy address.
 		authPong, err := c.client.Ping(ctx)
 		if err != nil {
-			c.logger.Debug("Failed to ping auth server", "error", err)
+			c.logger.DebugContext(ctx, "Failed to ping auth server", "error", err)
 			return nil, trace.Wrap(err)
 		}
 		addr = authPong.ProxyPublicAddr
