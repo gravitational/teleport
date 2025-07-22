@@ -1130,17 +1130,24 @@ run-etcd:
 #
 .PHONY: integration
 integration: FLAGS ?= -v -race
-integration: PACKAGES_ALL = $(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration )
-integration: PACKAGES_NORACE = $(filter %integration/autoupdate/tools, $(PACKAGES_ALL))
-integration: PACKAGES_RACE = $(filter-out $(PACKAGES_NORACE), $(PACKAGES_ALL))
-integration: $(TEST_LOG_DIR) ensure-gotestsum
+integration: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration )
+integration: PACKAGES_NO_RACE = $(shell go list ./integration/autoupdate/tools/... | grep 'integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration )
+integration:  $(TEST_LOG_DIR) ensure-gotestsum
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES_RACE) $(FLAGS) \
-		| tee $(TEST_LOG_DIR)/integration_race.json \
+	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) \
+		| tee $(TEST_LOG_DIR)/integration.json \
 		| gotestsum --raw-command --format=testname -- cat
-	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES_NORACE) -v \
-		| tee $(TEST_LOG_DIR)/integration_norace.json \
-		| gotestsum --raw-command --format=testname -- cat
+	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES_NO_RACE) $(filter-out -race,$(FLAGS)) \
+			| tee $(TEST_LOG_DIR)/integration.json \
+			| gotestsum --raw-command --format=testname -- cat
+
+.PHONY: integration-win
+integration-win: FLAGS ?= -v
+integration-win: PACKAGES = $(shell go list ./integration/autoupdate/tools/... | grep 'integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration )
+integration-win:  $(TEST_LOG_DIR) ensure-gotestsum
+	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(filter-out -race,$(FLAGS)) \
+			| tee $(TEST_LOG_DIR)/integration.json \
+			| gotestsum --raw-command --format=testname -- cat
 
 #
 # Integration tests that run Kubernetes tests in order to complete successfully
