@@ -2686,6 +2686,35 @@ message AccessRequestAllowedPromotionResponse {
   types.AccessRequestAllowedPromotions allowedPromotions = 1;
 }
 
+// ListProvisionTokensRequest is used to retrieve a paginated list of provision tokens.
+message ListProvisionTokensRequest {
+  // Limit is the maximum amount of items per page.
+  int32 Limit = 1;
+
+  // StartKey is used to resume a query in order to enable pagination.
+  // If the previous response had NextKey set then this should be
+  // set to its value. Otherwise leave empty.
+  string StartKey = 2;
+
+  // FilterRoles allows filtering for tokens with the provided roles. Tokens
+  // with ANY of the provided roles are returned.
+  repeated string FilterRoles = 3;
+
+  // FilterBotName allows filtering for tokens associated with the
+  // named bot. In addition, only items with a role of Bot are returned.
+  string FilterBotName = 4;
+}
+
+// ListProvisionTokensResponse is used to retrieve a paginated list of provision tokens.
+message ListProvisionTokensResponse {
+  // Tokens is the list of tokens.
+  repeated types.ProvisionTokenV2 Tokens = 1;
+
+  // NextKey is used to resume a query in order to enable pagination.
+  // Leave empty to start at the beginning.
+  string NextKey = 2;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -3160,6 +3189,8 @@ service AuthService {
   rpc GetToken(types.ResourceRequest) returns (types.ProvisionTokenV2);
   // GetToken retrieves all tokens.
   rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
+  // ListToken retrieves a paginated list of filtered provision tokens.
+  rpc ListProvisionTokens(ListProvisionTokensRequest) returns (ListProvisionTokensResponse);
   // CreateTokenV2 creates a token in a backend.
   rpc CreateTokenV2(CreateTokenV2Request) returns (google.protobuf.Empty);
   // UpsertTokenV2 upserts a token in a backend.
