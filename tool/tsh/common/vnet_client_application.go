@@ -134,9 +134,14 @@ func (p *vnetClientApplication) GetDialOptions(ctx context.Context, profileName 
 	return dialOpts, nil
 }
 
-// OnNewConnection gets called before each VNet connection. It's a noop as tsh doesn't need to do
+// OnNewSSHSession gets called before each VNet SSH connection. It's a noop as
+// tsh doesn't need to do anything extra here.
+func (p *vnetClientApplication) OnNewSSHSession(ctx context.Context, profileName, rootClusterName string) {
+}
+
+// OnNewAppConnection gets called before each VNet app connection. It's a noop as tsh doesn't need to do
 // anything extra here.
-func (p *vnetClientApplication) OnNewConnection(_ context.Context, _ *vnetv1.AppKey) error {
+func (p *vnetClientApplication) OnNewAppConnection(_ context.Context, _ *vnetv1.AppKey) error {
 	return nil
 }
 

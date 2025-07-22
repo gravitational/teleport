@@ -480,8 +480,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 		cfg.SummarizerResources = summarizer
 	}
-	if cfg.SummarizerProvider == nil {
-		cfg.SummarizerProvider = summarizer.NewSummarizerProvider()
+	if cfg.SessionSummarizerProvider == nil {
+		cfg.SessionSummarizerProvider = summarizer.NewSessionSummarizerProvider()
 	}
 	if cfg.WorkloadIdentityX509Revocations == nil {
 		cfg.WorkloadIdentityX509Revocations, err = local.NewWorkloadIdentityX509RevocationService(cfg.Backend)
@@ -625,29 +625,29 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	as := Server{
-		bk:                      cfg.Backend,
-		clock:                   cfg.Clock,
-		limiter:                 limiter,
-		Authority:               cfg.Authority,
-		AuthServiceName:         cfg.AuthServiceName,
-		ServerID:                cfg.HostUUID,
-		cancelFunc:              cancelFunc,
-		closeCtx:                closeCtx,
-		emitter:                 cfg.Emitter,
-		Streamer:                cfg.Streamer,
-		Unstable:                local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
-		Services:                services,
-		Cache:                   services,
-		scopedAccessBackend:     cfg.ScopedAccess,
-		scopedAccessCache:       scopedAccessCache,
-		keyStore:                cfg.KeyStore,
-		traceClient:             cfg.TraceClient,
-		fips:                    cfg.FIPS,
-		loadAllCAs:              cfg.LoadAllCAs,
-		httpClientForAWSSTS:     cfg.HTTPClientForAWSSTS,
-		accessMonitoringEnabled: cfg.AccessMonitoringEnabled,
-		logger:                  cfg.Logger,
-		summarizerProvider:      cfg.SummarizerProvider,
+		bk:                        cfg.Backend,
+		clock:                     cfg.Clock,
+		limiter:                   limiter,
+		Authority:                 cfg.Authority,
+		AuthServiceName:           cfg.AuthServiceName,
+		ServerID:                  cfg.HostUUID,
+		cancelFunc:                cancelFunc,
+		closeCtx:                  closeCtx,
+		emitter:                   cfg.Emitter,
+		Streamer:                  cfg.Streamer,
+		Unstable:                  local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
+		Services:                  services,
+		Cache:                     services,
+		scopedAccessBackend:       cfg.ScopedAccess,
+		scopedAccessCache:         scopedAccessCache,
+		keyStore:                  cfg.KeyStore,
+		traceClient:               cfg.TraceClient,
+		fips:                      cfg.FIPS,
+		loadAllCAs:                cfg.LoadAllCAs,
+		httpClientForAWSSTS:       cfg.HTTPClientForAWSSTS,
+		accessMonitoringEnabled:   cfg.AccessMonitoringEnabled,
+		logger:                    cfg.Logger,
+		sessionSummarizerProvider: cfg.SessionSummarizerProvider,
 	}
 	as.inventory = inventory.NewController(&as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
@@ -1285,10 +1285,10 @@ type Server struct {
 	// logger is the logger used by the auth server.
 	logger *slog.Logger
 
-	// SummarizerProvider is a provider of the summarizer service. It allows for
-	// late initialization of the summarizer in the enterprise plugin. The
-	// summarizer itself summarizes session recordings.
-	summarizerProvider *summarizer.SummarizerProvider
+	// sessionSummarizerProvider is a provider of the session summarizer service.
+	// It allows for late initialization of the summarizer in the enterprise
+	// plugin. The summarizer itself summarizes session recordings.
+	sessionSummarizerProvider *summarizer.SessionSummarizerProvider
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1382,7 +1382,7 @@ func (a *Server) ResetLoginHooks() {
 // SetSummarizerService sets an implementation of the summarizer service used
 // by this server and its underlying services.
 func (a *Server) SetSummarizerService(s summarizer.SessionSummarizer) {
-	a.summarizerProvider.SetSummarizer(s)
+	a.sessionSummarizerProvider.SetSummarizer(s)
 }
 
 // CloseContext returns the close context
@@ -2176,6 +2176,13 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 	a.clock = clock
 }
 
+// SetBcryptCost sets bcryptCostOverride, used in tests
+func (a *Server) SetBcryptCost(cost int) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.bcryptCostOverride = &cost
+}
+
 func (a *Server) SetSCIMService(scim services.SCIM) {
 	a.Services.SCIM = scim
 }
@@ -2607,6 +2614,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 }
 
 // GenerateUserTestCertsRequest is a request to generate test certificates.
+// TODO(tross): Figure out how to move this into test only code.
 type GenerateUserTestCertsRequest struct {
 	SSHPubKey               []byte
 	TLSPubKey               []byte
@@ -2620,11 +2628,23 @@ type GenerateUserTestCertsRequest struct {
 	TLSAttestationStatement *hardwarekey.AttestationStatement
 	AppName                 string
 	AppSessionID            string
+	DeviceExtensions        DeviceExtensions
+	Renewable               bool
+	Generation              uint64
+	ActiveRequests          []string
+	KubernetesCluster       string
+	Usage                   []string
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
+// TODO(tross): Figure out how to move this into test only code.
 func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte, []byte, error) {
-	ctx := context.Background()
+	return a.GenerateUserTestCertsWithContext(context.TODO(), req)
+}
+
+// GenerateUserTestCertsWithContext is used to generate user certificate, used internally for tests
+// TODO(tross): Figure out how to move this into test only code.
+func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req GenerateUserTestCertsRequest) ([]byte, []byte, error) {
 	userState, err := a.GetUserOrLoginState(ctx, req.Username)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -2655,6 +2675,12 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
 		appName:                          req.AppName,
 		appSessionID:                     req.AppSessionID,
+		deviceExtensions:                 req.DeviceExtensions,
+		generation:                       req.Generation,
+		renewable:                        req.Renewable,
+		activeRequests:                   req.ActiveRequests,
+		kubernetesCluster:                req.KubernetesCluster,
+		usage:                            req.Usage,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

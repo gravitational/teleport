@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -125,7 +126,7 @@ func TestBotJoinAuth(t *testing.T) {
 		},
 		AuthServer:            authAddr.Addr,
 		AuthServerAddressMode: config.AllowProxyAsAuthServer,
-		CredentialLifetime: config.CredentialLifetime{
+		CredentialLifetime: bot.CredentialLifetime{
 			TTL:             defaultCertificateTTL,
 			RenewalInterval: defaultRenewalInterval,
 		},

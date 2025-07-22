@@ -407,10 +407,10 @@ type InitConfig struct {
 	// SummarizerResources manages summary inference configuration resources.
 	SummarizerResources services.SummarizerResources
 
-	// SummarizerProvider is a provider of the summarizer service. It allows for
-	// late initialization of the summarizer in the enterprise plugin. The
-	// summarizer itself summarizes session recordings.
-	SummarizerProvider *summarizer.SummarizerProvider
+	// SessionSummarizerProvider is a provider of the session summarizer service.
+	// It allows for late initialization of the summarizer in the enterprise
+	// plugin. The summarizer itself summarizes session recordings.
+	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 }
 
 // Init instantiates and configures an instance of AuthServer

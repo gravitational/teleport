@@ -397,11 +397,11 @@ func TestSummarization(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			summarizerProvider := &summarizer.SummarizerProvider{}
+			summarizerProvider := &summarizer.SessionSummarizerProvider{}
 			uploader := eventstest.NewMemoryUploader()
 			streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
-				Uploader:           uploader,
-				SummarizerProvider: summarizerProvider,
+				Uploader:                  uploader,
+				SessionSummarizerProvider: summarizerProvider,
 			})
 			require.NoError(t, err)
 
@@ -411,8 +411,8 @@ func TestSummarization(t *testing.T) {
 			mockSummarizer := &MockSummarizer{}
 			if tc.useSummarizer {
 				summarizerProvider.SetSummarizer(mockSummarizer)
-				matchSessionEnd := mock.MatchedBy(func(evt *apievents.OneOf) bool {
-					return evt.GetSessionEnd() != nil
+				matchSessionEnd := mock.MatchedBy(func(evt summarizer.AnySessionEndEvent) bool {
+					return !evt.IsEmpty()
 				})
 				mockSummarizer.
 					On("Summarize", mock.Anything, sid, matchSessionEnd).
@@ -515,7 +515,7 @@ type MockSummarizer struct {
 }
 
 func (m *MockSummarizer) Summarize(
-	ctx context.Context, sessionID session.ID, sessionEndEvent *apievents.OneOf,
+	ctx context.Context, sessionID session.ID, sessionEndEvent summarizer.AnySessionEndEvent,
 ) error {
 	args := m.Called(ctx, sessionID, sessionEndEvent)
 	return args.Error(0)

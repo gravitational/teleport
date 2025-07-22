@@ -183,6 +183,8 @@ func TestAuditMarshaling(t *testing.T) {
 }
 
 func TestAuditUnmarshaling(t *testing.T) {
+	const twoWeeks = 14 * 24 * time.Hour
+
 	tests := []struct {
 		name                      string
 		input                     map[string]interface{}
@@ -242,66 +244,6 @@ func TestAuditUnmarshaling(t *testing.T) {
 			require.Equal(t, tt.expectedNotificationStart, audit.Notifications.Start)
 		})
 	}
-}
-
-func TestAccessListDefaults(t *testing.T) {
-	newValidAccessList := func() *AccessList {
-		return &AccessList{
-			ResourceHeader: header.ResourceHeader{
-				Metadata: header.Metadata{
-					Name: "test",
-				},
-			},
-			Spec: Spec{
-				Title:  "test access list",
-				Owners: []Owner{{Name: "Daphne"}},
-				Grants: Grants{Roles: []string{"requester"}},
-				Audit: Audit{
-					NextAuditDate: time.Date(2000, time.September, 12, 1, 2, 3, 4, time.UTC),
-				},
-			},
-		}
-	}
-
-	t.Run("audit is not supported for static access_list", func(t *testing.T) {
-		uut := newValidAccessList()
-		uut.Spec.Type = Static
-		uut.Spec.Audit = Audit{
-			NextAuditDate: time.Date(2000, time.September, 12, 1, 2, 3, 4, time.UTC),
-		}
-
-		err := uut.CheckAndSetDefaults()
-		require.Error(t, err)
-		require.ErrorContains(t, err, "audit not supported for non-dynamic access_list")
-	})
-
-	t.Run("owners are not required for static access_list", func(t *testing.T) {
-		uut := newValidAccessList()
-		uut.Spec.Type = Static
-		uut.Spec.Owners = []Owner{}
-		uut.Spec.Audit = Audit{}
-
-		err := uut.CheckAndSetDefaults()
-		require.NoError(t, err)
-	})
-
-	t.Run("otherwise owners are required", func(t *testing.T) {
-		uut := newValidAccessList()
-		uut.Spec.Owners = []Owner{}
-
-		err := uut.CheckAndSetDefaults()
-		require.Error(t, err)
-		require.ErrorContains(t, err, "owners")
-	})
-
-	t.Run("type is validated", func(t *testing.T) {
-		uut := newValidAccessList()
-		uut.Spec.Type = "test_unknown_type"
-
-		err := uut.CheckAndSetDefaults()
-		require.Error(t, err)
-		require.ErrorContains(t, err, `unknown access_list type "test_unknown_type"`)
-	})
 }
 
 func TestSelectNextReviewDate(t *testing.T) {

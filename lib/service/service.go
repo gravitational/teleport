@@ -2177,7 +2177,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
-	summarizerProvider := summarizer.NewSummarizerProvider()
+	sessionSummarizerProvider := summarizer.NewSessionSummarizerProvider()
 
 	// create the audit log, which will be consuming (and recording) all events
 	// and recording all sessions.
@@ -2216,9 +2216,9 @@ func (process *TeleportProcess) initAuthService() error {
 			}
 		}
 		streamer, err = events.NewProtoStreamer(events.ProtoStreamerConfig{
-			Uploader:           uploadHandler,
-			Encrypter:          encryptedIO,
-			SummarizerProvider: summarizerProvider,
+			Uploader:                  uploadHandler,
+			Encrypter:                 encryptedIO,
+			SessionSummarizerProvider: sessionSummarizerProvider,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2339,7 +2339,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Tracer:                      process.TracingProvider.Tracer(teleport.ComponentAuth),
 			Logger:                      logger,
 			RunWhileLockedRetryInterval: cfg.Testing.RunWhileLockedRetryInterval,
-			SummarizerProvider:          summarizerProvider,
+			SessionSummarizerProvider:   sessionSummarizerProvider,
 		}, func(as *auth.Server) error {
 			if !process.Config.CachePolicy.Enabled {
 				return nil
