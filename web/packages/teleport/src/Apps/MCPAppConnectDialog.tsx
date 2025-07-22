@@ -16,14 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box, ButtonSecondary, Stack, Text } from 'design';
+import { Box, ButtonSecondary, Link, Stack, Text } from 'design';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
-import { TextSelectCopy } from 'shared/components/TextSelectCopy';
+import {
+  TextSelectCopy,
+  TextSelectCopyMulti,
+} from 'shared/components/TextSelectCopy';
 
 import { generateTshLoginCommand } from 'teleport/lib/util';
 import { App } from 'teleport/services/apps';
@@ -39,6 +42,19 @@ export function MCPAppConnectDialog(props: { app: App; onClose: () => void }) {
   const { clusterId } = useStickyClusterId();
   const { username, authType } = ctx.storeUser.state;
   const accessRequestId = ctx.storeUser.getAccessRequestId();
+  const mcpServerName = `teleport-mcp-${app.name}`;
+  const mcpServerConfig = {
+    command: 'tsh',
+    args: ['mcp', 'connect', app.name],
+  };
+  const claudeConfig = {
+    mcpServers: {
+      [mcpServerName]: mcpServerConfig,
+    },
+  };
+  const cursorDeepLink = `cursor://anysphere.cursor-deeplink/mcp/install?name=${encodeURIComponent(
+    mcpServerName
+  )}&config=${encodeURIComponent(btoa(JSON.stringify(mcpServerConfig)))}`;
 
   return (
     <Dialog
@@ -78,14 +94,37 @@ export function MCPAppConnectDialog(props: { app: App; onClose: () => void }) {
               <Text bold as="span">
                 Step 2
               </Text>
-              {' - Log in the MCP server'}
+              {' - Configure your MCP client'}
             </Text>
-            <TextSelectCopy text={`tsh mcp login ${app.name}`} />
+            <Box>
+              Here is a sample Claude Desktop config to connect to this MCP
+              server:
+            </Box>
+            <TextSelectCopyMulti
+              bash={false}
+              lines={[
+                {
+                  text: JSON.stringify(claudeConfig, null, 2),
+                },
+              ]}
+            />
+            <Box>
+              For Cursor deeplink install, please click{' '}
+              <Link href={cursorDeepLink} target="_blank">
+                here
+              </Link>
+              .
+            </Box>
+            <Box>
+              Alternatively, run the following to generate the config from the
+              command line.
+            </Box>
+            <TextSelectCopy text={`tsh mcp config ${app.name}`} />
+            <Box>
+              Restart your MCP tool to load the updated configuration if
+              necessary.
+            </Box>
           </Stack>
-          <Box>
-            Restart your AI client to load the updated configuration if
-            necessary.
-          </Box>
         </Stack>
       </DialogContent>
 
