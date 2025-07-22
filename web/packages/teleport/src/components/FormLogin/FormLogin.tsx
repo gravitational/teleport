@@ -49,10 +49,12 @@ import {
 } from 'shared/services';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 
+import cfg from 'teleport/config';
 import { UserCredentials } from 'teleport/services/auth';
 import history from 'teleport/services/history';
 
 import { PasskeyIcons } from '../Passkeys';
+import { FormIdentifierFirst, ViewSwitchButton } from './FormIdentifierFirst';
 import SSOButtonList from './SsoButtons';
 
 const allAuthTypes: PrimaryAuthType[] = ['passwordless', 'sso', 'local'];
@@ -65,6 +67,10 @@ export default function LoginForm(props: Props) {
     authProviders = [],
     primaryAuthType,
   } = props;
+
+  const [showIdentifierFirstLogin, setShowIdentifierFirstLogin] = useState(
+    cfg?.auth?.identifierFirstLoginEnabled
+  );
 
   const ssoEnabled = authProviders?.length > 0;
 
@@ -89,6 +95,16 @@ export default function LoginForm(props: Props) {
 
   const showAccessChangedMessage = history.hasAccessChangedParam();
 
+  if (ssoEnabled && showIdentifierFirstLogin) {
+    return (
+      <FormIdentifierFirst
+        onLoginWithSso={props.onLoginWithSso}
+        onUseLocalLogin={() => setShowIdentifierFirstLogin(false)}
+        isLocalAuthEnabled={isLocalAuthEnabled}
+      />
+    );
+  }
+
   // Everything below requires local auth to be enabled.
   return (
     <Card my="5" mx="auto" maxWidth={500} minWidth={300} py={4}>
@@ -107,6 +123,7 @@ export default function LoginForm(props: Props) {
           currFlow={'default'}
           otherAuthTypes={otherAuthTypes}
           {...props}
+          setShowIdentifierFirstLogin={setShowIdentifierFirstLogin}
           primaryAuthType={actualPrimaryType}
         />
       ) : (
@@ -125,11 +142,24 @@ const SsoList = ({
   onLoginWithSso,
   autoFocus = false,
   hasTransitionEnded,
+  setShowIdentifierFirstLogin,
 }: Props & { hasTransitionEnded?: boolean }) => {
   const ref = useRefAutoFocus<HTMLButtonElement>({
     shouldFocus: hasTransitionEnded && autoFocus,
   });
   const { isProcessing } = attempt;
+
+  if (cfg?.auth?.identifierFirstLoginEnabled) {
+    return (
+      <ViewSwitchButton
+        onClick={() => setShowIdentifierFirstLogin(true)}
+        disabled={isProcessing}
+      >
+        Sign in using SSO
+      </ViewSwitchButton>
+    );
+  }
+
   return (
     <SSOButtonList
       isDisabled={isProcessing}
@@ -342,12 +372,14 @@ const LoginOptions = ({
   next,
   refCallback,
   otherAuthTypes,
+  setShowIdentifierFirstLogin,
   ...otherProps
 }: { otherAuthTypes: PrimaryAuthType[] } & Props & StepComponentProps) => {
   return (
     <Flex flexDirection="column" px={4} gap={3} ref={refCallback}>
       <AuthMethod
         {...otherProps}
+        setShowIdentifierFirstLogin={setShowIdentifierFirstLogin}
         next={next}
         refCallback={refCallback}
         authType={otherProps.primaryAuthType}
@@ -359,6 +391,7 @@ const LoginOptions = ({
         <AuthMethod
           key={authType}
           {...otherProps}
+          setShowIdentifierFirstLogin={setShowIdentifierFirstLogin}
           next={next}
           refCallback={refCallback}
           authType={authType}
@@ -469,6 +502,7 @@ export type Props = {
   onLoginWithWebauthn(creds?: UserCredentials): void;
   onLogin(username: string, password: string, token: string): void;
   autoFocus?: boolean;
+  setShowIdentifierFirstLogin?: (value: boolean) => void;
 };
 
 type AttemptState = ReturnType<typeof useAttempt>[0];
