@@ -18,26 +18,22 @@ package recordingencryption_test
 
 import (
 	"bytes"
-	"context"
-	"crypto"
 	"io"
 	"testing"
 
 	"filippo.io/age"
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 func TestRecordingAgePlugin(t *testing.T) {
 	ctx := t.Context()
-	keyFinder := newFakeKeyUnwrapper()
-	recordingIdentity := recordingencryption.NewRecordingIdentity(ctx, keyFinder)
+	keyStore := newFakeKeyStore(types.PrivateKeyType_RAW)
+	recordingIdentity := recordingencryption.NewRecordingIdentity(ctx, keyStore)
 
-	pubKey, err := keyFinder.generateIdentity()
+	_, pubKey, err := keyStore.createKey()
 	require.NoError(t, err)
 
 	recipient, err := recordingencryption.ParseRecordingRecipient(pubKey)
@@ -64,7 +60,7 @@ func TestRecordingAgePlugin(t *testing.T) {
 	require.Equal(t, msg, plaintext)
 
 	// running the same test with an unknown public key should fail
-	_, pubKey, err = genKeys()
+	_, pubKey, err = keyStore.genKeys()
 	require.NoError(t, err)
 
 	recipient, err = recordingencryption.ParseRecordingRecipient(pubKey)
@@ -78,58 +74,4 @@ func TestRecordingAgePlugin(t *testing.T) {
 	require.NoError(t, err)
 	_, err = age.Decrypt(out, recordingIdentity)
 	require.Error(t, err)
-}
-
-type fakeKeyUnwrapper struct {
-	keys map[string]crypto.Decrypter
-}
-
-func newFakeKeyUnwrapper() *fakeKeyUnwrapper {
-	return &fakeKeyUnwrapper{
-		keys: make(map[string]crypto.Decrypter),
-	}
-}
-
-func (f *fakeKeyUnwrapper) UnwrapKey(ctx context.Context, in recordingencryption.UnwrapInput) ([]byte, error) {
-	decrypter, ok := f.keys[in.Fingerprint]
-	if !ok {
-		return nil, trace.NotFound("no accessible decryption key found")
-	}
-
-	fileKey, err := decrypter.Decrypt(in.Rand, in.WrappedKey, in.Opts)
-	if err != nil {
-		return nil, err
-	}
-
-	return fileKey, nil
-}
-
-func genKeys() (crypto.Decrypter, []byte, error) {
-	decrypter, err := cryptosuites.GenerateDecrypterWithAlgorithm(cryptosuites.RSA4096)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	publicKey, err := keys.MarshalPublicKey(decrypter.Public())
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return decrypter, publicKey, nil
-}
-
-func (f *fakeKeyUnwrapper) generateIdentity() ([]byte, error) {
-	decrypter, publicKey, err := genKeys()
-	if err != nil {
-		return nil, err
-	}
-
-	fp, err := recordingencryption.Fingerprint(decrypter.Public())
-	if err != nil {
-		return nil, err
-	}
-
-	f.keys[fp] = decrypter
-
-	return publicKey, nil
 }

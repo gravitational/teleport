@@ -31,8 +31,8 @@ import (
 
 func TestEncryptedIO(t *testing.T) {
 	ctx := t.Context()
-	keyUnwrapper := newFakeKeyUnwrapper()
-	publicKey, err := keyUnwrapper.generateIdentity()
+	keyStore := newFakeKeyStore(types.PrivateKeyType_RAW)
+	_, publicKey, err := keyStore.createKey()
 	require.NoError(t, err)
 
 	srcGetter, err := newFakeSRCGetter(true, []*types.AgeEncryptionKey{
@@ -42,7 +42,7 @@ func TestEncryptedIO(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	encryptedIO, err := recordingencryption.NewEncryptedIO(srcGetter, keyUnwrapper)
+	encryptedIO, err := recordingencryption.NewEncryptedIO(srcGetter, keyStore)
 	require.NoError(t, err)
 
 	out := bytes.NewBuffer(nil)
@@ -74,7 +74,7 @@ func TestEncryptedIO(t *testing.T) {
 	// wrapping encryption when encryption is disabled should return an ErrEncryptionDisabled
 	srcGetter, err = newFakeSRCGetter(false, nil)
 	require.NoError(t, err)
-	encryptedIO, err = recordingencryption.NewEncryptedIO(srcGetter, keyUnwrapper)
+	encryptedIO, err = recordingencryption.NewEncryptedIO(srcGetter, keyStore)
 	require.NoError(t, err)
 
 	_, err = encryptedIO.WithEncryption(ctx, &writeCloser{Writer: out})

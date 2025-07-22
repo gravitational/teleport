@@ -44,6 +44,25 @@ import (
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
+// It takes forever to generate RSA4096 keys so we generate and cache a few to be used by the fakeKeyStore
+// instead of actually generating a new key every time a test needs one. This cuts down flaky test execution
+// time to ~20-30s instead of timing out at >10m
+var cachedDecrypters = initDecrypters()
+
+func initDecrypters() []crypto.Decrypter {
+	var decrypters []crypto.Decrypter
+	for range 10 {
+		decrypter, err := cryptosuites.GenerateDecrypterWithAlgorithm(cryptosuites.RSA4096)
+		if err != nil {
+			panic("failed to generate RSA 4096 key")
+		}
+
+		decrypters = append(decrypters, decrypter)
+	}
+
+	return decrypters
+}
+
 type oaepDecrypter struct {
 	crypto.Decrypter
 	hash crypto.Hash
@@ -55,10 +74,51 @@ func (d oaepDecrypter) Decrypt(rand io.Reader, msg []byte, opts crypto.Decrypter
 
 type fakeKeyStore struct {
 	keyType types.PrivateKeyType // abusing this field as a way to simulate different auth servers
+	keys    map[string]crypto.Decrypter
+
+	cacheIdx int
+}
+
+func newFakeKeyStore(keyType types.PrivateKeyType) *fakeKeyStore {
+	return &fakeKeyStore{
+		keys:    make(map[string]crypto.Decrypter),
+		keyType: keyType,
+	}
+}
+
+func (f *fakeKeyStore) genKeys() (crypto.Decrypter, []byte, error) {
+	decrypter := cachedDecrypters[f.cacheIdx]
+	f.cacheIdx += 1
+	if f.cacheIdx >= len(cachedDecrypters) {
+		f.cacheIdx = 0
+	}
+
+	publicKey, err := keys.MarshalPublicKey(decrypter.Public())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return decrypter, publicKey, nil
+}
+
+func (f *fakeKeyStore) createKey() (crypto.Decrypter, []byte, error) {
+	decrypter, publicKey, err := f.genKeys()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	fp, err := recordingencryption.Fingerprint(decrypter.Public())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	f.keys[fp] = decrypter
+
+	return decrypter, publicKey, nil
 }
 
 func (f *fakeKeyStore) NewEncryptionKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.EncryptionKeyPair, error) {
-	decrypter, err := cryptosuites.GenerateDecrypterWithAlgorithm(cryptosuites.RSA4096)
+	decrypter, pubPEM, err := f.createKey()
 	if err != nil {
 		return nil, err
 	}
@@ -73,14 +133,9 @@ func (f *fakeKeyStore) NewEncryptionKeyPair(ctx context.Context, purpose cryptos
 		return nil, err
 	}
 
-	publicPEM, err := keys.MarshalPublicKey(private.Public())
-	if err != nil {
-		return nil, err
-	}
-
 	return &types.EncryptionKeyPair{
 		PrivateKey:     privatePEM,
-		PublicKey:      publicPEM,
+		PublicKey:      pubPEM,
 		PrivateKeyType: f.keyType,
 		Hash:           uint32(crypto.SHA256),
 	}, nil
@@ -101,6 +156,20 @@ func (f *fakeKeyStore) GetDecrypter(ctx context.Context, keyPair *types.Encrypti
 		return nil, errors.New("private key should have been a decrypter")
 	}
 	return oaepDecrypter{Decrypter: decrypter, hash: crypto.Hash(keyPair.Hash)}, nil
+}
+
+func (f *fakeKeyStore) UnwrapKey(ctx context.Context, in recordingencryption.UnwrapInput) ([]byte, error) {
+	decrypter, ok := f.keys[in.Fingerprint]
+	if !ok {
+		return nil, trace.NotFound("no accessible decryption key found")
+	}
+
+	fileKey, err := decrypter.Decrypt(in.Rand, in.WrappedKey, in.Opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return fileKey, nil
 }
 
 func newLocalBackend(
@@ -135,7 +204,7 @@ func newManagerConfig(t *testing.T, bk backend.Backend, keyType types.PrivateKey
 		Backend:       recordingEncryptionService,
 		Cache:         recordingEncryptionService,
 		ClusterConfig: clusterConfigService,
-		KeyStore:      &fakeKeyStore{keyType: keyType},
+		KeyStore:      newFakeKeyStore(keyType),
 		Logger:        logtest.NewLogger(),
 		LockConfig: backend.RunWhileLockedConfig{
 			LockConfiguration: backend.LockConfiguration{
@@ -223,7 +292,7 @@ func TestResolveRecordingEncryption(t *testing.T) {
 	configA := newManagerConfig(t, bk, managerABType)
 	configB := configA
 	configC := configA
-	configC.KeyStore = &fakeKeyStore{managerCType}
+	configC.KeyStore = newFakeKeyStore(managerCType)
 
 	managerA, err := recordingencryption.NewManager(configA)
 	require.NoError(t, err)
