@@ -25,6 +25,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
 var (
@@ -38,7 +40,7 @@ type ApplicationOutput struct {
 	// Name of the service for logs and the /readyz endpoint.
 	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
-	Destination bot.Destination `yaml:"destination"`
+	Destination destination.Destination `yaml:"destination"`
 	// Roles is the list of roles to request for the generated credentials.
 	// If empty, it defaults to all the bot's roles.
 	Roles []string `yaml:"roles,omitempty"`
@@ -52,7 +54,7 @@ type ApplicationOutput struct {
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
+	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
 }
 
 func (o *ApplicationOutput) Init(ctx context.Context) error {
@@ -75,7 +77,7 @@ func (o *ApplicationOutput) GetName() string {
 	return o.Name
 }
 
-func (o *ApplicationOutput) GetDestination() bot.Destination {
+func (o *ApplicationOutput) GetDestination() destination.Destination {
 	return o.Destination
 }
 
@@ -112,7 +114,7 @@ func (o *ApplicationOutput) Describe() []FileDescription {
 
 func (o *ApplicationOutput) MarshalYAML() (interface{}, error) {
 	type raw ApplicationOutput
-	return withTypeHeader((*raw)(o), ApplicationOutputType)
+	return encoding.WithTypeHeader((*raw)(o), ApplicationOutputType)
 }
 
 func (o *ApplicationOutput) UnmarshalYAML(node *yaml.Node) error {
@@ -133,6 +135,6 @@ func (o *ApplicationOutput) Type() string {
 	return ApplicationOutputType
 }
 
-func (o *ApplicationOutput) GetCredentialLifetime() CredentialLifetime {
+func (o *ApplicationOutput) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }

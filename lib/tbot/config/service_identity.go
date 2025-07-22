@@ -25,6 +25,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 )
 
@@ -78,7 +80,7 @@ type IdentityOutput struct {
 	// Name of the service for logs and the /readyz endpoint.
 	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
-	Destination bot.Destination `yaml:"destination"`
+	Destination destination.Destination `yaml:"destination"`
 	// Roles is the list of roles to request for the generated credentials.
 	// If empty, it defaults to all the bot's roles.
 	Roles []string `yaml:"roles,omitempty"`
@@ -106,7 +108,7 @@ type IdentityOutput struct {
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
+	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
@@ -118,7 +120,7 @@ func (o *IdentityOutput) Init(ctx context.Context) error {
 	return trace.Wrap(o.Destination.Init(ctx, []string{}))
 }
 
-func (o *IdentityOutput) GetDestination() bot.Destination {
+func (o *IdentityOutput) GetDestination() destination.Destination {
 	return o.Destination
 }
 
@@ -127,7 +129,7 @@ func (o *IdentityOutput) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if _, ok := o.Destination.(*DestinationDirectory); !ok {
+	if _, ok := o.Destination.(*destination.Directory); !ok {
 		// If destDir is unset, we're not using a filesystem destination and
 		// ssh_config will not be sensible. Log a note and bail early without
 		// writing ssh_config. (Future users of k8s secrets will need to bring
@@ -170,7 +172,7 @@ func (o *IdentityOutput) Describe() []FileDescription {
 		fds = append(fds, FileDescription{
 			Name: ssh.KnownHostsName,
 		})
-		if _, ok := o.Destination.(*DestinationDirectory); ok {
+		if _, ok := o.Destination.(*destination.Directory); ok {
 			fds = append(fds, FileDescription{
 				Name: ssh.ConfigName,
 			})
@@ -182,7 +184,7 @@ func (o *IdentityOutput) Describe() []FileDescription {
 
 func (o *IdentityOutput) MarshalYAML() (interface{}, error) {
 	type raw IdentityOutput
-	return withTypeHeader((*raw)(o), IdentityOutputType)
+	return encoding.WithTypeHeader((*raw)(o), IdentityOutputType)
 }
 
 func (o *IdentityOutput) UnmarshalYAML(node *yaml.Node) error {
@@ -203,6 +205,6 @@ func (o *IdentityOutput) Type() string {
 	return IdentityOutputType
 }
 
-func (o *IdentityOutput) GetCredentialLifetime() CredentialLifetime {
+func (o *IdentityOutput) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }

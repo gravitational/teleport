@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,11 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bot
+package destination
 
 import (
 	"context"
 	"fmt"
+
+	"go.opentelemetry.io/otel"
+
+	"github.com/gravitational/teleport"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
+)
+
+var (
+	log    = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
+	tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/bot/destination")
 )
 
 // Destination can persist renewable certificates.

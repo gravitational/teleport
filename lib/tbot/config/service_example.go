@@ -21,6 +21,9 @@ package config
 import (
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
 const ExampleServiceType = "example"
@@ -46,7 +49,7 @@ func (s *ExampleService) GetName() string {
 
 func (s *ExampleService) MarshalYAML() (any, error) {
 	type raw ExampleService
-	return withTypeHeader((*raw)(s), ExampleServiceType)
+	return encoding.WithTypeHeader((*raw)(s), ExampleServiceType)
 }
 
 func (s *ExampleService) UnmarshalYAML(node *yaml.Node) error {
@@ -65,6 +68,6 @@ func (s *ExampleService) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (s *ExampleService) GetCredentialLifetime() CredentialLifetime {
-	return CredentialLifetime{}
+func (s *ExampleService) GetCredentialLifetime() bot.CredentialLifetime {
+	return bot.CredentialLifetime{}
 }
