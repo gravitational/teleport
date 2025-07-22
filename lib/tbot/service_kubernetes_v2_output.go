@@ -40,9 +40,11 @@ import (
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -60,7 +62,7 @@ type KubernetesV2OutputService struct {
 	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
 	proxyPingCache     *proxyPingCache
-	reloadBroadcaster  *channelBroadcaster
+	reloadBroadcaster  *internal.ChannelBroadcaster
 	statusReporter     readyz.Reporter
 	// executablePath is called to get the path to the tbot executable.
 	// Usually this is os.Executable
@@ -81,19 +83,19 @@ func (s *KubernetesV2OutputService) OneShot(ctx context.Context) error {
 }
 
 func (s *KubernetesV2OutputService) Run(ctx context.Context) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
+	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
 	defer unsubscribe()
 
-	return trace.Wrap(runOnInterval(ctx, runOnIntervalConfig{
-		service:         s.String(),
-		name:            "output-renewal",
-		f:               s.generate,
-		interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
-		retryLimit:      renewalRetryLimit,
-		log:             s.log,
-		reloadCh:        reloadCh,
-		identityReadyCh: s.botIdentityReadyCh,
-		statusReporter:  s.statusReporter,
+	return trace.Wrap(internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
+		Service:         s.String(),
+		Name:            "output-renewal",
+		F:               s.generate,
+		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
+		RetryLimit:      renewalRetryLimit,
+		Log:             s.log,
+		ReloadCh:        reloadCh,
+		IdentityReadyCh: s.botIdentityReadyCh,
+		StatusReporter:  s.statusReporter,
 	}))
 }
 
@@ -280,7 +282,7 @@ func (s *KubernetesV2OutputService) render(
 	// We only support directory mode for this since the exec plugin needs
 	// to know the path to read the credentials from, and this is
 	// unpredictable with other types of destination.
-	destinationDir, isDirectoryDest := s.cfg.Destination.(*config.DestinationDirectory)
+	destinationDir, isDirectoryDest := s.cfg.Destination.(*destination.Directory)
 	if !s.cfg.DisableExecPlugin {
 		if !isDirectoryDest {
 			slog.InfoContext(

@@ -41,10 +41,11 @@ import (
 	"github.com/gravitational/teleport/lib/auth/state"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -58,7 +59,7 @@ const botIdentityRenewalRetryLimit = 7
 // reload signal.
 type identityService struct {
 	log               *slog.Logger
-	reloadBroadcaster *channelBroadcaster
+	reloadBroadcaster *internal.ChannelBroadcaster
 	cfg               *config.BotConfig
 	statusReporter    readyz.Reporter
 	clientBuilder     *client.Builder
@@ -143,7 +144,7 @@ func hasTokenChanged(configTokenBytes, identityBytes []byte) bool {
 // If the persisted identity does not match the onboarding profile/join token,
 // a nil identity will be returned. If the identity certificate has expired, the
 // bool return value will be false.
-func (s *identityService) loadIdentityFromStore(ctx context.Context, store bot.Destination) (*identity.Identity, bool) {
+func (s *identityService) loadIdentityFromStore(ctx context.Context, store destination.Destination) (*identity.Identity, bool) {
 	ctx, span := tracer.Start(ctx, "identityService/loadIdentityFromStore")
 	defer span.End()
 	s.log.InfoContext(ctx, "Loading existing bot identity from store", "store", store)
@@ -340,7 +341,7 @@ func (s *identityService) OneShot(ctx context.Context) error {
 func (s *identityService) Run(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "identityService/Run")
 	defer span.End()
-	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
+	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
 	defer unsubscribe()
 
 	// Determine where the bot should write its internal data (renewable cert
@@ -383,25 +384,25 @@ func (s *identityService) Run(ctx context.Context) error {
 		"interval", s.cfg.CredentialLifetime.RenewalInterval,
 	)
 
-	err := runOnInterval(ctx, runOnIntervalConfig{
-		service: s.String(),
-		name:    "bot-identity-renewal",
-		f: func(ctx context.Context) error {
+	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
+		Service: s.String(),
+		Name:    "bot-identity-renewal",
+		F: func(ctx context.Context) error {
 			return s.renew(ctx, storageDestination)
 		},
-		interval:           s.cfg.CredentialLifetime.RenewalInterval,
-		retryLimit:         botIdentityRenewalRetryLimit,
-		log:                s.log,
-		reloadCh:           reloadCh,
-		waitBeforeFirstRun: true,
-		statusReporter:     s.statusReporter,
+		Interval:           s.cfg.CredentialLifetime.RenewalInterval,
+		RetryLimit:         botIdentityRenewalRetryLimit,
+		Log:                s.log,
+		ReloadCh:           reloadCh,
+		WaitBeforeFirstRun: true,
+		StatusReporter:     s.statusReporter,
 	})
 	return trace.Wrap(err)
 }
 
 func (s *identityService) renew(
 	ctx context.Context,
-	botDestination bot.Destination,
+	botDestination destination.Destination,
 ) error {
 	ctx, span := tracer.Start(ctx, "identityService/renew")
 	defer span.End()
@@ -620,7 +621,7 @@ func botIdentityFromToken(
 	case types.JoinMethodBoundKeypair:
 		joinSecret := cfg.Onboarding.BoundKeypair.RegistrationSecret
 
-		adapter := config.NewBoundkeypairDestinationAdapter(cfg.Storage.Destination)
+		adapter := destination.NewBoundkeypairDestinationAdapter(cfg.Storage.Destination)
 		boundKeypairState, err = boundkeypair.LoadClientState(ctx, adapter)
 		if trace.IsNotFound(err) && joinSecret != "" {
 			log.InfoContext(ctx, "No existing client state found, will attempt "+

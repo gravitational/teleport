@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"context"
@@ -37,6 +37,8 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -122,7 +124,7 @@ func TestUpsertDeleteDependentRoles(t *testing.T) {
 	require.NoError(t, err)
 
 	// Deletion should fail.
-	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), errDeleteRoleUser)
+	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), auth.ErrDeleteRoleUser)
 	require.NoError(t, p.a.DeleteUser(ctx, user.GetName()))
 
 	clusterName, err := p.a.GetClusterName(ctx)
@@ -135,7 +137,7 @@ func TestUpsertDeleteDependentRoles(t *testing.T) {
 	require.NoError(t, p.a.UpsertCertAuthority(ctx, ca))
 
 	// Deletion should fail.
-	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), errDeleteRoleCA)
+	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), auth.ErrDeleteRoleCA)
 
 	// Clear out the roles for the CA.
 	ca.SetRoles([]string{})
@@ -167,21 +169,21 @@ func TestUpsertDeleteDependentRoles(t *testing.T) {
 	require.NoError(t, err)
 
 	// Deletion should fail due to the grant.
-	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), errDeleteRoleAccessList)
+	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), auth.ErrDeleteRoleAccessList)
 
 	accessList.Spec.Grants.Roles = []string{"non-existent-role"}
 	_, err = p.a.UpsertAccessList(ctx, accessList)
 	require.NoError(t, err)
 
 	// Deletion should fail due to membership requires.
-	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), errDeleteRoleAccessList)
+	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), auth.ErrDeleteRoleAccessList)
 
 	accessList.Spec.MembershipRequires.Roles = []string{"non-existent-role"}
 	_, err = p.a.UpsertAccessList(ctx, accessList)
 	require.NoError(t, err)
 
 	// Deletion should fail due to ownership requires.
-	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), errDeleteRoleAccessList)
+	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), auth.ErrDeleteRoleAccessList)
 
 	accessList.Spec.OwnershipRequires.Roles = []string{"non-existent-role"}
 	_, err = p.a.UpsertAccessList(ctx, accessList)
@@ -318,7 +320,7 @@ func TestCreateRole(t *testing.T) {
 			require.NoError(t, err)
 			_, err = as.CreateUser(ctx, user)
 			require.NoError(t, err)
-			clt, err := srv.NewClient(TestUser(user.GetName()))
+			clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
 			require.NoError(t, err)
 
 			got, err := clt.CreateRole(ctx, test.createRole)
@@ -471,7 +473,7 @@ func TestUpdateRole(t *testing.T) {
 			require.NoError(t, err)
 			_, err = as.CreateUser(ctx, user)
 			require.NoError(t, err)
-			clt, err := srv.NewClient(TestUser(user.GetName()))
+			clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
 			require.NoError(t, err)
 			test.updateRole.SetRevision(revision)
 
@@ -614,7 +616,7 @@ func TestUpsertRole(t *testing.T) {
 			require.NoError(t, err)
 			_, err = as.CreateUser(ctx, user)
 			require.NoError(t, err)
-			clt, err := srv.NewClient(TestUser(user.GetName()))
+			clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
 			require.NoError(t, err)
 			test.upsertRole.SetRevision(revision)
 
@@ -731,7 +733,7 @@ func TestGetRole(t *testing.T) {
 			require.NoError(t, err)
 			_, err = as.CreateUser(ctx, user)
 			require.NoError(t, err)
-			clt, err := srv.NewClient(TestUser(user.GetName()))
+			clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
 			require.NoError(t, err)
 
 			got, err := clt.GetRole(ctx, test.roleToGet)
@@ -842,7 +844,7 @@ func TestGetRoles(t *testing.T) {
 			require.NoError(t, err)
 			_, err = as.CreateUser(ctx, user)
 			require.NoError(t, err)
-			clt, err := srv.NewClient(TestUser(user.GetName()))
+			clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
 			require.NoError(t, err)
 
 			got, err := clt.GetRoles(ctx)
@@ -974,7 +976,7 @@ func TestListRolesFiltering(t *testing.T) {
 			t.Parallel()
 			srv := newTestTLSServer(t)
 
-			clt, err := srv.NewClient(TestAdmin())
+			clt, err := srv.NewClient(authtest.TestAdmin())
 			require.NoError(t, err)
 
 			// Only create the role if it's been supplied.
@@ -1108,7 +1110,7 @@ func TestDeleteRole(t *testing.T) {
 			require.NoError(t, err)
 			_, err = as.CreateUser(ctx, user)
 			require.NoError(t, err)
-			clt, err := srv.NewClient(TestUser(user.GetName()))
+			clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
 			require.NoError(t, err)
 
 			test.wantErr(t, clt.DeleteRole(ctx, test.roleToDelete))

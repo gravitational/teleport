@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestAccessListCRUD tests backend operations with access list resources.
@@ -151,6 +152,218 @@ func requireAccessDenied(t require.TestingT, err error, i ...any) {
 		trace.IsAccessDenied(err),
 		"err should be access denied, was: %s", err,
 	)
+}
+
+func Test_AccessList_validation_noTypeChange(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	type testCase struct {
+		name         string
+		accessList   *accesslist.AccessList
+		illegalTypes []accesslist.Type
+	}
+
+	for _, tc := range []testCase{
+		{
+			name:         "from default",
+			accessList:   newAccessList(t, "test-default-access-list-1", clock),
+			illegalTypes: []accesslist.Type{accesslist.Static, accesslist.SCIM},
+		},
+		{
+			name:         "from static",
+			accessList:   newAccessList(t, "test-static-access-list-1", clock, withType(accesslist.Static)),
+			illegalTypes: []accesslist.Type{accesslist.Default, accesslist.SCIM},
+		},
+		{
+			name:         "from scim",
+			accessList:   newAccessList(t, "test-scim-access-list-1", clock, withType(accesslist.SCIM)),
+			illegalTypes: []accesslist.Type{accesslist.Default, accesslist.Static},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			accessList, err := service.UpsertAccessList(ctx, tc.accessList)
+			require.NoError(t, err)
+
+			for _, typ := range tc.illegalTypes {
+				t.Run(string(typ), func(t *testing.T) {
+					accessList.Spec.Type = typ
+					if !typ.IsReviewable() {
+						accessList.Spec.Audit = accesslist.Audit{}
+					}
+
+					_, err := service.UpdateAccessList(ctx, accessList)
+					require.Error(t, err)
+					require.ErrorContains(t, err, "cannot be changed")
+					require.True(t, trace.IsBadParameter(err))
+
+					_, err = service.UpsertAccessList(ctx, accessList)
+					require.Error(t, err)
+					require.ErrorContains(t, err, "cannot be changed")
+					require.True(t, trace.IsBadParameter(err))
+
+					_, _, err = service.UpsertAccessListWithMembers(ctx, accessList, nil)
+					require.Error(t, err)
+					require.ErrorContains(t, err, "cannot be changed")
+					require.True(t, trace.IsBadParameter(err))
+				})
+			}
+		})
+	}
+}
+
+func Test_AccessList_validation_DeprecatedDynamic_special_case(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	accessList := newAccessList(t, "test-scim-access-list-1", clock)
+
+	t.Run("dynamic is stored as default", func(t *testing.T) {
+		_, err := backend.NewSanitizer(mem).Get(ctx, service.service.MakeKey(backend.NewKey(accessList.GetName())))
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err))
+
+		accessList.Spec.Type = accesslist.DeprecatedDynamic
+		_, err = service.UpsertAccessList(ctx, accessList)
+		require.NoError(t, err)
+
+		accessList = getAccessListDirectlyFromBackend(t, mem, service.service.MakeKey(backend.NewKey(accessList.GetName())))
+		require.NoError(t, err)
+		require.Equal(t, accesslist.Default, accessList.Spec.Type)
+	})
+
+	t.Run("if stored already stored as dynamic", func(t *testing.T) {
+		verificationDescValue := "updated to deprecated dynamic bypassing defaulting"
+
+		t.Run("store with dynamic type directly in the backend", func(t *testing.T) {
+			accessList, err = service.GetAccessList(ctx, accessList.GetName())
+			require.NoError(t, err)
+			require.NotEqual(t, verificationDescValue, accessList.Spec.Description)
+
+			modifyAccessListDirectlyInBackend(t, mem, accessList, service.service.MakeBackendItem, func(al *accesslist.AccessList) {
+				al.Spec.Type = accesslist.DeprecatedDynamic
+				al.Spec.Description = verificationDescValue
+			})
+		})
+
+		t.Run("getting through service return default when stored as deprecated dynamic", func(t *testing.T) {
+			accessList, err := service.GetAccessList(ctx, accessList.GetName())
+			require.NoError(t, err)
+			require.Equal(t, verificationDescValue, accessList.Spec.Description)
+			require.Equal(t, accesslist.Default, accessList.Spec.Type)
+
+			accessList = getAccessListDirectlyFromBackend(t, mem, service.service.MakeKey(backend.NewKey(accessList.GetName())))
+			require.Equal(t, verificationDescValue, accessList.Spec.Description)
+			require.Equal(t, accesslist.DeprecatedDynamic, accessList.Spec.Type)
+		})
+
+		t.Run("modifying access list type stored as deprecated dynamic is still not allowed", func(t *testing.T) {
+			accessList = getAccessListDirectlyFromBackend(t, mem, service.service.MakeKey(backend.NewKey(accessList.GetName())))
+			require.Equal(t, verificationDescValue, accessList.Spec.Description)
+			require.Equal(t, accesslist.DeprecatedDynamic, accessList.Spec.Type)
+
+			accessList, err := service.GetAccessList(ctx, accessList.GetName())
+			require.NoError(t, err)
+
+			accessList.Spec.Type = accesslist.SCIM
+			accessList.Spec.Audit = accesslist.Audit{}
+
+			_, err = service.UpsertAccessList(ctx, accessList)
+			require.Error(t, err)
+			require.ErrorContains(t, err, `type "" cannot be changed to "scim"`)
+			require.True(t, trace.IsBadParameter(err))
+
+			accessList.Spec.Type = accesslist.Static
+			accessList.Spec.Audit = accesslist.Audit{}
+
+			_, err = service.UpsertAccessList(ctx, accessList)
+			require.Error(t, err)
+			require.ErrorContains(t, err, `type "" cannot be changed to "static"`)
+			require.True(t, trace.IsBadParameter(err))
+		})
+
+		t.Run("modifying through service changes stored as deprecated dynamic type to default", func(t *testing.T) {
+			accessList = getAccessListDirectlyFromBackend(t, mem, service.service.MakeKey(backend.NewKey(accessList.GetName())))
+			require.Equal(t, verificationDescValue, accessList.Spec.Description)
+			require.Equal(t, accesslist.DeprecatedDynamic, accessList.Spec.Type)
+
+			accessList, err := service.GetAccessList(ctx, accessList.GetName())
+			require.NoError(t, err)
+			require.Equal(t, verificationDescValue, accessList.Spec.Description)
+
+			accessList.Spec.Type = accesslist.DeprecatedDynamic
+			_, err = service.UpsertAccessList(ctx, accessList)
+			require.NoError(t, err)
+
+			accessList, err = service.GetAccessList(ctx, accessList.GetName())
+			require.NoError(t, err)
+			require.Equal(t, verificationDescValue, accessList.Spec.Description)
+			require.Equal(t, accesslist.Default, accessList.Spec.Type)
+
+			accessList = getAccessListDirectlyFromBackend(t, mem, service.service.MakeKey(backend.NewKey(accessList.GetName())))
+			require.Equal(t, verificationDescValue, accessList.Spec.Description)
+			require.Equal(t, accesslist.Default, accessList.Spec.Type)
+		})
+
+	})
+}
+
+func getAccessListDirectlyFromBackend(t *testing.T, storage backend.Backend, key backend.Key) *accesslist.AccessList {
+	t.Helper()
+	ctx := context.Background()
+
+	item, err := backend.NewSanitizer(storage).Get(ctx, key)
+	require.NoError(t, err)
+	accessList := new(accesslist.AccessList)
+	err = utils.FastUnmarshal(item.Value, &accessList)
+	require.NoError(t, err)
+	return accessList
+}
+
+func modifyAccessListDirectlyInBackend(
+	t *testing.T,
+	storage backend.Backend,
+	accessList *accesslist.AccessList,
+	makeItemFn func(*accesslist.AccessList, ...any) (backend.Item, error),
+	modifyFn func(*accesslist.AccessList),
+) {
+	t.Helper()
+	ctx := context.Background()
+
+	item, err := makeItemFn(accessList)
+	require.NoError(t, err)
+
+	// Now, because makeItemFn calls CheckAndSetDefault and we don't want to have any values
+	// defaulted/validated do the unmarshal/modify/marshal dance.
+
+	accessList = new(accesslist.AccessList)
+	err = utils.FastUnmarshal(item.Value, &accessList)
+	require.NoError(t, err)
+
+	modifyFn(accessList)
+	item.Value, err = utils.FastMarshal(accessList)
+	require.NoError(t, err)
+
+	// And finally store the modified, non-defaulted, non-validated item.
+
+	_, err = backend.NewSanitizer(storage).Put(ctx, item)
+	require.NoError(t, err)
 }
 
 // TestAccessList_EntitlementLimits asserts that any limits on creating
@@ -663,6 +876,135 @@ func TestAccessListMembersCRUD(t *testing.T) {
 
 	_, _, err = service.ListAccessListMembers(ctx, accessList2.GetName(), 0, "")
 	require.ErrorIs(t, err, trace.NotFound("access_list %q doesn't exist", accessList2.GetName()))
+}
+
+func Test_AccessListMember_Validation(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	accessList := newAccessList(t, "test-access-list-1", clock)
+	accessList, err = service.UpsertAccessList(ctx, accessList)
+	require.NoError(t, err)
+
+	accessListMember := newAccessListMember(t, accessList.GetName(), "test-access-list-member-1")
+
+	t.Run("modifying member fails if name is empty", func(t *testing.T) {
+		oldName := accessListMember.Spec.Name
+		runAccessListMemberValidationSuite(
+			t, service, accessList, accessListMember,
+			func(m *accesslist.AccessListMember) { m.Spec.Name = "" },
+			func(m *accesslist.AccessListMember) { m.Spec.Name = oldName },
+			func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.ErrorContains(t, err, "spec name")
+				require.True(t, trace.IsBadParameter(err))
+			},
+		)
+	})
+
+	t.Run("modifying member fails if spec.name and metadata.name do not match", func(t *testing.T) {
+		oldName := accessListMember.Spec.Name
+		runAccessListMemberValidationSuite(
+			t, service, accessList, accessListMember,
+			func(m *accesslist.AccessListMember) { m.Spec.Name = "some_other_name" },
+			func(m *accesslist.AccessListMember) { m.Spec.Name = oldName },
+			func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.ErrorContains(t, err, "spec name")
+				require.True(t, trace.IsBadParameter(err))
+			},
+		)
+	})
+
+	t.Run("modifying member fails if access_list is empty", func(t *testing.T) {
+		oldAccessList := accessListMember.Spec.AccessList
+		runAccessListMemberValidationSuite(
+			t, service, accessList, accessListMember,
+			func(m *accesslist.AccessListMember) { m.Spec.AccessList = "" },
+			func(m *accesslist.AccessListMember) { m.Spec.AccessList = oldAccessList },
+			func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.ErrorContains(t, err, "access_list field empty")
+				require.True(t, trace.IsBadParameter(err))
+			},
+		)
+	})
+
+	t.Run("modifying member fails if joined is empty", func(t *testing.T) {
+		oldJoined := accessListMember.Spec.Joined
+		runAccessListMemberValidationSuite(
+			t, service, accessList, accessListMember,
+			func(m *accesslist.AccessListMember) { m.Spec.Joined = time.Time{} },
+			func(m *accesslist.AccessListMember) { m.Spec.Joined = oldJoined },
+			func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.ErrorContains(t, err, "joined field empty")
+				require.True(t, trace.IsBadParameter(err))
+			},
+		)
+	})
+
+	t.Run("modifying member fails if added_by is empty", func(t *testing.T) {
+		oldAddedBy := accessListMember.Spec.AddedBy
+		runAccessListMemberValidationSuite(
+			t, service, accessList, accessListMember,
+			func(m *accesslist.AccessListMember) { m.Spec.AddedBy = "" },
+			func(m *accesslist.AccessListMember) { m.Spec.AddedBy = oldAddedBy },
+			func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.ErrorContains(t, err, "added_by field is empty")
+				require.True(t, trace.IsBadParameter(err))
+			},
+		)
+	})
+}
+
+func runAccessListMemberValidationSuite(
+	t *testing.T,
+	service *AccessListService,
+	accessList *accesslist.AccessList, member *accesslist.AccessListMember,
+	makeBad, makeGood func(*accesslist.AccessListMember),
+	errorCheck func(t *testing.T, err error),
+) {
+	t.Helper()
+	ctx := context.Background()
+
+	makeBad(member)
+
+	_, err := service.UpsertAccessListMember(ctx, member)
+	errorCheck(t, err)
+
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList, []*accesslist.AccessListMember{member})
+	errorCheck(t, err)
+
+	makeGood(member)
+
+	member, err = service.UpsertAccessListMember(ctx, member)
+	require.NoError(t, err)
+
+	makeBad(member)
+
+	_, err = service.UpdateAccessListMember(ctx, member)
+	errorCheck(t, err)
+
+	_, err = service.UpsertAccessListMember(ctx, member)
+	errorCheck(t, err)
+
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList, []*accesslist.AccessListMember{member})
+	errorCheck(t, err)
+
+	makeGood(member)
+
+	err = service.DeleteAccessListMember(ctx, member.Spec.AccessList, member.Spec.Name)
+	require.NoError(t, err)
 }
 
 func TestUpsertAndUpdateAccessListWithMembers_PreservesIdentityCenterLablesForExistingMembers(t *testing.T) {
