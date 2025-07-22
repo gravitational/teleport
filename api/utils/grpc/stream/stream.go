@@ -65,7 +65,6 @@ type Option func(s *Options)
 // WithDisabledChunking	disables automatic splitting of data messages
 // that exceed MaxChunkSize during writes.
 // This is useful when the receiver does not support chunked reads.
-// Useful when the receiver doesn't support reading chunks.
 func WithDisabledChunking() Option {
 	return func(s *Options) {
 		s.DisableChunking = true
@@ -131,7 +130,7 @@ func (c *ReadWriter) Read(b []byte) (n int, err error) {
 // the grpc stream. To prevent exhausting the stream all
 // sends on the stream are limited to be at most MaxChunkSize.
 // If the data exceeds the MaxChunkSize it will be sent in
-// batches.
+// batches. This behavior can be disabled by using WithDisabledChunking.
 func (c *ReadWriter) Write(b []byte) (int, error) {
 	c.wLock.Lock()
 	defer c.wLock.Unlock()
