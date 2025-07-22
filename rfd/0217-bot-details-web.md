@@ -187,7 +187,7 @@ In order to keep the implementation modular, each logical section of the page fe
 
 Fetch a bot by name, including roles and traits. Endpoint exists and will be reused. 
 
-##### `GET /v2/webapi/tokens?role=bot&bot=:name`
+##### `GET /v2/webapi/tokens?role=bot&bot_name=:name`
 
 Fetch join tokens linked to a bot by name.
 
