@@ -4913,21 +4913,8 @@ func loopbackPool(proxyAddr string) *x509.CertPool {
 
 // connectToSSHAgent connects to the system SSH agent and returns an agent.Agent.
 func connectToSSHAgent() agent.ExtendedAgent {
-	ctx := context.Background()
-	logger := log.With(teleport.ComponentKey, teleport.ComponentKeyAgent)
-
 	socketPath := os.Getenv(teleport.SSHAuthSock)
-	conn, err := agentconn.Dial(socketPath)
-	if err != nil {
-		logger.WarnContext(ctx, "Unable to connect to SSH agent on socket",
-			"socket_path", socketPath,
-			"error", err,
-		)
-		return nil
-	}
-
-	logger.InfoContext(ctx, "Connected to the system agent", "socket_path", socketPath)
-	return agent.NewClient(conn)
+	return agentconn.NewSSHAgent(socketPath)
 }
 
 // Username returns the current user's username
