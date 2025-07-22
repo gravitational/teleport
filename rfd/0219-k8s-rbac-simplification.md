@@ -41,23 +41,11 @@ more critically, difficult to get setup on day 1.
 - Unexpected `exec` grant on read-only user:
   (internal) <https://gravitational.slack.com/archives/C32M8FP1V/p1739462454321459?thread_ts=1739462384.714419&cid=C32M8FP1V>
 
-## Goals
+## Goal
 
-- Discourage the use of `kubernetes_groups` and `kubernetes_users` fields from
-role with custom values in favor of a wildcard (mapping to a new config value).
-- Clarify / Improve documentation for the various ways to setup Kubernetes in
-  Teleport.
+Provide preset roles that can be used to get started quickly.
 
 ## Proposal
-
-### Background
-
-Currently, when enrolling a Kubernetes cluster and setting it up to use the
-group `system:masters`, everything works as expected (except on GKE Autopilot
-where this group is forbidden).
-Teleport is setup to impersonate to yield reduced permissions to the user
-based on the `kubernetes_resources` and `kubernetes_label` fields from the
-Teleport role.
 
 ### Prior work
 
@@ -72,72 +60,61 @@ Given this, as RBAC has already been simplified quite a lot, a scoped down
 version of the proposal would be to focus on new installs without impacting
 existing customers.
 
-### Wildcard `kubernetes_groups`
+### Preset roles
 
-To streamline the role setup and management, we will implement a new special
-value, a wildcard `*` for the `kubernetes_groups` field in Teleport roles.
-This role will map to a configuration value and will fallback to
-`system:masters` in case it is not set. This will allow the vast majority of
-users to access all features.
+We will introduce the following new preset roles:
 
-Examples:
+- `kube-access`: Provides read-only access to some Kubernetes resources.
+  configmaps, endpoints, persistentvolumes, pods, replicationcontrollers, serviceaccounts, services, bindings, events, limitranges, namespaces , resourcequotas, endpointslices, controllerervisions, deamonsets, deployments, replicasets, statefulsets, horizontalpodautoscalers, cronjobs, jobs, ingresses, networkpolicies, poddistributionbudgets.
+- `kube-editor`: Provides full access to all Kubernetes resources.
 
-- Configured cluster admin set to `teleport-cluster-admin`
-- `kubernetes_groups` set to `['*']` in the role
-- The user will be impersonated as `teleport-cluster-admin` when
-  accessing the cluster.
+The Kubernetes clusterroles will mirror the current values of `view` and `cluster-admin`.
 
-- No configuration set
-- `kubernetes_groups` set to `['*']` in the role
-- The user will be impersonated as `system:masters` when accessing the cluster.
-
-- Configured cluster admin set to `teleport-cluster-admin`
-- `kubernetes_groups` set to `['privileged-group']` in the role
-- The user will be impersonated as `privileged-group` when accessing the cluster.
-
-#### Downgrade / Backwards compatibility
-
-As we add a new `wildcard` which is not a valid value in Kubernetes for a
-group, but is a valid value in Teleport, we don't need to bump the role version
-and we don't need to apply specific downgrade logic. Older agents will try to
-impersonate the `*` role which will result in no access, which is what we
-would expect from an explicit downgrade logic.
-
-### Authoritative RBAC Documentation
-
-To simplify initial setup and long-term management, we'll update the
-documentation to encourage users to use the wildcard for `kubernetes_groups` that
-will be map to a configuration value.
-That configuration value will be a cluster admin group created by provisioning
-scripts or auto-discovery.
-This will allow users to avoid the complexity of managing RBAC in multiple
-places, avoid confusion around the `exec` subresource.
-While we won't change or remove the `kubernetes_groups` and `kubernetes_users`
-fields, we will discourage their use, allowing existing customers as well as
-advanced users to continue leveraging the underlying Kubernetes RBAC for more
-special use cases.
-
-### Configuration
-
-To know which group to use when mapping the wildcard `*` `kubernetes_groups`,
-we will introduce a new configuration value, `cluster_admin_group`.
-
-This value will default to `system:masters` if not set.
-
-Example:
+The Teleport roles will look like this:
 
 ```yaml
-kubernetes_service:
-  enabled: true
-  cluster_admin_group: teleport-cluster-admin
-  listen_addr: 0.0.0.0:3026
+---
+kind: role
+version: v8
+metadata:
+  name: kube-access
+spec:
+  allow:
+    kubernetes_groups:
+      - 'teleport:preset:access'
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+      - api_group: '*'
+        kind: '*'
+        namespace: '*'
+        name: '*'
+        verbs:
+          - '*'
+---
+kind: role
+version: v8
+metadata:
+  name: kube-editor
+spec:
+  allow:
+    kubernetes_groups:
+      - 'teleport:preset:editor'
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+      - api_group: '*'
+        kind: '*'
+        namespace: '*'
+        name: '*'
+        verbs:
+          - '*'
 ```
 
 ### Provisioning
 
-To enable easy setup, provisioning methods will be updated to create an
-cluster admin ClusterRole as well as a ClusterRoleBinding with a known group
-name.
+To enable easy setup, provisioning methods will be updated to create the
+required new ClusterRoles and ClusterRoleBindings.
 
 #### Helm Chart
 
@@ -152,36 +129,41 @@ authToken: foo
 proxyAddr: example.devteleport.com:443
 kubeClusterName: myCluster
 rbac:
-  adminClusterRoleName: teleport-agent-cluster-admin
-  adminClusterRoleBindingName: teleport-agent-cluster-admin
-  adminGroupName: teleport-agent-cluster-admin
+  accessClusterRoleName: teleport:preset:access
+  accessClusterRoleBindingName: teleport:preset:access
+  accessGroupName: teleport:preset:access
+  editorClusterRoleName: teleport:preset:editor
+  editorClusterRoleBindingName: teleport:preset:editor
+  editorGroupName: teleport:preset:editor
 ```
 
-The helm chart will populate the configmap with the new configuration value to
-map the wildcard `kubernetes_groups` to the provided group name.
+Note that if a user decides to change the preset names, they will not be able
+to use the preset Teleport roles out of the box, as they will need to update
+them to match the new names.
 
 #### Provision Script
 
-To adjust the values when provisioning with the provided script, environment
-variables will be used to follow the existing pattern.
-
-Example:
-
-```bash
-TELEPORT_KUBE_ADMIN_GROUP=teleport-cluster-admin ./get-kubeconfig.sh
-```
+To keep it simple and to follow the current pattern, the provision script
+will not allow custom names. It will create all the required resources with
+names matching the Teleprot preset roles.
 
 #### Auto Discovery
 
 ##### EKS / AKS
 
-For both EKS and AKS, auto-discovery will be updated to create the proper admin
-roles/bindings.
+For both EKS and AKS, auto-discovery will be updated to create the expected
+RBAC resources.
 
 ##### GKE
 
 For GKE, we will need to change the documented GCP IAM role to enable admin
 privileges.
+Teleport will attempt to impersonate a privileged group, but there is a risk
+GKE users will not be able to use the new preset roles out of the box.
+
+A special attention to error management will be required to help users
+understand the issue and how to resolve it, which can be easily done by
+running the provision script for example.
 
 #### Auto-update
 
@@ -201,18 +183,28 @@ Teleport uses a dedicated verb to control access to `exec`.
 On the Web UI, the initial page generates a _Helm_ command line.
 
 After enrollment, a test page is shown, prompting for a `kubernetes_groups`
-value, which defaults to the user's trait.
-This step will be updated to verify the underlying Kubernetes RBAC permissions
-and notify the user if the impersonation doesn't have sufficient
-permissions to be authoritative.
+value, which defaults to the user's trait and updates it if changed in this
+page.
+
+The following page is about testing the connection, and also have a form to
+populate a subset of the users/groups.
+
+The initial idea was to allow the user to update it's traits on the fly to not
+have to logout/log back in, however, as there is no mention of traits, and
+because the form is present on multiple pages with different behavior, and
+because it requires the user to initially already have a role assigned that
+contains the trait interpolation, we will remove both the 'Setup access' page
+and the 'users/groups' form from the 'Test connection' page.
+
+This will result in using the user's auth to test the connection instead of
+requiring the user to enter a subset or all of it's groups/users, knowing
+that the user cannot make add nor change any.
 
 #### Role Editor
 
-The Web UI Role Editor will move the `kubernetes_groups` and `kubernetes_users`
-based on the role version dropdown to be less prominent (currently they are
-the first thing shown). They will still be available under a "summary" toggle,
-folded by default, to update as needed for advanced use cases and existing
-customers.
+The Web UI Role Editor will move change the default `kubernetes_groups`
+field to be pre-populated with the `teleport:preset:access` value instead of
+`{{internal.kubernetes_groups}}`, which is the current default.
 
 - https://github.com/gravitational/teleport/blob/22eb8c6645909a26d1493d01d291e222a87b35e6/web/packages/teleport/src/Roles/RoleEditor/StandardEditor/Resources.tsx#L291-L321
 
@@ -221,33 +213,6 @@ customers.
 The error messages when using `kubectl` will be improved to include a link to
 the documentation and more details on what is expected. This will help with
 initial custom setups that skipped the provided provisioning scripts.
-
-#### New preset role
-
-To help onboarding, as currently no preset role grants Kubernetes access,
-a new preset role will be added, `kube-editor`, which will have wildcard access
-to Kubernetes resources as well as the predefined `kubernetes_groups` mapping
-to the cluster admin group from the configuration using a wildcard.
-
-```yaml
-kind: role
-version: v8
-metadata:
-  name: kube-editor
-spec:
-  allow:
-    kubernetes_groups:
-      - '*'
-    kubernetes_labels:
-      '*': '*'
-    kubernetes_resources:
-      - api_group: '*'
-        kind: '*'
-        namespace: '*'
-        name: '*'
-        verbs:
-          - '*'
-```
 
 ### User flow
 
@@ -285,10 +250,12 @@ spec:
     chart to create all required RBAC resources.
   - User configures the Teleport role with `kubernetes_resources` and
     `kubernetes_labels` to match or reduce the permissions granted by the
-    ClusterRole. The `kubernetes_groups` field is pre-populated in the Web UI
-    and well documented in the Teleport documentation for the YAML version.
+    ClusterRole. The `kubernetes_groups` field is pre-populated to
+    `teleport:preset:access` in the Web UI and well documented in the Teleport
+    documentation for the YAML version.
 - Day 1 - Ongoing management:
-  - User can manage the Teleport role without needing to understand the
-    underlying Kubernetes RBAC.
-  - Permissions are clearly defined to reside in the Teleport role, making
-    Teleport authoritative and reducing confusion.
+  - User can reduce the scope of either Kubernetes or Teleport's roles by
+    changing the counterpart
+  - User has the option to use the `teleport:preset:editor` role to avoid the
+    complexity of managing the underlying Kubernetes RBAC, only managing
+    resources/labels on the Teleport side instead.
