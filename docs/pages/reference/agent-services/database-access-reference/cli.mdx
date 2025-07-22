@@ -399,10 +399,10 @@ $ tsh db exec "select 1" --db-user mysql --labels env=dev --parallel=5 --output-
 | `--db-user` | The database user to log in as. |
 | `--db-name` | The database name to log in to. |
 | `--db-roles` | List of comma separate database roles to use for auto-provisioned user. |
-| `--dbs` |  List of comma separated target database services. Mutually exclusive with `--search` or `--labels`. |
+| `--dbs` |  List of comma separated target databases. Mutually exclusive with `--search` or `--labels`. |
 | `--search` | List of comma separated search keywords or phrases enclosed in quotations (e.g. `--search=foo,bar,"some phrase"`). |
 | `--labels` | List of comma separated labels to filter by labels (e.g. `key1=value1,key2=value2`). |
-| `--output-dir` | Directory to store command output per target database service. A summary is saved as "summary.json". |
+| `--output-dir` | Directory to store command output per target database. A summary is saved as "summary.json". |
 | `--[no-]confirm` | Confirm selected database services before executing command. |
 
 ## tsh db env
