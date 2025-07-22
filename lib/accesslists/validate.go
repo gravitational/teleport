@@ -71,7 +71,7 @@ func validateAccessList(a *accesslist.AccessList) error {
 		}
 
 		if a.Spec.Audit.Notifications.Start == 0 {
-			return trace.BadParameter("notifications start is not set")
+			return trace.BadParameter("audit notifications start is not set")
 		}
 	} else {
 		if !isZero(a.Spec.Audit) {
