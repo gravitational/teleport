@@ -39,11 +39,13 @@
     "@xterm/addon-webgl": "^0.18.0",
     "@xterm/xterm": "^5.5.0",
     "create-react-class": "^15.6.3",
-    "events": "3.3.0"
+    "events": "3.3.0",
+    "semver": "^7.7.2"
   },
   "devDependencies": {
     "@gravitational/build": "workspace:*",
     "@gravitational/teleport": "workspace:*",
+    "@types/semver": "^7.7.0",
     "babel-plugin-transform-import-meta": "2.3.3",
     "babel-plugin-transform-vite-meta-env": "^1.0.3",
     "jest-canvas-mock": "^2.5.2",
