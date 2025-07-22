@@ -164,7 +164,7 @@ them to match the new names.
 
 To keep it simple and to follow the current pattern, the provision script
 will not allow custom names. It will create all the required resources with
-names matching the Teleprot preset roles.
+names matching the Teleport preset roles.
 
 #### Auto Discovery
 
