@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -73,7 +74,7 @@ func (a *LegacyDestinationDirArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Lo
 		// output for that directory.
 		cfg.Services = []config.ServiceConfig{
 			&config.IdentityOutput{
-				Destination: &config.DestinationDirectory{
+				Destination: &destination.Directory{
 					Path: a.DestinationDir,
 				},
 			},
