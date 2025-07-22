@@ -183,11 +183,8 @@ type PAMConfig struct {
 
 // UaccMetadata contains information the child needs from the parent for user accounting.
 type UaccMetadata struct {
-	// The hostname of the node.
-	Hostname string `json:"hostname"`
-
 	// RemoteAddr is the address of the remote host.
-	RemoteAddr [4]int32 `json:"remote_addr"`
+	RemoteAddr utils.NetAddr `json:"remote_addr"`
 
 	// UtmpPath is the path of the system utmp database.
 	UtmpPath string `json:"utmp_path,omitempty"`
@@ -344,23 +341,31 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 	readyfd = nil
+	uaccDB, err := uacc.NewUserAccounting()
+	if err != nil {
+		slog.DebugContext(ctx, "uacc unsupported", "error", err)
+	} else {
+		uaccEnabled = true
+	}
 
 	localUser, err := user.Lookup(c.Login)
 	if err != nil {
-		if uaccErr := uacc.LogFailedLogin(c.UaccMetadata.BtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr); uaccErr != nil {
-			slog.DebugContext(ctx, "uacc unsupported", "error", uaccErr)
+		if uaccEnabled {
+			uaccErr := uaccDB.FailedLogin(c.Login, &c.UaccMetadata.RemoteAddr, time.Now())
+			if uaccErr != nil {
+				slog.DebugContext(ctx, "uacc unsupported", "error", uaccErr)
+			}
 		}
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	if c.Terminal {
-		err = uacc.Open(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr, tty)
+	var uaccKey string
+	if c.Terminal && uaccEnabled {
+		uaccKey, err = uaccDB.Login(tty, c.Login, &c.UaccMetadata.RemoteAddr, time.Now())
 		// uacc support is best-effort, only enable it if Open is successful.
 		// Currently, there is no way to log this error out-of-band with the
 		// command output, so for now we essentially ignore it.
-		if err == nil {
-			uaccEnabled = true
-		} else {
+		if err != nil {
 			slog.DebugContext(ctx, "uacc unsupported", "error", err)
 		}
 	}
@@ -432,7 +437,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	err = waitForShell(terminatefd, cmd)
 
 	if uaccEnabled {
-		uaccErr := uacc.Close(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, tty)
+		uaccErr := uaccDB.Logout(uaccKey, time.Now())
 		if uaccErr != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(uaccErr)
 		}

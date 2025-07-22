@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _POSIX_C_SOURCE 200809L
 #ifndef UACC_C
 #define UACC_C
 
@@ -28,6 +29,9 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <limits.h>
+
+void updwtmpx(const char*, const struct utmpx*);
+int utmpxname(const char*);
 
 int UACC_UTMP_MISSING_PERMISSIONS = 1;
 int UACC_UTMP_WRITE_ERROR = 2;

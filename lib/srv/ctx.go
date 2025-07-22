@@ -50,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -1175,20 +1174,9 @@ func closeAll(closers ...io.Closer) error {
 }
 
 func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
-	addr := c.ConnectionContext.ServerConn.RemoteAddr()
-	hostname, _, err := net.SplitHostPort(addr.String())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	preparedAddr, err := uacc.PrepareAddr(addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	utmpPath, wtmpPath, btmpPath := c.srv.GetUserAccountingPaths()
-
 	return &UaccMetadata{
-		Hostname:   hostname,
-		RemoteAddr: preparedAddr,
+		RemoteAddr: utils.FromAddr(c.ConnectionContext.ServerConn.RemoteAddr()),
 		UtmpPath:   utmpPath,
 		WtmpPath:   wtmpPath,
 		BtmpPath:   btmpPath,
