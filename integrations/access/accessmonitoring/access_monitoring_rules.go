@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/accessrequest"
+	"github.com/gravitational/teleport/api/client/proto"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
@@ -269,7 +270,17 @@ func (amrh *RuleHandler) newExpressionEnv(ctx context.Context, req types.AccessR
 		userTraits = user.GetTraits()
 	}
 
-	requestedResources, err := accessrequest.GetResourcesByResourceIDs(ctx, amrh.apiClient, req.GetRequestedResourceIDs())
+	// UsePreviewAsRoles option is required to fetch requested resource labels.
+	usePreviewAsRoles := func(req *proto.ListResourcesRequest) {
+		req.UsePreviewAsRoles = true
+	}
+
+	requestedResources, err := accessrequest.GetResourcesByResourceIDs(
+		ctx,
+		amrh.apiClient,
+		req.GetRequestedResourceIDs(),
+		usePreviewAsRoles,
+	)
 	if err != nil {
 		return accessmonitoring.AccessRequestExpressionEnv{}, trace.Wrap(err)
 	}
