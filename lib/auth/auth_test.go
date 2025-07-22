@@ -4669,8 +4669,16 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	}
 
 	for _, al := range accessLists {
-		createAccessList(t, authServer, al.name+"-static", withType(accesslist.Static))
-		createAccessList(t, authServer, al.name+"-scim", withType(accesslist.SCIM))
+		createAccessList(t, authServer, al.name+"-static",
+			withType(accesslist.Static),
+			withOwners([]accesslist.Owner{{Name: testUsername}}),
+			withNextAuditDate(authServer.GetClock().Now().Add(time.Duration(al.dueInDays)*24*time.Hour)),
+		)
+		createAccessList(t, authServer, al.name+"-scim",
+			withType(accesslist.SCIM),
+			withOwners([]accesslist.Owner{{Name: testUsername}}),
+			withNextAuditDate(authServer.GetClock().Now().Add(time.Duration(al.dueInDays)*24*time.Hour)),
+		)
 		createAccessList(t, authServer, al.name,
 			withOwners([]accesslist.Owner{{Name: testUsername}}),
 			withNextAuditDate(authServer.clock.Now().Add(time.Duration(al.dueInDays)*24*time.Hour)),
