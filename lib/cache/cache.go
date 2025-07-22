@@ -2038,6 +2038,22 @@ func (c *Cache) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	return rg.reader.GetTokens(ctx)
 }
 
+// ListProvisionTokens returns a paginated list of provision tokens. Items can
+// be filtered by role and bot name. Tokens with ANY of the provided roles are
+// returned. If a bot name is provided, only tokens having a role of Bot are
+// returned.
+func (c *Cache) ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetTokens")
+	defer span.End()
+
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.tokens)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListProvisionTokens(ctx, pageSize, pageToken, anyRoles, botName)
+}
+
 // GetToken finds and returns token by ID
 func (c *Cache) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetToken")

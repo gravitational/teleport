@@ -2402,6 +2402,18 @@ func (a *ServerWithRoles) GetTokens(ctx context.Context) ([]types.ProvisionToken
 	return a.authServer.GetTokens(ctx)
 }
 
+func (a *ServerWithRoles) ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return a.authServer.Cache.ListProvisionTokens(ctx, pageSize, pageToken, anyRoles, botName)
+}
+
 func (a *ServerWithRoles) GetToken(ctx context.Context, token string) (types.ProvisionToken, error) {
 	// The Proxy has permission to look up tokens by name in order to validate
 	// attempts to use the node join script.

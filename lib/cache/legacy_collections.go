@@ -1216,6 +1216,7 @@ func (provisionTokenExecutor) getReader(cache *Cache, cacheOK bool) tokenGetter 
 type tokenGetter interface {
 	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
+	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
 }
 
 var _ executor[types.ProvisionToken, tokenGetter] = provisionTokenExecutor{}
