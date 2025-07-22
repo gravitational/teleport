@@ -114,7 +114,6 @@ $ tctl plugins install entraid \
     --name entra-id-default \
     --auth-connector-name entra-id \
     --default-owner=<Var name="Access List Owner"/> \
-    --default-owner=someOtherOwner@teleport.sh  \
     --auth-server <Var name="example.teleport.sh:443" /> 
 ```
 
@@ -190,7 +189,6 @@ $ tctl plugins install entraid \
     --name entra-id-default \
     --auth-connector-name entra-id \
     --default-owner=<Var name="Access List Owner"/> \
-    --default-owner=someOtherOwner@teleport.sh  \
     --auth-server <Var name="example.teleport.sh:443" /> \
     --use-system-credentials 
 ```
@@ -280,7 +278,7 @@ Under “Add a credential” UI, configure credential with the following values:
 - **Federated credential scenario:** Other issuer
 
 Under “Connect your account”, configure the following values:
-- **Issuer:** <Var name="example.teleport.sh:443" />  (Teleport cluster address with scheme)
+- **Issuer:** <Var name="https://example.teleport.sh" />
 - **Type:** Explicit subject identifier
 - **Value:** teleport-azure
 
@@ -364,3 +362,4 @@ is required by the Identity Security product to perform policy and access path a
 
 - Take a deeper look into setting up [Entra ID auth connector](../zero-trust-access/sso/azuread.mdx). 
 - Learn more about [Access List](access-lists/access-lists.mdx) management.
+- Learn how the [Identity Security integration with Entra ID](../identity-security/integrations/entra-id.mdx) works. 
