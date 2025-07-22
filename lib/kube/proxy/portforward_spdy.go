@@ -305,6 +305,15 @@ func (h *portForwardProxy) run() {
 		case <-h.sourceConn.CloseChan():
 			h.logger.DebugContext(h.context, "Upgraded connection closed")
 			return
+		case <-h.targetConn.CloseChan():
+			// Backend pod lifecycle completed
+			h.logger.DebugContext(h.context, "Target connection closed")
+			// Close source connection
+			err := h.sourceConn.Close()
+			if err != nil {
+				h.logger.ErrorContext(h.context, "Unable to close source connection", "error", err)
+			}
+			return
 		case stream := <-h.streamChan:
 			requestID, err := h.requestID(stream)
 			if err != nil {

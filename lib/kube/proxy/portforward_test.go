@@ -330,6 +330,41 @@ func TestPortForwardProxy_run_connsClosed(t *testing.T) {
 	require.True(t, targetConn.streamsClosed(), "targetConn streams not closed")
 }
 
+func TestPortForwardProxy_run_targetConnClosed(t *testing.T) {
+	t.Parallel()
+
+	sourceConn := newfakeSPDYConnection()
+	targetConn := newfakeSPDYConnection()
+	h := &portForwardProxy{
+		portForwardRequest: portForwardRequest{
+			context:       context.Background(),
+			onPortForward: func(addr string, success bool) {},
+		},
+		logger:                logtest.NewLogger(),
+		sourceConn:            sourceConn,
+		targetConn:            targetConn,
+		streamChan:            make(chan httpstream.Stream),
+		streamPairs:           map[string]*httpStreamPair{},
+		streamCreationTimeout: 5 * time.Second,
+	}
+
+	// Place `run` in goroutine since it blocks
+	go h.run()
+
+	// Close the target connection
+	targetConn.Close()
+
+	// Look for the source connection to close
+	require.Eventually(t, func() bool {
+		select {
+		case <-sourceConn.closed:
+			return true
+		default:
+			return false
+		}
+	}, 5*time.Second, time.Millisecond, "expected source connection to close")
+}
+
 type fakeSPDYStream struct {
 	closed     bool
 	headers    http.Header
