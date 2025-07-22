@@ -18,7 +18,6 @@ package local
 
 import (
 	"context"
-	"crypto"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -39,7 +38,7 @@ func TestRecordingEncryption(t *testing.T) {
 
 	initialEncryption := pb.RecordingEncryption{
 		Spec: &pb.RecordingEncryptionSpec{
-			ActiveKeys: nil,
+			ActiveKeyPairs: nil,
 		},
 	}
 
@@ -53,33 +52,28 @@ func TestRecordingEncryption(t *testing.T) {
 	encryption, err := service.GetRecordingEncryption(ctx)
 	require.NoError(t, err)
 
-	require.Empty(t, created.Spec.ActiveKeys)
-	require.Empty(t, encryption.Spec.ActiveKeys)
+	require.Empty(t, created.Spec.ActiveKeyPairs)
+	require.Empty(t, encryption.Spec.ActiveKeyPairs)
 
-	encryption.Spec.ActiveKeys = []*pb.WrappedKey{
+	encryption.Spec.ActiveKeyPairs = []*pb.KeyPair{
 		{
-			RecordingEncryptionPair: &types.EncryptionKeyPair{
+			KeyPair: &types.EncryptionKeyPair{
 				PrivateKey: []byte("recording encryption private"),
 				PublicKey:  []byte("recording encryption public"),
 				Hash:       0,
-			},
-			KeyEncryptionPair: &types.EncryptionKeyPair{
-				PrivateKey: []byte("key encryption private"),
-				PublicKey:  []byte("key encryption public"),
-				Hash:       uint32(crypto.SHA256),
 			},
 		},
 	}
 
 	updated, err := service.UpdateRecordingEncryption(ctx, encryption)
 	require.NoError(t, err)
-	require.Len(t, updated.Spec.ActiveKeys, 1)
-	require.EqualExportedValues(t, encryption.Spec.ActiveKeys[0], updated.Spec.ActiveKeys[0])
+	require.Len(t, updated.Spec.ActiveKeyPairs, 1)
+	require.EqualExportedValues(t, encryption.Spec.ActiveKeyPairs[0], updated.Spec.ActiveKeyPairs[0])
 
 	encryption, err = service.GetRecordingEncryption(ctx)
 	require.NoError(t, err)
-	require.Len(t, encryption.Spec.ActiveKeys, 1)
-	require.EqualExportedValues(t, updated.Spec.ActiveKeys[0], encryption.Spec.ActiveKeys[0])
+	require.Len(t, encryption.Spec.ActiveKeyPairs, 1)
+	require.EqualExportedValues(t, updated.Spec.ActiveKeyPairs[0], encryption.Spec.ActiveKeyPairs[0])
 
 	err = service.DeleteRecordingEncryption(ctx)
 	require.NoError(t, err)
