@@ -535,7 +535,7 @@ func (p *PROXYVerifyParams) Check() error {
 	return nil
 }
 
-// verifyOnly parses a JWT and verifies its signature only
+// verifyOnly parses a JWT and verifies its signature only.
 func (k *Key) verifyOnly(rawToken string) (map[string]any, error) {
 	tok, err := jwt.ParseSigned(rawToken)
 	if err != nil {
@@ -811,8 +811,8 @@ func (k *Key) VerifyPluginToken(token string, claims PluginTokenParam) (*Claims,
 	return k.verify(token, expectedClaims)
 }
 
-// OIDCOauthRequestClaims defines the required parameters for a JWT-Secured Authorization Request object.
-type OIDCOauthRequestClaims struct {
+// OIDCAuthRequestClaims defines the required parameters for a JWT-Secured Authorization Request object.
+type OIDCAuthRequestClaims struct {
 	// Required authorization request parameters
 	ClientID     string `mapstructure:"client_id"`
 	Scope        string `mapstructure:"scope"`
@@ -824,7 +824,7 @@ type OIDCOauthRequestClaims struct {
 }
 
 // Check validates that required parameters are set
-func (o *OIDCOauthRequestClaims) Check() error {
+func (o *OIDCAuthRequestClaims) Check() error {
 	if o.ClientID == "" {
 		return trace.BadParameter("client id missing")
 	}
@@ -840,7 +840,7 @@ func (o *OIDCOauthRequestClaims) Check() error {
 	return nil
 }
 
-func (o *OIDCOauthRequestClaims) toMap() map[string]any {
+func (o *OIDCAuthRequestClaims) toMap() map[string]any {
 	requestMap := map[string]any{}
 	maps.Copy(requestMap, o.OptionalParameters)
 
@@ -852,34 +852,37 @@ func (o *OIDCOauthRequestClaims) toMap() map[string]any {
 	return requestMap
 }
 
-// oauthRequestFromClaims produces an OIDCOauthRequestClaims from a map containing
+// oidcAuthRequestFromClaims produces an OIDCAuthRequestClaims from a map containing
 // OIDC authorization request parameters. This function will return an error if any
 // required parameters are missing from the claims set.
-func oauthRequestFromClaims(claims map[string]any) (OIDCOauthRequestClaims, error) {
-	request := OIDCOauthRequestClaims{}
+func oidcAuthRequestFromClaims(claims map[string]any) (OIDCAuthRequestClaims, error) {
+	request := OIDCAuthRequestClaims{}
 	dec, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		Result: &request,
-		// Return an error if any field of OauthRequestClaims is unset
+		// Return an error if any field of OIDCAuthRequestClaims is unset
 		// with the exception of 'OptionalParameters'
 		ErrorUnset: true,
 	})
 	if err != nil {
-		return request, trace.Wrap(err, "error initializing decoder for oauth request claims")
+		return request, trace.Wrap(err, "error initializing decoder for oidc auth request claims")
 	}
+
 	err = dec.Decode(claims)
 	if err != nil {
 		return request, trace.Wrap(err, "failed to decode request object claims")
 	}
+
 	return request, err
 }
 
-// SignOIDCAuthRequestToken creates a JWT-Secured Authorization Request (JAR) object from the
+// SignOIDCAuthRequest creates a JWT-Secured Authorization Request (JAR) object from the
 // authorization request.
-func (k *Key) SignOIDCAuthRequestToken(authRequest OIDCOauthRequestClaims) (string, error) {
+func (k *Key) SignOIDCAuthRequest(authRequest OIDCAuthRequestClaims) (string, error) {
 	err := authRequest.Check()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+
 	kid, err := KeyID(k.config.PublicKey)
 	if err != nil {
 		return "", trace.Wrap(err, "failed to determine JWT key identifier")
@@ -894,15 +897,15 @@ func (k *Key) SignOIDCAuthRequestToken(authRequest OIDCOauthRequestClaims) (stri
 
 // VerifyOIDCAuthRequestToken parses and validates a JWT that is to be interpreted as
 // a JWT-Secured Authorization Request (JAR) object
-func (k *Key) VerifyOIDCAuthRequestToken(rawToken string) (OIDCOauthRequestClaims, error) {
+func (k *Key) VerifyOIDCAuthRequestToken(rawToken string) (OIDCAuthRequestClaims, error) {
 	claims, err := k.verifyOnly(rawToken)
 	if err != nil {
-		return OIDCOauthRequestClaims{}, trace.Wrap(err, "error verifying authorization request object signature")
+		return OIDCAuthRequestClaims{}, trace.Wrap(err, "error verifying authorization request object signature")
 	}
 
-	request, err := oauthRequestFromClaims(claims)
+	request, err := oidcAuthRequestFromClaims(claims)
 	if err != nil {
-		return OIDCOauthRequestClaims{}, trace.Wrap(err, "error validating authorization request object parameters")
+		return OIDCAuthRequestClaims{}, trace.Wrap(err, "error validating authorization request object parameters")
 	}
 
 	return request, nil

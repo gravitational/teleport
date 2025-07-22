@@ -426,7 +426,7 @@ func TestKey_SignAndVerifyPluginToken(t *testing.T) {
 	}
 }
 
-func TestKey_SignAndVerifyOIDCOauthRequest(t *testing.T) {
+func TestKey_SignAndVerifyOIDCAuthRequest(t *testing.T) {
 	t.Parallel()
 	for _, alg := range supportedAlgorithms {
 		t.Run(alg.String(), func(t *testing.T) {
@@ -445,7 +445,7 @@ func TestKey_SignAndVerifyOIDCOauthRequest(t *testing.T) {
 			require.NoError(t, err)
 
 			// Sign a token with the new key.
-			request := OIDCOauthRequestClaims{
+			request := OIDCAuthRequestClaims{
 				ClientID:     "someid",
 				Scope:        "openid email",
 				RedirectURI:  "https://telelport.sh//v1/webapi/oidc/callback",
@@ -455,7 +455,7 @@ func TestKey_SignAndVerifyOIDCOauthRequest(t *testing.T) {
 					"state":  "e3a6140b4ca08acc05c785615146397b",
 				},
 			}
-			token, err := key.SignOIDCAuthRequestToken(request)
+			token, err := key.SignOIDCAuthRequest(request)
 			require.NoError(t, err)
 
 			parsedRequest, err := key.VerifyOIDCAuthRequestToken(token)
@@ -468,8 +468,8 @@ func TestKey_SignAndVerifyOIDCOauthRequest(t *testing.T) {
 			require.Equal(t, request.OptionalParameters["state"], parsedRequest.OptionalParameters["state"])
 
 			// Request containing optional parameters that conflict with
-			// required OIDCOauthRequestClaims members
-			stutteringRequest := OIDCOauthRequestClaims{
+			// required OIDCAuthRequestClaims members
+			stutteringRequest := OIDCAuthRequestClaims{
 				ClientID:     "someid",
 				Scope:        "openid email",
 				RedirectURI:  "https://telelport.sh//v1/webapi/oidc/callback",
@@ -484,7 +484,7 @@ func TestKey_SignAndVerifyOIDCOauthRequest(t *testing.T) {
 				},
 			}
 
-			token, err = key.SignOIDCAuthRequestToken(stutteringRequest)
+			token, err = key.SignOIDCAuthRequest(stutteringRequest)
 			require.NoError(t, err)
 
 			parsedRequest, err = key.VerifyOIDCAuthRequestToken(token)
@@ -497,11 +497,11 @@ func TestKey_SignAndVerifyOIDCOauthRequest(t *testing.T) {
 	}
 }
 
-func TestOauthRequestProcessing(t *testing.T) {
-
+func TestOIDCAuthRequestParsing(t *testing.T) {
+	t.Parallel()
 	t.Run("missing fields", func(tt *testing.T) {
 		// Missing some required fields
-		_, err := oauthRequestFromClaims(map[string]any{
+		_, err := oidcAuthRequestFromClaims(map[string]any{
 			"client_id": "someid",
 			"prompt":    "select_account",
 			"state":     "e3a6140b4ca08acc05c785615146397b",
@@ -511,7 +511,7 @@ func TestOauthRequestProcessing(t *testing.T) {
 
 	t.Run("required fields only", func(tt *testing.T) {
 		// Strictly required parameters/claims
-		_, err := oauthRequestFromClaims(map[string]any{
+		_, err := oidcAuthRequestFromClaims(map[string]any{
 			"client_id":     "someid",
 			"scope":         "openid email",
 			"redirect_uri":  "https://telelport.sh//v1/webapi/oidc/callback",
