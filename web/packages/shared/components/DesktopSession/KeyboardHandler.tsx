@@ -98,10 +98,8 @@ export class KeyboardHandler {
   private finishHandlingKeyboardEvent(params: KeyboardEventParams): void {
     const { cli, e, state } = params;
 
-    // Monitor Meta and Shift keys to prevent stuck keys from MacOS screenshot.
-    if (KeyboardHandler.isMac) {
-      this.stuckKeys.handleKeyboardEvent(params);
-    }
+    // Monitor Meta and Shift keys to prevent stuck keys
+    this.stuckKeys.handleKeyboardEvent(params);
 
     // Special handling for CapsLock on Mac.
     if (e.code === 'CapsLock' && KeyboardHandler.isMac) {
