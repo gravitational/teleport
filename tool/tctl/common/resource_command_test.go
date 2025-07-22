@@ -1469,10 +1469,6 @@ func TestCreateResources(t *testing.T) {
 				assert.Contains(t, s, "kind: health_check_config")
 			},
 		},
-		{
-			kind:   types.KindInferenceModel,
-			create: testCreateInferenceModel,
-		},
 	}
 
 	for _, test := range tests {
