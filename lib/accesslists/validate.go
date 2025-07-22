@@ -48,34 +48,30 @@ func validateAccessList(a *accesslist.AccessList) error {
 		return trace.Wrap(err)
 	}
 
-	switch a.Spec.Type {
-	case accesslist.Static, accesslist.SCIM:
-		// SCIM and Static access lists can have empty owners, as they are managed by external systems.
-	default:
-		if len(a.Spec.Owners) == 0 {
-			return trace.BadParameter("owners are missing")
-		}
+	if len(a.Spec.Owners) == 0 {
+		return trace.BadParameter("owners are missing")
 	}
 
 	if a.IsReviewable() {
 		switch a.Spec.Audit.Recurrence.Frequency {
 		case accesslist.OneMonth, accesslist.ThreeMonths, accesslist.SixMonths, accesslist.OneYear:
 		default:
-			return trace.BadParameter("recurrence frequency is an invalid value")
+			return trace.BadParameter("audit recurrence frequency is an invalid value")
 		}
 
 		switch a.Spec.Audit.Recurrence.DayOfMonth {
 		case accesslist.FirstDayOfMonth, accesslist.FifteenthDayOfMonth, accesslist.LastDayOfMonth:
 		default:
-			return trace.BadParameter("recurrence day of month is an invalid value")
+			return trace.BadParameter("audit recurrence day of month is an invalid value")
+		}
+
+		if a.Spec.Audit.NextAuditDate.IsZero() {
+			return trace.BadParameter("next audit date is not set")
+
 		}
 
 		if a.Spec.Audit.Notifications.Start == 0 {
 			return trace.BadParameter("audit notifications start is not set")
-		}
-	} else {
-		if !isZero(a.Spec.Audit) {
-			return trace.BadParameter("audit not supported for non-reviewable access_list of type %q", a.Spec.Type)
 		}
 	}
 
