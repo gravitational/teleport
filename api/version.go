@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "17.6.0-dev.scim"
+const Version = "17.6.0-dev.scim.2"
 
 const VersionMajor = 17
 const VersionMinor = 6
 const VersionPatch = 0
-const VersionPreRelease = "dev.scim"
+const VersionPreRelease = "dev.scim.2"
 const VersionMetadata = ""

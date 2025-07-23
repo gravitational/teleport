@@ -1,4 +1,4 @@
-.version: &version "17.6.0-dev.scim"
+.version: &version "17.6.0-dev.scim.2"
 
 apiVersion: v2
 name: teleport-plugin-event-handler

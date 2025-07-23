@@ -1,4 +1,4 @@
-.version: &version "17.6.0-dev.scim"
+.version: &version "17.6.0-dev.scim.2"
 
 name: teleport-operator
 apiVersion: v2
