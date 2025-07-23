@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"regexp"
@@ -186,14 +187,18 @@ func TestUpdateInterruptSignal(t *testing.T) {
 	require.NoError(t, err)
 
 	var output bytes.Buffer
-	cmd := exec.Command(tshPath, "version")
-	cmd.Stdout = &output
-	cmd.Stderr = &output
+	multiOut := io.MultiWriter(&output, os.Stdout)
+	cmd := newCommand(tshPath, "version")
+	cmd.Stdout = multiOut
+	cmd.Stderr = multiOut
 	cmd.Env = append(
 		os.Environ(),
 		fmt.Sprintf("%s=%s", teleportToolsVersion, testVersions[1]),
 	)
 	err = cmd.Start()
+	if err != nil {
+		t.Log(output.String())
+	}
 	require.NoError(t, err, "failed to start updater")
 	pid := cmd.Process.Pid
 
@@ -216,7 +221,10 @@ func TestUpdateInterruptSignal(t *testing.T) {
 		require.Fail(t, "failed to wait till the download is started")
 	case <-lock:
 		time.Sleep(100 * time.Millisecond)
-		require.NoError(t, sendInterrupt(pid))
+		t.Logf("sending signal to updater, pid: %d, test pid: %d", pid, os.Getpid())
+		err := sendInterrupt(pid)
+		require.NoError(t, err, "failed to send signal to updater")
+		time.Sleep(100 * time.Millisecond)
 		lock <- struct{}{}
 	}
 
@@ -229,6 +237,10 @@ func TestUpdateInterruptSignal(t *testing.T) {
 		require.NoError(t, err)
 	}
 	assert.Contains(t, output.String(), "Update progress:")
+
+	matches := pattern.FindStringSubmatch(output.String())
+	require.Len(t, matches, 2)
+	require.Equal(t, testVersions[0], matches[1])
 }
 
 // TestUpdateForOSSBuild verifies the update logic for AGPL editions of Teleport requires
@@ -258,6 +270,9 @@ func TestUpdateForOSSBuild(t *testing.T) {
 		fmt.Sprintf("%s=%s", teleportToolsVersion, testVersions[1]),
 	)
 	out, err := cmd.Output()
+	if err != nil {
+		t.Log(string(out))
+	}
 	require.NoError(t, err)
 
 	matches := pattern.FindStringSubmatch(string(out))

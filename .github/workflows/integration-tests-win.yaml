@@ -62,5 +62,5 @@ jobs:
         shell: bash
         run: |
           export OS="windows"
-          go test -timeout 30m ./integration/autoupdate/tools/... -v
+          go test -timeout 30m ./integration/autoupdate/tools -v
 
