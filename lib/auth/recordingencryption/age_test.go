@@ -18,8 +18,6 @@ package recordingencryption_test
 
 import (
 	"bytes"
-	"context"
-	"errors"
 	"io"
 	"testing"
 
@@ -32,13 +30,13 @@ import (
 
 func TestRecordingAgePlugin(t *testing.T) {
 	ctx := t.Context()
-	keyFinder := newFakeKeyFinder()
-	recordingIdentity := recordingencryption.NewRecordingIdentity(ctx, keyFinder)
+	keyStore := newFakeKeyStore(types.PrivateKeyType_RAW)
+	recordingIdentity := recordingencryption.NewRecordingIdentity(ctx, keyStore)
 
-	ident, err := keyFinder.generateIdentity()
+	_, pubKey, err := keyStore.createKey()
 	require.NoError(t, err)
 
-	recipient, err := recordingencryption.ParseRecordingRecipient(ident.Recipient().String())
+	recipient, err := recordingencryption.ParseRecordingRecipient(pubKey)
 	require.NoError(t, err)
 
 	out := bytes.NewBuffer(nil)
@@ -53,6 +51,7 @@ func TestRecordingAgePlugin(t *testing.T) {
 	err = writer.Close()
 	require.NoError(t, err)
 
+	// decrypted text should match original msg
 	reader, err := age.Decrypt(out, recordingIdentity)
 	require.NoError(t, err)
 	plaintext, err := io.ReadAll(reader)
@@ -60,11 +59,14 @@ func TestRecordingAgePlugin(t *testing.T) {
 
 	require.Equal(t, msg, plaintext)
 
-	// running the same test with the raw recipient should fail because the
-	// the extra stanza added by RecordingRecipient won't be present and
-	// the private key won't be found
+	// running the same test with an unknown public key should fail
+	_, pubKey, err = keyStore.genKeys()
+	require.NoError(t, err)
+
+	recipient, err = recordingencryption.ParseRecordingRecipient(pubKey)
+	require.NoError(t, err)
 	out.Reset()
-	writer, err = age.Encrypt(out, ident.Recipient())
+	writer, err = age.Encrypt(out, recipient)
 	require.NoError(t, err)
 	_, err = writer.Write(msg)
 	require.NoError(t, err)
@@ -72,40 +74,4 @@ func TestRecordingAgePlugin(t *testing.T) {
 	require.NoError(t, err)
 	_, err = age.Decrypt(out, recordingIdentity)
 	require.Error(t, err)
-}
-
-type fakeKeyFinder struct {
-	keys map[string]string
-}
-
-func newFakeKeyFinder() *fakeKeyFinder {
-	return &fakeKeyFinder{
-		keys: make(map[string]string),
-	}
-}
-
-func (f *fakeKeyFinder) FindDecryptionKey(ctx context.Context, publicKeys ...[]byte) (*types.EncryptionKeyPair, error) {
-	for _, pubKey := range publicKeys {
-		key, ok := f.keys[string(pubKey)]
-		if !ok {
-			continue
-		}
-
-		return &types.EncryptionKeyPair{
-			PrivateKey: []byte(key),
-			PublicKey:  pubKey,
-		}, nil
-	}
-
-	return nil, errors.New("no accessible decryption key found")
-}
-
-func (f *fakeKeyFinder) generateIdentity() (*age.X25519Identity, error) {
-	ident, err := age.GenerateX25519Identity()
-	if err != nil {
-		return nil, err
-	}
-
-	f.keys[ident.Recipient().String()] = ident.String()
-	return ident, nil
 }

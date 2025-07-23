@@ -22,8 +22,10 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"net"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -218,7 +220,7 @@ func GetServiceFQDN(service corev1.Service) string {
 func buildAppURI(protocol, serviceFQDN, path string, port int32) string {
 	return (&url.URL{
 		Scheme: protocol,
-		Host:   fmt.Sprintf("%s:%d", serviceFQDN, port),
+		Host:   net.JoinHostPort(serviceFQDN, strconv.Itoa(int(port))),
 		Path:   path,
 	}).String()
 }
