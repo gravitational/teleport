@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 
-	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
