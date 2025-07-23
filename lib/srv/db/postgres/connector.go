@@ -25,6 +25,7 @@ import (
 	"net"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -205,6 +206,22 @@ func (c *connector) getConnectConfig(ctx context.Context) (*pgconn.Config, error
 			err = metadataExchangeAlloyDB(token, tlsConn)
 			if err != nil {
 				c.log.WarnContext(ctx, "Metadata exchange failed", "err", err)
+
+				// special case for "IAM check failed" error
+				if strings.Contains(err.Error(), `IAM check failed`) {
+					return nil, trace.AccessDenied(`Could not connect to database:
+			
+	   %v
+
+	 Make sure that AlloyDB user %q exists and has the following roles:
+	 - Cloud AlloyDB Database User
+	 - Cloud AlloyDB Client
+	 - Service Usage Consumer
+
+	 Note that IAM changes may take a few minutes to propagate.
+	 `, err, c.databaseUser)
+				}
+
 				_ = tlsConn.Close() // best effort
 				return nil, trace.Wrap(err)
 			}
