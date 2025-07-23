@@ -312,7 +312,7 @@ not supporting the new type:
 
 - if the static Access List is only being read, nothing happens
 - if the static Access List is modified in the UI in any way, including modifying its members it
-  ill be converted to a regular Access List, with audit settings set to a default values
+  will be converted to a regular Access List, with audit settings set to a default values
 
 To better illustrate this, let's consider this scenario:
 
@@ -340,7 +340,7 @@ Plan: 0 to add, 1 to change, 0 to destroy.
 **NOTE:** This can be very confusing if the HA cluster runs two versions (one with the static Access
 *Lists support, and one without) and the feature is being used.
 
-It can mean, that in case of downgrade and upgrade everything has to be potentially removed
+It can mean, that in case of downgrade and upgrade, everything has to be potentially removed
 (including the resources in the Terraform state) and started over again.
 
 ### Audit events
