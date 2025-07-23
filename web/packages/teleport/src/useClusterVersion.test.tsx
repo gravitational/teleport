@@ -27,7 +27,7 @@ describe('useClusterVersion', () => {
     const { result } = renderHook(() => useClusterVersion(), {
       wrapper: Wrapper,
     });
-    expect(result.current.clusterVersion?.version).toBe('4.4.0-dev');
+    expect(result.current.clusterVersion).toBe('4.4.0-dev');
   });
 
   it.each`

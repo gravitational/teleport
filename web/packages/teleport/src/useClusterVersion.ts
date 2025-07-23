@@ -16,15 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import semver from 'semver';
+import { major } from 'shared/utils/semVer';
 
 import useTeleport from 'teleport/useTeleport';
 
 export function useClusterVersion() {
   const ctx = useTeleport();
-  const clusterVersion = semver.parse(ctx.storeUser.getClusterAuthVersion());
+  const clusterVersion = ctx.storeUser.getClusterAuthVersion();
+  const clusterVersionMajor = major(clusterVersion);
 
-  const _diff = (version?: string) => diff(version, clusterVersion);
+  const _diff = (version?: string) => diff(version, clusterVersionMajor);
 
   return {
     clusterVersion,
@@ -36,24 +37,29 @@ export type ClusterVersionDiff = ReturnType<typeof diff>;
 
 function diff(
   version: string | null | undefined,
-  clusterVersion: semver.SemVer | null | undefined
+  clusterVersionMajor: number | null | undefined
 ) {
-  const parsedVersion = semver.parse(version);
-  if (!parsedVersion || !clusterVersion) return null;
+  if (
+    !version ||
+    clusterVersionMajor === undefined ||
+    clusterVersionMajor === null
+  )
+    return null;
+  const versionMajor = major(version);
   switch (true) {
-    case parsedVersion.major === clusterVersion.major + 2:
+    case versionMajor === clusterVersionMajor + 2:
       return 'n+2';
-    case parsedVersion.major === clusterVersion.major + 1:
+    case versionMajor === clusterVersionMajor + 1:
       return 'n+1';
-    case parsedVersion.major > clusterVersion.major:
+    case versionMajor > clusterVersionMajor:
       return 'n+';
-    case parsedVersion.major === clusterVersion.major:
+    case versionMajor === clusterVersionMajor:
       return 'n';
-    case parsedVersion.major === clusterVersion.major - 1:
+    case versionMajor === clusterVersionMajor - 1:
       return 'n-1';
-    case parsedVersion.major === clusterVersion.major - 2:
+    case versionMajor === clusterVersionMajor - 2:
       return 'n-2';
-    case parsedVersion.major < clusterVersion.major - 2:
+    case versionMajor < clusterVersionMajor - 2:
       return 'n-';
   }
   return null;
