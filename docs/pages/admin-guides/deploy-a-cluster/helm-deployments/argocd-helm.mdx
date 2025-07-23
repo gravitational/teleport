@@ -94,8 +94,13 @@ ignoreDifferences:
 $ argocd app sync $YOUR_APPLICATION_NAME
 ```
 4. To verify setup check the readiness of the pods in the teleport namespace.
-```bash
-$ kubectl --namespace teleport get all
+```code
+$ kubectl -n teleport get pods
+
+NAME                                           READY   STATUS    RESTARTS   AGE
+<your-agent-release>-0                         1/1     Running   0          14m
+<your-agent-release>-1                         1/1     Running   0          14m
+<your-agent-release>-updater-d9f97f5dd-v57g9   1/1     Running   0          16m
 ```
 ## Step 3/3. Manage access to your new resource
 
