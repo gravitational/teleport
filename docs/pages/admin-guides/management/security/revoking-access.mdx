@@ -26,9 +26,11 @@ how to execute the procedure.
 
 Teleport locks allow you to permanently or temporarily revoke access to a number
 of different "targets". Supported lock targets include: specific users, roles,
-servers, desktops, or MFA devices. After you create a lock, all existing
-sessions where the lock applies are terminated and new sessions are rejected
-while the lock remains in force.
+servers, desktops, or MFA devices. For Machine & Workload Identity bots, this
+additionally includes the join token name (for delegated join methods) and the
+bot instance UUID. After you create a lock, all existing sessions where the loc
+applies are terminated and new sessions are rejected while the lock remains in
+force.
 
 For more information, read our
 [Session and Identity Locking Guide](../../../identity-governance/locking.mdx).
