@@ -61,9 +61,9 @@ func TestUpdate(t *testing.T) {
 	err := updater.Update(ctx, testVersions[0])
 	require.NoError(t, err)
 
-	tshPath, err := updater.ToolPath("tsh", testVersions[0])
+	tshPath, err := updater.ToolPath(tools.DefaultClientTools()[0], testVersions[0])
 	require.NoError(t, err)
-	tctlPath, err := updater.ToolPath("tctl", testVersions[0])
+	tctlPath, err := updater.ToolPath(tools.DefaultClientTools()[1], testVersions[0])
 	require.NoError(t, err)
 
 	// Verify that the installed version is equal to requested one.
@@ -107,7 +107,7 @@ func TestParallelUpdate(t *testing.T) {
 	err := updater.Update(ctx, testVersions[0])
 	require.NoError(t, err)
 
-	tshPath, err := updater.ToolPath("tsh", testVersions[0])
+	tshPath, err := updater.ToolPath(tools.DefaultClientTools()[0], testVersions[0])
 	require.NoError(t, err)
 
 	// By setting the limit request next test http serving file going blocked until unlock is sent.
@@ -182,7 +182,7 @@ func TestUpdateInterruptSignal(t *testing.T) {
 	)
 	err := updater.Update(ctx, testVersions[0])
 	require.NoError(t, err)
-	tshPath, err := updater.ToolPath("tsh", testVersions[0])
+	tshPath, err := updater.ToolPath(tools.DefaultClientTools()[0], testVersions[0])
 	require.NoError(t, err)
 
 	var output bytes.Buffer
@@ -248,7 +248,7 @@ func TestUpdateForOSSBuild(t *testing.T) {
 	)
 	err := updater.Update(ctx, testVersions[0])
 	require.NoError(t, err)
-	tshPath, err := updater.ToolPath("tsh", testVersions[0])
+	tshPath, err := updater.ToolPath(tools.DefaultClientTools()[0], testVersions[0])
 	require.NoError(t, err)
 
 	// Verify that requested update is ignored by OSS build and version wasn't updated.
