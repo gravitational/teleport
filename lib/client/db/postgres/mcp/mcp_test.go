@@ -139,8 +139,8 @@ func TestFormatErrors(t *testing.T) {
 					},
 				},
 			},
-			expectErrorMessage: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
-				require.Equal(t, dbmcp.ReloginRequiredErrorMessage, i1)
+			expectErrorMessage: func(tt require.TestingT, i1 any, i2 ...any) {
+				require.Equal(t, clientmcp.ReloginRequiredErrorMessage, i1)
 			},
 		},
 	} {

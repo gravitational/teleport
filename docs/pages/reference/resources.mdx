@@ -421,10 +421,13 @@ spec:
   # monitoring rule. The condition accepts a predicate expression which must
   # evaluate to a boolean value.
   #
-  # This condition would be satisfied by an access request if the `access` role
-  # is requested, and if the requesting user has the `team: dev` user trait.
+  # This condition would be satisfied if:
+  # - `access` role is requested
+  # - all requested resources have the label `env: dev`
+  # - requesting user has the `team: dev` user trait.
   condition: |-
     contains_all(set("access"), access_request.spec.roles) &&
+    access_request.spec.resource_labels_intersection["env"].contains("dev") &&
     contains_any(user.traits["team"], set("dev"))
 
   # Optional: desired_state specifies the desired reconciled state of the access
@@ -461,16 +464,18 @@ spec:
 ```
 
 Accepted fields within the condition predicate expression:
-| Field                                   | Description                                    |
-| --------------------------------------- | ---------------------------------------------- |
-| access_request.spec.roles               | The set of roles requested.                    |
-| access_request.spec.suggested_reviewers | The set of reviewers specified in the request. |
-| access_request.spec.system_annotations  | A map of system annotations on the request.    |
-| access_request.spec.user                | The requesting user.                           |
-| access_request.spec.request_reason      | The request reason.                            |
-| access_request.spec.creation_time       | The creation time of the request.              |
-| access_request.spec.expiry              | The expiry time of the request.                |
-| user.traits                             | A map of traits of the requesting user.        |
+| Field                                            | Description                                                         |
+| ------------------------------------------------ | ------------------------------------------------------------------- |
+| access_request.spec.roles                        | The set of roles requested.                                         |
+| access_request.spec.suggested_reviewers          | The set of reviewers specified in the request.                      |
+| access_request.spec.system_annotations           | A map of system annotations on the request.                         |
+| access_request.spec.user                         | The requesting user.                                                |
+| access_request.spec.request_reason               | The request reason.                                                 |
+| access_request.spec.creation_time                | The creation time of the request.                                   |
+| access_request.spec.expiry                       | The expiry time of the request.                                     |
+| access_request.spec.resource_labels_intersection | A map containing the intersection of all requested resource labels. |
+| access_request.spec.resource_labels_union        | A map containing the union of all requested resource labels.        |
+| user.traits                                      | A map of traits of the requesting user.                             |
 
 See [Predicate Language](./predicate-language.mdx) for more details.
 
