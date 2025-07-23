@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box, ButtonSecondary, Link, Stack, Text } from 'design';
+import { Box, ButtonSecondary, Link, Stack, Text, ResourceIcon, Flex } from 'design';
 import Dialog, {
   DialogContent,
   DialogFooter,
@@ -55,6 +55,12 @@ export function MCPAppConnectDialog(props: { app: App; onClose: () => void }) {
   const cursorDeepLink = `cursor://anysphere.cursor-deeplink/mcp/install?name=${encodeURIComponent(
     mcpServerName
   )}&config=${encodeURIComponent(btoa(JSON.stringify(mcpServerConfig)))}`;
+  const vscodeEncodedConfig= encodeURIComponent(JSON.stringify({
+    ...mcpServerConfig,
+    name: mcpServerName,
+  }));
+  const vscodeLink = `vscode:mcp/install?${vscodeEncodedConfig}`;
+  const vscodeInsidersink = `vscode-insiders:mcp/install?${vscodeEncodedConfig}`;
 
   return (
     <Dialog
@@ -96,6 +102,17 @@ export function MCPAppConnectDialog(props: { app: App; onClose: () => void }) {
               </Text>
               {' - Configure your MCP client'}
             </Text>
+            <Flex alignItems="center" justifyContent="left" columnGap={2}>
+              <Link href={cursorDeepLink} target="_blank">
+                <ResourceIcon name="mcpCursor" height="32px" />
+              </Link>
+              <Link href={vscodeLink} target="_blank">
+                <ResourceIcon name="mcpVscode" height="25px" />
+              </Link>
+              <Link href={vscodeInsidersink} target="_blank">
+                <ResourceIcon name="mcpVscodeInsiders" height="25px" />
+              </Link>
+            </Flex>
             <Box>
               Here is a sample Claude Desktop config to connect to this MCP
               server:
@@ -109,20 +126,13 @@ export function MCPAppConnectDialog(props: { app: App; onClose: () => void }) {
               ]}
             />
             <Box>
-              For Cursor deeplink install, please click{' '}
-              <Link href={cursorDeepLink} target="_blank">
-                here
-              </Link>
-              .
-            </Box>
-            <Box>
               Alternatively, run the following to generate the config from the
               command line.
             </Box>
             <TextSelectCopy text={`tsh mcp config ${app.name}`} />
             <Box>
-              Restart your MCP tool to load the updated configuration if
-              necessary.
+              *Note: You might need to restart your MCP tool to load the updated
+              configuration.
             </Box>
           </Stack>
         </Stack>
