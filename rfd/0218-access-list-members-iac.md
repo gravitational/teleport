@@ -47,45 +47,37 @@ using IaC tools.
 There will be a new Terraform resource named `teleport_access_list_member`.
 
 ```hcl
-resource "teleport_access_list" "crane_operation" {
+resource "teleport_access_list" "characters" {
   header = {
     version = "v1"
     metadata = {
-      name = "crane-operation"
+      name = "characters"
     }
   }
   spec = {
-    # type must be set to "static" to manage members with Terraform.
-    type = "static"
-    title = "Crane operation"
-    description = "Used to grant access to the crane."
+    type = "static" # type must be set to "static" to manage members with Terraform
+    audit = null    # audit can be skipped and it's ignored if specified
+    title       = "Characters"
+    description = "The list of game characters."
     owners = [
-      {
-        name        = "gru"
-        description = "The supervillain."
-      }
+      { name = "dungeon_master" },
     ]
     grants = {
-      roles = ["crane-operator"]
-    }
-    # membership_requires is optional.
-    membership_requires = {
-      roles = ["crane-operation-license"]
+      roles = ["dungeon_access"]
     }
   }
 }
 
-resource "teleport_access_list_member" "crane_operator" {
+resource "teleport_access_list_member" "fighter" {
   header = {
     version = "v1"
     metadata = {
-      name = "crane-operator"
+      name = "fighter" # Teleport user name
     }
   }
   spec = {
-    access_list = teleport_access_list.crane_operation.id
-    # membership_kind is 1 for "MEMBERSHIP_KIND_USER" or 2 for "MEMBERSHIP_KIND_LIST"
-    membership_kind = 1
+    access_list     = teleport_access_list.characters.id
+    membership_kind = 1 # 1 for "MEMBERSHIP_KIND_USER", 2 for "MEMBERSHIP_KIND_LIST"
     # expires is optional. The member will stay in the list after it expires but will lose the
     # grants. expires can be updated.
     expires = "2025-07-28T22:00:00Z"
@@ -99,37 +91,43 @@ integration](https://goteleport.com/docs/identity-governance/okta/app-and-group-
 [Microsoft Entra ID
 integration](https://goteleport.com/docs/identity-security/integrations/entra-id/#how-it-works)).
 
-For example to add an Access List member to the *crane-operation* Access List defined above:
+For example to add "npcs" Access List member to the *characters* Access List defined above:
 
 ```hcl
-resource "teleport_access_list" "nested" {
+resource "teleport_access_list" "npcs" {
   header = {
     version = "v1"
     metadata = {
-      name = "nested"
+      name = "npcs"
     }
   }
   spec = {
-    title = "Nested Access List example"
-    description = "Used to present how to create a nested Access List member."
+    title       = "NPCs"
+    description = "Non-player characters."
     owners = [
-       { name = "nested_list_owner" },
+      { name = "dungeon_master" }
     ]
     grants = {
-      roles = ["nester"]
+      roles = ["dungeon_access"]
+    }
+    audit = {
+      recurrence = {
+        frequency    = 3
+        day_of_month = 15
+      }
     }
   }
 }
 
-resource "teleport_access_list_member" "crane_operation_nested" {
+resource "teleport_access_list_member" "npcs" {
   header = {
     version = "v1"
     metadata = {
-      name = teleport_access_list.nested.id
+      name = teleport_access_list.npcs.id
     }
   }
   spec = {
-    access_list = teleport_access_list.crane_operation.id # defined in the example above
+    access_list     = teleport_access_list.characters.id
     membership_kind = 2 # 1 for "MEMBERSHIP_KIND_USER", 2 for "MEMBERSHIP_KIND_LIST"
   }
 }
@@ -138,7 +136,7 @@ resource "teleport_access_list_member" "crane_operation_nested" {
 To add a member which is an Access List created for an Okta group:
 
 ```hcl
-resource "teleport_access_list_member" "crane_operation_okta_group" {
+resource "teleport_access_list_member" "characters_from_okta" {
   header = {
     version = "v1"
     metadata = {
@@ -146,7 +144,7 @@ resource "teleport_access_list_member" "crane_operation_okta_group" {
     }
   }
   spec = {
-    access_list = teleport_access_list.crane_operation.id # defined in the example above
+    access_list = teleport_access_list.characters.id # defined in the example above
     membership_kind = 2 # 1 for "MEMBERSHIP_KIND_USER", 2 for "MEMBERSHIP_KIND_LIST"
   }
 }
@@ -158,10 +156,12 @@ There are a few things to note here:
   special purpose other than RBAC - owners are allowed to add members to the list, but this can
   happen only through Terraform or tctl right now
 - fields not present in *teleport_access_list* resource:
-  - *.spec.audit* - reviews are disabled for static Access Lists and specifying it results in an error
+  - *.spec.audit* - reviews are disabled for static Access Lists and specifying audit doesn't
+    serve any purpose
   - *.spec.ownership_requires* - allowed but skipped because *owners* are skipped
 - fields not present in *teleport_access_list_member* resource:
-  - *.spec.name* - when not set, defaults to *.header.metadata.name*
+  - *.spec.name* - when not set, defaults to *.header.metadata.name*; when set, has to be equal to
+    *.header.metadata.name*
 - unfortunately we have to user integers for *membership_kind* because of how `protoc` generates
   schema code from proto files
 
@@ -169,63 +169,44 @@ The new resource only allows managing members for the *access_list* with *.spec.
 "static". If the *type* is not set to "static":
 
 ```
-teleport_access_list_member.crane_operator: Creating...
+teleport_access_list_member.fighter: Creating...
 ╷
 │ Error: Error reading Member
-│
-│   with teleport_access_list_member.crane_operator,
-│   on main.tf line 61, in resource "teleport_access_list_member" "crane_operator":
-│   61: resource "teleport_access_list_member" "crane_operator" {
-│
-│ member's access_list is not static type
+│ 
+│   with teleport_access_list_member.fighter,
+│   on main.tf line 43, in resource "teleport_access_list_member" "fighter":
+│   43: resource "teleport_access_list_member" "fighter" {
+│ 
+│ Access list member's ("fighter") access list ("characters") is not static (i.e., access_list with spec.type set to "static"). Access list "characters" type is "" (default). Teleport IaC
+│ tools support adding members only to access lists of type "static".
 ╵
 ```
 
 The *access_list* type cannot be modified once it's created:
 
 ```
-teleport_access_list.crane_operation: Modifying... [id=crane-operation]
+teleport_access_list.characters: Modifying... [id=characters]
 ╷
 │ Error: Error updating AccessList
-│
-│   with teleport_access_list.crane_operation,
-│   on main.tf line 15, in resource "teleport_access_list" "crane_operation":
-│   15: resource "teleport_access_list" "crane_operation" {
-│
-│ access_list "crane-operation" type "static" cannot be changed to ""
-╵
-```
-
-The *.spec.audit* field is illegal for static *access_list*:
-
-```
-teleport_access_list.characters: Creating...
-╷
-│ Error: Error creating AccessList
-│
+│ 
 │   with teleport_access_list.characters,
 │   on main.tf line 14, in resource "teleport_access_list" "characters":
 │   14: resource "teleport_access_list" "characters" {
-│
-│ audit not supported for non-reviewable access_list of type "static"
+│ 
+│ access_list "characters" type "static" cannot be changed to ""
 ╵
 ```
 
-Trying to create a member of non-static access_list:
-
 ```
-teleport_access_list_member.fighter: Creating...
+teleport_access_list.characters: Modifying... [id=characters]
 ╷
-│ Error: Error reading Member
-│
-│   with teleport_access_list_member.fighter,
-│   on main.tf line 42, in resource "teleport_access_list_member" "fighter":
-│   42: resource "teleport_access_list_member" "fighter" {
-│
-│ rpc error: code = Unknown desc = member.spec.access_list must reference an access_list of static
-│ type (i.e. with spec.type set to "static"). Member "fighter" cannot be added to access list
-│ "characters" because access list "characters" is not of "static" type. Teleport IaC tools support
-│ adding members only to "static" access lists.
+│ Error: Error updating AccessList
+│ 
+│   with teleport_access_list.characters,
+│   on main.tf line 14, in resource "teleport_access_list" "characters":
+│   14: resource "teleport_access_list" "characters" {
+│ 
+│ access_list "characters" type "" cannot be changed to "static"
 ╵
 ```
 
@@ -235,11 +216,9 @@ Trying to import non-static access_list member:
 teleport_access_list_member.fighter: Importing from ID "characters/fighter"...
 ╷
 │ Error: Error reading Member
-│
-│ rpc error: code = Unknown desc = member.spec.access_list must reference an access_list of static
-│ type (i.e. with spec.type set to "static"). Member "fighter" cannot be added to access list
-│ "characters" because access list "characters" is not of "static" type. Teleport IaC tools support
-│ adding members only to "static" access lists.
+│ 
+│ Access list member's ("fighter") access list ("characters") is not static (i.e., access_list with spec.type set to "static"). Access list "characters" type is "" (default). Teleport IaC
+│ tools support adding members only to access lists of type "static".
 ╵
 ```
 
@@ -249,15 +228,13 @@ Member's *spec.name* is not empty and not equal to *metadata.name*:
 teleport_access_list_member.fighter: Creating...
 ╷
 │ Error: Error creating Member
-│
+│ 
 │   with teleport_access_list_member.fighter,
-│   on main.tf line 36, in resource "teleport_access_list_member" "fighter":
-│   36: resource "teleport_access_list_member" "fighter" {
-│
-│ request's member.header.metadata.name "fighter" and member.spec.name "wizard" must be equal
-│ (alternatively spec.name can be empty). Tip: There can be multiple members with the same
-│ metadata.name if they have different spec.access_list set (i.e. they belong to different access
-│ lists).
+│   on main.tf line 43, in resource "teleport_access_list_member" "fighter":
+│   43: resource "teleport_access_list_member" "fighter" {
+│ 
+│ The values of member.header.metadata.name ("fighter") and member.spec.name ("wizard") must match, unless member.spec.name is left empty. Tip: You can have multiple members with the same
+│ metadata.name as long as each of them has a different spec.access_list (i.e., they belong to different access lists
 ╵
 ```
 
@@ -335,7 +312,7 @@ not supporting the new type:
 
 - if the static Access List is only being read, nothing happens
 - if the static Access List is modified in the UI in any way, including modifying its members it
-  ill be converted to a regular Access List, with audit set
+  ill be converted to a regular Access List, with audit settings set to a default values
 
 To better illustrate this, let's consider this scenario:
 
@@ -347,27 +324,16 @@ To better illustrate this, let's consider this scenario:
 When Terraform is being run again, there will be errors like this:
 
 ```
-╷
-│ Error: Error updating AccessList
-│
-│   with teleport_access_list.characters,
-│   on main.tf line 14, in resource "teleport_access_list" "characters":
-│   14: resource "teleport_access_list" "characters" {
-│
-│ audit not supported for non-reviewable access_list of type "static"
-╵
-```
-
-```
+Plan: 0 to add, 1 to change, 0 to destroy.
 ╷
 │ Error: Error reading Member
-│
-│   with teleport_access_list_member.npcs,
-│   on main.tf line 76, in resource "teleport_access_list_member" "npcs":
-│   76: resource "teleport_access_list_member" "npcs" {
-│
-│ rpc error: code = Unknown desc = member.spec.access_list must reference an access_list of static type (i.e. with spec.type set to "static"). Member "npcs" cannot be added to access list
-│ "characters" because access list "characters" is not of "static" type. Teleport IaC tools support adding members only to "static" access lists.
+│ 
+│   with teleport_access_list_member.fighter,
+│   on main.tf line 43, in resource "teleport_access_list_member" "fighter":
+│   43: resource "teleport_access_list_member" "fighter" {
+│ 
+│ Access list member's ("fighter") access list ("characters") is not static (i.e., access_list with spec.type set to "static"). Access list "characters" type is "" (default). Teleport IaC
+│ tools support adding members only to access lists of type "static".
 ╵
 ```
 
