@@ -30,7 +30,6 @@ import "C"
 
 import (
 	"net"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -118,11 +117,7 @@ func (w *wtmpBackend) Name() string {
 	return "wtmp"
 }
 
-func (w *wtmpBackend) Login(tty *os.File, username string, remote net.Addr, ts time.Time) (string, error) {
-	ttyName, err := GetTTYName(tty)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+func (w *wtmpBackend) Login(ttyName, username string, remote net.Addr, ts time.Time) (string, error) {
 	// String parameter validation.
 	if len(username) > userMaxLen {
 		return "", trace.BadParameter("username length exceeds OS limits")
