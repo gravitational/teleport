@@ -179,4 +179,22 @@ describe('StuckKeys', () => {
 
     expect(mockSendKeyboardInput).not.toHaveBeenCalled();
   });
+
+  it('does not release shift when used with regular keys after timeout', () => {
+    stuckKeys.handleKeyboardEvent({
+      e: { key: 'Shift' } as KeyboardEvent,
+      state: ButtonState.DOWN,
+      cli: mockTdpClient,
+    });
+
+    stuckKeys.handleKeyboardEvent({
+      e: { key: 'A' } as KeyboardEvent,
+      state: ButtonState.DOWN,
+      cli: mockTdpClient,
+    });
+
+    jest.advanceTimersByTime(stuckKeys.RELEASE_DELAY_MS * 2);
+
+    expect(mockSendKeyboardInput).not.toHaveBeenCalled();
+  });
 });
