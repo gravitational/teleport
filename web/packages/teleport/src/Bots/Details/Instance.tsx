@@ -22,11 +22,7 @@ import parseISO from 'date-fns/parseISO';
 import styled from 'styled-components';
 
 import Flex from 'design/Flex/Flex';
-import { Apple } from 'design/Icon/Icons/Apple';
 import { ArrowFatLinesUp } from 'design/Icon/Icons/ArrowFatLinesUp';
-import { Devices } from 'design/Icon/Icons/Devices';
-import { Linux } from 'design/Icon/Icons/Linux';
-import { Windows } from 'design/Icon/Icons/Windows';
 import {
   DangerOutlined,
   SecondaryOutlined,
