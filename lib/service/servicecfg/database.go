@@ -289,9 +289,9 @@ type DatabaseGCP struct {
 	ProjectID string
 	// InstanceID is the Cloud SQL instance ID.
 	InstanceID string
-	// ClusterID is the ID of the cluster. Required for AlloyDB databases.
+	// ClusterID is the ID of the cluster. Required only for AlloyDB databases.
 	ClusterID string
-	// Region is the GCP region. Required for AlloyDB databases.
+	// Region is the GCP region. Required only for AlloyDB databases.
 	Region string
 	// IsAlloyDB is true if the database is an AlloyDB server.
 	IsAlloyDB bool
