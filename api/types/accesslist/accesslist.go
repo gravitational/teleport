@@ -194,6 +194,9 @@ const (
 	SCIM Type = "scim"
 )
 
+// AllTypes is a slice of all currently supported access list types.
+var AllTypes = []Type{DeprecatedDynamic, Default, Static, SCIM}
+
 // IsReviewable returns true if the AccessList type supports the audit reviews in the web UI.
 func (t Type) IsReviewable() bool {
 	switch t {
