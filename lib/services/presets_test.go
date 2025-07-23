@@ -758,7 +758,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			name: "access-plugin (default roles match preset rules)",
 			role: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V8,
+				Version: types.V7,
 				Metadata: types.Metadata{
 					Name:        teleport.PresetAccessPluginRoleName,
 					Namespace:   apidefaults.Namespace,
@@ -771,7 +771,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			expectedErr: require.NoError,
 			expected: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V8,
+				Version: types.V7,
 				Metadata: types.Metadata{
 					Name:        teleport.PresetAccessPluginRoleName,
 					Namespace:   apidefaults.Namespace,
@@ -799,7 +799,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			name: "list-access-request-resources (default roles match preset rules)",
 			role: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V8,
+				Version: types.V7,
 				Metadata: types.Metadata{
 					Name:        teleport.PresetListAccessRequestResourcesRoleName,
 					Namespace:   apidefaults.Namespace,
@@ -812,7 +812,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			expectedErr: require.NoError,
 			expected: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V8,
+				Version: types.V7,
 				Metadata: types.Metadata{
 					Name:        teleport.PresetListAccessRequestResourcesRoleName,
 					Namespace:   apidefaults.Namespace,
