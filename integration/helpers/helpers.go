@@ -175,7 +175,7 @@ func CreateAgent(keyRing *client.KeyRing) (*sshagent.AgentServer, string, string
 	return agentServer, agentServer.Dir, agentServer.Path, nil
 }
 
-func CloseAgent(agent sshagent.AgentCloser, socketDirPath string) error {
+func CloseAgent(agent *sshagent.AgentServer, socketDirPath string) error {
 	err := agent.Close()
 	if err != nil {
 		return trace.Wrap(err)
