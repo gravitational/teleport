@@ -1,9 +1,14 @@
+import Flex from 'design/Flex';
+
 import cfg from 'e-teleport/config';
 import LoginForm from 'teleport/components/FormLogin';
 import { LogoHero } from 'teleport/components/LogoHero';
+import { PoweredByTeleportLogo } from 'teleport/components/PoweredByTeleportLogo';
 import Motd from 'teleport/Login/Motd';
 import useLogin, { State } from 'teleport/Login/useLogin';
 import history from 'teleport/services/history';
+
+import mcLogo from '../Main/mcLogo/mcLogo.svg';
 
 export function LoginContainer() {
   const state = useLogin() as State;
@@ -42,28 +47,48 @@ export function Login({
   if (checkingValidSession) {
     return null;
   }
+
+  const isCustomForm = cfg.oss.customTheme === 'mc';
+
+  const title = isCustomForm ? 'Sign in' : 'Sign in to Teleport';
+  const ssoTitle = isCustomForm
+    ? 'Sign in with SSO'
+    : 'Sign in to Teleport with SSO';
+
   return (
     <>
-      <LogoHero />
+      {cfg.oss.customTheme === 'mc' ? (
+        <LogoHero customSrc={mcLogo} />
+      ) : (
+        <LogoHero />
+      )}
       {showMotd ? (
         <Motd message={motd} onClick={acknowledgeMotd} />
       ) : (
-        <LoginForm
-          title={'Sign in to Teleport'}
-          authProviders={authProviders}
-          auth2faType={auth2faType}
-          preferredMfaType={preferredMfaType}
-          isLocalAuthEnabled={isLocalAuthEnabled}
-          onLoginWithSso={onLoginWithSso}
-          onLoginWithWebauthn={onLoginWithWebauthn}
-          onLogin={onLogin}
-          attempt={attempt}
-          clearAttempt={clearAttempt}
-          isRecoveryEnabled={isRecoveryEnabled}
-          onRecover={onRecover}
-          isPasswordlessEnabled={isPasswordlessEnabled}
-          primaryAuthType={primaryAuthType}
-        />
+        <>
+          <LoginForm
+            title={title}
+            ssoTitle={ssoTitle}
+            authProviders={authProviders}
+            auth2faType={auth2faType}
+            preferredMfaType={preferredMfaType}
+            isLocalAuthEnabled={isLocalAuthEnabled}
+            onLoginWithSso={onLoginWithSso}
+            onLoginWithWebauthn={onLoginWithWebauthn}
+            onLogin={onLogin}
+            attempt={attempt}
+            clearAttempt={clearAttempt}
+            isRecoveryEnabled={isRecoveryEnabled}
+            onRecover={onRecover}
+            isPasswordlessEnabled={isPasswordlessEnabled}
+            primaryAuthType={primaryAuthType}
+          />
+          {isCustomForm && (
+            <Flex alignItems="center" justifyContent="center">
+              <PoweredByTeleportLogo />
+            </Flex>
+          )}
+        </>
       )}
     </>
   );
