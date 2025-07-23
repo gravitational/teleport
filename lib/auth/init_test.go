@@ -940,6 +940,8 @@ func TestPresets(t *testing.T) {
 		teleport.PresetAuditorRoleName,
 		teleport.PresetTerraformProviderRoleName,
 		teleport.PresetWildcardWorkloadIdentityIssuerRoleName,
+		teleport.PresetAccessPluginRoleName,
+		teleport.PresetListAccessRequestResourcesRoleName,
 	}
 
 	t.Run("EmptyCluster", func(t *testing.T) {
