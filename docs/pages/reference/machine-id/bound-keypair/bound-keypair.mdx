@@ -1,0 +1,185 @@
+---
+title: Bound Keypair Joining Reference
+description: "Bound Keypair Joining: Reference and admin guide"
+---
+
+Bound Keypair is a join method designed to provide the best features of
+[delegated join methods][s-vs-d] - like the AWS, GCP, or Azure join
+methods - but in on-prem or otherwise unsupported environments where no external
+verification is available.
+
+Specifically, this join method:
+- Does not require dedicated TPM hardware or external identity attestation
+- Does not require long-lived shared secrets
+- Allows for limited automatic recovery if certificates expire
+- Allows recovery restrictions to be relaxed or lifted to accommodate different
+  use cases and deployment scenarios
+- Ensures failed bots can be recovered without client-side intervention in most
+  cases
+
+<Admonition type="tip" title="Preview Note">
+Bound Keypair Joining is available in v18.1.0 and is intended to replace `token`
+joining as the default recommended join method in Teleport v19.0.0.
+</Admonition>
+
+## Use cases
+
+Bound Keypair Joining can be used in any environment and is designed to function
+as a drop-in replacement for the traditional [`token`][ephemeral] join method in
+all situations where it is used today. This includes bare-metal and on-prem
+hardware where TPMs are not available, or cloud providers not currently
+supported by a [delegated join method][delegated].
+
+Similar to `token` joining, Bound Keypair Joining is also a good replacement for
+local experimentation for testing, with minimal configuration needed to onboard
+a bot initially. When ready to deploy to production, it's trivial to adjust
+onboarding and recovery settings to select your desired balance between
+resiliency and security.
+
+Additionally, with [`insecure` recovery](#disabling-join-state-verification) and
+in situations that can accommodate the security complications, Bound Keypair
+Joining can be used to join bots in otherwise unsupported CI/CD providers by
+persisting the bot's keypair in the platform keystore.
+
+## Limitations
+
+While Bound Keypair Joining does enable or simplify a number use cases, it does
+have limitations that may make it unfit in some instances.
+
+In particular, the [secure recovery modes](#recovery) introduce some deployment
+restrictions:
+- Each bot deployment must be issued a unique token. For deployment at scale,
+  use of Teleport's
+  [Terraform provider](../../terraform-provider/terraform-provider.mdx) is
+  recommended to create tokens in bulk for each deployment.
+- Each bot deployment must be able to store client-side state (used for
+  [join state verification](#join-state-verification)).
+
+This limitation can be worked around using the
+[`insecure` recovery mode](#disabling-join-state-verification), but doing so
+does meaningfully reduce the join method's security protections and should be
+used with care.
+
+## Next steps
+
+You can read step-by-step guides on using Bound Keypair Joining with Machine ID:
+
+- [Using Machine ID with Bound Keypair Joining](./getting-started.mdx):
+  How to install and configure Machine ID with Bound Keypair Joining
+- [Bound Keypair Joining Concepts](./concepts.mdx): Learn more about the
+  components and architecture of Bound Keypair Joining
+- [Bound Keypair Joining Admin Guide](./admin-guide.mdx): Learn how to deploy
+  and maintain bots in production with Bound Keypair Joining
+
+## Token resource examples
+
+Bound Keypair tokens can be configured using Teleport's existing `token`
+resource using the `bound_keypair` join method. For a complete reference, refer
+to the [provision token reference](../../join-methods.mdx#bound-keypair-bound_keypair).
+
+### Minimal token
+
+A minimal bound keypair token does not require any special configuration beyond
+specifying the `bound_keypair` join method value:
+```yaml
+kind: token
+version: v2
+metadata:
+  name: example
+spec:
+  roles: [Bot]
+  join_method: bound_keypair
+  bot_name: example
+```
+
+Without additional options specified, this will use the `standard` recovery mode
+with a default recovery limit of 1 to allow for the initial join. A registration
+secret will be automatically generated when the token is created on the Teleport
+cluster. To create and use this token, adjust the name and bot name as needed,
+and write it to a file, for example `token.yaml`, and run:
+
+```code
+$ tctl create -f token.yaml
+$ tctl get token/example-bkp --format=json | jq -r '.[0].status.bound_keypair.registration_secret'
+```
+
+This will print the registration secret which can be provided to the `tbot`
+client using the `--registration-secret` flag:
+```code
+$ tbot configure identity \
+  --proxy-server=example.teleport.sh:443 \
+  --join-method=bound_keypair \
+  --token=example \
+  --registration-secret=$SECRET_VALUE \
+  --destination=./destination > tbot.yaml
+$ tbot start -c tbot.yaml
+```
+
+### Preregistered key example
+
+To use a preregistered key instead of a registration secret, a keypair needs to
+be generated on the bot host. To do so, run the following commands:
+```code
+## If needed, create the bot's storage directory
+$ mkdir -p /var/lib/teleport/bot
+$ tbot keypair create --storage /var/lib/teleport/bot --proxy-server=example.teleport.sh:443
+2025-07-08T16:31:48.000-00:00 INFO [TBOT]      keypair has been written to storage storage:directory: /var/lib/teleport/bot tbot/keypair.go:135
+
+To register the keypair with Teleport, include this public key in the token's
+`spec.bound_keypair.onboarding.initial_public_key`:
+
+	ssh-ed25519 <data>
+```
+
+Note that while a proxy server address must be provided, this is only used to
+ping the cluster to determine its configured
+[signature algorithms](../../signature-algorithms.mdx). Once the keypair has been
+generated, the public key will be printed to the console.
+
+Next, create a file named `token.yaml` with the following content:
+
+```yaml
+kind: token
+version: v2
+metadata:
+  name: example-token
+spec:
+  roles: [Bot]
+  join_method: bound_keypair
+  bot_name: example
+  bound_keypair:
+    onboarding:
+      initial_public_key: "ssh-ed25519 <data>"
+```
+
+Copy the public key (including the `ssh-ed25519 ...` prefix or similar) into the
+`initial_public_key` field, and make certain the value is contained in quotes.
+
+Once finished, run the following to create the token and join the bot:
+```code
+## Create the token.
+$ tctl create -f token.yaml
+## Configure and start the bot.
+$ tbot configure identity \
+  --proxy-server=example.teleport.sh:443 \
+  --join-method=bound_keypair \
+  --token=example \
+  --storage=/var/lib/teleport/bot \
+  --destination=./destination > tbot.yaml
+$ tbot start -c tbot.yaml
+```
+
+Note the following:
+- In this example, the recovery limit defaults to 1, and will be reached as soon
+  as the bot joins. To enable automatic recovery, increase the recovery limit to
+  the desired value.
+- The `tctl create` and `tbot` commands do not need to be run on the same host.
+  Typically, you might create tokens on your local machine and run `tbot` on a
+  remote server.
+
+
+
+[delegated]: ../../join-methods.mdx#delegated-join-methods
+[ephemeral]: ../../architecture/machine-id-architecture.mdx#ephemeral-token
+[token]: ../../join-methods.mdx#ephemeral-tokens
+[s-vs-d]: ../../join-methods.mdx#secret-vs-delegated

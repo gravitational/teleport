@@ -16,8 +16,9 @@ perform an automated recovery to ensure the bot can rejoin even after an
 extended outage.
 
 Note that platform-specific join methods may be available that are better suited
-to your environment; refer to the [deployment guides](./deployment.mdx) for a
-full list of options.
+to your environment; refer to the
+[deployment guides](../../../machine-workload-identity/machine-id/deployment/deployment.mdx)
+for a full list of options.
 
 ## How it works
 
@@ -48,8 +49,8 @@ can be reconfigured at any time, and bots that expire or go offline can be
 recovered by making a server-side exemption without any client-side
 intervention.
 
-Refer to the [admin guide][guide] for further details on how this join method
-works.
+Refer to the [reference page][reference] for further details on how this join
+method works and how to use it in production.
 
 ## Prerequisites
 
@@ -61,7 +62,7 @@ works.
 - This guide assumes the bot host has mutable persistent storage for internal
   bot data. While it is possible to use Bound Keypair Joining can on immutable
   hosts (like CI runs), doing so will reduce security guarantees; see the
-  [admin guide][guide] for further information.
+  [reference page][reference] for further information.
 
 ## Step 1/5. Install `tbot`
 
@@ -125,7 +126,7 @@ hosts.
 
 To learn more about preregistering public keys and Bound Keypair Joining's other
 onboarding and recovery options, refer to the
-[Reference and Admin Guide][guide].
+[reference page][reference].
 </Admonition>
 
 Use `tctl` to apply this file:
@@ -178,13 +179,13 @@ Replace the following:
 
 ## Next steps
 
-- Read the [Bound Keypair Joining Reference and Admin Guide][guide]
+- Read the [Bound Keypair Joining Reference][reference]
   for more details about the join method and the available configuration options.
-- Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
-  your environment.
-- Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
+- Follow the [access guides](../../../machine-workload-identity/machine-id/access-guides/access-guides.mdx)
+  to finish configuring `tbot` for your environment.
+- Read the [configuration reference](../configuration.mdx) to explore
   all the available configuration options.
-- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-id/telemetry.mdx)
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../telemetry.mdx)
 
-[secret]: ../../../reference/join-methods.mdx#secret-vs-delegated
-[guide]: ../../../reference/machine-id/bound-keypair.mdx
+[secret]: ../../join-methods.mdx#secret-vs-delegated
+[reference]: ./bound-keypair.mdx
