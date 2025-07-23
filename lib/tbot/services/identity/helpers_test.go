@@ -37,7 +37,7 @@ type testYAMLCase[T any] struct {
 func testYAML[T any](t *testing.T, tests []testYAMLCase[T]) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			b := bytes.NewBuffer(nil)
+			b := new(bytes.Buffer)
 			encoder := yaml.NewEncoder(b)
 			encoder.SetIndent(2)
 			require.NoError(t, encoder.Encode(&tt.in))
