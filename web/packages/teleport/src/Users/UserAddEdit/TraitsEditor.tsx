@@ -56,7 +56,6 @@ export function TraitsEditor({
   isLoading,
   configuredTraits,
   setConfiguredTraits,
-  tooltipContent,
   label = 'User Traits',
   addActionLabel = 'Add a user trait',
   addActionSubsequentLabel = 'Add another user trait',
@@ -107,7 +106,7 @@ export function TraitsEditor({
 
   return (
     <Box>
-      <Text typography="body3">User Traits</Text>
+      <Text typography="body3">{label}</Text>
       <Box>
         {configuredTraits.map(({ traitKey, traitValues }, index) => {
           return (
@@ -260,7 +259,6 @@ export type TraitEditorProps = {
   setConfiguredTraits: Dispatch<SetStateAction<TraitsOption[]>>;
   configuredTraits: TraitsOption[];
   isLoading: boolean;
-  tooltipContent?: React.ReactNode;
   label?: string;
   addActionLabel?: string;
   addActionSubsequentLabel?: string;
