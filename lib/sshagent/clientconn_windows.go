@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
+	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -35,32 +36,43 @@ import (
 
 	"github.com/Microsoft/go-winio"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
 )
 
 const namedPipe = `\\.\pipe\openssh-ssh-agent`
 
-// Dial creates net.Conn to a SSH agent listening on a Windows named pipe.
-// This is behind a build flag because winio.DialPipe is only available on
-// Windows. If connecting to a named pipe fails and we're in a Cygwin
-// environment, a connection to a Cygwin SSH agent will be attempted.
-func Dial(socket string) (net.Conn, error) {
-	conn, err := winio.DialPipe(namedPipe, nil)
-	if err != nil {
-		// MSYSTEM is used to specify what Cygwin environment is used;
-		// if it exists, there's a very good chance we're in a Cygwin
-		// environment
-		if msys := os.Getenv("MSYSTEM"); msys != "" {
-			conn, err := dialCygwin(socket)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return conn, nil
-		}
+// DialSystemAgent connects to the SSH agent listening on a Windows named pipe.
+// If connecting to a named pipe fails and we're in a Cygwin environment, a
+// connection to the Cygwin SSH agent advertised by SSH_AUTH_SOCK will be attempted.
+//
+// This is behind a build flag because winio.DialPipe is only available on Windows.
+func DialSystemAgent() (io.ReadWriteCloser, error) {
+	logger := slog.With(teleport.ComponentKey, teleport.ComponentKeyAgent)
+	logger.DebugContext(context.Background(), "Connecting to the Windows system agent", "socket_path", namedPipe)
 
-		return nil, trace.Wrap(err)
+	conn, err := winio.DialPipe(namedPipe, nil)
+	if err == nil {
+		return conn, nil
 	}
 
-	return conn, nil
+	// MSYSTEM is used to specify what Cygwin environment is used;
+	// if it exists, there's a very good chance we're in a Cygwin
+	// environment
+	msys := os.Getenv("MSYSTEM")
+	socketPath := os.Getenv(teleport.SSHAuthSock)
+	if msys != "" && socketPath != "" {
+		logger := slog.With(teleport.ComponentKey, teleport.ComponentKeyAgent)
+		logger.DebugContext(context.Background(), "Connecting to the Cygwin system agent", "socket_path", socketPath)
+
+		conn, err := dialCygwin(socketPath)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return conn, nil
+	}
+
+	return nil, trace.Wrap(err)
 }
 
 // SIDs that are computer or domain SIDs start with this prefix.

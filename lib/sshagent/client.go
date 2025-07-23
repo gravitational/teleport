@@ -17,16 +17,11 @@
 package sshagent
 
 import (
-	"context"
-	"log/slog"
-	"net"
-	"os"
+	"io"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-
-	"github.com/gravitational/teleport"
 )
 
 // Client is a client implementation of [agent.ExtendedAgent] that opens
@@ -37,26 +32,25 @@ import (
 // requests. This issue may be resolved directly by the crypto/ssh/agent library
 // once https://github.com/golang/go/issues/61383 is addressed.
 type Client struct {
-	path string
+	connect connectFn
 }
 
-// NewClient creates a new SSH Agent client.
-func NewClient() *Client {
-	socketPath := os.Getenv(teleport.SSHAuthSock)
+// connectFn is a function to connect to an SSH agent. The returned connection is
+// any [io.ReadWriteCloser], such as a [net.Conn] or [ssh.Channel].
+type connectFn func() (io.ReadWriteCloser, error)
+
+// NewClient creates a new SSH Agent client. For each agent request, the
+// client will use the provided connect function to open a new connection
+// to the ssh agent.
+func NewClient(connect connectFn) *Client {
 	return &Client{
-		path: socketPath,
+		connect: connect,
 	}
 }
 
-func (a *Client) connect() (net.Conn, error) {
-	logger := slog.With(teleport.ComponentKey, teleport.ComponentKeyAgent)
-	logger.DebugContext(context.Background(), "Connecting to the system agent", "socket_path", a.path)
-	return Dial(a.path)
-}
-
 // List implements [agent.ExtendedAgent.List].
-func (a *Client) List() ([]*agent.Key, error) {
-	conn, err := a.connect()
+func (c *Client) List() ([]*agent.Key, error) {
+	conn, err := c.connect()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -67,8 +61,8 @@ func (a *Client) List() ([]*agent.Key, error) {
 }
 
 // List implements [agent.ExtendedAgent.Signers].
-func (a *Client) Signers() ([]ssh.Signer, error) {
-	conn, err := a.connect()
+func (c *Client) Signers() ([]ssh.Signer, error) {
+	conn, err := c.connect()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -79,8 +73,8 @@ func (a *Client) Signers() ([]ssh.Signer, error) {
 }
 
 // SignWithFlags implements [agent.ExtendedAgent.Sign].
-func (a *Client) Sign(key ssh.PublicKey, data []byte) (*ssh.Signature, error) {
-	conn, err := a.connect()
+func (c *Client) Sign(key ssh.PublicKey, data []byte) (*ssh.Signature, error) {
+	conn, err := c.connect()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -92,8 +86,8 @@ func (a *Client) Sign(key ssh.PublicKey, data []byte) (*ssh.Signature, error) {
 
 // SignWithFlags implements [agent.ExtendedAgent.SignWithFlags].
 // key.
-func (a *Client) SignWithFlags(key ssh.PublicKey, data []byte, flags agent.SignatureFlags) (*ssh.Signature, error) {
-	conn, err := a.connect()
+func (c *Client) SignWithFlags(key ssh.PublicKey, data []byte, flags agent.SignatureFlags) (*ssh.Signature, error) {
+	conn, err := c.connect()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -104,8 +98,8 @@ func (a *Client) SignWithFlags(key ssh.PublicKey, data []byte, flags agent.Signa
 }
 
 // Add implements [agent.ExtendedAgent.Add].
-func (a *Client) Add(key agent.AddedKey) error {
-	conn, err := a.connect()
+func (c *Client) Add(key agent.AddedKey) error {
+	conn, err := c.connect()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -116,8 +110,8 @@ func (a *Client) Add(key agent.AddedKey) error {
 }
 
 // Remove implements [agent.ExtendedAgent.Remove].
-func (a *Client) Remove(key ssh.PublicKey) error {
-	conn, err := a.connect()
+func (c *Client) Remove(key ssh.PublicKey) error {
+	conn, err := c.connect()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -128,8 +122,8 @@ func (a *Client) Remove(key ssh.PublicKey) error {
 }
 
 // RemoveAll implements [agent.ExtendedAgent.RemoveAll].
-func (a *Client) RemoveAll() error {
-	conn, err := a.connect()
+func (c *Client) RemoveAll() error {
+	conn, err := c.connect()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -140,8 +134,8 @@ func (a *Client) RemoveAll() error {
 }
 
 // Lock implements [agent.ExtendedAgent.Lock].
-func (a *Client) Lock(passphrase []byte) error {
-	conn, err := a.connect()
+func (c *Client) Lock(passphrase []byte) error {
+	conn, err := c.connect()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -152,8 +146,8 @@ func (a *Client) Lock(passphrase []byte) error {
 }
 
 // Unlock implements [agent.ExtendedAgent.Unlock].
-func (a *Client) Unlock(passphrase []byte) error {
-	conn, err := a.connect()
+func (c *Client) Unlock(passphrase []byte) error {
+	conn, err := c.connect()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -164,8 +158,8 @@ func (a *Client) Unlock(passphrase []byte) error {
 }
 
 // Extension implements [agent.ExtendedAgent.Extension].
-func (a *Client) Extension(extensionType string, contents []byte) ([]byte, error) {
-	conn, err := a.connect()
+func (c *Client) Extension(extensionType string, contents []byte) ([]byte, error) {
+	conn, err := c.connect()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

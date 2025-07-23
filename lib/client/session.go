@@ -260,7 +260,7 @@ func selectKeyAgent(tc *TeleportClient) agent.ExtendedAgent {
 	switch tc.ForwardAgent {
 	case ForwardAgentYes:
 		log.DebugContext(context.Background(), "Selecting system key agent")
-		return sshagent.NewClient()
+		return sshagent.NewClient(sshagent.DialSystemAgent)
 	case ForwardAgentLocal:
 		log.DebugContext(context.Background(), "Selecting local Teleport key agent")
 		return tc.localAgent.ExtendedAgent
