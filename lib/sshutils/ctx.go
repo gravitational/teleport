@@ -112,9 +112,8 @@ func NewConnectionContext(ctx context.Context, nconn net.Conn, sconn *ssh.Server
 	return ctx, ccx
 }
 
-// agentChannel implements the extended telesshagent.AgentCloser interface,
-// allowing the underlying ssh.Channel to be closed when the agent
-// is no longer needed.
+// agentChannel is a light wrapper around [ssh.Channel] to implement [io.ReadWriteCloser],
+// ensuring the channel is closed once it is no longer needed.
 type agentChannel struct {
 	ssh.Channel
 }

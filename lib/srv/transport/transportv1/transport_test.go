@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -120,7 +119,7 @@ func (f fakeDialer) DialSite(ctx context.Context, clusterName string, clientSrcA
 	return conn, nil
 }
 
-func (f fakeDialer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter sshagent.Getter, singer agentless.SignerCreator) (_ net.Conn, err error) {
+func (f fakeDialer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, sshAgent agent.ExtendedAgent, singer agentless.SignerCreator) (_ net.Conn, err error) {
 	key := fmt.Sprintf("%s.%s.%s", host, port, cluster)
 	conn, ok := f.hostConns[key]
 	if !ok {
@@ -576,17 +575,8 @@ func TestService_ProxySSH(t *testing.T) {
 		Logger:            logtest.NewLogger(),
 		LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
 		ConnectionMonitor: fakeMonitor{},
-		agentGetterFn: func(rw io.ReadWriter) sshagent.Getter {
-			return func() (sshagent.AgentCloser, error) {
-				srw, ok := rw.(*streamutils.ReadWriter)
-				if !ok {
-					return nil, trace.BadParameter("rw must be a streamutils.ReadWriter")
-				}
-
-				return testAgent{
-					ReadWriteCloser: srw,
-				}, nil
-			}
+		serveAgent: func(rw io.ReadWriteCloser) {
+			go agent.ServeAgent(sshSrv.keyring, rw)
 		},
 		authzContextFn: func(info credentials.AuthInfo) (*authz.Context, error) {
 			return &authz.Context{Checker: fakeChecker{}}, nil
@@ -921,13 +911,6 @@ func (s *clientStream) Send(frame []byte) error {
 	return trace.Wrap(s.stream.Send(s.responseFn(frame)))
 }
 
-// testAgent is a marker type used by the test dialer to
-// know that it should serve agent protocol on the stream.
-type testAgent struct {
-	io.ReadWriteCloser
-	agent.ExtendedAgent
-}
-
 // sshServer a test ssh server that implements Dialer
 // by creating a new client connection to itself
 type sshServer struct {
@@ -954,29 +937,11 @@ func (s *sshServer) DialSite(ctx context.Context, clusterName string, clientSrcA
 // nil and is of type testAgent, then the server will serve its keyring
 // over the underlying [streamutils.ReadWriter] so that tests can exercise
 // ssh agent multiplexing.
-func (s *sshServer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter sshagent.Getter, singer agentless.SignerCreator) (_ net.Conn, err error) {
+func (s *sshServer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, sshAgent agent.ExtendedAgent, singer agentless.SignerCreator) (_ net.Conn, err error) {
 	conn, err := s.dial()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if agentGetter == nil {
-		return conn, nil
-	}
-
-	agnt, err := agentGetter()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	rw, ok := agnt.(testAgent)
-	if !ok {
-		return conn, nil
-	}
-
-	go func() {
-		agent.ServeAgent(s.keyring, rw)
-	}()
 
 	return conn, nil
 }

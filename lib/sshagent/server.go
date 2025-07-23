@@ -34,31 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// AgentCloser extends the [agent.ExtendedAgent] interface with the
-// `Close()` method. APIs which accept this interface promise to
-// call `Close()` when they are done using the supplied agent.
-type AgentCloser interface {
-	agent.ExtendedAgent
-	io.Closer
-}
-
-// nopCloser wraps an agent.Agent in the extended
-// Agent interface by adding a NOP closer.
-type nopCloser struct {
-	agent.ExtendedAgent
-}
-
-func (n nopCloser) Close() error { return nil }
-
-// NopCloser wraps an agent.Agent with a NOP closer, allowing it
-// to be passed to APIs which expect the extended agent interface.
-func NopCloser(std agent.ExtendedAgent) AgentCloser {
-	return nopCloser{std}
-}
-
-// Getter is a function used to get an agent instance.
-type Getter func() (AgentCloser, error)
-
 // Server is implementation of SSH agent server
 type Server struct {
 	agent    agent.ExtendedAgent

@@ -40,7 +40,6 @@ import (
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -48,7 +47,7 @@ import (
 // Dialer is the interface that groups basic dialing methods.
 type Dialer interface {
 	DialSite(ctx context.Context, cluster string, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error)
-	DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter sshagent.Getter, singer agentless.SignerCreator) (net.Conn, error)
+	DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, sshAgent agent.ExtendedAgent, singer agentless.SignerCreator) (net.Conn, error)
 	DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, cluster string, clusterAccessChecker func(types.RemoteCluster) error) (net.Conn, error)
 }
 
@@ -74,10 +73,8 @@ type ServerConfig struct {
 	ConnectionMonitor ConnectionMonitor
 	// LocalAddr is the local address of the service.
 	LocalAddr net.Addr
-
-	// agentGetterFn used by tests to serve the agent directly
-	agentGetterFn func(rw io.ReadWriter) sshagent.Getter
-
+	// serveAgent used by tests to inject an agent server to serve the given connection
+	serveAgent func(rw io.ReadWriteCloser)
 	// authzContextFn used by tests to inject an access checker
 	authzContextFn func(info credentials.AuthInfo) (*authz.Context, error)
 }
@@ -95,14 +92,6 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 
 	if c.Logger == nil {
 		c.Logger = slog.With(teleport.ComponentKey, "transport")
-	}
-
-	if c.agentGetterFn == nil {
-		c.agentGetterFn = func(rw io.ReadWriter) sshagent.Getter {
-			return func() (sshagent.AgentCloser, error) {
-				return sshagent.NopCloser(agent.NewClient(rw)), nil
-			}
-		}
 	}
 
 	if c.authzContextFn == nil {
@@ -287,8 +276,12 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		return trace.Wrap(err, "could get not client destination address; listener address %q, client source address %q", s.cfg.LocalAddr.String(), p.Addr.String())
 	}
 
+	if s.cfg.serveAgent != nil {
+		s.cfg.serveAgent(agentStreamRW)
+	}
+
 	signer := s.cfg.SignerFn(authzContext, req.DialTarget.Cluster)
-	hostConn, err := s.cfg.Dialer.DialHost(ctx, p.Addr, clientDst, host, port, req.DialTarget.Cluster, authzContext.Checker.CheckAccessToRemoteCluster, s.cfg.agentGetterFn(agentStreamRW), signer)
+	hostConn, err := s.cfg.Dialer.DialHost(ctx, p.Addr, clientDst, host, port, req.DialTarget.Cluster, authzContext.Checker.CheckAccessToRemoteCluster, agent.NewClient(agentStreamRW), signer)
 	if err != nil {
 		// Return ambiguous errors unadorned so that clients can detect them easily.
 		if errors.Is(err, teleport.ErrNodeIsAmbiguous) {
