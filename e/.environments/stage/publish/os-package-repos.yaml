@@ -2,14 +2,14 @@
 # APT vars
 APT_REPO_DOMAIN_NAME: apt.releases.development.teleport.dev
 APT_S3_BUCKET: apt.releases.development.teleport.dev-13435073972637832216 # TODO(fheinecke) move these resources to teleport-stage in the future
-APT_DEPLOYMENT_AWS_ROLE: arn:aws:iam::278576220453:role/APT-repo-hosting-teleport.e-gha-role # TODO(fheinecke) move these resources to teleport-stage in the future
+APT_DEPLOYMENT_AWS_ROLE: arn:aws:iam::278576220453:role/apt-repo-hosting-teleport.e-gha-role # TODO(fheinecke) move these resources to teleport-stage in the future
 APT_CLOUDFRONT_DISTRIBUTION: EXVCOE8KL97OY # TODO(fheinecke) move these resources to teleport-stage in the future
 
 # YUM vars
 YUM_REPO_DOMAIN_NAME: yum.releases.development.teleport.dev
 YUM_S3_BUCKET: yum.releases.development.teleport.dev-18367672720337030431 # TODO(fheinecke) move these resources to teleport-stage in the future
 YUM_REPO_BASE_DOMAIN_NAME: releases.development.teleport.dev # TODO(fheinecke) move these resources to teleport-stage in the future
-YUM_DEPLOYMENT_AWS_ROLE: arn:aws:iam::278576220453:role/YUM-repo-hosting-teleport.e-gha-role # TODO(fheinecke) move these resources to teleport-stage in the future
+YUM_DEPLOYMENT_AWS_ROLE: arn:aws:iam::278576220453:role/yum-repo-hosting-teleport.e-gha-role # TODO(fheinecke) move these resources to teleport-stage in the future
 YUM_CLOUDFRONT_DISTRIBUTION: E1VNI2ZW4IXMX6 # TODO(fheinecke) move these resources to teleport-stage in the future
 
 # OPRT vars
