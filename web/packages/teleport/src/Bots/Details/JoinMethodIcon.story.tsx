@@ -51,11 +51,13 @@ function Wrapper(props: { size: IconProps['size'] }) {
     <Container>
       {methods.map(m => (
         <Flex key={m} flexDirection={'column'} alignItems={'center'} gap={2}>
-          <JoinMethodIcon
-            method={m}
-            size={props.size}
-            color={hasIcon.includes(m) ? undefined : 'red'}
-          />
+          <IconContainer>
+            <JoinMethodIcon
+              method={m}
+              size={props.size}
+              color={hasIcon.includes(m) ? undefined : 'red'}
+            />
+          </IconContainer>
           {m}
         </Flex>
       ))}
@@ -69,6 +71,12 @@ const Container = styled(Flex)`
   gap: ${props => props.theme.space[4]}px;
   align-items: center;
   justify-content: center;
+`;
+
+const IconContainer = styled(Flex)`
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed ${p => p.theme.colors.text.main};
 `;
 
 export const methods = [
