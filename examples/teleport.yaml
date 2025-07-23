@@ -1,0 +1,41 @@
+#
+# A Sample Teleport configuration file.
+#
+# Things to update:
+#  1. license.pem: Retrieve a license from your Teleport account https://teleport.sh
+#     if you are an Enterprise customer.
+#
+version: v3
+teleport:
+  nodename: baghuiseon-ui-MacBookAir.local
+  data_dir: /var/lib/teleport
+  join_params:
+    token_name: ""
+    method: token
+  log:
+    output: stderr
+    severity: INFO
+    format:
+      output: text
+  ca_pin: ""
+  diag_addr: ""
+auth_service:
+  enabled: "yes"
+  listen_addr: 0.0.0.0:3025
+  proxy_listener_mode: multiplex
+ssh_service:
+  enabled: "yes"
+proxy_service:
+  enabled: "yes"
+  listen_addr: 127.0.0.1:3080
+  public_addr: baghuiseon-ui-MacBookAir.local:3080
+  https_keypairs:
+    - key_file: /Users/heesunpark/.teleport/certs/key.pem
+      cert_file: /Users/heesunpark/.teleport/certs/cert.pem
+kubernetes_service:
+  enabled: true
+  listen_addr: 0.0.0.0:3026
+  kubeconfig_file: "/Users/heesunpark/.kube/config"
+  labels:
+    "region": "south korea"
+  public_addr: 172.30.1.72:3026
