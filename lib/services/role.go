@@ -2766,8 +2766,11 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		}
 
 		// Device verification.
-		deviceVerificationPassed := true
+		var deviceVerificationPassed bool
 		switch role.GetOptions().DeviceTrustMode {
+		case constants.DeviceTrustModeOff, constants.DeviceTrustModeOptional:
+			// OK, extensions not enforced.
+			deviceVerificationPassed = true
 		case constants.DeviceTrustModeRequiredForHumans:
 			// Humans must use trusted devices, bots can use untrusted devices.
 			deviceVerificationPassed = deviceTrusted || state.IsBot
