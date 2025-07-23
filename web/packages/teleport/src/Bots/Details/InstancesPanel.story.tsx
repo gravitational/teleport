@@ -40,13 +40,14 @@ const meta = {
   beforeEach: () => {
     queryClient.clear(); // Prevent cached data sharing between stories
   },
+  excludeStories: ['listBotInstancesSuccessHandler'],
 } satisfies Meta<typeof Wrapper>;
 
 type Story = StoryObj<typeof meta>;
 
 export default meta;
 
-const listBotInstancesSuccessHandler = listBotInstancesSuccess({
+export const listBotInstancesSuccessHandler = listBotInstancesSuccess({
   bot_instances: [
     {
       bot_name: 'ansible-worker',

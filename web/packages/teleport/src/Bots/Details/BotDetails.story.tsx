@@ -43,6 +43,7 @@ import {
 } from 'teleport/test/helpers/tokens';
 
 import { BotDetails } from './BotDetails';
+import { listBotInstancesSuccessHandler } from './InstancesPanel.story';
 
 const meta = {
   title: 'Teleport/Bots/Details',
@@ -80,57 +81,6 @@ const successHandler = getBotSuccess({
   max_session_ttl: {
     seconds: 43200,
   },
-});
-
-const listBotInstancesSuccessHandler = listBotInstancesSuccess({
-  bot_instances: [
-    {
-      bot_name: 'ansible-worker',
-      instance_id: crypto.randomUUID(),
-      active_at_latest: '2025-07-22T10:54:00Z',
-      host_name_latest: 'svr-lon-01-ab23cd',
-      join_method_latest: 'github',
-      os_latest: 'linux',
-      version_latest: '4.4.16',
-    },
-    {
-      bot_name: 'ansible-worker',
-      instance_id: crypto.randomUUID(),
-      active_at_latest: '2025-07-22T10:54:00Z',
-      host_name_latest: 'win-123a',
-      join_method_latest: 'tpm',
-      os_latest: 'windows',
-      version_latest: '3.1.0+ab12hd',
-    },
-    {
-      bot_name: 'ansible-worker',
-      instance_id: crypto.randomUUID(),
-      active_at_latest: '2025-07-22T10:54:00Z',
-      host_name_latest: 'mac-007',
-      join_method_latest: 'kubernetes',
-      os_latest: 'darwin',
-      version_latest: '2.9.99',
-    },
-    {
-      bot_name: 'ansible-worker',
-      instance_id: crypto.randomUUID(),
-      active_at_latest: '2025-07-22T10:54:00Z',
-      host_name_latest: 'aws:g49dh27dhjm3',
-      join_method_latest: 'ec2',
-      os_latest: 'linux',
-      version_latest: '1.3.2',
-    },
-    {
-      bot_name: 'ansible-worker',
-      instance_id: crypto.randomUUID(),
-      active_at_latest: '2025-07-22T10:54:00Z',
-      host_name_latest: 'ios-build-42',
-      join_method_latest: 'kubernetes',
-      os_latest: 'darwin',
-      version_latest: '5.0.0-dev',
-    },
-  ],
-  next_page_token: '',
 });
 
 export const Happy: Story = {

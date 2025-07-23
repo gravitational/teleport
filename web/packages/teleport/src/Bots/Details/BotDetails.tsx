@@ -260,6 +260,7 @@ const PanelContentContainer = styled.div`
 const Divider = styled.div`
   height: 1px;
   background-color: ${p => p.theme.colors.interactive.tonal.neutral[0]};
+  flex-shrink: 0;
 `;
 
 const PaddedDivider = styled(Divider)`
