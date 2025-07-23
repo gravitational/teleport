@@ -738,6 +738,35 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 		}
 	}
 
+	// Add [empty] CRLs to any issuers that are missing them.
+	// These are valid for 10 years and regenerated on CA rotation.
+	updated := false
+	for _, kp := range ca.GetActiveKeys().TLS {
+		if kp.CRL != nil {
+			continue
+		}
+		certBytes, signer, err := asrv.keyStore.GetTLSCertAndSigner(ctx, ca)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		cert, err := tlsca.ParseCertificatePEM(certBytes)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		crl, err := keystore.GenerateCRL(cert, signer)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		kp.CRL = crl
+		updated = true
+	}
+
+	if updated {
+		if ca, err = asrv.UpdateCertAuthority(ctx, ca); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
 	// Make sure the keystore has usable keys. This is a bit redundant if the CA
 	// was just generated above, but cheap relative to generating the CA, and
 	// it's nice to get the usableKeysResult.
