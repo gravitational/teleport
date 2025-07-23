@@ -187,7 +187,7 @@ func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string,
 	}
 
 	// Re-execute client tools with the correct version of client tools.
-	code, err := updater.Exec(toolsVersion, args)
+	code, err := updater.Exec(ctx, toolsVersion, args)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		slog.DebugContext(ctx, "Failed to re-exec client tool", "error", err, "code", code)
 		os.Exit(code)
