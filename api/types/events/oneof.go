@@ -886,6 +886,22 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SigstorePolicyDelete{
 			SigstorePolicyDelete: e,
 		}
+	case *MCPSessionStart:
+		out.Event = &OneOf_MCPSessionStart{
+			MCPSessionStart: e,
+		}
+	case *MCPSessionEnd:
+		out.Event = &OneOf_MCPSessionEnd{
+			MCPSessionEnd: e,
+		}
+	case *MCPSessionRequest:
+		out.Event = &OneOf_MCPSessionRequest{
+			MCPSessionRequest: e,
+		}
+	case *MCPSessionNotification:
+		out.Event = &OneOf_MCPSessionNotification{
+			MCPSessionNotification: e,
+		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}

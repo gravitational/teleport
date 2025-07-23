@@ -350,7 +350,7 @@ func testX11Forward(ctx context.Context, t *testing.T, proc *networking.Process,
 	}
 	require.NoError(t, err)
 
-	cred, err := getCmdCredential(localUser)
+	cred, err := host.GetHostUserCredential(localUser)
 	require.NoError(t, err)
 
 	// Create a temporary xauth file path belonging to the user.
