@@ -36,21 +36,21 @@ type SessionRecordingConfigGetter interface {
 // to provide encryption and decryption wrapping backed by cluster resources
 type EncryptedIO struct {
 	srcGetter SessionRecordingConfigGetter
-	keyFinder DecryptionKeyFinder
+	unwrapper KeyUnwrapper
 }
 
 // NewEncryptedIO returns an EncryptedIO configured with the given SessionRecordingConfigGetter and
 // recordingencryption.DecryptionKeyFinder
-func NewEncryptedIO(srcGetter SessionRecordingConfigGetter, decryptionKeyGetter DecryptionKeyFinder) (*EncryptedIO, error) {
+func NewEncryptedIO(srcGetter SessionRecordingConfigGetter, unwrapper KeyUnwrapper) (*EncryptedIO, error) {
 	switch {
 	case srcGetter == nil:
 		return nil, trace.BadParameter("SessionRecordingConfigGetter is required for EncryptedIO")
-	case decryptionKeyGetter == nil:
+	case unwrapper == nil:
 		return nil, trace.BadParameter("DecryptionKeyFinder is required for EncryptedIO")
 	}
 	return &EncryptedIO{
 		srcGetter: srcGetter,
-		keyFinder: decryptionKeyGetter,
+		unwrapper: unwrapper,
 	}, nil
 }
 
@@ -71,7 +71,7 @@ func (e *EncryptedIO) WithEncryption(ctx context.Context, writer io.WriteCloser)
 // will dynamically search for an accessible decryption key using the provided recordingencryption.DecryptionKeyFinder
 // in order to perform decryption
 func (e *EncryptedIO) WithDecryption(ctx context.Context, reader io.Reader) (io.Reader, error) {
-	ident := NewRecordingIdentity(ctx, e.keyFinder)
+	ident := NewRecordingIdentity(ctx, e.unwrapper)
 	r, err := age.Decrypt(reader, ident)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -105,7 +105,7 @@ func (s *EncryptionWrapper) WithEncryption(ctx context.Context, writer io.WriteC
 
 	var recipients []age.Recipient
 	for _, key := range s.config.GetEncryptionKeys() {
-		recipient, err := ParseRecordingRecipient(string(key.PublicKey))
+		recipient, err := ParseRecordingRecipient(key.PublicKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

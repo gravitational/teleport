@@ -112,7 +112,7 @@ func (g *gcpKMSKeyStore) keyTypeDescription() string {
 }
 
 func (g *gcpKMSKeyStore) generateKey(ctx context.Context, algorithm cryptosuites.Algorithm, usage keyUsage) (gcpKMSKeyID, error) {
-	alg, err := gcpAlgorithm(algorithm)
+	alg, err := gcpAlgorithm(usage, algorithm)
 	if err != nil {
 		return gcpKMSKeyID{}, trace.Wrap(err)
 	}
@@ -176,12 +176,29 @@ func (g *gcpKMSKeyStore) generateDecrypter(ctx context.Context, algorithm crypto
 	return keyID.marshal(), decrypter, gcpOAEPHash, nil
 }
 
-func gcpAlgorithm(alg cryptosuites.Algorithm) (kmspb.CryptoKeyVersion_CryptoKeyVersionAlgorithm, error) {
+func gcpAlgorithm(usage keyUsage, alg cryptosuites.Algorithm) (kmspb.CryptoKeyVersion_CryptoKeyVersionAlgorithm, error) {
 	switch alg {
 	case cryptosuites.RSA2048:
-		return kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_2048_SHA256, nil
+		switch usage {
+		case keyUsageSign:
+			return kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_2048_SHA256, nil
+		case keyUsageDecrypt:
+			return kmspb.CryptoKeyVersion_RSA_DECRYPT_OAEP_2048_SHA256, nil
+		}
+	case cryptosuites.RSA4096:
+		switch usage {
+		case keyUsageSign:
+			return kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_4096_SHA256, nil
+		case keyUsageDecrypt:
+			return kmspb.CryptoKeyVersion_RSA_DECRYPT_OAEP_4096_SHA256, nil
+		}
 	case cryptosuites.ECDSAP256:
-		return kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256, nil
+		switch usage {
+		case keyUsageSign:
+			return kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256, nil
+		case keyUsageDecrypt:
+			return kmspb.CryptoKeyVersion_CRYPTO_KEY_VERSION_ALGORITHM_UNSPECIFIED, trace.BadParameter("unsupported algorithm for decryption: %v", alg)
+		}
 	}
 	return kmspb.CryptoKeyVersion_CRYPTO_KEY_VERSION_ALGORITHM_UNSPECIFIED, trace.BadParameter("unsupported algorithm: %v", alg)
 }
