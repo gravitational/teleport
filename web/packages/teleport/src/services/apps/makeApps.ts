@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AppSubKind } from 'shared/services';
 import { AwsRole } from 'shared/services/apps';
 
 import cfg from 'teleport/config';
 
-import { App, AppSubKind, PermissionSet } from './types';
+import { App, PermissionSet } from './types';
 
 function getLaunchUrl({
   fqdn,
@@ -64,6 +65,7 @@ export default function makeApp(json: any): App {
     samlAppPreset,
     subKind,
     samlAppLaunchUrls,
+    mcp,
   } = json;
 
   const launchUrl = getLaunchUrl({
@@ -80,6 +82,7 @@ export default function makeApp(json: any): App {
 
   const isTcp = !!uri && uri.startsWith('tcp://');
   const isCloud = !!uri && uri.startsWith('cloud://');
+  const isMCPStdio = !!uri && uri.startsWith('mcp+stdio://');
 
   let addrWithProtocol = uri;
   if (publicAddr) {
@@ -87,6 +90,8 @@ export default function makeApp(json: any): App {
       addrWithProtocol = `cloud://${publicAddr}`;
     } else if (isTcp) {
       addrWithProtocol = `tcp://${publicAddr}`;
+    } else if (isMCPStdio) {
+      addrWithProtocol = `mcp+stdio://${publicAddr}`;
     } else if (subKind === AppSubKind.AwsIcAccount) {
       /** publicAddr for Identity Center account app is a URL with scheme. */
       addrWithProtocol = publicAddr;
@@ -129,5 +134,6 @@ export default function makeApp(json: any): App {
     integration,
     permissionSets,
     samlAppLaunchUrls,
+    mcp,
   };
 }

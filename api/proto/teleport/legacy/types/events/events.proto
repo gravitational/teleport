@@ -4809,6 +4809,10 @@ message OneOf {
     events.AutoUpdateAgentRolloutTrigger AutoUpdateAgentRolloutTrigger = 213;
     events.AutoUpdateAgentRolloutForceDone AutoUpdateAgentRolloutForceDone = 214;
     events.AutoUpdateAgentRolloutRollback AutoUpdateAgentRolloutRollback = 215;
+    events.MCPSessionStart MCPSessionStart = 216;
+    events.MCPSessionEnd MCPSessionEnd = 217;
+    events.MCPSessionRequest MCPSessionRequest = 218;
+    events.MCPSessionNotification MCPSessionNotification = 219;
     events.BoundKeypairRecovery BoundKeypairRecovery = 220;
     events.BoundKeypairRotation BoundKeypairRotation = 221;
     events.BoundKeypairJoinStateVerificationFailed BoundKeypairJoinStateVerificationFailed = 222;
@@ -8522,6 +8526,175 @@ message SigstorePolicyDelete {
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
+  ];
+}
+
+// MCPSessionStart is emitted when a user starts a MCP session.
+message MCPSessionStart {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // ServerMetadata is a common server metadata
+  ServerMetadata Server = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // App is a common application resource metadata.
+  AppMetadata App = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// MCPSessionEnd is emitted when an MCP session ends.
+message MCPSessionEnd {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // ServerMetadata is a common server metadata
+  ServerMetadata Server = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // App is a common application resource metadata.
+  AppMetadata App = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// MCPJSONRPCMessage includes details of a MCP request or notification.
+// https://modelcontextprotocol.io/docs/concepts/transports#requests
+message MCPJSONRPCMessage {
+  // JSONRPC specifies the version of the protocol.
+  string JSONRPC = 1 [(gogoproto.jsontag) = "jsonrpc"];
+  // ID is the ID of a request. Notifications have no IDs.
+  string ID = 2 [(gogoproto.jsontag) = "id,omitempty"];
+  // Method is the method of this message.
+  string method = 3 [(gogoproto.jsontag) = "method"];
+  // Params is the optional parameters.
+  google.protobuf.Struct params = 5 [
+    (gogoproto.jsontag) = "params,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
+}
+
+// MCPSessionRequest is emitted when a request is sent by client during a MCP session.
+message MCPSessionRequest {
+  // Metadata is a common event metadata
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata
+  UserMetadata user = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata
+  SessionMetadata session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // App is a common application resource metadata.
+  AppMetadata App = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status contains information whether the request is successful or not.
+  Status status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Message contains details of the message.
+  MCPJSONRPCMessage message = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "message,omitempty"
+  ];
+}
+
+// MCPSessionNotification is emitted when a notification is sent by client
+// during a MCP session.
+message MCPSessionNotification {
+  // Metadata is a common event metadata
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata
+  UserMetadata user = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata
+  SessionMetadata session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // App is a common application resource metadata.
+  AppMetadata App = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Message contains details of the message.
+  MCPJSONRPCMessage message = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "message,omitempty"
   ];
 }
 

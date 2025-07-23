@@ -47,7 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestSessionEndError(t *testing.T) {
@@ -283,7 +283,7 @@ func Test_session_trackSession(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sess := &session{
-				log: utils.NewSlogLoggerForTests(),
+				log: logtest.NewLogger(),
 				id:  uuid.New(),
 				req: &http.Request{
 					URL: &url.URL{

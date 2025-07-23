@@ -886,6 +886,22 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SigstorePolicyDelete{
 			SigstorePolicyDelete: e,
 		}
+	case *MCPSessionStart:
+		out.Event = &OneOf_MCPSessionStart{
+			MCPSessionStart: e,
+		}
+	case *MCPSessionEnd:
+		out.Event = &OneOf_MCPSessionEnd{
+			MCPSessionEnd: e,
+		}
+	case *MCPSessionRequest:
+		out.Event = &OneOf_MCPSessionRequest{
+			MCPSessionRequest: e,
+		}
+	case *MCPSessionNotification:
+		out.Event = &OneOf_MCPSessionNotification{
+			MCPSessionNotification: e,
+		}
 	case *BoundKeypairRecovery:
 		out.Event = &OneOf_BoundKeypairRecovery{
 			BoundKeypairRecovery: e,

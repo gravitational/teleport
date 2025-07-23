@@ -914,6 +914,17 @@ const (
 	// resource is deleted.
 	HealthCheckConfigDeleteEvent = "health_check_config.delete"
 
+	// MCPSessionStartEvent is emitted when a user starts a MCP session.
+	MCPSessionStartEvent = "mcp.session.start"
+	// MCPSessionEndEvent is emitted when an MCP session ends.
+	MCPSessionEndEvent = "mcp.session.end"
+	// MCPSessionRequestEvent is emitted when a request is sent by client during
+	// a MCP session.
+	MCPSessionRequestEvent = "mcp.session.request"
+	// MCPSessionNotificationEvent is emitted when a notification is sent by
+	// client during a MCP session.
+	MCPSessionNotificationEvent = "mcp.session.notification"
+
 	// BoundKeypairRecovery is emitted when a bound keypair token is used to
 	// perform a recovery.
 	BoundKeypairRecovery = "join_token.bound_keypair.recovery"

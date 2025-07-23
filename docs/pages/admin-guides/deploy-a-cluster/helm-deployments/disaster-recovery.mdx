@@ -1,6 +1,9 @@
 ---
 title: Managing Disaster Recovery in an Amazon EKS Teleport Cluster
 description: Provides guidance for planning a strategy for restoring a self-hosted Teleport cluster on EKS after a regional outage.
+labels:
+ - how-to
+ - platform-wide
 ---
 
 In case of an outage in your cloud provider region, you need to ensure that you
@@ -77,9 +80,9 @@ to plan your backup procedure.
 <details>
 <summary>AWS Key Management Service users</summary>
 
-If the Teleport Auth Service in your cluster uses Amazon Key Management Service
-for certificate authority private keys, you must replicate your keys to the new
-AWS region before reinstalling the `teleport-cluster` Helm chart. See the [AWS
+If the Teleport Auth Service in your cluster uses AWS Key Management Service for
+certificate authority private keys, you must replicate your keys to the new AWS
+region before reinstalling the `teleport-cluster` Helm chart. See the [AWS
 documentation](https://docs.aws.amazon.com/kms/latest/developerguide/multi-region-keys-overview.html")
 for information about using KMS keys in multiple regions. 
 

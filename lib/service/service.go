@@ -128,6 +128,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/pgevents"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/integrations/awsra"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/joinserver"
@@ -161,6 +162,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/ingress"
+	"github.com/gravitational/teleport/lib/srv/mcp"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/srv/transport/transportv1"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -2617,6 +2619,59 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	})
 
+	awsRolesAnywhereProfileSyncProcessName := "aws-roles-anywhere.profile-sync"
+	process.RegisterFunc("auth."+awsRolesAnywhereProfileSyncProcessName+".service", func() error {
+		ctx := process.GracefulExitContext()
+		logger := process.logger.With("process", awsRolesAnywhereProfileSyncProcessName)
+
+		if _, err := process.WaitForEvent(ctx, TeleportReadyEvent); err != nil {
+			logger.DebugContext(ctx, "process exiting: failed to start AWS Roles Anywhere profile sync service")
+			return nil
+		}
+
+		params := awsra.AWSRolesAnywherProfileSyncerParams{
+			Clock:             process.Clock,
+			Logger:            logger,
+			KeyStoreManager:   authServer.GetKeyStore(),
+			Cache:             authServer.Cache,
+			StatusReporter:    authServer.Services,
+			AppServerUpserter: authServer.Services,
+			HostUUID:          process.Config.HostUUID,
+		}
+
+		runWhileLockedConfig := backend.RunWhileLockedConfig{
+			LockConfiguration: backend.LockConfiguration{
+				Backend:            process.backend,
+				LockNameComponents: []string{awsRolesAnywhereProfileSyncProcessName},
+				TTL:                1 * time.Minute,
+			},
+			RefreshLockInterval: 20 * time.Second,
+		}
+
+		runFunction := func(ctx context.Context) error {
+			return trace.Wrap(awsra.RunAWSRolesAnywherProfileSyncer(ctx, params))
+		}
+
+		waitWithJitter := retryutils.SeventhJitter(time.Second * 10)
+		for {
+			err := backend.RunWhileLocked(ctx, runWhileLockedConfig, runFunction)
+			if err != nil && ctx.Err() == nil {
+				logger.ErrorContext(
+					ctx,
+					"AWS Roles Anywhere profile syncer encountered a fatal error, it will restart after backoff",
+					"error", err,
+					"restart_after", waitWithJitter,
+				)
+			}
+
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(waitWithJitter):
+			}
+		}
+	})
+
 	// execute this when process is asked to exit:
 	process.OnExit("auth.shutdown", func(payload any) {
 		// The listeners have to be closed here, because if shutdown
@@ -2685,7 +2740,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.AccessLists = services.AccessLists
 	cfg.AccessMonitoringRules = services.AccessMonitoringRules
 	cfg.AppSession = services.Identity
-	cfg.Apps = services.Apps
+	cfg.Apps = services.Applications
 	cfg.ClusterConfig = services.ClusterConfigurationInternal
 	cfg.CrownJewels = services.CrownJewels
 	cfg.DatabaseObjects = services.DatabaseObjects
@@ -2724,6 +2779,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.GitServers = services.GitServers
 	cfg.HealthCheckConfig = services.HealthCheckConfig
 	cfg.BotInstance = services.BotInstance
+	cfg.Plugin = services.Plugins
 
 	return accesspoint.NewCache(cfg)
 }
@@ -4937,6 +4993,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ServiceComponent:  teleport.ComponentWebProxy,
 			AWSConfigOptions: []awsconfig.OptionsFn{
 				awsconfig.WithOIDCIntegrationClient(conn.Client),
+				awsconfig.WithRolesAnywhereIntegrationClient(conn.Client),
 			},
 		})
 		if err != nil {
@@ -5065,9 +5122,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Register ALPN handler that will be accepting connections for plain
 	// TCP applications.
+	// Use the same handler for MCP protocols, for now.
 	if alpnRouter != nil {
 		alpnRouter.Add(alpnproxy.HandlerDecs{
 			MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolTCP),
+			Handler:   webServer.HandleConnection,
+		})
+		alpnRouter.Add(alpnproxy.HandlerDecs{
+			MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolMCP),
 			Handler:   webServer.HandleConnection,
 		})
 	}
@@ -6066,6 +6128,7 @@ func (process *TeleportProcess) initApps() {
 	// "app_service" section, that is considered enabling "app_service".
 	if len(process.Config.Apps.Apps) == 0 &&
 		!process.Config.Apps.DebugApp &&
+		!process.Config.Apps.MCPDemoServer &&
 		len(process.Config.Apps.ResourceMatchers) == 0 {
 		return
 	}
@@ -6194,12 +6257,21 @@ func (process *TeleportProcess) initApps() {
 				UseAnyProxyPublicAddr: app.UseAnyProxyPublicAddr,
 				CORS:                  makeApplicationCORS(app.CORS),
 				TCPPorts:              makeApplicationTCPPorts(app.TCPPorts),
+				MCP:                   app.MCP,
 			})
 			if err != nil {
 				return trace.Wrap(err)
 			}
 
 			applications = append(applications, a)
+		}
+
+		if process.Config.Apps.MCPDemoServer {
+			if mcpDemoServer, err := mcp.NewDemoServerApp(); err != nil {
+				logger.ErrorContext(process.ExitContext(), "Failed to create MCP demo server app")
+			} else {
+				applications = append(applications, mcpDemoServer)
+			}
 		}
 
 		lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
@@ -6271,6 +6343,7 @@ func (process *TeleportProcess) initApps() {
 			ConnectionMonitor: connMonitor,
 			ServiceComponent:  teleport.ComponentApp,
 			Logger:            logger,
+			MCPDemoServer:     process.Config.Apps.MCPDemoServer,
 		})
 		if err != nil {
 			return trace.Wrap(err)

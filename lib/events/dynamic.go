@@ -520,6 +520,15 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case SigstorePolicyDeleteEvent:
 		e = &events.SigstorePolicyDelete{}
 
+	case MCPSessionStartEvent:
+		e = &events.MCPSessionStart{}
+	case MCPSessionEndEvent:
+		e = &events.MCPSessionEnd{}
+	case MCPSessionRequestEvent:
+		e = &events.MCPSessionRequest{}
+	case MCPSessionNotificationEvent:
+		e = &events.MCPSessionNotification{}
+
 	case BoundKeypairRecovery:
 		e = &events.BoundKeypairRecovery{}
 	case BoundKeypairRotation:

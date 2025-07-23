@@ -180,6 +180,11 @@ type Spec struct {
 type Type string
 
 const (
+	// TODO(kopiczko) v21: Remove DeprecatedDynamic. The only version setting this type is 17.5.4.
+
+	// DeprecatedDynamic is deprecated and should not be used. Use [Default] instead. It has
+	// the same semantic meaning.
+	DeprecatedDynamic Type = "dynamic"
 	// Default Access Lists are the default type supposed to be managed with the web UI. They
 	// require periodic audit reviews.
 	Default Type = ""
@@ -191,16 +196,22 @@ const (
 	SCIM Type = "scim"
 )
 
-func NewTypeFromString(s string) (Type, error) {
-	switch s {
-	case string(Default):
-		return Default, nil
-	case string(Static):
-		return Static, nil
-	case string(SCIM):
-		return SCIM, nil
+func validateType(t Type) error {
+	switch t {
+	case DeprecatedDynamic, Default, Static, SCIM:
+		return nil
 	default:
-		return "", trace.BadParameter("unknown access_list type %q", s)
+		return trace.BadParameter("unknown access_list type %q", t)
+	}
+}
+
+// IsReviewable returns true if the AccessList type supports the audit reviews in the web UI.
+func (t Type) IsReviewable() bool {
+	switch t {
+	case DeprecatedDynamic, Default:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -329,7 +340,12 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if _, err := NewTypeFromString(string(a.Spec.Type)); err != nil {
+	// Restore the type if the cluster was ever running in version 17.5.4.
+	if a.Spec.Type == DeprecatedDynamic {
+		a.Spec.Type = Default
+	}
+
+	if err := validateType(a.Spec.Type); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -549,6 +565,11 @@ func (n Notifications) MarshalJSON() ([]byte, error) {
 		Alias: (Alias)(n),
 		Start: n.Start.String(),
 	})
+}
+
+// IsReviewable returns true if the AccessList type supports the audit reviews in the web UI.
+func (a *AccessList) IsReviewable() bool {
+	return a.Spec.Type.IsReviewable()
 }
 
 // SelectNextReviewDate will select the next review date for the access list.

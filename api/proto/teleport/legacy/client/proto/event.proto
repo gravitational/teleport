@@ -219,5 +219,7 @@ message Event {
     teleport.healthcheckconfig.v1.HealthCheckConfig HealthCheckConfig = 78;
     // AutoUpdateAgentReport is a resource for counting agents connected to an auth instance.
     teleport.autoupdate.v1.AutoUpdateAgentReport AutoUpdateAgentReport = 79;
+    // PluginV1 is a resource for Teleport plugins.
+    types.PluginV1 plugin = 84;
   }
 }

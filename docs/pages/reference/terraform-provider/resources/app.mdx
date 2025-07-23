@@ -2,6 +2,9 @@
 title: Reference for the teleport_app Terraform resource
 sidebar_label: app
 description: This page describes the supported values of the teleport_app resource of the Teleport Terraform provider.
+labels:
+ - reference
+ - platform-wide
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -70,6 +73,7 @@ Optional:
 - `identity_center` (Attributes) IdentityCenter encasulates AWS identity-center specific information. Only valid for Identity Center account apps. (see [below for nested schema](#nested-schema-for-specidentity_center))
 - `insecure_skip_verify` (Boolean) InsecureSkipVerify disables app's TLS certificate verification.
 - `integration` (String) Integration is the integration name that must be used to access this Application. Only applicable to AWS App Access. If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
+- `mcp` (Attributes) MCP contains MCP server related configurations. (see [below for nested schema](#nested-schema-for-specmcp))
 - `public_addr` (String) PublicAddr is the public address the application is accessible at.
 - `required_app_names` (List of String) RequiredAppNames is a list of app names that are required for this app to function. Any app listed here will be part of the authentication redirect flow and authenticate along side this app.
 - `rewrite` (Attributes) Rewrite is a list of rewriting rules to apply to requests and responses. (see [below for nested schema](#nested-schema-for-specrewrite))
@@ -130,6 +134,15 @@ Optional:
 - `assignment_name` (String) AssignmentID is the ID of the Teleport Account Assignment resource that represents this permission being assigned on the enclosing Account.
 - `name` (String) Name is the human-readable name of the Permission Set.
 
+
+
+### Nested Schema for `spec.mcp`
+
+Optional:
+
+- `args` (List of String) Args to execute with the command.
+- `command` (String) Command to launch stdio-based MCP servers.
+- `run_as_host_user` (String) RunAsHostUser is the host user account under which the command will be executed. Required for stdio-based MCP servers.
 
 
 ### Nested Schema for `spec.rewrite`

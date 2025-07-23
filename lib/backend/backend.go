@@ -22,7 +22,6 @@ package backend
 import (
 	"context"
 	"fmt"
-	"io"
 	"iter"
 	"sort"
 	"time"
@@ -31,7 +30,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -148,65 +146,6 @@ func New(ctx context.Context, backend string, params Params) (Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 	return bk, nil
-}
-
-// IterateRange is a helper for stepping over a range
-func IterateRange(ctx context.Context, bk Backend, startKey, endKey Key, limit int, fn func([]Item) (stop bool, err error)) error {
-	if limit == 0 || limit > 10_000 {
-		limit = 10_000
-	}
-	for {
-		// we load an extra item here so that we can be certain we have a correct
-		// start key for the next range.
-		rslt, err := bk.GetRange(ctx, startKey, endKey, limit+1)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		end := limit
-		if len(rslt.Items) < end {
-			end = len(rslt.Items)
-		}
-		stop, err := fn(rslt.Items[0:end])
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if stop || len(rslt.Items) <= limit {
-			return nil
-		}
-		startKey = rslt.Items[limit].Key
-	}
-}
-
-// StreamRange constructs a Stream for the given key range. This helper just
-// uses standard pagination under the hood, lazily loading pages as needed. Streams
-// are currently only used for periodic operations, but if they become more widely
-// used in the future, it may become worthwhile to optimize the streaming of backend
-// items further. Two potential improvements of note:
-//
-// 1. update this helper to concurrently load the next page in the background while
-// items from the current page are being yielded.
-//
-// 2. allow individual backends to expose custom streaming methods s.t. the most performant
-// impl for a given backend may be used.
-func StreamRange(ctx context.Context, bk Backend, startKey, endKey Key, pageSize int) stream.Stream[Item] {
-	var done bool
-	return stream.PageFunc(func() ([]Item, error) {
-		if done {
-			return nil, io.EOF
-		}
-		rslt, err := bk.GetRange(ctx, startKey, endKey, pageSize+1)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if len(rslt.Items) > pageSize {
-			startKey = rslt.Items[pageSize].Key
-			clear(rslt.Items[pageSize:])
-			rslt.Items = rslt.Items[:pageSize]
-		} else {
-			done = true
-		}
-		return rslt.Items, nil
-	})
 }
 
 // Lease represents a lease on the item that can be used
