@@ -20,33 +20,15 @@ Azure Active Directory.
 
 To complete the steps in this guide, verify your environment meets the following requirements:
 
-- Access to a running Teleport cluster, `tctl` admin tool, and `tsh` client tool
-  version >= (=teleport.version=).
-
-  You can verify the tools you have installed by running the following commands:
-
-  ```code
-  $ tctl version
-  # Teleport Enterprise v(=teleport.version=) go(=teleport.golang=)
-
-  $ tsh version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-  You can download these tools by following the appropriate [Installation
-  instructions](../../installation/linux.mdx) for the Teleport
-  edition you use.
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - A Linux server to run the Teleport Windows Desktop Service.
   You can use an existing server that runs the Teleport Agent for other resources.
-
 - An Active Directory domain that is configured for LDAPS. Because Teleport requires an
   encrypted LDAP connection, you should verify that your domain uses Active Directory
   Certificate Services or a non-Microsoft certification authority (CA) to issue LDAPS
   certificates.
-
 - Administrative access to a domain controller.
-
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Option 1: Automated configuration
