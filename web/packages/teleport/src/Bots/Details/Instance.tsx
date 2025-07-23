@@ -32,6 +32,7 @@ import {
   SecondaryOutlined,
   WarningOutlined,
 } from 'design/Label/Label';
+import { ResourceIcon } from 'design/ResourceIcon';
 import Text from 'design/Text/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
 
@@ -84,15 +85,17 @@ export function Instance(props: {
 
           {os ? (
             <HoverTooltip placement="top" tipContent={os}>
-              {os === 'darwin' ? (
-                <Apple size={'medium'} />
-              ) : os === 'windows' ? (
-                <Windows size={'medium'} />
-              ) : os === 'linux' ? (
-                <Linux size={'medium'} />
-              ) : (
-                <Devices size={'medium'} />
-              )}
+              <OsIconContainer>
+                {os === 'darwin' ? (
+                  <ResourceIcon name={'apple'} width={'16px'} />
+                ) : os === 'windows' ? (
+                  <ResourceIcon name={'windows'} width={'16px'} />
+                ) : os === 'linux' ? (
+                  <ResourceIcon name={'linux'} width={'16px'} />
+                ) : (
+                  <ResourceIcon name={'server'} width={'16px'} />
+                )}
+              </OsIconContainer>
             </HoverTooltip>
           ) : undefined}
         </Flex>
@@ -118,6 +121,13 @@ const TopRow = styled(Flex)`
 const BottomRow = styled(Flex)`
   justify-content: space-between;
   align-items: flex-end;
+`;
+
+const OsIconContainer = styled(Flex)`
+  width: 20px; // Intentionally not a theme value
+  height: 20px; // Intentionally not a theme value
+  align-items: center;
+  justify-content: center;
 `;
 
 function Version(props: {
