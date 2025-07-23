@@ -887,9 +887,9 @@ func TestContext_GetAccessState(t *testing.T) {
 		},
 		{
 			name: "bot user",
-			createAuthCtx: func() *Context {
+			createAuthCtx: func() *authz.Context {
 				ctx := localCtx
-				localUser := ctx.Identity.(LocalUser)
+				localUser := ctx.Identity.(authz.LocalUser)
 				localUser.Identity.BotName = "wall-e"
 				ctx.Identity = localUser
 				return &ctx
