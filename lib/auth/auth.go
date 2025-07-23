@@ -32,12 +32,13 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"crypto/x509"
+	"encoding/base32"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
-	"math/big"
+	"maps"
 	mathrand "math/rand/v2"
 	"net"
 	"os"
@@ -57,7 +58,6 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/maps"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -3050,7 +3050,7 @@ func (a *Server) augmentUserCertificates(
 	}
 
 	// Issue audit event on success, same as [Server.generateCert].
-	a.emitCertCreateEvent(ctx, newIdentity, notAfter)
+	a.emitCertCreateEvent(ctx, tlsCA, newIdentity, notAfter)
 
 	return &proto.Certs{
 		SSH: newAuthorizedKey,
@@ -3449,6 +3449,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	}
 
 	var signedTLSCert []byte
+	var tlsIssuer *tlsca.CertAuthority
 	if req.tlsPublicKey != nil {
 		tlsCryptoPubKey, err := keys.ParsePublicKey(req.tlsPublicKey)
 		if err != nil {
@@ -3476,9 +3477,10 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		tlsIssuer = tlsCA
 	}
 
-	a.emitCertCreateEvent(ctx, &identity, notAfter)
+	a.emitCertCreateEvent(ctx, tlsIssuer, &identity, notAfter)
 
 	// create certs struct to return to user
 	certs := &proto.Certs{
@@ -3648,9 +3650,17 @@ func (a *Server) getSigningCAs(ctx context.Context, domainName string, caType ty
 	return tlsCA, sshSigner, ca, nil
 }
 
-func (a *Server) emitCertCreateEvent(ctx context.Context, identity *tlsca.Identity, notAfter time.Time) {
+func (a *Server) emitCertCreateEvent(ctx context.Context, issuer *tlsca.CertAuthority, identity *tlsca.Identity, notAfter time.Time) {
 	eventIdentity := identity.GetEventIdentity()
 	eventIdentity.Expires = notAfter
+	var certAuthority *apievents.CertificateAuthority
+	if issuer != nil {
+		certAuthority = &apievents.CertificateAuthority{
+			Type:         string(types.UserCA),
+			Domain:       issuer.Cert.Issuer.CommonName,
+			SubjectKeyID: base32.HexEncoding.EncodeToString(issuer.Cert.SubjectKeyId),
+		}
+	}
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.CertificateCreate{
 		Metadata: apievents.Metadata{
 			Type: events.CertificateCreateEvent,
@@ -3663,6 +3673,7 @@ func (a *Server) emitCertCreateEvent(ctx context.Context, identity *tlsca.Identi
 			// fetched. Need to propagate user-agent from HTTP calls.
 			UserAgent: trimUserAgent(metadata.UserAgentFromContext(ctx)),
 		},
+		CertificateAuthority: certAuthority,
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit certificate create event.")
 	}
@@ -5499,7 +5510,7 @@ func updateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.A
 
 	// Only modify the original request if additional reviewers were found.
 	if len(additionalReviewers) > 0 {
-		req.SetSuggestedReviewers(append(req.GetSuggestedReviewers(), maps.Keys(additionalReviewers)...))
+		req.SetSuggestedReviewers(append(req.GetSuggestedReviewers(), slices.Collect(maps.Keys(additionalReviewers))...))
 	}
 }
 
@@ -6526,13 +6537,8 @@ func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.Cert
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Empty CRL valid for 1yr.
-	template := &x509.RevocationList{
-		Number:     big.NewInt(1),
-		ThisUpdate: time.Now().Add(-1 * time.Minute), // 1 min in the past to account for clock skew.
-		NextUpdate: time.Now().Add(365 * 24 * time.Hour),
-	}
-	crl, err := x509.CreateRevocationList(rand.Reader, template, tlsAuthority.Cert, tlsAuthority.Signer)
+
+	crl, err := keystore.GenerateCRL(tlsAuthority.Cert, tlsAuthority.Signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
