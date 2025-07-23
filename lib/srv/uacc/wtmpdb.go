@@ -2,16 +2,19 @@ package uacc
 
 import (
 	"database/sql"
-	"errors"
+	"fmt"
 	"net"
-	"os"
 	"strconv"
 	"time"
 
+	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
 const wtmpdbLocation = "/var/lib/wtmpdb/wtmp.db"
+const USER_PROCESS = 3
 
 type wtmpdbBackend struct {
 	db *sql.DB
@@ -36,21 +39,14 @@ func (w *wtmpdbBackend) Name() string {
 	return "wtmpdb"
 }
 
-func (w *wtmpdbBackend) Login(tty *os.File, username string, remote net.Addr, ts time.Time) (string, error) {
-	ttyName, err := GetTTYName(tty)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	remoteHost, _, err := net.SplitHostPort(remote.String())
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	stmt, err := w.db.Prepare("INSET INTO wtmp(Type, User, Login, TTY, RemoteHost) VALUES(?,?,?,?,?)")
+func (w *wtmpdbBackend) Login(ttyName, username string, remote net.Addr, ts time.Time) (string, error) {
+	stmt, err := w.db.Prepare("INSERT INTO wtmp(Type, User, Login, TTY, RemoteHost) VALUES(?,?,?,?,?)")
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 	defer stmt.Close()
-	result, err := stmt.Exec("USER_PROCESS", username, ts.UnixMicro(), ttyName, remoteHost)
+	addr := utils.FromAddr(remote)
+	result, err := stmt.Exec(USER_PROCESS, username, ts.UnixMicro(), ttyName, addr.Host())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -80,17 +76,16 @@ func (w *wtmpdbBackend) FailedLogin(username string, remote net.Addr, ts time.Ti
 }
 
 func (w *wtmpdbBackend) IsUserLoggedIn(username string) (bool, error) {
-	stmt, err := w.db.Prepare("SELECT TTY FROM wtmp WHERE User = ? AND Logout = 0")
+	stmt, err := w.db.Prepare("SELECT COUNT(1) FROM wtmp WHERE User = ? AND Logout IS NULL")
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 	defer stmt.Close()
-	var tty string
-	if err := stmt.QueryRow(username).Scan(&tty); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return false, nil
-		}
-		return false, trace.Wrap(err)
+	var count int
+	if err := stmt.QueryRow(username).Scan(&count); err != nil {
+		fmt.Println(err)
+		return false, nil
 	}
-	return tty != "", nil
+	fmt.Println(count)
+	return count != 0, nil
 }

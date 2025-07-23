@@ -33,7 +33,7 @@ import (
 
 type userAccountingBackend interface {
 	Name() string
-	Login(tty *os.File, username string, remote net.Addr, ts time.Time) (string, error)
+	Login(ttyName string, username string, remote net.Addr, ts time.Time) (string, error)
 	Logout(id string, ts time.Time) error
 	FailedLogin(username string, remote net.Addr, ts time.Time) error
 	IsUserLoggedIn(username string) (bool, error)
@@ -77,9 +77,13 @@ func NewUserAccounting() (*UserAccounting, error) {
 }
 
 func (uacc *UserAccounting) Login(tty *os.File, username string, remote net.Addr, ts time.Time) (string, error) {
+	ttyName, err := GetTTYName(tty)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
 	keysPerBackend := make(map[string]string, len(backends))
-	err := tryBackendOp(func(bk userAccountingBackend) error {
-		key, err := bk.Login(tty, username, remote, ts)
+	err = tryBackendOp(func(bk userAccountingBackend) error {
+		key, err := bk.Login(ttyName, username, remote, ts)
 		if err != nil {
 			return trace.Wrap(err)
 		}
