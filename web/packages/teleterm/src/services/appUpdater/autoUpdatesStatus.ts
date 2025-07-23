@@ -104,7 +104,7 @@ function findVersionFromClusters(sources: {
 
   if (managingClusterIsSkipped) {
     logger.warn(
-      `Cluster ${managingClusterUri} managing updates is unreachable or not managing updates, continuing resolution.`
+      `Cluster ${managingClusterUri} managing updates is unreachable or not managing updates, continuing resolution with most compatible version.`
     );
   }
 
