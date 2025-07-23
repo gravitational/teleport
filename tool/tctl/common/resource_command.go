@@ -1260,7 +1260,7 @@ func (rc *ResourceCommand) createScopedRole(ctx context.Context, client *authcli
 	}
 
 	fmt.Fprintf(
-		rc.stdout,
+		rc.Stdout,
 		scopedaccess.KindScopedRole+" %q has been created\n",
 		r.GetMetadata().GetName(),
 	)
@@ -1281,7 +1281,7 @@ func (rc *ResourceCommand) updateScopedRole(ctx context.Context, client *authcli
 	}
 
 	fmt.Fprintf(
-		rc.stdout,
+		rc.Stdout,
 		scopedaccess.KindScopedRole+" %q has been updated\n",
 		r.GetMetadata().GetName(),
 	)
@@ -1307,7 +1307,7 @@ func (rc *ResourceCommand) createScopedRoleAssignment(ctx context.Context, clien
 	}
 
 	fmt.Fprintf(
-		rc.stdout,
+		rc.Stdout,
 		scopedaccess.KindScopedRoleAssignment+" %q has been created\n",
 		rsp.GetAssignment().GetMetadata().GetName(), // must extract from rsp since assignment names are generated server-side
 	)
@@ -2317,7 +2317,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Fprintf(
-			rc.stdout,
+			rc.Stdout,
 			scopedaccess.KindScopedRole+" %q has been deleted\n",
 			rc.ref.Name,
 		)
@@ -2328,7 +2328,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Fprintf(
-			rc.stdout,
+			rc.Stdout,
 			scopedaccess.KindScopedRoleAssignment+" %q has been deleted\n",
 			rc.ref.Name,
 		)
