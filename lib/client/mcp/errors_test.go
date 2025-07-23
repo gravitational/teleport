@@ -1,6 +1,6 @@
-/**
+/*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,32 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { compareSemVers } from './semVer';
+package mcp
 
-test('compareSemVers', () => {
-  expect(['3.0.0', '1.0.0', '2.0.0'].sort(compareSemVers)).toEqual([
-    '1.0.0',
-    '2.0.0',
-    '3.0.0',
-  ]);
+import (
+	"testing"
 
-  expect(['3.1.0', '3.2.0', '3.1.1'].sort(compareSemVers)).toEqual([
-    '3.1.0',
-    '3.1.1',
-    '3.2.0',
-  ]);
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/stretchr/testify/require"
+)
 
-  expect(['10.0.1', '10.0.2', '2.0.0'].sort(compareSemVers)).toEqual([
-    '2.0.0',
-    '10.0.1',
-    '10.0.2',
-  ]);
-
-  expect(['10.1.0', '11.1.0', '5.10.10'].sort(compareSemVers)).toEqual([
-    '5.10.10',
-    '10.1.0',
-    '11.1.0',
-  ]);
-
-  expect(compareSemVers('1.0.0', '1.0.0')).toBe(0);
-});
+func TestIsServerInfoChangedError(t *testing.T) {
+	err := &serverInfoChangedError{
+		expectedInfo: mcp.Implementation{
+			Name:    "i-am-mcp",
+			Version: "1.0.0",
+		},
+		currentInfo: mcp.Implementation{
+			Name:    "i-am-mcp",
+			Version: "1.1.0",
+		},
+	}
+	require.True(t, IsServerInfoChangedError(err))
+}
