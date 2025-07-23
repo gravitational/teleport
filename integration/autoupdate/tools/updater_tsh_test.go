@@ -1,4 +1,4 @@
-//go:build !windows && !race
+//go:build !windows
 
 /*
  * Teleport
