@@ -31,7 +31,7 @@ interface KeyState {
  */
 class KeyCombo {
   keys: Set<string>;
-  timeout?: NodeJS.Timeout;
+  timeout?: number;
   keyStates: Map<string, KeyState>;
 
   /**
@@ -79,7 +79,7 @@ class KeyCombo {
    */
   cancel(): void {
     if (this.timeout) {
-      clearTimeout(this.timeout);
+      window.clearTimeout(this.timeout);
       this.timeout = undefined;
     }
   }
@@ -167,13 +167,12 @@ export class StuckKeys {
   private handleComboState(combo: KeyCombo, cli: TdpClient) {
     // Clear the timeout if it exists because key state has changed
     if (combo.timeout) {
-      clearTimeout(combo.timeout);
-      combo.timeout = undefined;
+      combo.cancel();
     }
 
     // If the combo is active, set a timeout to release it
     if (combo.isActive()) {
-      combo.timeout = setTimeout(() => {
+      combo.timeout = window.setTimeout(() => {
         combo.release(cli);
       }, this.RELEASE_DELAY_MS);
     }
