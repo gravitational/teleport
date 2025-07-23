@@ -188,6 +188,7 @@ const (
 	AuthService_DeleteTrustedCluster_FullMethodName                = "/proto.AuthService/DeleteTrustedCluster"
 	AuthService_GetToken_FullMethodName                            = "/proto.AuthService/GetToken"
 	AuthService_GetTokens_FullMethodName                           = "/proto.AuthService/GetTokens"
+	AuthService_ListProvisionTokens_FullMethodName                 = "/proto.AuthService/ListProvisionTokens"
 	AuthService_CreateTokenV2_FullMethodName                       = "/proto.AuthService/CreateTokenV2"
 	AuthService_UpsertTokenV2_FullMethodName                       = "/proto.AuthService/UpsertTokenV2"
 	AuthService_DeleteToken_FullMethodName                         = "/proto.AuthService/DeleteToken"
@@ -216,6 +217,7 @@ const (
 	AuthService_SetNetworkRestrictions_FullMethodName              = "/proto.AuthService/SetNetworkRestrictions"
 	AuthService_DeleteNetworkRestrictions_FullMethodName           = "/proto.AuthService/DeleteNetworkRestrictions"
 	AuthService_GetApps_FullMethodName                             = "/proto.AuthService/GetApps"
+	AuthService_ListApps_FullMethodName                            = "/proto.AuthService/ListApps"
 	AuthService_GetApp_FullMethodName                              = "/proto.AuthService/GetApp"
 	AuthService_CreateApp_FullMethodName                           = "/proto.AuthService/CreateApp"
 	AuthService_UpdateApp_FullMethodName                           = "/proto.AuthService/UpdateApp"
@@ -239,6 +241,7 @@ const (
 	AuthService_DeleteWindowsDesktopService_FullMethodName         = "/proto.AuthService/DeleteWindowsDesktopService"
 	AuthService_DeleteAllWindowsDesktopServices_FullMethodName     = "/proto.AuthService/DeleteAllWindowsDesktopServices"
 	AuthService_GetWindowsDesktops_FullMethodName                  = "/proto.AuthService/GetWindowsDesktops"
+	AuthService_ListWindowsDesktops_FullMethodName                 = "/proto.AuthService/ListWindowsDesktops"
 	AuthService_CreateWindowsDesktop_FullMethodName                = "/proto.AuthService/CreateWindowsDesktop"
 	AuthService_UpdateWindowsDesktop_FullMethodName                = "/proto.AuthService/UpdateWindowsDesktop"
 	AuthService_UpsertWindowsDesktop_FullMethodName                = "/proto.AuthService/UpsertWindowsDesktop"
@@ -703,6 +706,8 @@ type AuthServiceClient interface {
 	GetToken(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.ProvisionTokenV2, error)
 	// GetToken retrieves all tokens.
 	GetTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ProvisionTokenV2List, error)
+	// ListToken retrieves a paginated list of filtered provision tokens.
+	ListProvisionTokens(ctx context.Context, in *ListProvisionTokensRequest, opts ...grpc.CallOption) (*ListProvisionTokensResponse, error)
 	// CreateTokenV2 creates a token in a backend.
 	CreateTokenV2(ctx context.Context, in *CreateTokenV2Request, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// UpsertTokenV2 upserts a token in a backend.
@@ -777,6 +782,8 @@ type AuthServiceClient interface {
 	DeleteNetworkRestrictions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetApps returns all registered applications.
 	GetApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AppV3List, error)
+	// ListApps returns a page of registered applications.
+	ListApps(ctx context.Context, in *ListAppsRequest, opts ...grpc.CallOption) (*ListAppsResponse, error)
 	// GetApp returns an application by name.
 	GetApp(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.AppV3, error)
 	// CreateApp creates a new application resource.
@@ -823,6 +830,8 @@ type AuthServiceClient interface {
 	DeleteAllWindowsDesktopServices(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetWindowsDesktops returns all registered Windows desktop hosts matching the supplied filter.
 	GetWindowsDesktops(ctx context.Context, in *types.WindowsDesktopFilter, opts ...grpc.CallOption) (*GetWindowsDesktopsResponse, error)
+	// ListWindowsDesktops returns a page of registered Windows desktop hosts.
+	ListWindowsDesktops(ctx context.Context, in *ListWindowsDesktopsRequest, opts ...grpc.CallOption) (*ListWindowsDesktopsResponse, error)
 	// CreateWindowsDesktop registers a new Windows desktop host.
 	CreateWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// UpdateWindowsDesktop updates an existing Windows desktop host.
@@ -2646,6 +2655,16 @@ func (c *authServiceClient) GetTokens(ctx context.Context, in *emptypb.Empty, op
 	return out, nil
 }
 
+func (c *authServiceClient) ListProvisionTokens(ctx context.Context, in *ListProvisionTokensRequest, opts ...grpc.CallOption) (*ListProvisionTokensResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListProvisionTokensResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListProvisionTokens_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) CreateTokenV2(ctx context.Context, in *CreateTokenV2Request, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
@@ -2944,6 +2963,16 @@ func (c *authServiceClient) GetApps(ctx context.Context, in *emptypb.Empty, opts
 	return out, nil
 }
 
+func (c *authServiceClient) ListApps(ctx context.Context, in *ListAppsRequest, opts ...grpc.CallOption) (*ListAppsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAppsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListApps_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) GetApp(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.AppV3, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.AppV3)
@@ -3168,6 +3197,16 @@ func (c *authServiceClient) GetWindowsDesktops(ctx context.Context, in *types.Wi
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetWindowsDesktopsResponse)
 	err := c.cc.Invoke(ctx, AuthService_GetWindowsDesktops_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListWindowsDesktops(ctx context.Context, in *ListWindowsDesktopsRequest, opts ...grpc.CallOption) (*ListWindowsDesktopsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListWindowsDesktopsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListWindowsDesktops_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -4131,6 +4170,8 @@ type AuthServiceServer interface {
 	GetToken(context.Context, *types.ResourceRequest) (*types.ProvisionTokenV2, error)
 	// GetToken retrieves all tokens.
 	GetTokens(context.Context, *emptypb.Empty) (*types.ProvisionTokenV2List, error)
+	// ListToken retrieves a paginated list of filtered provision tokens.
+	ListProvisionTokens(context.Context, *ListProvisionTokensRequest) (*ListProvisionTokensResponse, error)
 	// CreateTokenV2 creates a token in a backend.
 	CreateTokenV2(context.Context, *CreateTokenV2Request) (*emptypb.Empty, error)
 	// UpsertTokenV2 upserts a token in a backend.
@@ -4205,6 +4246,8 @@ type AuthServiceServer interface {
 	DeleteNetworkRestrictions(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetApps returns all registered applications.
 	GetApps(context.Context, *emptypb.Empty) (*types.AppV3List, error)
+	// ListApps returns a page of registered applications.
+	ListApps(context.Context, *ListAppsRequest) (*ListAppsResponse, error)
 	// GetApp returns an application by name.
 	GetApp(context.Context, *types.ResourceRequest) (*types.AppV3, error)
 	// CreateApp creates a new application resource.
@@ -4251,6 +4294,8 @@ type AuthServiceServer interface {
 	DeleteAllWindowsDesktopServices(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetWindowsDesktops returns all registered Windows desktop hosts matching the supplied filter.
 	GetWindowsDesktops(context.Context, *types.WindowsDesktopFilter) (*GetWindowsDesktopsResponse, error)
+	// ListWindowsDesktops returns a page of registered Windows desktop hosts.
+	ListWindowsDesktops(context.Context, *ListWindowsDesktopsRequest) (*ListWindowsDesktopsResponse, error)
 	// CreateWindowsDesktop registers a new Windows desktop host.
 	CreateWindowsDesktop(context.Context, *types.WindowsDesktopV3) (*emptypb.Empty, error)
 	// UpdateWindowsDesktop updates an existing Windows desktop host.
@@ -4886,6 +4931,9 @@ func (UnimplementedAuthServiceServer) GetToken(context.Context, *types.ResourceR
 func (UnimplementedAuthServiceServer) GetTokens(context.Context, *emptypb.Empty) (*types.ProvisionTokenV2List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTokens not implemented")
 }
+func (UnimplementedAuthServiceServer) ListProvisionTokens(context.Context, *ListProvisionTokensRequest) (*ListProvisionTokensResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListProvisionTokens not implemented")
+}
 func (UnimplementedAuthServiceServer) CreateTokenV2(context.Context, *CreateTokenV2Request) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateTokenV2 not implemented")
 }
@@ -4970,6 +5018,9 @@ func (UnimplementedAuthServiceServer) DeleteNetworkRestrictions(context.Context,
 func (UnimplementedAuthServiceServer) GetApps(context.Context, *emptypb.Empty) (*types.AppV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetApps not implemented")
 }
+func (UnimplementedAuthServiceServer) ListApps(context.Context, *ListAppsRequest) (*ListAppsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListApps not implemented")
+}
 func (UnimplementedAuthServiceServer) GetApp(context.Context, *types.ResourceRequest) (*types.AppV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetApp not implemented")
 }
@@ -5038,6 +5089,9 @@ func (UnimplementedAuthServiceServer) DeleteAllWindowsDesktopServices(context.Co
 }
 func (UnimplementedAuthServiceServer) GetWindowsDesktops(context.Context, *types.WindowsDesktopFilter) (*GetWindowsDesktopsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWindowsDesktops not implemented")
+}
+func (UnimplementedAuthServiceServer) ListWindowsDesktops(context.Context, *ListWindowsDesktopsRequest) (*ListWindowsDesktopsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListWindowsDesktops not implemented")
 }
 func (UnimplementedAuthServiceServer) CreateWindowsDesktop(context.Context, *types.WindowsDesktopV3) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateWindowsDesktop not implemented")
@@ -7817,6 +7871,24 @@ func _AuthService_GetTokens_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListProvisionTokens_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListProvisionTokensRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListProvisionTokens(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListProvisionTokens_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListProvisionTokens(ctx, req.(*ListProvisionTokensRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_CreateTokenV2_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateTokenV2Request)
 	if err := dec(in); err != nil {
@@ -8314,6 +8386,24 @@ func _AuthService_GetApps_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListApps_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAppsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListApps(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListApps_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListApps(ctx, req.(*ListAppsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_GetApp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(types.ResourceRequest)
 	if err := dec(in); err != nil {
@@ -8724,6 +8814,24 @@ func _AuthService_GetWindowsDesktops_Handler(srv interface{}, ctx context.Contex
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetWindowsDesktops(ctx, req.(*types.WindowsDesktopFilter))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListWindowsDesktops_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListWindowsDesktopsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListWindowsDesktops(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListWindowsDesktops_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListWindowsDesktops(ctx, req.(*ListWindowsDesktopsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -10245,6 +10353,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_GetTokens_Handler,
 		},
 		{
+			MethodName: "ListProvisionTokens",
+			Handler:    _AuthService_ListProvisionTokens_Handler,
+		},
+		{
 			MethodName: "CreateTokenV2",
 			Handler:    _AuthService_CreateTokenV2_Handler,
 		},
@@ -10353,6 +10465,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_GetApps_Handler,
 		},
 		{
+			MethodName: "ListApps",
+			Handler:    _AuthService_ListApps_Handler,
+		},
+		{
 			MethodName: "GetApp",
 			Handler:    _AuthService_GetApp_Handler,
 		},
@@ -10443,6 +10559,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetWindowsDesktops",
 			Handler:    _AuthService_GetWindowsDesktops_Handler,
+		},
+		{
+			MethodName: "ListWindowsDesktops",
+			Handler:    _AuthService_ListWindowsDesktops_Handler,
 		},
 		{
 			MethodName: "CreateWindowsDesktop",

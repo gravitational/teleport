@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -42,7 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestCheckImpersonationPermissions(t *testing.T) {
@@ -97,17 +98,11 @@ func (c *mockSARClient) Create(_ context.Context, sar *authzapi.SelfSubjectAcces
 	}
 
 	var verbAllowed, resourceAllowed bool
-	for _, v := range c.allowedVerbs {
-		if v == sar.Spec.ResourceAttributes.Verb {
-			verbAllowed = true
-			break
-		}
+	if slices.Contains(c.allowedVerbs, sar.Spec.ResourceAttributes.Verb) {
+		verbAllowed = true
 	}
-	for _, r := range c.allowedResources {
-		if r == sar.Spec.ResourceAttributes.Resource {
-			resourceAllowed = true
-			break
-		}
+	if slices.Contains(c.allowedResources, sar.Spec.ResourceAttributes.Resource) {
+		resourceAllowed = true
 	}
 
 	sar.Status.Allowed = verbAllowed && resourceAllowed
@@ -337,7 +332,7 @@ current-context: foo
 					CheckImpersonationPermissions: tt.impersonationCheck,
 					Clock:                         clockwork.NewFakeClock(),
 				},
-				log: utils.NewSlogLoggerForTests(),
+				log: logtest.NewLogger(),
 			}
 			err := fwd.getKubeDetails(ctx)
 			tt.assertErr(t, err)

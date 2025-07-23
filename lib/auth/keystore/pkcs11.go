@@ -26,6 +26,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 
 	"github.com/ThalesIgnite/crypto11"
@@ -166,6 +167,9 @@ func (p *pkcs11KeyStore) generateSigner(ctx context.Context, alg cryptosuites.Al
 	case cryptosuites.RSA2048:
 		signer, err := p.generateRSA2048(rawPKCS11ID, label)
 		return rawTeleportID, signer, trace.Wrap(err, "generating RSA2048 key")
+	case cryptosuites.RSA4096:
+		signer, err := p.generateRSA4096(rawPKCS11ID, label)
+		return rawTeleportID, signer, trace.Wrap(err, "generating RSA4096 key")
 	case cryptosuites.ECDSAP256:
 		signer, err := p.generateECDSAP256(rawPKCS11ID, label)
 		return rawTeleportID, signer, trace.Wrap(err, "generating ECDSAP256 key")
@@ -207,9 +211,9 @@ func (p *pkcs11KeyStore) generateDecrypter(ctx context.Context, alg cryptosuites
 
 	label := []byte(p.hostUUID)
 	switch alg {
-	case cryptosuites.RSA2048:
-		decrypter, err := p.generateRSA2048(rawPKCS11ID, label)
-		return rawTeleportID, newOAEPDecrypter(p.oaepHash, decrypter), p.oaepHash, trace.Wrap(err, "generating RSA2048 key")
+	case cryptosuites.RSA4096:
+		decrypter, err := p.generateRSA4096(rawPKCS11ID, label)
+		return rawTeleportID, newOAEPDecrypter(p.oaepHash, decrypter), p.oaepHash, trace.Wrap(err, "generating RSA4096 key")
 	default:
 		return nil, nil, p.oaepHash, trace.BadParameter("unsupported key algorithm for PKCS#11 HSM decryption: %v", alg)
 	}
@@ -217,6 +221,11 @@ func (p *pkcs11KeyStore) generateDecrypter(ctx context.Context, alg cryptosuites
 
 func (p *pkcs11KeyStore) generateRSA2048(ckaID, label []byte) (crypto11.SignerDecrypter, error) {
 	signer, err := p.ctx.GenerateRSAKeyPairWithLabel(ckaID, label, constants.RSAKeySize)
+	return signer, trace.Wrap(err)
+}
+
+func (p *pkcs11KeyStore) generateRSA4096(ckaID, label []byte) (crypto11.SignerDecrypter, error) {
+	signer, err := p.ctx.GenerateRSAKeyPairWithLabel(ckaID, label, 4096)
 	return signer, trace.Wrap(err)
 }
 
@@ -352,17 +361,12 @@ func (p *pkcs11KeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 		activePublicKeys = append(activePublicKeys, publicKey)
 	}
 	keyIsActive := func(signer crypto.Signer) bool {
-		publicKey, ok := signer.Public().(publicKey)
+		pub, ok := signer.Public().(publicKey)
 		if !ok {
 			// unknown key type... we don't know what this is, so don't delete it
 			return true
 		}
-		for _, k := range activePublicKeys {
-			if publicKey.Equal(k) {
-				return true
-			}
-		}
-		return false
+		return slices.ContainsFunc(activePublicKeys, func(pk publicKey) bool { return pub.Equal(pk) })
 	}
 	signers, err := p.ctx.FindKeyPairs(nil, []byte(p.hostUUID))
 	if err != nil {
@@ -397,7 +401,7 @@ func (k keyID) marshal() ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	buf = append(append([]byte{}, pkcs11Prefix...), buf...)
+	buf = slices.Concat(pkcs11Prefix, buf)
 	return buf, nil
 }
 

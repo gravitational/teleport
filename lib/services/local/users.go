@@ -26,6 +26,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"iter"
 	"log/slog"
 	"sort"
 	"strings"
@@ -45,12 +46,12 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -120,13 +121,9 @@ func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersR
 		pageSize = apidefaults.DefaultChunkSize
 	}
 
-	// Artificially inflate the limit to account for user secrets
-	// which have the same prefix.
-	limit := int(pageSize) * 4
+	itemStream := s.Backend.Items(ctx, backend.ItemsParams{StartKey: rangeStart, EndKey: rangeEnd})
 
-	itemStream := backend.StreamRange(ctx, s.Backend, rangeStart, rangeEnd, limit)
-
-	var userStream stream.Stream[*types.UserV2]
+	var userStream iter.Seq2[*types.UserV2, error]
 	if req.WithSecrets {
 		userStream = s.streamUsersWithSecrets(itemStream)
 	} else {
@@ -143,21 +140,20 @@ func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersR
 		})
 	}
 
-	users, full := stream.Take(userStream, int(pageSize))
+	var resp userspb.ListUsersResponse
+	for user, err := range userStream {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	var nextToken string
-	if full && userStream.Next() {
-		nextToken = nextUserToken(users[len(users)-1])
+		if len(resp.Users) >= int(pageSize) {
+			resp.NextPageToken = nextUserToken(resp.Users[len(resp.Users)-1])
+			return &resp, nil
+		}
+
+		resp.Users = append(resp.Users, user)
 	}
-
-	if err := userStream.Done(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &userspb.ListUsersResponse{
-		Users:         users,
-		NextPageToken: nextToken,
-	}, nil
+	return &resp, nil
 }
 
 // nextUserToken returns the last token for the given user. This
@@ -171,7 +167,7 @@ func nextUserToken(user types.User) string {
 
 // streamUsersWithSecrets is a helper that converts a stream of backend items over the user key range into a stream
 // of users along with their associated secrets.
-func (s *IdentityService) streamUsersWithSecrets(itemStream stream.Stream[backend.Item]) stream.Stream[*types.UserV2] {
+func (s *IdentityService) streamUsersWithSecrets(itemStream iter.Seq2[backend.Item, error]) iter.Seq2[*types.UserV2, error] {
 	type collector struct {
 		items userItems
 		name  string
@@ -241,7 +237,7 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream stream.Stream[backen
 
 // streamUsersWithoutSecrets is a helper that converts a stream of backend items over the user range into a stream of
 // user resources without any included secrets.
-func (s *IdentityService) streamUsersWithoutSecrets(itemStream stream.Stream[backend.Item]) stream.Stream[*types.UserV2] {
+func (s *IdentityService) streamUsersWithoutSecrets(itemStream iter.Seq2[backend.Item, error]) iter.Seq2[*types.UserV2, error] {
 	suffix := backend.NewKey(paramsPrefix)
 	userStream := stream.FilterMap(itemStream, func(item backend.Item) (*types.UserV2, bool) {
 		if !item.Key.HasSuffix(suffix) {
@@ -537,7 +533,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 	// one retry because ConditionalUpdate could occasionally spuriously fail,
 	// another retry because a single retry would be weird
 	const iterationLimit = 3
-	for i := 0; i < iterationLimit; i++ {
+	for range iterationLimit {
 		const withoutSecrets = false
 		currentWithoutSecrets, err := s.GetUser(ctx, new.GetName(), withoutSecrets)
 		if err != nil {
@@ -1110,10 +1106,7 @@ func (l *globalSessionDataLimiter) add(scope string, n int) int {
 		l.lastReset = now
 	}
 
-	v := l.scopeCount[scope] + n
-	if v < 0 {
-		v = 0
-	}
+	v := max(l.scopeCount[scope]+n, 0)
 	l.scopeCount[scope] = v
 	return v
 }

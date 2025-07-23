@@ -60,23 +60,29 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/inventory"
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
-	cryptosuites.PrecomputeRSATestKeys(m)
+	logtest.InitLogger(testing.Verbose)
+	ctx, cancel := context.WithCancel(context.Background())
+	cryptosuitestest.PrecomputeRSAKeys(ctx)
 	modules.SetInsecureTestMode(true)
-	os.Exit(m.Run())
+	exitCode := m.Run()
+	cancel()
+	os.Exit(exitCode)
 }
 
 type Suite struct {
@@ -165,6 +171,7 @@ func SetUpSuite(t *testing.T) *Suite {
 
 func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s := &Suite{}
+	s.closeContext, s.closeFunc = context.WithCancel(t.Context())
 
 	s.clock = clockwork.NewFakeClock()
 	s.dataDir = t.TempDir()
@@ -182,12 +189,15 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 	t.Cleanup(func() { s.authServer.Close() })
 
+	recordingMode := types.RecordOff
 	if config.ServerStreamer != nil {
-		_, err = s.authServer.AuthServer.UpsertSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
-			Spec: types.SessionRecordingConfigSpecV2{Mode: types.RecordAtNodeSync},
-		})
-		require.NoError(t, err)
+		recordingMode = types.RecordAtNodeSync
 	}
+
+	_, err = s.authServer.AuthServer.UpsertSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
+		Spec: types.SessionRecordingConfigSpecV2{Mode: recordingMode},
+	})
+	require.NoError(t, err)
 
 	s.tlsServer, err = s.authServer.NewTestTLSServer()
 	require.NoError(t, err)
@@ -228,8 +238,6 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	// Create user for regular tests.
 	s.user, err = auth.CreateUser(context.Background(), s.tlsServer.Auth(), "foo", s.role)
 	require.NoError(t, err)
-
-	s.closeContext, s.closeFunc = context.WithCancel(context.Background())
 
 	// Create a in-memory HTTP server that will respond with a UUID. This value
 	// will be checked in the client later to ensure a connection was made.
@@ -387,19 +395,20 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	s.appServer, err = New(s.closeContext, &Config{
-		Clock:              s.clock,
-		AccessPoint:        s.authClient,
-		AuthClient:         s.authClient,
-		HostID:             s.hostUUID,
-		Hostname:           "test",
-		GetRotation:        testRotationGetter,
-		Apps:               apps,
-		OnHeartbeat:        func(err error) {},
-		ResourceMatchers:   config.ResourceMatchers,
-		OnReconcile:        config.OnReconcile,
-		CloudLabels:        config.CloudImporter,
-		ConnectionsHandler: connectionsHandler,
-		InventoryHandle:    inventoryHandle,
+		Clock:                s.clock,
+		AccessPoint:          s.authClient,
+		AuthClient:           s.authClient,
+		HostID:               s.hostUUID,
+		Hostname:             "test",
+		GetRotation:          testRotationGetter,
+		Apps:                 apps,
+		OnHeartbeat:          func(err error) {},
+		ResourceMatchers:     config.ResourceMatchers,
+		OnReconcile:          config.OnReconcile,
+		CloudLabels:          config.CloudImporter,
+		ConnectionsHandler:   connectionsHandler,
+		InventoryHandle:      inventoryHandle,
+		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
 	})
 	require.NoError(t, err)
 
@@ -551,7 +560,6 @@ func TestShutdown(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 

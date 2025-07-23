@@ -422,12 +422,8 @@ func formatTestLabels(l1, l2 map[string]string, verbose bool) string {
 		"date": "Tue 11 Oct 2022 10:21:58 WEST",
 	}
 
-	for key, value := range l1 {
-		labels[key] = value
-	}
-	for key, value := range l2 {
-		labels[key] = value
-	}
+	maps.Copy(labels, l1)
+	maps.Copy(labels, l2)
 	return common.FormatLabels(labels, verbose)
 }
 

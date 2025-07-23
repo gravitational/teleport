@@ -23,13 +23,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestAccessList tests that CRUD operations on access list resources are
@@ -51,13 +56,11 @@ func TestAccessList(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]*accesslist.AccessList, error) {
-			items, _, err := p.accessLists.ListAccessLists(ctx, 0 /* page size */, "")
-			return items, trace.Wrap(err)
+			return stream.Collect(clientutils.Resources(ctx, p.accessLists.ListAccessLists))
 		},
 		cacheGet: p.cache.GetAccessList,
-		cacheList: func(ctx context.Context) ([]*accesslist.AccessList, error) {
-			items, _, err := p.cache.ListAccessLists(ctx, 0 /* page size */, "")
-			return items, trace.Wrap(err)
+		cacheList: func(ctx context.Context, pageSize int) ([]*accesslist.AccessList, error) {
+			return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListAccessLists, pageSize))
 		},
 		update: func(ctx context.Context, item *accesslist.AccessList) error {
 			_, err := p.accessLists.UpsertAccessList(ctx, item)
@@ -91,15 +94,16 @@ func TestAccessListMembers(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]*accesslist.AccessListMember, error) {
-			items, _, err := p.accessLists.ListAllAccessListMembers(ctx, 0 /* page size */, "")
-			return items, trace.Wrap(err)
+			return stream.Collect(clientutils.Resources(ctx, p.accessLists.ListAllAccessListMembers))
 		},
 		cacheGet: func(ctx context.Context, name string) (*accesslist.AccessListMember, error) {
 			return p.cache.GetAccessListMember(ctx, al.GetName(), name)
 		},
-		cacheList: func(ctx context.Context) ([]*accesslist.AccessListMember, error) {
-			items, _, err := p.cache.ListAccessListMembers(ctx, al.GetName(), 0 /* page size */, "")
-			return items, trace.Wrap(err)
+		cacheList: func(ctx context.Context, pageSize int) ([]*accesslist.AccessListMember, error) {
+			fn := func(ctx context.Context, pageSize int, startKey string) ([]*accesslist.AccessListMember, string, error) {
+				return p.cache.ListAccessListMembers(ctx, al.GetName(), pageSize, startKey)
+			}
+			return stream.Collect(clientutils.Resources(ctx, fn))
 		},
 		update: func(ctx context.Context, item *accesslist.AccessListMember) error {
 			_, err := p.accessLists.UpsertAccessListMember(ctx, item)
@@ -110,7 +114,7 @@ func TestAccessListMembers(t *testing.T) {
 
 	// Verify counting.
 	ctx := context.Background()
-	for i := 0; i < numMembers; i++ {
+	for i := range numMembers {
 		_, err = p.accessLists.UpsertAccessListMember(ctx, newAccessListMember(t, al.GetName(), strconv.Itoa(i)))
 		require.NoError(t, err)
 	}
@@ -170,32 +174,108 @@ func TestAccessListReviews(t *testing.T) {
 		},
 		create: func(ctx context.Context, item *accesslist.Review) error {
 			review, _, err := p.accessLists.CreateAccessListReview(ctx, item)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 			// Use the old name from the description.
 			oldName := review.Metadata.Description
 			reviews[oldName].SetName(review.GetName())
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]*accesslist.Review, error) {
-			items, _, err := p.accessLists.ListAllAccessListReviews(ctx, 0 /* page size */, "")
-			return items, trace.Wrap(err)
+			return stream.Collect(clientutils.Resources(ctx, p.accessLists.ListAllAccessListReviews))
 		},
-		cacheList: func(ctx context.Context) ([]*accesslist.Review, error) {
-			items, _, err := p.cache.ListAccessListReviews(ctx, al.GetName(), 0 /* page size */, "")
-			return items, trace.Wrap(err)
+		cacheList: func(ctx context.Context, pageSize int) ([]*accesslist.Review, error) {
+			fn := func(ctx context.Context, pageSize int, startKey string) ([]*accesslist.Review, string, error) {
+				return p.cache.ListAccessListReviews(ctx, al.GetName(), pageSize, startKey)
+			}
+			return stream.Collect(clientutils.Resources(ctx, fn))
 		},
 		deleteAll: p.accessLists.DeleteAllAccessListReviews,
-	})
+	}, withSkipPaginationTest()) // access list reviews resources have customer pagination test.
+
+	_, _, err = p.accessLists.UpsertAccessListWithMembers(t.Context(), newAccessList(t, "fake-al-1", clock),
+		[]*accesslist.AccessListMember{
+			newAccessListMember(t, "fake-al-1", "member1"),
+			newAccessListMember(t, "fake-al-1", "member2"),
+		})
+	require.NoError(t, err)
+
+	_, _, err = p.accessLists.UpsertAccessListWithMembers(t.Context(), newAccessList(t, "fake-al-2", clock),
+		[]*accesslist.AccessListMember{
+			newAccessListMember(t, "fake-al-2", "member1"),
+			newAccessListMember(t, "fake-al-2", "member2"),
+		})
+	require.NoError(t, err)
+
+	review1 := newAccessListReview(t, "fake-al-1", "initial-review-1")
+	review1, _, err = p.accessLists.CreateAccessListReview(t.Context(), review1)
+	require.NoError(t, err)
+	review2 := newAccessListReview(t, "fake-al-2", "initial-review-2")
+	review2, _, err = p.accessLists.CreateAccessListReview(t.Context(), review2)
+	require.NoError(t, err)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		out, next, err := p.cache.ListAccessListReviews(context.Background(), "fake-al-1", 100, "")
+		require.NoError(t, err)
+		assert.Empty(t, next)
+
+		assert.Len(t, out, 1)
+		assert.Empty(t, cmp.Diff([]*accesslist.Review{review1}, out,
+			cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+			protocmp.Transform()),
+		)
+	}, 15*time.Second, 100*time.Millisecond)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		out, next, err := p.cache.ListAccessListReviews(context.Background(), "fake-al-2", 100, "")
+		require.NoError(t, err)
+		assert.Empty(t, next)
+
+		assert.Len(t, out, 1)
+		assert.Empty(t, cmp.Diff([]*accesslist.Review{review2}, out,
+			cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+			protocmp.Transform()),
+		)
+	}, 15*time.Second, 100*time.Millisecond)
+
+	_, _, err = p.accessLists.UpsertAccessListWithMembers(t.Context(), newAccessList(t, "access-list-test", clock),
+		[]*accesslist.AccessListMember{
+			newAccessListMember(t, "access-list-test", "member1"),
+			newAccessListMember(t, "access-list-test", "member2"),
+		})
+	require.NoError(t, err)
+
+	for i := range 10 {
+		review := newAccessListReview(t, "access-list-test", "fake-review-"+strconv.Itoa(i))
+		review.Spec.Changes = accesslist.ReviewChanges{}
+		_, _, err = p.accessLists.CreateAccessListReview(t.Context(), review)
+		require.NoError(t, err)
+	}
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		count := p.cache.collections.accessListReviews.store.len()
+		_ = count
+
+		var start string
+		var out []*accesslist.Review
+		for range 10 {
+			page, next, err := p.cache.ListAccessListReviews(context.Background(), "access-list-test", 3, start)
+			require.NoError(t, err)
+
+			out = append(out, page...)
+			if next == "" {
+				break
+			}
+			start = next
+		}
+		assert.Len(t, out, 10)
+	}, 15*time.Second, 100*time.Millisecond)
+
 }
 
 func TestCountAccessListMembersScoping(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-	})
+	t.Parallel()
 
 	p := newTestPack(t, ForAuth, memoryBackend(true))
 	t.Cleanup(p.Close)

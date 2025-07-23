@@ -19,13 +19,17 @@
 package tbot
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/auth/authclient"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
 // ClientCredentialOutputService produces credentials which can be used to
@@ -34,16 +38,22 @@ type ClientCredentialOutputService struct {
 	// botAuthClient should be an auth client using the bots internal identity.
 	// This will not have any roles impersonated and should only be used to
 	// fetch CAs.
-	botAuthClient     *authclient.Client
-	botCfg            *config.BotConfig
-	cfg               *config.UnstableClientCredentialOutput
-	getBotIdentity    getBotIdentityFn
-	log               *slog.Logger
-	reloadBroadcaster *channelBroadcaster
+	botAuthClient      *apiclient.Client
+	botIdentityReadyCh <-chan struct{}
+	botCfg             *config.BotConfig
+	cfg                *config.UnstableClientCredentialOutput
+	getBotIdentity     getBotIdentityFn
+	log                *slog.Logger
+	reloadBroadcaster  *internal.ChannelBroadcaster
+	statusReporter     readyz.Reporter
+	identityGenerator  *identity.Generator
 }
 
 func (s *ClientCredentialOutputService) String() string {
-	return "client-credential-output"
+	return cmp.Or(
+		s.cfg.Name,
+		"client-credential-output",
+	)
 }
 
 func (s *ClientCredentialOutputService) OneShot(ctx context.Context) error {
@@ -51,17 +61,19 @@ func (s *ClientCredentialOutputService) OneShot(ctx context.Context) error {
 }
 
 func (s *ClientCredentialOutputService) Run(ctx context.Context) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
+	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
 	defer unsubscribe()
 
-	err := runOnInterval(ctx, runOnIntervalConfig{
-		service:    s.String(),
-		name:       "output-renewal",
-		f:          s.generate,
-		interval:   s.botCfg.CredentialLifetime.RenewalInterval,
-		retryLimit: renewalRetryLimit,
-		log:        s.log,
-		reloadCh:   reloadCh,
+	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
+		Service:         s.String(),
+		Name:            "output-renewal",
+		F:               s.generate,
+		Interval:        s.botCfg.CredentialLifetime.RenewalInterval,
+		RetryLimit:      renewalRetryLimit,
+		Log:             s.log,
+		ReloadCh:        reloadCh,
+		IdentityReadyCh: s.botIdentityReadyCh,
+		StatusReporter:  s.statusReporter,
 	})
 	return trace.Wrap(err)
 }
@@ -74,18 +86,9 @@ func (s *ClientCredentialOutputService) generate(ctx context.Context) error {
 	defer span.End()
 	s.log.InfoContext(ctx, "Generating output")
 
-	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
-	if err != nil {
-		return trace.Wrap(err, "fetching default roles")
-	}
-
-	id, err := generateIdentity(
-		ctx,
-		s.botAuthClient,
-		s.getBotIdentity(),
-		roles,
-		s.botCfg.CredentialLifetime.TTL,
-		nil,
+	id, err := s.identityGenerator.Generate(ctx,
+		identity.WithLifetime(s.botCfg.CredentialLifetime.TTL, s.botCfg.CredentialLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
 	)
 	if err != nil {
 		return trace.Wrap(err, "generating identity")

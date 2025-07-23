@@ -30,8 +30,9 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -39,7 +40,7 @@ func TestBotWorkloadIdentityJWT(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
 	rootClient := testenv.MakeDefaultAuthClient(t, process)
@@ -90,7 +91,7 @@ func TestBotWorkloadIdentityJWT(t *testing.T) {
 				Selector: config.WorkloadIdentitySelector{
 					Name: workloadIdentity.GetMetadata().GetName(),
 				},
-				Destination: &config.DestinationDirectory{
+				Destination: &destination.Directory{
 					Path: tmpDir,
 				},
 				Audiences: []string{"example", "foo"},
@@ -123,7 +124,7 @@ func TestBotWorkloadIdentityJWT(t *testing.T) {
 						"foo": {"bar"},
 					},
 				},
-				Destination: &config.DestinationDirectory{
+				Destination: &destination.Directory{
 					Path: tmpDir,
 				},
 				Audiences: []string{"example"},

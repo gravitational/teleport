@@ -29,6 +29,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -44,6 +45,7 @@ import (
 	mssql "github.com/microsoft/go-mssqldb"
 	opensearchclt "github.com/opensearch-project/opensearch-go/v2"
 	goredis "github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -53,6 +55,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
@@ -62,7 +65,7 @@ import (
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -70,14 +73,16 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	"github.com/gravitational/teleport/lib/srv/db/cassandra"
-	"github.com/gravitational/teleport/lib/srv/db/clickhouse"
+	cassandra "github.com/gravitational/teleport/lib/srv/db/cassandra/protocoltest"
+	clickhouse "github.com/gravitational/teleport/lib/srv/db/clickhouse/protocoltest"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	dbconnect "github.com/gravitational/teleport/lib/srv/db/common/connect"
@@ -89,25 +94,30 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/objects"
 	"github.com/gravitational/teleport/lib/srv/db/opensearch"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
-	"github.com/gravitational/teleport/lib/srv/db/redis"
 	redisprotocol "github.com/gravitational/teleport/lib/srv/db/redis/protocol"
+	redis "github.com/gravitational/teleport/lib/srv/db/redis/protocoltest"
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
-	"github.com/gravitational/teleport/lib/srv/db/spanner"
+	spanner "github.com/gravitational/teleport/lib/srv/db/spanner/protocoltest"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
-	cryptosuites.PrecomputeRSATestKeys(m)
+	logtest.InitLogger(testing.Verbose)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cryptosuitestest.PrecomputeRSAKeys(ctx)
 	modules.SetInsecureTestMode(true)
 	registerTestSnowflakeEngine()
 	registerTestElasticsearchEngine()
 	registerTestSQLServerEngine()
-	os.Exit(m.Run())
+	exitCode := m.Run()
+	cancel()
+	os.Exit(exitCode)
 }
 
 // TestAccessPostgres verifies access scenarios to a Postgres database based
@@ -1021,7 +1031,6 @@ func TestAccessMongoDB(t *testing.T) {
 	// Execute each scenario on both modern and legacy Mongo servers
 	// to make sure legacy messages are also subject to RBAC.
 	for _, test := range tests {
-		test := test
 		t.Run(fmt.Sprintf("%v", test.desc), func(t *testing.T) {
 			t.Parallel()
 
@@ -1033,7 +1042,6 @@ func TestAccessMongoDB(t *testing.T) {
 				testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
 
 				for _, clientOpt := range clientOpts {
-					clientOpt := clientOpt
 
 					t.Run(fmt.Sprintf("%v/%v", serverOpt.name, clientOpt.name), func(t *testing.T) {
 						t.Parallel()
@@ -1111,7 +1119,7 @@ func TestMongoDBMaxMessageSize(t *testing.T) {
 
 // TestAccessDisabled makes sure database access can be disabled via modules.
 func TestAccessDisabled(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.DB: {Enabled: false},
@@ -1249,7 +1257,6 @@ func TestRedisPubSub(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
@@ -1329,7 +1336,7 @@ func TestRedisPipeline(t *testing.T) {
 	pipeliner := redisClient.Pipeline()
 
 	// Set multiple keys using pipelining.
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		err := pipeliner.Set(ctx, fmt.Sprintf("foo%d", i), i, 0).Err()
 		require.NoError(t, err)
 	}
@@ -1341,7 +1348,7 @@ func TestRedisPipeline(t *testing.T) {
 		require.NoError(t, cmd.Err())
 	}
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		err := pipeliner.Get(ctx, fmt.Sprintf("foo%d", i)).Err()
 		require.NoError(t, err)
 	}
@@ -1396,7 +1403,7 @@ func TestRedisTransaction(t *testing.T) {
 			return err
 		}
 
-		for i := 0; i < maxRetries; i++ {
+		for range maxRetries {
 			err := redisClient.Watch(ctx, txf, key)
 			if err == nil {
 				// Success.
@@ -1421,7 +1428,7 @@ func TestRedisTransaction(t *testing.T) {
 	asyncErrors := make(chan error, concurrentConnections)
 	defer close(asyncErrors)
 
-	for i := 0; i < concurrentConnections; i++ {
+	for range concurrentConnections {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -2397,7 +2404,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 		ServerID:       testCtx.hostID,
 		Emitter:        testCtx.emitter,
 		EmitterContext: ctx,
-		Logger:         utils.NewSlogLoggerForTests(),
+		Logger:         logtest.NewLogger(),
 	})
 	require.NoError(t, err)
 
@@ -2551,7 +2558,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		ServerID:       p.HostID,
 		Emitter:        c.emitter,
 		EmitterContext: context.Background(),
-		Logger:         utils.NewSlogLoggerForTests(),
+		Logger:         logtest.NewLogger(),
 	})
 	require.NoError(t, err)
 
@@ -2619,25 +2626,22 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		InventoryHandle:           inventoryHandle,
 		discoveryResourceChecker:  p.DiscoveryResourceChecker,
 		getEngineFn:               p.GetEngineFn,
+		ConnectedProxyGetter:      reversetunnel.NewConnectedProxyGetter(),
 	})
 	require.NoError(t, err)
 
 	if !p.NoStart {
 		require.NoError(t, server.Start(ctx))
-
-		// Explicitly send a heartbeat for any statically defined dbs.
-		for _, db := range p.Databases {
-			select {
-			case sender := <-inventoryHandle.Sender():
-				dbServer, err := server.getServerInfo(ctx, db)
-				require.NoError(t, err)
-				require.NoError(t, sender.Send(ctx, &proto.InventoryHeartbeat{
-					DatabaseServer: dbServer,
-				}))
-			case <-time.After(20 * time.Second):
-				t.Fatal("timed out waiting for inventory handle sender")
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			dbServers, err := c.proxyServer.cfg.AccessPoint.GetDatabaseServers(ctx, apidefaults.Namespace)
+			if !assert.NoError(t, err) {
+				return
 			}
-		}
+			assert.Subset(t,
+				slices.Collect(types.ResourceNames(dbServers)),
+				slices.Collect(types.ResourceNames(p.Databases)),
+			)
+		}, 20*time.Second, 100*time.Millisecond, "waiting for database servers to become available")
 	}
 
 	return server

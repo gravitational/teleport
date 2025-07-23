@@ -30,6 +30,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -71,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -78,10 +80,11 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/hostid"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
 }
@@ -311,12 +314,7 @@ func TestMonitor(t *testing.T) {
 			resp, err := http.Get(endpoint)
 			require.NoError(t, err)
 			resp.Body.Close()
-			for _, c := range statusCodes {
-				if resp.StatusCode == c {
-					return true
-				}
-			}
-			return false
+			return slices.Contains(statusCodes, resp.StatusCode)
 		}
 	}
 
@@ -501,7 +499,7 @@ func TestServiceInitExternalLog(t *testing.T) {
 
 func TestAthenaAuditLogSetup(t *testing.T) {
 	ctx := context.Background()
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud: true,
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -520,7 +518,7 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 			exitContext: context.Background(),
 		},
 		backend: backend,
-		logger:  utils.NewSlogLoggerForTests(),
+		logger:  logtest.NewLogger(),
 	}
 
 	integrationSvc, err := local.NewIntegrationsService(backend)
@@ -831,6 +829,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"h2",
 				"acme-tls/1",
 				"teleport-tcp-ping",
+				"teleport-mcp-ping",
 				"teleport-postgres-ping",
 				"teleport-mysql-ping",
 				"teleport-mongodb-ping",
@@ -851,6 +850,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-proxy-ssh-grpc",
 				"teleport-proxy-grpc",
 				"teleport-proxy-grpc-mtls",
+				"teleport-mcp",
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",
@@ -871,6 +871,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			acmeEnabled: false,
 			wantNextProtos: []string{
 				"teleport-tcp-ping",
+				"teleport-mcp-ping",
 				"teleport-postgres-ping",
 				"teleport-mysql-ping",
 				"teleport-mongodb-ping",
@@ -894,6 +895,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-proxy-ssh-grpc",
 				"teleport-proxy-grpc",
 				"teleport-proxy-grpc-mtls",
+				"teleport-mcp",
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",
@@ -950,7 +952,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	cfg.Testing.ConnectFailureC = make(chan time.Duration, 5)
 	cfg.Testing.ClientTimeout = time.Millisecond
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Logger = logtest.NewLogger()
 	process, err := NewTeleport(cfg)
 	require.NoError(t, err)
 
@@ -965,7 +967,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 
 	timeout := time.After(10 * time.Second)
 	step := cfg.MaxRetryPeriod / 5.0
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		// wait for connection to fail
 		select {
 		case duration := <-process.Config.Testing.ConnectFailureC:
@@ -1095,25 +1097,6 @@ func Test_readOrGenerateHostID(t *testing.T) {
 			},
 			wantFunc: func(receivedID string) bool {
 				return receivedID == id
-			},
-		},
-		{
-			name: "Kube Backend is available but key is missing. Load from local storage and store in kube",
-			args: args{
-				kubeBackend: &fakeKubeBackend{
-					getData: nil,
-					getErr:  fmt.Errorf("key not found"),
-				},
-				hostIDContent: id,
-			},
-			wantFunc: func(receivedID string) bool {
-				return receivedID == id
-			},
-			wantKubeItemFunc: func(i *backend.Item) bool {
-				return cmp.Diff(&backend.Item{
-					Key:   backend.KeyFromString(hostUUIDKey),
-					Value: []byte(id),
-				}, i, cmp.AllowUnexported(backend.Key{})) == ""
 			},
 		},
 		{
@@ -1292,7 +1275,7 @@ func TestProxyGRPCServers(t *testing.T) {
 	// Create a new Teleport process to initialize the gRPC servers with KubeProxy
 	// enabled.
 	process := &TeleportProcess{
-		Supervisor: NewSupervisor(hostID, utils.NewSlogLoggerForTests()),
+		Supervisor: NewSupervisor(hostID, logtest.NewLogger()),
 		Config: &servicecfg.Config{
 			Proxy: servicecfg.ProxyConfig{
 				Kube: servicecfg.KubeProxyConfig{
@@ -1300,7 +1283,7 @@ func TestProxyGRPCServers(t *testing.T) {
 				},
 			},
 		},
-		logger: utils.NewSlogLoggerForTests(),
+		logger: logtest.NewLogger(),
 	}
 
 	// Create a limiter with no limits.
@@ -1310,7 +1293,7 @@ func TestProxyGRPCServers(t *testing.T) {
 	// Create a error channel to collect the errors from the gRPC servers.
 	errC := make(chan error, 2)
 	t.Cleanup(func() {
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			err := <-errC
 			if errors.Is(err, net.ErrClosed) {
 				continue
@@ -1402,7 +1385,6 @@ func TestProxyGRPCServers(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -1480,7 +1462,7 @@ func TestEnterpriseServicesEnabled(t *testing.T) {
 			if tt.enterprise {
 				buildType = modules.BuildEnterprise
 			}
-			modules.SetTestModules(t, &modules.TestModules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				TestBuildType: buildType,
 			})
 

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"bytes"
@@ -37,8 +37,11 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apifixtures "github.com/gravitational/teleport/api/fixtures"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/tpm"
 )
 
@@ -76,16 +79,16 @@ func (m *mockTPMValidator) validate(
 func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 	ctx := context.Background()
 	mockValidator := &mockTPMValidator{}
-	p, err := newTestPack(ctx, t.TempDir(), func(server *Server) error {
-		server.tpmValidator = mockValidator.validate
+	p, err := newTestPack(ctx, t.TempDir(), func(server *auth.Server) error {
+		server.SetTPMValidator(mockValidator.validate)
 		return nil
 	})
 	require.NoError(t, err)
-	auth := p.a
+	authServer := p.a
 
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
-	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 
 	attParams := &proto.TPMAttestationParameters{
@@ -137,7 +140,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 	caPool := x509.NewCertPool()
 	require.True(t, caPool.AppendCertsFromPEM([]byte(apifixtures.TLSCACertPEM)))
 
-	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
+	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
 		require.ErrorContains(t, err, "validated tpm attributes did not match any allow rules")
 		require.True(t, trace.IsAccessDenied(err))
 	})
@@ -268,7 +271,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 		},
 		{
 			name: "failure, verification",
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				assert.ErrorContains(t, err, "capacitor overcharged")
 			},
 
@@ -293,8 +296,8 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 		{
 			name:   "failure, no enterprise",
 			setOSS: true,
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				assert.ErrorIs(t, err, ErrRequiresEnterprise)
+			assertError: func(t require.TestingT, err error, i ...any) {
+				assert.ErrorIs(t, err, auth.ErrRequiresEnterprise)
 			},
 
 			initReq: &proto.RegisterUsingTPMMethodInitialRequest{
@@ -327,9 +330,9 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockValidator.setup(tt.validateReturnTPM, tt.validateReturnErr)
 			if !tt.setOSS {
-				modules.SetTestModules(
+				modulestest.SetTestModules(
 					t,
-					&modules.TestModules{TestBuildType: modules.BuildEnterprise},
+					modulestest.Modules{TestBuildType: modules.BuildEnterprise},
 				)
 			}
 
@@ -337,10 +340,10 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 				tt.name, time.Now().Add(time.Minute), tt.tokenSpec,
 			)
 			require.NoError(t, err)
-			require.NoError(t, auth.CreateToken(ctx, token))
+			require.NoError(t, authServer.CreateToken(ctx, token))
 			tt.initReq.JoinRequest.Token = tt.name
 
-			_, err = auth.RegisterUsingTPMMethod(
+			_, err = authServer.RegisterUsingTPMMethod(
 				ctx,
 				tt.initReq,
 				solver(t))

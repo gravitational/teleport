@@ -86,6 +86,7 @@ func TestFileConfig_sampleFile(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, config)
 	require.True(t, config.Exists())
+	require.Equal(t, configPath, config.Path())
 	require.Equal(t, sampleMCPServers, config.GetMCPServers())
 
 	// remove
@@ -135,13 +136,15 @@ func TestFileConfig_sampleFile(t *testing.T) {
 func TestConfig_Write(t *testing.T) {
 	config := NewConfig()
 
-	require.NoError(t, config.PutMCPServer("test", MCPServer{
+	mcpServer := MCPServer{
 		Command: "command",
-	}))
+	}
+	mcpServer.AddEnv("foo", "bar")
+	require.NoError(t, config.PutMCPServer("test", mcpServer))
 	var buf bytes.Buffer
 
 	require.NoError(t, config.Write(&buf, FormatJSONCompact))
-	require.Equal(t, `{"mcpServers":{"test":{"command":"command"}}}`, buf.String())
+	require.Equal(t, `{"mcpServers":{"test":{"command":"command","env":{"foo":"bar"}}}}`, buf.String())
 }
 
 func Test_isJSONCompact(t *testing.T) {
@@ -241,6 +244,29 @@ func Test_formatJSON(t *testing.T) {
 			formatted, err := formatJSON([]byte(tt.in), tt.format, tt.isOriginalCompact)
 			require.NoError(t, err)
 			require.Equal(t, tt.out, string(formatted))
+		})
+	}
+}
+
+// TestPrettyResourceURIs given a MCP server that includes a Resource URI as
+// arguments it must encode and output those URIs in a readable format.
+func TestReadableResourceURIs(t *testing.T) {
+	for name, uri := range map[string]string{
+		"uri with query params":    "teleport://clusters/root/databases/pg",
+		"uri without query params": "teleport://clusters/root/databases/pg?dbName=postgres&dbUser=readonly",
+		"random uri with params":   "teleport://random?hello=world&random=resource",
+	} {
+		t.Run(name, func(t *testing.T) {
+			config := NewConfig()
+			mcpServer := MCPServer{
+				Command: "command",
+				Args:    []string{uri},
+			}
+			require.NoError(t, config.PutMCPServer("test", mcpServer))
+
+			var buf bytes.Buffer
+			require.NoError(t, config.Write(&buf, FormatJSONCompact))
+			require.Contains(t, buf.String(), uri)
 		})
 	}
 }

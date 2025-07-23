@@ -95,7 +95,7 @@ type SessionAccessContext struct {
 
 // GetIdentifier is used by the `predicate` library to evaluate variable expressions when
 // evaluating policy filters. It deals with evaluating strings like `participant.name` to the appropriate value.
-func (ctx *SessionAccessContext) GetIdentifier(fields []string) (interface{}, error) {
+func (ctx *SessionAccessContext) GetIdentifier(fields []string) (any, error) {
 	if fields[0] == "user" {
 		if len(fields) == 2 || len(fields) == 3 {
 			checkedFieldIdx := 1

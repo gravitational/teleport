@@ -66,7 +66,7 @@ type baseJSONRPCMessage struct {
 	// JSONRPC specifies the version of JSONRPC.
 	JSONRPC string `json:"jsonrpc"`
 	// ID is the ID for request and response. ID is nil for notification.
-	ID mcp.RequestId `json:"id,omitempty"`
+	ID mcp.RequestId `json:"id"`
 	// Method is the request or notification method. Method is empty for response.
 	Method mcp.MCPMethod `json:"method,omitempty"`
 	// Params is the params for request and notification.
@@ -126,7 +126,7 @@ type JSONRPCNotification struct {
 type JSONRPCRequest struct {
 	JSONRPC string        `json:"jsonrpc"`
 	Method  mcp.MCPMethod `json:"method"`
-	ID      mcp.RequestId `json:"id,omitempty"`
+	ID      mcp.RequestId `json:"id"`
 	Params  JSONRPCParams `json:"params,omitempty"`
 }
 
@@ -148,8 +148,25 @@ type JSONRPCResponse struct {
 // the corresponding go object.
 func (r *JSONRPCResponse) GetListToolResult() (*mcp.ListToolsResult, error) {
 	var listResult mcp.ListToolsResult
-	if err := json.Unmarshal([]byte(r.Result), &listResult); err != nil {
+	if err := json.Unmarshal(r.Result, &listResult); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &listResult, nil
 }
+
+// GetInitializeResult assumes the result is for mcp.MethodInitialize and
+// returns the corresponding go object.
+func (r *JSONRPCResponse) GetInitializeResult() (*mcp.InitializeResult, error) {
+	var result mcp.InitializeResult
+	if err := json.Unmarshal(r.Result, &result); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &result, nil
+}
+
+const (
+	// MethodNotificationInitialized defines the method used for "initialized"
+	// notification. This notification is sent by the client after it receives
+	// the initialize response.
+	MethodNotificationInitialized = "notifications/initialized"
+)

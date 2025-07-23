@@ -59,21 +59,21 @@ spec:
         args:
           - "--test"
           - "/etc/teleport/teleport.yaml"
-{{- if .Values.securityContext }}
-        securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
+{{- if $auth.securityContext }}
+        securityContext: {{- toYaml $auth.securityContext | nindent 10 }}
 {{- end }}
         volumeMounts:
-{{- if .Values.enterprise }}
+{{- if $auth.enterprise }}
         - mountPath: /var/lib/license
           name: "license"
           readOnly: true
 {{- end }}
-{{- if and (.Values.gcp.credentialSecretName) (eq .Values.chartMode "gcp") }}
+{{- if and ($auth.gcp.credentialSecretName) (eq $auth.chartMode "gcp") }}
         - mountPath: /etc/teleport-secrets
           name: "gcp-credentials"
           readOnly: true
 {{- end }}
-{{- if .Values.tls.existingCASecretName }}
+{{- if $auth.tls.existingCASecretName }}
         - mountPath: /etc/teleport-tls-ca
           name: "teleport-tls-ca"
           readOnly: true
@@ -83,32 +83,32 @@ spec:
           readOnly: true
         - mountPath: /var/lib/teleport
           name: "data"
-{{- if .Values.extraVolumeMounts }}
-  {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
+{{- if $auth.extraVolumeMounts }}
+  {{- toYaml $auth.extraVolumeMounts | nindent 8 }}
 {{- end }}
       volumes:
-{{- if .Values.enterprise }}
+{{- if $auth.enterprise }}
       - name: license
         secret:
-          secretName: {{ .Values.licenseSecretName | quote }}
+          secretName: {{ $auth.licenseSecretName | quote }}
 {{- end }}
-{{- if and (.Values.gcp.credentialSecretName) (eq .Values.chartMode "gcp") }}
+{{- if and ($auth.gcp.credentialSecretName) (eq $auth.chartMode "gcp") }}
       - name: gcp-credentials
         secret:
-          secretName: {{ .Values.gcp.credentialSecretName | quote }}
+          secretName: {{ $auth.gcp.credentialSecretName | quote }}
 {{- end }}
-{{- if .Values.tls.existingCASecretName }}
+{{- if $auth.tls.existingCASecretName }}
       - name: teleport-tls-ca
         secret:
-          secretName: {{ .Values.tls.existingCASecretName }}
+          secretName: {{ $auth.tls.existingCASecretName }}
 {{- end }}
       - name: "config"
         configMap:
           name: {{ .Release.Name }}-auth-test
       - name: "data"
         emptyDir: {}
-{{- if .Values.extraVolumes }}
-  {{- toYaml .Values.extraVolumes | nindent 6 }}
+{{- if $auth.extraVolumes }}
+  {{- toYaml $auth.extraVolumes | nindent 6 }}
 {{- end }}
       serviceAccountName: {{ include "teleport-cluster.auth.hookServiceAccountName" . }}
 {{- end }}

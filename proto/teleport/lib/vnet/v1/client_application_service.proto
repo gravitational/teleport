@@ -44,9 +44,9 @@ service ClientApplicationService {
   // SignForApp issues a signature with the private key associated with an x509
   // certificate previously issued for a requested app.
   rpc SignForApp(SignForAppRequest) returns (SignForAppResponse);
-  // OnNewConnection gets called whenever a new connection is about to be
+  // OnNewAppConnection gets called whenever a new app connection is about to be
   // established through VNet for observability.
-  rpc OnNewConnection(OnNewConnectionRequest) returns (OnNewConnectionResponse);
+  rpc OnNewAppConnection(OnNewAppConnectionRequest) returns (OnNewAppConnectionResponse);
   // OnInvalidLocalPort gets called before VNet refuses to handle a connection
   // to a multi-port TCP app because the provided port does not match any of the
   // TCP ports in the app spec.
@@ -262,14 +262,14 @@ message SignForAppResponse {
   bytes signature = 1;
 }
 
-// OnNewConnectionRequest is a request for OnNewConnection.
-message OnNewConnectionRequest {
+// OnNewAppConnectionRequest is a request for OnNewAppConnection.
+message OnNewAppConnectionRequest {
   // AppKey identifies the app the connection is being made for.
   AppKey app_key = 1;
 }
 
-// OnNewConnectionRequest is a response for OnNewConnection.
-message OnNewConnectionResponse {}
+// OnNewAppConnectionResponse is a response for OnNewAppConnection.
+message OnNewAppConnectionResponse {}
 
 // OnInvalidLocalPortRequest is a request for OnInvalidLocalPort.
 message OnInvalidLocalPortRequest {

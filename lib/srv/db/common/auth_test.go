@@ -47,11 +47,11 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -295,7 +295,7 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				}, nil /* scaleSetAPI */),
 			},
 			errAssertion: require.NoError,
-			resourceIDAssertion: func(requireT require.TestingT, value interface{}, _ ...interface{}) {
+			resourceIDAssertion: func(requireT require.TestingT, value any, _ ...any) {
 				require.Equal(requireT, identityResourceID(t, "identity"), value)
 			},
 		},
@@ -372,7 +372,7 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				),
 			},
 			errAssertion: require.NoError,
-			resourceIDAssertion: func(requireT require.TestingT, value interface{}, _ ...interface{}) {
+			resourceIDAssertion: func(requireT require.TestingT, value any, _ ...any) {
 				require.Equal(requireT, identityResourceID(t, "identity"), value)
 			},
 		},
@@ -700,7 +700,6 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 	require.NoError(t, err)
 
 	for name, tt := range tests {
-		tt := tt
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			tt.checkGetAuthFn(t, auth)

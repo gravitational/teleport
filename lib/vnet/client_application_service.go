@@ -70,11 +70,11 @@ type clientApplicationService struct {
 }
 
 type clientApplicationServiceConfig struct {
-	fqdnResolver          *fqdnResolver
-	localOSConfigProvider *LocalOSConfigProvider
-	clientApplication     ClientApplication
-	homePath              string
-	clock                 clockwork.Clock
+	fqdnResolver                 *fqdnResolver
+	unifiedClusterConfigProvider *UnifiedClusterConfigProvider
+	clientApplication            ClientApplication
+	homePath                     string
+	clock                        clockwork.Clock
 }
 
 func newClientApplicationService(cfg *clientApplicationServiceConfig) (*clientApplicationService, error) {
@@ -217,13 +217,11 @@ func (s *clientApplicationService) getSignerForApp(appKey *vnetv1.AppKey, target
 	return signer, ok
 }
 
-// OnNewConnection gets called whenever a new connection is about to be
+// OnNewAppConnection gets called whenever a new app connection is about to be
 // established through VNet for observability.
-func (s *clientApplicationService) OnNewConnection(ctx context.Context, req *vnetv1.OnNewConnectionRequest) (*vnetv1.OnNewConnectionResponse, error) {
-	if err := s.cfg.clientApplication.OnNewConnection(ctx, req.GetAppKey()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &vnetv1.OnNewConnectionResponse{}, nil
+func (s *clientApplicationService) OnNewAppConnection(ctx context.Context, req *vnetv1.OnNewAppConnectionRequest) (*vnetv1.OnNewAppConnectionResponse, error) {
+	s.cfg.clientApplication.OnNewAppConnection(ctx, req.GetAppKey())
+	return &vnetv1.OnNewAppConnectionResponse{}, nil
 }
 
 // OnInvalidLocalPort gets called before VNet refuses to handle a connection
@@ -255,12 +253,15 @@ func newAppKey(protoAppKey *vnetv1.AppKey, port uint16) appKey {
 // DNS nameserver and the IPv4 CIDR ranges that should be routed to the VNet TUN
 // interface.
 func (s *clientApplicationService) GetTargetOSConfiguration(ctx context.Context, _ *vnetv1.GetTargetOSConfigurationRequest) (*vnetv1.GetTargetOSConfigurationResponse, error) {
-	targetConfig, err := s.cfg.localOSConfigProvider.GetTargetOSConfiguration(ctx)
+	unifiedClusterConfig, err := s.cfg.unifiedClusterConfigProvider.GetUnifiedClusterConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting target OS configuration")
 	}
 	return &vnetv1.GetTargetOSConfigurationResponse{
-		TargetOsConfiguration: targetConfig,
+		TargetOsConfiguration: &vnetv1.TargetOSConfiguration{
+			DnsZones:       unifiedClusterConfig.AllDNSZones(),
+			Ipv4CidrRanges: unifiedClusterConfig.IPv4CidrRanges,
+		},
 	}, nil
 }
 
@@ -350,13 +351,18 @@ func (s *clientApplicationService) SessionSSHConfig(ctx context.Context, req *vn
 	}
 	var trustedCAs [][]byte
 	for _, trustedCert := range keyRing.TrustedCerts {
-		if trustedCert.ClusterName != targetCluster {
+		switch trustedCert.ClusterName {
+		case targetCluster, req.GetRootCluster():
+			// Always trust the target cluster and the root cluster in case the
+			// root proxy will terminate the connection in proxy recording mode.
+		default:
+			// Don't trust CAs for other leaf clusters or unknown clusters.
 			continue
 		}
 		for _, authorizedKey := range trustedCert.AuthorizedKeys {
 			trustedCA, _, _, _, err := ssh.ParseAuthorizedKey(authorizedKey)
 			if err != nil {
-				return nil, trace.Wrap(err, "parsing CA cert")
+				return nil, trace.Wrap(err, "parsing CA public key")
 			}
 			trustedCAs = append(trustedCAs, trustedCA.Marshal())
 		}
@@ -365,6 +371,10 @@ func (s *clientApplicationService) SessionSSHConfig(ctx context.Context, req *vn
 		return nil, trace.Errorf("user KeyRing host no trusted SSH CAs for cluster %s", targetCluster)
 	}
 	sessionID := s.setSignerForSSHSession(keyRing.SSHPrivateKey)
+
+	// Submit usage event.
+	s.cfg.clientApplication.OnNewSSHSession(ctx, req.GetProfile(), req.GetRootCluster())
+
 	return &vnetv1.SessionSSHConfigResponse{
 		SessionId:  sessionID,
 		Cert:       sshCert.Marshal(),

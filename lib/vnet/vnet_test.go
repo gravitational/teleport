@@ -33,6 +33,7 @@ import (
 	"net"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -283,11 +284,10 @@ func runTestClientApplicationService(t *testing.T, ctx context.Context, cfg test
 		leafClusterCache:   leafClusterCache,
 	})
 	clientApplicationService, err := newClientApplicationService(&clientApplicationServiceConfig{
-		clientApplication:     cfg.fakeClientApp,
-		fqdnResolver:          fqdnResolver,
-		localOSConfigProvider: nil, // OS configuration is not needed in tests.
-		homePath:              cfg.homePath,
-		clock:                 cfg.clock,
+		clientApplication: cfg.fakeClientApp,
+		fqdnResolver:      fqdnResolver,
+		homePath:          cfg.homePath,
+		clock:             cfg.clock,
 	})
 	require.NoError(t, err)
 
@@ -366,11 +366,14 @@ type fakeClientApp struct {
 	teleportHostCA ssh.Signer
 	teleportUserCA ssh.Signer
 
-	onNewConnectionCallCount    atomic.Uint32
+	onNewSSHSessionCallCount    atomic.Uint32
+	onNewAppConnectionCallCount atomic.Uint32
 	onInvalidLocalPortCallCount atomic.Uint32
 	// requestedRouteToApps indexed by public address.
 	requestedRouteToApps   map[string][]*proto.RouteToApp
 	requestedRouteToAppsMu sync.RWMutex
+
+	forwardedAgents *forwardedAgents
 }
 
 type fakeClientAppConfig struct {
@@ -394,13 +397,16 @@ func newFakeClientApp(ctx context.Context, t *testing.T, cfg *fakeClientAppConfi
 	teleportUserCA, err := ssh.NewSignerFromSigner(teleportUserCAKey)
 	require.NoError(t, err)
 
+	forwardedAgents := &forwardedAgents{}
+
 	tlsCA := newSelfSignedCA(t)
 	dialOpts := mustStartFakeWebProxy(ctx, t, fakeWebProxyConfig{
-		tlsCA:  tlsCA,
-		hostCA: teleportHostCA,
-		userCA: teleportUserCA,
-		clock:  cfg.clock,
-		suite:  cfg.signatureAlgorithmSuite,
+		tlsCA:           tlsCA,
+		hostCA:          teleportHostCA,
+		userCA:          teleportUserCA,
+		clock:           cfg.clock,
+		suite:           cfg.signatureAlgorithmSuite,
+		forwardedAgents: forwardedAgents,
 	})
 
 	return &fakeClientApp{
@@ -410,6 +416,7 @@ func newFakeClientApp(ctx context.Context, t *testing.T, cfg *fakeClientAppConfi
 		teleportHostCA:       teleportHostCA,
 		teleportUserCA:       teleportUserCA,
 		requestedRouteToApps: make(map[string][]*proto.RouteToApp),
+		forwardedAgents:      forwardedAgents,
 	}
 }
 
@@ -560,8 +567,12 @@ func (p *fakeClientApp) GetVnetConfig(ctx context.Context, profileName, leafClus
 	return cfg, nil
 }
 
-func (p *fakeClientApp) OnNewConnection(_ context.Context, _ *vnetv1.AppKey) error {
-	p.onNewConnectionCallCount.Add(1)
+func (p *fakeClientApp) OnNewSSHSession(ctx context.Context, profileName, rootClusterName string) {
+	p.onNewSSHSessionCallCount.Add(1)
+}
+
+func (p *fakeClientApp) OnNewAppConnection(_ context.Context, _ *vnetv1.AppKey) error {
+	p.onNewAppConnectionCallCount.Add(1)
 	return nil
 }
 
@@ -574,6 +585,7 @@ func (p *fakeClientApp) dialSSHNode(
 	target dialTarget,
 	tlsConfig *tls.Config,
 	dialOpts *vnetv1.DialOptions,
+	agent *sshAgent,
 ) (net.Conn, error) {
 	targetCluster, ok := p.cfg.clusters[target.profile]
 	if !ok {
@@ -588,6 +600,12 @@ func (p *fakeClientApp) dialSSHNode(
 	if _, ok := targetCluster.nodes[target.hostname]; !ok {
 		return nil, trace.NotFound("no such host")
 	}
+	// In this test suite all SSH dials go to a single faked web proxy expecting
+	// the ALPN protocol alpncomm.ProtocolProxySSH for SSH dials. It doesn't
+	// run the real transport service that handles SSH agent forwarding over
+	// gRPC, but the test shares the forwarded agent with the fake proxy via
+	// the forwardedAgents collection.
+	p.forwardedAgents.add(agent)
 	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
 	return tls.Dial("tcp", dialOpts.GetWebProxyAddr(), tlsConfig)
 }
@@ -750,20 +768,16 @@ func TestDialFakeApp(t *testing.T) {
 		clusters: map[string]testClusterSpec{
 			"root1.example.com": {
 				apps: []appSpec{
-					appSpec{publicAddr: "echo1.root1.example.com"},
-					appSpec{publicAddr: "echo2.root1.example.com"},
-					appSpec{publicAddr: "echo.myzone.example.com"},
-					appSpec{publicAddr: "echo.nested.myzone.example.com"},
-					appSpec{publicAddr: "not.in.a.custom.zone"},
-					appSpec{
+					{publicAddr: "echo1.root1.example.com"},
+					{publicAddr: "echo2.root1.example.com"},
+					{publicAddr: "echo.myzone.example.com"},
+					{publicAddr: "echo.nested.myzone.example.com"},
+					{publicAddr: "not.in.a.custom.zone"},
+					{
 						publicAddr: "multi-port.root1.example.com",
 						tcpPorts: []*types.PortRange{
-							&types.PortRange{
-								Port: 1337,
-							},
-							&types.PortRange{
-								Port: 4242,
-							},
+							{Port: 1337},
+							{Port: 4242},
 						},
 					},
 				},
@@ -774,36 +788,32 @@ func TestDialFakeApp(t *testing.T) {
 				leafClusters: map[string]testClusterSpec{
 					"leaf1.example.com": {
 						apps: []appSpec{
-							appSpec{publicAddr: "echo1.leaf1.example.com"},
-							appSpec{
+							{publicAddr: "echo1.leaf1.example.com"},
+							{
 								publicAddr: "multi-port.leaf1.example.com",
 								tcpPorts: []*types.PortRange{
-									&types.PortRange{
-										Port: 1337,
-									},
-									&types.PortRange{
-										Port: 4242,
-									},
+									{Port: 1337},
+									{Port: 4242},
 								},
 							},
 						},
 					},
 					"leaf2.example.com": {
 						apps: []appSpec{
-							appSpec{publicAddr: "echo1.leaf2.example.com"},
+							{publicAddr: "echo1.leaf2.example.com"},
 						},
 					},
 				},
 			},
 			"root2.example.com": {
 				apps: []appSpec{
-					appSpec{publicAddr: "echo1.root2.example.com"},
-					appSpec{publicAddr: "echo2.root2.example.com"},
+					{publicAddr: "echo1.root2.example.com"},
+					{publicAddr: "echo2.root2.example.com"},
 				},
 				leafClusters: map[string]testClusterSpec{
 					"leaf3.example.com": {
 						apps: []appSpec{
-							appSpec{publicAddr: "echo1.leaf3.example.com"},
+							{publicAddr: "echo1.leaf3.example.com"},
 						},
 					},
 				},
@@ -936,7 +946,7 @@ func TestDialFakeApp(t *testing.T) {
 		//
 		// It's important not to run these subtests which advance a shared clock in parallel. It's okay for
 		// the inner app dial/connection tests to run in parallel because they don't advance the clock.
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			t.Run(fmt.Sprint(i), func(t *testing.T) {
 				for _, tc := range validTestCases {
 					if tc.expectRouteToApp.URI == "" && tc.expectRouteToApp.PublicAddr != "" {
@@ -1017,7 +1027,7 @@ func testEchoConnection(t *testing.T, conn net.Conn) {
 	writeBuf := bytes.Repeat([]byte(testString), 200)
 	readBuf := make([]byte, len(writeBuf))
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		written, err := conn.Write(writeBuf)
 		for written < len(writeBuf) && err == nil {
 			var n int
@@ -1033,9 +1043,9 @@ func testEchoConnection(t *testing.T, conn net.Conn) {
 	}
 }
 
-// TestOnNewConnection tests that the client applications OnNewConnection method
+// TestOnNewAppConnection tests that the client applications OnNewAppConnection method
 // is called when a user connects to a valid TCP app.
-func TestOnNewConnection(t *testing.T) {
+func TestOnNewAppConnection(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -1045,7 +1055,7 @@ func TestOnNewConnection(t *testing.T) {
 		clusters: map[string]testClusterSpec{
 			"root1.example.com": {
 				apps: []appSpec{
-					appSpec{publicAddr: "echo1"},
+					{publicAddr: "echo1"},
 				},
 				cidrRange:    "192.168.2.0/24",
 				leafClusters: map[string]testClusterSpec{},
@@ -1063,19 +1073,19 @@ func TestOnNewConnection(t *testing.T) {
 		fakeClientApp: clientApp,
 	})
 
-	// Attempt to establish a connection to an invalid app and verify that OnNewConnection was not
+	// Attempt to establish a connection to an invalid app and verify that OnNewAppConnection was not
 	// called.
 	lookupCtx, lookupCtxCancel := context.WithTimeout(ctx, 200*time.Millisecond)
 	defer lookupCtxCancel()
 	_, err := p.lookupHost(lookupCtx, invalidAppName)
 	require.Error(t, err, "Expected lookup of an invalid app to fail")
-	require.Equal(t, uint32(0), clientApp.onNewConnectionCallCount.Load())
+	require.Equal(t, uint32(0), clientApp.onNewAppConnectionCallCount.Load())
 
-	// Establish a connection to a valid app and verify that OnNewConnection was called.
+	// Establish a connection to a valid app and verify that OnNewAppConnection was called.
 	conn, err := p.dialHost(ctx, validAppName, 80 /* bogus port */)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, conn.Close()) })
-	require.Equal(t, uint32(1), clientApp.onNewConnectionCallCount.Load())
+	require.Equal(t, uint32(1), clientApp.onNewAppConnectionCallCount.Load())
 }
 
 // TestWithAlgorithmSuites tests basic VNet functionality with each signature
@@ -1106,15 +1116,15 @@ func testWithAlgorithmSuite(t *testing.T, suite types.SignatureAlgorithmSuite) {
 		clusters: map[string]testClusterSpec{
 			"root.example.com": {
 				apps: []appSpec{
-					appSpec{publicAddr: "echo1"},
-					appSpec{publicAddr: "echo2"},
+					{publicAddr: "echo1"},
+					{publicAddr: "echo2"},
 				},
 				cidrRange: "192.168.2.0/24",
 				leafClusters: map[string]testClusterSpec{
 					"leaf.example.com": {
 						apps: []appSpec{
-							appSpec{publicAddr: "echo1"},
-							appSpec{publicAddr: "echo2"},
+							{publicAddr: "echo1"},
+							{publicAddr: "echo2"},
 						},
 						cidrRange: "192.168.2.0/24",
 					},
@@ -1154,8 +1164,7 @@ func testWithAlgorithmSuite(t *testing.T, suite types.SignatureAlgorithmSuite) {
 
 // TestSSH tests basic VNet SSH functionality.
 func TestSSH(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	ctx := t.Context()
 	clock := clockwork.NewRealClock()
 	homePath := t.TempDir()
 
@@ -1227,6 +1236,15 @@ func TestSSH(t *testing.T) {
 	badUserSigner, err := ssh.NewSignerFromSigner(badUserKey)
 	require.NoError(t, err)
 
+	// Check that each successful SSH session is reported to the client
+	// application, do this in a t.Cleanup func so that the check runs after
+	// all parallel subtests have completed.
+	var expectReportedSSHSessions atomic.Uint32
+	t.Cleanup(func() {
+		assert.Equal(t, expectReportedSSHSessions.Load(), clientApp.onNewSSHSessionCallCount.Load(),
+			"OnNewSSHSession call count does not match the expected number of reported SSH sessions")
+	})
+
 	for _, tc := range []struct {
 		dialAddr                 string
 		dialPort                 int
@@ -1237,22 +1255,25 @@ func TestSSH(t *testing.T) {
 		sshUserSigner            ssh.Signer
 		expectSSHHandshakeToFail bool
 		expectBannerMessages     []string
+		expectSSHSessionReported bool
 	}{
 		{
 			// Connection to node in root cluster should work.
-			dialAddr:      "node.root1.example.com",
-			dialPort:      22,
-			expectCIDR:    root1CIDR,
-			sshUser:       "testuser",
-			sshUserSigner: sshUserSigner,
+			dialAddr:                 "node.root1.example.com",
+			dialPort:                 22,
+			expectCIDR:               root1CIDR,
+			sshUser:                  "testuser",
+			sshUserSigner:            sshUserSigner,
+			expectSSHSessionReported: true,
 		},
 		{
 			// Fully-qualified hostname should also work.
-			dialAddr:      "node.root1.example.com.",
-			dialPort:      22,
-			expectCIDR:    root1CIDR,
-			sshUser:       "testuser",
-			sshUserSigner: sshUserSigner,
+			dialAddr:                 "node.root1.example.com.",
+			dialPort:                 22,
+			expectCIDR:               root1CIDR,
+			sshUser:                  "testuser",
+			sshUserSigner:            sshUserSigner,
+			expectSSHSessionReported: true,
 		},
 		{
 			// Dial should fail on non-standard SSH port.
@@ -1294,32 +1315,40 @@ func TestSSH(t *testing.T) {
 				"VNet: access denied to denyuser connecting to node\n",
 			},
 			expectSSHHandshakeToFail: true,
+			// The session should be reported because VNet successfully got a
+			// Teleport user SSH cert for this session and made the SSH dial to
+			// the target, only then the target SSH server rejected the
+			// connection.
+			expectSSHSessionReported: true,
 		},
 		{
 			// Connection to node in leaf cluster should work.
-			dialAddr:      "node.leaf1.example.com.root1.example.com",
-			dialPort:      22,
-			expectCIDR:    leaf1CIDR,
-			sshUser:       "testuser",
-			sshUserSigner: sshUserSigner,
+			dialAddr:                 "node.leaf1.example.com",
+			dialPort:                 22,
+			expectCIDR:               leaf1CIDR,
+			sshUser:                  "testuser",
+			sshUserSigner:            sshUserSigner,
+			expectSSHSessionReported: true,
 		},
 		{
 			// Connection to node in root cluster in alternate profile should
 			// work.
-			dialAddr:      "node.root2.example.com",
-			dialPort:      22,
-			expectCIDR:    root2CIDR,
-			sshUser:       "testuser",
-			sshUserSigner: sshUserSigner,
+			dialAddr:                 "node.root2.example.com",
+			dialPort:                 22,
+			expectCIDR:               root2CIDR,
+			sshUser:                  "testuser",
+			sshUserSigner:            sshUserSigner,
+			expectSSHSessionReported: true,
 		},
 		{
 			// Connection to node in leaf cluster in alternate profile should
 			// work.
-			dialAddr:      "node.leaf2.example.com.root2.example.com",
-			dialPort:      22,
-			expectCIDR:    leaf2CIDR,
-			sshUser:       "testuser",
-			sshUserSigner: sshUserSigner,
+			dialAddr:                 "node.leaf2.example.com",
+			dialPort:                 22,
+			expectCIDR:               leaf2CIDR,
+			sshUser:                  "testuser",
+			sshUserSigner:            sshUserSigner,
+			expectSSHSessionReported: true,
 		},
 		{
 			// DNS lookup should fail if the FQDN doesn't match any cluster.
@@ -1339,41 +1368,47 @@ func TestSSH(t *testing.T) {
 		t.Run(fmt.Sprintf("%s@%s:%d", tc.sshUser, tc.dialAddr, tc.dialPort), func(t *testing.T) {
 			t.Parallel()
 
-			lookupCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
-			defer cancel()
-			// The DNS lookup for *.<cluster-name> should resolve to an IP in
-			// the expected CIDR range for the cluster.
-			resolvedAddrs, err := p.lookupHost(lookupCtx, tc.dialAddr)
+			if tc.expectSSHSessionReported {
+				expectReportedSSHSessions.Add(1)
+			}
+
 			if tc.expectLookupToFail {
+				// In these cases the DNS lookup is expected to fail, just run the DNS lookup.
+				ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+				defer cancel()
+				_, err := p.lookupHost(ctx, tc.dialAddr)
 				require.Error(t, err)
 				return
 			}
-			require.NoError(t, err)
 
-			_, expectNet, err := net.ParseCIDR(tc.expectCIDR)
-			require.NoError(t, err)
-
-			for _, resolvedAddr := range resolvedAddrs {
-				resolvedIP := net.ParseIP(resolvedAddr)
-				// The query may have resolved to a v4 or v6 address or both,
-				// either way the 4-byte suffix should be a valid IPv4 address
-				// in the expected CIDR range.
-				resolvedIPSuffix := resolvedIP[len(resolvedIP)-4:]
-				assert.True(t, expectNet.Contains(resolvedIPSuffix),
-					"expected CIDR range %s does not include resolved IP %s", expectNet, resolvedIPSuffix)
-			}
-
-			// TCP dial the target address, it should fail if the node doesn't
-			// exist.
-			dialCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
-			defer cancel()
-			conn, err := p.dialHost(dialCtx, tc.dialAddr, tc.dialPort)
 			if tc.expectDialToFail {
+				// In these cases the DNS lookup should succeed but then the
+				// TCP dial should fail, do each separately to make sure we
+				// catch the error at the right step.
+				resolvedAddrs, err := p.lookupHost(ctx, tc.dialAddr)
+				require.NoError(t, err)
+				require.NotEmpty(t, resolvedAddrs)
+
+				ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+				defer cancel()
+				_, err = p.dialHost(ctx, resolvedAddrs[0], tc.dialPort)
 				require.Error(t, err)
 				return
 			}
+
+			conn, err := p.dialHost(ctx, tc.dialAddr, tc.dialPort)
 			require.NoError(t, err)
 			defer conn.Close()
+
+			// The DNS query may have resolved to a v4 or v6 address, either
+			// way the 4-byte suffix should be a valid IPv4 address in the
+			// expected CIDR range.
+			resolvedIP := conn.RemoteAddr().(*net.TCPAddr).IP
+			resolvedIPSuffix := resolvedIP[len(resolvedIP)-4:]
+			_, expectNet, err := net.ParseCIDR(tc.expectCIDR)
+			require.NoError(t, err)
+			assert.True(t, expectNet.Contains(resolvedIPSuffix),
+				"expected CIDR range %s does not include resolved IP %s", expectNet, resolvedIPSuffix)
 
 			// Initiate an SSH connection to the target. At this point the
 			// handshake should complete successfully as long as the right keys
@@ -1395,7 +1430,8 @@ func TestSSH(t *testing.T) {
 					return nil
 				},
 			}
-			sshConn, chans, reqs, err := ssh.NewClientConn(conn, fmt.Sprintf("%s:%d", tc.dialAddr, tc.dialPort), clientConfig)
+
+			sshConn, chans, reqs, err := ssh.NewClientConn(conn, net.JoinHostPort(tc.dialAddr, strconv.Itoa(tc.dialPort)), clientConfig)
 			assert.Equal(t, tc.expectBannerMessages, bannerMessages, "actual banner messages did not match the expected")
 			if tc.expectSSHHandshakeToFail {
 				assert.Error(t, err, "expected SSH handshake to fail")
@@ -1410,6 +1446,7 @@ func TestSSH(t *testing.T) {
 
 	// Test that a fresh SSH host cert is used on each connection.
 	t.Run("ephemeral certs", func(t *testing.T) {
+		t.Parallel()
 		// Set up the SSH client config to capture the host certs it sees.
 		var checkedHostCerts []*ssh.Certificate
 		clientConfig := &ssh.ClientConfig{
@@ -1427,6 +1464,7 @@ func TestSSH(t *testing.T) {
 			sshConn, _, _, err := ssh.NewClientConn(conn, "node.root1.example.com:22", clientConfig)
 			require.NoError(t, err)
 			sshConn.Close()
+			expectReportedSSHSessions.Add(1)
 		}
 		require.Len(t, checkedHostCerts, connections)
 		for i := range connections - 1 {
@@ -1607,11 +1645,12 @@ func newLeafCert(
 }
 
 type fakeWebProxyConfig struct {
-	tlsCA  tls.Certificate
-	hostCA ssh.Signer
-	userCA ssh.Signer
-	clock  clockwork.Clock
-	suite  types.SignatureAlgorithmSuite
+	tlsCA           tls.Certificate
+	hostCA          ssh.Signer
+	userCA          ssh.Signer
+	clock           clockwork.Clock
+	suite           types.SignatureAlgorithmSuite
+	forwardedAgents *forwardedAgents
 }
 
 func mustStartFakeWebProxy(
@@ -1674,6 +1713,13 @@ func mustStartFakeWebProxy(
 			PublicKeyCallback: func(conn ssh.ConnMetadata, pubKey ssh.PublicKey) (*ssh.Permissions, error) {
 				if conn.User() == "denyuser" {
 					return nil, trace.AccessDenied("access denied for denyuser")
+				}
+				// The test suite doesn't implement real "proxy recording mode"
+				// or SSH agent forwarding, but at least test here that the
+				// user key used to make this connection was forwarded so that
+				// the real SSH forwarding proxy would have access to it.
+				if !cfg.forwardedAgents.forwarded(pubKey) {
+					return nil, trace.Errorf("user SSH key was not forwarded")
 				}
 				return certChecker.Authenticate(conn, pubKey)
 			},
@@ -1759,4 +1805,36 @@ func mustStartFakeWebProxy(
 		Sni:                   proxyCN,
 	}
 	return dialOpts
+}
+
+// forwardedAgents is a crude way of tracking all the forwarded SSH agents and
+// checking if any of them forward a specific SSH key.
+type forwardedAgents struct {
+	mu     sync.Mutex
+	agents []*sshAgent
+}
+
+func (a *forwardedAgents) add(agent *sshAgent) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.agents = append(a.agents, agent)
+}
+
+func (a *forwardedAgents) forwarded(key ssh.PublicKey) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	blob := key.Marshal()
+	for _, agent := range a.agents {
+		agentKeys, err := agent.List()
+		if err != nil {
+			// sshAgent.List never returns an error.
+			continue
+		}
+		for _, agentKey := range agentKeys {
+			if slices.Equal(agentKey.Blob, blob) {
+				return true
+			}
+		}
+	}
+	return false
 }

@@ -1,6 +1,9 @@
 ---
 title: "Multi-region Blueprint"
 description: "Blueprint describing how to deploy a multi-region Teleport Enterprise cluster using CockroachDB."
+labels:
+ - conceptual
+ - platform-wide
 ---
 
 This page describes how to deploy a Teleport cluster in multiple regions to
@@ -37,7 +40,7 @@ for more details.
 
 A multi-region Teleport deployment is composed of several regional Teleport
 deployments. Teleport stores its state in a multi-region backend and uses
-[Proxy Peering](../../reference/architecture/proxy-peering.mdx) to connect users to resources
+[Proxy Peering](../../admin-guides/management/operations/proxy-peering.mdx) to connect users to resources
 hosted in a different region.
 
 The recommended multi-region backend

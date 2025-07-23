@@ -21,6 +21,8 @@ package common
 import (
 	"bytes"
 	"context"
+	"maps"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -28,9 +30,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/mcp/claude"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -303,6 +307,124 @@ deny-write description stdio env=dev test    arg  [*], except: [write_*]
 	}
 }
 
+func Test_mcpConfigCommand(t *testing.T) {
+	devLabels := map[string]string{"env": "dev"}
+	prodLabels := map[string]string{"env": "prod"}
+	devMCPApp1 := mustMakeNewAppServer(t, mustMakeMCPAppWithNameAndLabels(t, "dev1", devLabels), "host")
+	devMCPApp2 := mustMakeNewAppServer(t, mustMakeMCPAppWithNameAndLabels(t, "dev2", devLabels), "host")
+	prodMCPApp := mustMakeNewAppServer(t, mustMakeMCPAppWithNameAndLabels(t, "prod", prodLabels), "host")
+	fakeClient := &fakeResourcesClient{
+		resources: []types.ResourceWithLabels{
+			devMCPApp1, devMCPApp2, prodMCPApp,
+		},
+	}
+
+	tests := []struct {
+		name               string
+		cf                 *CLIConf
+		checkError         require.ErrorAssertionFunc
+		disableConfigFile  bool
+		wantNamesInConfig  []string
+		wantOutputContains string
+	}{
+		{
+			name: "not found",
+			cf: &CLIConf{
+				AppName: "not found",
+			},
+			checkError: require.Error,
+			// "local-everything" was already in the config. Double-check we
+			// didn't screw it up.
+			wantNamesInConfig: []string{"local-everything"},
+		},
+		{
+			name: "single",
+			cf: &CLIConf{
+				AppName: "dev2",
+			},
+			checkError:         require.NoError,
+			wantNamesInConfig:  []string{"teleport-mcp-dev2", "local-everything"},
+			wantOutputContains: "Updated client configuration",
+		},
+		{
+			name: "all",
+			cf: &CLIConf{
+				ListAll: true,
+			},
+			checkError:         require.NoError,
+			wantNamesInConfig:  []string{"teleport-mcp-dev1", "teleport-mcp-dev2", "teleport-mcp-prod", "local-everything"},
+			wantOutputContains: "Updated client configuration",
+		},
+		{
+			name: "labels",
+			cf: &CLIConf{
+				Labels: "env=dev",
+			},
+			checkError:         require.NoError,
+			wantNamesInConfig:  []string{"teleport-mcp-dev1", "teleport-mcp-dev2", "local-everything"},
+			wantOutputContains: "Updated client configuration",
+		},
+		{
+			name:              "no selector",
+			cf:                &CLIConf{},
+			checkError:        require.Error,
+			wantNamesInConfig: []string{"local-everything"},
+		},
+		{
+			name: "too many selectors",
+			cf: &CLIConf{
+				ListAll: true,
+				AppName: "dev2",
+			},
+			checkError:        require.Error,
+			wantNamesInConfig: []string{"local-everything"},
+		},
+		{
+			name: "print json",
+			cf: &CLIConf{
+				AppName: "dev2",
+			},
+			disableConfigFile: true,
+			checkError:        require.NoError,
+			// Hints for config file flags.
+			wantOutputContains: "Tip:",
+			wantNamesInConfig:  []string{"local-everything"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configPath := setupMockMCPConfig(t)
+			var buf bytes.Buffer
+			tt.cf.Context = context.Background()
+			tt.cf.Proxy = "proxy:3080"
+			tt.cf.HomePath = t.TempDir()
+			tt.cf.OverrideStdout = &buf
+			mustCreateEmptyProfile(t, tt.cf)
+
+			cmd := mcpConfigCommand{
+				clientConfig: mcpClientConfigFlags{
+					clientConfig: configPath,
+					jsonFormat:   "pretty",
+				},
+				cf: tt.cf,
+				fetchFunc: func(ctx context.Context, tc *client.TeleportClient, _ apiclient.GetResourcesClient) ([]types.Application, error) {
+					return fetchMCPServers(ctx, tc, fakeClient)
+				},
+			}
+
+			if tt.disableConfigFile {
+				cmd.clientConfig.clientConfig = ""
+			}
+
+			err := cmd.run()
+			tt.checkError(t, err)
+			mustHaveMCPServerNamesInConfig(t, configPath, tt.wantNamesInConfig)
+			require.Contains(t, buf.String(), tt.wantOutputContains)
+		})
+	}
+}
+
 type fakeResourcesClient struct {
 	resources []types.ResourceWithLabels
 }
@@ -330,8 +452,16 @@ func mustMakeNewAppServer(t *testing.T, app *types.AppV3, host string) types.App
 	return appServer
 }
 
-func mustMakeMCPAppWithNameAndLabels(t *testing.T, name string, labels map[string]string) *types.AppV3 {
+func mustMakeMCPAppWithNameAndLabels(t *testing.T, name string, labels map[string]string, opts ...func(*types.MCP)) *types.AppV3 {
 	t.Helper()
+	mcpSpec := &types.MCP{
+		Command:       "test",
+		Args:          []string{"arg"},
+		RunAsHostUser: "test",
+	}
+	for _, opt := range opts {
+		opt(mcpSpec)
+	}
 	return mustMakeNewAppV3(t,
 		types.Metadata{
 			Name:        name,
@@ -339,11 +469,7 @@ func mustMakeMCPAppWithNameAndLabels(t *testing.T, name string, labels map[strin
 			Labels:      labels,
 		},
 		types.AppSpecV3{
-			MCP: &types.MCP{
-				Command:       "test",
-				Args:          []string{"arg"},
-				RunAsHostUser: "test",
-			},
+			MCP: mcpSpec,
 		},
 	)
 }
@@ -361,4 +487,27 @@ func (f fakeMCPServerAccessChecker) EnumerateMCPTools(app types.Application) ser
 	default:
 		return services.NewEnumerationResult()
 	}
+}
+
+func setupMockMCPConfig(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.json")
+	config, err := claude.LoadConfigFromFile(configPath)
+	require.NoError(t, err)
+	require.NoError(t, config.PutMCPServer("local-everything", claude.MCPServer{
+		Command: "npx",
+		Args:    []string{"-y", "@modelcontextprotocol/server-everything"},
+	}))
+	require.NoError(t, config.Save(claude.FormatJSONPretty))
+	return config.Path()
+}
+
+func mustHaveMCPServerNamesInConfig(t *testing.T, configPath string, wantNames []string) {
+	jsonConfig, err := claude.LoadConfigFromFile(configPath)
+	require.NoError(t, err)
+	require.ElementsMatch(t,
+		wantNames,
+		slices.Collect(maps.Keys(jsonConfig.GetMCPServers())),
+	)
 }

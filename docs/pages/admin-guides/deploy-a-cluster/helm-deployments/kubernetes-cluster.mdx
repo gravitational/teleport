@@ -1,6 +1,9 @@
 ---
 title: Deploy Teleport on Kubernetes
 description: This guide shows you how to deploy Teleport on a Kubernetes cluster using Helm.
+labels:
+ - how-to
+ - platform-wide
 ---
 
 Teleport can provide secure, unified access to your Kubernetes clusters. This
@@ -95,7 +98,7 @@ cluster to Teleport.
   </details>
 
 - The `tsh` client tool v(=teleport.version=)+ installed on your workstation.
-  You can download this from our [installation page](../../../installation.mdx).
+  You can download this from our [installation page](../../../installation/installation.mdx).
 
 (!docs/pages/includes/kubernetes-access/helm-k8s.mdx!)
 
@@ -222,63 +225,7 @@ chart.
 In this section, you will enable users and services to connect to your cluster
 by creating DNS records that point to the address of your Proxy Service.
 
-The `teleport-cluster` Helm chart exposes the Proxy Service to traffic from the
-internet using a Kubernetes service that sets up an external load balancer with
-your cloud provider.
-
-Obtain the address of your load balancer by following the instructions below.
-
-1. Get information about the Proxy Service load balancer:
-
-   ```code
-   $ kubectl get services/teleport-cluster
-   NAME              TYPE           CLUSTER-IP   EXTERNAL-IP      PORT(S)                        AGE
-   teleport-cluster  LoadBalancer   10.4.4.73    192.0.2.0        443:31204/TCP                  89s
-   ```
-   
-   The `teleport-cluster` service directs traffic to the Teleport Proxy Service.
-   Notice the `EXTERNAL-IP` field, which shows you the IP address or domain name of
-   the cloud-hosted load balancer. For example, on AWS, you may see a domain name
-   resembling the following:
-   
-   ```text
-   00000000000000000000000000000000-0000000000.us-east-2.elb.amazonaws.com
-   ```
-
-1. Set up two DNS records: `teleport.example.com` for all traffic and
-   `*.teleport.example.com` for any web applications you will register with
-   Teleport. We are assuming that your domain name is `example.com` and
-   `teleport` is the subdomain you have assigned to your Teleport cluster.
-
-   Depending on whether the `EXTERNAL-IP` column above points to an IP address or a
-   domain name, the records will have the following details:
-   
-   <Tabs>
-   <TabItem label="IP Address">
-   
-   |Record Type|Domain Name|Value|
-   |---|---|---|
-   |A|`teleport.example.com`|The IP address of your load balancer|
-   |A|`*.teleport.example.com`|The IP address of your load balancer|
-   
-   </TabItem>
-   <TabItem label="Domain Name">
-   
-   |Record Type|Domain Name|Value|
-   |---|---|---|
-   |CNAME|`teleport.example.com`|The domain name of your load balancer|
-   |CNAME|`*.teleport.example.com`|The domain name of your load balancer|
-   
-   </TabItem>
-   </Tabs>
-
-1. Once you create the records, use the following command to confirm that your
-   Teleport cluster is running:
-
-   ```code
-   $ curl https://<Var name="clusterName" />/webapi/ping
-   {"auth":{"type":"local","second_factor":"on","preferred_local_mfa":"webauthn","allow_passwordless":true,"allow_headless":true,"local":{"name":""},"webauthn":{"rp_id":"teleport.example.com"},"private_key_policy":"none","device_trust":{},"has_motd":false},"proxy":{"kube":{"enabled":true,"listen_addr":"0.0.0.0:3026"},"ssh":{"listen_addr":"[::]:3023","tunnel_listen_addr":"0.0.0.0:3024","web_listen_addr":"0.0.0.0:3080","public_addr":"teleport.example.com:443"},"db":{"mysql_listen_addr":"0.0.0.0:3036"},"tls_routing_enabled":false},"server_version":"(=teleport.version=)","min_client_version":"12.0.0","cluster_name":"teleport.example.com","automatic_upgrades":false}
-   ```
+(!docs/pages/includes/self-hosted-helm-dns.mdx!)
 
 ## Step 2/2. Create a local user
 
@@ -373,7 +320,7 @@ cluster.
 - **Set up Single Sign-On:** In this guide, we showed you how to create a local
   user, which is appropriate for demo environments. For a production deployment,
   you should set up Single Sign-On with your provider of choice. See our [Single
-  Sign-On guides](../../access-controls/sso/sso.mdx) for how to do this.
+  Sign-On guides](../../../zero-trust-access/sso/sso.mdx) for how to do this.
 - **Configure your Teleport deployment:** To see all of the options you can set
   in the values file for the `teleport-cluster` Helm chart, consult our
   [reference guide](../../../reference/helm-reference/teleport-cluster.mdx).

@@ -419,6 +419,34 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 	specificAccessClient, err := tp.srv.NewClient(auth.TestUser(specificAccess.GetName()))
 	require.NoError(t, err)
 
+	traitAccess, _, err := auth.CreateUserAndRole(
+		tp.srv.Auth(),
+		"traity",
+		[]string{},
+		[]types.Rule{
+			types.NewRule(
+				types.KindWorkloadIdentity,
+				[]string{types.VerbRead, types.VerbList},
+			),
+		},
+		auth.WithUserMutator(func(user types.User) {
+			tr := user.GetTraits()
+			if tr == nil {
+				tr = map[string][]string{}
+			}
+			tr["custom"] = []string{"trait-value-a", "trait-value-b"}
+			user.SetTraits(tr)
+		}),
+		auth.WithRoleMutator(func(role types.Role) {
+			role.SetWorkloadIdentityLabels(types.Allow, types.Labels{
+				"trait-label": []string{"{{external.custom}}"},
+			})
+		}),
+	)
+	require.NoError(t, err)
+	traitAccessClient, err := tp.srv.NewClient(auth.TestUser(traitAccess.GetName()))
+	require.NoError(t, err)
+
 	// Generate a keypair to generate x509 SVIDs for.
 	workloadKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
@@ -556,6 +584,23 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	traitsRequired, err := tp.srv.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "traits-required",
+			Labels: map[string]string{
+				"trait-label": "trait-value-b",
+			},
+		},
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+				Id: "/foo",
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	for policy, result := range map[string]error{
 		"foo": errors.New("missing artifact signature"),
 		"bar": nil,
@@ -667,6 +712,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 						Hint:                     "Wow - what a lovely hint, dog!",
 						WorkloadIdentity:         full.GetMetadata().GetName(),
 						WorkloadIdentityRevision: full.GetMetadata().GetRevision(),
+						NameSelector:             full.GetMetadata().GetName(),
 					},
 					cmpopts.IgnoreFields(
 						events.SPIFFESVIDIssued{},
@@ -813,6 +859,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 							"example.com",
 							"dog.example.com",
 						},
+						NameSelector: full.GetMetadata().GetName(),
 					},
 					cmpopts.IgnoreFields(
 						events.SPIFFESVIDIssued{},
@@ -927,6 +974,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 						SVIDType:                 "x509",
 						WorkloadIdentity:         subjectTemplate.GetMetadata().GetName(),
 						WorkloadIdentityRevision: subjectTemplate.GetMetadata().GetRevision(),
+						NameSelector:             subjectTemplate.GetMetadata().GetName(),
 					},
 					cmpopts.IgnoreFields(
 						events.SPIFFESVIDIssued{},
@@ -966,6 +1014,23 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 				require.WithinDuration(t, tp.clock.Now().Add(-1*time.Minute), cert.NotBefore, time.Second)
 				// Check cert TTL
 				require.Equal(t, cert.NotAfter.Sub(cert.NotBefore), wantTTL+time.Minute)
+			},
+		},
+		{
+			name:   "x509 svid - access via traits in labels",
+			client: traitAccessClient,
+			req: &workloadidentityv1pb.IssueWorkloadIdentityRequest{
+				Name: traitsRequired.GetMetadata().GetName(),
+				Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams{
+					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+						PublicKey: workloadKeyPubBytes,
+					},
+				},
+				WorkloadAttrs: workloadAttrs(nil),
+			},
+			requireErr: require.NoError,
+			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentityResponse) {
+				require.NotNil(t, res.Credential)
 			},
 		},
 		{
@@ -1177,7 +1242,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 					attrs.Kubernetes.Namespace = "not-default"
 				}),
 			},
-			requireErr: func(t require.TestingT, err error, i ...interface{}) {
+			requireErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -1193,7 +1258,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 				},
 				WorkloadAttrs: workloadAttrs(nil),
 			},
-			requireErr: func(t require.TestingT, err error, i ...interface{}) {
+			requireErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -1209,7 +1274,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 				},
 				WorkloadAttrs: workloadAttrs(nil),
 			},
-			requireErr: func(t require.TestingT, err error, i ...interface{}) {
+			requireErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsNotFound(err))
 			},
 		},
@@ -1351,7 +1416,7 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make enough to trip the "too many" error
-	for i := 0; i < 12; i++ {
+	for i := range 12 {
 		_, err := tp.srv.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
 			Kind:    types.KindWorkloadIdentity,
 			Version: types.V1,
@@ -1525,7 +1590,7 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 				},
 				WorkloadAttrs: workloadAttrs(nil),
 			},
-			requireErr: func(t require.TestingT, err error, i ...interface{}) {
+			requireErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "number of identities that would be issued exceeds maximum permitted (max = 10), use more specific labels")
 			},
 		},
@@ -1648,7 +1713,7 @@ func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAlreadyExists(err))
 			},
 		},
@@ -1669,7 +1734,7 @@ func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "spec.spiffe.id: is required")
 			},
@@ -1691,7 +1756,7 @@ func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -1827,7 +1892,7 @@ func TestResourceService_DeleteWorkloadIdentity(t *testing.T) {
 			req: &workloadidentityv1pb.DeleteWorkloadIdentityRequest{
 				Name: "i-do-not-exist",
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsNotFound(err))
 			},
 		},
@@ -1837,7 +1902,7 @@ func TestResourceService_DeleteWorkloadIdentity(t *testing.T) {
 			req: &workloadidentityv1pb.DeleteWorkloadIdentityRequest{
 				Name: "",
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "name: must be non-empty")
 			},
@@ -1848,7 +1913,7 @@ func TestResourceService_DeleteWorkloadIdentity(t *testing.T) {
 			req: &workloadidentityv1pb.DeleteWorkloadIdentityRequest{
 				Name: "unauthorized",
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -1948,7 +2013,7 @@ func TestResourceService_GetWorkloadIdentity(t *testing.T) {
 			req: &workloadidentityv1pb.GetWorkloadIdentityRequest{
 				Name: "i-do-not-exist",
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsNotFound(err))
 			},
 		},
@@ -1958,7 +2023,7 @@ func TestResourceService_GetWorkloadIdentity(t *testing.T) {
 			req: &workloadidentityv1pb.GetWorkloadIdentityRequest{
 				Name: "",
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "name: must be non-empty")
 			},
@@ -1969,7 +2034,7 @@ func TestResourceService_GetWorkloadIdentity(t *testing.T) {
 			req: &workloadidentityv1pb.GetWorkloadIdentityRequest{
 				Name: "unauthorized",
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -2028,7 +2093,7 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 	// Create a pre-existing workload identities
 	// Two complete pages of ten, plus one incomplete page of nine
 	created := []*workloadidentityv1pb.WorkloadIdentity{}
-	for i := 0; i < 29; i++ {
+	for i := range 29 {
 		r, err := srv.Auth().CreateWorkloadIdentity(
 			ctx,
 			&workloadidentityv1pb.WorkloadIdentity{
@@ -2067,9 +2132,9 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 		require.Len(t, res.WorkloadIdentities, 29)
 		require.Empty(t, res.NextPageToken)
 		for _, created := range created {
-			slices.ContainsFunc(res.WorkloadIdentities, func(resource *workloadidentityv1pb.WorkloadIdentity) bool {
+			require.True(t, slices.ContainsFunc(res.WorkloadIdentities, func(resource *workloadidentityv1pb.WorkloadIdentity) bool {
 				return proto.Equal(created, resource)
-			})
+			}))
 		}
 	})
 
@@ -2098,9 +2163,9 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 		require.Len(t, fetched, 29)
 		require.Equal(t, 3, iterations)
 		for _, created := range created {
-			slices.ContainsFunc(fetched, func(resource *workloadidentityv1pb.WorkloadIdentity) bool {
+			require.True(t, slices.ContainsFunc(fetched, func(resource *workloadidentityv1pb.WorkloadIdentity) bool {
 				return proto.Equal(created, resource)
-			})
+			}))
 		}
 	})
 }
@@ -2204,7 +2269,7 @@ func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 					WorkloadIdentity: preExisting2,
 				}
 			})(),
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsCompareFailed(err))
 			},
 		},
@@ -2225,7 +2290,7 @@ func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 			},
 		},
@@ -2235,7 +2300,7 @@ func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 			req: &workloadidentityv1pb.UpdateWorkloadIdentityRequest{
 				WorkloadIdentity: preExisting,
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -2377,7 +2442,7 @@ func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "spec.spiffe.id: is required")
 			},
@@ -2399,7 +2464,7 @@ func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -2547,7 +2612,7 @@ func TestRevocationService_CreateWorkloadIdentityX509Revocation(t *testing.T) {
 			req: &workloadidentityv1pb.CreateWorkloadIdentityX509RevocationRequest{
 				WorkloadIdentityX509Revocation: preExisting,
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAlreadyExists(err))
 			},
 		},
@@ -2568,7 +2633,7 @@ func TestRevocationService_CreateWorkloadIdentityX509Revocation(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "spec.reason: is required")
 			},
@@ -2590,7 +2655,7 @@ func TestRevocationService_CreateWorkloadIdentityX509Revocation(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -2726,7 +2791,7 @@ func TestRevocationService_DeleteWorkloadIdentityX509Revocation(t *testing.T) {
 			req: &workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest{
 				Name: "i-do-not-exist",
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsNotFound(err))
 			},
 		},
@@ -2736,7 +2801,7 @@ func TestRevocationService_DeleteWorkloadIdentityX509Revocation(t *testing.T) {
 			req: &workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest{
 				Name: "",
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "name: must be non-empty")
 			},
@@ -2747,7 +2812,7 @@ func TestRevocationService_DeleteWorkloadIdentityX509Revocation(t *testing.T) {
 			req: &workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest{
 				Name: "unauthorized",
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -2847,7 +2912,7 @@ func TestRevocationService_GetWorkloadIdentityX509Revocation(t *testing.T) {
 			req: &workloadidentityv1pb.GetWorkloadIdentityX509RevocationRequest{
 				Name: "i-do-not-exist",
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsNotFound(err))
 			},
 		},
@@ -2857,7 +2922,7 @@ func TestRevocationService_GetWorkloadIdentityX509Revocation(t *testing.T) {
 			req: &workloadidentityv1pb.GetWorkloadIdentityX509RevocationRequest{
 				Name: "",
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "name: must be non-empty")
 			},
@@ -2868,7 +2933,7 @@ func TestRevocationService_GetWorkloadIdentityX509Revocation(t *testing.T) {
 			req: &workloadidentityv1pb.GetWorkloadIdentityX509RevocationRequest{
 				Name: "unauthorized",
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -2927,7 +2992,7 @@ func TestRevocationService_ListWorkloadIdentityX509Revocations(t *testing.T) {
 	// Create a pre-existing workload identitie revocations
 	// Two complete pages of ten, plus one incomplete page of nine
 	created := []*workloadidentityv1pb.WorkloadIdentityX509Revocation{}
-	for i := 0; i < 29; i++ {
+	for i := range 29 {
 		r, err := srv.Auth().CreateWorkloadIdentityX509Revocation(
 			ctx,
 			&workloadidentityv1pb.WorkloadIdentityX509Revocation{
@@ -2969,9 +3034,9 @@ func TestRevocationService_ListWorkloadIdentityX509Revocations(t *testing.T) {
 		require.Len(t, res.WorkloadIdentityX509Revocations, 29)
 		require.Empty(t, res.NextPageToken)
 		for _, created := range created {
-			slices.ContainsFunc(res.WorkloadIdentityX509Revocations, func(resource *workloadidentityv1pb.WorkloadIdentityX509Revocation) bool {
+			require.True(t, slices.ContainsFunc(res.WorkloadIdentityX509Revocations, func(resource *workloadidentityv1pb.WorkloadIdentityX509Revocation) bool {
 				return proto.Equal(created, resource)
-			})
+			}))
 		}
 	})
 
@@ -3000,9 +3065,9 @@ func TestRevocationService_ListWorkloadIdentityX509Revocations(t *testing.T) {
 		require.Len(t, fetched, 29)
 		require.Equal(t, 3, iterations)
 		for _, created := range created {
-			slices.ContainsFunc(fetched, func(resource *workloadidentityv1pb.WorkloadIdentityX509Revocation) bool {
+			require.True(t, slices.ContainsFunc(fetched, func(resource *workloadidentityv1pb.WorkloadIdentityX509Revocation) bool {
 				return proto.Equal(created, resource)
-			})
+			}))
 		}
 	})
 }
@@ -3108,7 +3173,7 @@ func TestRevocationService_UpdateWorkloadIdentityX509Revocation(t *testing.T) {
 					WorkloadIdentityX509Revocation: preExisting2,
 				}
 			})(),
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsCompareFailed(err))
 			},
 		},
@@ -3129,7 +3194,7 @@ func TestRevocationService_UpdateWorkloadIdentityX509Revocation(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 			},
 		},
@@ -3139,7 +3204,7 @@ func TestRevocationService_UpdateWorkloadIdentityX509Revocation(t *testing.T) {
 			req: &workloadidentityv1pb.UpdateWorkloadIdentityX509RevocationRequest{
 				WorkloadIdentityX509Revocation: preExisting,
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -3281,7 +3346,7 @@ func TestRevocationService_UpsertWorkloadIdentityX509Revocation(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "spec.reason: is required")
 			},
@@ -3303,7 +3368,7 @@ func TestRevocationService_UpsertWorkloadIdentityX509Revocation(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},

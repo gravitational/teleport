@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/tctl/common"
 )
 
@@ -62,7 +63,7 @@ func TestTCTLTerraformCommand_ProxyJoin(t *testing.T) {
 		ClusterName: clusterName,
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	}
 	cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)
@@ -138,7 +139,7 @@ func TestTCTLTerraformCommand_AuthJoin(t *testing.T) {
 		ClusterName: clusterName,
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	}
 	cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)
@@ -240,7 +241,7 @@ func getAuthClientForProxy(t *testing.T, tc *helpers.TeleInstance, username stri
 		TLS:                  tlsConfig,
 		SSH:                  sshConfig,
 		AuthServers:          []utils.NetAddr{*authAddr},
-		Log:                  utils.NewSlogLoggerForTests(),
+		Log:                  logtest.NewLogger(),
 		CircuitBreakerConfig: breaker.Config{},
 		DialTimeout:          0,
 		DialOpts:             nil,
@@ -293,7 +294,7 @@ func getAuthClientForAuth(t *testing.T, tc *helpers.TeleInstance, username strin
 	clientConfig := &authclient.Config{
 		TLS:                  tlsConfig,
 		AuthServers:          []utils.NetAddr{*authAddr},
-		Log:                  utils.NewSlogLoggerForTests(),
+		Log:                  logtest.NewLogger(),
 		CircuitBreakerConfig: breaker.Config{},
 		DialTimeout:          0,
 		DialOpts:             nil,

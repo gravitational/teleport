@@ -49,10 +49,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 
 	os.Exit(m.Run())
 }
@@ -271,12 +272,11 @@ func TestService_GetClusterDetails(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			srv := newServer(t, ServerConfig{
 				Dialer:            fakeDialer{},
-				Logger:            utils.NewSlogLoggerForTests(),
+				Logger:            logtest.NewLogger(),
 				FIPS:              test.FIPS,
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
@@ -347,7 +347,6 @@ func TestService_ProxyCluster(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -359,7 +358,7 @@ func TestService_ProxyCluster(t *testing.T) {
 						cluster: conn,
 					},
 				},
-				Logger:            utils.NewSlogLoggerForTests(),
+				Logger:            logtest.NewLogger(),
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
 				LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
@@ -511,7 +510,7 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 				},
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
-				Logger:            utils.NewSlogLoggerForTests(),
+				Logger:            logtest.NewLogger(),
 				LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
 				authzContextFn: func(info credentials.AuthInfo) (*authz.Context, error) {
 					checker, err := test.checkerFn(info)
@@ -574,7 +573,7 @@ func TestService_ProxySSH(t *testing.T) {
 	srv := newServer(t, ServerConfig{
 		Dialer:            sshSrv,
 		SignerFn:          fakeSigner,
-		Logger:            utils.NewSlogLoggerForTests(),
+		Logger:            logtest.NewLogger(),
 		LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
 		ConnectionMonitor: fakeMonitor{},
 		agentGetterFn: func(rw io.ReadWriter) teleagent.Getter {
@@ -819,7 +818,7 @@ func TestService_ProxyWindowsDesktopSession(t *testing.T) {
 				},
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
-				Logger:            utils.NewSlogLoggerForTests(),
+				Logger:            logtest.NewLogger(),
 				LocalAddr:         utils.MustParseAddr("127.0.0.1:4243"),
 				authzContextFn: func(info credentials.AuthInfo) (*authz.Context, error) {
 					checker, err := test.checkerFn(info)

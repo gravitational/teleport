@@ -437,7 +437,7 @@ message AWS {
   ];
   // AccountID is the AWS account ID this database belongs to.
   string AccountID = 4 [(gogoproto.jsontag) = "account_id,omitempty"];
-  // ElastiCache contains AWS ElastiCache Redis specific metadata.
+  // ElastiCache contains Amazon ElastiCache Redis-specific metadata.
   ElastiCache ElastiCache = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "elasticache,omitempty"
@@ -457,7 +457,7 @@ message AWS {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "rdsproxy,omitempty"
   ];
-  // RedshiftServerless contains AWS Redshift Serverless specific metadata.
+  // RedshiftServerless contains Amazon Redshift Serverless-specific metadata.
   RedshiftServerless RedshiftServerless = 9 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "redshift_serverless,omitempty"
@@ -483,7 +483,7 @@ message AWS {
   // SessionTags is a list of AWS STS session tags.
   map<string, string> SessionTags = 15 [(gogoproto.jsontag) = "session_tags,omitempty"];
 
-  // DocumentDB contains AWS DocumentDB specific metadata.
+  // DocumentDB contains Amazon DocumentDB-specific metadata.
   DocumentDB DocumentDB = 16 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "docdb,omitempty"
@@ -532,7 +532,7 @@ message RDSProxy {
   string ResourceID = 3 [(gogoproto.jsontag) = "resource_id,omitempty"];
 }
 
-// ElastiCache contains AWS ElastiCache Redis specific metadata.
+// ElastiCache contains Amazon ElastiCache Redis-specific metadata.
 message ElastiCache {
   // ReplicationGroupID is the Redis replication group ID.
   string ReplicationGroupID = 1 [(gogoproto.jsontag) = "replication_group_id,omitempty"];
@@ -556,7 +556,7 @@ message MemoryDB {
   string EndpointType = 4 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
 }
 
-// RedshiftServerless contains AWS Redshift Serverless specific metadata.
+// RedshiftServerless contains Amazon Redshift Serverless-specific metadata.
 message RedshiftServerless {
   // WorkgroupName is the workgroup name.
   string WorkgroupName = 1 [(gogoproto.jsontag) = "workgroup_name,omitempty"];
@@ -576,7 +576,7 @@ message OpenSearch {
   string EndpointType = 3 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
 }
 
-// DocumentDB contains AWS DocumentDB specific metadata.
+// DocumentDB contains Amazon DocumentDB-specific metadata.
 message DocumentDB {
   // ClusterID is the cluster identifier.
   string ClusterID = 1 [(gogoproto.jsontag) = "cluster_id,omitempty"];
@@ -925,6 +925,11 @@ message ServerSpecV2 {
   // GitHub contains info about GitHub proxies where each server represents a
   // GitHub organization.
   GitHubServerMetadata git_hub = 15 [(gogoproto.jsontag) = "github,omitempty"];
+
+  // the name of the Relay group that the server is connected to
+  string relay_group = 16;
+  // the list of Relay host IDs that the server is connected to
+  repeated string relay_ids = 17;
 
   reserved 8;
   reserved 10;
@@ -1760,9 +1765,17 @@ message ProvisionTokenSpecV2Spacelift {
   message Rule {
     // SpaceID is the ID of the space in which the run that owns the token was
     // executed.
+    //
+    // This field supports "glob-style" matching when enable_glob_matching is true:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string SpaceID = 1 [(gogoproto.jsontag) = "space_id,omitempty"];
     // CallerID is the ID of the caller, ie. the stack or module that generated
     // the run.
+    //
+    // This field supports "glob-style" matching when enable_glob_matching is true:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string CallerID = 2 [(gogoproto.jsontag) = "caller_id,omitempty"];
     // CallerType is the type of the caller, ie. the entity that owns the run -
     // either `stack` or `module`.
@@ -1777,6 +1790,9 @@ message ProvisionTokenSpecV2Spacelift {
   // Hostname is the hostname of the Spacelift tenant that tokens
   // will originate from. E.g `example.app.spacelift.io`
   string Hostname = 2 [(gogoproto.jsontag) = "hostname,omitempty"];
+  // EnableGlobMatching enables glob-style matching for the space_id and
+  // caller_id fields in the rules.
+  bool EnableGlobMatching = 3 [(gogoproto.jsontag) = "enable_glob_matching,omitempty"];
 }
 
 // ProvisionTokenSpecV2Kubernetes contains the Kubernetes-specific part of the
@@ -1987,12 +2003,12 @@ message ProvisionTokenSpecV2BoundKeypair {
     // public key on first join, which may be used instead of preregistering a
     // public key with `initial_public_key`. If `initial_public_key` is set,
     // this value is ignored. Otherwise, if set, this value will be used to
-    // populate `.status.bound_keypair.intitial_join_secret`. If unset and no
+    // populate `.status.bound_keypair.registration_secret`. If unset and no
     // `initial_public_key` is provided, a random secure value will be generated
     // server-side to populate the status field.
     string RegistrationSecret = 2 [(gogoproto.jsontag) = "registration_secret,omitempty"];
 
-    // MustRegisterBefore is an optional time before which registeration via
+    // MustRegisterBefore is an optional time before which registration via
     // initial join secret must be performed. Attempts to register using an
     // initial join secret after this timestamp will not be allowed. This may be
     // modified after creation if necessary to allow the initial registration to
@@ -2066,7 +2082,7 @@ message ProvisionTokenStatusV2BoundKeypair {
   // RegistrationSecret contains a secret value that may be used for public key
   // registration during the initial join process if no public key is
   // preregistered. If `.spec.bound_keypair.onboarding.initial_public_key`
-  // is set, †his field will remain empty. Otherwise, if
+  // is set, this field will remain empty. Otherwise, if
   // `.spec.bound_keypair.onboarding.registration_secret` is set, that value
   // will be copied here. If that field is unset, a value will be randomly
   // generated.
@@ -2093,9 +2109,9 @@ message ProvisionTokenStatusV2BoundKeypair {
   uint32 RecoveryCount = 4 [(gogoproto.jsontag) = "recovery_count"];
 
   // LastRecoveredAt contains a timestamp of the last successful recovery
-  // attempt. Note that normal renewals do not count as a recovery attempt,
-  // however onboarding does,  either with a preregistered key or registration
-  // secret. This corresponds with the last time `bound_bot_instance_id` was
+  // attempt. Note that normal renewals with valid client certificates do not
+  // count as a recovery attempt, however the initial join during onboarding
+  // does. This corresponds with the last time `bound_bot_instance_id` was
   // updated.
   google.protobuf.Timestamp LastRecoveredAt = 5 [
     (gogoproto.stdtime) = true,
@@ -2298,9 +2314,9 @@ message ClusterNetworkingConfigSpecV2 {
   // missed before the server disconnects the connection to the client.
   int64 KeepAliveCountMax = 3 [(gogoproto.jsontag) = "keep_alive_count_max"];
 
-  // SessionControlTimeout is the session control lease expiry and defines
-  // the upper limit of how long a node may be out of contact with the auth
-  // server before it begins terminating controlled sessions.
+  // SessionControlTimeout is the session control lease expiry and defines the
+  // upper limit of how long a node may be out of contact with the Auth Service
+  // before it begins terminating controlled sessions.
   int64 SessionControlTimeout = 4 [
     (gogoproto.jsontag) = "session_control_timeout",
     (gogoproto.casttype) = "Duration"
@@ -2407,7 +2423,7 @@ message SessionRecordingConfigV2 {
   // Status is the SessionRecordingConfig status containing active encryption keys
   SessionRecordingConfigStatus Status = 6 [
     (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "status"
+    (gogoproto.jsontag) = "status,omitempty"
   ];
 }
 
@@ -2435,7 +2451,7 @@ message SessionRecordingConfigSpecV2 {
   // Encryption configures if and how session recordings should be encrypted.
   SessionRecordingEncryptionConfig encryption = 3 [
     (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "encryption"
+    (gogoproto.jsontag) = "encryption,omitempty"
   ];
 }
 
@@ -5233,6 +5249,9 @@ message OIDCConnectorSpecV3 {
   OIDCConnectorMFASettings MFASettings = 19 [(gogoproto.jsontag) = "mfa,omitempty"];
   // PKCEMode represents the configuration state for PKCE (Proof Key for Code Exchange). It can be "enabled" or "disabled"
   string PKCEMode = 20 [(gogoproto.jsontag) = "pkce_mode,omitempty"];
+  // UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should
+  // match for identifier-first login.
+  repeated string UserMatchers = 21 [(gogoproto.jsontag) = "user_matchers,omitempty"];
 }
 
 // MaxAge allows the max_age parameter to be nullable to preserve backwards
@@ -5446,6 +5465,9 @@ message SAMLConnectorSpecV2 {
   // binding as a default. Setting up PreferredRequestBinding value lets us preserve existing
   // auth connector behavior and only use http-post binding if it is explicitly configured.
   string PreferredRequestBinding = 19 [(gogoproto.jsontag) = "preferred_request_binding,omitempty"];
+  // UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should
+  // match for identifier-first login.
+  repeated string UserMatchers = 20 [(gogoproto.jsontag) = "user_matchers,omitempty"];
 }
 
 // SAMLConnectorMFASettings contains SAML MFA settings.
@@ -5638,6 +5660,9 @@ message GithubConnectorSpecV3 {
   // ClientRedirectSettings defines which client redirect URLs are allowed for
   // non-browser SSO logins other than the standard localhost ones.
   SSOClientRedirectSettings ClientRedirectSettings = 9 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
+  // UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should
+  // match for identifier-first login.
+  repeated string UserMatchers = 10 [(gogoproto.jsontag) = "user_matchers,omitempty"];
 }
 
 // GithubAuthRequest is the request to start Github OAuth2 flow.
@@ -6039,6 +6064,15 @@ message LockTarget {
 
   // ServerID is the host id of the Teleport instance.
   string ServerID = 9 [(gogoproto.jsontag) = "server_id,omitempty"];
+
+  // BotInstanceID is the bot instance ID if this is a bot identity and is
+  // ignored otherwise.
+  string BotInstanceID = 10 [(gogoproto.jsontag) = "bot_instance_id,omitempty"];
+
+  // JoinToken is the name of the join token used when this identity originally
+  // joined. This is only valid for bot identities, and cannot be used to target
+  // `token`-joined bots.
+  string JoinToken = 11 [(gogoproto.jsontag) = "join_token,omitempty"];
 }
 
 // AddressCondition represents a set of addresses. Presently the addresses are specified
@@ -7316,6 +7350,19 @@ message PluginAWSICSettings {
   // Credentials represents the AWS credentials used by the Identity Center
   // integration
   AWSICCredentials credentials = 11 [(gogoproto.jsontag) = "credentials,omitempty"];
+
+  // RolesSyncMode indicates how the Identity Center integration will create and
+  // manage roles representing potential Identity Center Account Assignments.
+  //
+  // Possible values are ALL or NONE:
+  //  ALL:           indicates that the AWS Identity Center integration should
+  //                 create and maintain roles for all possible Account Assignments.
+  //  NONE:          indicates that the AWS Identity Center integration should
+  //                 not create any roles representing potential account Account
+  //                 Assignments.
+  // For backwards compatibility, an empty value is treated as equivalent to
+  // to ALL
+  string roles_sync_mode = 12;
 }
 
 // AWSICCredentials holds the credentials for authenticating with AWS
@@ -7628,6 +7675,10 @@ message PluginOktaStatusV1 {
   // AccessListSyncDetails are status details relating to synchronizing access
   // lists from Okta.
   PluginOktaStatusDetailsAccessListsSync access_lists_sync_details = 5;
+
+  // SystemLogExportDetails are the status defaults related to the System Logs
+  // exporter.
+  PluginOktaStatusSystemLogExporter system_log_export_details = 6;
 }
 
 // PluginOktaStatusDetailsSSO are details related to the
@@ -7757,6 +7808,34 @@ message PluginOktaStatusDetailsAccessListsSync {
 
   // NumGroupsSynced are the number of groups synchronized as access lists.
   int32 num_groups_synced = 8;
+
+  // Error contains a textual description of the reason the last synchronization
+  // failed. Only valid when StatusCode is OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR.
+  string error = 9;
+}
+
+// PluginOktaStatusSystemLogExporter are details related to the
+// current status of the Okta integration w/r/t system logs sync.
+message PluginOktaStatusSystemLogExporter {
+  // Enabled is whether Okta System Log exporter is enabled.
+  bool enabled = 1;
+
+  // StatusCode indicates the current state of the service
+  OktaPluginSyncStatusCode status_code = 2;
+
+  // LastSuccessful is the date of the last successful run.
+  google.protobuf.Timestamp last_successful = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_successful"
+  ];
+
+  // LastFailed is the date of the last failed run.
+  google.protobuf.Timestamp last_failed = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_failed"
+  ];
 
   // Error contains a textual description of the reason the last synchronization
   // failed. Only valid when StatusCode is OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR.
@@ -8195,6 +8274,12 @@ message IntegrationV1 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+
+  // Status is an Integration specification.
+  IntegrationStatusV1 Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "status"
+  ];
 }
 
 // IntegrationSpecV1 contains properties of all the supported integrations.
@@ -8212,6 +8297,12 @@ message IntegrationSpecV1 {
 
   // Credentials contains credentials for the integration.
   PluginCredentialsV1 credentials = 4;
+}
+
+// IntegrationStatusV1 contains the status of the integration.
+message IntegrationStatusV1 {
+  // AWSRolesAnywhere contains the specific status fields to related to the AWS Roles Anywhere Integration subkind.
+  AWSRAIntegrationStatusV1 AWSRolesAnywhere = 1 [(gogoproto.jsontag) = "aws_ra,omitempty"];
 }
 
 // AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC SubKind Integration.
@@ -8283,6 +8374,55 @@ message AWSRolesAnywhereProfileSyncConfig {
   bool ProfileAcceptsRoleSessionName = 3 [(gogoproto.jsontag) = "profile_accepts_role_session_name"];
   // RoleARN is the ARN of the IAM Role to assume when accessing the AWS APIs.
   string RoleARN = 4 [(gogoproto.jsontag) = "role_arn"];
+  // ProfileNameFilters is a list of filters applied to the profile name.
+  // Only matching profiles will be synchronized as application servers.
+  // If empty, no filtering is applied.
+  //
+  // Filters can be globs, for example:
+  //
+  //	profile*
+  //	*name*
+  //
+  // Or regexes if they're prefixed and suffixed with ^ and $, for example:
+  //
+  //	^profile.*$
+  //	^.*name.*$
+  repeated string ProfileNameFilters = 5 [(gogoproto.jsontag) = "profile_name_filters"];
+}
+
+// AWSRAIntegrationStatusV1 contains the status properties for the AWS IAM Roles Anywhere SubKind Integration.
+message AWSRAIntegrationStatusV1 {
+  // LastProfileSync is the summary of the last profile sync iteration.
+  AWSRolesAnywhereProfileSyncIterationSummary LastProfileSync = 1 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_profile_sync"
+  ];
+}
+
+// AWSRolesAnywhereProfileSyncIterationSummary contains the summary of a single profile sync iteration.
+message AWSRolesAnywhereProfileSyncIterationSummary {
+  // StartTime is the time when the sync iteration started.
+  google.protobuf.Timestamp StartTime = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "start_time"
+  ];
+
+  // EndTime is the time when the sync iteration ended.
+  google.protobuf.Timestamp EndTime = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "end_time"
+  ];
+
+  // Status is the result of the sync iteration: SUCCESS or ERROR.
+  string Status = 3 [(gogoproto.jsontag) = "status"];
+
+  // ErrorMessage holds the error message when status is ERROR.
+  string ErrorMessage = 4 [(gogoproto.jsontag) = "error_message"];
+
+  // SyncedProfiles is the number of profiles synchronized as application servers.
+  int32 SyncedProfiles = 5 [(gogoproto.jsontag) = "synced_profiles"];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.

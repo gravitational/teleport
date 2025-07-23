@@ -29,11 +29,14 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
+	"github.com/gravitational/teleport/lib/web/ui"
 )
 
 // awsRolesAnywhereConfigureTrustAnchor returns a script that configures AWS IAM Roles Anywhere Integration
@@ -139,4 +142,93 @@ func (h *Handler) awsRolesAnywhereConfigureTrustAnchor(w http.ResponseWriter, r 
 	_, err = w.Write([]byte(script))
 
 	return nil, trace.Wrap(err)
+}
+
+// awsRolesAnywherePing performs an health check for the integration.
+// It returns the caller identity and the number of AWS Roles Anywhere Profiles that are active.
+// If a trust anchor is provided in the body, it will be used to check the connection ignoring the integration.
+// Otherwise, the integration is used to check the connection.
+func (h *Handler) awsRolesAnywherePing(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	var req ui.AWSRolesAnywherePingRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pingRequest := &integrationv1.AWSRolesAnywherePingRequest{}
+
+	// When creating an integration, the Ping is called with an empty integration, but Trust Anchor, Profile and Role ARNs must be provided.
+	// This allow us to check if the integration is properly configured before creating it.
+	switch {
+	case req.TrustAnchorARN != "":
+		if req.SyncRoleARN == "" || req.SyncProfileARN == "" {
+			return nil, trace.BadParameter("sync role and sync profile ARNs must be provided when trust anchor ARN is provided")
+		}
+
+		pingRequest.Mode = &integrationv1.AWSRolesAnywherePingRequest_Custom{
+			Custom: &integrationv1.AWSRolesAnywherePingRequestWithoutIntegration{
+				TrustAnchorArn: req.TrustAnchorARN,
+				RoleArn:        req.SyncRoleARN,
+				ProfileArn:     req.SyncProfileARN,
+			},
+		}
+
+	default:
+		pingRequest.Mode = &integrationv1.AWSRolesAnywherePingRequest_Integration{
+			Integration: integrationName,
+		}
+	}
+
+	pingResp, err := clt.IntegrationAWSRolesAnywhereClient().AWSRolesAnywherePing(ctx, pingRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AWSRolesAnywherePingResponse{
+		ProfileCount: int(pingResp.GetProfileCount()),
+		AccountID:    pingResp.GetAccountId(),
+		ARN:          pingResp.GetArn(),
+		UserID:       pingResp.GetUserId(),
+	}, nil
+}
+
+// awsRolesAnywhereListProfiles lists profiles Roles Anywhere Profiles accessible by the integration.
+func (h *Handler) awsRolesAnywhereListProfiles(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	var req ui.AWSRolesAnywhereListProfilesRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listResp, err := clt.IntegrationAWSRolesAnywhereClient().ListRolesAnywhereProfiles(ctx, &integrationv1.ListRolesAnywhereProfilesRequest{
+		Integration:   integrationName,
+		NextPageToken: req.StartKey,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return listResp, nil
 }

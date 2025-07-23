@@ -30,33 +30,39 @@ import (
 
 	"github.com/gravitational/trace"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
 // WorkloadIdentityX509Service is a service that retrieves X.509 certificates
 // for WorkloadIdentity resources.
 type WorkloadIdentityX509Service struct {
-	botAuthClient  *authclient.Client
+	botAuthClient  *apiclient.Client
 	botCfg         *config.BotConfig
 	cfg            *config.WorkloadIdentityX509Service
 	getBotIdentity getBotIdentityFn
 	log            *slog.Logger
-	resolver       reversetunnelclient.Resolver
+	statusReporter readyz.Reporter
 	// trustBundleCache is the cache of trust bundles. It only needs to be
 	// provided when running in daemon mode.
-	trustBundleCache *workloadidentity.TrustBundleCache
-	crlCache         *workloadidentity.CRLCache
+	trustBundleCache  *workloadidentity.TrustBundleCache
+	crlCache          *workloadidentity.CRLCache
+	identityGenerator *identity.Generator
+	clientBuilder     *client.Builder
 }
 
 // String returns a human-readable description of the service.
 func (s *WorkloadIdentityX509Service) String() string {
-	return fmt.Sprintf("workload-identity-x509 (%s)", s.cfg.Destination.String())
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("workload-identity-x509 (%s)", s.cfg.Destination.String()),
+	)
 }
 
 // OneShot runs the service once, generating the output and writing it to the
@@ -99,6 +105,13 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "getting CRL set from cache")
 	}
+	renewalInterval := cmp.Or(
+		s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime,
+	).RenewalInterval
+
+	if s.statusReporter == nil {
+		s.statusReporter = readyz.NoopReporter()
+	}
 
 	jitter := retryutils.DefaultJitter
 	var x509Cred *workloadidentityv1pb.Credential
@@ -106,13 +119,13 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 	var failures int
 	firstRun := make(chan struct{}, 1)
 	firstRun <- struct{}{}
+	renewalTimer := time.NewTimer(renewalInterval)
+	defer renewalTimer.Stop()
 	for {
 		var retryAfter <-chan time.Time
 		if failures > 0 {
-			backoffTime := time.Second * time.Duration(math.Pow(2, float64(failures-1)))
-			if backoffTime > time.Minute {
-				backoffTime = time.Minute
-			}
+			s.statusReporter.Report(readyz.Unhealthy)
+			backoffTime := min(time.Second*time.Duration(math.Pow(2, float64(failures-1))), time.Minute)
 			backoffTime = jitter(backoffTime)
 			s.log.WarnContext(
 				ctx,
@@ -147,7 +160,7 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 			}
 			crlSet = newCRLSet
 			s.log.DebugContext(ctx, "CRL set has been updated, will regenerate output")
-		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval):
+		case <-renewalTimer.C:
 			s.log.InfoContext(ctx, "Renewal interval reached, renewing SVIDs")
 			x509Cred = nil
 			privateKey = nil
@@ -162,6 +175,8 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 				failures++
 				continue
 			}
+			// Reset the renewal timer to the configured interval.
+			renewalTimer.Reset(renewalInterval)
 		}
 		if err := s.render(
 			ctx, bundleSet, x509Cred, privateKey, crlSet,
@@ -170,6 +185,7 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 			failures++
 			continue
 		}
+		s.statusReporter.Report(readyz.Healthy)
 		failures = 0
 	}
 }
@@ -187,30 +203,18 @@ func (s *WorkloadIdentityX509Service) requestSVID(
 	)
 	defer span.End()
 
-	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
-	if err != nil {
-		return nil, nil, trace.Wrap(err, "fetching roles")
-	}
-
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
-	id, err := generateIdentity(
-		ctx,
-		s.botAuthClient,
-		s.getBotIdentity(),
-		roles,
-		effectiveLifetime.TTL,
-		nil,
+	id, err := s.identityGenerator.GenerateFacade(ctx,
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "generating identity")
 	}
 
-	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
-
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
-	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
-	impersonatedClient, err := clientForFacade(ctx, s.log, s.botCfg, facade, s.resolver)
+	impersonatedClient, err := s.clientBuilder.Build(ctx, id)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

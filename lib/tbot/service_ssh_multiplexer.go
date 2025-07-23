@@ -44,19 +44,21 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config/openssh"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/resumption"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/uds"
@@ -96,14 +98,18 @@ type SSHMultiplexerService struct {
 	// botAuthClient should be an auth client using the bots internal identity.
 	// This will not have any roles impersonated and should only be used to
 	// fetch CAs.
-	botAuthClient     *authclient.Client
-	botCfg            *config.BotConfig
-	cfg               *config.SSHMultiplexerService
-	getBotIdentity    getBotIdentityFn
-	log               *slog.Logger
-	proxyPingCache    *proxyPingCache
-	reloadBroadcaster *channelBroadcaster
-	resolver          reversetunnelclient.Resolver
+	botAuthClient      *apiclient.Client
+	botIdentityReadyCh <-chan struct{}
+	botCfg             *config.BotConfig
+	cfg                *config.SSHMultiplexerService
+	getBotIdentity     getBotIdentityFn
+	log                *slog.Logger
+	proxyPingCache     *proxyPingCache
+	reloadBroadcaster  *internal.ChannelBroadcaster
+	statusReporter     readyz.Reporter
+
+	identityGenerator *identity.Generator
+	clientBuilder     *client.Builder
 
 	// Fields below here are initialized by the service itself on startup.
 	identity *identity.Facade
@@ -118,7 +124,7 @@ type SSHMultiplexerService struct {
 //
 // TODO(noah): Replace this with proper atomic writing.
 // https://github.com/gravitational/teleport/issues/25462
-func writeIfChanged(ctx context.Context, dest bot.Destination, log *slog.Logger, path string, data []byte) error {
+func writeIfChanged(ctx context.Context, dest destination.Destination, log *slog.Logger, path string, data []byte) error {
 	existingData, err := dest.Read(ctx, path)
 	if err != nil {
 		log.DebugContext(
@@ -150,9 +156,9 @@ func writeIfChanged(ctx context.Context, dest bot.Destination, log *slog.Logger,
 func (s *SSHMultiplexerService) writeArtifacts(
 	ctx context.Context,
 	proxyHost string,
-	authClient *authclient.Client,
+	authClient *apiclient.Client,
 ) error {
-	dest := s.cfg.Destination.(*config.DestinationDirectory)
+	dest := s.cfg.Destination.(*destination.Directory)
 
 	clusterNames, err := getClusterNames(ctx, authClient, s.identity.Get().ClusterName)
 	if err != nil {
@@ -218,12 +224,25 @@ func (s *SSHMultiplexerService) writeArtifacts(
 }
 
 func (s *SSHMultiplexerService) setup(ctx context.Context) (
-	_ *authclient.Client,
+	_ *apiclient.Client,
 	_ *cyclingHostDialClient,
 	proxyHost string,
 	_ *libclient.TSHConfig,
 	_ error,
 ) {
+	if s.botIdentityReadyCh != nil {
+		select {
+		case <-s.botIdentityReadyCh:
+		default:
+			s.log.InfoContext(ctx, "Waiting for internal bot identity to be renewed before running")
+			select {
+			case <-s.botIdentityReadyCh:
+			case <-ctx.Done():
+				return nil, nil, "", nil, nil
+			}
+		}
+	}
+
 	// Register service metrics. Expected to always work.
 	if err := metrics.RegisterPrometheusCollectors(
 		muxReqsStartedCounter,
@@ -329,9 +348,7 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 		ALPNConnUpgradeRequired: connUpgradeRequired,
 	})
 
-	authClient, err := clientForFacade(
-		ctx, s.log, s.botCfg, s.identity, s.resolver,
-	)
+	authClient, err := s.clientBuilder.Build(ctx, s.identity)
 	if err != nil {
 		return nil, nil, "", nil, trace.Wrap(err)
 	}
@@ -342,18 +359,10 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 // generateIdentity generates our impersonated identity which we will write to
 // the destination.
 func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity.Identity, error) {
-	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching default roles")
-	}
-
-	id, err := generateIdentity(
-		ctx,
-		s.botAuthClient,
-		s.getBotIdentity(),
-		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
-		nil,
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
+	id, err := s.identityGenerator.Generate(ctx,
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "generating identity")
@@ -389,14 +398,14 @@ func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity
 }
 
 func (s *SSHMultiplexerService) identityRenewalLoop(
-	ctx context.Context, proxyHost string, authClient *authclient.Client,
+	ctx context.Context, proxyHost string, authClient *apiclient.Client,
 ) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
+	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
 	defer unsubscribe()
-	err := runOnInterval(ctx, runOnIntervalConfig{
-		service: s.String(),
-		name:    "identity-renewal",
-		f: func(ctx context.Context) error {
+	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
+		Service: s.String(),
+		Name:    "identity-renewal",
+		F: func(ctx context.Context) error {
 			id, err := s.generateIdentity(ctx)
 			if err != nil {
 				return trace.Wrap(err, "generating identity")
@@ -404,10 +413,10 @@ func (s *SSHMultiplexerService) identityRenewalLoop(
 			s.identity.Set(id)
 			return s.writeArtifacts(ctx, proxyHost, authClient)
 		},
-		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
-		retryLimit: renewalRetryLimit,
-		log:        s.log,
-		reloadCh:   reloadCh,
+		Interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
+		RetryLimit: renewalRetryLimit,
+		Log:        s.log,
+		ReloadCh:   reloadCh,
 	})
 	return trace.Wrap(err)
 }
@@ -425,7 +434,7 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 	}
 	defer authClient.Close()
 
-	dest := s.cfg.Destination.(*config.DestinationDirectory)
+	dest := s.cfg.Destination.(*destination.Directory)
 	absPath, err := filepath.Abs(dest.Path)
 	if err != nil {
 		return trace.Wrap(err, "determining absolute path for destination")
@@ -550,13 +559,22 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 		return s.identityRenewalLoop(egCtx, proxyHost, authClient)
 	})
 
-	return eg.Wait()
+	if s.statusReporter == nil {
+		s.statusReporter = readyz.NoopReporter()
+	}
+	s.statusReporter.Report(readyz.Healthy)
+
+	if err := eg.Wait(); err != nil {
+		s.statusReporter.ReportReason(readyz.Unhealthy, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (s *SSHMultiplexerService) handleConn(
 	ctx context.Context,
 	tshConfig *libclient.TSHConfig,
-	authClient *authclient.Client,
+	authClient *apiclient.Client,
 	hostDialer *cyclingHostDialClient,
 	proxyHost string,
 	downstream net.Conn,
@@ -675,7 +693,7 @@ func (s *SSHMultiplexerService) handleConn(
 		host = cleanTargetHost(host, proxyHost, clusterName)
 		target = net.JoinHostPort(host, port)
 	} else {
-		node, err := resolveTargetHostWithClient(ctx, authClient.APIClient, expanded.Search, expanded.Query)
+		node, err := resolveTargetHostWithClient(ctx, authClient, expanded.Search, expanded.Query)
 		if err != nil {
 			return trace.Wrap(err, "resolving target host")
 		}
@@ -783,7 +801,10 @@ func (s *SSHMultiplexerService) handleConn(
 }
 
 func (s *SSHMultiplexerService) String() string {
-	return config.SSHMultiplexerServiceType
+	return cmp.Or(
+		s.cfg.Name,
+		config.SSHMultiplexerServiceType,
+	)
 }
 
 type hostDialer interface {

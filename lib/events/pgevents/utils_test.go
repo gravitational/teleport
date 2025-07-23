@@ -32,7 +32,7 @@ import (
 func TestPaginationKeyRoundtrip(t *testing.T) {
 	t.Parallel()
 
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		var b [24]byte
 		_, err := rand.Read(b[:])
 		require.NoError(t, err)
@@ -45,7 +45,7 @@ func TestPaginationKeyRoundtrip(t *testing.T) {
 		require.Equal(t, startKey, toNextKey(eventTime, eventID))
 	}
 
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		var b [8]byte
 		_, err := rand.Read(b[:])
 		require.NoError(t, err)

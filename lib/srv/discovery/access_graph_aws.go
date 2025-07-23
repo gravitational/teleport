@@ -118,7 +118,7 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 	errs := make([]error, 0, len(allFetchers))
 	// Collect the results from all fetchers.
 	// Each fetcher can return an error and a result.
-	for i := 0; i < len(allFetchers); i++ {
+	for range allFetchers {
 		fetcherResult := <-resultsC
 		if fetcherResult.err != nil {
 			errs = append(errs, fetcherResult.err)
@@ -213,10 +213,7 @@ func pushUpsertInBatches(
 	upsert *accessgraphv1alpha.AWSResourceList,
 ) error {
 	for i := 0; i < len(upsert.Resources); i += batchSize {
-		end := i + batchSize
-		if end > len(upsert.Resources) {
-			end = len(upsert.Resources)
-		}
+		end := min(i+batchSize, len(upsert.Resources))
 		err := client.Send(
 			&accessgraphv1alpha.AWSEventsStreamRequest{
 				Operation: &accessgraphv1alpha.AWSEventsStreamRequest_Upsert{
@@ -238,10 +235,7 @@ func pushDeleteInBatches(
 	toDel *accessgraphv1alpha.AWSResourceList,
 ) error {
 	for i := 0; i < len(toDel.Resources); i += batchSize {
-		end := i + batchSize
-		if end > len(toDel.Resources) {
-			end = len(toDel.Resources)
-		}
+		end := min(i+batchSize, len(toDel.Resources))
 		err := client.Send(
 			&accessgraphv1alpha.AWSEventsStreamRequest{
 				Operation: &accessgraphv1alpha.AWSEventsStreamRequest_Delete{
@@ -864,7 +858,7 @@ func consumeTillErr(stream accessgraphv1alpha.AccessGraphService_AWSCloudTrailSt
 
 func getOptions(matcher *types.AccessGraphAWSSync) []awsconfig.OptionsFn {
 	opts := []awsconfig.OptionsFn{
-		awsconfig.WithCredentialsMaybeIntegration(matcher.Integration),
+		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: matcher.Integration}),
 	}
 	if matcher.AssumeRole != nil {
 		opts = append(opts, awsconfig.WithAssumeRole(matcher.AssumeRole.RoleARN, matcher.AssumeRole.ExternalID))
@@ -925,7 +919,7 @@ func (s *Server) pollEventsFromSQSFilesImpl(ctx context.Context,
 ) error {
 	parallelDownloads := make(chan struct{}, 60)
 	errG, ctx := errgroup.WithContext(ctx)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		errG.Go(
 			s.processMessagesWorker(
 				ctx,
@@ -1031,7 +1025,7 @@ func (s *Server) processSingleMessage(
 		// because the SQS message will be requeued after.
 		payload, err := downloadCloudTrailFile(ctx, s3Client, sqsEvent.S3Bucket, objectKey)
 		if err != nil {
-			s.Log.ErrorContext(ctx, "Failed to download and parse S3 object", "error", err, "message_payload", body, "nessage_id", aws.ToString(msg.MessageId))
+			s.Log.ErrorContext(ctx, "Failed to download and parse S3 object", "error", err, "message_payload", body, "message_id", aws.ToString(msg.MessageId))
 			return trace.Wrap(err)
 		}
 

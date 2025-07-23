@@ -148,7 +148,7 @@ func TestWorkloadIdentityService_ListWorkloadIdentities(t *testing.T) {
 	// Create entities to list
 	createdObjects := []*workloadidentityv1pb.WorkloadIdentity{}
 	// Create 49 entities to test an incomplete page at the end.
-	for i := 0; i < 49; i++ {
+	for i := range 49 {
 		created, err := service.CreateWorkloadIdentity(
 			ctx,
 			newValidWorkloadIdentity(fmt.Sprintf("%d", i)),
@@ -164,9 +164,9 @@ func TestWorkloadIdentityService_ListWorkloadIdentities(t *testing.T) {
 
 		// Expect that we get all the things we have created
 		for _, created := range createdObjects {
-			slices.ContainsFunc(page, func(resource *workloadidentityv1pb.WorkloadIdentity) bool {
+			require.True(t, slices.ContainsFunc(page, func(resource *workloadidentityv1pb.WorkloadIdentity) bool {
 				return proto.Equal(created, resource)
-			})
+			}))
 		}
 	})
 	t.Run("pagination", func(t *testing.T) {
@@ -188,9 +188,9 @@ func TestWorkloadIdentityService_ListWorkloadIdentities(t *testing.T) {
 		require.Len(t, fetched, 49)
 		// Expect that we get all the things we have created
 		for _, created := range createdObjects {
-			slices.ContainsFunc(fetched, func(resource *workloadidentityv1pb.WorkloadIdentity) bool {
+			require.True(t, slices.ContainsFunc(fetched, func(resource *workloadidentityv1pb.WorkloadIdentity) bool {
 				return proto.Equal(created, resource)
-			})
+			}))
 		}
 	})
 }

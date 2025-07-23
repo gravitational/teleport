@@ -36,13 +36,15 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
-	"github.com/gravitational/teleport/lib/client"
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -54,21 +56,28 @@ type KubernetesOutputService struct {
 	// botAuthClient should be an auth client using the bots internal identity.
 	// This will not have any roles impersonated and should only be used to
 	// fetch CAs.
-	botAuthClient     *authclient.Client
-	botCfg            *config.BotConfig
-	cfg               *config.KubernetesOutput
-	getBotIdentity    getBotIdentityFn
-	log               *slog.Logger
-	proxyPingCache    *proxyPingCache
-	reloadBroadcaster *channelBroadcaster
-	resolver          reversetunnelclient.Resolver
+	botAuthClient      *apiclient.Client
+	botIdentityReadyCh <-chan struct{}
+	botCfg             *config.BotConfig
+	cfg                *config.KubernetesOutput
+	getBotIdentity     getBotIdentityFn
+	log                *slog.Logger
+	proxyPingCache     *proxyPingCache
+	reloadBroadcaster  *internal.ChannelBroadcaster
+	statusReporter     readyz.Reporter
 	// executablePath is called to get the path to the tbot executable.
 	// Usually this is os.Executable
 	executablePath func() (string, error)
+
+	identityGenerator *identity.Generator
+	clientBuilder     *client.Builder
 }
 
 func (s *KubernetesOutputService) String() string {
-	return fmt.Sprintf("kubernetes-output (%s)", s.cfg.Destination.String())
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("kubernetes-output (%s)", s.cfg.Destination.String()),
+	)
 }
 
 func (s *KubernetesOutputService) OneShot(ctx context.Context) error {
@@ -76,17 +85,19 @@ func (s *KubernetesOutputService) OneShot(ctx context.Context) error {
 }
 
 func (s *KubernetesOutputService) Run(ctx context.Context) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
+	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
 	defer unsubscribe()
 
-	err := runOnInterval(ctx, runOnIntervalConfig{
-		service:    s.String(),
-		name:       "output-renewal",
-		f:          s.generate,
-		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
-		retryLimit: renewalRetryLimit,
-		log:        s.log,
-		reloadCh:   reloadCh,
+	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
+		Service:         s.String(),
+		Name:            "output-renewal",
+		F:               s.generate,
+		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
+		RetryLimit:      renewalRetryLimit,
+		Log:             s.log,
+		ReloadCh:        reloadCh,
+		IdentityReadyCh: s.botIdentityReadyCh,
+		StatusReporter:  s.statusReporter,
 	})
 	return trace.Wrap(err)
 }
@@ -111,30 +122,18 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err, "verifying destination")
 	}
 
-	var err error
-	roles := s.cfg.Roles
-	if len(roles) == 0 {
-		roles, err = fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
-		if err != nil {
-			return trace.Wrap(err, "fetching default roles")
-		}
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
+	identityOpts := []identity.GenerateOption{
+		identity.WithRoles(s.cfg.Roles),
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
 	}
-
-	id, err := generateIdentity(
-		ctx,
-		s.botAuthClient,
-		s.getBotIdentity(),
-		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
-		nil,
-	)
+	id, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
 	if err != nil {
 		return trace.Wrap(err, "generating identity")
 	}
-	// create a client that uses the impersonated identity, so that when we
-	// fetch information, we can ensure access rights are enforced.
-	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
-	impersonatedClient, err := clientForFacade(ctx, s.log, s.botCfg, facade, s.resolver)
+
+	impersonatedClient, err := s.clientBuilder.Build(ctx, id)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -151,22 +150,13 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 	// and will fail to generate certs if the cluster doesn't exist or is
 	// offline.
 
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
-	routedIdentity, err := generateIdentity(
-		ctx,
-		s.botAuthClient,
-		id,
-		roles,
-		effectiveLifetime.TTL,
-		func(req *proto.UserCertsRequest) {
-			req.KubernetesCluster = kubeClusterName
-		},
-	)
+	routedIdentity, err := s.identityGenerator.Generate(ctx, append(identityOpts,
+		identity.WithCurrentIdentityFacade(id),
+		identity.WithKubernetesCluster(kubeClusterName),
+	)...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
 
 	s.log.InfoContext(
 		ctx,
@@ -244,7 +234,7 @@ func (s *KubernetesOutputService) render(
 	// We only support directory mode for this since the exec plugin needs
 	// to know the path to read the credentials from, and this is
 	// unpredictable with other types of destination.
-	destinationDir, isDirectoryDest := s.cfg.Destination.(*config.DestinationDirectory)
+	destinationDir, isDirectoryDest := s.cfg.Destination.(*destination.Directory)
 	if !s.cfg.DisableExecPlugin {
 		if !isDirectoryDest {
 			slog.InfoContext(
@@ -297,7 +287,7 @@ type kubernetesStatus struct {
 	teleportClusterName   string
 	kubernetesClusterName string
 	tlsServerName         string
-	credentials           *client.KeyRing
+	credentials           *libclient.KeyRing
 }
 
 func generateKubeConfigWithoutPlugin(ks *kubernetesStatus) (*clientcmdapi.Config, error) {
@@ -444,7 +434,7 @@ func selectKubeConnectionMethod(proxyPong *proxyPingResponse) (
 			return "", "", trace.Wrap(err, "parsing proxy public_addr")
 		}
 
-		return fmt.Sprintf("https://%s", addr), client.GetKubeTLSServerName(host), nil
+		return fmt.Sprintf("https://%s", addr), libclient.GetKubeTLSServerName(host), nil
 	}
 
 	// Next, we try to use the KubePublicAddr.

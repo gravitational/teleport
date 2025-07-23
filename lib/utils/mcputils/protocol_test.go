@@ -27,8 +27,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestJSONRPCNotification(t *testing.T) {
-	inputJSON := []byte(`{
+var (
+	sampleNotificationJSON = []byte(`{
   "jsonrpc": "2.0",
   "method": "notifications/message",
   "params": {
@@ -43,25 +43,7 @@ func TestJSONRPCNotification(t *testing.T) {
     }
   }
 }`)
-
-	var base baseJSONRPCMessage
-	require.NoError(t, json.Unmarshal(inputJSON, &base))
-	assert.True(t, base.isNotification())
-	assert.False(t, base.isRequest())
-	assert.False(t, base.isResponse())
-
-	m := base.makeNotification()
-	require.NotNil(t, m)
-	assert.Equal(t, mcp.MCPMethod("notifications/message"), m.Method)
-	assert.Len(t, base.Params, 3)
-
-	outputJSON, err := json.MarshalIndent(m, "", "  ")
-	require.NoError(t, err)
-	assert.JSONEq(t, string(inputJSON), string(outputJSON))
-}
-
-func TestJSONRPCRequest(t *testing.T) {
-	inputJSON := []byte(`{
+	sampleRequestJSON = []byte(`{
   "jsonrpc": "2.0",
   "id": 2,
   "method": "tools/call",
@@ -72,27 +54,8 @@ func TestJSONRPCRequest(t *testing.T) {
     }
   }
 }`)
-	var base baseJSONRPCMessage
-	require.NoError(t, json.Unmarshal(inputJSON, &base))
-	assert.False(t, base.isNotification())
-	assert.True(t, base.isRequest())
-	assert.False(t, base.isResponse())
 
-	m := base.makeRequest()
-	require.NotNil(t, m)
-	assert.Equal(t, mcp.MethodToolsCall, m.Method)
-	assert.Equal(t, "int64:2", m.ID.String())
-	name, ok := m.Params.GetName()
-	assert.True(t, ok)
-	assert.Equal(t, "get_weather", name)
-
-	outputJSON, err := json.MarshalIndent(m, "", "  ")
-	require.NoError(t, err)
-	assert.JSONEq(t, string(inputJSON), string(outputJSON))
-}
-
-func TestJSONRPCResponse(t *testing.T) {
-	inputJSON := []byte(`{
+	sampleResponseJSON = []byte(`{
   "jsonrpc": "2.0",
   "id": 2,
   "result": {
@@ -115,8 +78,48 @@ func TestJSONRPCResponse(t *testing.T) {
     "nextCursor": "next-page-cursor"
   }
 }`)
+)
+
+func TestJSONRPCNotification(t *testing.T) {
 	var base baseJSONRPCMessage
-	require.NoError(t, json.Unmarshal(inputJSON, &base))
+	require.NoError(t, json.Unmarshal(sampleNotificationJSON, &base))
+	assert.True(t, base.isNotification())
+	assert.False(t, base.isRequest())
+	assert.False(t, base.isResponse())
+
+	m := base.makeNotification()
+	require.NotNil(t, m)
+	assert.Equal(t, mcp.MCPMethod("notifications/message"), m.Method)
+	assert.Len(t, base.Params, 3)
+
+	outputJSON, err := json.MarshalIndent(m, "", "  ")
+	require.NoError(t, err)
+	assert.JSONEq(t, string(sampleNotificationJSON), string(outputJSON))
+}
+
+func TestJSONRPCRequest(t *testing.T) {
+	var base baseJSONRPCMessage
+	require.NoError(t, json.Unmarshal(sampleRequestJSON, &base))
+	assert.False(t, base.isNotification())
+	assert.True(t, base.isRequest())
+	assert.False(t, base.isResponse())
+
+	m := base.makeRequest()
+	require.NotNil(t, m)
+	assert.Equal(t, mcp.MethodToolsCall, m.Method)
+	assert.Equal(t, "int64:2", m.ID.String())
+	name, ok := m.Params.GetName()
+	assert.True(t, ok)
+	assert.Equal(t, "get_weather", name)
+
+	outputJSON, err := json.MarshalIndent(m, "", "  ")
+	require.NoError(t, err)
+	assert.JSONEq(t, string(sampleRequestJSON), string(outputJSON))
+}
+
+func TestJSONRPCResponse(t *testing.T) {
+	var base baseJSONRPCMessage
+	require.NoError(t, json.Unmarshal(sampleResponseJSON, &base))
 	assert.False(t, base.isNotification())
 	assert.False(t, base.isRequest())
 	assert.True(t, base.isResponse())
@@ -127,7 +130,7 @@ func TestJSONRPCResponse(t *testing.T) {
 
 	outputJSON, err := json.MarshalIndent(m, "", "  ")
 	require.NoError(t, err)
-	assert.JSONEq(t, string(inputJSON), string(outputJSON))
+	assert.JSONEq(t, string(sampleResponseJSON), string(outputJSON))
 
 	toolList, err := m.GetListToolResult()
 	require.NoError(t, err)
@@ -140,8 +143,8 @@ func TestJSONRPCResponse(t *testing.T) {
 			Description: "Get current weather information for a location",
 			InputSchema: mcp.ToolInputSchema{
 				Type: "object",
-				Properties: map[string]interface{}{
-					"location": map[string]interface{}{
+				Properties: map[string]any{
+					"location": map[string]any{
 						"type":        "string",
 						"description": "City name or zip code",
 					},

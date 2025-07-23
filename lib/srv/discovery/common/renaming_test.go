@@ -490,7 +490,6 @@ func makeAzureRedisEnterpriseDB(t *testing.T, name, region, group, subscription 
 func labelsToAzureTags(labels map[string]string) map[string]*string {
 	tags := make(map[string]*string, len(labels))
 	for k, v := range labels {
-		v := v
 		tags[k] = &v
 	}
 	return tags

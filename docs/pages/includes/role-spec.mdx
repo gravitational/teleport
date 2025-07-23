@@ -282,8 +282,11 @@ spec:
 
     # workload_identity_labels: a user/bot with this role will be allowed to
     # issue Workload Identities with labels matching below.
+    #
+    # Supports role templating with traits.
     workload_identity_labels:
       'env': 'prod'
+      'team': '{{external.team}}'
 
     # node_labels_expression has the same purpose as node_labels but
     # supports predicate expressions to configure custom logic.
@@ -465,6 +468,22 @@ spec:
     - orgs:
       - my-org
 
+    # mcp: defines MCP servers related permissions.
+    mcp:
+      # tools: list of tools allowed for this role.
+      #
+      # No tools are allowed if not specified.
+      # Each entry can be a literal string, a glob pattern, or a regular
+      # expression (must start with '^' and end with '$'). A wildcard '*' allows
+      # all tools.
+      # This value field also supports variable interpolation.
+      tools:
+      - search-files
+      - slack_*
+      - ^(get|list|read).*$
+      - "{{internal.mcp_tools}}"
+      - "{{external.mcp_tools}}"
+
     # rules allow a user holding this role to modify other resources
     # matching the expressions below
     # supported resources:
@@ -487,6 +506,8 @@ spec:
     # instance           - a Teleport instance
     # event              - structured audit logging event
     #
+    # workload_identity     - config for Machine & Workload Identity SVIDS
+    # bot                   - config for Machine & Workload Identity bots
     #
     # lock                  - lock resource.
     # network_restrictions  - restrictions for SSH sessions

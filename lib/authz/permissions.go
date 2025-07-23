@@ -476,7 +476,7 @@ func (a *authorizer) enforcePrivateKeyPolicy(ctx context.Context, authContext *C
 	return nil
 }
 
-func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context, error) {
+func (a *authorizer) fromUser(ctx context.Context, userI any) (*Context, error) {
 	switch user := userI.(type) {
 	case LocalUser:
 		return a.authorizeLocalUser(ctx, user)
@@ -928,6 +928,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindUserTask, services.RO()),
 				types.NewRule(types.KindGitServer, services.RO()),
 				types.NewRule(types.KindAccessGraphSettings, services.RO()),
+				types.NewRule(types.KindRelayServer, services.RO()),
 				// this rule allows cloud proxies to read
 				// plugins of `openai` type, since Assist uses the OpenAI API and runs in Proxy.
 				{
@@ -1092,6 +1093,20 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 		return services.RoleFromSpec(
 			role.String(),
 			roleSpecForProxyWithRecordAtProxy(clusterName),
+		)
+	case types.RoleRelay:
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Namespaces: []string{
+						types.Wildcard,
+					},
+					Rules: []types.Rule{
+						// TODO(espadolini): define permissions for relay role
+					},
+				},
+			},
 		)
 	case types.RoleSignup:
 		return services.RoleFromSpec(

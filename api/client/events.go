@@ -28,8 +28,10 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
-	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -128,11 +130,11 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_AutoUpdateAgentReport{
 			AutoUpdateAgentReport: r.UnwrapT(),
 		}
-	case types.Resource153UnwrapperT[*accessv1.ScopedRole]:
+	case types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]:
 		out.Resource = &proto.Event_ScopedRole{
 			ScopedRole: r.UnwrapT(),
 		}
-	case types.Resource153UnwrapperT[*accessv1.ScopedRoleAssignment]:
+	case types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]:
 		out.Resource = &proto.Event_ScopedRoleAssignment{
 			ScopedRoleAssignment: r.UnwrapT(),
 		}
@@ -156,9 +158,17 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_WorkloadIdentityX509Revocation{
 			WorkloadIdentityX509Revocation: r.UnwrapT(),
 		}
+	case types.Resource153UnwrapperT[*recordingencryptionv1.RecordingEncryption]:
+		out.Resource = &proto.Event_RecordingEncryption{
+			RecordingEncryption: r.UnwrapT(),
+		}
 	case types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]:
 		out.Resource = &proto.Event_HealthCheckConfig{
 			HealthCheckConfig: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*presencev1.RelayServer]:
+		out.Resource = &proto.Event_RelayServer{
+			RelayServer: r.UnwrapT(),
 		}
 	case *types.ResourceHeader:
 		out.Resource = &proto.Event_ResourceHeader{
@@ -365,6 +375,11 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_PluginStaticCredentials{
 			PluginStaticCredentials: r,
 		}
+	case *types.PluginV1:
+		out.Resource = &proto.Event_Plugin{
+			Plugin: r,
+		}
+
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
 	}
@@ -651,6 +666,15 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		return &out, nil
 	} else if r := in.GetHealthCheckConfig(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetRelayServer(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetRecordingEncryption(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetPlugin(); r != nil {
+		out.Resource = r
 		return &out, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)

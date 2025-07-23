@@ -30,9 +30,10 @@ import (
 type osConfig struct {
 	tunName    string
 	tunIPv4    string
+	tunIPv4Net *net.IPNet
 	tunIPv6    string
 	cidrRanges []string
-	dnsAddr    string
+	dnsAddrs   []string
 	dnsZones   []string
 }
 
@@ -45,11 +46,11 @@ func configureOS(ctx context.Context, osConfig *osConfig, osConfigState *osConfi
 }
 
 type osConfigurator struct {
-	remoteOSConfigProvider *remoteOSConfigProvider
+	remoteOSConfigProvider *osConfigProvider
 	osConfigState          osConfigState
 }
 
-func newOSConfigurator(remoteOSConfigProvider *remoteOSConfigProvider) *osConfigurator {
+func newOSConfigurator(remoteOSConfigProvider *osConfigProvider) *osConfigurator {
 	return &osConfigurator{
 		remoteOSConfigProvider: remoteOSConfigProvider,
 	}
@@ -123,20 +124,6 @@ func tunIPv6ForPrefix(ipv6Prefix string) (string, error) {
 		return "", trace.BadParameter("IPv6 prefix %s is not an IPv6 address", ipv6Prefix)
 	}
 	return addr.Next().String(), nil
-}
-
-// tunIPv4ForCIDR returns the IPv4 address to use for the TUN interface in
-// cidrRange. It always returns the second address in the range.
-func tunIPv4ForCIDR(cidrRange string) (string, error) {
-	_, ipnet, err := net.ParseCIDR(cidrRange)
-	if err != nil {
-		return "", trace.Wrap(err, "parsing CIDR %q", cidrRange)
-	}
-	// ipnet.IP is the network address, ending in 0s, like 100.64.0.0
-	// Add 1 to assign the TUN address, like 100.64.0.1
-	tunAddress := ipnet.IP
-	tunAddress[len(tunAddress)-1]++
-	return tunAddress.String(), nil
 }
 
 func runCommand(ctx context.Context, path string, args ...string) error {

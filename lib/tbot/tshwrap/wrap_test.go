@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 )
@@ -57,9 +58,9 @@ func TestGetEnvForTSH(t *testing.T) {
 func TestGetDestinationDirectory(t *testing.T) {
 	config := func(outputCount int) *config.BotConfig {
 		cfg := &config.BotConfig{}
-		for i := 0; i < outputCount; i++ {
+		for i := range outputCount {
 			cfg.Services = append(cfg.Services, &config.IdentityOutput{
-				Destination: &config.DestinationDirectory{
+				Destination: &destination.Directory{
 					Path: fmt.Sprintf("/from-bot-config%d", i),
 				},
 			})

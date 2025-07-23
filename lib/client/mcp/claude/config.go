@@ -57,6 +57,18 @@ func DefaultConfigPath() (string, error) {
 	}
 }
 
+// GlobalCursorPath returns the default path for Cursor global MCP configuration.
+//
+// https://docs.cursor.com/context/mcp#configuration-locations
+func GlobalCursorPath() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return filepath.Join(homeDir, ".cursor", "mcp.json"), nil
+}
+
 // MCPServer contains details to launch an MCP server.
 //
 // https://modelcontextprotocol.io/quickstart/user
@@ -67,6 +79,23 @@ type MCPServer struct {
 	Args []string `json:"args,omitempty"`
 	// Envs specifies extra environment variable.
 	Envs map[string]string `json:"env,omitempty"`
+}
+
+// AddEnv adds an environment variable.
+func (s *MCPServer) AddEnv(name, value string) {
+	if s.Envs == nil {
+		s.Envs = map[string]string{}
+	}
+	s.Envs[name] = value
+}
+
+// GetEnv gets the value of an environment variable.
+func (s *MCPServer) GetEnv(key string) (string, bool) {
+	if s.Envs == nil {
+		return "", false
+	}
+	value, ok := s.Envs[key]
+	return value, ok
 }
 
 // Config represents a Claude Desktop config.
@@ -119,10 +148,20 @@ func (c *Config) GetMCPServers() map[string]MCPServer {
 	return maps.Clone(c.mcpServers)
 }
 
-// PutMCPServer adds a new MCP server or replace an existing one.
+// PutMCPServer adds a new MCP server or replaces an existing one.
 func (c *Config) PutMCPServer(serverName string, server MCPServer) (err error) {
 	c.mcpServers[serverName] = server
-	c.configData, err = sjson.SetBytes(c.configData, c.mcpServerJSONPath(serverName), server)
+
+	// We require a custom marshal to improve MCP Resources URI readability when
+	// it includes query params. By default the encoding/json escapes some
+	// characters like `&` causing the final URI to be harder to read.
+	var b bytes.Buffer
+	enc := json.NewEncoder(&b)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(server); err != nil {
+		return trace.Wrap(err)
+	}
+	c.configData, err = sjson.SetRawBytes(c.configData, c.mcpServerJSONPath(serverName), b.Bytes())
 	return trace.Wrap(err)
 }
 
@@ -212,9 +251,25 @@ func LoadConfigFromDefaultPath() (*FileConfig, error) {
 	return config, trace.Wrap(err)
 }
 
+// LoadConfigFromGlobalCursor loads the Cursor global MCP server configuration.
+func LoadConfigFromGlobalCursor() (*FileConfig, error) {
+	configPath, err := GlobalCursorPath()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	config, err := LoadConfigFromFile(configPath)
+	return config, trace.Wrap(err)
+}
+
 // Exists returns true if config file exists.
 func (c *FileConfig) Exists() bool {
 	return c.configExists
+}
+
+// Path returns the config file path.
+func (c *FileConfig) Path() string {
+	return c.configPath
 }
 
 // Save saves the updated config to the config path. Format defaults to "auto"

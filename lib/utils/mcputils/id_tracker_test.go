@@ -90,7 +90,7 @@ func BenchmarkIDTracker(b *testing.B) {
 	idTracker, err := NewIDTracker(100)
 	require.NoError(b, err)
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		idTracker.PushRequest(&JSONRPCRequest{
 			ID:     mcp.NewRequestId(i),
 			Method: mcp.MethodToolsList,

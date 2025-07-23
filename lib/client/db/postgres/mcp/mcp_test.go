@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"net"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -85,23 +86,22 @@ func TestFormatErrors(t *testing.T) {
 		URI:      "localhost:5432",
 	})
 	require.NoError(t, err)
-	dbURI := clientmcp.NewDatabaseResourceURI("root", dbName).String()
+	dbURI := clientmcp.NewDatabaseResourceURI("root", dbName).WithoutParams().String()
 
 	for name, tc := range map[string]struct {
-		databaseURI            string
-		databases              []*dbmcp.Database
-		externalErrorRetriever dbmcp.ExternalErrorRetriever
-		expectErrorMessage     require.ValueAssertionFunc
+		databaseURI        string
+		databases          []*dbmcp.Database
+		expectErrorMessage require.ValueAssertionFunc
 	}{
 		"database not found": {
 			databaseURI: "teleport://clusters/root/databases/not-found",
-			expectErrorMessage: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
+			expectErrorMessage: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.Equal(t, dbmcp.DatabaseNotFoundError.Error(), i1)
 			},
 		},
 		"malformed database uri": {
 			databaseURI: "not-found",
-			expectErrorMessage: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
+			expectErrorMessage: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.Equal(t, dbmcp.WrongDatabaseURIFormatError.Error(), i1)
 			},
 		},
@@ -113,14 +113,13 @@ func TestFormatErrors(t *testing.T) {
 					ClusterName:  "root",
 					DatabaseUser: "postgres",
 					DatabaseName: "postgres",
-					Addr:         listener.Addr().String(),
 					LookupFunc: func(_ context.Context, _ string) (addrs []string, err error) {
 						return []string{"memory"}, nil
 					},
 					DialContextFunc: listener.DialContext,
 				},
 			},
-			expectErrorMessage: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
+			expectErrorMessage: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.Equal(t, dbmcp.LocalProxyConnectionErrorMessage, i1)
 			},
 		},
@@ -128,20 +127,20 @@ func TestFormatErrors(t *testing.T) {
 			databaseURI: dbURI,
 			databases: []*dbmcp.Database{
 				&dbmcp.Database{
-					DB:                     db,
-					ClusterName:            "root",
-					DatabaseUser:           "postgres",
-					DatabaseName:           "postgres",
-					Addr:                   listener.Addr().String(),
-					ExternalErrorRetriever: &mockErrorRetriever{err: client.ErrClientCredentialsHaveExpired},
+					DB:           db,
+					ClusterName:  "root",
+					DatabaseUser: "postgres",
+					DatabaseName: "postgres",
 					LookupFunc: func(_ context.Context, _ string) (addrs []string, err error) {
 						return []string{"memory"}, nil
 					},
-					DialContextFunc: listener.DialContext,
+					DialContextFunc: func(ctx context.Context, network, addr string) (net.Conn, error) {
+						return nil, client.ErrClientCredentialsHaveExpired
+					},
 				},
 			},
-			expectErrorMessage: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
-				require.Equal(t, dbmcp.ReloginRequiredErrorMessage, i1)
+			expectErrorMessage: func(tt require.TestingT, i1 any, i2 ...any) {
+				require.Equal(t, clientmcp.ReloginRequiredErrorMessage, i1)
 			},
 		},
 	} {
@@ -224,11 +223,3 @@ func (mr *mockRows) CommandTag() pgconn.CommandTag {
 }
 
 func (mr *mockRows) Close() {}
-
-type mockErrorRetriever struct {
-	err error
-}
-
-func (mr *mockErrorRetriever) RetrieveError() error {
-	return mr.err
-}

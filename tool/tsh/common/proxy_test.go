@@ -394,7 +394,7 @@ func TestWithRsync(t *testing.T) {
 					if !assert.NoError(t, err) {
 						return
 					}
-					sshCert, tlsCert, err := asrv.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+					sshCert, tlsCert, err := asrv.GenerateUserTestCertsWithContext(ctx, auth.GenerateUserTestCertsRequest{
 						SSHPubKey:      sshPubKey,
 						TLSPubKey:      tlsPubKey,
 						Username:       accessUser.GetName(),
@@ -526,7 +526,6 @@ func TestProxySSH(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			s := newTestSuite(t, tc.opts...)
@@ -711,21 +710,21 @@ func TestTSHProxyTemplate(t *testing.T) {
 	// Create proxy template configuration.
 	tshConfigFile := filepath.Join(tshHome, client.TSHConfigPath)
 	require.NoError(t, os.MkdirAll(filepath.Dir(tshConfigFile), 0o777))
-	require.NoError(t, os.WriteFile(tshConfigFile, []byte(fmt.Sprintf(`
+	require.NoError(t, os.WriteFile(tshConfigFile, fmt.Appendf(nil, `
 proxy_templates:
 - template: '^(\w+)\.(root):(.+)$'
   proxy: "%v"
   host: "$1:$3"
-`, s.root.Config.Proxy.WebAddr.Addr)), 0o644))
+`, s.root.Config.Proxy.WebAddr.Addr), 0o644))
 
 	// Create SSH config.
 	sshConfigFile := filepath.Join(tshHome, "sshconfig")
-	err = os.WriteFile(sshConfigFile, []byte(fmt.Sprintf(`
+	err = os.WriteFile(sshConfigFile, fmt.Appendf(nil, `
 Host *
   HostName %%h
   StrictHostKeyChecking no
   ProxyCommand %v -d --insecure proxy ssh -J {{proxy}} %%r@%%h:%%p
-`, tshPath)), 0o644)
+`, tshPath), 0o644)
 	require.NoError(t, err)
 
 	// Connect to "rootnode" with OpenSSH.
@@ -1530,7 +1529,7 @@ func TestProxyAppWithIdentity(t *testing.T) {
 	// make other auth API calls beyond just accessing the app.
 	tlsPub, err := privateKey.MarshalTLSPublicKey()
 	require.NoError(t, err)
-	sshCert, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+	sshCert, tlsCert, err := authServer.GenerateUserTestCertsWithContext(ctx, auth.GenerateUserTestCertsRequest{
 		SSHPubKey:      privateKey.MarshalSSHPublicKey(),
 		TLSPubKey:      tlsPub,
 		Username:       userName,
@@ -1642,7 +1641,7 @@ func TestProxyAppMultiPort(t *testing.T) {
 		"--insecure",
 		"--proxy", process.Config.Proxy.WebAddr.Addr,
 		"proxy", "app", appName,
-		"--port", fmt.Sprintf("%s:%d", fooProxyPort, fooServerPort),
+		"--port", net.JoinHostPort(fooProxyPort, strconv.Itoa(fooServerPort)),
 	}
 	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "tsh proxy app (foo)",
@@ -1675,7 +1674,7 @@ func TestProxyAppMultiPort(t *testing.T) {
 		"--insecure",
 		"--proxy", process.Config.Proxy.WebAddr.Addr,
 		"proxy", "app", appName,
-		"--port", fmt.Sprintf("%s:%d", barProxyPort, barServerPort),
+		"--port", net.JoinHostPort(barProxyPort, strconv.Itoa(barServerPort)),
 	}
 	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "tsh proxy app (bar)",

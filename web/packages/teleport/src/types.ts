@@ -204,6 +204,7 @@ export interface FeatureFlags {
   accessGraphIntegrations: boolean;
   externalAuditStorage: boolean;
   listBots: boolean;
+  readBots: boolean;
   listBotInstances: boolean;
   addBots: boolean;
   editBots: boolean;
@@ -234,4 +235,10 @@ export type WebsocketStatus = {
   type: string;
   status: string;
   message?: string;
+};
+
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonArray = JsonPrimitive[];
+export type JsonObject = {
+  [key: string]: JsonPrimitive | JsonArray | JsonObject;
 };

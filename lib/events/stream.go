@@ -36,9 +36,20 @@ import (
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+)
+
+// ProtoStreamFlag is a bit flag containing options that were used to record the stream, such as whether or not the
+// stream was encrypted. It appears in the header of v2+ proto streams and should be used to construct the correct
+// ProtoReader configuration.
+type ProtoStreamFlag = uint8
+
+const (
+	// ProtoStreamFlagEncrypted flags whether or not a stream was encrypted during recording.
+	ProtoStreamFlagEncrypted = 1 << iota
 )
 
 const (
@@ -62,12 +73,23 @@ const (
 	// ProtoStreamV1 is a version of the binary protocol
 	ProtoStreamV1 = 1
 
+	// ProtoStreamV2 is a version of the binary protocol
+	ProtoStreamV2 = 2
+
 	// ProtoStreamV1PartHeaderSize is the size of the part of the protocol stream
 	// on disk format, it consists of
 	// * 8 bytes for the format version
 	// * 8 bytes for meaningful size of the part
 	// * 8 bytes for optional padding size at the end of the slice
 	ProtoStreamV1PartHeaderSize = Int64Size * 3
+
+	// ProtoStreamV2PartHeaderSize is the size of the part of the protocol stream
+	// on disk format, it consists of
+	// * 8 bytes for the format version
+	// * 8 bytes for meaningful size of the part
+	// * 8 bytes for optional padding size at the end of the slice
+	// * 8 bytes for 1 byte flags and 7 bytes of zero padding reserved for future
+	ProtoStreamV2PartHeaderSize = Int64Size * 4
 
 	// ProtoStreamV1RecordHeaderSize is the size of the header
 	// of the record header, it consists of the record length
@@ -77,6 +99,16 @@ const (
 	// `ReserveUploadPart` fails.
 	uploaderReservePartErrorMessage = "uploader failed to reserve upload part"
 )
+
+// An EncryptionWrapper wraps a given io.WriteCloser with encryption.
+type EncryptionWrapper interface {
+	WithEncryption(context.Context, io.WriteCloser) (io.WriteCloser, error)
+}
+
+// A DecryptionWrapper wraps a given io.Reader with decryption.
+type DecryptionWrapper interface {
+	WithDecryption(context.Context, io.Reader) (io.Reader, error)
+}
 
 // ProtoStreamerConfig specifies configuration for the part
 type ProtoStreamerConfig struct {
@@ -92,6 +124,8 @@ type ProtoStreamerConfig struct {
 	ForceFlush chan struct{}
 	// RetryConfig defines how to retry on a failed upload
 	RetryConfig *retryutils.LinearConfig
+	// Encrypter wraps the final gzip writer with encryption.
+	Encrypter EncryptionWrapper
 }
 
 // CheckAndSetDefaults checks and sets streamer defaults
@@ -142,6 +176,7 @@ func (s *ProtoStreamer) CreateAuditStreamForUpload(ctx context.Context, sid sess
 		ConcurrentUploads: s.cfg.ConcurrentUploads,
 		ForceFlush:        s.cfg.ForceFlush,
 		RetryConfig:       s.cfg.RetryConfig,
+		Encrypter:         s.cfg.Encrypter,
 	})
 }
 
@@ -171,6 +206,7 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 		MinUploadBytes: s.cfg.MinUploadBytes,
 		CompletedParts: parts,
 		RetryConfig:    s.cfg.RetryConfig,
+		Encrypter:      s.cfg.Encrypter,
 	})
 }
 
@@ -203,6 +239,8 @@ type ProtoStreamConfig struct {
 	ConcurrentUploads int
 	// RetryConfig defines how to retry on a failed upload
 	RetryConfig *retryutils.LinearConfig
+	// Encrypter wraps the final gzip writer with encryption.
+	Encrypter EncryptionWrapper
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -297,6 +335,7 @@ func NewProtoStream(cfg ProtoStreamConfig) (*ProtoStream, error) {
 		semUploads:        make(chan struct{}, cfg.ConcurrentUploads),
 		lastPartNumber:    0,
 		retryConfig:       *cfg.RetryConfig,
+		encrypter:         cfg.Encrypter,
 	}
 	if len(cfg.CompletedParts) > 0 {
 		// skip 2 extra parts as a protection from accidental overwrites.
@@ -501,9 +540,11 @@ type sliceWriter struct {
 	completedParts []StreamPart
 	// emptyHeader is used to write empty header
 	// to preserve some bytes
-	emptyHeader [ProtoStreamV1PartHeaderSize]byte
+	emptyHeader [ProtoStreamV2PartHeaderSize]byte
 	// retryConfig  defines how to retry on a failed upload
 	retryConfig retryutils.LinearConfig
+	// encrypter wraps writes with encryption
+	encrypter EncryptionWrapper
 }
 
 func (w *sliceWriter) updateCompletedParts(part StreamPart, lastEventIndex int64) {
@@ -571,10 +612,7 @@ func (w *sliceWriter) receiveAndUpload() error {
 			}
 		case <-flushCh:
 			now := clock.Now().UTC()
-			inactivityPeriod := now.Sub(lastEvent)
-			if inactivityPeriod < 0 {
-				inactivityPeriod = 0
-			}
+			inactivityPeriod := max(now.Sub(lastEvent), 0)
 			if inactivityPeriod >= w.proto.cfg.InactivityFlushPeriod {
 				// inactivity period exceeded threshold,
 				// there is no need to schedule a timer until the next
@@ -653,20 +691,43 @@ func (w *sliceWriter) newSlice() (*slice, error) {
 	// This buffer will be returned to the pool by slice.Close
 	buffer := w.proto.cfg.BufferPool.Get()
 	buffer.Reset()
+
+	var encrypted bool
+	var writer io.WriteCloser = &bufferCloser{Buffer: buffer}
+	if w.encrypter != nil {
+		// we want to encrypt after compression, so gzip needs to be the outermost layer
+		encryptedWriter, err := w.encrypter.WithEncryption(w.proto.completeCtx, writer)
+		switch {
+		case err == nil:
+			encrypted = true
+			writer = encryptedWriter
+		case errors.Is(err, recordingencryption.ErrEncryptionDisabled):
+			// if encryption isn't enabled, do nothing
+		default:
+			return nil, trace.Wrap(err, "fetching recording encrypter")
+		}
+	}
+
 	// reserve bytes for version header
-	buffer.Write(w.emptyHeader[:])
+	headerSize := ProtoStreamV1PartHeaderSize
+	if encrypted {
+		headerSize = ProtoStreamV2PartHeaderSize
+	}
+	buffer.Write(w.emptyHeader[:headerSize])
 
 	err := w.proto.cfg.Uploader.ReserveUploadPart(w.proto.cancelCtx, w.proto.cfg.Upload, w.lastPartNumber)
 	if err != nil {
 		// Return the unused buffer to the pool.
 		w.proto.cfg.BufferPool.Put(buffer)
+		writer.Close()
 		return nil, trace.ConnectionProblem(err, uploaderReservePartErrorMessage)
 	}
 
 	return &slice{
-		proto:  w.proto,
-		buffer: buffer,
-		writer: newGzipWriter(&bufferCloser{Buffer: buffer}),
+		proto:     w.proto,
+		buffer:    buffer,
+		writer:    newGzipWriter(writer),
+		encrypted: encrypted,
 	}, nil
 }
 
@@ -769,7 +830,7 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			return
 		}
 
-		for i := 0; i < defaults.MaxIterationLimit; i++ {
+		for i := range defaults.MaxIterationLimit {
 			log := log.With("attempt", i)
 
 			part, err := w.proto.cfg.Uploader.UploadPart(w.proto.cancelCtx, w.proto.cfg.Upload, partNumber, reader)
@@ -856,11 +917,12 @@ func (a *activeUpload) getPart() (*StreamPart, error) {
 // slice contains serialized protobuf messages
 type slice struct {
 	proto          *ProtoStream
-	writer         *gzipWriter
+	writer         io.WriteCloser
 	buffer         *bytes.Buffer
 	isLast         bool
 	lastEventIndex int64
 	eventCount     uint64
+	encrypted      bool
 }
 
 // reader returns a reader for the bytes written, no writes should be done after this
@@ -881,11 +943,23 @@ func (s *slice) reader() (io.ReadSeeker, error) {
 		s.buffer.Write(padding)
 	}
 	data := s.buffer.Bytes()
+
+	// TODO (eriktate): stop writing new recordings with ProtoStreamV1 in v19
+	partHeader := PartHeader{
+		ProtoVersion: ProtoStreamV1,
+		PartSize:     uint64(wroteBytes - ProtoStreamV1PartHeaderSize),
+		PaddingSize:  uint64(paddingBytes),
+	}
+
+	if s.encrypted {
+		partHeader.ProtoVersion = ProtoStreamV2
+		partHeader.PartSize = uint64(wroteBytes - ProtoStreamV2PartHeaderSize)
+		partHeader.Flags = ProtoStreamFlagEncrypted
+	}
+
 	// when the slice was created, the first bytes were reserved
 	// for the protocol version number and size of the slice in bytes
-	binary.BigEndian.PutUint64(data[0:], ProtoStreamV1)
-	binary.BigEndian.PutUint64(data[Int64Size:], uint64(wroteBytes-ProtoStreamV1PartHeaderSize))
-	binary.BigEndian.PutUint64(data[Int64Size*2:], uint64(paddingBytes))
+	copy(data, partHeader.Bytes())
 	return bytes.NewReader(data), nil
 }
 
@@ -943,10 +1017,11 @@ func (s *slice) recordEvent(event protoEvent) error {
 }
 
 // NewProtoReader returns a new proto reader with slice pool
-func NewProtoReader(r io.Reader) *ProtoReader {
+func NewProtoReader(r io.Reader, decrypter DecryptionWrapper) *ProtoReader {
 	return &ProtoReader{
 		reader:    r,
 		lastIndex: -1,
+		decrypter: decrypter,
 	}
 }
 
@@ -981,6 +1056,7 @@ type ProtoReader struct {
 	error        error
 	lastIndex    int64
 	stats        ProtoReaderStats
+	decrypter    DecryptionWrapper
 }
 
 // ProtoReaderStats contains some reader statistics
@@ -1043,6 +1119,65 @@ func (r *ProtoReader) GetStats() ProtoReaderStats {
 	return r.stats
 }
 
+// PartHeader is the structured representation of the binary header prepending each part of a ProtoStream output
+type PartHeader struct {
+	ProtoVersion uint64
+	PartSize     uint64
+	PaddingSize  uint64
+	Flags        ProtoStreamFlag
+}
+
+// Bytes returns the binary representation of a PartHeader formatted to be included in a ProtoStream
+func (h PartHeader) Bytes() []byte {
+	var buf [ProtoStreamV2PartHeaderSize]byte
+	binary.BigEndian.PutUint64(buf[:], h.ProtoVersion)
+	binary.BigEndian.PutUint64(buf[Int64Size:], h.PartSize)
+	binary.BigEndian.PutUint64(buf[Int64Size*2:], h.PaddingSize)
+	if h.ProtoVersion == 1 {
+		return buf[:ProtoStreamV1PartHeaderSize]
+	}
+	binary.BigEndian.PutUint64(buf[Int64Size*3:], 0)
+	buf[Int64Size*3] = h.Flags
+	return buf[:]
+}
+
+// ParsePartHeader parses a PartHeader from the given io.Reader
+func ParsePartHeader(r io.Reader) (PartHeader, error) {
+	var header PartHeader
+	var buf [Int64Size]byte
+	if _, err := io.ReadFull(r, buf[:]); err != nil {
+		if errors.Is(err, io.EOF) {
+			return header, trace.Wrap(err)
+		}
+		return header, trace.ConvertSystemError(err)
+	}
+
+	header.ProtoVersion = binary.BigEndian.Uint64(buf[:])
+	if header.ProtoVersion > ProtoStreamV2 {
+		return PartHeader{}, trace.BadParameter("unsupported protocol version %v", header.ProtoVersion)
+	}
+
+	// read size of this gzipped part as encoded by V1 protocol version
+	if _, err := io.ReadFull(r, buf[:]); err != nil {
+		return header, trace.ConvertSystemError(err)
+	}
+	header.PartSize = binary.BigEndian.Uint64(buf[:])
+	// read padding size (could be 0)
+	if _, err := io.ReadFull(r, buf[:]); err != nil {
+		return header, trace.ConvertSystemError(err)
+	}
+	header.PaddingSize = binary.BigEndian.Uint64(buf[:])
+	if header.ProtoVersion == 1 {
+		return header, nil
+	}
+
+	if _, err := io.ReadFull(r, buf[:]); err != nil {
+		return header, trace.ConvertSystemError(err)
+	}
+	header.Flags = buf[0]
+	return header, nil
+}
+
 // Read returns next event or io.EOF in case of the end of the parts
 func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 	// periodic checks of context after fixed amount of iterations
@@ -1070,7 +1205,7 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 		case protoReaderStateInit:
 			// read the part header that consists of the protocol version
 			// and the part size (for the V1 version of the protocol)
-			_, err := io.ReadFull(r.reader, r.sizeBytes[:Int64Size])
+			header, err := ParsePartHeader(r.reader)
 			if err != nil {
 				// reached the end of the stream
 				if errors.Is(err, io.EOF) {
@@ -1079,26 +1214,25 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 				}
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
-			protocolVersion := binary.BigEndian.Uint64(r.sizeBytes[:Int64Size])
-			if protocolVersion != ProtoStreamV1 {
-				return nil, trace.BadParameter("unsupported protocol version %v", protocolVersion)
+
+			r.padding = int64(header.PaddingSize)
+			reader := io.LimitReader(r.reader, int64(header.PartSize))
+			if header.Flags&ProtoStreamFlagEncrypted != 0 {
+				if r.decrypter == nil {
+					return nil, r.setError(trace.Errorf("reading encrypted protos without decrypter"))
+				}
+
+				reader, err = r.decrypter.WithDecryption(ctx, reader)
+				if err != nil {
+					return nil, r.setError(trace.Wrap(err))
+				}
 			}
-			// read size of this gzipped part as encoded by V1 protocol version
-			_, err = io.ReadFull(r.reader, r.sizeBytes[:Int64Size])
-			if err != nil {
-				return nil, r.setError(trace.ConvertSystemError(err))
-			}
-			partSize := binary.BigEndian.Uint64(r.sizeBytes[:Int64Size])
-			// read padding size (could be 0)
-			_, err = io.ReadFull(r.reader, r.sizeBytes[:Int64Size])
-			if err != nil {
-				return nil, r.setError(trace.ConvertSystemError(err))
-			}
-			r.padding = int64(binary.BigEndian.Uint64(r.sizeBytes[:Int64Size]))
-			gzipReader, err := newGzipReader(io.NopCloser(io.LimitReader(r.reader, int64(partSize))))
+
+			gzipReader, err := newGzipReader(io.NopCloser(reader))
 			if err != nil {
 				return nil, r.setError(trace.Wrap(err))
 			}
+
 			r.gzipReader = gzipReader
 			r.state = protoReaderStateCurrent
 			continue
@@ -1106,8 +1240,7 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 		case protoReaderStateCurrent:
 			// the record consists of length of the protobuf encoded
 			// message and the message itself
-			_, err := io.ReadFull(r.gzipReader, r.sizeBytes[:Int32Size])
-			if err != nil {
+			if _, err := io.ReadFull(r.gzipReader, r.sizeBytes[:Int32Size]); err != nil {
 				if !errors.Is(err, io.EOF) {
 					return nil, r.setError(trace.ConvertSystemError(err))
 				}
@@ -1153,13 +1286,11 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 			if messageSize == 0 {
 				return nil, r.setError(trace.BadParameter("unexpected message size 0"))
 			}
-			_, err = io.ReadFull(r.gzipReader, r.messageBytes[:messageSize])
-			if err != nil {
+			if _, err := io.ReadFull(r.gzipReader, r.messageBytes[:messageSize]); err != nil {
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
 			oneof := apievents.OneOf{}
-			err = oneof.Unmarshal(r.messageBytes[:messageSize])
-			if err != nil {
+			if err := oneof.Unmarshal(r.messageBytes[:messageSize]); err != nil {
 				return nil, trace.Wrap(err)
 			}
 			event, err := apievents.FromOneOf(oneof)
