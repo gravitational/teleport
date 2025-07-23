@@ -1,4 +1,4 @@
-.version: &version "17.5.6"
+.version: &version "17.6.0-dev.hugocanary.4"
 
 name: teleport-kube-agent
 apiVersion: v2
