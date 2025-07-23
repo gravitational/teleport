@@ -87,6 +87,8 @@ func listRoles(clt resourcesAPIGetter, values url.Values) (*listResourcesWithout
 }
 
 // listRequestableRolesHandle is the web handler for listing requestable roles.
+// Under the hood this just calls the `ListRoles` method with a filter for requestable roles,
+// we have this as a separate endpoint because the response needs to be formatted differently.
 func (h *Handler) listRequestableRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
@@ -94,40 +96,32 @@ func (h *Handler) listRequestableRolesHandle(w http.ResponseWriter, r *http.Requ
 	}
 
 	values := r.URL.Query()
-	return listRequestableRoles(clt, values)
-}
-
-type requestableRolesGetter interface {
-	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
+	return listRequestableRoles(r.Context(), clt, values)
 }
 
 // listRequestableRoles returns a paginated list of roles that the user can request.
-func listRequestableRoles(clt requestableRolesGetter, values url.Values) (*listResourcesWithoutCountGetResponse, error) {
+func listRequestableRoles(ctx context.Context, clt resourcesAPIGetter, values url.Values) (*listResourcesWithoutCountGetResponse, error) {
 	limit, err := QueryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	requestableRolesReq := &proto.ListRequestableRolesRequest{
+	rolesReq := &proto.ListRolesRequest{
 		Limit:    limit,
 		StartKey: values.Get("startKey"),
 		Filter: &types.RoleFilter{
 			SearchKeywords:  client.ParseSearchKeywords(values.Get("search"), ' '),
 			SkipSystemRoles: true,
+			RequestableOnly: true,
 		},
 	}
 
-	resp, err := clt.ListRequestableRoles(context.TODO(), requestableRolesReq)
+	resp, err := clt.ListRoles(ctx, rolesReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var typeRoles []types.Role
-	for _, role := range resp.Roles {
-		typeRoles = append(typeRoles, role)
-	}
-
-	uiRoles := ui.NewRequestableRoles(typeRoles)
+	uiRoles := ui.NewRequestableRoles(resp.Roles)
 
 	return &listResourcesWithoutCountGetResponse{
 		Items:    uiRoles,

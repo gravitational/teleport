@@ -878,10 +878,6 @@ func (r *Services) GenerateAzureOIDCToken(ctx context.Context, integration strin
 	return r.IntegrationsTokenGenerator.GenerateAzureOIDCToken(ctx, integration)
 }
 
-func (r *Services) ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error) {
-	return r.ListRequestableRoles(ctx, req)
-}
-
 var (
 	generateRequestsCount = prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -5405,8 +5401,19 @@ Outer:
 	return filtered, nextKey, nil
 }
 
-// ListRequestableRoles returns a paginated list of roles that the user can request.
-func (a *Server) ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error) {
+// ListRoles is a paginated role getter that supports requestable filtering.
+func (a *Server) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+	// If RequestableOnly is set, use requestable roles logic
+	if req.Filter != nil && req.Filter.RequestableOnly {
+		return a.listRequestableRoles(ctx, req)
+	}
+
+	// Otherwise, delegate to the cache
+	return a.Cache.ListRoles(ctx, req)
+}
+
+// listRequestableRoles handles the RequestableOnly filter for the Server.
+func (a *Server) listRequestableRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
 	if req.Limit == 0 || req.Limit > apidefaults.DefaultChunkSize {
 		req.Limit = apidefaults.DefaultChunkSize
 	}
@@ -5457,6 +5464,8 @@ func (a *Server) ListRequestableRoles(ctx context.Context, req *proto.ListReques
 	}
 
 	matchFunc := func(role *types.RoleV6) (bool, error) {
+		roleName := role.GetName()
+
 		// Skip any roles the user already has.
 		if slices.Contains(userRoleNames, role.GetName()) {
 			return false, nil
@@ -5468,7 +5477,6 @@ func (a *Server) ListRequestableRoles(ctx context.Context, req *proto.ListReques
 		}
 
 		// Check if the user can request this role.
-		roleName := role.GetName()
 		for _, denyMatcher := range denyMatchers {
 			if denyMatcher.Match(roleName) {
 				return false, nil
@@ -5483,18 +5491,12 @@ func (a *Server) ListRequestableRoles(ctx context.Context, req *proto.ListReques
 		return false, nil
 	}
 
-	// Create a ListRolesRequest so we can leverage our existing IterateRoles pagination logic.
-	// We don't need to pass the req.Filters here since we're already doing that work in our MatchFunc above.
-	listRolesReq := &proto.ListRolesRequest{
-		Limit:    req.Limit,
-		StartKey: req.StartKey,
-	}
-	out, nextKey, err := a.IterateRoles(ctx, listRolesReq, matchFunc)
+	out, nextKey, err := a.IterateRoles(ctx, req, matchFunc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &proto.ListRequestableRolesResponse{
+	return &proto.ListRolesResponse{
 		Roles:   out,
 		NextKey: nextKey,
 	}, nil

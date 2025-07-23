@@ -150,9 +150,6 @@ type ReadNodeAccessPoint interface {
 	// ListRoles is a paginated role getter.
 	ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
 
-	// ListRequestableRoles returns a paginated list of roles that the user can request.
-	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
-
 	// GetNetworkRestrictions returns networking restrictions for restricted shell to enforce
 	GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error)
 }
@@ -1018,9 +1015,6 @@ type Cache interface {
 
 	// ListRoles is a paginated role getter.
 	ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
-
-	// ListRequestableRoles returns a paginated list of roles that the user can request.
-	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
 	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)

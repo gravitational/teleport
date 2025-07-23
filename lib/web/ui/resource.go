@@ -88,7 +88,7 @@ type RequestableRole struct {
 }
 
 // NewRequestableRoles creates a list of ui.RequestableRole from a list of types.Role.
-func NewRequestableRoles(roles []types.Role) []RequestableRole {
+func NewRequestableRoles(roles []*types.RoleV6) []RequestableRole {
 	items := make([]RequestableRole, 0, len(roles))
 	for _, role := range roles {
 		item := RequestableRole{
