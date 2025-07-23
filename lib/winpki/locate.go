@@ -21,8 +21,6 @@ package winpki
 import (
 	"context"
 	"net"
-	"os"
-	"strconv"
 
 	"github.com/gravitational/trace"
 )
@@ -51,23 +49,9 @@ func locateLDAPServer(ctx context.Context, domain string, site string, resolver 
 	// note: LookupSRV already returns records sorted by priority and takes in to account weights
 	var result []string
 	for _, record := range records {
-		addrs := []string{record.Target}
-
-		// In development environments, the hostnames returned from the SRV records are
-		// unlikely to resolve with the system resolver, so get an IP address now while
-		// we're using DNS from AD.
-		if resolve, _ := strconv.ParseBool(os.Getenv("TELEPORT_LDAP_RESOLVE_SERVER")); resolve {
-			var err error
-			addrs, err = resolver.LookupHost(ctx, record.Target)
-			if err != nil {
-				continue
-			}
-		}
-		for _, addr := range addrs {
-			// SRV records will likely return the insecure LDAP port,
-			// so we ignore it and hard code the LDAPS port.
-			result = append(result, net.JoinHostPort(addr, "636"))
-		}
+		// SRV records will likely return the insecure LDAP port,
+		// so we ignore it and hard code the LDAPS port.
+		result = append(result, net.JoinHostPort(record.Target, "636"))
 	}
 
 	return result, nil
