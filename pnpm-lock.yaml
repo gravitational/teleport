@@ -320,6 +320,13 @@ importers:
       highlight-words-core:
         specifier: ^1.2.3
         version: 1.2.3
+      semver:
+        specifier: ^7.7.2
+        version: 7.7.2
+    devDependencies:
+      '@types/semver':
+        specifier: ^7.7.0
+        version: 7.7.0
 
   web/packages/teleport:
     dependencies:
