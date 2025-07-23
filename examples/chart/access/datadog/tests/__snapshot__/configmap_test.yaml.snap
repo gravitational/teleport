@@ -26,6 +26,6 @@ should match the snapshot:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-datadog
-        app.kubernetes.io/version: 17.5.6
-        helm.sh/chart: teleport-plugin-datadog-17.5.6
+        app.kubernetes.io/version: 17.6.0-dev.hugocanary.5
+        helm.sh/chart: teleport-plugin-datadog-17.6.0-dev.hugocanary.5
       name: RELEASE-NAME-teleport-plugin-datadog
