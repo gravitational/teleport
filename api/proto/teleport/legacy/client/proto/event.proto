@@ -214,5 +214,7 @@ message Event {
     teleport.workloadidentity.v1.WorkloadIdentity WorkloadIdentity = 76;
     // WorkloadIdentityX509Revocation is a resource for workload identity x509 revocation.
     teleport.workloadidentity.v1.WorkloadIdentityX509Revocation WorkloadIdentityX509Revocation = 77;
+    // PluginV1 is a resource for Teleport plugins.
+    types.PluginV1 plugin = 84;
   }
 }
