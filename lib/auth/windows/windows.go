@@ -41,9 +41,12 @@ import (
 )
 
 type certRequest struct {
-	csrPEM      []byte
-	crlEndpoint string
-	keyDER      []byte
+	csrPEM []byte
+	keyDER []byte
+
+	// Optionally specifies the AD domain where CRLs are published.
+	// If omitted then the cert will not specify a CRL distribution point.
+	cdpDomain string
 }
 
 func createUsersExtension(groups []string) (pkix.Extension, error) {
@@ -108,10 +111,10 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	}
 
 	if req.ActiveDirectorySID != "" {
-		adUserMapping, err := asn1.Marshal(SubjectAltName[adSid]{
-			otherName[adSid]{
+		adUserMapping, err := asn1.Marshal(SubjectAltName[ADSid]{
+			otherName[ADSid]{
 				OID: ADUserMappingInternalOID,
-				Value: adSid{
+				Value: ADSid{
 					Value: []byte(req.ActiveDirectorySID),
 				},
 			}})
@@ -135,17 +138,7 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	}
 
 	if !req.OmitCDP {
-		// Note: this CRL DN may or may not be the same DN published in updateCRL.
-		//
-		// There can be multiple AD domains connected to Teleport. Each
-		// windows_desktop_service is connected to a single AD domain and publishes
-		// CRLs in it. Each service can also handle RDP connections for a different
-		// domain, with the assumption that some other windows_desktop_service
-		// published a CRL there.
-		crlDN := crlDN(req.ClusterName, cmp.Or(req.PKIDomain, req.Domain), req.CAType)
-
-		// TODO(zmb3) consider making Teleport itself the CDP (via HTTP) instead of LDAP
-		cr.crlEndpoint = fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN)
+		cr.cdpDomain = cmp.Or(req.PKIDomain, req.Domain)
 	}
 
 	return cr, nil
@@ -211,24 +204,16 @@ func GenerateWindowsDesktopCredentials(ctx context.Context, req *GenerateCredent
 		return nil, nil, trace.Wrap(err)
 	}
 	genResp, err := req.AuthClient.GenerateWindowsDesktopCert(ctx, &proto.WindowsDesktopCertRequest{
-		CSR: certReq.csrPEM,
-		// LDAP URI pointing at the CRL created with updateCRL.
-		//
-		// The full format is:
-		// ldap://domain_controller_addr/distinguished_name_and_parameters.
-		//
-		// Using ldap:///distinguished_name_and_parameters (with empty
-		// domain_controller_addr) will cause Windows to fetch the CRL from any
-		// of its current domain controllers.
-		CRLEndpoint: certReq.crlEndpoint,
-		TTL:         proto.Duration(req.TTL),
+		CSR:       certReq.csrPEM,
+		CRLDomain: certReq.cdpDomain,
+		TTL:       proto.Duration(req.TTL),
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 	certBlock, _ := pem.Decode(genResp.Cert)
 	if certBlock == nil {
-		return nil, nil, trace.BadParameter("failed to decode certificate")
+		return nil, nil, trace.BadParameter("failed to decodexxxx certificate")
 	}
 	certDER = certBlock.Bytes
 	keyDER = certReq.keyDER
@@ -255,7 +240,7 @@ func generateDatabaseCredentials(ctx context.Context, req *GenerateCredentialsRe
 		// Using ldap:///distinguished_name_and_parameters (with empty
 		// domain_controller_addr) will cause Windows to fetch the CRL from any
 		// of its current domain controllers.
-		CRLEndpoint:           certReq.crlEndpoint,
+		CRLDomain:             certReq.cdpDomain,
 		TTL:                   proto.Duration(req.TTL),
 		CertificateExtensions: proto.DatabaseCertRequest_WINDOWS_SMARTCARD,
 	})
@@ -346,10 +331,10 @@ func SubjectAltNameExtension(user, domain string) (pkix.Extension, error) {
 	ext := pkix.Extension{Id: SubjectAltNameExtensionOID}
 	var err error
 	ext.Value, err = asn1.Marshal(
-		SubjectAltName[upn]{
-			OtherName: otherName[upn]{
+		SubjectAltName[UPN]{
+			OtherName: otherName[UPN]{
 				OID: UPNOtherNameOID,
-				Value: upn{
+				Value: UPN{
 					Value: fmt.Sprintf("%s@%s", user, domain), // TODO(zmb3): sanitize username to avoid domain spoofing
 				},
 			},
@@ -379,11 +364,11 @@ type (
 		Value T `asn1:"tag:0"`
 	}
 
-	upn struct {
+	UPN struct {
 		Value string `asn1:"utf8"`
 	}
 
-	adSid struct {
+	ADSid struct {
 		// Value is the bytes representation of the user's SID string,
 		// e.g. []byte("S-1-5-21-1329593140-2634913955-1900852804-500")
 		Value []byte // Gets encoded as an asn1 octet string
