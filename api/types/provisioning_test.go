@@ -1408,6 +1408,8 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
+			// note: missing onboarding config is allowed; we'll generate some
+			// fields at creation/upsert time.
 			desc: "bound keypair missing onboarding config",
 			token: &ProvisionTokenV2{
 				Metadata: Metadata{
@@ -1419,7 +1421,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					BoundKeypair: &ProvisionTokenSpecV2BoundKeypair{},
 				},
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 	}
 
