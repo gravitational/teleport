@@ -320,6 +320,13 @@ importers:
       highlight-words-core:
         specifier: ^1.2.3
         version: 1.2.3
+      semver:
+        specifier: ^7.7.2
+        version: 7.7.2
+    devDependencies:
+      '@types/semver':
+        specifier: ^7.7.0
+        version: 7.7.0
 
   web/packages/teleport:
     dependencies:
@@ -2804,6 +2811,9 @@ packages:
 
   '@types/responselike@1.0.3':
     resolution: {integrity: sha512-H/+L+UkTV33uf49PH5pCAUBVPNj2nDBXTN+qS1dOwyyg24l3CcicicCA7ca+HMvJBZcFgl5r8e+RR6elsb4Lyw==}
+
+  '@types/semver@7.7.0':
+    resolution: {integrity: sha512-k107IF4+Xr7UHjwDc7Cfd6PRQfbdkiRabXGRjo07b4WyPahFBZCZ1sE+BNxYIJPPg73UkfOsVOLwqVc/6ETrIA==}
 
   '@types/shimmer@1.2.0':
     resolution: {integrity: sha512-UE7oxhQLLd9gub6JKIAhDq06T0F6FnztwMNRvYgjeQSBeMc1ZG/tA47EwfduvkuQS8apbkM/lpLpWsaCeYsXVg==}
@@ -9470,6 +9480,8 @@ snapshots:
   '@types/responselike@1.0.3':
     dependencies:
       '@types/node': 22.15.34
+
+  '@types/semver@7.7.0': {}
 
   '@types/shimmer@1.2.0': {}
 
