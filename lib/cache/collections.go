@@ -49,7 +49,8 @@ type collectionHandler interface {
 type collections struct {
 	byKind map[resourceKind]collectionHandler
 
-	botInstances *collection[*machineidv1.BotInstance, botInstanceIndex]
+	botInstances   *collection[*machineidv1.BotInstance, botInstanceIndex]
+	remoteClusters *collection[types.RemoteCluster, remoteClusterIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -87,13 +88,20 @@ func setupCollections(c Config, legacyCollections map[resourceKind]legacyCollect
 
 			out.botInstances = collect
 			out.byKind[resourceKind] = out.botInstances
+		case types.KindRemoteCluster:
+			collect, err := newRemoteClusterCollection(c.Trust, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.remoteClusters = collect
+			out.byKind[resourceKind] = out.remoteClusters
 		default:
 			_, legacyOk := legacyCollections[resourceKind]
 			if _, ok := out.byKind[resourceKind]; !ok && !legacyOk {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 			}
 		}
-
 	}
 
 	return out, nil
