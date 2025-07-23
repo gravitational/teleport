@@ -10,6 +10,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	typescommon "github.com/gravitational/teleport/api/types/common"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
@@ -133,6 +134,56 @@ func TestSCIMGeneric(t *testing.T) {
 		_, err = authClient.GetUser(context.Background(), scimUser1.UserName, false)
 		require.Error(t, err)
 	}, time.Second, 20*time.Millisecond)
+
+	t.Run("upgrade SSO ephemeral user to SCIM user", func(t *testing.T) {
+		fistUserName := "user-001@exmaple.com"
+		secondUserName := "user-002example.com"
+		u1 := newTeleportUser(t, fistUserName, "okta-pre-created-test")
+		u2 := newTeleportUser(t, secondUserName, "no-scim-plugin-connector")
+
+		for _, u := range []types.User{u1, u2} {
+			_, err := authClient.CreateUser(context.Background(), u)
+			require.NoError(t, err)
+
+			// Wait for user to be propagated to the cache.
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				_, err := authClient.GetUser(context.Background(), u.GetName(), false)
+				require.NoError(t, err)
+			}, time.Second, 30*time.Millisecond)
+		}
+		_, err := scimClient.CreateUser(context.Background(), &scimsdk.User{
+			ExternalID: fistUserName,
+			UserName:   fistUserName,
+			Active:     true,
+		})
+		require.NoError(t, err)
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			u, err := authClient.GetUser(context.Background(), fistUserName, false)
+			require.NoError(t, err)
+			require.Equal(t, typescommon.OriginSCIM, u.Origin())
+		}, time.Second, time.Millisecond*30)
+
+		// Attempt to create an SCIM user with a name that already exists in Teleport
+		// but is not managed by SCIM connector. This should fail.
+		_, err = scimClient.CreateUser(context.Background(), &scimsdk.User{
+			ExternalID: secondUserName,
+			UserName:   secondUserName,
+			Active:     true,
+		})
+		require.Error(t, err)
+	})
+}
+
+func newTeleportUser(t *testing.T, userName, connectorID string) types.User {
+	user, err := types.NewUser(userName)
+	require.NoError(t, err)
+	user.SetCreatedBy(types.CreatedBy{
+		Connector: &types.ConnectorRef{
+			ID: connectorID,
+		},
+	})
+	return user
 }
 
 func newSCIMUser(username string) *scimsdk.User {

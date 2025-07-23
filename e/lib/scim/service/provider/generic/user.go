@@ -47,12 +47,56 @@ func (h *userHandler) CreateResource(ctx context.Context, req *scimpb.CreateSCIM
 		return nil, trace.Wrap(err)
 	}
 
-	teleportUser, err := h.UsersService.CreateUser(ctx, scimUser)
+	teleportUser, err := h.createOrUpdateUser(ctx, scimUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return conv.UserToResource(teleportUser, conv.WithExternalIDFunc(userExternalID))
+}
+
+func (h *userHandler) createOrUpdateUser(ctx context.Context, scimUser types.User) (types.User, error) {
+	user, err := h.UsersService.CreateUser(ctx, scimUser)
+	switch {
+	case err == nil:
+		return user, nil
+	case trace.IsAlreadyExists(err):
+		// In some cases, a user may already exist in the backend due to having logged in via an SSO connector.
+		// We want to upgrade ephemeral users to be managed via SCIM if they match the SCIM SSO connector.
+		// This approach ensures that the CreateUser operation does not fail and disrupt the provisioning flow.
+		currentUser, err := h.UsersService.GetUser(ctx, scimUser.GetName(), false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		scimConnectorID := h.Plugin.Spec.GetScim().SamlConnectorName
+		if !userCreatedByConnectorID(currentUser, scimConnectorID) {
+			return nil, trace.AlreadyExists(
+				"a user with the username %q already exists in Teleport and is not managed by the same %q SSO connector selected for the SCIM integration",
+				scimUser.GetName(), scimConnectorID)
+		}
+
+		scimUser.SetRevision(currentUser.GetRevision())
+		user, err = h.UsersService.UpdateUser(ctx, scimUser)
+		if err != nil {
+			if trace.IsNotFound(err) || trace.IsCompareFailed(err) {
+				// It's possible that after the GetUser call, the user was deleted manually or expired due to TTL (ephemeral user).
+				// In that case, the provisioning flow should be retried.
+				return nil, trace.Wrap(err, "encountered a transient error while provisioning user %q, please retry", scimUser.GetName())
+			}
+			return nil, trace.Wrap(err)
+		}
+		return user, nil
+	default:
+		return nil, trace.Wrap(err)
+	}
+}
+
+func userCreatedByConnectorID(user types.User, connectorID string) bool {
+	if user.GetCreatedBy().Connector == nil {
+		return false
+	}
+	return user.GetCreatedBy().Connector.ID == connectorID
 }
 
 // ListResources lists all SCIM user resources.
