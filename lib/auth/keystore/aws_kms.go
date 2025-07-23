@@ -54,9 +54,10 @@ import (
 )
 
 const (
-	awskmsPrefix  = "awskms:"
-	clusterTagKey = "TeleportCluster"
-	awsOAEPHash   = crypto.SHA256
+	awskmsPrefix     = "awskms:"
+	clusterTagKey    = "TeleportCluster"
+	encryptionTagKey = "EncryptionForTeleportCluster"
+	awsOAEPHash      = crypto.SHA256
 
 	pendingKeyBaseRetryInterval = time.Second / 2
 	pendingKeyMaxRetryInterval  = 4 * time.Second
@@ -131,10 +132,11 @@ func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *
 
 	tags := cfg.Tags
 	if tags == nil {
-		tags = make(map[string]string, 1)
+		tags = make(map[string]string, 2)
 	}
 	if _, ok := tags[clusterTagKey]; !ok {
 		tags[clusterTagKey] = opts.ClusterName.GetClusterName()
+		tags[encryptionTagKey] = opts.ClusterName.GetClusterName()
 	}
 
 	clock := opts.clockworkOverride
@@ -196,6 +198,14 @@ func (a *awsKMSKeystore) generateKey(ctx context.Context, algorithm cryptosuites
 
 	tags := make([]kmstypes.Tag, 0, len(a.tags))
 	for k, v := range a.tags {
+		if usage == keyUsageDecrypt && k == clusterTagKey {
+			continue
+		}
+
+		if usage == keyUsageSign && k == encryptionTagKey {
+			continue
+		}
+
 		tags = append(tags, kmstypes.Tag{
 			TagKey:   aws.String(k),
 			TagValue: aws.String(v),
