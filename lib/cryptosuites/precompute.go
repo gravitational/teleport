@@ -33,6 +33,8 @@ func PrecomputeRSAKeys() {
 // PrecomputeRSATestKeys may be called from TestMain to set this package into a
 // mode where it will precompute a fixed number of RSA keys and reuse them to
 // save on CPU usage.
+// Deprecated: prefer using cryptosuitestest.PrecomputeRSAKeys
+// TODO(tross): Delete once teleport.e no longer references it.
 func PrecomputeRSATestKeys(m *testing.M) {
 	rsa.PrecomputeTestKeys(m)
 }

@@ -44,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -55,8 +55,12 @@ import (
 func TestMain(m *testing.M) {
 	logtest.InitLogger(testing.Verbose)
 	modules.SetInsecureTestMode(true)
-	cryptosuites.PrecomputeRSATestKeys(m)
-	os.Exit(m.Run())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cryptosuitestest.PrecomputeRSAKeys(ctx)
+	exitCode := m.Run()
+	cancel()
+	os.Exit(exitCode)
 }
 
 var parseProxyHostTestCases = []struct {
