@@ -146,14 +146,8 @@ func (dks *SecretDestination) Init(ctx context.Context, subdirs []string) error 
 	// If no k8s client is injected, we attempt to create one from the
 	// environment.
 	if dks.k8s == nil {
-		// BuildConfigFromFlags falls back to InClusterConfig if both params
-		// are empty. This means KUBECONFIG takes precedence.
-		clientCfg, err := clientcmd.BuildConfigFromFlags("", os.Getenv("KUBECONFIG"))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		dks.k8s, err = kubernetes.NewForConfig(clientCfg)
-		if err != nil {
+		var err error
+		if dks.k8s, err = newKubernetesClient(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -292,4 +286,18 @@ func (dks *SecretDestination) MarshalYAML() (any, error) {
 
 func (dks *SecretDestination) IsPersistent() bool {
 	return true
+}
+
+func newKubernetesClient() (*kubernetes.Clientset, error) {
+	// BuildConfigFromFlags falls back to InClusterConfig if both params
+	// are empty. This means KUBECONFIG takes precedence.
+	clientCfg, err := clientcmd.BuildConfigFromFlags("", os.Getenv("KUBECONFIG"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	k8s, err := kubernetes.NewForConfig(clientCfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return k8s, nil
 }
