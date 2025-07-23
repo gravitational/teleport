@@ -1,4 +1,4 @@
-.version: &version "17.6.0"
+.version: &version "17.6.0-dev.scim"
 
 apiVersion: v2
 name: teleport-plugin-discord

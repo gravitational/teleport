@@ -1,4 +1,4 @@
-.version: &version "17.6.0"
+.version: &version "17.6.0-dev.scim"
 
 name: tbot
 apiVersion: v2

@@ -1,4 +1,4 @@
-.version: &version "17.6.0"
+.version: &version "17.6.0-dev.scim"
 
 name: teleport-kube-agent
 apiVersion: v2
