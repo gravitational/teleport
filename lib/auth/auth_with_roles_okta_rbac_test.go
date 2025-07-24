@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"context"
@@ -29,7 +29,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 )
 
@@ -51,17 +53,17 @@ func newOktaUser(t *testing.T) types.User {
 
 // newTestServerWithRoles creates a self-cleaning `ServerWithRoles`, configured
 // with a given
-func newTestServerWithRoles(t *testing.T, srv *TestAuthServer, role types.SystemRole) *ServerWithRoles {
+func newTestServerWithRoles(t *testing.T, srv *authtest.AuthServer, role types.SystemRole) *auth.ServerWithRoles {
 
-	authzContext := authz.ContextWithUser(context.Background(), TestBuiltin(role).I)
+	authzContext := authz.ContextWithUser(context.Background(), authtest.TestBuiltin(role).I)
 	ctxIdentity, err := srv.Authorizer.Authorize(authzContext)
 	require.NoError(t, err)
 
-	authWithRole := &ServerWithRoles{
-		authServer: srv.AuthServer,
-		alog:       srv.AuditLog,
-		context:    *ctxIdentity,
-	}
+	authWithRole := auth.NewServerWithRoles(
+		srv.AuthServer,
+		srv.AuditLog,
+		*ctxIdentity,
+	)
 
 	t.Cleanup(func() { authWithRole.Close() })
 
@@ -72,7 +74,7 @@ func TestOktaMayNotResetPasswords(t *testing.T) {
 	ctx := context.Background()
 
 	// Given an auth server...
-	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 	t.Cleanup(func() { srv.Close() })
 
@@ -135,7 +137,7 @@ func TestOktaServiceLockCRUD(t *testing.T) {
 	ctx := context.Background()
 
 	// Given an auth server...
-	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 	t.Cleanup(func() { srv.Close() })
 
