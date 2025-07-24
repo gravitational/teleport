@@ -178,8 +178,7 @@ func (c *connector) getConnectConfig(ctx context.Context) (*pgconn.Config, error
 			RootCAs:      rootCAPool,
 			ServerName:   config.Host,
 			MinVersion:   tls.VersionTLS13,
-			// TODO(Tener): copy other things from original TLS config?
-			// copy from original config
+			// copy from original config; only InsecureSkipVerify for now, we may want to expand this in the future.
 			InsecureSkipVerify: config.TLSConfig.InsecureSkipVerify,
 		}
 
