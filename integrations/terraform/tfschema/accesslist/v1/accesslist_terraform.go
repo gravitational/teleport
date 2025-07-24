@@ -298,7 +298,7 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"type": {
-					Description: "type can be currently \"dynamic\" (the default if empty string) which denotes a regular Access List, \"scim\" which represents an Access List created from SCIM group or \"static\" for Access Lists managed by IaC tools.",
+					Description: "type can be an empty string which denotes a regular Access List, \"scim\" which represents an Access List created from SCIM group or \"static\" for Access Lists managed by IaC tools.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
