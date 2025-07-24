@@ -412,9 +412,9 @@ type AccessListSpec struct {
 	Title string `protobuf:"bytes,8,opt,name=title,proto3" json:"title,omitempty"`
 	// owner_grants describes the access granted by owners to this Access List.
 	OwnerGrants *AccessListGrants `protobuf:"bytes,11,opt,name=owner_grants,json=ownerGrants,proto3" json:"owner_grants,omitempty"`
-	// type can be currently "dynamic" (the default if empty string) which denotes a regular Access
-	// List, "scim" which represents an Access List created from SCIM group or "static" for Access
-	// Lists managed by IaC tools.
+	// type can be an empty string which denotes a regular Access List, "scim" which represents
+	// an Access List created from SCIM group or "static" for Access Lists managed by IaC
+	// tools.
 	Type          string `protobuf:"bytes,12,opt,name=type,proto3" json:"type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
