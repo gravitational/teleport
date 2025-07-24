@@ -858,8 +858,8 @@ func sshAgentLoginWebCreateSession(ctx context.Context, clt *WebClient, login SS
 	return clt, session, nil
 }
 
-// SSHAgentLoginWeb is used by tsh to fetch local user credentials via the web api.
-func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, types.WebSession, error) {
+// sshAgentLoginWeb is used by tsh to fetch local user credentials via the web api.
+func sshAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, types.WebSession, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -868,10 +868,10 @@ func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, ty
 	return sshAgentLoginWebCreateSession(ctx, clt, login)
 }
 
-// SSHAgentMFAWebSessionLogin requests a MFA challenge via the proxy web api.
+// sshAgentMFAWebSessionLogin requests a MFA challenge via the proxy web api.
 // If the credentials are valid, the proxy will return a challenge. We then
 // prompt the user to provide 2nd factor and pass the response to the proxy.
-func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebClient, types.WebSession, error) {
+func sshAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebClient, types.WebSession, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
