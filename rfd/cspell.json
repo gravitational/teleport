@@ -452,6 +452,7 @@
     "NOPASSWD",
     "noup",
     "nowait",
+    "npcs",
     "NSIS",
     "NTSTATUS",
     "NXDOMAIN",
