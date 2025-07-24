@@ -34,7 +34,7 @@ func TestWorkloadIdentityJWTService_YAML(t *testing.T) {
 			name: "full",
 			in: WorkloadIdentityJWTService{
 				Destination: dest,
-				Selector: WorkloadIdentitySelector{
+				Selector: bot.WorkloadIdentitySelector{
 					Name: "my-workload-identity",
 				},
 				Audiences: []string{"audience1", "audience2"},
@@ -56,7 +56,7 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 			name: "valid",
 			in: func() *WorkloadIdentityJWTService {
 				return &WorkloadIdentityJWTService{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
 					Destination: &destination.Directory{
@@ -72,7 +72,7 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 			name: "valid with labels",
 			in: func() *WorkloadIdentityJWTService {
 				return &WorkloadIdentityJWTService{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Labels: map[string][]string{
 							"key": {"value"},
 						},
@@ -90,7 +90,7 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 			name: "missing audience",
 			in: func() *WorkloadIdentityJWTService {
 				return &WorkloadIdentityJWTService{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
 					Destination: &destination.Directory{
@@ -106,7 +106,7 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 			name: "missing selectors",
 			in: func() *WorkloadIdentityJWTService {
 				return &WorkloadIdentityJWTService{
-					Selector: WorkloadIdentitySelector{},
+					Selector: bot.WorkloadIdentitySelector{},
 					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
@@ -121,7 +121,7 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 			name: "too many selectors",
 			in: func() *WorkloadIdentityJWTService {
 				return &WorkloadIdentityJWTService{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 						Labels: map[string][]string{
 							"key": {"value"},
@@ -142,7 +142,7 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 			in: func() *WorkloadIdentityJWTService {
 				return &WorkloadIdentityJWTService{
 					Destination: nil,
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
 					Audiences: []string{"audience1", "audience2"},

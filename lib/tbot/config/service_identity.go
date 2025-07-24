@@ -153,8 +153,8 @@ func (o *IdentityOutput) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (o *IdentityOutput) Describe() []FileDescription {
-	var fds = []FileDescription{
+func (o *IdentityOutput) Describe() []bot.FileDescription {
+	var fds = []bot.FileDescription{
 		{
 			Name: IdentityFilePath,
 		},
@@ -169,11 +169,11 @@ func (o *IdentityOutput) Describe() []FileDescription {
 		},
 	}
 	if o.SSHConfigMode == SSHConfigModeOn {
-		fds = append(fds, FileDescription{
+		fds = append(fds, bot.FileDescription{
 			Name: ssh.KnownHostsName,
 		})
 		if _, ok := o.Destination.(*destination.Directory); ok {
-			fds = append(fds, FileDescription{
+			fds = append(fds, bot.FileDescription{
 				Name: ssh.ConfigName,
 			})
 		}

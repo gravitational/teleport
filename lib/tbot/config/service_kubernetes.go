@@ -87,9 +87,9 @@ func (o *KubernetesOutput) Init(ctx context.Context) error {
 	return trace.Wrap(o.Destination.Init(ctx, []string{}))
 }
 
-func (o *KubernetesOutput) Describe() []FileDescription {
+func (o *KubernetesOutput) Describe() []bot.FileDescription {
 	// Based on tbot.KubernetesOutputService.Render
-	return []FileDescription{
+	return []bot.FileDescription{
 		{
 			Name: "kubeconfig.yaml",
 		},
