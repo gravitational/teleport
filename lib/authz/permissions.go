@@ -174,12 +174,6 @@ type AuthorizerAccessPoint interface {
 	// GetCertAuthority returns cert authority by id.
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
-	// GetCertAuthorities returns a list of cert authorities.
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
-
-	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
-
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
@@ -1102,8 +1096,24 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Namespaces: []string{
 						types.Wildcard,
 					},
+					NodeLabels: types.Labels{
+						types.Wildcard: []string{
+							types.Wildcard,
+						},
+					},
 					Rules: []types.Rule{
-						// TODO(espadolini): define permissions for relay role
+						// TODO(espadolini): add permissions needed to know how
+						// to bounce connections to kube servers
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindNode, services.RO()),
+						types.NewRule(types.KindRelayServer, services.RO()),
+						types.NewRule(types.KindRole, services.RO()),
+						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+						types.NewRule(types.KindUser, services.RO()),
 					},
 				},
 			},

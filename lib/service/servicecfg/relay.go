@@ -16,15 +16,30 @@
 
 package servicecfg
 
+import "net/netip"
+
 // RelayConfig contains the configuration for the Relay service.
 type RelayConfig struct {
 	Enabled bool
 
-	// RelayGroup is the Relay group name, required if the relay service is
+	// RelayGroup is the Relay group name, required if the Relay service is
 	// enabled.
 	RelayGroup string
 
-	// APIPublicHostnames is the list of DNS names and IP addresses that the
-	// Relay service credentials should be authoritative for.
-	APIPublicHostnames []string
+	// TargetConnectionCount is the connection count that agents are supposed to
+	// maintain when connecting to the Relay group of this instance.
+	TargetConnectionCount int32
+
+	// PublicHostnames is the list of DNS names and IP addresses that the Relay
+	// service credentials should be authoritative for.
+	PublicHostnames []string
+
+	// TransportListenAddr is the listen address for the transport listener.
+	TransportListenAddr netip.AddrPort
+
+	// PeerListenAddr is the listen address for the peer listener.
+	PeerListenAddr netip.AddrPort
+
+	// TunnelListenAddr is the listen address for the tunnel listener.
+	TunnelListenAddr netip.AddrPort
 }
