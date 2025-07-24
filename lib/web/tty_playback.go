@@ -74,6 +74,11 @@ func (h *Handler) sessionLengthHandle(
 		return nil, trace.Wrap(err)
 	}
 
+	type response struct {
+		Duration      int64  `json:"durationMs"`
+		RecordingType string `json:"recordingType"`
+	}
+
 	evts, errs := clt.StreamSessionEvents(ctx, session.ID(sID), 0)
 	for {
 		select {
@@ -83,13 +88,14 @@ func (h *Handler) sessionLengthHandle(
 			if !ok {
 				return nil, trace.NotFound("could not find end event for session %v", sID)
 			}
+
 			switch evt := evt.(type) {
 			case *events.SessionEnd:
-				return map[string]any{"durationMs": evt.EndTime.Sub(evt.StartTime).Milliseconds()}, nil
+				return response{evt.EndTime.Sub(evt.StartTime).Milliseconds(), "ssh"}, nil
 			case *events.WindowsDesktopSessionEnd:
-				return map[string]any{"durationMs": evt.EndTime.Sub(evt.StartTime).Milliseconds()}, nil
+				return response{evt.EndTime.Sub(evt.StartTime).Milliseconds(), "desktop"}, nil
 			case *events.DatabaseSessionEnd:
-				return map[string]any{"durationMs": evt.EndTime.Sub(evt.StartTime).Milliseconds()}, nil
+				return response{evt.EndTime.Sub(evt.StartTime).Milliseconds(), "database"}, nil
 			}
 		}
 	}
