@@ -46,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
@@ -260,7 +259,7 @@ func selectKeyAgent(tc *TeleportClient) agent.ExtendedAgent {
 	switch tc.ForwardAgent {
 	case ForwardAgentYes:
 		log.DebugContext(context.Background(), "Selecting system key agent")
-		return sshagent.NewClient(sshagent.DialSystemAgent)
+		return tryGetSystemAgent()
 	case ForwardAgentLocal:
 		log.DebugContext(context.Background(), "Selecting local Teleport key agent")
 		return tc.localAgent.ExtendedAgent

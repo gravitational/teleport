@@ -83,6 +83,23 @@ type LocalKeyAgent struct {
 	loadAllCAs bool
 }
 
+// tryGetSystemAgent connects to the system SSH agent and returns an [agent.ExtendedAgent],
+// or nil if it fails to connect.
+func tryGetSystemAgent() agent.ExtendedAgent {
+	ctx := context.Background()
+	logger := log.With(teleport.ComponentKey, teleport.ComponentKeyAgent)
+
+	testConn, err := sshagent.DialSystemAgent()
+	if err != nil {
+		logger.WarnContext(context.Background(), "Unable to connect to system agent", "error", err)
+		return nil
+	}
+
+	testConn.Close()
+	logger.InfoContext(ctx, "Connected to the system agent")
+	return sshagent.NewClient(sshagent.DialSystemAgent)
+}
+
 func agentIsPresent() bool {
 	return os.Getenv(teleport.SSHAuthSock) != ""
 }
@@ -121,6 +138,7 @@ func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 		}
 		conf.Agent = keyring
 	}
+
 	a = &LocalKeyAgent{
 		log:           slog.With(teleport.ComponentKey, teleport.ComponentKeyAgent),
 		ExtendedAgent: conf.Agent,
@@ -134,7 +152,7 @@ func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 	}
 
 	if shouldAddKeysToAgent(conf.KeysOption) {
-		a.systemAgent = sshagent.NewClient(sshagent.DialSystemAgent)
+		a.systemAgent = tryGetSystemAgent()
 	} else {
 		log.DebugContext(context.Background(), "Skipping connection to the local ssh-agent.")
 
