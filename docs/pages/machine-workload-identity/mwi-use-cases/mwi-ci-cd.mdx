@@ -43,12 +43,13 @@ Teleport natively integrates with many CI/CD providers and deployment targets. R
 
 ## Eliminate secrets from your CI/CD pipeline
 
-In a typical CI/CD setup, a pipeline—such as one running in GitHub Actions on GitHub's infrastructure outside the corporate network—builds a container, 
-pushes it to AWS Elastic Container Registry (ECR), and updates a Kubernetes deployment using Helm. This workflow requires two sensitive credentials stored 
-in the GitHub Actions configuration:
+In a typical CI/CD setup, a pipeline such as one running in GitHub Actions on GitHub's infrastructure outside the corporate network builds a 
+container image, pushes it to a container registry, and updates an application running in a container orchestration platform (such as Kubernetes).
 
-- An AWS keypair
-- A Kubernetes config file
+This workflow commonly relies on sensitive credentials stored in the CI/CD system, such as:
+
+- Cloud provider access credentials (e.g., AWS, GCP, Azure)
+- Configuration files or tokens for deploying to orchestration platforms
 
 Best practices recommend rotating these secrets every six months. A platform team generates new credentials and shares them with a development team, 
 who must manually update the repository. Although the credential generation process emits a security log, teams often lack a reliable way to correlate 
