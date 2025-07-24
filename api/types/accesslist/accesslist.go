@@ -141,9 +141,9 @@ type AccessList struct {
 
 // Spec is the specification for an access list.
 type Spec struct {
-	// Type can be currently "dynamic" (the default if empty string) which denotes a regular
-	// Access List, "scim" which represents an Access List created from SCIM group or "static"
-	// for Access Lists managed by IaC tools.
+	// Type can be an empty string which denotes a regular Access List, "scim" which represents
+	// an Access List created from SCIM group or "static" for Access Lists managed by IaC
+	// tools.
 	Type Type `json:"type" yaml:"type"`
 
 	// Title is a plaintext short description of the access list.
