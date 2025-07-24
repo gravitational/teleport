@@ -710,12 +710,8 @@ type AWSRolesAnywherePingResponse struct {
 	UserID string `json:"userId"`
 }
 
-// AWSRolesAnywhereListProfilesRequest contains the list of Roles Anywhere Profiles.
+// AWSRolesAnywhereListProfilesRequest contains the request to list Roles Anywhere Profiles.
 type AWSRolesAnywhereListProfilesRequest struct {
-	// StartKey is the token to be used to fetch the next page.
-	// If empty, the first page is fetched.
-	StartKey string `json:"startKey"`
-
 	// Filters are the filters applied to the profiles.
 	// Only matching profiles will be synchronized as application servers.
 	// If empty, no filtering is applied.
