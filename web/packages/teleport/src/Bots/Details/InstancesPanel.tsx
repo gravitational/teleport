@@ -26,7 +26,7 @@ import { ButtonSecondary, ButtonText } from 'design/Button';
 import Flex from 'design/Flex/Flex';
 import { SortAscending, SortDescending } from 'design/Icon';
 import { Indicator } from 'design/Indicator/Indicator';
-import Text from 'design/Text/Text';
+import Text, { H2 } from 'design/Text/Text';
 import { fontWeights } from 'design/theme/typography';
 
 import { listBotInstances } from 'teleport/services/bot/bot';
@@ -88,9 +88,7 @@ export function InstancesPanel(props: { botName: string }) {
   return (
     <Container>
       <TitleContainer>
-        <Text as={'h2'} typography={'h2'} fontWeight={fontWeights.bold}>
-          Active Instances
-        </Text>
+        <H2 fontWeight={fontWeights.bold}>Active Instances</H2>
         {isSuccess ? (
           <ActionButton onClick={handleToggleSort}>
             Recent
