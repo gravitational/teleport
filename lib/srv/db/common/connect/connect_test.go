@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -82,7 +83,7 @@ func TestGetDatabaseServers(t *testing.T) {
 
 func TestGetServerTLSConfig(t *testing.T) {
 	clusterName := "root"
-	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Clock:       clockwork.NewFakeClockAt(time.Now()),
 		ClusterName: clusterName,
 		AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
@@ -93,7 +94,7 @@ func TestGetServerTLSConfig(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
 
-	user, role, err := auth.CreateUserAndRole(authServer.AuthServer, "alice", []string{"db-access"}, nil)
+	user, role, err := authtest.CreateUserAndRole(authServer.AuthServer, "alice", []string{"db-access"}, nil)
 	require.NoError(t, err)
 
 	for name, tc := range map[string]struct {
@@ -142,7 +143,7 @@ func TestGetServerTLSConfig(t *testing.T) {
 
 func TestConnect(t *testing.T) {
 	clusterName := "root"
-	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Clock:       clockwork.NewFakeClockAt(time.Now()),
 		ClusterName: clusterName,
 		AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
@@ -153,7 +154,7 @@ func TestConnect(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
 
-	user, role, err := auth.CreateUserAndRole(authServer.AuthServer, "alice", []string{"db-access"}, nil)
+	user, role, err := authtest.CreateUserAndRole(authServer.AuthServer, "alice", []string{"db-access"}, nil)
 	require.NoError(t, err)
 
 	for name, tc := range map[string]struct {
@@ -264,7 +265,7 @@ func (d *databaseServersMock) GetDatabaseServers(_ context.Context, _ string, _ 
 func newDialerMock(t *testing.T, authServer *auth.Server, dbName string, availableServers []string, unavailableServers []string) *dialerMock {
 	m := &dialerMock{serverConfig: make(map[string]*tls.Config)}
 	for _, host := range availableServers {
-		serverIdentity, err := auth.NewServerIdentity(authServer, host, types.RoleDatabase)
+		serverIdentity, err := authtest.NewServerIdentity(authServer, host, types.RoleDatabase)
 		require.NoError(t, err)
 		tlsConfig, err := serverIdentity.TLSConfig(nil)
 		require.NoError(t, err)
