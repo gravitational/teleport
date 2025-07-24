@@ -826,13 +826,8 @@ type CreateWebSessionResponse struct {
 	SessionInactiveTimeoutMS int `json:"sessionInactiveTimeout"`
 }
 
-// SSHAgentLoginWeb is used by tsh to fetch local user credentials via the web api.
-func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, types.WebSession, error) {
-	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
+// sshAgentLoginWebCreateSession takes an existing client and login details and attempts to create a web session using OTP token
+func sshAgentLoginWebCreateSession(ctx context.Context, clt *WebClient, login SSHLoginDirect) (*WebClient, types.WebSession, error) {
 	resp, err := httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
 		var buf bytes.Buffer
 		if err := json.NewEncoder(&buf).Encode(&CreateWebSessionReq{
@@ -863,6 +858,16 @@ func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, ty
 	return clt, session, nil
 }
 
+// SSHAgentLoginWeb is used by tsh to fetch local user credentials via the web api.
+func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, types.WebSession, error) {
+	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return sshAgentLoginWebCreateSession(ctx, clt, login)
+}
+
 // SSHAgentMFAWebSessionLogin requests a MFA challenge via the proxy web api.
 // If the credentials are valid, the proxy will return a challenge. We then
 // prompt the user to provide 2nd factor and pass the response to the proxy.
@@ -882,6 +887,13 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebCli
 	}
 	// Convert back from auth gRPC proto response.
 	switch r := mfaResp.Response.(type) {
+	case *proto.MFAAuthenticateResponse_TOTP:
+		// Only TOTP is configured fallback on direct login
+		return sshAgentLoginWebCreateSession(ctx, clt, SSHLoginDirect{
+			User:     login.User,
+			Password: login.Password,
+			OTPToken: r.TOTP.Code,
+		})
 	case *proto.MFAAuthenticateResponse_Webauthn:
 		challengeResp.WebauthnAssertionResponse = wantypes.CredentialAssertionResponseFromProto(r.Webauthn)
 	default:
