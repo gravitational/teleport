@@ -97,12 +97,11 @@ func ListRolesAnywhereProfiles(ctx context.Context, clt RolesAnywhereProfilesLis
 		nextToken = aws.String(req.NextToken)
 	}
 	listReq := listRolesAnywhereProfilesRequest{
-		raClient: clt,
 		nextPage: nextToken,
 		pageSize: req.PageSize,
 		filters:  req.ProfileNameFilters,
 	}
-	profiles, nextPageToken, err := listRolesAnywhereProfilesPage(ctx, listReq)
+	profiles, nextPageToken, err := listRolesAnywhereProfilesPage(ctx, clt, listReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -114,15 +113,12 @@ func ListRolesAnywhereProfiles(ctx context.Context, clt RolesAnywhereProfilesLis
 }
 
 type listRolesAnywhereProfilesRequest struct {
-	raClient RolesAnywhereProfilesLister
 	nextPage *string
 	pageSize int
 	filters  []string
 }
 
-func listRolesAnywhereProfilesPage(ctx context.Context, req listRolesAnywhereProfilesRequest) ([]*integrationv1.RolesAnywhereProfile, *string, error) {
-	var ret []*integrationv1.RolesAnywhereProfile
-
+func listRolesAnywhereProfilesPage(ctx context.Context, raClient RolesAnywhereProfilesLister, req listRolesAnywhereProfilesRequest) (ret []*integrationv1.RolesAnywhereProfile, nextToken *string, err error) {
 	var pageSizeRequest *int32
 	if req.pageSize > 0 {
 		pageSizeRequest = aws.Int32(int32(req.pageSize))
@@ -131,7 +127,7 @@ func listRolesAnywhereProfilesPage(ctx context.Context, req listRolesAnywherePro
 	nextPage := req.nextPage
 
 	for {
-		profilesListResp, err := req.raClient.ListProfiles(ctx, &rolesanywhere.ListProfilesInput{
+		profilesListResp, err := raClient.ListProfiles(ctx, &rolesanywhere.ListProfilesInput{
 			NextToken: nextPage,
 			PageSize:  pageSizeRequest,
 		})
@@ -139,7 +135,7 @@ func listRolesAnywhereProfilesPage(ctx context.Context, req listRolesAnywherePro
 			return nil, nil, trace.Wrap(err)
 		}
 
-		profilesAsProto, err := convertRolesAnywhereProfilePageToProto(ctx, profilesListResp, req)
+		profilesAsProto, err := convertRolesAnywhereProfilePageToProto(ctx, profilesListResp, raClient, req)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -157,7 +153,7 @@ func listRolesAnywhereProfilesPage(ctx context.Context, req listRolesAnywherePro
 	return ret, nextPage, nil
 }
 
-func convertRolesAnywhereProfilePageToProto(ctx context.Context, profilesListResp *rolesanywhere.ListProfilesOutput, req listRolesAnywhereProfilesRequest) ([]*integrationv1.RolesAnywhereProfile, error) {
+func convertRolesAnywhereProfilePageToProto(ctx context.Context, profilesListResp *rolesanywhere.ListProfilesOutput, raClient RolesAnywhereProfilesLister, req listRolesAnywhereProfilesRequest) ([]*integrationv1.RolesAnywhereProfile, error) {
 	var ret []*integrationv1.RolesAnywhereProfile
 
 	for _, profile := range profilesListResp.Profiles {
@@ -169,7 +165,7 @@ func convertRolesAnywhereProfilePageToProto(ctx context.Context, profilesListRes
 			continue
 		}
 
-		profileTags, err := req.raClient.ListTagsForResource(ctx, &rolesanywhere.ListTagsForResourceInput{
+		profileTags, err := raClient.ListTagsForResource(ctx, &rolesanywhere.ListTagsForResourceInput{
 			ResourceArn: profile.ProfileArn,
 		})
 		if err != nil {

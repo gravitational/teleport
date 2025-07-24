@@ -67,15 +67,6 @@ func TestListRolesAnywhereProfiles(t *testing.T) {
 }
 
 func TestListRolesAnywhereProfilesPage(t *testing.T) {
-	baseRequestWithMockedProfiles := func(profiles map[string]ratypes.ProfileDetail) func() listRolesAnywhereProfilesRequest {
-		return func() listRolesAnywhereProfilesRequest {
-			return listRolesAnywhereProfilesRequest{
-				raClient: &mockIAMRolesAnywhere{
-					profilesByID: profiles,
-				},
-			}
-		}
-	}
 	rolesAnywhereProfileWithName := func(name string) ratypes.ProfileDetail {
 		return ratypes.ProfileDetail{
 			Name:       aws.String(name),
@@ -85,13 +76,15 @@ func TestListRolesAnywhereProfilesPage(t *testing.T) {
 
 	for _, tt := range []struct {
 		name             string
-		req              func() listRolesAnywhereProfilesRequest
+		req              listRolesAnywhereProfilesRequest
+		clientMock       RolesAnywhereProfilesLister
 		expectedResp     func(t *testing.T, page []*integrationv1.RolesAnywhereProfile)
 		expectedErrCheck require.ErrorAssertionFunc
 	}{
 		{
-			name: "no resources",
-			req:  baseRequestWithMockedProfiles(nil),
+			name:       "no resources",
+			req:        listRolesAnywhereProfilesRequest{},
+			clientMock: &mockIAMRolesAnywhere{},
 			expectedResp: func(t *testing.T, page []*integrationv1.RolesAnywhereProfile) {
 				require.Empty(t, page)
 			},
@@ -99,9 +92,12 @@ func TestListRolesAnywhereProfilesPage(t *testing.T) {
 		},
 		{
 			name: "some resources",
-			req: baseRequestWithMockedProfiles(map[string]ratypes.ProfileDetail{
-				"id1": rolesAnywhereProfileWithName("ExampleProfile"),
-			}),
+			req:  listRolesAnywhereProfilesRequest{},
+			clientMock: &mockIAMRolesAnywhere{
+				profilesByID: map[string]ratypes.ProfileDetail{
+					"id1": rolesAnywhereProfileWithName("ExampleProfile"),
+				},
+			},
 			expectedResp: func(t *testing.T, page []*integrationv1.RolesAnywhereProfile) {
 				require.Len(t, page, 1)
 				require.Equal(t, "ExampleProfile", page[0].Name)
@@ -110,8 +106,11 @@ func TestListRolesAnywhereProfilesPage(t *testing.T) {
 		},
 		{
 			name: "with filters using glob",
-			req: func() listRolesAnywhereProfilesRequest {
-				baseReq := baseRequestWithMockedProfiles(map[string]ratypes.ProfileDetail{
+			req: listRolesAnywhereProfilesRequest{
+				filters: []string{"TeamB-*"},
+			},
+			clientMock: &mockIAMRolesAnywhere{
+				profilesByID: map[string]ratypes.ProfileDetail{
 					"id1": rolesAnywhereProfileWithName("TeamA-subteam1"),
 					"id2": rolesAnywhereProfileWithName("TeamA-subteam2"),
 					"id3": rolesAnywhereProfileWithName("TeamA-subteam3"),
@@ -119,9 +118,7 @@ func TestListRolesAnywhereProfilesPage(t *testing.T) {
 					"id4": rolesAnywhereProfileWithName("TeamB-subteam1"),
 					"id5": rolesAnywhereProfileWithName("TeamB-subteam2"),
 					"id6": rolesAnywhereProfileWithName("TeamB-subteam3"),
-				})()
-				baseReq.filters = []string{"TeamB-*"}
-				return baseReq
+				},
 			},
 			expectedResp: func(t *testing.T, page []*integrationv1.RolesAnywhereProfile) {
 				require.Len(t, page, 3)
@@ -133,8 +130,11 @@ func TestListRolesAnywhereProfilesPage(t *testing.T) {
 		},
 		{
 			name: "with filters using regex",
-			req: func() listRolesAnywhereProfilesRequest {
-				baseReq := baseRequestWithMockedProfiles(map[string]ratypes.ProfileDetail{
+			req: listRolesAnywhereProfilesRequest{
+				filters: []string{`^Team[A,B]{1}\-subteam\d$`},
+			},
+			clientMock: &mockIAMRolesAnywhere{
+				profilesByID: map[string]ratypes.ProfileDetail{
 					"id1": rolesAnywhereProfileWithName("TeamA-subteam1"),
 					"id2": rolesAnywhereProfileWithName("TeamA-subteam2"),
 					"id3": rolesAnywhereProfileWithName("TeamA-subteam3"),
@@ -148,9 +148,7 @@ func TestListRolesAnywhereProfilesPage(t *testing.T) {
 					"id9": rolesAnywhereProfileWithName("TeamC-subteam3"),
 
 					"id10": rolesAnywhereProfileWithName("AnotherTeam"),
-				})()
-				baseReq.filters = []string{`^Team[A,B]{1}\-subteam\d$`}
-				return baseReq
+				},
 			},
 			expectedResp: func(t *testing.T, page []*integrationv1.RolesAnywhereProfile) {
 				require.Len(t, page, 6)
@@ -164,7 +162,7 @@ func TestListRolesAnywhereProfilesPage(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			resp, _, err := listRolesAnywhereProfilesPage(t.Context(), tt.req())
+			resp, _, err := listRolesAnywhereProfilesPage(t.Context(), tt.clientMock, tt.req)
 			tt.expectedErrCheck(t, err)
 			tt.expectedResp(t, resp)
 		})
