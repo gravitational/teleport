@@ -404,8 +404,8 @@ type InitConfig struct {
 	// ScopedAccess is a service that manages scoped access resources.
 	ScopedAccess services.ScopedAccess
 
-	// SummarizerResources manages summary inference configuration resources.
-	SummarizerResources services.SummarizerResources
+	// Summarizer manages summary inference configuration resources.
+	Summarizer services.Summarizer
 
 	// SessionSummarizerProvider is a provider of the session summarizer service.
 	// It allows for late initialization of the summarizer in the enterprise

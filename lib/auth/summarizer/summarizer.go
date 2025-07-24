@@ -26,44 +26,16 @@ import (
 // SessionSummarizer summarizes session recordings using language model
 // inference.
 type SessionSummarizer interface {
-	// Summarize summarizes a session recording with a given ID. The
-	// sessionEndEvent is optional, but should be specified if possible, as an
-	// optimization to skip reading the session stream in order to find the end
+	// SummarizeSSH summarizes an SSH session recording that ended with a given
 	// event.
-	Summarize(ctx context.Context, sessionID session.ID, sessionEndEvent AnySessionEndEvent) error
-}
-
-// AnySessionEndEvent holds a value of one of the event types supported by the
-// [SessionSummarizer] as a session-ending event. By default, it holds an empty
-// value (see [AnySessionEndEvent.IsEmpty]).
-type AnySessionEndEvent struct {
-	event *events.OneOf
-}
-
-// AnySessionEndEventFromOneOf converts an [events.OneOf] to an
-// [AnySessionEndEvent] if it contains a session end event. Returns false if
-// the event is not a session end event.
-func AnySessionEndEventFromOneOf(e *events.OneOf) (AnySessionEndEvent, bool) {
-	switch e.Event.(type) {
-	case *events.OneOf_SessionEnd, *events.OneOf_DatabaseSessionEnd:
-		return AnySessionEndEvent{event: e}, true
-	}
-	return AnySessionEndEvent{}, false
-}
-
-// IsEmpty checks if the AnySessionEndEvent holds a valid session end event.
-func (e AnySessionEndEvent) IsEmpty() bool {
-	return e.event == nil
-}
-
-// GetSessionEnd returns the underlying [events.SessionEnd] event if it's been
-// set.
-func (e AnySessionEndEvent) GetSessionEnd() *events.SessionEnd {
-	return e.event.GetSessionEnd()
-}
-
-// GetDatabaseSessionEnd returns the underlying [events.DatabaseSessionEnd]
-// event if it's been set.
-func (e AnySessionEndEvent) GetDatabaseSessionEnd() *events.DatabaseSessionEnd {
-	return e.event.GetDatabaseSessionEnd()
+	SummarizeSSH(ctx context.Context, sessionEndEvent *events.SessionEnd) error
+	// SummarizeSSH summarizes a database session recording that ended with a given
+	// event.
+	SummarizeDatabase(ctx context.Context, sessionEndEvent *events.DatabaseSessionEnd) error
+	// SummarizeUnknown summarizes a session recording with a given ID. This is
+	// used for cases where the session ID is known, but there is no end event
+	// available. [SessionSummarizer.SummarizeSSH] and
+	// [SessionSummarizer.SummarizeDatabase] should be used instead of this
+	// method whenever possible, as they are more efficient.
+	SummarizeUnknown(ctx context.Context, sessionID session.ID) error
 }
