@@ -59,6 +59,16 @@ type UpdateConfig struct {
 	Status UpdateStatus `yaml:"status"`
 }
 
+// Copy an UpdateConfig. Pointers are not copied.
+func (cfg *UpdateConfig) Copy() *UpdateConfig {
+	if cfg == nil {
+		return nil
+	}
+	// All pointer fields use immutable values.
+	// This may need additional logic if changes.
+	return toPtr(*cfg)
+}
+
 // UpdateSpec describes the spec field in update.yaml.
 type UpdateSpec struct {
 	// Proxy address
