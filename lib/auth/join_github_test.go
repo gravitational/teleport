@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"context"
@@ -28,6 +28,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/modules"
@@ -89,20 +91,20 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			},
 		},
 	}
-	var withTokenValidator ServerOption = func(server *Server) error {
-		server.ghaIDTokenValidator = idTokenValidator
-		server.ghaIDTokenJWKSValidator = idTokenValidator.ValidateJWKS
+	var withTokenValidator auth.ServerOption = func(server *auth.Server) error {
+		server.SetGHAIDTokenValidator(idTokenValidator)
+		server.SetGHAIDTokenJWKSValidator(idTokenValidator.ValidateJWKS)
 		return nil
 	}
 	ctx := context.Background()
 	p, err := newTestPack(ctx, t.TempDir(), withTokenValidator)
 	require.NoError(t, err)
-	auth := p.a
+	authServer := p.a
 
 	// helper for creating RegisterUsingTokenRequest
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
-	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 	newRequest := func(idToken string) *types.RegisterUsingTokenRequest {
 		return &types.RegisterUsingTokenRequest{
@@ -232,7 +234,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			},
 			request: newRequest(validIDToken),
 			assertError: require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, ErrRequiresEnterprise)
+				require.ErrorIs(t, err, auth.ErrRequiresEnterprise)
 			}),
 		},
 		{
@@ -249,7 +251,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			},
 			request: newRequest(validIDToken),
 			assertError: require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, ErrRequiresEnterprise)
+				require.ErrorIs(t, err, auth.ErrRequiresEnterprise)
 			}),
 		},
 		{
@@ -411,10 +413,10 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 				tt.name, time.Now().Add(time.Minute), tt.tokenSpec,
 			)
 			require.NoError(t, err)
-			require.NoError(t, auth.CreateToken(ctx, token))
+			require.NoError(t, authServer.CreateToken(ctx, token))
 			tt.request.Token = tt.name
 
-			_, err = auth.RegisterUsingToken(ctx, tt.request)
+			_, err = authServer.RegisterUsingToken(ctx, tt.request)
 			tt.assertError(t, err)
 			if err != nil {
 				return
