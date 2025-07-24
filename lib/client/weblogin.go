@@ -897,7 +897,7 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebCli
 	case *proto.MFAAuthenticateResponse_Webauthn:
 		challengeResp.WebauthnAssertionResponse = wantypes.CredentialAssertionResponseFromProto(r.Webauthn)
 	default:
-		// No challenge was sent, so we send back just username/password.
+		return nil, nil, trace.NotImplemented("unsupported MFA challenge for web session login")
 	}
 
 	loginRespJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "finishsession"), challengeResp)
