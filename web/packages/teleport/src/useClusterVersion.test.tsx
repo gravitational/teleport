@@ -27,20 +27,19 @@ describe('useClusterVersion', () => {
     const { result } = renderHook(() => useClusterVersion(), {
       wrapper: Wrapper,
     });
-    expect(result.current.clusterVersion).toBe('4.4.0-dev');
+    expect(result.current.clusterVersion?.version).toBe('4.4.0-dev');
   });
 
   it.each`
-    version    | diff
-    ${'4.0.0'} | ${'n'}
-    ${'5.0.0'} | ${'n+1'}
-    ${'6.0.0'} | ${'n+2'}
-    ${'7.0.0'} | ${'n+'}
-    ${'8.0.0'} | ${'n+'}
-    ${'3.0.0'} | ${'n-1'}
-    ${'2.0.0'} | ${'n-2'}
-    ${'1.0.0'} | ${'n-'}
-    ${'0.0.0'} | ${'n-'}
+    version      | diff
+    ${'4.4.0'}   | ${'n'}
+    ${'4.4.1'}   | ${'n'}
+    ${'4.3.999'} | ${'n*'}
+    ${'4.3.0'}   | ${'n*'}
+    ${'5.0.0'}   | ${'n+1'}
+    ${'6.0.0'}   | ${'n+'}
+    ${'3.0.0'}   | ${'n-1'}
+    ${'2.0.0'}   | ${'n-'}
   `('diff("$version") should be "$diff"', ({ version, diff }) => {
     const { result } = renderHook(() => useClusterVersion(), {
       wrapper: Wrapper,

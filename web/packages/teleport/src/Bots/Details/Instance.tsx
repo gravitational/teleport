@@ -134,7 +134,7 @@ function Version(props: {
 
   const Wrapper = (() => {
     switch (versionDiff) {
-      case 'n-2':
+      case 'n-1':
         return WarningOutlined;
       case 'n-':
         return DangerOutlined;
@@ -143,18 +143,19 @@ function Version(props: {
     }
   })();
 
-  const icon = versionDiff?.startsWith('n-') ? (
-    <ArrowFatLinesUp size={'small'} />
-  ) : undefined;
+  const icon =
+    versionDiff?.startsWith('n-') || versionDiff === 'n*' ? (
+      <ArrowFatLinesUp size={'small'} />
+    ) : undefined;
 
   const tooltip = (() => {
     switch (versionDiff) {
       case 'n-1':
-        return 'Version is one major versions behind';
-      case 'n-2':
-        return 'Version is two major versions behind';
+        return 'Version is one major version behind. Consider upgrading soon.';
       case 'n-':
-        return 'Version is more than two major versions behind';
+        return 'Version is more than two major versions behind, and is no longer compatible.';
+      case 'n*':
+        return 'An upgrade is available';
       default:
         return 'Version is up to date';
     }

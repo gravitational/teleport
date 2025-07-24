@@ -39,7 +39,7 @@ const meta = {
     },
     versionDiff: {
       control: 'select',
-      options: ['n+', 'n+2', 'n+1', 'n', 'n-1', 'n-2', 'n-'],
+      options: ['n+', 'n+1', 'n', 'n*', 'n-1', 'n-'],
     },
     os: {
       control: 'select',

@@ -56,7 +56,7 @@ export const listBotInstancesSuccessHandler = listBotInstancesSuccess({
       host_name_latest: 'svr-lon-01-ab23cd',
       join_method_latest: 'github',
       os_latest: 'linux',
-      version_latest: '4.4.16',
+      version_latest: '4.4.0',
     },
     {
       bot_name: 'ansible-worker',
@@ -65,7 +65,7 @@ export const listBotInstancesSuccessHandler = listBotInstancesSuccess({
       host_name_latest: 'win-123a',
       join_method_latest: 'tpm',
       os_latest: 'windows',
-      version_latest: '3.1.0+ab12hd',
+      version_latest: '4.3.18+ab12hd',
     },
     {
       bot_name: 'ansible-worker',
@@ -74,7 +74,7 @@ export const listBotInstancesSuccessHandler = listBotInstancesSuccess({
       host_name_latest: 'mac-007',
       join_method_latest: 'kubernetes',
       os_latest: 'darwin',
-      version_latest: '2.9.99',
+      version_latest: '3.9.99',
     },
     {
       bot_name: 'ansible-worker',

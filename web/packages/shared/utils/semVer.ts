@@ -16,15 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { SemVer } from 'semver';
 import compare from 'semver/functions/compare';
 import major from 'semver/functions/major';
+import parse from 'semver/functions/parse';
 
 // Re-export specific functions from `semver/functions/*` to avoid bundling
 // the full semver package.
 
 export {
+  SemVer,
   compare,
   /** @deprecated Import `compare` from `shared/utils/semver`. */
   compare as compareSemVers,
   major,
+  parse,
 };
