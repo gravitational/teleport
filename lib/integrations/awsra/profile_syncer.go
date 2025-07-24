@@ -393,11 +393,10 @@ func syncProfileForIntegration(ctx context.Context, params AWSRolesAnywherProfil
 	var nextPage *string
 	for {
 		listReq := listRolesAnywhereProfilesRequest{
-			raClient: raClient,
 			nextPage: nextPage,
 			filters:  profileNameFilters,
 		}
-		profilesListResp, respNextToken, err := listRolesAnywhereProfilesPage(ctx, listReq)
+		profilesListResp, respNextToken, err := listRolesAnywhereProfilesPage(ctx, raClient, listReq)
 		if err != nil {
 			ret.setupError = trace.Wrap(err)
 			return ret

@@ -81,10 +81,9 @@ func Ping(ctx context.Context, clt PingClient) (*PingResponse, error) {
 	var nextToken *string
 	for {
 		listReq := listRolesAnywhereProfilesRequest{
-			raClient: clt,
 			nextPage: nextToken,
 		}
-		profiles, nextPageToken, err := listRolesAnywhereProfilesPage(ctx, listReq)
+		profiles, nextPageToken, err := listRolesAnywhereProfilesPage(ctx, clt, listReq)
 		if err != nil {
 			errs = append(errs, err)
 			break

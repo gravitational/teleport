@@ -362,7 +362,7 @@ func validateAWSRolesAnywhereProfileFilters(ig types.Integration) error {
 
 	for _, profileNameFilter := range rolesAnywhereSpec.ProfileSyncConfig.ProfileNameFilters {
 		if _, err := utils.CompileExpression(profileNameFilter); err != nil {
-			return trace.BadParameter("profile name filter %q must be valid expressions: %v", profileNameFilter, err)
+			return trace.BadParameter("invalid filter %q, use glob-like matching or regex by adding the anchors (eg, ^regex$): %v", profileNameFilter, err)
 		}
 	}
 	return nil
