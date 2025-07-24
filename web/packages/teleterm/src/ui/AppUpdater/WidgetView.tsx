@@ -191,8 +191,8 @@ function AvailableUpdate(props: {
             <Flex gap={1} color="text.slightlyMuted">
               <Warning size="small" />
               <P3>
-                Cluster "{props.getClusterName(props.skippedManagingClusterUri)}
-                " is not managing updates.
+                Cluster {props.getClusterName(props.skippedManagingClusterUri)}{' '}
+                is not managing updates.
               </P3>
             </Flex>
           )}
@@ -207,7 +207,7 @@ function AvailableUpdate(props: {
           {isNonTeleportServer && (
             <Flex gap={1} color="text.slightlyMuted">
               <Info size="small" />
-              <P3>Using "{props.downloadHost}" update server.</P3>
+              <P3>Using {props.downloadHost} as the update server.</P3>
             </Flex>
           )}
         </Stack>

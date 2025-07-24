@@ -239,7 +239,7 @@ function AvailableUpdate(props: { update: UpdateInfo; platform: Platform }) {
         {!isOfficialServer && (
           <Flex gap={1} mt={1}>
             <Info size="small" />
-            Using "{downloadHost}" update server.
+            Using {downloadHost} as the update server.
           </Flex>
         )}
       </P3>
