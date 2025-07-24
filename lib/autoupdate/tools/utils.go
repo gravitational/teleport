@@ -113,7 +113,7 @@ func CheckToolVersion(toolPath string) (string, error) {
 	// Execute "{tsh, tctl} version" and pass in TELEPORT_TOOLS_VERSION=off to
 	// turn off all automatic updates code paths to prevent any recursion.
 	command := exec.CommandContext(ctx, toolPath, "version")
-	command.Env = []string{teleportToolsVersionEnv + "=off"}
+	command.Env = []string{teleportToolsVersionEnv + "=" + teleportToolsVersionEnvDisabled}
 	output, err := command.Output()
 	if err != nil {
 		slog.DebugContext(context.Background(), "failed to determine version",
