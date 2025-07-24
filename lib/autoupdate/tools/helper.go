@@ -102,7 +102,8 @@ func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecA
 	slog.DebugContext(ctx, "Attempting to local update", "current_profile_name", currentProfileName)
 	resp, err := updater.CheckLocal(ctx, currentProfileName)
 	if err != nil {
-		return trace.Wrap(err)
+		slog.WarnContext(ctx, "Failed to check local teleport versions, client tools updates are disabled", "error", err)
+		return nil
 	}
 
 	if resp.ReExec {
@@ -144,7 +145,8 @@ func CheckAndUpdateRemote(ctx context.Context, currentProfileName string, insecu
 	slog.DebugContext(ctx, "Attempting to remote update", "current_profile_name", currentProfileName, "insecure", insecure)
 	resp, err := updater.CheckRemote(ctx, currentProfileName, insecure)
 	if err != nil {
-		return trace.Wrap(err)
+		slog.WarnContext(ctx, "Failed to check remote teleport versions, client tools updates are disabled", "error", err)
+		return nil
 	}
 
 	if !resp.Disabled && resp.ReExec {
