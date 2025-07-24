@@ -17,7 +17,7 @@
  */
 
 import React, { useState } from 'react';
-import { useHistory, useParams } from 'react-router';
+import { useHistory, useLocation, useParams } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
 import { Alert } from 'design/Alert/Alert';
@@ -59,6 +59,7 @@ import { Panel } from './Panel';
 export function BotDetails() {
   const ctx = useTeleport();
   const history = useHistory();
+  const location = useLocation();
   const params = useParams<{
     botName: string;
   }>();
@@ -74,7 +75,12 @@ export function BotDetails() {
   });
 
   const handleBackPress = () => {
-    history.goBack();
+    // If location.key is unset, or 'default', this is the first history entry in-app in the session.
+    if (!location.key || location.key === 'default') {
+      history.push(cfg.getBotsRoute());
+    } else {
+      history.goBack();
+    }
   };
 
   const handleEdit = () => {
