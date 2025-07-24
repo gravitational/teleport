@@ -69,7 +69,10 @@ export function AutoUpdatesManagement(props: {
             content: 'Refresh',
             onClick: props.onCheckForUpdates,
           }}
-          details="Unable to retrieve accepted client versions from some clusters. Compatibility with these clusters will not be verified."
+          details={
+            `Unable to retrieve accepted client versions from ${unreachableClusters.map(c => getClusterName(c.clusterUri)).join(', ')}. ` +
+            `Compatibility with ${unreachableClusters.length === 1 ? 'this cluster' : 'these clusters'} will not be verified.`
+          }
         >
           Unreachable clusters
         </Alert>

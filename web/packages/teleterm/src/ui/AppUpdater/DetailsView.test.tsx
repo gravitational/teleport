@@ -109,7 +109,7 @@ test('when there is no compatible client version, user is needs to select cluste
   ).toBeInTheDocument();
   expect(
     await screen.findByText(
-      'Unable to retrieve accepted client versions from some clusters. Compatibility with these clusters will not be verified.'
+      'Unable to retrieve accepted client versions from baz. Compatibility with this cluster will not be verified.'
     )
   ).toBeInTheDocument();
   expect(
