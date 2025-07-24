@@ -712,6 +712,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 						Hint:                     "Wow - what a lovely hint, dog!",
 						WorkloadIdentity:         full.GetMetadata().GetName(),
 						WorkloadIdentityRevision: full.GetMetadata().GetRevision(),
+						NameSelector:             full.GetMetadata().GetName(),
 					},
 					cmpopts.IgnoreFields(
 						events.SPIFFESVIDIssued{},
@@ -858,6 +859,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 							"example.com",
 							"dog.example.com",
 						},
+						NameSelector: full.GetMetadata().GetName(),
 					},
 					cmpopts.IgnoreFields(
 						events.SPIFFESVIDIssued{},
@@ -972,6 +974,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 						SVIDType:                 "x509",
 						WorkloadIdentity:         subjectTemplate.GetMetadata().GetName(),
 						WorkloadIdentityRevision: subjectTemplate.GetMetadata().GetRevision(),
+						NameSelector:             subjectTemplate.GetMetadata().GetName(),
 					},
 					cmpopts.IgnoreFields(
 						events.SPIFFESVIDIssued{},

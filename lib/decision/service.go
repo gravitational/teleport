@@ -393,6 +393,8 @@ func lockTargetToProto(target types.LockTarget) *decisionpb.LockTarget {
 		AccessRequest:  target.AccessRequest,
 		Device:         target.Device,
 		ServerId:       target.ServerID,
+		BotInstanceId:  target.BotInstanceID,
+		JoinToken:      target.JoinToken,
 	}
 }
 
@@ -415,6 +417,8 @@ func lockTargetFromProto(target *decisionpb.LockTarget) types.LockTarget {
 		AccessRequest:  target.AccessRequest,
 		Device:         target.Device,
 		ServerID:       target.ServerId,
+		BotInstanceID:  target.BotInstanceId,
+		JoinToken:      target.JoinToken,
 	}
 }
 

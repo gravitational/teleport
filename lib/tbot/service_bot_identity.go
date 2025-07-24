@@ -422,6 +422,24 @@ func (s *identityService) unblockWaiters() {
 	s.initializedOnce.Do(func() { close(s.initialized) })
 }
 
+// renewIdentity attempts to renew an existing bot identity. "Renewal" in this
+// case means one of two things:
+//
+//  1. If using an explicitly renewable identity (i.e. `token` joining),
+//     certificates will be renewed directly via Auth using the formal renewal
+//     process.
+//
+//     If the existing identity is expired, this will fail and cannot be
+//     recovered.
+//
+//  2. For all other join methods, a "lightweight renewal" is performed. The
+//     existing client is used to authenticate the request and prove ownership
+//     of the existing bot instance ID, but otherwise the delegated joining
+//     ceremony is performed as usual.
+//
+//     If the existing identity appears to be expired (`time.Now()` >
+//     `NotAfter`), the existing auth client will be discarded and the bot will
+//     try to join without it. This will result in a new bot instance ID.
 func renewIdentity(
 	ctx context.Context,
 	log *slog.Logger,
@@ -453,9 +471,38 @@ func renewIdentity(
 		return newIdentity, nil
 	}
 
+	// Note: This simple expiration check is probably not the best possible
+	// solution to determine when to discard an existing identity: the client
+	// could have severe clock drift, or there could be non-expiry related
+	// reasons that an identity should be thrown out. We may improve this
+	// discard logic in the future if we determine we're still creating  excess
+	// bot instances.
+	now := time.Now()
+	if expiry, ok := facade.Expiry(); !ok || now.After(expiry) {
+		slog.WarnContext(
+			ctx,
+			"The bot identity appears to be expired and will not be used to "+
+				"authenticate the identity renewal. If it is possible to "+
+				"rejoin, a new bot instance will be created. If this occurs "+
+				"repeatedly, ensure the local machine's clock is properly "+
+				"synchronized, the certificate TTL is adjusted to your "+
+				"environment, and that no external issues will prevent "+
+				"the bot from renewing its identity on schedule.",
+			"now", now,
+			"expiry", expiry,
+			"credential_lifetime", botCfg.CredentialLifetime,
+		)
+
+		newIdentity, err := botIdentityFromToken(ctx, log, botCfg, nil)
+		if err != nil {
+			return nil, trace.Wrap(err, "renewing identity using Register without existing auth client")
+		}
+		return newIdentity, nil
+	}
+
 	newIdentity, err := botIdentityFromToken(ctx, log, botCfg, authClient)
 	if err != nil {
-		return nil, trace.Wrap(err, "renewing identity using Register")
+		return nil, trace.Wrap(err, "renewing identity using Register with existing auth client")
 	}
 	return newIdentity, nil
 }
@@ -587,7 +634,6 @@ func botIdentityFromToken(
 	}
 
 	// Only set during bound keypair joining, but used both before and after.
-	var boundKeypairAdapter boundkeypair.FS
 	var boundKeypairState *boundkeypair.ClientState
 
 	switch params.JoinMethod {
@@ -602,13 +648,21 @@ func botIdentityFromToken(
 			EnvVarName: cfg.Onboarding.Gitlab.TokenEnvVarName,
 		}
 	case types.JoinMethodBoundKeypair:
-		joinSecret := cfg.Onboarding.BoundKeypair.InitialJoinSecret
+		joinSecret := cfg.Onboarding.BoundKeypair.RegistrationSecret
 
-		boundKeypairAdapter = config.NewBoundkeypairDestinationAdapter(cfg.Storage.Destination)
-		boundKeypairState, err = boundkeypair.LoadClientState(ctx, boundKeypairAdapter)
+		adapter := config.NewBoundkeypairDestinationAdapter(cfg.Storage.Destination)
+		boundKeypairState, err = boundkeypair.LoadClientState(ctx, adapter)
 		if trace.IsNotFound(err) && joinSecret != "" {
-			return nil, trace.NotImplemented("no existing client state was found and join secrets are not yet supported")
+			log.InfoContext(ctx, "No existing client state found, will attempt "+
+				"to join with provided registration secret")
+			boundKeypairState = boundkeypair.NewEmptyClientState(adapter)
 		} else if err != nil {
+			log.ErrorContext(ctx, "Could not complete bound keypair joining as "+
+				"no local credentials are available and no registration secret "+
+				"was provided. To continue, either generate a keypair with "+
+				"`tbot keypair create` and register it with Teleport, or "+
+				"generate a registration secret on Teleport and provide it with"+
+				"the `--registration-secret` flag.")
 			return nil, trace.Wrap(err, "loading bound keypair client state")
 		}
 
@@ -625,9 +679,7 @@ func botIdentityFromToken(
 			return nil, trace.Wrap(err)
 		}
 
-		log.DebugContext(ctx, "updating bound keypair client state")
-
-		if err := boundkeypair.StoreClientState(ctx, boundKeypairAdapter, boundKeypairState); err != nil {
+		if err := boundKeypairState.Store(ctx); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
