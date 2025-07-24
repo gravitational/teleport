@@ -58,7 +58,7 @@ func metadataExchangeAlloyDB(accessToken string, conn io.ReadWriter) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if count != 4 {
+	if count != len(buf) {
 		return trace.BadParameter("expected to read 4 bytes, got %d", count)
 	}
 
