@@ -364,6 +364,7 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) (err err
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
+	origCfg := cfg.Copy()
 	// Set the desired state.
 	if err := updateConfigSpec(&cfg.Spec, override); err != nil {
 		return trace.Wrap(err)
@@ -408,21 +409,20 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) (err err
 		u.Log.InfoContext(ctx, "Initiating installation.", targetKey, target, activeKey, active)
 	}
 
-	// If update.yaml does not exist, write it before attempting to install.
+	// Write update.yaml before attempting to install.
 	// This ensures that update.yaml always exists when the agent is started and sends HELLO.
-	// The written file does not contain any versions, only the desired configuration.
-	if _, statErr := os.Stat(u.UpdateConfigFile); errors.Is(statErr, fs.ErrNotExist) {
-		if err := writeConfig(u.UpdateConfigFile, cfg); err != nil {
-			return trace.Wrap(err, "failed to write %s", updateConfigName)
-		}
-		defer func() {
-			if err != nil {
-				if err := os.Remove(u.UpdateConfigFile); err != nil {
-					u.Log.ErrorContext(ctx, "Failed to remove invalid partial configuration.", "path", u.UpdateConfigFile, errorKey, err)
-				}
-			}
-		}()
+	// The written file does not contain updated versions, only the desired configuration.
+	// It is reverted if the installation fails to start, so that configuration is not persisted.
+	if err := writeConfig(u.UpdateConfigFile, cfg); err != nil {
+		return trace.Wrap(err, "failed to write %s", updateConfigName)
 	}
+	defer func() {
+		if err != nil {
+			if err := writeConfig(u.UpdateConfigFile, origCfg); err != nil {
+				u.Log.ErrorContext(ctx, "Failed to revert invalid partial configuration.", "path", u.UpdateConfigFile, errorKey, err)
+			}
+		}
+	}()
 
 	if err := u.update(ctx, cfg, target, override.AllowOverwrite, resp.AGPL); err != nil {
 		if errors.Is(err, ErrFilePresent) && !override.AllowOverwrite {
