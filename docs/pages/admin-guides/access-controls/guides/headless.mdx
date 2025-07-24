@@ -40,9 +40,7 @@ Service.
 Once the Teleport Auth Service authenticates the user, `tsh` generates a new
 private key in memory, and shares its public key only to obtain user
 certificates. `tsh` then holds user certificates in memory with a one-minute TTL
-to reduce the impact of exfiltration. Since TLS credentials exist only in
-memory, it is not possible for users of a shared remote machine to leak
-credentials to one another when using `tsh`.
+to reduce the impact of exfiltration.
 
 ## Prerequisites
 
