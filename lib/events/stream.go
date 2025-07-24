@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
@@ -561,13 +562,7 @@ type sliceWriter struct {
 	// be nil if the stream picked up after an auth server start from a point
 	// where the session end event has already been uploaded. If captured, it
 	// will be passed to the summarizer.
-	sshSessionEndEvent *apievents.SessionEnd
-	// dbSessionEndEvent is an event that marked the end of this session if it was
-	// a database one. It may be nil if the stream hasn't ended yet, and it may
-	// also be nil if the stream picked up after an auth server start from a
-	// point where the session end event has already been uploaded. If captured,
-	// it will be passed to the summarizer.
-	dbSessionEndEvent *apievents.DatabaseSessionEnd
+	summarizerSession *summarizer.Session
 }
 
 func (w *sliceWriter) updateCompletedParts(part StreamPart, lastEventIndex int64) {
@@ -674,9 +669,30 @@ func (w *sliceWriter) receiveAndUpload() error {
 			// Capture the session end event.
 			switch e := event.oneof.GetEvent().(type) {
 			case *apievents.OneOf_SessionEnd:
-				w.sshSessionEndEvent = e.SessionEnd
+				session := summarizer.Session{
+					User:       e.SessionEnd.User,
+					ID:         e.SessionEnd.GetSessionID(),
+					ResourceID: e.SessionEnd.GetServerID(),
+				}
+
+				switch e.SessionEnd.Protocol {
+				case EventProtocolSSH:
+					session.Kind = types.SSHSessionKind
+				case EventProtocolKube:
+					session.Kind = types.KubernetesSessionKind
+				}
+				w.summarizerSession = &session
 			case *apievents.OneOf_DatabaseSessionEnd:
-				w.dbSessionEndEvent = e.DatabaseSessionEnd
+				w.summarizerSession = &summarizer.Session{
+					Kind:       types.DatabaseSessionKind,
+					User:       e.DatabaseSessionEnd.User,
+					ID:         e.DatabaseSessionEnd.GetSessionID(),
+					ResourceID: e.DatabaseSessionEnd.DatabaseService,
+				}
+			default:
+				w.summarizerSession = &summarizer.Session{
+					ID: w.proto.cfg.Upload.SessionID.String(),
+				}
 			}
 			if w.shouldUploadCurrentSlice() {
 				// this logic blocks the EmitAuditEvent in case if the
@@ -806,17 +822,11 @@ func (w *sliceWriter) completeStream() {
 		}
 
 		summarizer := w.proto.cfg.SessionSummarizerProvider.SessionSummarizer()
-		switch {
-		case w.sshSessionEndEvent != nil:
-			err = summarizer.SummarizeSSH(w.proto.cancelCtx, w.sshSessionEndEvent)
-		case w.dbSessionEndEvent != nil:
-			err = summarizer.SummarizeDatabase(w.proto.cancelCtx, w.dbSessionEndEvent)
-		default:
-			err = summarizer.SummarizeUnknown(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID)
-		}
-		if err != nil {
-			slog.WarnContext(w.proto.cancelCtx, "Failed to summarize upload", "error", err)
-			return
+		if w.summarizerSession != nil {
+			if err := summarizer.Summarize(w.proto.cancelCtx, *w.summarizerSession); err != nil {
+				slog.WarnContext(w.proto.cancelCtx, "Failed to summarize upload", "error", err)
+				return
+			}
 		}
 	}
 }

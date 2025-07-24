@@ -19,23 +19,30 @@ package summarizer
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/api/types"
 )
+
+type Session struct {
+	ID         string
+	Kind       types.SessionKind
+	User       string
+	ResourceID string
+}
 
 // SessionSummarizer summarizes session recordings using language model
 // inference.
 type SessionSummarizer interface {
-	// SummarizeSSH summarizes an SSH session recording that ended with a given
-	// event.
-	SummarizeSSH(ctx context.Context, sessionEndEvent *events.SessionEnd) error
-	// SummarizeSSH summarizes a database session recording that ended with a given
-	// event.
-	SummarizeDatabase(ctx context.Context, sessionEndEvent *events.DatabaseSessionEnd) error
-	// SummarizeUnknown summarizes a session recording with a given ID. This is
-	// used for cases where the session ID is known, but there is no end event
-	// available. [SessionSummarizer.SummarizeSSH] and
-	// [SessionSummarizer.SummarizeDatabase] should be used instead of this
-	// method whenever possible, as they are more efficient.
-	SummarizeUnknown(ctx context.Context, sessionID session.ID) error
+	Summarize(ctx context.Context, session Session) error
+	// // SummarizeSSH summarizes an SSH session recording that ended with a given
+	// // event.
+	// SummarizeSSH(ctx context.Context, sessionEndEvent *events.SessionEnd) error
+	// // SummarizeSSH summarizes a database session recording that ended with a given
+	// // event.
+	// SummarizeDatabase(ctx context.Context, sessionEndEvent *events.DatabaseSessionEnd) error
+	// // SummarizeUnknown summarizes a session recording with a given ID. This is
+	// // used for cases where the session ID is known, but there is no end event
+	// // available. [SessionSummarizer.SummarizeSSH] and
+	// // [SessionSummarizer.SummarizeDatabase] should be used instead of this
+	// // method whenever possible, as they are more efficient.
+	// SummarizeUnknown(ctx context.Context, sessionID session.ID) error
 }

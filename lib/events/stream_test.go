@@ -685,17 +685,7 @@ type MockSummarizer struct {
 	mock.Mock
 }
 
-func (m *MockSummarizer) SummarizeSSH(ctx context.Context, sessionEndEvent *apievents.SessionEnd) error {
-	args := m.Called(ctx, sessionEndEvent)
-	return args.Error(0)
-}
-
-func (m *MockSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent *apievents.DatabaseSessionEnd) error {
-	args := m.Called(ctx, sessionEndEvent)
-	return args.Error(0)
-}
-
-func (m *MockSummarizer) SummarizeUnknown(ctx context.Context, sessionID session.ID) error {
-	args := m.Called(ctx, sessionID)
+func (m *MockSummarizer) Summarize(ctx context.Context, sess summarizer.Session) error {
+	args := m.Called(ctx, sess)
 	return args.Error(0)
 }

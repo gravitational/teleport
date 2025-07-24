@@ -19,9 +19,6 @@ package summarizer
 import (
 	"context"
 	"sync"
-
-	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/session"
 )
 
 // SessionSummarizerProvider provides a reference to a Summarizer service
@@ -83,14 +80,6 @@ func NewSessionSummarizerProvider() *SessionSummarizerProvider {
 // interface.
 type NoopSummarizer struct{}
 
-func (n NoopSummarizer) SummarizeSSH(ctx context.Context, sessionEndEvent *events.SessionEnd) error {
-	return nil
-}
-
-func (n NoopSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent *events.DatabaseSessionEnd) error {
-	return nil
-}
-
-func (NoopSummarizer) SummarizeUnknown(ctx context.Context, sessionID session.ID) error {
+func (n NoopSummarizer) Summarize(ctx context.Context, session Session) error {
 	return nil
 }
