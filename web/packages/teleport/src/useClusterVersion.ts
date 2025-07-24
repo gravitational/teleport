@@ -34,18 +34,12 @@ export function useClusterVersion(): {
    * **diff** compares the provided component version to the cluster/control-
    * plane version. An indication of cluster compatibility is returned as
    * follows:
-   * - **n**: the component and cluster versions match, including major, minor
-   * and patch
-   * - **n***: the component and cluster have the same major version, but
-   * earlier minor or patch
-   * - **n+1**: the component version is one major version ahead of the cluster
-   * version
-   * - **n+**: the component version is two or more major version ahead of the
-   * cluster version
-   * - **n-1**: the component version is one major version behind the cluster
-   * version
-   * - **n-**: the component version is two or more major version behind the
-   * cluster version
+   * - **n**: the component and cluster versions match, including major, minor and patch
+   * - **n***: the component and cluster have the same major version, but earlier minor or patch
+   * - **n+1**: the component version is one major version ahead of the cluster version
+   * - **n+**: the component version is two or more major version ahead of the cluster version
+   * - **n-1**: the component version is one major version behind the cluster version
+   * - **n-**: the component version is two or more major version behind the cluster version
    *
    * @param version the compare version as string. Must be a full semver
    * version (e.g. "1.2.3"), optionally with a pre-release tag (e.g.

@@ -27,13 +27,6 @@ import Label, {
 } from './Label';
 
 export default Label;
-export {
-  Primary,
-  Secondary,
-  Warning,
-  Danger,
-  SecondaryOutlined,
-  WarningOutlined,
-  DangerOutlined,
-};
+export { Primary, Secondary, Warning, Danger };
+export { SecondaryOutlined, WarningOutlined, DangerOutlined };
 export type { LabelKind } from './Label';
