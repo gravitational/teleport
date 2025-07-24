@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.0.2"
+const Version = "18.1.0-dev.hugocanary.5"
 
 const VersionMajor = 18
-const VersionMinor = 0
-const VersionPatch = 2
-const VersionPreRelease = ""
+const VersionMinor = 1
+const VersionPatch = 0
+const VersionPreRelease = "dev.hugocanary.5"
 const VersionMetadata = ""
