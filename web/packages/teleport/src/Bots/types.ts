@@ -23,9 +23,7 @@ import { FlatBot } from 'teleport/services/bot/types';
 
 export type BotOptionsCellProps = {
   bot: FlatBot;
-  disabledEdit: boolean;
   disabledDelete: boolean;
-  onClickEdit: () => void;
   onClickDelete: () => void;
   onClickView: () => void;
 };
@@ -33,16 +31,13 @@ export type BotOptionsCellProps = {
 export type BotListProps = {
   attempt: Attempt;
   bots: FlatBot[];
-  disabledEdit: boolean;
   disabledDelete: boolean;
-  fetchRoles: (input: string) => Promise<string[]>;
   onClose: () => void;
   onDelete: () => void;
-  onEdit: () => void;
+  onEdit: (updatedBot: FlatBot) => void;
+  onSelect: (item: FlatBot) => void;
   selectedBot: FlatBot;
   setSelectedBot: Dispatch<SetStateAction<FlatBot>>;
-  selectedRoles: string[];
-  setSelectedRoles: Dispatch<SetStateAction<string[]>>;
 };
 
 export type DeleteBotProps = {
