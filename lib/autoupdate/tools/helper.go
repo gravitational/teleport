@@ -69,6 +69,12 @@ func newUpdater(toolsDir string) (*Updater, error) {
 // If they differ, the requested version is downloaded and extracted into the client tools directory,
 // the installation is recorded in the configuration file, and the tool is re-executed with the updated version.
 func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecArgs []string) error {
+	// If client tools updates are explicitly disabled, we want to catch this as soon as possible
+	// so we don't try to read te user home directory, fail, and log warnings.
+	if os.Getenv(teleportToolsVersionEnv) == teleportToolsVersionEnvDisabled {
+		return nil
+	}
+
 	var err error
 	if currentProfileName == "" {
 		home := os.Getenv(types.HomeEnvVar)
@@ -84,18 +90,20 @@ func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecA
 
 	toolsDir, err := Dir()
 	if err != nil {
-		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
+		slog.WarnContext(ctx, "Failed to detect the teleport home directory, client tools updates are disabled", "error", err)
 		return nil
 	}
 	updater, err := newUpdater(toolsDir)
 	if err != nil {
-		return trace.Wrap(err)
+		slog.WarnContext(ctx, "Failed to create the updater, client tools updates are disabled", "error", err)
+		return nil
 	}
 
 	slog.DebugContext(ctx, "Attempting to local update", "current_profile_name", currentProfileName)
 	resp, err := updater.CheckLocal(ctx, currentProfileName)
 	if err != nil {
-		return trace.Wrap(err)
+		slog.WarnContext(ctx, "Failed to check local teleport versions, client tools updates are disabled", "error", err)
+		return nil
 	}
 
 	if resp.ReExec {
@@ -117,20 +125,28 @@ func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecA
 // the installed version is recorded in the configuration, and the tool is re-executed
 // with the updated version.
 func CheckAndUpdateRemote(ctx context.Context, currentProfileName string, insecure bool, reExecArgs []string) error {
+	// If client tools updates are explicitly disabled, we want to catch this as soon as possible
+	// so we don't try to read te user home directory, fail, and log warnings.
+	if os.Getenv(teleportToolsVersionEnv) == teleportToolsVersionEnvDisabled {
+		return nil
+	}
+
 	toolsDir, err := Dir()
 	if err != nil {
-		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
+		slog.WarnContext(ctx, "Failed to detect the teleport home directory, client tools updates are disabled", "error", err)
 		return nil
 	}
 	updater, err := newUpdater(toolsDir)
 	if err != nil {
-		return trace.Wrap(err)
+		slog.WarnContext(ctx, "Failed to create the updater, client tools updates are disabled", "error", err)
+		return nil
 	}
 
 	slog.DebugContext(ctx, "Attempting to remote update", "current_profile_name", currentProfileName, "insecure", insecure)
 	resp, err := updater.CheckRemote(ctx, currentProfileName, insecure)
 	if err != nil {
-		return trace.Wrap(err)
+		slog.WarnContext(ctx, "Failed to check remote teleport versions, client tools updates are disabled", "error", err)
+		return nil
 	}
 
 	if !resp.Disabled && resp.ReExec {
