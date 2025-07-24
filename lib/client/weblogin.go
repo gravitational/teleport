@@ -888,7 +888,7 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebCli
 	// Convert back from auth gRPC proto response.
 	switch r := mfaResp.Response.(type) {
 	case *proto.MFAAuthenticateResponse_TOTP:
-		// Only TOTP is configured fallback on direct login
+		// If TOTP is configured we have to fallback on direct login
 		return sshAgentLoginWebCreateSession(ctx, clt, SSHLoginDirect{
 			User:     login.User,
 			Password: login.Password,
