@@ -209,7 +209,7 @@ func writeConfig(filename string, cfg *UpdateConfig) error {
 	}))
 }
 
-func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
+func updateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 	if override.Proxy != "" {
 		spec.Proxy = override.Proxy
 	}
