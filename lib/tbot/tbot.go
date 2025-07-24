@@ -29,7 +29,6 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
 	apiclient "github.com/gravitational/teleport/api/client"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -60,7 +59,7 @@ type Bot struct {
 	mu       sync.Mutex
 	started  bool
 	identity getBotIdentityFn
-	client   *client.Client
+	client   *apiclient.Client
 }
 
 func New(cfg *config.BotConfig, log *slog.Logger) *Bot {
