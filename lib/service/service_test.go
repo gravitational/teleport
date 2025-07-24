@@ -59,8 +59,8 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -385,7 +385,7 @@ func TestMonitor(t *testing.T) {
 func TestServiceCheckPrincipals(t *testing.T) {
 	// Create a test auth server to extract the server identity (SSH and TLS
 	// certificates).
-	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)
@@ -1225,7 +1225,7 @@ func TestProxyGRPCServers(t *testing.T) {
 	hostID := uuid.NewString()
 	// Create a test auth server to extract the server identity (SSH and TLS
 	// certificates).
-	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClockAt(time.Now()),
 	})
@@ -1240,10 +1240,10 @@ func TestProxyGRPCServers(t *testing.T) {
 		require.NoError(t, tlsServer.Close())
 	})
 	// Create a new client using the server identity.
-	client, err := tlsServer.NewClient(auth.TestServerID(types.RoleProxy, hostID))
+	client, err := tlsServer.NewClient(authtest.TestServerID(types.RoleProxy, hostID))
 	require.NoError(t, err)
 	// TLS config for proxy service.
-	serverIdentity, err := auth.NewServerIdentity(testAuthServer.AuthServer, hostID, types.RoleProxy)
+	serverIdentity, err := authtest.NewServerIdentity(testAuthServer.AuthServer, hostID, types.RoleProxy)
 	require.NoError(t, err)
 
 	testConnector, err := newConnector(serverIdentity, serverIdentity)
