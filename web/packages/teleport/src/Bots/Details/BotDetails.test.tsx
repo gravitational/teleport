@@ -75,7 +75,7 @@ describe('BotDetails', () => {
     renderComponent();
     await waitForLoadingBot();
 
-    expect(screen.getByText('Error: something went wrong')).toBeInTheDocument();
+    expect(screen.getByText('something went wrong')).toBeInTheDocument();
   });
 
   it('should show a not found error state', async () => {
@@ -202,7 +202,7 @@ describe('BotDetails', () => {
 
     expect(
       within(panel!).getByText(
-        'Error: We could not complete your request. Your proxy (v18.0.0) may be behind the minimum required version (v19.0.0) to support this request. Ensure all proxies are upgraded and try again.'
+        'We could not complete your request. Your proxy (v18.0.0) may be behind the minimum required version (v19.0.0) to support this request. Ensure all proxies are upgraded and try again.'
       )
     ).toBeInTheDocument();
   });

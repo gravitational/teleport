@@ -62,7 +62,7 @@ describe('InstancesPanel', () => {
     });
     await waitForLoading();
 
-    expect(screen.getByText('Error: something went wrong')).toBeInTheDocument();
+    expect(screen.getByText('something went wrong')).toBeInTheDocument();
   });
 
   it('should show a no permissions state', async () => {
