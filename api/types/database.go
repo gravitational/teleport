@@ -555,14 +555,16 @@ func (d *DatabaseV3) getGCPType() (string, bool) {
 	if d.Spec.Protocol == DatabaseTypeSpanner {
 		return DatabaseTypeSpanner, true
 	}
+
 	gcp := d.GetGCP()
-	if !gcp.IsEmpty() {
-		if gcp.IsAlloyDB {
-			return DatabaseTypeAlloyDB, true
-		}
-		return DatabaseTypeCloudSQL, true
+	if gcp.IsEmpty() {
+		return "", false
 	}
-	return "", false
+
+	if gcp.IsAlloyDB {
+		return DatabaseTypeAlloyDB, true
+	}
+	return DatabaseTypeCloudSQL, true
 }
 
 // getAWSType returns the database type.
