@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -66,7 +67,7 @@ func (a alpnProxyMiddleware) OnStart(ctx context.Context, lp *alpnproxy.LocalPro
 type DatabaseTunnelService struct {
 	botCfg             *config.BotConfig
 	cfg                *config.DatabaseTunnelService
-	proxyPingCache     *proxyPingCache
+	proxyPinger        connection.ProxyPinger
 	log                *slog.Logger
 	botClient          *apiclient.Client
 	getBotIdentity     getBotIdentityFn
@@ -95,11 +96,11 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 		}
 	}
 
-	proxyPing, err := s.proxyPingCache.ping(ctx)
+	proxyPing, err := s.proxyPinger.Ping(ctx)
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "pinging proxy")
 	}
-	proxyAddr, err := proxyPing.proxyWebAddr()
+	proxyAddr, err := proxyPing.ProxyWebAddr()
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "determining proxy web address")
 	}

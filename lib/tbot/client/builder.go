@@ -22,26 +22,27 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/gravitational/trace"
 	"github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 )
 
 // NewBuilder creates a new Builder.
 func NewBuilder(cfg BuilderConfig) (*Builder, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &Builder{cfg: cfg}, nil
 }
 
 // BuilderConfig contains the configuration options for a Builder.
 type BuilderConfig struct {
-	// Address that will be dialed to create the client connection.
-	Address Address
-
-	// AuthServerAddressMode controls the behavior when a proxy address is
-	// given as an auth server address.
-	AuthServerAddressMode config.AuthServerAddressMode
+	// Connection contains the address etc. used to dial a connection to the
+	// auth server.
+	Connection connection.Config
 
 	// Resolver that will be used to find the address of a proxy server.
 	Resolver reversetunnelclient.Resolver
@@ -49,11 +50,21 @@ type BuilderConfig struct {
 	// Logger to which log messages will be written.
 	Logger *slog.Logger
 
-	// Insecure controls whether we will skip TLS host verification.
-	Insecure bool
-
 	// Metrics will record gRPC client metrics.
 	Metrics *prometheus.ClientMetrics
+}
+
+func (cfg *BuilderConfig) CheckAndSetDefaults() error {
+	if err := cfg.Connection.Validate(); err != nil {
+		return trace.Wrap(err)
+	}
+	if cfg.Resolver == nil {
+		return trace.BadParameter("Resolver is required")
+	}
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
+	}
+	return nil
 }
 
 // Builder provides a convenient way to create a client for a given identity
@@ -63,13 +74,10 @@ type Builder struct{ cfg BuilderConfig }
 // Build a client for the given identity.
 func (b *Builder) Build(ctx context.Context, id Identity) (*client.Client, error) {
 	return New(ctx, Config{
-		Identity: id,
-
-		Address:               b.cfg.Address,
-		AuthServerAddressMode: b.cfg.AuthServerAddressMode,
-		Resolver:              b.cfg.Resolver,
-		Logger:                b.cfg.Logger,
-		Insecure:              b.cfg.Insecure,
-		Metrics:               b.cfg.Metrics,
+		Identity:   id,
+		Connection: b.cfg.Connection,
+		Resolver:   b.cfg.Resolver,
+		Logger:     b.cfg.Logger,
+		Metrics:    b.cfg.Metrics,
 	})
 }
