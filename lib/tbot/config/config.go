@@ -42,6 +42,8 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
+	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/services/awsra"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -335,6 +337,7 @@ type ServiceConfigs []ServiceConfig
 
 func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 	var out []ServiceConfig
+	var unmarshalContext unmarshalConfigContext
 	for _, node := range node.Content {
 		header := struct {
 			Type string `yaml:"type"`
@@ -434,9 +437,9 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case WorkloadIdentityAWSRAType:
-			v := &WorkloadIdentityAWSRAService{}
-			if err := node.Decode(v); err != nil {
+		case awsra.ServiceType:
+			v := &awsra.Config{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
@@ -449,9 +452,11 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-// unmarshalDestination takes a *yaml.Node and produces a destination.Destination by
-// considering the `type` field.
-func unmarshalDestination(node *yaml.Node) (destination.Destination, error) {
+type unmarshalConfigContext struct {
+	internal.DefaultDestinationUnmarshaler
+}
+
+func (ctx unmarshalConfigContext) UnmarshalDestination(node *yaml.Node) (destination.Destination, error) {
 	header := struct {
 		Type string `yaml:"type"`
 	}{}
@@ -460,18 +465,6 @@ func unmarshalDestination(node *yaml.Node) (destination.Destination, error) {
 	}
 
 	switch header.Type {
-	case destination.MemoryType:
-		v := &destination.Memory{}
-		if err := node.Decode(v); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return v, nil
-	case destination.DirectoryType:
-		v := &destination.Directory{}
-		if err := node.Decode(v); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return v, nil
 	case DestinationKubernetesSecretType:
 		v := &DestinationKubernetesSecret{}
 		if err := node.Decode(v); err != nil {
@@ -479,7 +472,7 @@ func unmarshalDestination(node *yaml.Node) (destination.Destination, error) {
 		}
 		return v, nil
 	default:
-		return nil, trace.BadParameter("unrecognized destination type (%s)", header.Type)
+		return ctx.DefaultDestinationUnmarshaler.UnmarshalDestination(node)
 	}
 }
 
@@ -488,7 +481,7 @@ func unmarshalDestination(node *yaml.Node) (destination.Destination, error) {
 type Initable interface {
 	GetDestination() destination.Destination
 	Init(ctx context.Context) error
-	Describe() []FileDescription
+	Describe() []bot.FileDescription
 }
 
 func (conf *BotConfig) GetInitables() []Initable {
