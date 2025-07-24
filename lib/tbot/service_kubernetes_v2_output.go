@@ -40,6 +40,7 @@ import (
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -61,7 +62,7 @@ type KubernetesV2OutputService struct {
 	cfg                *config.KubernetesV2Output
 	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
-	proxyPingCache     *proxyPingCache
+	proxyPinger        connection.ProxyPinger
 	reloadBroadcaster  *internal.ChannelBroadcaster
 	statusReporter     readyz.Reporter
 	// executablePath is called to get the path to the tbot executable.
@@ -156,7 +157,7 @@ func (s *KubernetesV2OutputService) generate(ctx context.Context) error {
 	)
 
 	// Ping the proxy to resolve connection addresses.
-	proxyPong, err := s.proxyPingCache.ping(ctx)
+	proxyPong, err := s.proxyPinger.Ping(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

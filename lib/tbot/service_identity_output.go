@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/config/openssh"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -55,13 +56,13 @@ type IdentityOutputService struct {
 	cfg                *config.IdentityOutput
 	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
-	proxyPingCache     *proxyPingCache
+	proxyPinger        connection.ProxyPinger
 	reloadBroadcaster  *internal.ChannelBroadcaster
 	statusReporter     readyz.Reporter
 	// executablePath is called to get the path to the tbot executable.
 	// Usually this is os.Executable
 	executablePath    func() (string, error)
-	alpnUpgradeCache  *alpnProxyConnUpgradeRequiredCache
+	alpnUpgradeCache  *internal.ALPNUpgradeCache
 	identityGenerator *identity.Generator
 	clientBuilder     *client.Builder
 }
@@ -166,7 +167,7 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		proxyPing, err := s.proxyPingCache.ping(ctx)
+		proxyPing, err := s.proxyPinger.Ping(ctx)
 		if err != nil {
 			return trace.Wrap(err, "pinging proxy")
 		}
@@ -229,13 +230,13 @@ type certAuthGetter interface {
 }
 
 type alpnTester interface {
-	isUpgradeRequired(ctx context.Context, addr string, insecure bool) (bool, error)
+	IsUpgradeRequired(ctx context.Context, addr string, insecure bool) (bool, error)
 }
 
 func renderSSHConfig(
 	ctx context.Context,
 	log *slog.Logger,
-	proxyPing *proxyPingResponse,
+	proxyPing *connection.ProxyPong,
 	clusterNames []string,
 	dest destination.Destination,
 	certAuthGetter certAuthGetter,
@@ -249,7 +250,7 @@ func renderSSHConfig(
 	)
 	defer span.End()
 
-	proxyAddr, err := proxyPing.proxySSHAddr()
+	proxyAddr, err := proxyPing.ProxySSHAddr()
 	if err != nil {
 		return trace.Wrap(err, "determining proxy ssh addr")
 	}
@@ -311,7 +312,7 @@ func renderSSHConfig(
 	// are using TLS routing.
 	connUpgradeRequired := false
 	if proxyPing.Proxy.TLSRoutingEnabled {
-		connUpgradeRequired, err = alpnTester.isUpgradeRequired(
+		connUpgradeRequired, err = alpnTester.IsUpgradeRequired(
 			ctx, proxyAddr, botCfg.Insecure,
 		)
 		if err != nil {
