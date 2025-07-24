@@ -77,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -89,7 +90,7 @@ const eventBufferSize = 1024
 
 func TestMain(m *testing.M) {
 	logtest.InitLogger(testing.Verbose)
-	modules.SetModules(&modules.TestModules{
+	modules.SetModules(&modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.Identity: {Enabled: true},
