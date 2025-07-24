@@ -20,6 +20,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -41,7 +42,7 @@ import (
 // unnecessary stub implementations.
 type SessionSummarizerProvider struct {
 	summarizer SessionSummarizer
-	mu         sync.RWMutex
+	mu         sync.Mutex
 }
 
 // SessionSummarizer provides the configured [SessionSummarizer]. It is safe to
@@ -52,8 +53,8 @@ func (p *SessionSummarizerProvider) SessionSummarizer() SessionSummarizer {
 		return NoopSummarizer{}
 	}
 
-	p.mu.RLock()
-	defer p.mu.RUnlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
 	if p.summarizer == nil {
 		return NoopSummarizer{}
@@ -82,6 +83,14 @@ func NewSessionSummarizerProvider() *SessionSummarizerProvider {
 // interface.
 type NoopSummarizer struct{}
 
-func (NoopSummarizer) Summarize(ctx context.Context, sessionID session.ID, sessionEndEvent AnySessionEndEvent) error {
+func (n NoopSummarizer) SummarizeSSH(ctx context.Context, sessionEndEvent *events.SessionEnd) error {
+	return nil
+}
+
+func (n NoopSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent *events.DatabaseSessionEnd) error {
+	return nil
+}
+
+func (NoopSummarizer) SummarizeUnknown(ctx context.Context, sessionID session.ID) error {
 	return nil
 }

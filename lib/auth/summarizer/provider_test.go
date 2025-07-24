@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -34,7 +35,7 @@ func TestProvideSummarizer(t *testing.T) {
 	assert.IsType(t, NoopSummarizer{}, provider.SessionSummarizer(),
 		"new provider should return a noop summarizer")
 
-	s := &dummySummarizer{}
+	s := dummySummarizer{}
 	provider.SetSummarizer(s)
 	assert.Equal(t, s, provider.SessionSummarizer(), "should return the set summarizer")
 
@@ -45,6 +46,14 @@ func TestProvideSummarizer(t *testing.T) {
 
 type dummySummarizer struct{}
 
-func (m dummySummarizer) Summarize(ctx context.Context, sessionID session.ID, sessionEndEvent AnySessionEndEvent) error {
+func (m dummySummarizer) SummarizeSSH(ctx context.Context, sessionEndEvent *events.SessionEnd) error {
+	return nil
+}
+
+func (m dummySummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent *events.DatabaseSessionEnd) error {
+	return nil
+}
+
+func (m dummySummarizer) SummarizeUnknown(ctx context.Context, sessionID session.ID) error {
 	return nil
 }

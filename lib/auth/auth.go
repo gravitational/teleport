@@ -473,12 +473,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 		cfg.WorkloadIdentity = workloadIdentity
 	}
-	if cfg.SummarizerResources == nil {
-		summarizer, err := local.NewSummarizerResourcesService(cfg.Backend)
+	if cfg.Summarizer == nil {
+		summarizer, err := local.NewSummarizerService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating Summarizer service")
 		}
-		cfg.SummarizerResources = summarizer
+		cfg.Summarizer = summarizer
 	}
 	if cfg.SessionSummarizerProvider == nil {
 		cfg.SessionSummarizerProvider = summarizer.NewSessionSummarizerProvider()
@@ -621,7 +621,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		VnetConfigService:               cfg.VnetConfigService,
 		RecordingEncryptionManager:      cfg.RecordingEncryption,
 		MultipartHandler:                cfg.MultipartHandler,
-		SummarizerResources:             cfg.SummarizerResources,
+		Summarizer:                      cfg.Summarizer,
 	}
 
 	as := Server{
@@ -866,7 +866,7 @@ type Services struct {
 	services.VnetConfigService
 	RecordingEncryptionManager
 	events.MultipartHandler
-	services.SummarizerResources
+	services.Summarizer
 }
 
 // GetWebSession returns existing web session described by req.

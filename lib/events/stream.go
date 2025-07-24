@@ -556,13 +556,18 @@ type sliceWriter struct {
 	retryConfig retryutils.LinearConfig
 	// encrypter wraps writes with encryption
 	encrypter EncryptionWrapper
-	// sessionEndEvent is an [apievents.SessionEnd] or other protocol-specific
-	// equivalent event that is used to mark the end of the session. It may be
-	// nil if the stream hasn't ended yet, and it may also be nil if the stream
-	// picked up after an auth server start from a point where the session end
-	// event has already been uploaded. If captured, it will be passed to the
-	// summarizer.
-	sessionEndEvent summarizer.AnySessionEndEvent
+	// sshSessionEndEvent is an event that marked the end of this session if it was
+	// an SSH one. It may be nil if the stream hasn't ended yet, and it may also
+	// be nil if the stream picked up after an auth server start from a point
+	// where the session end event has already been uploaded. If captured, it
+	// will be passed to the summarizer.
+	sshSessionEndEvent *apievents.SessionEnd
+	// dbSessionEndEvent is an event that marked the end of this session if it was
+	// a database one. It may be nil if the stream hasn't ended yet, and it may
+	// also be nil if the stream picked up after an auth server start from a
+	// point where the session end event has already been uploaded. If captured,
+	// it will be passed to the summarizer.
+	dbSessionEndEvent *apievents.DatabaseSessionEnd
 }
 
 func (w *sliceWriter) updateCompletedParts(part StreamPart, lastEventIndex int64) {
@@ -666,15 +671,12 @@ func (w *sliceWriter) receiveAndUpload() error {
 
 				continue
 			}
-			// Capture the session end event. Note that we deliberately support more
-			// than necessary by the underlying purpose (session summarization), just
-			// for completeness' sake. The summarizer will only pick up the supported
-			// sessions anyway.
-			if isSessionEndEvent(event.oneof) {
-				sev, ok := summarizer.AnySessionEndEventFromOneOf(event.oneof)
-				if ok {
-					w.sessionEndEvent = sev
-				}
+			// Capture the session end event.
+			switch e := event.oneof.GetEvent().(type) {
+			case *apievents.OneOf_SessionEnd:
+				w.sshSessionEndEvent = e.SessionEnd
+			case *apievents.OneOf_DatabaseSessionEnd:
+				w.dbSessionEndEvent = e.DatabaseSessionEnd
 			}
 			if w.shouldUploadCurrentSlice() {
 				// this logic blocks the EmitAuditEvent in case if the
@@ -685,20 +687,6 @@ func (w *sliceWriter) receiveAndUpload() error {
 			}
 		}
 	}
-}
-
-// isSessionEndEvent checks if the event is one of the event types that
-// indicate end of a session of any kind.
-func isSessionEndEvent(event *apievents.OneOf) bool {
-	switch event.GetEvent().(type) {
-	case *apievents.OneOf_SessionEnd,
-		*apievents.OneOf_DatabaseSessionEnd,
-		*apievents.OneOf_WindowsDesktopSessionEnd,
-		*apievents.OneOf_AppSessionEnd,
-		*apievents.OneOf_MCPSessionEnd:
-		return true
-	}
-	return false
 }
 
 // shouldUploadCurrentSlice returns true when it's time to upload
@@ -818,7 +806,14 @@ func (w *sliceWriter) completeStream() {
 		}
 
 		summarizer := w.proto.cfg.SessionSummarizerProvider.SessionSummarizer()
-		err = summarizer.Summarize(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID, w.sessionEndEvent)
+		switch {
+		case w.sshSessionEndEvent != nil:
+			err = summarizer.SummarizeSSH(w.proto.cancelCtx, w.sshSessionEndEvent)
+		case w.dbSessionEndEvent != nil:
+			err = summarizer.SummarizeDatabase(w.proto.cancelCtx, w.dbSessionEndEvent)
+		default:
+			err = summarizer.SummarizeUnknown(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID)
+		}
 		if err != nil {
 			slog.WarnContext(w.proto.cancelCtx, "Failed to summarize upload", "error", err)
 			return
