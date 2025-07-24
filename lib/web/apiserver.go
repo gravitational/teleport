@@ -895,6 +895,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	// v2 endpoint processes "suggestedLabels" field
 	h.POST("/v2/webapi/token", h.WithAuth(h.createTokenForDiscoveryHandle))
 	h.GET("/webapi/tokens", h.WithAuth(h.getTokens))
+	// used to retrieve a paginated list of tokens. Items can be filtered by roles and bot name.
+	h.GET("/v2/webapi/tokens", h.WithAuth(h.listProvisionTokens))
 	h.DELETE("/webapi/tokens", h.WithAuth(h.deleteToken))
 
 	// install script, the ':token' wildcard is a hack to make the router happy and support
