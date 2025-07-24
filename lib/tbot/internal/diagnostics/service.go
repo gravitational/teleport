@@ -30,23 +30,27 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
+// ServiceBuilder returns a builder for the diagnostics service.
+func ServiceBuilder(cfg Config) bot.ServiceBuilder {
+	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+		return NewService(cfg, deps.StatusRegistry)
+	}
+}
+
 // Config contains configuration for the diagnostics service.
 type Config struct {
-	Address        string
-	PProfEnabled   bool
-	StatusRegistry *readyz.Registry
-	Logger         *slog.Logger
+	Address      string
+	PProfEnabled bool
+	Logger       *slog.Logger
 }
 
 func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.Address == "" {
 		return trace.BadParameter("Address is required")
-	}
-	if cfg.StatusRegistry == nil {
-		return trace.BadParameter("StatusRegistry is required")
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
@@ -55,15 +59,18 @@ func (cfg *Config) CheckAndSetDefaults() error {
 }
 
 // NewService creates a new diagnostics service.
-func NewService(cfg Config) (*Service, error) {
+func NewService(cfg Config, registry *readyz.Registry) (*Service, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if registry == nil {
+		return nil, trace.BadParameter("registry is required")
 	}
 	return &Service{
 		log:            cfg.Logger,
 		diagAddr:       cfg.Address,
 		pprofEnabled:   cfg.PProfEnabled,
-		statusRegistry: cfg.StatusRegistry,
+		statusRegistry: registry,
 	}, nil
 }
 
