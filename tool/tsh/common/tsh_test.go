@@ -83,6 +83,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
@@ -130,8 +131,12 @@ func TestMain(m *testing.M) {
 	modules.SetInsecureTestMode(true)
 
 	utils.InitLoggerForTests()
-	cryptosuites.PrecomputeRSATestKeys(m)
-	os.Exit(m.Run())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cryptosuitestest.PrecomputeRSAKeys(ctx)
+	exitCode := m.Run()
+	cancel()
+	os.Exit(exitCode)
 }
 
 func BenchmarkInit(b *testing.B) {
