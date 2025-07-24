@@ -120,7 +120,9 @@ export function BotDetails() {
       ) : undefined}
 
       {isError ? (
-        <Alert kind="danger">Error: {error.message}</Alert>
+        <Alert kind="danger" details={error.message}>
+          Failed to fetch bot
+        </Alert>
       ) : undefined}
 
       {isSuccess && data === null ? (
@@ -388,7 +390,9 @@ function JoinTokens(props: { botName: string; onViewAllClicked: () => void }) {
         ) : undefined}
 
         {isError && !requiresMfa ? (
-          <Alert kind="danger">Error: {error.message}</Alert>
+          <Alert kind="danger" details={error.message}>
+            Failed to fetch join tokens
+          </Alert>
         ) : undefined}
 
         {isSuccess ? (

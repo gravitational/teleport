@@ -122,7 +122,9 @@ export function InstancesPanel(props: { botName: string }) {
 
       {isError ? (
         <Box p={3}>
-          <Alert kind="danger">Error: {error.message}</Alert>
+          <Alert kind="danger" details={error.message}>
+            Failed to fetch instances
+          </Alert>
         </Box>
       ) : undefined}
 
