@@ -250,7 +250,7 @@ function makeContentForEnabledAutoUpdates(
   getClusterName: (clusterUri: RootClusterUri) => string
 ): {
   description: string;
-  kind: 'neutral';
+  kind: 'neutral' | 'warning';
 } {
   switch (status.source.kind) {
     case 'env-var':
@@ -268,19 +268,30 @@ function makeContentForEnabledAutoUpdates(
         .filter(c => c.toolsAutoUpdate && c.toolsVersion === status.version)
         .map(c => getClusterName(c.clusterUri));
       const { skippedManagingClusterUri } = status.source;
-      const skippedManagingClusterText = skippedManagingClusterUri
-        ? `\nCluster ${getClusterName(skippedManagingClusterUri)} could not be used to manage updates.`
-        : '';
-      if (managingClusters.length === 1) {
-        return {
-          kind: 'neutral',
-          description: `Updates are managed by the ${managingClusters.at(0)} cluster, which requires client version ${status.version}. ${skippedManagingClusterText}`,
-        };
+      if (skippedManagingClusterUri) {
+        const skippedManagingClusterText = skippedManagingClusterUri
+          ? `The chosen cluster ${getClusterName(skippedManagingClusterUri)} could not be used to manage updates`
+          : '';
+        return managingClusters.length === 1
+          ? {
+              kind: 'warning',
+              description: `${skippedManagingClusterText}. Updates will be managed by the ${managingClusters.at(0)} cluster, which requires client version ${status.version}.`,
+            }
+          : {
+              kind: 'warning',
+              description: `${skippedManagingClusterText}. Updates will be managed by the ${managingClusters.map(c => c).join(', ')}, which require client version ${status.version}.`,
+            };
       }
-      return {
-        kind: 'neutral',
-        description: `Updates are managed by the ${managingClusters.map(c => c).join(', ')}, which require client version ${status.version}. ${skippedManagingClusterText}`,
-      };
+
+      return managingClusters.length === 1
+        ? {
+            kind: 'neutral',
+            description: `Updates are managed by the ${managingClusters.at(0)} cluster, which requires client version ${status.version}.`,
+          }
+        : {
+            kind: 'neutral',
+            description: `Updates are managed by the ${managingClusters.map(c => c).join(', ')}, which require client version ${status.version}.`,
+          };
   }
 }
 

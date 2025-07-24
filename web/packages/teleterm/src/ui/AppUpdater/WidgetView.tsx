@@ -188,31 +188,43 @@ function AvailableUpdate(props: {
         isNonTeleportServer) && (
         <Stack gap={0} ml={1}>
           {props.skippedManagingClusterUri && (
-            <Flex gap={1} color="text.slightlyMuted">
-              <Warning size="small" />
-              <P3>
-                Cluster {props.getClusterName(props.skippedManagingClusterUri)}{' '}
-                is not managing updates.
-              </P3>
-            </Flex>
+            <IconAndText
+              Icon={Warning}
+              text={`This update is not managed by the chosen cluster 
+              ${props.getClusterName(props.skippedManagingClusterUri)}. Click
+              More to install the update.`}
+            />
           )}
           {hasUnreachableClusters && (
-            <Flex gap={1} color="text.slightlyMuted">
-              <Warning size="small" />
-              <P3>
-                Unable to retrieve accepted client versions from some clusters.
-              </P3>
-            </Flex>
+            <IconAndText
+              Icon={Warning}
+              text="Unable to retrieve accepted client versions from some clusters."
+            />
           )}
           {isNonTeleportServer && (
-            <Flex gap={1} color="text.slightlyMuted">
-              <Info size="small" />
-              <P3>Using {props.downloadHost} as the update server.</P3>
-            </Flex>
+            <IconAndText
+              Icon={Info}
+              text={`Using ${props.downloadHost} as the update server.`}
+            />
           )}
         </Stack>
       )}
     </Stack>
+  );
+}
+
+function IconAndText(props: { Icon: ComponentType<IconProps>; text: string }) {
+  return (
+    <Flex gap={1} color="text.slightlyMuted">
+      <props.Icon size="small" />
+      <P3
+        css={`
+          line-height: normal;
+        `}
+      >
+        {props.text}
+      </P3>
+    </Flex>
   );
 }
 
@@ -242,12 +254,18 @@ function makeUpdaterContent({
           description: 'Update available. Starting download…',
         };
       }
+
+      const skippedManagingClusterUri =
+        updateEvent.autoUpdatesStatus.source.kind === 'most-compatible' &&
+        updateEvent.autoUpdatesStatus.source.skippedManagingClusterUri;
       return {
         description: 'Update available',
-        button: {
-          name: 'Download',
-          action: onDownload,
-        },
+        button: skippedManagingClusterUri
+          ? undefined
+          : {
+              name: 'Download',
+              action: onDownload,
+            },
       };
     case 'update-downloaded':
       return {
