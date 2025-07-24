@@ -823,7 +823,7 @@ type OIDCAuthRequestClaims struct {
 	OptionalParameters map[string]any `mapstructure:"-,remain"`
 }
 
-// Check validates that required parameters are set
+// Check validates that required parameters are set.
 func (o *OIDCAuthRequestClaims) Check() error {
 	if o.ClientID == "" {
 		return trace.BadParameter("client id missing")
@@ -896,7 +896,7 @@ func (k *Key) SignOIDCAuthRequest(authRequest OIDCAuthRequestClaims) (string, er
 }
 
 // VerifyOIDCAuthRequestToken parses and validates a JWT that is to be interpreted as
-// a JWT-Secured Authorization Request (JAR) object
+// a JWT-Secured Authorization Request (JAR) object.
 func (k *Key) VerifyOIDCAuthRequestToken(rawToken string) (OIDCAuthRequestClaims, error) {
 	claims, err := k.verifyOnly(rawToken)
 	if err != nil {
