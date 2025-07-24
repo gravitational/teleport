@@ -51,6 +51,11 @@ export type CommonProps<Opt, IsMulti extends boolean> = {
   value?: OnChangeValue<Opt, IsMulti>;
   /** Ref to the wrapper element. */
   ref?: Ref<HTMLDivElement>;
+  /**
+   * Like "disabled" field plus hides controls
+   * and does not mute values.
+   */
+  readOnly?: boolean;
 };
 
 export type Props<
