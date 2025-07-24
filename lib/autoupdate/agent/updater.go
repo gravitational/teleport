@@ -440,7 +440,7 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) (err err
 		defer func() {
 			if err != nil {
 				if err := os.Remove(u.UpdateConfigFile); err != nil {
-					u.Log.WarnContext(ctx, "Failed to remove stale configuration.", "path", u.UpdateConfigFile)
+					u.Log.ErrorContext(ctx, "Failed to remove invalid partial configuration.", "path", u.UpdateConfigFile, errorKey, err)
 				}
 			}
 		}()
