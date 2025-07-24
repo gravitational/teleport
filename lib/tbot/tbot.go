@@ -21,10 +21,7 @@ package tbot
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
-	"net"
-	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -33,11 +30,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/singleflight"
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
@@ -46,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -53,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal/carotation"
 	"github.com/gravitational/teleport/lib/tbot/internal/diagnostics"
 	"github.com/gravitational/teleport/lib/tbot/internal/heartbeat"
+	internalidentity "github.com/gravitational/teleport/lib/tbot/internal/identity"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -97,7 +94,7 @@ type Bot struct {
 
 	mu             sync.Mutex
 	started        bool
-	botIdentitySvc *identityService
+	botIdentitySvc *internalidentity.Service
 }
 
 func New(cfg *config.BotConfig, log *slog.Logger) *Bot {
@@ -182,10 +179,10 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		return trace.Wrap(err)
 	}
 
-	addr, addrKind := b.cfg.Address()
+	connCfg := b.cfg.ConnectionConfig()
 	var resolver reversetunnelclient.Resolver
-	if shouldUseProxyAddr() {
-		if addrKind != config.AddressKindProxy {
+	if connCfg.StaticProxyAddress {
+		if connCfg.AddressKind != connection.AddressKindProxy {
 			return trace.BadParameter("TBOT_USE_PROXY_ADDR requires that a proxy address is set using --proxy-server or proxy_server")
 		}
 		// If the user has indicated they want tbot to prefer using the proxy
@@ -194,15 +191,15 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		// enabled, since otherwise we'd need them to manually configure an
 		// an entry for each kind of address.
 		resolver = reversetunnelclient.StaticResolver(
-			addr, types.ProxyListenerMode_Multiplex,
+			connCfg.Address, types.ProxyListenerMode_Multiplex,
 		)
 	} else {
 		resolver, err = reversetunnelclient.CachingResolver(
 			ctx,
 			reversetunnelclient.WebClientResolver(&webclient.Config{
 				Context:   ctx,
-				ProxyAddr: addr,
-				Insecure:  b.cfg.Insecure,
+				ProxyAddr: connCfg.Address,
+				Insecure:  connCfg.Insecure,
 			}),
 			nil /* clock */)
 		if err != nil {
@@ -210,20 +207,14 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		}
 	}
 
-	addr, kind := b.cfg.Address()
 	clientBuilder, err := client.NewBuilder(client.BuilderConfig{
-		Address: client.Address{
-			Addr: addr,
-			Kind: kind,
-		},
-		AuthServerAddressMode: b.cfg.AuthServerAddressMode,
-		Resolver:              resolver,
+		Connection: b.cfg.ConnectionConfig(),
+		Resolver:   resolver,
 		Logger: b.log.With(
 			teleport.ComponentKey,
 			teleport.Component(componentTBot, "client"),
 		),
-		Insecure: b.cfg.Insecure,
-		Metrics:  clientMetrics,
+		Metrics: clientMetrics,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -255,16 +246,30 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 
 	statusRegistry := readyz.NewRegistry()
 
-	b.mu.Lock()
-	b.botIdentitySvc = &identityService{
-		cfg:               b.cfg,
-		reloadBroadcaster: reloadBroadcaster,
-		clientBuilder:     clientBuilder,
-		log: b.log.With(
-			teleport.ComponentKey, teleport.Component(componentTBot, "identity"),
+	identityReloadCh, unsubscribeIdentityReload := reloadBroadcaster.Subscribe()
+	defer unsubscribeIdentityReload()
+
+	idSvc, err := internalidentity.NewService(internalidentity.Config{
+		Connection:      connCfg,
+		Onboarding:      b.cfg.Onboarding,
+		Destination:     b.cfg.Storage.Destination,
+		TTL:             b.cfg.CredentialLifetime.TTL,
+		RenewalInterval: b.cfg.CredentialLifetime.RenewalInterval,
+		FIPS:            b.cfg.FIPS,
+		ReloadCh:        identityReloadCh,
+		ClientBuilder:   clientBuilder,
+		Logger: b.log.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, "identity"),
 		),
-		statusReporter: statusRegistry.AddService("identity"),
+		StatusReporter: statusRegistry.AddService("identity"),
+	})
+	if err != nil {
+		return trace.Wrap(err)
 	}
+
+	b.mu.Lock()
+	b.botIdentitySvc = idSvc
 	b.mu.Unlock()
 
 	// Initialize bot's own identity. This will load from disk, or fetch a new
@@ -288,19 +293,19 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		return trace.Wrap(err)
 	}
 
-	authPingCache := &authPingCache{
-		client: b.botIdentitySvc.GetClient(),
-		log:    b.log,
+	proxyPinger, err := internal.NewCachingProxyPinger(internal.CachingProxyPingerConfig{
+		Connection: connCfg,
+		Client:     b.botIdentitySvc.GetClient(),
+		Logger: b.log.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, "proxy-pinger"),
+		),
+	})
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	proxyPingCache := &proxyPingCache{
-		authPingCache: authPingCache,
-		botCfg:        b.cfg,
-		log:           b.log,
-	}
-	alpnUpgradeCache := &alpnProxyConnUpgradeRequiredCache{
-		botCfg: b.cfg,
-		log:    b.log,
-	}
+
+	alpnUpgradeCache := internal.NewALPNUpgradeCache(b.log)
 
 	// Setup all other services
 	if b.cfg.DiagAddr != "" {
@@ -446,7 +451,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			svc := &DatabaseTunnelService{
 				getBotIdentity:     b.botIdentitySvc.GetIdentity,
 				botIdentityReadyCh: b.botIdentitySvc.Ready(),
-				proxyPingCache:     proxyPingCache,
+				proxyPinger:        proxyPinger,
 				botClient:          b.botIdentitySvc.GetClient(),
 				botCfg:             b.cfg,
 				cfg:                svcCfg,
@@ -470,7 +475,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				botCfg:             b.cfg,
 				cfg:                svcCfg,
 				getBotIdentity:     b.botIdentitySvc.GetIdentity,
-				proxyPingCache:     proxyPingCache,
+				proxyPinger:        proxyPinger,
 				reloadBroadcaster:  reloadBroadcaster,
 				identityGenerator:  identityGenerator,
 				clientBuilder:      clientBuilder,
@@ -487,7 +492,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				botCfg:             b.cfg,
 				cfg:                svcCfg,
 				getBotIdentity:     b.botIdentitySvc.GetIdentity,
-				proxyPingCache:     proxyPingCache,
+				proxyPinger:        proxyPinger,
 				reloadBroadcaster:  reloadBroadcaster,
 				executablePath:     autoupdate.StableExecutable,
 				identityGenerator:  identityGenerator,
@@ -505,7 +510,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				botCfg:             b.cfg,
 				cfg:                svcCfg,
 				getBotIdentity:     b.botIdentitySvc.GetIdentity,
-				proxyPingCache:     proxyPingCache,
+				proxyPinger:        proxyPinger,
 				reloadBroadcaster:  reloadBroadcaster,
 				executablePath:     autoupdate.StableExecutable,
 				identityGenerator:  identityGenerator,
@@ -599,7 +604,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				reloadBroadcaster:  reloadBroadcaster,
 				executablePath:     autoupdate.StableExecutable,
 				alpnUpgradeCache:   alpnUpgradeCache,
-				proxyPingCache:     proxyPingCache,
+				proxyPinger:        proxyPinger,
 				identityGenerator:  identityGenerator,
 				clientBuilder:      clientBuilder,
 			}
@@ -627,7 +632,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			svc := &ApplicationTunnelService{
 				getBotIdentity:     b.botIdentitySvc.GetIdentity,
 				botIdentityReadyCh: b.botIdentitySvc.Ready(),
-				proxyPingCache:     proxyPingCache,
+				proxyPinger:        proxyPinger,
 				botClient:          b.botIdentitySvc.GetClient(),
 				botCfg:             b.cfg,
 				cfg:                svcCfg,
@@ -812,9 +817,9 @@ func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 		}
 	}
 
-	_, addrKind := b.cfg.Address()
-	switch addrKind {
-	case config.AddressKindUnspecified:
+	connCfg := b.cfg.ConnectionConfig()
+	switch connCfg.AddressKind {
+	case connection.AddressKindUnspecified:
 		return nil, trace.BadParameter(
 			"either a proxy or auth address must be set using --proxy-server, --auth-server or configuration",
 		)
@@ -891,194 +896,6 @@ func checkDestinations(ctx context.Context, cfg *config.BotConfig) error {
 	}
 
 	return nil
-}
-
-type authPingCache struct {
-	client *apiclient.Client
-	log    *slog.Logger
-
-	mu          sync.RWMutex
-	cachedValue *proto.PingResponse
-}
-
-func (a *authPingCache) ping(ctx context.Context) (proto.PingResponse, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.cachedValue != nil {
-		return *a.cachedValue, nil
-	}
-
-	a.log.DebugContext(ctx, "Pinging auth server.")
-	res, err := a.client.Ping(ctx)
-	if err != nil {
-		a.log.ErrorContext(ctx, "Failed to ping auth server.", "error", err)
-		return proto.PingResponse{}, trace.Wrap(err)
-	}
-	a.cachedValue = &res
-	a.log.DebugContext(ctx, "Successfully pinged auth server.", "pong", res)
-
-	return *a.cachedValue, nil
-}
-
-type proxyPingCache struct {
-	authPingCache *authPingCache
-	botCfg        *config.BotConfig
-	log           *slog.Logger
-
-	mu          sync.RWMutex
-	cachedValue *proxyPingResponse
-}
-
-func (p *proxyPingCache) ping(ctx context.Context) (*proxyPingResponse, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.cachedValue != nil {
-		return p.cachedValue, nil
-	}
-
-	// Determine the Proxy address to use.
-	addr, addrKind := p.botCfg.Address()
-	switch addrKind {
-	case config.AddressKindAuth:
-		// If the address is an auth address, ping auth to determine proxy addr.
-		authPong, err := p.authPingCache.ping(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		addr = authPong.ProxyPublicAddr
-	case config.AddressKindProxy:
-		// If the address is a proxy address, use it directly.
-	default:
-		return nil, trace.BadParameter("unsupported address kind: %v", addrKind)
-	}
-
-	p.log.DebugContext(ctx, "Pinging proxy.", "addr", addr)
-	res, err := webclient.Find(&webclient.Config{
-		Context:   ctx,
-		ProxyAddr: addr,
-		Insecure:  p.botCfg.Insecure,
-	})
-	if err != nil {
-		p.log.ErrorContext(ctx, "Failed to ping proxy.", "error", err)
-		return nil, trace.Wrap(err)
-	}
-	p.log.DebugContext(ctx, "Successfully pinged proxy.", "pong", res)
-	p.cachedValue = &proxyPingResponse{
-		PingResponse:        res,
-		configuredProxyAddr: p.botCfg.ProxyServer,
-	}
-
-	return p.cachedValue, nil
-}
-
-type proxyPingResponse struct {
-	*webclient.PingResponse
-	configuredProxyAddr string
-}
-
-// useProxyAddrEnv is an environment variable which can be set to
-// force `tbot` to prefer using the proxy address explicitly provided by the
-// user over the one fetched from the proxy ping. This is only intended to work
-// in cases where TLS routing is enabled, and is intended to support cases where
-// the Proxy is accessible from multiple addresses, and the one included in the
-// ProxyPing is incorrect.
-const useProxyAddrEnv = "TBOT_USE_PROXY_ADDR"
-
-// shouldUseProxyAddr returns true if the TBOT_USE_PROXY_ADDR environment
-// variable is set to "yes". More generally, this indicates that the user wishes
-// for tbot to prefer using the proxy address that has been explicitly provided
-// by the user rather than the one fetched via a discovery process (e.g ping).
-func shouldUseProxyAddr() bool {
-	return os.Getenv(useProxyAddrEnv) == "yes"
-}
-
-// proxyWebAddr returns the address to use to connect to the proxy web port.
-// In TLS routing mode, this address should be used for most/all connections.
-// This function takes into account the TBOT_USE_PROXY_ADDR environment
-// variable, which can be used to force the use of the proxy address explicitly
-// provided by the user rather than use the one fetched from the proxy ping.
-func (p *proxyPingResponse) proxyWebAddr() (string, error) {
-	if shouldUseProxyAddr() {
-		if p.configuredProxyAddr == "" {
-			return "", trace.BadParameter("TBOT_USE_PROXY_ADDR set but no explicit proxy address configured")
-		}
-		return p.configuredProxyAddr, nil
-	}
-	return p.Proxy.SSH.PublicAddr, nil
-}
-
-// proxySSHAddr returns the address to use to connect to the proxy SSH service.
-// Includes potential override via TBOT_USE_PROXY_ADDR.
-func (p *proxyPingResponse) proxySSHAddr() (string, error) {
-	if p.Proxy.TLSRoutingEnabled && shouldUseProxyAddr() {
-		// If using TLS routing, we should use the manually overridden address
-		// for the proxy web port.
-		if p.configuredProxyAddr == "" {
-			return "", trace.BadParameter("TBOT_USE_PROXY_ADDR set but no explicit proxy address configured")
-		}
-		return p.configuredProxyAddr, nil
-	}
-	// SSHProxyHostPort returns the host and port to use to connect to the
-	// proxy's SSH service. If TLS routing is enabled, this will return the
-	// proxy's web address, if not, the proxy SSH listener.
-	host, port, err := p.Proxy.SSHProxyHostPort()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return net.JoinHostPort(host, port), nil
-}
-
-type alpnProxyConnUpgradeRequiredCache struct {
-	botCfg *config.BotConfig
-	log    *slog.Logger
-
-	mu    sync.Mutex
-	cache map[string]bool
-	group singleflight.Group
-}
-
-func (a *alpnProxyConnUpgradeRequiredCache) isUpgradeRequired(ctx context.Context, addr string, insecure bool) (bool, error) {
-	key := fmt.Sprintf("%s-%t", addr, insecure)
-
-	a.mu.Lock()
-	if a.cache == nil {
-		a.cache = make(map[string]bool)
-	}
-	v, ok := a.cache[key]
-	if ok {
-		a.mu.Unlock()
-		return v, nil
-	}
-	a.mu.Unlock()
-
-	val, err, _ := a.group.Do(key, func() (interface{}, error) {
-		// Recheck the cache in case we've just missed a previous group
-		// completing
-		a.mu.Lock()
-		v, ok := a.cache[key]
-		if ok {
-			a.mu.Unlock()
-			return v, nil
-		}
-		a.mu.Unlock()
-
-		// Ok, now we know for sure that the work hasn't already been done or
-		// isn't in flight, we can complete it.
-		a.log.DebugContext(ctx, "Testing ALPN upgrade necessary", "addr", addr, "insecure", insecure)
-		v = apiclient.IsALPNConnUpgradeRequired(ctx, addr, insecure)
-		a.log.DebugContext(ctx, "Tested ALPN upgrade necessary", "addr", addr, "insecure", insecure, "result", v)
-		if err := ctx.Err(); err != nil {
-			// Check for case where false is returned because client canceled ctx.
-			// We don't want to cache this result.
-			return v, trace.Wrap(err)
-		}
-
-		a.mu.Lock()
-		a.cache[key] = v
-		a.mu.Unlock()
-		return v, nil
-	})
-	return val.(bool), err
 }
 
 func versionLogValue() slog.Value {
