@@ -1,4 +1,4 @@
-.version: &version "18.1.0-dev.hugocanary.0"
+.version: &version "18.1.0-dev.hugocanary.1"
 
 name: teleport-cluster
 apiVersion: v2
