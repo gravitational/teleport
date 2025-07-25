@@ -400,7 +400,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			clusterName, err := auth.GetClusterName(auth.CloseContext())
+			clusterName, err := auth.authServer.GetClusterName(auth.CloseContext())
 			if err != nil {
 				return trace.Wrap(err)
 			}
