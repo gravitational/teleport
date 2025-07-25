@@ -112,20 +112,16 @@ export function InstancesPanel(props: { botName: string }) {
       ) : undefined}
 
       {!hasListPermission ? (
-        <Box p={3}>
-          <Alert kind="info">
-            You do not have permission to view bot instances. Missing role
-            permissions: <code>botInstances.list</code>
-          </Alert>
-        </Box>
+        <Alert m={3} kind="info">
+          You do not have permission to view bot instances. Missing role
+          permissions: <code>botInstances.list</code>
+        </Alert>
       ) : undefined}
 
       {isError ? (
-        <Box p={3}>
-          <Alert kind="danger" details={error.message}>
-            Failed to fetch instances
-          </Alert>
-        </Box>
+        <Alert m={3} kind="danger" details={error.message}>
+          Failed to fetch instances
+        </Alert>
       ) : undefined}
 
       {isSuccess ? (
