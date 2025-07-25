@@ -236,3 +236,9 @@ export type WebsocketStatus = {
   status: string;
   message?: string;
 };
+
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonArray = JsonPrimitive[];
+export type JsonObject = {
+  [key: string]: JsonPrimitive | JsonArray | JsonObject;
+};

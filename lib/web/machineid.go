@@ -220,6 +220,7 @@ func (h *Handler) getBot(w http.ResponseWriter, r *http.Request, p httprouter.Pa
 
 // updateBot updates a bot with provided roles. The only supported change via this endpoint today is roles.
 // TODO(nicholasmarais1158) DELETE IN v20.0.0 - replaced by updateBotV2
+// MUST delete with related code found in `web/packages/teleport/src/services/bot/bot.ts`
 func (h *Handler) updateBot(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	var request updateBotRequest
 	if err := httplib.ReadResourceJSON(r, &request); err != nil {
