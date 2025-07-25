@@ -74,6 +74,13 @@ type AWSRolesAnywhereProfileSyncerParams struct {
 	// Default is 5 minutes.
 	SyncPollInterval time.Duration
 
+	// AccessListManager is used to manage access lists for the AWS Roles Anywhere Profiles.
+	// It also manages the Roles which are used as templates for the access lists.
+	AccessListManager AccessListManager
+	// AccessListsEnabled indicates whether Access Lists are enabled in the cluster.
+	// If true, the syncer will create access lists for the AWS Roles Anywhere Profiles.
+	AccessListsEnabled bool
+
 	// subjectName is the name of the subject to use when generating AWS credentials.
 	subjectName string
 
@@ -120,6 +127,10 @@ func (p *AWSRolesAnywhereProfileSyncerParams) checkAndSetDefaults() error {
 
 	if p.Cache == nil {
 		return trace.BadParameter("cache client is required")
+	}
+
+	if p.AccessListManager == nil {
+		return trace.BadParameter("access list manager is required")
 	}
 
 	if p.StatusReporter == nil {
@@ -171,6 +182,8 @@ type AppServerUpserter interface {
 // AppServer name can be overridden by the `TeleportApplicationName` tag on the Profile.
 //
 // This function will run the AWS Roles Anywhere Profile Syncer while holding a lock to ensure it doesn't race on multiple auth instances.
+//
+// If the cluster has Access Lists enabled, it will also create an access list for each profile.
 func RunAWSRolesAnywhereProfileSyncerWhileLocked(ctx context.Context, params AWSRolesAnywhereProfileSyncerParams) error {
 	if err := params.checkAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -230,6 +243,9 @@ func profileSyncIteration(ctx context.Context, params AWSRolesAnywhereProfileSyn
 	}
 
 	if len(integrations) == 0 {
+		if err := removeOutdatedAccessLists(ctx, params.AccessListManager, nil); err != nil {
+			params.Logger.WarnContext(ctx, "failed to reconcile Access Lists for AWS IAM Roles Anywhere integration", "error", err)
+		}
 		return nil
 	}
 
@@ -243,6 +259,7 @@ func profileSyncIteration(ctx context.Context, params AWSRolesAnywhereProfileSyn
 		return trace.Wrap(err)
 	}
 
+	var syncedProfileARNs []string
 	for _, integration := range integrations {
 		syncSummary := syncProfileForIntegration(ctx, params, integration, proxyPublicAddr)
 		if syncSummary.setupError != nil {
@@ -256,6 +273,10 @@ func profileSyncIteration(ctx context.Context, params AWSRolesAnywhereProfileSyn
 		if _, err := params.StatusReporter.UpdateIntegration(ctx, integration); err != nil {
 			params.Logger.ErrorContext(ctx, "failed to update integration status", "integration", integration.GetName(), "error", err)
 		}
+	}
+
+	if err := removeOutdatedAccessLists(ctx, params.AccessListManager, syncedProfileARNs); err != nil {
+		params.Logger.WarnContext(ctx, "failed to reconcile Access Lists for AWS IAM Roles Anywhere integration", "error", err)
 	}
 
 	return nil
@@ -278,7 +299,7 @@ func updateIntegrationStatus(integration types.Integration, syncSummary *syncSum
 				StartTime:      syncSummary.startTime,
 				EndTime:        syncSummary.endTime,
 				Status:         status,
-				SyncedProfiles: int32(syncSummary.syncedProfiles),
+				SyncedProfiles: int32(len(syncSummary.syncedProfileARNs)),
 				ErrorMessage:   truncateErrorMessage(syncError),
 			},
 		},
@@ -403,8 +424,8 @@ type syncSummary struct {
 	// - failure to list IAM Roles Anywhere Profiles (eg, IAM Role has an invalid policy)
 	setupError error
 
-	// syncedProfiles is the number of profiles that were successfully synced.
-	syncedProfiles int
+	// syncedProfileARNs is a list of Profile ARNs were successfully synced.
+	syncedProfileARNs []string
 
 	// Profile errors are errors that occurred while processing individual profiles.
 	// Examples:
@@ -464,8 +485,7 @@ func syncProfileForIntegration(ctx context.Context, params AWSRolesAnywhereProfi
 				ret.profileErrors = append(ret.profileErrors, err)
 				continue
 			}
-
-			ret.syncedProfiles++
+			ret.syncedProfileARNs = append(ret.syncedProfileARNs, profile.Arn)
 		}
 
 		if aws.ToString(respNextToken) == "" {
@@ -510,7 +530,21 @@ func processProfile(ctx context.Context, req processProfileRequest) error {
 		return trace.BadParameter("failed to upsert application server from Profile: %v", err)
 	}
 
+	if err := createAccessListForProfile(ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
+}
+
+func applicationNameFromProfile(profile *integrationv1.RolesAnywhereProfile, integrationName string) string {
+	for tagKey, tagValue := range profile.Tags {
+		if tagKey == types.AWSRolesAnywhereProfileNameOverrideLabel {
+			return tagValue
+		}
+	}
+
+	return profile.Name + "-" + integrationName
 }
 
 func convertProfile(params AWSRolesAnywhereProfileSyncerParams, profile *integrationv1.RolesAnywhereProfile, integrationName string, proxyPublicAddr string) (types.AppServer, error) {
@@ -519,15 +553,11 @@ func convertProfile(params AWSRolesAnywhereProfileSyncerParams, profile *integra
 		return nil, trace.Wrap(err)
 	}
 
-	applicationName := profile.Name + "-" + integrationName
+	applicationName := applicationNameFromProfile(profile, integrationName)
 
 	labels := make(map[string]string, len(profile.Tags))
 	for tagKey, tagValue := range profile.Tags {
 		labels["aws/"+tagKey] = tagValue
-
-		if tagKey == types.AWSRolesAnywhereProfileNameOverrideLabel {
-			applicationName = tagValue
-		}
 	}
 
 	appURL := utils.DefaultAppPublicAddr(strings.ToLower(applicationName), proxyPublicAddr)
