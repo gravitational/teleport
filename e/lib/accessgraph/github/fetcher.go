@@ -275,20 +275,12 @@ func (f *fetcher) fetchTokens(ctx context.Context, res *pollResults, tokenOwners
 		}
 
 		for _, token := range tokens {
-			permissions := f.extractTokenPermissions(token)
 			owner := token.GetOwner().GetLogin()
 			if owner != "" {
 				tokenOwners[owner] = struct{}{}
 			}
-
-			res.tokens = append(res.tokens, &accessgraphv1alpha.GithubTokenV1{
-				Id:           token.GetID(),
-				Name:         token.GetTokenName(),
-				Owner:        owner,
-				Expires:      timestamppb.New(token.TokenExpiresAt.Time),
-				Permissions:  permissions,
-				Organization: f.organizationName,
-			})
+			token := convertTokenToProto(f.organizationName, token)
+			res.tokens = append(res.tokens, token)
 		}
 
 		if resp.NextPage == 0 {
@@ -297,6 +289,24 @@ func (f *fetcher) fetchTokens(ctx context.Context, res *pollResults, tokenOwners
 		opts.Page = resp.NextPage
 	}
 	return nil
+}
+
+func convertTokenToProto(orgName string, token *github.PersonalAccessToken) *accessgraphv1alpha.GithubTokenV1 {
+	permissions := extractTokenPermissions(token)
+	owner := token.GetOwner().GetLogin()
+
+	var expires *timestamppb.Timestamp
+	if token.TokenExpiresAt != nil {
+		expires = timestamppb.New(token.TokenExpiresAt.Time)
+	}
+	return &accessgraphv1alpha.GithubTokenV1{
+		Id:           token.GetID(),
+		Name:         token.GetTokenName(),
+		Owner:        owner,
+		Expires:      expires,
+		Permissions:  permissions,
+		Organization: orgName,
+	}
 }
 
 func (f *fetcher) fetchAdmins(ctx context.Context, res *pollResults, tokenOwners map[string]struct{}) error {
@@ -397,8 +407,11 @@ func (f *fetcher) fetchRepositories(ctx context.Context, res *pollResults) error
 	return nil
 }
 
-func (f *fetcher) extractTokenPermissions(token *github.PersonalAccessToken) []*accessgraphv1alpha.GithubTokenV1Permission {
+func extractTokenPermissions(token *github.PersonalAccessToken) []*accessgraphv1alpha.GithubTokenV1Permission {
 	var permissions []*accessgraphv1alpha.GithubTokenV1Permission
+	if token.Permissions == nil {
+		return permissions
+	}
 	for domain, perms := range map[string]map[string]string{
 		"org":   token.Permissions.Org,
 		"repo":  token.Permissions.Repo,
