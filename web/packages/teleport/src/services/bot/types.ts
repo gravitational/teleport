@@ -125,5 +125,9 @@ export enum BotUiFlow {
 }
 export type EditBotRequest = {
   // roles is the list of roles to assign to the bot
-  roles: string[];
+  roles?: string[] | null;
+  // traits is the list of traits to assign to the bot
+  traits?: ApiBotTrait[] | null;
+  // max_session_ttl is the maximum session TTL
+  max_session_ttl?: string | null;
 };
