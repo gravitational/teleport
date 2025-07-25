@@ -87,9 +87,9 @@ func (g *gcpAlloyDBAdminClient) GenerateClientCertificate(ctx context.Context, d
 			
 	   %v
 
-	 Make sure Teleport database agent's IAM user has the 'alloydb.clusters.generateClientCertificate' permission, 
-	 for example by granting it the 'Cloud AlloyDB Database User' role.
-
+	 Make sure Teleport database agent's IAM user has the 'alloydb.clusters.generateClientCertificate' permission.
+	 Create a custom role with this permission or use the predefined 'Cloud AlloyDB Database User' role.  
+	 
 	 Note that IAM changes may take a few minutes to propagate.
 	 `, err)
 		}

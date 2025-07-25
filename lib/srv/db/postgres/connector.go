@@ -212,7 +212,12 @@ func (c *connector) getConnectConfig(ctx context.Context) (*pgconn.Config, error
 			
 	   %v
 
-	 Make sure that AlloyDB user %q exists and has the following roles:
+	 Make sure that AlloyDB user %q exists and has the following permissions:
+	 - alloydb.instances.connect
+	 - alloydb.users.login
+	 - serviceusage.services.use
+
+     You can create a custom role with these permissions, or grant the following roles:
 	 - Cloud AlloyDB Database User
 	 - Cloud AlloyDB Client
 	 - Service Usage Consumer
