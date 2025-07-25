@@ -4454,7 +4454,10 @@ func (a *ServerWithRoles) GetRoles(ctx context.Context) ([]types.Role, error) {
 
 // ListRoles is a paginated role getter.
 func (a *ServerWithRoles) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
-	// If RequestableOnly flag is set, we use a separate logic path.
+	// If RequestableOnly flag is set, we use a separate logic path. This logic path does not require any RBAC permissions for
+	// listing role resources, so we don't check them. This is because when we list requestable roles, we are just aggregating the
+	// roles listed by name in the user's RBAC's allow.request.roles, as opposed to fetching role resources from the backend, which
+	// would require list/read permissions for `types.KindRole` resources.
 	if req.Filter != nil && req.Filter.RequestableOnly {
 		return a.listRequestableRoles(ctx, req)
 	}
