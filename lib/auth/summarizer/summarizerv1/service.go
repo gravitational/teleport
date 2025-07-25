@@ -24,15 +24,15 @@ import (
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 )
 
-// NewResourcesService creates a new OSS version of the SummarizerService. It
+// NewService creates a new OSS version of the SummarizerService. It
 // returns a licensing error from every RPC.
-func NewResourcesService() *UnimplementedResourcesService {
-	return &UnimplementedResourcesService{}
+func NewService() *UnimplementedService {
+	return &UnimplementedService{}
 }
 
-// UnimplementedResourcesService is an OSS version of the
-// UnimplementedResourcesService. It returns a licensing error from every RPC.
-type UnimplementedResourcesService struct {
+// UnimplementedService is an OSS version of the UnimplementedService. It
+// returns a licensing error from every RPC.
+type UnimplementedService struct {
 	summarizerv1pb.UnimplementedSummarizerServiceServer
 }
 
@@ -41,7 +41,7 @@ type UnimplementedResourcesService struct {
 // CreateInferenceModel is supposed to create a new inference model, but
 // returns an error indicating that this feature is only available in the
 // enterprise version of Teleport.
-func (s *UnimplementedResourcesService) CreateInferenceModel(
+func (s *UnimplementedService) CreateInferenceModel(
 	ctx context.Context, req *summarizerv1pb.CreateInferenceModelRequest,
 ) (*summarizerv1pb.CreateInferenceModelResponse, error) {
 	return nil, requireEnterprise()
@@ -50,7 +50,7 @@ func (s *UnimplementedResourcesService) CreateInferenceModel(
 // GetInferenceModel is supposed to retrieve an inference model by name, but
 // returns an error indicating that this feature is only available in the
 // enterprise version of Teleport.
-func (s *UnimplementedResourcesService) GetInferenceModel(
+func (s *UnimplementedService) GetInferenceModel(
 	ctx context.Context, req *summarizerv1pb.GetInferenceModelRequest,
 ) (*summarizerv1pb.GetInferenceModelResponse, error) {
 	return nil, requireEnterprise()
@@ -59,7 +59,7 @@ func (s *UnimplementedResourcesService) GetInferenceModel(
 // UpdateInferenceModel is supposed to update an existing inference model, but
 // returns an error indicating that this feature is only available in the
 // enterprise version of Teleport.
-func (s *UnimplementedResourcesService) UpdateInferenceModel(
+func (s *UnimplementedService) UpdateInferenceModel(
 	ctx context.Context, req *summarizerv1pb.UpdateInferenceModelRequest,
 ) (*summarizerv1pb.UpdateInferenceModelResponse, error) {
 	return nil, requireEnterprise()
@@ -68,7 +68,7 @@ func (s *UnimplementedResourcesService) UpdateInferenceModel(
 // UpsertInferenceModel is supposed to create or update an inference model, but
 // returns an error indicating that this feature is only available in the
 // enterprise version of Teleport.
-func (s *UnimplementedResourcesService) UpsertInferenceModel(
+func (s *UnimplementedService) UpsertInferenceModel(
 	ctx context.Context, req *summarizerv1pb.UpsertInferenceModelRequest,
 ) (*summarizerv1pb.UpsertInferenceModelResponse, error) {
 	return nil, requireEnterprise()
@@ -77,7 +77,7 @@ func (s *UnimplementedResourcesService) UpsertInferenceModel(
 // DeleteInferenceModel is supposed to delete an inference model by name, but
 // returns an error indicating that this feature is only available in the
 // enterprise version of Teleport.
-func (s *UnimplementedResourcesService) DeleteInferenceModel(
+func (s *UnimplementedService) DeleteInferenceModel(
 	ctx context.Context, req *summarizerv1pb.DeleteInferenceModelRequest,
 ) (*summarizerv1pb.DeleteInferenceModelResponse, error) {
 	return nil, requireEnterprise()
@@ -86,7 +86,7 @@ func (s *UnimplementedResourcesService) DeleteInferenceModel(
 // ListInferenceModels is supposed to list inference models with pagination
 // support, but returns an error indicating that this feature is only available
 // in the enterprise version of Teleport.
-func (s *UnimplementedResourcesService) ListInferenceModels(
+func (s *UnimplementedService) ListInferenceModels(
 	ctx context.Context, req *summarizerv1pb.ListInferenceModelsRequest,
 ) (*summarizerv1pb.ListInferenceModelsResponse, error) {
 	return nil, requireEnterprise()
@@ -97,7 +97,7 @@ func (s *UnimplementedResourcesService) ListInferenceModels(
 // CreateInferenceSecret is supposed to create a new inference secret, but
 // returns an error indicating that this feature is only available in the
 // enterprise version of Teleport.
-func (s *UnimplementedResourcesService) CreateInferenceSecret(
+func (s *UnimplementedService) CreateInferenceSecret(
 	ctx context.Context, req *summarizerv1pb.CreateInferenceSecretRequest,
 ) (*summarizerv1pb.CreateInferenceSecretResponse, error) {
 	return nil, requireEnterprise()
@@ -106,7 +106,7 @@ func (s *UnimplementedResourcesService) CreateInferenceSecret(
 // GetInferenceSecret is supposed to retrieve an inference secret by name, but
 // returns an error indicating that this feature is only available in the
 // enterprise version of Teleport.
-func (s *UnimplementedResourcesService) GetInferenceSecret(
+func (s *UnimplementedService) GetInferenceSecret(
 	ctx context.Context, req *summarizerv1pb.GetInferenceSecretRequest,
 ) (*summarizerv1pb.GetInferenceSecretResponse, error) {
 	return nil, requireEnterprise()
@@ -115,7 +115,7 @@ func (s *UnimplementedResourcesService) GetInferenceSecret(
 // UpdateInferenceSecret is supposed to update an existing inference secret,
 // but returns an error indicating that this feature is only available in the
 // enterprise version of Teleport.
-func (s *UnimplementedResourcesService) UpdateInferenceSecret(
+func (s *UnimplementedService) UpdateInferenceSecret(
 	ctx context.Context, req *summarizerv1pb.UpdateInferenceSecretRequest,
 ) (*summarizerv1pb.UpdateInferenceSecretResponse, error) {
 	return nil, requireEnterprise()
@@ -124,7 +124,7 @@ func (s *UnimplementedResourcesService) UpdateInferenceSecret(
 // UpsertInferenceSecret is supposed to create or update an inference secret,
 // but returns an error indicating that this feature is only available in the
 // enterprise version of Teleport.
-func (s *UnimplementedResourcesService) UpsertInferenceSecret(
+func (s *UnimplementedService) UpsertInferenceSecret(
 	ctx context.Context, req *summarizerv1pb.UpsertInferenceSecretRequest,
 ) (*summarizerv1pb.UpsertInferenceSecretResponse, error) {
 	return nil, requireEnterprise()
@@ -133,7 +133,7 @@ func (s *UnimplementedResourcesService) UpsertInferenceSecret(
 // DeleteInferenceSecret is supposed to delete an inference secret by name, but
 // returns an error indicating that this feature is only available in the
 // enterprise version of Teleport.
-func (s *UnimplementedResourcesService) DeleteInferenceSecret(
+func (s *UnimplementedService) DeleteInferenceSecret(
 	ctx context.Context, req *summarizerv1pb.DeleteInferenceSecretRequest,
 ) (*summarizerv1pb.DeleteInferenceSecretResponse, error) {
 	return nil, requireEnterprise()
@@ -142,7 +142,7 @@ func (s *UnimplementedResourcesService) DeleteInferenceSecret(
 // ListInferenceSecrets is supposed to list inference secrets with pagination
 // support, but returns an error indicating that this feature is only available
 // in the enterprise version of Teleport.
-func (s *UnimplementedResourcesService) ListInferenceSecrets(
+func (s *UnimplementedService) ListInferenceSecrets(
 	ctx context.Context, req *summarizerv1pb.ListInferenceSecretsRequest,
 ) (*summarizerv1pb.ListInferenceSecretsResponse, error) {
 	return nil, requireEnterprise()
@@ -153,7 +153,7 @@ func (s *UnimplementedResourcesService) ListInferenceSecrets(
 // CreateInferencePolicy is supposed to create a new inference policy, but
 // returns an error indicating that this feature is only available in the
 // enterprise version of Teleport.
-func (s *UnimplementedResourcesService) CreateInferencePolicy(
+func (s *UnimplementedService) CreateInferencePolicy(
 	ctx context.Context, req *summarizerv1pb.CreateInferencePolicyRequest,
 ) (*summarizerv1pb.CreateInferencePolicyResponse, error) {
 	return nil, requireEnterprise()
@@ -162,7 +162,7 @@ func (s *UnimplementedResourcesService) CreateInferencePolicy(
 // GetInferencePolicy is supposed to retrieve an inference policy by name, but
 // returns an error indicating that this feature is only available in the
 // enterprise version of Teleport.
-func (s *UnimplementedResourcesService) GetInferencePolicy(
+func (s *UnimplementedService) GetInferencePolicy(
 	ctx context.Context, req *summarizerv1pb.GetInferencePolicyRequest,
 ) (*summarizerv1pb.GetInferencePolicyResponse, error) {
 	return nil, requireEnterprise()
@@ -171,7 +171,7 @@ func (s *UnimplementedResourcesService) GetInferencePolicy(
 // UpdateInferencePolicy is supposed to update an existing inference policy,
 // but returns an error indicating that this feature is only available in the
 // enterprise version of Teleport.
-func (s *UnimplementedResourcesService) UpdateInferencePolicy(
+func (s *UnimplementedService) UpdateInferencePolicy(
 	ctx context.Context, req *summarizerv1pb.UpdateInferencePolicyRequest,
 ) (*summarizerv1pb.UpdateInferencePolicyResponse, error) {
 	return nil, requireEnterprise()
@@ -180,7 +180,7 @@ func (s *UnimplementedResourcesService) UpdateInferencePolicy(
 // UpsertInferencePolicy is supposed to create or update an inference policy,
 // but returns an error indicating that this feature is only available in the
 // enterprise version of Teleport.
-func (s *UnimplementedResourcesService) UpsertInferencePolicy(
+func (s *UnimplementedService) UpsertInferencePolicy(
 	ctx context.Context, req *summarizerv1pb.UpsertInferencePolicyRequest,
 ) (*summarizerv1pb.UpsertInferencePolicyResponse, error) {
 	return nil, requireEnterprise()
@@ -189,7 +189,7 @@ func (s *UnimplementedResourcesService) UpsertInferencePolicy(
 // DeleteInferencePolicy is supposed to delete an inference policy by name, but
 // returns an error indicating that this feature is only available in the
 // enterprise version of Teleport.
-func (s *UnimplementedResourcesService) DeleteInferencePolicy(
+func (s *UnimplementedService) DeleteInferencePolicy(
 	ctx context.Context, req *summarizerv1pb.DeleteInferencePolicyRequest,
 ) (*summarizerv1pb.DeleteInferencePolicyResponse, error) {
 	return nil, requireEnterprise()
@@ -198,7 +198,7 @@ func (s *UnimplementedResourcesService) DeleteInferencePolicy(
 // ListInferencePolicies is supposed to list inference policies with pagination
 // support, but returns an error indicating that this feature is only available
 // in the enterprise version of Teleport.
-func (s *UnimplementedResourcesService) ListInferencePolicies(
+func (s *UnimplementedService) ListInferencePolicies(
 	ctx context.Context, req *summarizerv1pb.ListInferencePoliciesRequest,
 ) (*summarizerv1pb.ListInferencePoliciesResponse, error) {
 	return nil, requireEnterprise()

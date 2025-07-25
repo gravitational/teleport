@@ -91,6 +91,6 @@ func (n NoopSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent *
 	return nil
 }
 
-func (NoopSummarizer) SummarizeUnknown(ctx context.Context, sessionID session.ID) error {
+func (NoopSummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error {
 	return nil
 }
