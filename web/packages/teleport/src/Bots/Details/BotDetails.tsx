@@ -182,7 +182,7 @@ export function BotDetails() {
                   <RolesContainer>
                     {data.roles.toSorted().map(r => (
                       <SecondaryOutlined mr="1" key={r}>
-                        {r}
+                        <Text fontSize={'12px'}>{r}</Text>
                       </SecondaryOutlined>
                     ))}
                   </RolesContainer>
@@ -209,7 +209,7 @@ export function BotDetails() {
                             {r.values.length > 0
                               ? r.values.toSorted().map(v => (
                                   <SecondaryOutlined mr="1" key={v}>
-                                    {v}
+                                    <Text fontSize={'12px'}>{v}</Text>
                                   </SecondaryOutlined>
                                 ))
                               : 'no values'}
@@ -421,7 +421,7 @@ function JoinTokens(props: { botName: string; onViewAllClicked: () => void }) {
                               size={'small'}
                               includeTooltip={false}
                             />
-                            {t.safeName}
+                            <Text fontSize={'12px'}>{t.safeName}</Text>
                           </Flex>
                         </HoverTooltip>
                       </SecondaryOutlined>

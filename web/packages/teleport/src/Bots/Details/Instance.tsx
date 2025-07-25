@@ -174,7 +174,7 @@ function Version(props: {
       <Wrapper>
         <Flex gap={1}>
           {icon}
-          <Text>v{version}</Text>
+          <Text fontSize={'12px'}>v{version}</Text>
         </Flex>
       </Wrapper>
     </HoverTooltip>
