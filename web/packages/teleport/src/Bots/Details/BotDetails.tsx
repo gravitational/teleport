@@ -173,13 +173,13 @@ export function BotDetails() {
             <Panel title="Roles" isSubPanel>
               <PanelContentContainer>
                 {data.roles.length ? (
-                  <div>
+                  <RolesContainer>
                     {data.roles.toSorted().map(r => (
                       <SecondaryOutlined mr="1" key={r}>
                         {r}
                       </SecondaryOutlined>
                     ))}
-                  </div>
+                  </RolesContainer>
                 ) : (
                   'No roles assigned'
                 )}
@@ -259,6 +259,8 @@ const PanelContentContainer = styled(Flex)`
   padding: ${props => props.theme.space[3]}px;
   padding-top: 0;
 `;
+
+const RolesContainer = styled.div``;
 
 const Divider = styled.div`
   height: 1px;
