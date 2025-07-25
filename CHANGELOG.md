@@ -1,5 +1,19 @@
 # Changelog
 
+## 16.5.14 (07/25/25)
+
+* Fixed fallback for web login when second factor is set to `on` but only OTP is configured. [#57160](https://github.com/gravitational/teleport/pull/57160)
+* Removed unnecessary macOS entitlements from Teleport Connect subprocesses. [#57068](https://github.com/gravitational/teleport/pull/57068)
+* Added `--listen` flag to `tsh proxy db` for setting local listener address. [#57032](https://github.com/gravitational/teleport/pull/57032)
+* `tctl top` now supports the local unix sock debug endpoint. [#57026](https://github.com/gravitational/teleport/pull/57026)
+* Updated Application APIs to use pagination to avoid exceeding message size limitations. [#56954](https://github.com/gravitational/teleport/pull/56954)
+* Added support to `tsh` App Access commands for Azure CLI (`az`) version `2.73.0` and newer. [#56950](https://github.com/gravitational/teleport/pull/56950)
+* Fixed a bug in the Teleport install scripts when running on MacOS. The install scripts now error instead of trying to install non existing MacOS FIPS binaries. [#56943](https://github.com/gravitational/teleport/pull/56943)
+* Update pyroscope's default client timeout and upload rate. [#56733](https://github.com/gravitational/teleport/pull/56733)
+* Updated Go to 1.23.11. [#56681](https://github.com/gravitational/teleport/pull/56681)
+* Fix tbot SPIFFE Workload API failing to renew SPIFFE SVIDs. [#56664](https://github.com/gravitational/teleport/pull/56664)
+* Fixed error on setting up Teleport Discovery Service step of the EC2 SSM web UI flow when admin action is enabled (webauthn). [#56571](https://github.com/gravitational/teleport/pull/56571)
+
 ## 16.5.13 (07/02/25)
 
 ### Security fixes
