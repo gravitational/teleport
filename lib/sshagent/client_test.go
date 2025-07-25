@@ -23,10 +23,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"golang.org/x/crypto/ssh/agent"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
