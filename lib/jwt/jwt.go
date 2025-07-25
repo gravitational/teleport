@@ -29,7 +29,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"strings"
 	"time"
 
@@ -535,20 +534,34 @@ func (p *PROXYVerifyParams) Check() error {
 	return nil
 }
 
-// verifyOnly parses a JWT and verifies its signature only.
-func (k *Key) verifyOnly(rawToken string) (map[string]any, error) {
+type validater interface {
+	Validate(e jwt.Expected) error
+}
+
+func verify[T validater](k *Key, rawToken string, expectedClaims jwt.Expected) (T, error) {
+	var out T
+	if k.config.PublicKey == nil {
+		return out, trace.BadParameter("can not verify token without public key")
+	}
+
+	// Parse the token.
 	tok, err := jwt.ParseSigned(rawToken)
 	if err != nil {
-		return nil, trace.Errorf("failed to parse JWT")
+		return out, trace.Wrap(err)
 	}
 
-	claims := map[string]any{}
-	err = tok.Claims(k.config.PublicKey, &claims)
+	// Validate the signature on the JWT token.
+	err = tok.Claims(k.config.PublicKey, &out)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to validate JWT signature")
+		return out, trace.Wrap(err)
 	}
 
-	return claims, nil
+	// Validate the claims on the JWT token.
+	if err = out.Validate(expectedClaims); err != nil {
+		return out, trace.Wrap(err)
+	}
+
+	return out, nil
 }
 
 func (k *Key) verify(rawToken string, expectedClaims jwt.Expected) (*Claims, error) {
@@ -813,18 +826,25 @@ func (k *Key) VerifyPluginToken(token string, claims PluginTokenParam) (*Claims,
 
 // OIDCAuthRequestClaims defines the required parameters for a JWT-Secured Authorization Request object.
 type OIDCAuthRequestClaims struct {
+	jwt.Claims
 	// Required authorization request parameters
-	ClientID     string `mapstructure:"client_id"`
-	Scope        string `mapstructure:"scope"`
-	RedirectURI  string `mapstructure:"redirect_uri"`
-	ResponseType string `mapstructure:"response_type"`
+	ClientID     string `json:"client_id"`
+	Scope        string `json:"scope"`
+	RedirectURI  string `json:"redirect_uri"`
+	ResponseType string `json:"response_type"`
 
 	// Optional parameters
-	OptionalParameters map[string]any `mapstructure:"-,remain"`
+	OptionalParameters map[string]any `json:"-"`
 }
 
 // Check validates that required parameters are set.
 func (o *OIDCAuthRequestClaims) Check() error {
+	if len(o.Audience) == 0 {
+		return trace.BadParameter("audience missing")
+	}
+	if o.Issuer == "" {
+		return trace.BadParameter("issuer missing")
+	}
 	if o.ClientID == "" {
 		return trace.BadParameter("client id missing")
 	}
@@ -840,39 +860,66 @@ func (o *OIDCAuthRequestClaims) Check() error {
 	return nil
 }
 
-func (o *OIDCAuthRequestClaims) toMap() map[string]any {
-	requestMap := map[string]any{}
-	maps.Copy(requestMap, o.OptionalParameters)
-
-	requestMap["client_id"] = o.ClientID
-	requestMap["scope"] = o.Scope
-	requestMap["redirect_uri"] = o.RedirectURI
-	requestMap["response_type"] = o.ResponseType
-
-	return requestMap
-}
-
-// oidcAuthRequestFromClaims produces an OIDCAuthRequestClaims from a map containing
-// OIDC authorization request parameters. This function will return an error if any
-// required parameters are missing from the claims set.
-func oidcAuthRequestFromClaims(claims map[string]any) (OIDCAuthRequestClaims, error) {
-	request := OIDCAuthRequestClaims{}
+func (o *OIDCAuthRequestClaims) MarshalJSON() ([]byte, error) {
 	dec, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
-		Result: &request,
-		// Return an error if any field of OIDCAuthRequestClaims is unset
-		// with the exception of 'OptionalParameters'
-		ErrorUnset: true,
+		Result:  &o.OptionalParameters,
+		Squash:  true,
+		TagName: "json",
 	})
 	if err != nil {
-		return request, trace.Wrap(err, "error initializing decoder for oidc auth request claims")
+		return nil, trace.Wrap(err)
 	}
-
-	err = dec.Decode(claims)
+	err = dec.Decode(o)
 	if err != nil {
-		return request, trace.Wrap(err, "failed to decode request object claims")
+		return nil, trace.Wrap(err)
+	}
+	return json.Marshal(o.OptionalParameters)
+}
+
+func (o *OIDCAuthRequestClaims) UnmarshalJSON(data []byte) error {
+	type alias OIDCAuthRequestClaims
+
+	a := &alias{}
+	err := json.Unmarshal(data, &a)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	return request, err
+	// Unmarshal again into a map, producing a set
+	// of all keys in the JSON input
+	all := map[string]any{}
+	err = json.Unmarshal(data, &all)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Decode the marshalled struct into a map. This
+	// produces a set of all keys that were successfully
+	// mapped to struct fields in the previous step
+	subset := map[string]any{}
+	dec, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		Squash:  true,
+		TagName: "json",
+		Result:  &subset,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = dec.Decode(a)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// The difference of 'all - subset' yields
+	// the set of optional parameters
+	for k := range subset {
+		delete(all, k)
+	}
+
+	*o = OIDCAuthRequestClaims(*a)
+	o.OptionalParameters = all
+	return nil
 }
 
 // SignOIDCAuthRequest creates a JWT-Secured Authorization Request (JAR) object from the
@@ -888,7 +935,7 @@ func (k *Key) SignOIDCAuthRequest(authRequest OIDCAuthRequestClaims) (string, er
 		return "", trace.Wrap(err, "failed to determine JWT key identifier")
 	}
 
-	return k.sign(authRequest.toMap(), &jose.SignerOptions{
+	return k.sign(&authRequest, &jose.SignerOptions{
 		ExtraHeaders: map[jose.HeaderKey]any{
 			"kid": kid,
 		},
@@ -897,16 +944,10 @@ func (k *Key) SignOIDCAuthRequest(authRequest OIDCAuthRequestClaims) (string, er
 
 // VerifyOIDCAuthRequestToken parses and validates a JWT that is to be interpreted as
 // a JWT-Secured Authorization Request (JAR) object.
-func (k *Key) VerifyOIDCAuthRequestToken(rawToken string) (OIDCAuthRequestClaims, error) {
-	claims, err := k.verifyOnly(rawToken)
+func (k *Key) VerifyOIDCAuthRequestToken(rawToken string, expected jwt.Expected) (OIDCAuthRequestClaims, error) {
+	request, err := verify[OIDCAuthRequestClaims](k, rawToken, expected)
 	if err != nil {
 		return OIDCAuthRequestClaims{}, trace.Wrap(err, "error verifying authorization request object signature")
 	}
-
-	request, err := oidcAuthRequestFromClaims(claims)
-	if err != nil {
-		return OIDCAuthRequestClaims{}, trace.Wrap(err, "error validating authorization request object parameters")
-	}
-
 	return request, nil
 }

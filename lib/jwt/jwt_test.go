@@ -446,6 +446,10 @@ func TestKey_SignAndVerifyOIDCAuthRequest(t *testing.T) {
 
 			// Sign a token with the new key.
 			request := OIDCAuthRequestClaims{
+				Claims: josejwt.Claims{
+					Issuer:   "https://localhost/",
+					Audience: []string{"idp"},
+				},
 				ClientID:     "someid",
 				Scope:        "openid email",
 				RedirectURI:  "https://telelport.sh//v1/webapi/oidc/callback",
@@ -458,8 +462,10 @@ func TestKey_SignAndVerifyOIDCAuthRequest(t *testing.T) {
 			token, err := key.SignOIDCAuthRequest(request)
 			require.NoError(t, err)
 
-			parsedRequest, err := key.VerifyOIDCAuthRequestToken(token)
+			parsedRequest, err := key.VerifyOIDCAuthRequestToken(token, josejwt.Expected{})
 			require.NoError(t, err)
+			require.Equal(t, request.Audience, parsedRequest.Audience)
+			require.Equal(t, request.Issuer, parsedRequest.Issuer)
 			require.Equal(t, request.ClientID, parsedRequest.ClientID)
 			require.Equal(t, request.Scope, parsedRequest.Scope)
 			require.Equal(t, request.RedirectURI, parsedRequest.RedirectURI)
@@ -470,6 +476,10 @@ func TestKey_SignAndVerifyOIDCAuthRequest(t *testing.T) {
 			// Request containing optional parameters that conflict with
 			// required OIDCAuthRequestClaims members
 			stutteringRequest := OIDCAuthRequestClaims{
+				Claims: josejwt.Claims{
+					Issuer:   "https://localhost/",
+					Audience: []string{"idp"},
+				},
 				ClientID:     "someid",
 				Scope:        "openid email",
 				RedirectURI:  "https://telelport.sh//v1/webapi/oidc/callback",
@@ -481,42 +491,24 @@ func TestKey_SignAndVerifyOIDCAuthRequest(t *testing.T) {
 					"scope":         "wrong scopes",
 					"redirect_uri":  "https://incorrect",
 					"response_type": "not_code",
+					"audience":      []string{"wrong audience"},
+					"issuer":        "wrong issuer",
+					"aud":           []string{"wrong audience"},
+					"iss":           "wrong issuer",
 				},
 			}
 
 			token, err = key.SignOIDCAuthRequest(stutteringRequest)
 			require.NoError(t, err)
 
-			parsedRequest, err = key.VerifyOIDCAuthRequestToken(token)
+			parsedRequest, err = key.VerifyOIDCAuthRequestToken(token, josejwt.Expected{})
 			require.NoError(t, err)
+			require.Equal(t, stutteringRequest.Audience, parsedRequest.Audience)
+			require.Equal(t, stutteringRequest.Issuer, parsedRequest.Issuer)
 			require.Equal(t, stutteringRequest.ClientID, parsedRequest.ClientID)
 			require.Equal(t, stutteringRequest.Scope, parsedRequest.Scope)
 			require.Equal(t, stutteringRequest.RedirectURI, parsedRequest.RedirectURI)
 			require.Equal(t, stutteringRequest.ResponseType, parsedRequest.ResponseType)
 		})
 	}
-}
-
-func TestOIDCAuthRequestParsing(t *testing.T) {
-	t.Parallel()
-	t.Run("missing fields", func(tt *testing.T) {
-		// Missing some required fields
-		_, err := oidcAuthRequestFromClaims(map[string]any{
-			"client_id": "someid",
-			"prompt":    "select_account",
-			"state":     "e3a6140b4ca08acc05c785615146397b",
-		})
-		require.Error(tt, err)
-	})
-
-	t.Run("required fields only", func(tt *testing.T) {
-		// Strictly required parameters/claims
-		_, err := oidcAuthRequestFromClaims(map[string]any{
-			"client_id":     "someid",
-			"scope":         "openid email",
-			"redirect_uri":  "https://telelport.sh//v1/webapi/oidc/callback",
-			"response_type": "code",
-		})
-		require.NoError(tt, err)
-	})
 }
