@@ -3347,7 +3347,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 	// add implicit roles to the set and build a checker
 	roleSet := services.NewRoleSet(parsedRoles...)
-	clusterName, err := a.GetClusterName(ctx)
+	clusterName, err := a.authServer.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
