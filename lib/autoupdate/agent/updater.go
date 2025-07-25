@@ -389,13 +389,15 @@ func toPtr[T any](t T) *T {
 // If the initial installation succeeds, the override configuration is persisted.
 // Otherwise, the configuration is not changed.
 // This function is idempotent.
-func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
+func (u *Updater) Install(ctx context.Context, override OverrideConfig) (err error) {
 	// Read configuration from update.yaml and override any new values passed as flags.
 	cfg, err := readConfig(u.UpdateConfigFile)
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
-	if err := validateConfigSpec(&cfg.Spec, override); err != nil {
+	origCfg := cfg.Copy()
+	// Set the desired state.
+	if err := updateConfigSpec(&cfg.Spec, override); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -437,6 +439,21 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 	default:
 		u.Log.InfoContext(ctx, "Initiating installation.", targetKey, target, activeKey, active)
 	}
+
+	// Write update.yaml before attempting to install.
+	// This ensures that update.yaml always exists when the agent is started and sends HELLO.
+	// The written file does not contain updated versions, only the desired configuration.
+	// It is reverted if the installation fails to start, so that configuration is not persisted.
+	if err := writeConfig(u.UpdateConfigFile, cfg); err != nil {
+		return trace.Wrap(err, "failed to write %s", updateConfigName)
+	}
+	defer func() {
+		if err != nil {
+			if err := writeConfig(u.UpdateConfigFile, origCfg); err != nil {
+				u.Log.ErrorContext(ctx, "Failed to revert invalid partial configuration.", "path", u.UpdateConfigFile, errorKey, err)
+			}
+		}
+	}()
 
 	if err := u.update(ctx, cfg, target, override.AllowOverwrite, resp.AGPL); err != nil {
 		if errors.Is(err, ErrFilePresent) && !override.AllowOverwrite {
@@ -489,7 +506,7 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
-	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
+	if err := updateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return trace.Wrap(err)
 	}
 	active := cfg.Status.Active
@@ -728,7 +745,7 @@ func (u *Updater) Status(ctx context.Context) (Status, error) {
 	if err != nil {
 		return out, trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
-	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
+	if err := updateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return out, trace.Wrap(err)
 	}
 	if cfg.Spec.Proxy == "" {
@@ -795,7 +812,7 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
-	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
+	if err := updateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1208,7 +1225,7 @@ func (u *Updater) LinkPackage(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
-	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
+	if err := updateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return trace.Wrap(err)
 	}
 	active := cfg.Status.Active
