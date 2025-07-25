@@ -20,8 +20,8 @@ import {
   createContext,
   FC,
   PropsWithChildren,
+  useCallback,
   useContext,
-  useMemo,
   useState,
 } from 'react';
 
@@ -62,31 +62,23 @@ export const ToastNotificationProvider: FC<PropsWithChildren> = ({
     []
   );
 
-  function remove(id: string) {
+  const remove = useCallback((id: string) => {
     setNotifications(n => n.filter(item => item.id !== id));
-  }
+  }, []);
 
-  function add(entry: NotificationEntry) {
-    setNotifications(notifications => [
+  const add = useCallback((entry: NotificationEntry) => {
+    setNotifications(n => [
       {
         id: crypto.randomUUID(),
         content: entry.content,
         severity: entry.severity,
       },
-      ...notifications,
+      ...n,
     ]);
-  }
-
-  const providerValue = useMemo(() => {
-    return {
-      notifications,
-      remove,
-      add,
-    };
-  }, [notifications]);
+  }, []);
 
   return (
-    <ToastNotificationContext.Provider value={providerValue}>
+    <ToastNotificationContext.Provider value={{ notifications, add, remove }}>
       {children}
     </ToastNotificationContext.Provider>
   );
