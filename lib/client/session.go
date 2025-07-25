@@ -262,9 +262,7 @@ func selectKeyAgent(ctx context.Context, tc *TeleportClient) sshagent.ClientGett
 		log.DebugContext(context.Background(), "Selecting system key agent")
 		return sshagent.NewSystemAgentClient
 	case ForwardAgentLocal:
-		return func() (sshagent.Client, error) {
-			return sshagent.NewStaticClient(tc.localAgent.ExtendedAgent), nil
-		}
+		return sshagent.NewStaticClientGetter(tc.localAgent.ExtendedAgent)
 	default:
 		log.DebugContext(context.Background(), "No Key Agent selected")
 		return nil

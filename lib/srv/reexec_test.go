@@ -315,9 +315,7 @@ func testAgentForward(ctx context.Context, t *testing.T, proc *networking.Proces
 	err = keyring.Add(testKey)
 	require.NoError(t, err)
 
-	agentServer := sshagent.NewServer(func() (sshagent.Client, error) {
-		return sshagent.NewStaticClient(keyring), nil
-	})
+	agentServer := sshagent.NewServer(sshagent.NewStaticClientGetter(keyring))
 
 	// Forward the agent over the networking process.
 	listener, err := proc.ListenAgent(ctx)

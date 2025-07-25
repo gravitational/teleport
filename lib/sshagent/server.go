@@ -45,8 +45,8 @@ type AgentServer struct {
 }
 
 // NewServer returns a new [AgentServer].
-func NewServer(serveAgent ClientGetter) *AgentServer {
-	return &AgentServer{getAgent: serveAgent}
+func NewServer(agentClient ClientGetter) *AgentServer {
+	return &AgentServer{getAgent: agentClient}
 }
 
 func (a *AgentServer) SetListener(l net.Listener) {

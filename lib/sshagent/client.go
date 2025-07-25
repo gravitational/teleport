@@ -63,9 +63,18 @@ func NewSystemAgentClient() (Client, error) {
 }
 
 // NewStaticClient creates a new SSH Agent client for the given static agent.
-func NewStaticClient(agent agent.ExtendedAgent) Client {
+func NewStaticClient(agentClient agent.ExtendedAgent) Client {
 	return &client{
-		ExtendedAgent: agent,
+		ExtendedAgent: agentClient,
+	}
+}
+
+// NewStaticClientGetter returns a [ClientGetter] for a static agent client.
+func NewStaticClientGetter(agentClient agent.ExtendedAgent) ClientGetter {
+	return func() (Client, error) {
+		return &client{
+			ExtendedAgent: agentClient,
+		}, nil
 	}
 }
 

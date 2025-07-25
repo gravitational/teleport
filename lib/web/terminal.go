@@ -685,9 +685,7 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws terminal.WSConn, 
 		return nil, trace.Wrap(err)
 	}
 
-	getAgent := func() (sshagent.Client, error) {
-		return sshagent.NewStaticClient(tc.LocalAgent()), nil
-	}
+	getAgent := sshagent.NewStaticClientGetter(tc.LocalAgent())
 	cert, err := t.ctx.GetSSHCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)

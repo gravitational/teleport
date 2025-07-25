@@ -121,7 +121,6 @@ func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 		}
 		conf.Agent = keyring
 	}
-
 	a = &LocalKeyAgent{
 		log:           slog.With(teleport.ComponentKey, teleport.ComponentKeyAgent),
 		ExtendedAgent: conf.Agent,
