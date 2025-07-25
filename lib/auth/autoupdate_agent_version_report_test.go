@@ -70,6 +70,10 @@ func (f fakeControlStream) Done() <-chan struct{} {
 	return f.doneChan
 }
 
+func (f fakeControlStream) Send(ctx context.Context, msg proto.DownstreamInventoryMessage) error {
+	return nil
+}
+
 func (f fakeControlStream) fakeMsg(msg proto.UpstreamInventoryMessage) {
 	f.msgChan <- msg
 }
@@ -237,10 +241,21 @@ func TestServer_generateAgentVersionReport(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			clock := clockwork.NewFakeClockAt(twoMinutesAgo)
+			bk, err := memory.New(memory.Config{})
+			require.NoError(t, err)
 			auth := &Server{
-				logger:   logtest.NewLogger(),
-				ServerID: uuid.NewString(),
+				cancelFunc: func() {},
+				logger:     logtest.NewLogger(),
+				ServerID:   uuid.NewString(),
+				Services: &Services{
+					// The inventory is running heartbeats on the background.
+					// If we don't create a presence service this will cause panics.
+					PresenceInternal: local.NewPresenceService(bk),
+				},
 			}
+			t.Cleanup(func() {
+				auth.Close()
+			})
 			controller := inventory.NewController(auth, nil, inventory.WithClock(clock))
 			for _, fixture := range tt.fixtures {
 				clock.Advance(fixture.delay)
@@ -297,13 +312,23 @@ func TestServer_reportAgentVersions(t *testing.T) {
 	// Test setup: load fixtures.
 	const testNodeCount = 10
 	auth := &Server{
-		clock:    clock,
-		ServerID: uuid.NewString(),
-		Services: &Services{AutoUpdateService: svc},
-		logger:   logtest.NewLogger(),
+		cancelFunc: func() {},
+		clock:      clock,
+		ServerID:   uuid.NewString(),
+		Services: &Services{
+			AutoUpdateService: svc,
+			// The inventory is running heartbeats on the background.
+			// If we don't create a presence service this will cause panics.
+			PresenceInternal: local.NewPresenceService(bk),
+		},
+		logger: logtest.NewLogger(),
 	}
+	t.Cleanup(func() {
+		auth.Close()
+	})
 	auth.Cache = auth.Services
-	controller := inventory.NewController(auth, nil, inventory.WithClock(clock))
+	controller := inventory.NewController(auth, nil,
+		inventory.WithClock(clock))
 	auth.inventory = controller
 
 	for range testNodeCount {
