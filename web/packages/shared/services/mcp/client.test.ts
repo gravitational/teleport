@@ -17,8 +17,8 @@
  */
 
 import {
-  generateAppLinksForApp,
   generateClaudeDesktopConfigForApp,
+  generateInstallLinksForApp,
 } from 'shared/services/mcp/client';
 
 describe('generateClaudeDesktopConfigForApp', () => {
@@ -40,9 +40,9 @@ describe('generateClaudeDesktopConfigForApp', () => {
   });
 });
 
-describe('generateAppLinksForApp', () => {
+describe('generateInstallLinksForApp', () => {
   it('generates the correct links', () => {
-    const links = generateAppLinksForApp('demo-test');
+    const links = generateInstallLinksForApp('demo-test');
     expect(links).toEqual({
       cursor:
         'cursor://anysphere.cursor-deeplink/mcp/install?name=teleport-mcp-demo-test&config=eyJjb21tYW5kIjoidHNoIiwiYXJncyI6WyJtY3AiLCJjb25uZWN0IiwiZGVtby10ZXN0Il19',

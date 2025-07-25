@@ -36,8 +36,8 @@ import {
   TextSelectCopyMulti,
 } from 'shared/components/TextSelectCopy';
 import {
-  generateAppLinksForApp,
   generateClaudeDesktopConfigForApp,
+  generateInstallLinksForApp,
 } from 'shared/services/mcp';
 
 import { generateTshLoginCommand } from 'teleport/lib/util';
@@ -55,7 +55,7 @@ export function MCPAppConnectDialog(props: { app: App; onClose: () => void }) {
   const { username, authType } = ctx.storeUser.state;
   const accessRequestId = ctx.storeUser.getAccessRequestId();
   const claudeConfig = generateClaudeDesktopConfigForApp(app.name);
-  const links = generateAppLinksForApp(app.name);
+  const links = generateInstallLinksForApp(app.name);
 
   return (
     <Dialog
@@ -126,8 +126,8 @@ export function MCPAppConnectDialog(props: { app: App; onClose: () => void }) {
             </Box>
             <TextSelectCopy text={`tsh mcp config ${app.name}`} />
             <Box>
-              *Note: You might need to restart your MCP client to load the updated
-              configuration.
+              *Note: You might need to restart your MCP client to load the
+              updated configuration.
             </Box>
           </Stack>
         </Stack>

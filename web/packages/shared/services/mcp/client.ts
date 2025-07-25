@@ -47,17 +47,17 @@ export function generateClaudeDesktopConfigForApp(appName: string): string {
   return JSON.stringify(claudeConfig, null, 2);
 }
 
-export type AppLinks = {
+export type InstallLinks = {
   cursor: string;
   vscode: string;
   vscodeInsiders: string;
 };
 
 /**
- * generateAppLinksForApp generates links that can be used to install the MCP
+ * generateInstallLinksForApp generates links that can be used to install the MCP
  * server app (that runs via tsh) for various MCP clients like cursor.
  */
-export function generateAppLinksForApp(appName: string): AppLinks {
+export function generateInstallLinksForApp(appName: string): InstallLinks {
   const name = mcpServerNameForApp(appName);
   const config = mcpServerConfigForApp(appName);
 
