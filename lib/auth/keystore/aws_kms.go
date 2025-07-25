@@ -65,6 +65,7 @@ const (
 type awsKMSKeystore struct {
 	kms                kmsClient
 	mrk                mrkClient
+	health             *passiveHealthChecker
 	awsAccount         string
 	awsRegion          string
 	multiRegionEnabled bool
@@ -151,6 +152,18 @@ func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *
 		mrk:                mrkClient,
 		clock:              clock,
 		logger:             opts.Logger,
+		health: &passiveHealthChecker{
+			callback: func(err error) {
+				opts.HealthCallback(err)
+				// Call the callback twice on nil error in-order for the
+				// component state to return to OK.
+				if err == nil {
+					opts.HealthCallback(err)
+				}
+			},
+			log:   opts.Logger,
+			clock: clock,
+		},
 	}, nil
 }
 
@@ -224,9 +237,13 @@ func (a *awsKMSKeystore) generateSigner(ctx context.Context, algorithm cryptosui
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	signer, err := a.newKMSKey(ctx, key)
+	kmsKey, err := a.newKMSKey(ctx, key)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
+	}
+	signer := &healthSigner{
+		Signer: kmsKey,
+		health: a.health,
 	}
 	return keyID, signer, nil
 }
