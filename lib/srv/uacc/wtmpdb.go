@@ -21,6 +21,9 @@ type wtmpdbBackend struct {
 }
 
 func newWtmpdb(dbPath string) (*wtmpdbBackend, error) {
+	if !utils.FileExists(dbPath) {
+		return nil, trace.NotFound("no wtmpdb at %q", dbPath)
+	}
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
