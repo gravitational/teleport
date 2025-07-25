@@ -31,12 +31,17 @@ func TestValidateSessionRecordingConfig(t *testing.T) {
 	cases := []struct {
 		name      string
 		spec      types.SessionRecordingConfigSpecV2
+		params    types.SignatureAlgorithmSuiteParams
 		expectErr error
 	}{
 		{
 			name: "valid config",
 			spec: types.SessionRecordingConfigSpecV2{
 				Mode: "node",
+			},
+			params: types.SignatureAlgorithmSuiteParams{
+				FIPS:  true,
+				Cloud: true,
 			},
 			expectErr: nil,
 		},
@@ -75,6 +80,35 @@ func TestValidateSessionRecordingConfig(t *testing.T) {
 				Mode: "invalid",
 			},
 			expectErr: trace.BadParameter("session recording mode must be one of %v; got %q", strings.Join(types.SessionRecordingModes, ","), "invalid"),
+		},
+		{
+			name: "invalid config: encryption with FIPS",
+			spec: types.SessionRecordingConfigSpecV2{
+				Mode: "node",
+				Encryption: &types.SessionRecordingEncryptionConfig{
+					Enabled: true,
+				},
+			},
+			params: types.SignatureAlgorithmSuiteParams{
+				FIPS: true,
+			},
+			expectErr: trace.BadParameter("non-FIPS compliant session recording setting"),
+		},
+		{
+			name: "invalid config: manual encryption in cloud",
+			spec: types.SessionRecordingConfigSpecV2{
+				Mode: "node",
+				Encryption: &types.SessionRecordingEncryptionConfig{
+					Enabled: true,
+					ManualKeyManagement: &types.ManualKeyManagementConfig{
+						Enabled: true,
+					},
+				},
+			},
+			params: types.SignatureAlgorithmSuiteParams{
+				Cloud: true,
+			},
+			expectErr: trace.BadParameter(`"manual_key_management" configuration is unsupported in Teleport Cloud`),
 		},
 		{
 			name: "invalid config: manual encryption without active keys",
@@ -137,7 +171,7 @@ func TestValidateSessionRecordingConfig(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			err := services.ValidateSessionRecordingConfig(&types.SessionRecordingConfigV2{Spec: c.spec})
+			err := services.ValidateSessionRecordingConfig(&types.SessionRecordingConfigV2{Spec: c.spec}, c.params)
 			if c.expectErr == nil {
 				require.NoError(t, err)
 			} else {
