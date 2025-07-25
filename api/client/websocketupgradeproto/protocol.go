@@ -21,6 +21,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"slices"
 	"sync"
 	"time"
 
@@ -78,6 +79,9 @@ type WebsocketUpgradeConn struct {
 	supportsCloseProtocol bool
 	connType              connectionType
 	protocol              string
+
+	// Buffered channel for queued frames, used for best-effort writes.
+	frameQueue chan ws.Frame
 }
 
 // newWebsocketUpgradeConnConfig holds the configuration for creating a new
@@ -102,6 +106,8 @@ func newWebsocketUpgradeConn(cfg newWebsocketUpgradeConnConfig) *WebsocketUpgrad
 		supportsCloseProtocol: cfg.hs.Protocol == constants.WebAPIConnUpgradeProtocolWebSocketClose,
 		connType:              cfg.connType,
 		protocol:              cfg.hs.Protocol,
+		// Buffered channel for a single pong frame.
+		frameQueue: make(chan ws.Frame, 1),
 	}
 }
 
@@ -182,16 +188,10 @@ func (c *WebsocketUpgradeConn) readLocked(b []byte) (int, error) {
 		case ws.OpPong:
 			// Receives Pong as response to Ping. Nothing to do.
 		case ws.OpPing:
-			if c.connType == serverConnection {
-				continue
-			}
-			// If this is a client connection, we should respond with a Pong frame.
 			pongFrame := ws.NewPongFrame(frame.Payload)
 			// Attempt to write the Pong frame as a best-effort response to a Ping.
 			// If the client is currently locked and the write would block due to a stalled read,
-			// we skip sending the Pong. This avoids blocking the read loop.
-			// If this attempt fails, we’ll respond to the next Ping frame, typically received
-			// around 15 seconds later.
+			// we skip sending the Pong and queue it. This avoids blocking the read loop.
 			if err := c.tryWriteFrameBestEffort(pongFrame); err != nil {
 				c.logger.DebugContext(c.logContext, "error writing Pong frame", "error", err)
 				return 0, err
@@ -271,7 +271,32 @@ func (c *WebsocketUpgradeConn) websocketCloseProtocol(closeCode ws.StatusCode, c
 func (c *WebsocketUpgradeConn) writeFrame(frame ws.Frame) error {
 	c.writeMutex.Lock()
 	defer c.writeMutex.Unlock()
-	return c.writeFrameLocked(frame)
+
+	// Defer sending any queued Pong frames after writing the new frame
+	// to catch cases where the tryWriteFrameBestEffort function couldn't
+	// acquire the write mutex and had to queue the frame while this same
+	// exact function was already writing a separate frame.
+	defer c.sendAnyQueuedPongFramesLocked()
+
+	err := c.writeFrameLocked(frame)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// sendAnyQueuedPongFramesLocked attempts to send any queued Pong frames.
+func (c *WebsocketUpgradeConn) sendAnyQueuedPongFramesLocked() {
+	// Attempt to send any queued Pong frames.
+	select {
+	case frame := <-c.frameQueue:
+		if err := c.writeFrameLocked(frame); err != nil {
+			c.logger.DebugContext(c.logContext, "error writing queued Pong frame", "error", err)
+		}
+	default:
+		// No queued frames to send.
+	}
 }
 
 // writeFrameLocked writes a WebSocket frame to the connection without acquiring
@@ -286,12 +311,54 @@ func (c *WebsocketUpgradeConn) writeFrameLocked(frame ws.Frame) error {
 
 // tryWriteFrameBestEffort attempts a non-blocking write of a WebSocket frame to the connection,
 // but only if no other goroutine is currently writing. If the write mutex is already
-// locked, it returns immediately. This is particularly useful for handling Ping frames
-// without stalling the read loop, especially when the write buffer is full and
-// write operations would otherwise block.
+// locked, it returns immediately after queuing the frame.
+// This is particularly useful for handling Ping frames without stalling the read loop,
+// especially when the write buffer is full and write operations would otherwise block.
 func (c *WebsocketUpgradeConn) tryWriteFrameBestEffort(frame ws.Frame) error {
 	if !c.writeMutex.TryLock() {
-		return nil
+		// Make a copy of the payload to avoid unintended modifications.
+		frame.Payload = slices.Clone(frame.Payload)
+
+		// If the write mutex is already locked, another goroutine is writing.
+		// In that case, we enqueue the frame to be sent later.
+		// This is the only place where frames are enqueued,
+		// so we can safely assume the queue only contains frames added sequentially by this function.
+
+	retry:
+		select {
+		case c.frameQueue <- frame:
+			// Successfully enqueued the frame.
+		default:
+			// Queue is full. Drop the oldest frame to make room for the new one.
+			select {
+			case <-c.frameQueue:
+			default:
+				// If dropping a frame fails for some reason, retry the whole process.
+				goto retry
+			}
+			goto retry
+		}
+
+		// Attempt to acquire the write mutex.
+		// If it's already locked, another goroutine will handle writing the queued frame,
+		// so we exit early.
+		if !c.writeMutex.TryLock() {
+			return nil
+		}
+
+		// We've acquired the write mutex, but it's possible another goroutine already
+		// wrote the frame while we were waiting.
+		// We dequeue the frame to check.
+		select {
+		case queuedFrame := <-c.frameQueue:
+			// A frame was still in the queue, so we proceed to write it.
+			frame = queuedFrame
+		default:
+			// Queue is empty, meaning the frame was already written.
+			// Release the mutex and exit.
+			c.writeMutex.Unlock()
+			return nil
+		}
 	}
 	defer c.writeMutex.Unlock()
 	return c.writeFrameLocked(frame)
