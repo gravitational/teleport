@@ -15,9 +15,9 @@ months.
 
 We plan to release the following versions in the coming months:
 
-| Version | Date                   |
-|---------|------------------------|
-| 18.1.0  | Week of July 21, 2025 |
+| Version | Date                      |
+|---------|---------------------------|
+| 18.1.0  | Week of July 21, 2025     |
 | 18.2.0  | Week of September 1, 2025 |
 
 We continue to support the following major versions of Teleport:
@@ -49,7 +49,7 @@ per-session MFA will have first-class support for a seamless user experience.
 #### Identifier-first login
 
 Teleport will add support for identifier-first login flows. When enabled, the initial
-login screen will contain only a username prompt. Users will be presented with the 
+login screen will contain only a username prompt. Users will be presented with the
 SSO connectors that apply to them after submitting their username.
 
 #### Bound keypair joining for Machine ID
@@ -69,6 +69,18 @@ entitlement groups with Teleport access lists.
 Teleport web UI will make a better distinction between just-in-time and long-term
 access request UX.
 
+#### Automatic Resource Access Request Reviews
+
+Teleport will extend automatic access request reviews to support resource-based
+access requests.
+
+#### LDAP server discovery for desktop access
+
+Teleport can now locate the address of the LDAP server via DNS as an alternative to
+providing the server address in the configuration file. This also serves as a form
+of client-side load balancing, eliminating the need for a load balancer in front
+of LDAP servers.
+
 ### 18.2.0
 
 #### Encrypted session recordings
@@ -76,14 +88,29 @@ access request UX.
 Teleport will provide the ability to integrate with Hardware Security Modules
 (HSMs) in order to encrypt session recordings prior to uploading them to storage.
 
+#### Teleport Connect Managed Updates
+
+Teleport Connect will be able to detect when application updates are available and
+automatically apply them on the next restart.
+
+#### Teleport Device Trust Intune Support
+
+Teleport will include a new hosted plugin for Microsoft's Intune suite, allowing
+trusted devices to be synchronized from the Intune inventory.
+
+#### Terraform support for Access List members
+
+Users will be able to provision Access Lists and their members (including other
+nested Access Lists) with terraform.
+
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
 | Week of         | Description                                                  |
 |-----------------|--------------------------------------------------------------|
-| August 11, 2025 | Teleport 18.1 will begin rollout on Cloud.                   |
-| August 11, 2025 | Teleport 18.1 agents will begin rollout to eligible tenants. |
+| August 04, 2025 | Teleport 18.1 will begin rollout on Cloud.                   |
+| August 04, 2025 | Teleport 18.1 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 
