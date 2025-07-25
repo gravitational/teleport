@@ -440,13 +440,13 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 		return trace.Wrap(err)
 	}
 
+	// set threshold indexes
+	rev.ThresholdIndexes = tids
+
 	// set a review created time if not already set
 	if rev.Created.IsZero() {
 		rev.Created = time.Now()
 	}
-
-	// set threshold indexes
-	rev.ThresholdIndexes = tids
 
 	// Resolved requests should not be updated.
 	switch {
@@ -1154,20 +1154,7 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 		return trace.BadParameter("only promoted requests can set the promoted access list title")
 	}
 
-	if req.GetRequestKind().IsLongTerm() {
-		if r := req.GetRoles(); len(r) > 0 {
-			return trace.BadParameter("long-term requests cannot specify roles")
-		}
-		if !req.GetAccessExpiry().IsZero() {
-			return trace.BadParameter("long-term requests cannot specify access expiry")
-		}
-		if !req.GetMaxDuration().IsZero() {
-			return trace.BadParameter("long-term requests cannot specify max duration")
-		}
-		if req.GetAssumeStartTime() != nil && !req.GetAssumeStartTime().IsZero() {
-			return trace.BadParameter("long-term requests cannot specify assume start time")
-		}
-	}
+	// TODO(kiosion): As part of Reviewer changes for long-term requests, roles, expiry, maxDur should not be allowed to be set.
 
 	// check for "wildcard request" (`roles=*`).  wildcard requests
 	// need to be expanded into a list consisting of all existing roles
@@ -1273,7 +1260,7 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 			return trace.BadParameter("access request exceeds maximum length: try reducing the number of resources in the request")
 		}
 
-		// if not long-term, determine the roles which should be requested for a resource access
+		// determine the roles which should be requested for a resource access
 		// request, and write them to the request
 		if err := m.setRolesForResourceRequest(ctx, req); err != nil {
 			return trace.Wrap(err)
@@ -1316,61 +1303,53 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 		// Pin the time to the current time to prevent time drift.
 		now := m.clock.Now().UTC()
 
-		if req.GetRequestKind().IsLongTerm() {
-			// Long-term reqs should expire after 24h.
-			req.SetExpiry(now.Add(24 * time.Hour))
-			// Other fields are irrelevant for long-term requests
-			// but set for backward compat.
-			req.SetSessionTLL(now.Add(24 * time.Hour))
-			req.SetMaxDuration(now.Add(24 * time.Hour))
-			req.SetAccessExpiry(now.Add(24 * time.Hour))
+		// TODO(kiosion): The following logic shouldn't be relevant for long-term requests, post-Reviewer-changes.
+
+		// Calculate the expiration time of the elevated certificate that will
+		// be issued if the Access Request is approved.
+		sessionTTL, err := m.sessionTTL(ctx, identity, req, now)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		maxDuration, err := m.calculateMaxAccessDuration(req, sessionTTL)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// If the maxDuration flag is set, consider it instead of only using the session TTL.
+		var maxAccessDuration time.Duration
+
+		if maxDuration > 0 {
+			req.SetSessionTLL(now.Add(min(sessionTTL, maxDuration)))
+			maxAccessDuration = maxDuration
 		} else {
-			// Calculate the expiration time of the elevated certificate that will
-			// be issued if the Access Request is approved.
-			sessionTTL, err := m.sessionTTL(ctx, identity, req, now)
-			if err != nil {
+			req.SetSessionTLL(now.Add(sessionTTL))
+			maxAccessDuration = sessionTTL
+		}
+
+		// This is the final adjusted access expiry where both max duration
+		// and session TTL were taken into consideration.
+		accessExpiry := now.Add(maxAccessDuration)
+		// Adjusted max access duration is equal to the access expiry time.
+		req.SetMaxDuration(accessExpiry)
+
+		// Setting access expiry before calling `calculatePendingRequestTTL`
+		// matters since the func relies on this adjusted expiry.
+		req.SetAccessExpiry(accessExpiry)
+
+		// Calculate the expiration time of the Access Request (how long it
+		// will await approval).
+		requestTTL, err := m.calculatePendingRequestTTL(req, now)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		req.SetExpiry(now.Add(requestTTL))
+
+		if req.GetAssumeStartTime() != nil {
+			assumeStartTime := *req.GetAssumeStartTime()
+			if err := types.ValidateAssumeStartTime(assumeStartTime, accessExpiry, req.GetCreationTime()); err != nil {
 				return trace.Wrap(err)
-			}
-
-			maxDuration, err := m.calculateMaxAccessDuration(req, sessionTTL)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			// If the maxDuration flag is set, consider it instead of only using the session TTL.
-			var maxAccessDuration time.Duration
-
-			if maxDuration > 0 {
-				req.SetSessionTLL(now.Add(min(sessionTTL, maxDuration)))
-				maxAccessDuration = maxDuration
-			} else {
-				req.SetSessionTLL(now.Add(sessionTTL))
-				maxAccessDuration = sessionTTL
-			}
-
-			// This is the final adjusted access expiry where both max duration
-			// and session TTL were taken into consideration.
-			accessExpiry := now.Add(maxAccessDuration)
-			// Adjusted max access duration is equal to the access expiry time.
-			req.SetMaxDuration(accessExpiry)
-
-			// Setting access expiry before calling `calculatePendingRequestTTL`
-			// matters since the func relies on this adjusted expiry.
-			req.SetAccessExpiry(accessExpiry)
-
-			// Calculate the expiration time of the Access Request (how long it
-			// will await approval).
-			requestTTL, err := m.calculatePendingRequestTTL(req, now)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			req.SetExpiry(now.Add(requestTTL))
-
-			if req.GetAssumeStartTime() != nil {
-				assumeStartTime := *req.GetAssumeStartTime()
-				if err := types.ValidateAssumeStartTime(assumeStartTime, accessExpiry, req.GetCreationTime()); err != nil {
-					return trace.Wrap(err)
-				}
 			}
 		}
 	}
