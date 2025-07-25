@@ -218,6 +218,7 @@ const (
 	AuthService_SetNetworkRestrictions_FullMethodName              = "/proto.AuthService/SetNetworkRestrictions"
 	AuthService_DeleteNetworkRestrictions_FullMethodName           = "/proto.AuthService/DeleteNetworkRestrictions"
 	AuthService_GetApps_FullMethodName                             = "/proto.AuthService/GetApps"
+	AuthService_ListApps_FullMethodName                            = "/proto.AuthService/ListApps"
 	AuthService_GetApp_FullMethodName                              = "/proto.AuthService/GetApp"
 	AuthService_CreateApp_FullMethodName                           = "/proto.AuthService/CreateApp"
 	AuthService_UpdateApp_FullMethodName                           = "/proto.AuthService/UpdateApp"
@@ -783,6 +784,8 @@ type AuthServiceClient interface {
 	DeleteNetworkRestrictions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetApps returns all registered applications.
 	GetApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AppV3List, error)
+	// ListApps returns a page of registered applications.
+	ListApps(ctx context.Context, in *ListAppsRequest, opts ...grpc.CallOption) (*ListAppsResponse, error)
 	// GetApp returns an application by name.
 	GetApp(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.AppV3, error)
 	// CreateApp creates a new application resource.
@@ -3065,6 +3068,15 @@ func (c *authServiceClient) GetApps(ctx context.Context, in *emptypb.Empty, opts
 	return out, nil
 }
 
+func (c *authServiceClient) ListApps(ctx context.Context, in *ListAppsRequest, opts ...grpc.CallOption) (*ListAppsResponse, error) {
+	out := new(ListAppsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListApps_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) GetApp(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.AppV3, error) {
 	out := new(types.AppV3)
 	err := c.cc.Invoke(ctx, AuthService_GetApp_FullMethodName, in, out, opts...)
@@ -4275,6 +4287,8 @@ type AuthServiceServer interface {
 	DeleteNetworkRestrictions(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetApps returns all registered applications.
 	GetApps(context.Context, *emptypb.Empty) (*types.AppV3List, error)
+	// ListApps returns a page of registered applications.
+	ListApps(context.Context, *ListAppsRequest) (*ListAppsResponse, error)
 	// GetApp returns an application by name.
 	GetApp(context.Context, *types.ResourceRequest) (*types.AppV3, error)
 	// CreateApp creates a new application resource.
@@ -5044,6 +5058,9 @@ func (UnimplementedAuthServiceServer) DeleteNetworkRestrictions(context.Context,
 }
 func (UnimplementedAuthServiceServer) GetApps(context.Context, *emptypb.Empty) (*types.AppV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetApps not implemented")
+}
+func (UnimplementedAuthServiceServer) ListApps(context.Context, *ListAppsRequest) (*ListAppsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListApps not implemented")
 }
 func (UnimplementedAuthServiceServer) GetApp(context.Context, *types.ResourceRequest) (*types.AppV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetApp not implemented")
@@ -8653,6 +8670,24 @@ func _AuthService_GetApps_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListApps_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAppsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListApps(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListApps_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListApps(ctx, req.(*ListAppsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_GetApp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(types.ResourceRequest)
 	if err := dec(in); err != nil {
@@ -10726,6 +10761,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetApps",
 			Handler:    _AuthService_GetApps_Handler,
+		},
+		{
+			MethodName: "ListApps",
+			Handler:    _AuthService_ListApps_Handler,
 		},
 		{
 			MethodName: "GetApp",

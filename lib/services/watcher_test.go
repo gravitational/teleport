@@ -647,7 +647,7 @@ func TestAppWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	type client struct {
-		services.Apps
+		services.Applications
 		types.Events
 	}
 
@@ -657,8 +657,8 @@ func TestAppWatcher(t *testing.T) {
 			Component:      "test",
 			MaxRetryPeriod: 200 * time.Millisecond,
 			Client: &client{
-				Apps:   appService,
-				Events: local.NewEventsService(bk),
+				Applications: appService,
+				Events:       local.NewEventsService(bk),
 			},
 		},
 		AppsC: make(chan types.Apps, 10),

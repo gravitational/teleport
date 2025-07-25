@@ -239,6 +239,9 @@ type ReadProxyAccessPoint interface {
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
 
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 
@@ -558,6 +561,9 @@ type ReadAppsAccessPoint interface {
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
 
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 }
@@ -748,6 +754,10 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetApps returns all application resources.
 	GetApps(context.Context) ([]types.Application, error)
+
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 
@@ -1024,6 +1034,9 @@ type Cache interface {
 
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
+
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
 
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)

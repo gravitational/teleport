@@ -528,7 +528,7 @@ type Cache struct {
 	dynamicAccessCache           services.DynamicAccessExt
 	presenceCache                services.Presence
 	restrictionsCache            services.Restrictions
-	appsCache                    services.Apps
+	appsCache                    services.Applications
 	kubernetesCache              services.Kubernetes
 	crownJewelsCache             services.CrownJewels
 	databaseServicesCache        services.DatabaseServices
@@ -693,7 +693,7 @@ type Config struct {
 	// Restrictions is a restrictions service
 	Restrictions services.Restrictions
 	// Apps is an apps service.
-	Apps services.Apps
+	Apps services.Applications
 	// Kubernetes is an kubernetes service.
 	Kubernetes services.Kubernetes
 	// CrownJewels is a CrownJewels service.
@@ -2521,6 +2521,20 @@ func (c *Cache) GetApps(ctx context.Context) ([]types.Application, error) {
 	}
 	defer rg.Release()
 	return rg.reader.GetApps(ctx)
+}
+
+// ListApps returns a page of application resources.
+func (c *Cache) ListApps(ctx context.Context, pageSize int, pageToken string) ([]types.Application, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListApps")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.apps)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.ListApps(ctx, pageSize, pageToken)
 }
 
 // GetApp returns the specified application resource.
