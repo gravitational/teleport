@@ -534,7 +534,7 @@ func (c *WorkloadIdentityCommand) runOverridesCreate(ctx context.Context, client
 		for _, cert := range chain {
 			// If the issuer and subject are the same, then this is a
 			// "self-signed" certificate.
-			if cert.Issuer.String() == cert.Subject.String() {
+			if bytes.Equal(cert.RawSubject, cert.RawIssuer) {
 				slog.WarnContext(
 					ctx,
 					"The provided certificate chain contains a root certificate when it should only contain the issuing CA and the intermediate CAs necessary to chain the issuing CA to the root CA. Remove the root certificate from the certificate file.",
