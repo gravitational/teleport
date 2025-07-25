@@ -113,6 +113,8 @@ linters:
           deny:
             - pkg: github.com/gravitational/teleport/integration
               desc: integration test should not be imported outside of intergation tests
+            - pkg: github.com/gravitational/teleport/lib/utils/mcptest
+              desc: testing packages should not be imported outside of _test.go files
         logging:
           deny:
             - pkg: github.com/sirupsen/logrus
@@ -168,6 +170,14 @@ linters:
         test_packages:
           files:
             - '!$test'
+            - '!**/integrations/operator/controllers/resources/testlib/**.go'
+            - '!**/e/lib/aws/identitycenter/test/**'
+            - '!**/e/lib/devicetrust/testenv/**'
+            - '!**/e/lib/jamf/testenv/**'
+            - '!**/e/lib/idp/saml/testenv/**'
+            - '!**/e/lib/operatortest/**'
+            - '!**/e/tests/**'
+            - '!**/integration/helpers/**'
           deny:
             - pkg: github.com/gravitational/teleport/e/lib/aws/identitycenter/test
               desc: testing packages should not be imported outside of _test.go files
@@ -189,6 +199,12 @@ linters:
               desc: testing packages should not be imported outside of _test.go files
             - pkg: github.com/gravitational/teleport/lib/srv/db/spanner/testing
               desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/modules/modulestest
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/auth/authtest
+              desc: testing packages should not be imported outside of _test.go files
         testify:
           files:
             - '!$test'
@@ -205,6 +221,7 @@ linters:
             - '!**/lib/services/suite/**'
             - '!**/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest/sigstoretest.go'
             - '!**/lib/teleterm/gatewaytest/**'
+            - '!**/lib/utils/mcptest/**'
             - '!**/lib/utils/testutils/**'
             - '!**/integration/appaccess/fixtures.go'
             - '!**/integration/appaccess/jwt.go'
@@ -250,12 +267,14 @@ linters:
             - '!**/integrations/access/msteams/testlib/**'
             - '!**/integrations/access/slack/testlib/**'
             - '!**/integrations/operator/controllers/resources/testlib/**'
+            - '!**/lib/auth/authtest/**'
             - '!**/lib/auth/helpers.go'
             - '!**/lib/auth/keystore/testhelpers.go'
             - '!**/lib/backend/test/**'
             - '!**/lib/cryptosuites/precompute.go'
             - '!**/lib/cryptosuites/internal/rsa/rsa.go'
             - '!**/lib/events/test/**'
+            - '!**/lib/modules/modulestest/**'
             - '!**/lib/modules/test.go'
             - '!**/lib/service/service.go'
             - '!**/lib/services/local/users.go'
@@ -263,6 +282,7 @@ linters:
             - '!**/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest/sigstoretest.go'
             - '!**/lib/teleterm/gatewaytest/**'
             - '!**/lib/utils/cli.go'
+            - '!**/lib/utils/mcptest/**'
             - '!**/lib/utils/testutils/**'
             - '!**/tool/teleport/testenv/**'
           deny:

@@ -142,7 +142,7 @@ func (c *CertChecker) SetCert(cert tls.Certificate) {
 
 // GetOrIssueCert gets the CertChecker's certificate, or issues a new
 // certificate if the it is invalid (e.g. expired) or missing.
-func (c *CertChecker) GetOrIssueCert(ctx context.Context) (tls.Certificate, error) {
+func (c *CertChecker) GetOrIssueCert(ctx context.Context) (cert tls.Certificate, err error) {
 	c.certMu.Lock()
 	defer c.certMu.Unlock()
 
@@ -150,7 +150,7 @@ func (c *CertChecker) GetOrIssueCert(ctx context.Context) (tls.Certificate, erro
 		return c.cert, nil
 	}
 
-	cert, err := c.certIssuer.IssueCert(ctx)
+	cert, err = c.certIssuer.IssueCert(ctx)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}

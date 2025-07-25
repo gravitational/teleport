@@ -27,6 +27,7 @@ import { Dialog } from 'teleterm/ui/services/modals';
 import { ClusterLogout } from '../ClusterLogout';
 import { ResourceSearchErrors } from '../Search/ResourceSearchErrors';
 import { assertUnreachable } from '../utils';
+import { ConfigureSSHClients } from '../Vnet/ConfigureSSHClients';
 import { ChangeAccessRequestKind } from './modals/ChangeAccessRequestKind';
 import { AskPin, ChangePin, OverwriteSlot, Touch } from './modals/HardwareKeys';
 import { ReAuthenticate } from './modals/ReAuthenticate';
@@ -278,6 +279,17 @@ function renderDialog({
             handleClose();
             dialog.onCancel();
           }}
+        />
+      );
+    }
+    case 'configure-ssh-clients': {
+      return (
+        <ConfigureSSHClients
+          hidden={hidden}
+          onConfirm={dialog.onConfirm}
+          onClose={handleClose}
+          vnetSSHConfigPath={dialog.vnetSSHConfigPath}
+          host={dialog.host}
         />
       );
     }

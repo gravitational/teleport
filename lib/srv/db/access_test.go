@@ -65,7 +65,7 @@ import (
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -101,16 +102,21 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
-	cryptosuites.PrecomputeRSATestKeys(m)
+	logtest.InitLogger(testing.Verbose)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cryptosuitestest.PrecomputeRSAKeys(ctx)
 	modules.SetInsecureTestMode(true)
 	registerTestSnowflakeEngine()
 	registerTestElasticsearchEngine()
 	registerTestSQLServerEngine()
-	os.Exit(m.Run())
+	exitCode := m.Run()
+	cancel()
+	os.Exit(exitCode)
 }
 
 // TestAccessPostgres verifies access scenarios to a Postgres database based
@@ -1114,7 +1120,7 @@ func TestMongoDBMaxMessageSize(t *testing.T) {
 
 // TestAccessDisabled makes sure database access can be disabled via modules.
 func TestAccessDisabled(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.DB: {Enabled: false},
@@ -2400,7 +2406,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 		ServerID:       testCtx.hostID,
 		Emitter:        testCtx.emitter,
 		EmitterContext: ctx,
-		Logger:         utils.NewSlogLoggerForTests(),
+		Logger:         logtest.NewLogger(),
 	})
 	require.NoError(t, err)
 
@@ -2554,7 +2560,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		ServerID:       p.HostID,
 		Emitter:        c.emitter,
 		EmitterContext: context.Background(),
-		Logger:         utils.NewSlogLoggerForTests(),
+		Logger:         logtest.NewLogger(),
 	})
 	require.NoError(t, err)
 

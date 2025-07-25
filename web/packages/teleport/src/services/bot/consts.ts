@@ -20,6 +20,7 @@ import {
   ApiBot,
   BotType,
   BotUiFlow,
+  EditBotRequest,
   FlatBot,
   GetBotInstanceResponse,
   GitHubRepoRule,
@@ -95,6 +96,8 @@ export function makeBot(bot: ApiBot): FlatBot {
 
     roles: bot?.spec?.roles || [],
     traits: bot?.spec?.traits || [],
+
+    max_session_ttl: bot?.spec?.max_session_ttl,
   };
 }
 
@@ -151,3 +154,12 @@ export function getBotType(labels: Map<string, string>): BotType {
 }
 
 export const GITHUB_ACTIONS_LABEL_KEY = 'teleport.internal/ui-flow';
+
+export function canUseV1Edit(req: EditBotRequest) {
+  return Object.entries(req).every(([key, value]) => {
+    if (key !== 'roles') {
+      return value === null || value === undefined;
+    }
+    return true;
+  });
+}

@@ -47,7 +47,7 @@ func TestProxies(t *testing.T) {
 		list: func(_ context.Context) ([]types.Server, error) {
 			return p.presenceS.GetProxies()
 		},
-		cacheList: func(_ context.Context) ([]types.Server, error) {
+		cacheList: func(ctx context.Context, pageSize int) ([]types.Server, error) {
 			return p.cache.GetProxies()
 		},
 		update: p.presenceS.UpsertProxy,

@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // MakeTestClient returns SQL Server client used in tests.
@@ -133,8 +134,7 @@ func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log := utils.NewSlogLoggerForTests().With(
-		teleport.ComponentKey, defaults.ProtocolSQLServer,
+	log := logtest.With(teleport.ComponentKey, defaults.ProtocolSQLServer,
 		"name", config.Name,
 	)
 	server := &TestServer{

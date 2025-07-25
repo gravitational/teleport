@@ -34,6 +34,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
 // debouncer accepts a duration, and a function. When `attempt` is called on
@@ -127,10 +128,12 @@ const caRotationRetryBackoff = time.Second * 2
 //     certificates issued by the old CA, and stop trusting the new CA.
 //   - Update Servers -> Standby: So we can stop trusting the old CA.
 type caRotationService struct {
-	log               *slog.Logger
-	reloadBroadcaster *channelBroadcaster
-	botClient         *apiclient.Client
-	getBotIdentity    getBotIdentityFn
+	log                *slog.Logger
+	reloadBroadcaster  *channelBroadcaster
+	botClient          *apiclient.Client
+	getBotIdentity     getBotIdentityFn
+	botIdentityReadyCh <-chan struct{}
+	statusReporter     readyz.Reporter
 }
 
 func (s *caRotationService) String() string {
@@ -143,11 +146,28 @@ func (s *caRotationService) String() string {
 // Run also manages debouncing the renewals across multiple watch
 // attempts.
 func (s *caRotationService) Run(ctx context.Context) error {
+	if s.statusReporter == nil {
+		s.statusReporter = readyz.NoopReporter()
+	}
+
 	rd := debouncer{
 		f:              s.reloadBroadcaster.broadcast,
 		debouncePeriod: time.Second * 10,
 	}
 	jitter := retryutils.DefaultJitter
+
+	if s.botIdentityReadyCh != nil {
+		select {
+		case <-s.botIdentityReadyCh:
+		default:
+			s.log.InfoContext(ctx, "Waiting for internal bot identity to be renewed before running")
+			select {
+			case <-s.botIdentityReadyCh:
+			case <-ctx.Done():
+				return nil
+			}
+		}
+	}
 
 	for {
 		err := s.watchCARotations(ctx, rd.attempt)
@@ -169,6 +189,7 @@ func (s *caRotationService) Run(ctx context.Context) error {
 		if isCancelledErr {
 			s.log.DebugContext(ctx, "CA watcher detected client closing. Waiting to rewatch", "wait", backoffPeriod)
 		} else if err != nil {
+			s.statusReporter.Report(readyz.Unhealthy)
 			s.log.ErrorContext(ctx, "Error occurred whilst watching CA rotations. Waiting to retry", "wait", backoffPeriod, "error", err)
 		}
 
@@ -210,6 +231,7 @@ func (s *caRotationService) watchCARotations(ctx context.Context, queueReload fu
 			// OpInit is a special case omitted by the Watcher when the
 			// connection succeeds.
 			if event.Type == types.OpInit {
+				s.statusReporter.Report(readyz.Healthy)
 				s.log.InfoContext(ctx, "Started watching for CA rotations")
 				continue
 			}

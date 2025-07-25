@@ -300,6 +300,12 @@ type Role interface {
 	// GetIdentityCenterAccountAssignments sets the allow or deny Account
 	// Assignments for the role
 	SetIdentityCenterAccountAssignments(RoleConditionType, []IdentityCenterAccountAssignment)
+
+	// GetMCPPermissions returns the allow or deny MCP permissions.
+	GetMCPPermissions(RoleConditionType) *MCPPermissions
+	// SetMCPPermissions sets the allow or deny MCP permissions.
+	SetMCPPermissions(RoleConditionType, *MCPPermissions)
+
 	// Clone creats a copy of the role.
 	Clone() Role
 }
@@ -2085,7 +2091,7 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 			}
 			// Best effort attempt to validate if the namespace field is needed.
 			if kubeResource.Namespace == "" {
-				if _, ok := kubernetesNamespacedResourceKinds[groupKind{kubeResource.APIGroup, kubeResource.Kind}]; ok {
+				if apiGroup, ok := kubernetesNamespacedResourceKinds[kubeResource.Kind]; ok && apiGroup == kubeResource.APIGroup {
 					return trace.BadParameter("KubernetesResource %q must include Namespace", kubeResource.Kind)
 				}
 			}
@@ -2359,6 +2365,23 @@ func (r *RoleV6) SetIdentityCenterAccountAssignments(rct RoleConditionType, assi
 		cond = &r.Spec.Allow
 	}
 	cond.AccountAssignments = assignments
+}
+
+// GetMCPPermissions returns the allow or deny MCP permissions.
+func (r *RoleV6) GetMCPPermissions(rct RoleConditionType) *MCPPermissions {
+	if rct == Allow {
+		return r.Spec.Allow.MCP
+	}
+	return r.Spec.Deny.MCP
+}
+
+// SetMCPPermissions sets the allow or deny MCP permissions.
+func (r *RoleV6) SetMCPPermissions(rct RoleConditionType, perms *MCPPermissions) {
+	if rct == Allow {
+		r.Spec.Allow.MCP = perms
+	} else {
+		r.Spec.Deny.MCP = perms
+	}
 }
 
 func (r *RoleV6) Clone() Role {

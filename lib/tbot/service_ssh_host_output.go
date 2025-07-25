@@ -39,20 +39,26 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
 type SSHHostOutputService struct {
-	botAuthClient     *apiclient.Client
-	botCfg            *config.BotConfig
-	cfg               *config.SSHHostOutput
-	getBotIdentity    getBotIdentityFn
-	log               *slog.Logger
-	reloadBroadcaster *channelBroadcaster
-	resolver          reversetunnelclient.Resolver
+	botAuthClient      *apiclient.Client
+	botIdentityReadyCh <-chan struct{}
+	botCfg             *config.BotConfig
+	cfg                *config.SSHHostOutput
+	getBotIdentity     getBotIdentityFn
+	log                *slog.Logger
+	reloadBroadcaster  *channelBroadcaster
+	resolver           reversetunnelclient.Resolver
+	statusReporter     readyz.Reporter
 }
 
 func (s *SSHHostOutputService) String() string {
-	return fmt.Sprintf("ssh-host (%s)", s.cfg.Destination.String())
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("ssh-host (%s)", s.cfg.Destination.String()),
+	)
 }
 
 func (s *SSHHostOutputService) OneShot(ctx context.Context) error {
@@ -64,13 +70,15 @@ func (s *SSHHostOutputService) Run(ctx context.Context) error {
 	defer unsubscribe()
 
 	err := runOnInterval(ctx, runOnIntervalConfig{
-		service:    s.String(),
-		name:       "output-renewal",
-		f:          s.generate,
-		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
-		retryLimit: renewalRetryLimit,
-		log:        s.log,
-		reloadCh:   reloadCh,
+		service:         s.String(),
+		name:            "output-renewal",
+		f:               s.generate,
+		interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
+		retryLimit:      renewalRetryLimit,
+		log:             s.log,
+		reloadCh:        reloadCh,
+		identityReadyCh: s.botIdentityReadyCh,
+		statusReporter:  s.statusReporter,
 	})
 	return trace.Wrap(err)
 }

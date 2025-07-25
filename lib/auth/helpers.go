@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net"
-	"strings"
 	"testing"
 	"time"
 
@@ -514,7 +513,7 @@ func InitTestAuthCache(p TestAuthCacheParams) error {
 		AccessLists:             p.AuthServer.Services.AccessLists,
 		AccessMonitoringRules:   p.AuthServer.Services.AccessMonitoringRules,
 		AppSession:              p.AuthServer.Services.Identity,
-		Apps:                    p.AuthServer.Services.Apps,
+		Apps:                    p.AuthServer.Services.Applications,
 		ClusterConfig:           p.AuthServer.Services.ClusterConfigurationInternal,
 		CrownJewels:             p.AuthServer.Services.CrownJewels,
 		DatabaseObjects:         p.AuthServer.Services.DatabaseObjects,
@@ -552,6 +551,8 @@ func InitTestAuthCache(p TestAuthCacheParams) error {
 		PluginStaticCredentials: p.AuthServer.Services.PluginStaticCredentials,
 		GitServers:              p.AuthServer.Services.GitServers,
 		HealthCheckConfig:       p.AuthServer.Services.HealthCheckConfig,
+		BotInstance:             p.AuthServer.Services.BotInstance,
+		Plugin:                  p.AuthServer.Services.Plugins,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1505,54 +1506,4 @@ func CreateUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []str
 	}
 
 	return created, upsertedRole, nil
-}
-
-// flushClt is the set of methods expected by the flushCache helper.
-type flushClt interface {
-	// GetRole returns role by name
-	GetRole(ctx context.Context, name string) (types.Role, error)
-	// CreateRole creates a new role.
-	CreateRole(context.Context, types.Role) (types.Role, error)
-	// DeleteRole deletes the role by name.
-	DeleteRole(ctx context.Context, name string) error
-}
-
-// flushCache is a helper for waiting until preceding changes have propagated to the
-// cache during a test. this is useful for writing tests that may want to update backend
-// state and then perform some operation that depends on the auth server knoowing that state.
-// note that this is only intended for use with the memory backend, as this helper relies on the assumption that
-// write events for different keys show up in the order in which the writes were performed, which
-// is not necessarily true for all backends.
-func flushCache(t *testing.T, clt flushClt) {
-	ctx := context.Background()
-
-	// the pattern of writing a resource and then waiting for it to appear
-	// works for any resource type (when using memory backend).
-	name := strings.ReplaceAll(uuid.NewString(), "-", "")
-	defer clt.DeleteRole(ctx, name)
-
-	role, err := types.NewRole(name, types.RoleSpecV6{})
-	if err != nil {
-		t.Fatalf("Failed to instantiate new role: %v", err)
-	}
-
-	role, err = clt.CreateRole(ctx, role)
-	if err != nil {
-		t.Fatalf("Failed to create new role: %v", err)
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
-	defer cancel()
-	for {
-		r, err := clt.GetRole(ctx, name)
-		if err == nil && r.GetRevision() == role.GetRevision() {
-			return
-		}
-
-		select {
-		case <-time.After(200 * time.Millisecond):
-		case <-ctx.Done():
-			t.Fatal("Time out waiting for role to be replicated")
-		}
-	}
 }

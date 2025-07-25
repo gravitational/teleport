@@ -300,6 +300,9 @@ func NewPresetAccessRole() types.Role {
 					types.NewRule(types.KindInstance, RO()),
 					types.NewRule(types.KindClusterMaintenanceConfig, RO()),
 				},
+				MCP: &types.MCPPermissions{
+					Tools: []string{teleport.TraitInternalMCPTools},
+				},
 			},
 		},
 	}
@@ -590,6 +593,76 @@ func NewPresetWildcardWorkloadIdentityIssuerRole() types.Role {
 	return role
 }
 
+// NewPresetAccessPluginRole returns a new pre-defined role for self-hosted
+// access request plugins.
+func NewPresetAccessPluginRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetAccessPluginRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Default access plugin role",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindAccessRequest, RO()),
+					types.NewRule(types.KindAccessPluginData, RW()),
+					types.NewRule(types.KindAccessMonitoringRule, RO()),
+					types.NewRule(types.KindAccessList, RO()),
+					types.NewRule(types.KindRole, RO()),
+					types.NewRule(types.KindUser, RO()),
+				},
+				ReviewRequests: &types.AccessReviewConditions{
+					PreviewAsRoles: []string{
+						teleport.PresetListAccessRequestResourcesRoleName,
+					},
+				},
+			},
+		},
+	}
+	return role
+}
+
+// NewPresetListAccessRequestResourcesRole returns a new pre-defined role that
+// allows reading access request resources.
+func NewPresetListAccessRequestResourcesRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetListAccessRequestResourcesRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Default list access request resources role",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindNode, RO()),
+					types.NewRule(types.KindApp, RO()),
+					types.NewRule(types.KindDatabase, RO()),
+					types.NewRule(types.KindKubernetesCluster, RO()),
+				},
+				// To enable all access plugin features, the role requires read
+				// access to all of the following resources.
+				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+				GroupLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			},
+		},
+	}
+	return role
+}
+
 // SystemOktaAccessRoleName is the name of the system role that allows
 // access to Okta resources. This will be used by the Okta requester role to
 // search for Okta resources.
@@ -803,10 +876,12 @@ func bootstrapRoleMetadataLabels() map[string]map[string]string {
 }
 
 var defaultAllowRulesMap = map[string][]types.Rule{
-	teleport.PresetAuditorRoleName:           NewPresetAuditorRole().GetRules(types.Allow),
-	teleport.PresetEditorRoleName:            NewPresetEditorRole().GetRules(types.Allow),
-	teleport.PresetAccessRoleName:            NewPresetAccessRole().GetRules(types.Allow),
-	teleport.PresetTerraformProviderRoleName: NewPresetTerraformProviderRole().GetRules(types.Allow),
+	teleport.PresetAuditorRoleName:                    NewPresetAuditorRole().GetRules(types.Allow),
+	teleport.PresetEditorRoleName:                     NewPresetEditorRole().GetRules(types.Allow),
+	teleport.PresetAccessRoleName:                     NewPresetAccessRole().GetRules(types.Allow),
+	teleport.PresetTerraformProviderRoleName:          NewPresetTerraformProviderRole().GetRules(types.Allow),
+	teleport.PresetAccessPluginRoleName:               NewPresetAccessPluginRole().GetRules(types.Allow),
+	teleport.PresetListAccessRequestResourcesRoleName: NewPresetListAccessRequestResourcesRole().GetRules(types.Allow),
 }
 
 // defaultAllowRules has the Allow rules that should be set as default when
@@ -836,6 +911,13 @@ func defaultAllowLabels(enterprise bool) map[string]types.RoleConditions {
 			DatabaseLabels:       wildcardLabels,
 			NodeLabels:           wildcardLabels,
 			WindowsDesktopLabels: wildcardLabels,
+		},
+		teleport.PresetListAccessRequestResourcesRoleName: {
+			AppLabels:        wildcardLabels,
+			DatabaseLabels:   wildcardLabels,
+			GroupLabels:      wildcardLabels,
+			KubernetesLabels: wildcardLabels,
+			NodeLabels:       wildcardLabels,
 		},
 	}
 
@@ -990,6 +1072,7 @@ func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
 			types.KindNode,
 			types.KindUserGroup,
 			types.KindWindowsDesktop,
+			types.KindKubernetesCluster,
 		} {
 			var labels types.Labels
 			switch kind {
@@ -1005,6 +1088,8 @@ func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
 				labels = defaultLabels.GroupLabels
 			case types.KindWindowsDesktop:
 				labels = defaultLabels.WindowsDesktopLabels
+			case types.KindKubernetesCluster:
+				labels = defaultLabels.KubernetesLabels
 			}
 			labelsUpdated, err := updateAllowLabels(role, kind, labels)
 			if err != nil {
@@ -1040,6 +1125,15 @@ func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
 			role.SetGitHubPermissions(types.Allow, []types.GitHubPermission{{
 				Organizations: githubOrgs,
 			}})
+			changed = true
+		}
+	}
+
+	if role.GetMCPPermissions(types.Allow) == nil {
+		if mcpTools := defaultMCPTools()[role.GetName()]; len(mcpTools) > 0 {
+			role.SetMCPPermissions(types.Allow, &types.MCPPermissions{
+				Tools: mcpTools,
+			})
 			changed = true
 		}
 	}
@@ -1159,5 +1253,11 @@ func updateAllowLabels(role types.Role, kind string, defaultLabels types.Labels)
 func defaultGitHubOrgs() map[string][]string {
 	return map[string][]string{
 		teleport.PresetAccessRoleName: []string{teleport.TraitInternalGitHubOrgs},
+	}
+}
+
+func defaultMCPTools() map[string][]string {
+	return map[string][]string{
+		teleport.PresetAccessRoleName: []string{teleport.TraitInternalMCPTools},
 	}
 }

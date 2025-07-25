@@ -2,6 +2,9 @@
 title: Microsoft SQL Server access with PKINIT authentication
 sidebar_label: SQL Server
 description: How to configure Microsoft SQL Server access with Active Directory PKINIT authentication.
+labels:
+ - how-to
+ - zero-trust
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Microsoft SQL Server" dbConfigure="with PKINIT authentication"!)
@@ -87,6 +90,13 @@ You will need to repeat these steps if you rotate Teleport's database certificat
    $ tctl auth crl --type=db_client > db-ca.crl
    ```
 
+   If you use HSM, there are multiple CRLs that have to be exported.
+   This can be done by running:
+
+   ```code
+   $ tctl auth crl --type=db_client --out=<file_prefix>
+   ```
+
 1. Transfer the `db-ca.cer` and `db-ca.crl` files to a Windows machine where you can manage your group policy.
 
 ### Create a GPO and import the Teleport CA
@@ -168,6 +178,12 @@ Teleport CRL to your Active Directory domain (using the path to the exported
 
 ```powershell
 certutil -dspublish -f <PathToCRLFile.crl> TeleportDB
+```
+
+If you use HSM, run commands printed at the end of the CRL export. They will be in the form of:
+
+```powershell
+certutil -dspublish -f <PathToCRLFile.crl> TeleportDB <CRLCommonName>
 ```
 
 <Admonition type="tip">
