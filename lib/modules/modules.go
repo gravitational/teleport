@@ -437,7 +437,7 @@ func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *
 
 // GenerateLongTermResourceGrouping is a noop since OSS teleport does not support long-term Access Requests.
 func (p *defaultModules) GenerateLongTermResourceGrouping(_ context.Context, _ AccessResourcesGetter, _ types.AccessRequest) (*types.LongTermResourceGrouping, error) {
-	return nil, nil
+	return &types.LongTermResourceGrouping{}, nil
 }
 
 // GenerateAccessRequestPromotions is a noop since OSS teleport does not support generating access list promotions.
