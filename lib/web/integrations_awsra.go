@@ -222,14 +222,25 @@ func (h *Handler) awsRolesAnywhereListProfiles(w http.ResponseWriter, r *http.Re
 		return nil, trace.Wrap(err)
 	}
 
-	listResp, err := clt.IntegrationAWSRolesAnywhereClient().ListRolesAnywhereProfiles(ctx, &integrationv1.ListRolesAnywhereProfilesRequest{
-		Integration:        integrationName,
-		NextPageToken:      req.StartKey,
-		ProfileNameFilters: req.Filters,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	allProfiles := &integrationv1.ListRolesAnywhereProfilesResponse{}
+	var startKey string
+	for {
+		listResp, err := clt.IntegrationAWSRolesAnywhereClient().ListRolesAnywhereProfiles(ctx, &integrationv1.ListRolesAnywhereProfilesRequest{
+			Integration:        integrationName,
+			NextPageToken:      startKey,
+			ProfileNameFilters: req.Filters,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		allProfiles.Profiles = append(allProfiles.Profiles, listResp.Profiles...)
+
+		startKey = listResp.NextPageToken
+		if startKey == "" {
+			break
+		}
 	}
 
-	return listResp, nil
+	return allProfiles, nil
 }

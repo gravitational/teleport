@@ -1,20 +1,22 @@
-// Teleport
-// Copyright (C) 2025 Gravitational, Inc.
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-package tbot
+package awsra
 
 import (
 	"bytes"
@@ -30,25 +32,28 @@ import (
 	awsspiffe "github.com/spiffe/aws-spiffe-workload-helper"
 	"github.com/spiffe/aws-spiffe-workload-helper/vendoredaws"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
+	"go.opentelemetry.io/otel"
 	"gopkg.in/ini.v1"
 
-	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
-func WorkloadIdentityAWSRAServiceBuilder(botCfg *config.BotConfig, cfg *config.WorkloadIdentityAWSRAService) bot.ServiceBuilder {
+var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/services/awsra")
+
+func ServiceBuilder(cfg *Config) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
-		svc := &WorkloadIdentityAWSRAService{
-			botCfg:             botCfg,
+		if err := cfg.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		svc := &Service{
 			cfg:                cfg,
 			botAuthClient:      deps.Client,
 			botIdentityReadyCh: deps.BotIdentityReadyCh,
@@ -56,22 +61,18 @@ func WorkloadIdentityAWSRAServiceBuilder(botCfg *config.BotConfig, cfg *config.W
 			identityGenerator:  deps.IdentityGenerator,
 			clientBuilder:      deps.ClientBuilder,
 		}
-		svc.log = deps.Logger.With(
-			teleport.ComponentKey,
-			teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
-		)
+		svc.log = deps.LoggerForService(svc)
 		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
 		return svc, nil
 	}
 }
 
-// WorkloadIdentityAWSRAService is a service that retrieves X.509 certificates
-// and exchanges them for AWS credentials using the AWS Roles Anywhere service.
-type WorkloadIdentityAWSRAService struct {
+// Service is a service that retrieves X.509 certificates and exchanges them for
+// AWS credentials using the AWS Roles Anywhere service.
+type Service struct {
 	botAuthClient      *apiclient.Client
 	botIdentityReadyCh <-chan struct{}
-	botCfg             *config.BotConfig
-	cfg                *config.WorkloadIdentityAWSRAService
+	cfg                *Config
 	log                *slog.Logger
 	statusReporter     readyz.Reporter
 	reloadCh           <-chan struct{}
@@ -80,7 +81,7 @@ type WorkloadIdentityAWSRAService struct {
 }
 
 // String returns a human-readable description of the service.
-func (s *WorkloadIdentityAWSRAService) String() string {
+func (s *Service) String() string {
 	return cmp.Or(
 		s.cfg.Name,
 		fmt.Sprintf("workload-identity-aws-roles-anywhere (%s)", s.cfg.Destination.String()),
@@ -89,19 +90,19 @@ func (s *WorkloadIdentityAWSRAService) String() string {
 
 // OneShot runs the service once, generating the output and writing it to the
 // destination, before exiting.
-func (s *WorkloadIdentityAWSRAService) OneShot(ctx context.Context) error {
+func (s *Service) OneShot(ctx context.Context) error {
 	return s.generate(ctx)
 }
 
 // Run runs the service in a loop, generating the output and writing it to the
 // destination at regular intervals.
-func (s *WorkloadIdentityAWSRAService) Run(ctx context.Context) error {
+func (s *Service) Run(ctx context.Context) error {
 	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
 		Service:         s.String(),
 		Name:            "output-renewal",
 		F:               s.generate,
 		Interval:        s.cfg.SessionRenewalInterval,
-		RetryLimit:      renewalRetryLimit,
+		RetryLimit:      internal.RenewalRetryLimit,
 		Log:             s.log,
 		ReloadCh:        s.reloadCh,
 		IdentityReadyCh: s.botIdentityReadyCh,
@@ -110,7 +111,7 @@ func (s *WorkloadIdentityAWSRAService) Run(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
-func (s *WorkloadIdentityAWSRAService) generate(ctx context.Context) error {
+func (s *Service) generate(ctx context.Context) error {
 	res, privateKey, err := s.requestSVID(ctx)
 	if err != nil {
 		return trace.Wrap(err, "requesting SVID")
@@ -154,7 +155,7 @@ func (s *WorkloadIdentityAWSRAService) generate(ctx context.Context) error {
 
 // exchangeSVID will exchange the X.509 SVID for AWS credentials using the
 // AWS Roles Anywhere service.
-func (s *WorkloadIdentityAWSRAService) exchangeSVID(
+func (s *Service) exchangeSVID(
 	svid *x509svid.SVID,
 ) (*vendoredaws.CredentialProcessOutput, error) {
 	signer := &awsspiffe.X509SVIDSigner{
@@ -180,7 +181,7 @@ func (s *WorkloadIdentityAWSRAService) exchangeSVID(
 	return &credentials, nil
 }
 
-func (s *WorkloadIdentityAWSRAService) requestSVID(
+func (s *Service) requestSVID(
 	ctx context.Context,
 ) (
 	*workloadidentityv1pb.Credential,
@@ -272,7 +273,7 @@ func loadExistingAWSCredentialFile(
 
 // render will write the AWS credentials to the AWS CLI configuration file.
 // See https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html
-func (s *WorkloadIdentityAWSRAService) renderAWSCreds(
+func (s *Service) renderAWSCreds(
 	ctx context.Context,
 	creds *vendoredaws.CredentialProcessOutput,
 ) error {
