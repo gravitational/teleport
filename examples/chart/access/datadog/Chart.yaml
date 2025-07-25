@@ -1,4 +1,4 @@
-.version: &version "17.6.0"
+.version: &version "17.7.0-dev.hugocanary.0"
 
 apiVersion: v2
 name: teleport-plugin-datadog
