@@ -54,6 +54,6 @@ func (m dummySummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent 
 	return nil
 }
 
-func (m dummySummarizer) SummarizeUnknown(ctx context.Context, sessionID session.ID) error {
+func (m dummySummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error {
 	return nil
 }

@@ -588,7 +588,7 @@ func TestSummarization_Unknown(t *testing.T) {
 			if tc.useSummarizer {
 				summarizerProvider.SetSummarizer(mockSummarizer)
 				mockSummarizer.
-					On("SummarizeUnknown", mock.Anything, sid).
+					On("SummarizeWithoutEndEvent", mock.Anything, sid).
 					Return(tc.summarizationError).
 					Once()
 			}
@@ -695,7 +695,7 @@ func (m *MockSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent 
 	return args.Error(0)
 }
 
-func (m *MockSummarizer) SummarizeUnknown(ctx context.Context, sessionID session.ID) error {
+func (m *MockSummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error {
 	args := m.Called(ctx, sessionID)
 	return args.Error(0)
 }

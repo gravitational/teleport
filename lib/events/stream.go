@@ -812,7 +812,7 @@ func (w *sliceWriter) completeStream() {
 		case w.dbSessionEndEvent != nil:
 			err = summarizer.SummarizeDatabase(w.proto.cancelCtx, w.dbSessionEndEvent)
 		default:
-			err = summarizer.SummarizeUnknown(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID)
+			err = summarizer.SummarizeWithoutEndEvent(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID)
 		}
 		if err != nil {
 			slog.WarnContext(w.proto.cancelCtx, "Failed to summarize upload", "error", err)

@@ -26,16 +26,16 @@ import (
 // SessionSummarizer summarizes session recordings using language model
 // inference.
 type SessionSummarizer interface {
-	// SummarizeSSH summarizes an SSH session recording that ended with a given
-	// event.
+	// SummarizeSSH summarizes the SSH session recording associated with the
+	// provided [events.SessionEnd] event.
 	SummarizeSSH(ctx context.Context, sessionEndEvent *events.SessionEnd) error
-	// SummarizeSSH summarizes a database session recording that ended with a given
-	// event.
+	// SummarizeDatabase summarizes the database session recording associated
+	// with the provided [events.DatabaseSessionEnd] event.
 	SummarizeDatabase(ctx context.Context, sessionEndEvent *events.DatabaseSessionEnd) error
-	// SummarizeUnknown summarizes a session recording with a given ID. This is
-	// used for cases where the session ID is known, but there is no end event
-	// available. [SessionSummarizer.SummarizeSSH] and
+	// SummarizeWithoutEndEvent summarizes a session recording with a given ID.
+	// This is used for cases where the session ID is known, but there is no end
+	// event available. [SessionSummarizer.SummarizeSSH] and
 	// [SessionSummarizer.SummarizeDatabase] should be used instead of this
 	// method whenever possible, as they are more efficient.
-	SummarizeUnknown(ctx context.Context, sessionID session.ID) error
+	SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error
 }
