@@ -254,7 +254,8 @@ const ColumnContainer = styled(CardTile)`
   margin: ${props => props.theme.space[1]}px;
 `;
 
-const PanelContentContainer = styled.div`
+const PanelContentContainer = styled(Flex)`
+  flex-direction: column;
   padding: ${props => props.theme.space[3]}px;
   padding-top: 0;
 `;
@@ -274,12 +275,13 @@ const Grid = styled(Box)`
   align-self: flex-start;
   display: grid;
   grid-template-columns: repeat(2, auto);
-  gap: ${props => props.theme.space[2]}px;
+  gap: ${({ theme }) => theme.space[2]}px;
 `;
 
 const GridLabel = styled(Text)`
   color: ${({ theme }) => theme.colors.text.muted};
   font-weight: ${({ theme }) => theme.fontWeights.regular};
+  padding-right: ${({ theme }) => theme.space[2]}px;
 `;
 
 const MonoText = styled(Text)`
