@@ -5522,6 +5522,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if req.GetDryRun() {
 		// NOTE: Some dry-run options are set in [services.ValidateAccessRequestForUser].
 		_, promotions := a.generateAccessRequestPromotions(ctx, req, allAccessLists)
+		// TODO(kiosion): if long-term, skip promotion generation, and instead, use info from LongTermResourceGrouping to add additional reviewers.
 		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessLists, promotions)
 
 		if req.GetRequestKind().IsLongTerm() {
