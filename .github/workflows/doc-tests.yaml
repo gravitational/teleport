@@ -142,6 +142,26 @@ jobs:
         working-directory: 'docs'
         run: yarn markdown-lint
 
+      - name: Check out vale
+        uses: actions/checkout@v4
+        with:
+          repository: 'errata-ai/vale'
+          path: 'vale'
+
+      - name: Download vale
+        working-directory: 'vale'
+        env: 
+          GH_TOKEN: ${{ github.token }}
+          VALE_VERSION: 3.12.0
+        run: |
+          gh release download v${VALE_VERSION} --pattern="*Linux_64-bit*"
+          tar -xvf vale_${VALE_VERSION}_Linux_64-bit.tar.gz
+
+      - name: Check docs style
+        working-directory: 'docs/content/current'
+        run:
+          ${GITHUB_WORKSPACE}/vale/vale --config docs/.vale.ini docs/pages
+
       - name: Test the docs build
         working-directory: docs
         run: yarn build
