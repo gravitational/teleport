@@ -20,6 +20,7 @@ package authclient
 
 import (
 	"context"
+	"encoding/json"
 	"net/url"
 
 	"github.com/gravitational/trace"
@@ -57,4 +58,47 @@ func (c *HTTPClient) getClusterName(ctx context.Context) (types.ClusterName, err
 	}
 
 	return cn, err
+}
+
+// ValidateTrustedCluster is called by the proxy on behalf of a cluster that
+// wishes to join another as a leaf cluster.
+func (c *Client) ValidateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
+	protoReq, err := validateRequest.ToProto()
+	if err != nil {
+		return nil, trace.Wrap(err, "converting native ValidateTrustedClusterRequest to proto")
+	}
+	protoResp, err := c.APIClient.ValidateTrustedCluster(ctx, protoReq)
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return c.HTTPClient.validateTrustedCluster(ctx, validateRequest)
+		}
+		return nil, trace.Wrap(err, "calling ValidateTrustedCluster on gRPC client")
+	}
+	return ValidateTrustedClusterResponseFromProto(protoResp), nil
+}
+
+// TODO(noah): DELETE IN 20.0.0
+func (c *HTTPClient) validateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
+	validateRequestRaw, err := validateRequest.ToRaw()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out, err := c.PostJSON(ctx, c.Endpoint("trustedclusters", "validate"), validateRequestRaw)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var validateResponseRaw ValidateTrustedClusterResponseRaw
+	err = json.Unmarshal(out.Bytes(), &validateResponseRaw)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	validateResponse, err := validateResponseRaw.ToNative()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return validateResponse, nil
 }
