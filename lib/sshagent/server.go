@@ -36,27 +36,27 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-// AgentServer is an SSH agent server implementation.
-type AgentServer struct {
+// Server is an SSH agent server implementation.
+type Server struct {
 	getAgent ClientGetter
 	listener net.Listener
 	Path     string
 	Dir      string
 }
 
-// NewServer returns a new [AgentServer].
-func NewServer(agentClient ClientGetter) *AgentServer {
-	return &AgentServer{getAgent: agentClient}
+// NewServer returns a new [Server].
+func NewServer(agentClient ClientGetter) *Server {
+	return &Server{getAgent: agentClient}
 }
 
-func (a *AgentServer) SetListener(l net.Listener) {
+func (a *Server) SetListener(l net.Listener) {
 	a.listener = l
 	a.Path = l.Addr().String()
 	a.Dir = filepath.Dir(a.Path)
 }
 
 // ListenUnixSocket starts listening on a new unix socket.
-func (a *AgentServer) ListenUnixSocket(sockDir, sockName string, _ *user.User) error {
+func (a *Server) ListenUnixSocket(sockDir, sockName string, _ *user.User) error {
 	// Create a temp directory to hold the agent socket.
 	sockDir, err := os.MkdirTemp(os.TempDir(), sockDir+"-")
 	if err != nil {
@@ -75,7 +75,7 @@ func (a *AgentServer) ListenUnixSocket(sockDir, sockName string, _ *user.User) e
 }
 
 // Serve starts serving on the listener, assumes that Listen was called before
-func (a *AgentServer) Serve() error {
+func (a *Server) Serve() error {
 	if a.listener == nil {
 		return trace.BadParameter("Serve needs a Listen call first")
 	}
@@ -129,7 +129,7 @@ func (a *AgentServer) Serve() error {
 }
 
 // Close closes listener and stops serving agent
-func (a *AgentServer) Close() error {
+func (a *Server) Close() error {
 	var errors []error
 	if a.listener != nil {
 		slog.DebugContext(context.Background(), "AgentServer is closing",

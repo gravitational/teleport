@@ -141,7 +141,7 @@ func ExternalSSHCommand(o CommandOptions) (*exec.Cmd, error) {
 
 // CreateAgent creates a SSH agent with the passed in key ring that can be used
 // in tests. This is useful so tests don't clobber your system agent.
-func CreateAgent(keyRing *client.KeyRing) (*sshagent.AgentServer, string, string, error) {
+func CreateAgent(keyRing *client.KeyRing) (*sshagent.Server, string, string, error) {
 	// create a path to the unix socket
 	sockDirName := "int-test"
 	sockName := "agent.sock"
@@ -173,7 +173,7 @@ func CreateAgent(keyRing *client.KeyRing) (*sshagent.AgentServer, string, string
 	return agentServer, agentServer.Dir, agentServer.Path, nil
 }
 
-func CloseAgent(agent *sshagent.AgentServer, socketDirPath string) error {
+func CloseAgent(agent *sshagent.Server, socketDirPath string) error {
 	err := agent.Close()
 	if err != nil {
 		return trace.Wrap(err)
