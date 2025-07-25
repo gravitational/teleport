@@ -51,6 +51,8 @@ export function Instance(props: {
   const { check } = useClusterVersion();
   const versionCheck = check(version);
 
+  const hasHeartbeatData = !!version || !!hostname || !!method || !!os;
+
   return (
     <Container>
       <TopRow>
@@ -67,40 +69,44 @@ export function Instance(props: {
           </HoverTooltip>
         ) : undefined}
       </TopRow>
-      <BottomRow>
-        <Flex gap={2}>
-          <Version version={version} check={versionCheck} />
+      {hasHeartbeatData ? (
+        <BottomRow>
+          <Flex gap={2}>
+            <Version version={version} check={versionCheck} />
 
-          {hostname ? (
-            <HoverTooltip placement="top" tipContent={'Hostname'}>
-              <SecondaryOutlined>
-                <Text>{hostname}</Text>
-              </SecondaryOutlined>
-            </HoverTooltip>
-          ) : undefined}
-        </Flex>
-        <Flex gap={2}>
-          {method ? (
-            <JoinMethodIcon method={method} size={'medium'} />
-          ) : undefined}
+            {hostname ? (
+              <HoverTooltip placement="top" tipContent={'Hostname'}>
+                <SecondaryOutlined>
+                  <Text fontSize={'12px'}>{hostname}</Text>
+                </SecondaryOutlined>
+              </HoverTooltip>
+            ) : undefined}
+          </Flex>
+          <Flex gap={2}>
+            {method ? (
+              <JoinMethodIcon method={method} size={'medium'} />
+            ) : undefined}
 
-          {os ? (
-            <HoverTooltip placement="top" tipContent={os}>
-              <OsIconContainer>
-                {os === 'darwin' ? (
-                  <ResourceIcon name={'apple'} width={'16px'} />
-                ) : os === 'windows' ? (
-                  <ResourceIcon name={'windows'} width={'16px'} />
-                ) : os === 'linux' ? (
-                  <ResourceIcon name={'linux'} width={'16px'} />
-                ) : (
-                  <ResourceIcon name={'server'} width={'16px'} />
-                )}
-              </OsIconContainer>
-            </HoverTooltip>
-          ) : undefined}
-        </Flex>
-      </BottomRow>
+            {os ? (
+              <HoverTooltip placement="top" tipContent={os}>
+                <OsIconContainer>
+                  {os === 'darwin' ? (
+                    <ResourceIcon name={'apple'} width={'16px'} />
+                  ) : os === 'windows' ? (
+                    <ResourceIcon name={'windows'} width={'16px'} />
+                  ) : os === 'linux' ? (
+                    <ResourceIcon name={'linux'} width={'16px'} />
+                  ) : (
+                    <ResourceIcon name={'server'} width={'16px'} />
+                  )}
+                </OsIconContainer>
+              </HoverTooltip>
+            ) : undefined}
+          </Flex>
+        </BottomRow>
+      ) : (
+        <EmptyText>No heartbeat data</EmptyText>
+      )}
     </Container>
   );
 }
@@ -129,6 +135,10 @@ const OsIconContainer = styled(Flex)`
   height: 20px; // Intentionally not a theme value
   align-items: center;
   justify-content: center;
+`;
+
+const EmptyText = styled(Text)`
+  color: ${p => p.theme.colors.text.muted};
 `;
 
 function Version(props: {
