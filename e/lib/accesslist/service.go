@@ -165,27 +165,40 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 
 type nonStaticAccessListError struct {
 	accessList, member string
+	accessListType     accesslist.Type
 }
 
-func newNonStaticAccessListErrorFromMemberReq(req memberGetter) *nonStaticAccessListError {
+func newNonStaticAccessListErrorFromMemberReq(req memberGetter, accessListType accesslist.Type) *nonStaticAccessListError {
 	return &nonStaticAccessListError{
-		accessList: req.GetMember().GetSpec().GetAccessList(),
-		member:     req.GetMember().GetHeader().GetMetadata().GetName(),
+		accessList:     req.GetMember().GetSpec().GetAccessList(),
+		member:         req.GetMember().GetHeader().GetMetadata().GetName(),
+		accessListType: accessListType,
 	}
 }
 
-func newNonStaticAccessListErrorFromMemberMetaReq(req memberMetaGetter) *nonStaticAccessListError {
+func newNonStaticAccessListErrorFromMemberMetaReq(req memberMetaGetter, accessListType accesslist.Type) *nonStaticAccessListError {
 	return &nonStaticAccessListError{
-		accessList: req.GetAccessList(),
-		member:     req.GetMemberName(),
+		accessList:     req.GetAccessList(),
+		member:         req.GetMemberName(),
+		accessListType: accessListType,
 	}
 }
 
 func (e *nonStaticAccessListError) Error() string {
+	friendlyType := fmt.Sprintf("%q", string(e.accessListType))
+	if e.accessListType == accesslist.Default {
+		friendlyType += " (default)"
+	}
 	return fmt.Sprintf(
-		`member.spec.access_list must reference an access_list of static type (i.e. with spec.type set to "static"). Member %[2]q cannot be added to access list %[1]q because access list %[1]q is not of "static" type. Teleport IaC tools support adding members only to "static" access lists.`,
-		e.accessList, e.member,
+		`Access list member's (%[1]q) access list (%[2]q) is not static (i.e., access_list with spec.type set to "static"). Access list %[2]q type is %[3]s. Teleport IaC tools support adding members only to access lists of type "static".`,
+		e.member, e.accessList, friendlyType,
 	)
+}
+
+func (e *nonStaticAccessListError) Unwrap() error {
+	return &trace.BadParameterError{
+		Message: e.Error(),
+	}
 }
 
 func isNonStaticAccessList(err error) bool {
@@ -907,8 +920,9 @@ func (s *Service) getAccessListMember(ctx context.Context, req memberMetaGetter,
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if acl.Spec.Type != accesslist.Static {
-			return nil, trace.Wrap(newNonStaticAccessListErrorFromMemberMetaReq(req))
+		typ := acl.Spec.Type
+		if typ != accesslist.Static {
+			return nil, trace.Wrap(newNonStaticAccessListErrorFromMemberMetaReq(req, typ))
 		}
 	}
 
@@ -922,22 +936,24 @@ func (s *Service) getAccessListMember(ctx context.Context, req memberMetaGetter,
 
 // UpsertAccessListMember creates or updates an access list member resource.
 func (s *Service) UpsertAccessListMember(ctx context.Context, req *accesslistv1.UpsertAccessListMemberRequest) (*accesslistv1.Member, error) {
-	if err := validateMemberRequest(req); err != nil {
+	opts := memberOptions{}
+	if err := validateMemberRequest(req, opts); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	m, err := s.upsertAccessListMember(ctx, req, memberOptions{})
+	m, err := s.upsertAccessListMember(ctx, req, opts)
 	return m, trace.Wrap(err)
 }
 
 // UpsertStaticAccessListMember creates or updates an access_list_member resource. It returns error
 // and does nothing if the target access_list is not of type static.
 func (s *Service) UpsertStaticAccessListMember(ctx context.Context, req *accesslistv1.UpsertStaticAccessListMemberRequest) (*accesslistv1.UpsertStaticAccessListMemberResponse, error) {
-	if err := validateMemberRequest(req); err != nil {
+	opts := memberOptions{
+		requireStatic: true,
+	}
+	if err := validateMemberRequest(req, opts); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	m, err := s.upsertAccessListMember(ctx, req, memberOptions{
-		requireStatic: true,
-	})
+	m, err := s.upsertAccessListMember(ctx, req, opts)
 	return &accesslistv1.UpsertStaticAccessListMemberResponse{Member: m}, trace.Wrap(err)
 }
 
@@ -967,8 +983,9 @@ func (s *Service) upsertAccessListMember(ctx context.Context, req memberGetter, 
 	}
 
 	if opts.requireStatic {
-		if memberAccessList.Spec.Type != accesslist.Static {
-			return nil, trace.Wrap(newNonStaticAccessListErrorFromMemberReq(req))
+		typ := memberAccessList.Spec.Type
+		if typ != accesslist.Static {
+			return nil, trace.Wrap(newNonStaticAccessListErrorFromMemberReq(req, typ))
 		}
 	}
 
@@ -1276,8 +1293,9 @@ func (s *Service) deleteAccessListMember(ctx context.Context, req memberMetaGett
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if acl.Spec.Type != accesslist.Static {
-			return trace.Wrap(newNonStaticAccessListErrorFromMemberMetaReq(req))
+		typ := acl.Spec.Type
+		if typ != accesslist.Static {
+			return trace.Wrap(newNonStaticAccessListErrorFromMemberMetaReq(req, typ))
 		}
 	}
 

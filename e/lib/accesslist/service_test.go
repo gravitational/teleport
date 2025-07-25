@@ -1315,6 +1315,7 @@ func TestService_GetStaticAccessListMember(t *testing.T) {
 					})
 					require.Error(t, err, "member = %q", m)
 					require.True(t, isNonStaticAccessList(err), "member = %q", m)
+					require.True(t, trace.IsBadParameter(err), "member = %q", m)
 				}
 			})
 		}
@@ -1529,6 +1530,7 @@ func TestService_UpsertStaticAccessListMember(t *testing.T) {
 					})
 					require.Error(t, err, "member = %q", m)
 					require.True(t, isNonStaticAccessList(err), "member = %q", m)
+					require.True(t, trace.IsBadParameter(err), "member = %q", m)
 				}
 			})
 		}
@@ -1713,6 +1715,7 @@ func TestService_DeleteStaticAccessListMember(t *testing.T) {
 					})
 					require.Error(t, err, "member = %q", m)
 					require.True(t, isNonStaticAccessList(err), "member = %q", m)
+					require.True(t, trace.IsBadParameter(err), "member = %q", m)
 				}
 			})
 		}
@@ -2962,13 +2965,17 @@ func TestPopulateMembersFields(t *testing.T) {
 }
 
 func Test_nonStaticAccessListError(t *testing.T) {
-	err := &nonStaticAccessListError{
-		accessList: "vegetables",
-		member:     "carrot",
-	}
+	err := newNonStaticAccessListErrorFromMemberMetaReq(
+		&accesslistv1.GetAccessListMemberRequest{
+			AccessList: "vegetables",
+			MemberName: "carrot",
+		},
+		accesslist.Default,
+	)
 	msg := err.Error()
-	expected := `member.spec.access_list must reference an access_list of static type (i.e. with spec.type set to "static"). Member "carrot" cannot be added to access list "vegetables" because access list "vegetables" is not of "static" type. Teleport IaC tools support adding members only to "static" access lists.`
+	expected := `Access list member's ("carrot") access list ("vegetables") is not static (i.e., access_list with spec.type set to "static"). Access list "vegetables" type is "" (default). Teleport IaC tools support adding members only to access lists of type "static".`
 	require.Equal(t, expected, msg)
+	require.True(t, isNonStaticAccessList(err))
 }
 
 func listAllAccessListMembers(ctx context.Context, t *testing.T, service *Service, accessListName string, pageSize int) []*accesslist.AccessListMember {
