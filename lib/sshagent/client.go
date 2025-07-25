@@ -17,13 +17,52 @@
 package sshagent
 
 import (
+	"errors"
 	"io"
+	"log/slog"
 	"sync"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/net/context"
 )
+
+const channelType = "auth-agent@openssh.com"
+
+// ServeChannelRequests routes agent channel requests to a new agent
+// connection retrieved from the provided getter.
+func ServeChannelRequests(ctx context.Context, client *ssh.Client, getter Getter) error {
+	channels := client.HandleChannelOpen(channelType)
+	if channels == nil {
+		return errors.New("agent forwarding channel already open")
+	}
+
+	go func() {
+		for ch := range channels {
+			channel, reqs, err := ch.Accept()
+			if err != nil {
+				continue
+			}
+
+			go ssh.DiscardRequests(reqs)
+
+			forwardAgent, err := getter()
+			if err != nil {
+				slog.ErrorContext(context.Background(), "failed to connect to agent for forwarding", "err", err)
+				continue
+			}
+
+			go func() {
+				defer channel.Close()
+				if err := agent.ServeAgent(forwardAgent, channel); err != nil && !errors.Is(err, io.EOF) {
+					slog.ErrorContext(context.Background(), "unexpected error serving forwarded agent", "err", err)
+				}
+			}()
+		}
+	}()
+	return nil
+}
 
 // Client is a client implementation of [agent.ExtendedAgent] that handles reconnects
 // to gracefully handle connection and ssh agent service disruptions.
