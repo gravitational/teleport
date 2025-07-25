@@ -1,20 +1,22 @@
-// Teleport
-// Copyright (C) 2025 Gravitational, Inc.
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-package config
+package awsra
 
 import (
 	"context"
@@ -27,29 +29,24 @@ import (
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
 const (
-	WorkloadIdentityAWSRAType        = "workload-identity-aws-roles-anywhere"
-	defaultAWSSessionDuration        = 6 * time.Hour
-	maxAWSSessionDuration            = 12 * time.Hour
-	defaultAWSSessionRenewalInterval = 1 * time.Hour
+	ServiceType                      = "workload-identity-aws-roles-anywhere"
+	DefaultAWSSessionDuration        = 6 * time.Hour
+	MaxAWSSessionDuration            = 12 * time.Hour
+	DefaultAWSSessionRenewalInterval = 1 * time.Hour
 )
 
-var (
-	_ ServiceConfig = &WorkloadIdentityAWSRAService{}
-	_ Initable      = &WorkloadIdentityAWSRAService{}
-)
-
-// WorkloadIdentityAWSRAService is the configuration for the
-// WorkloadIdentityAWSRAService
-type WorkloadIdentityAWSRAService struct {
+// Config is the configuration for the Workload Identity AWS Roles Anywhere service.
+type Config struct {
 	// Name of the service for logs and the /readyz endpoint.
 	Name string `yaml:"name,omitempty"`
 	// Selector is the selector for the WorkloadIdentity resource that will be
 	// used to issue WICs.
-	Selector WorkloadIdentitySelector `yaml:"selector"`
+	Selector bot.WorkloadIdentitySelector `yaml:"selector"`
 	// Destination is where the credentials should be written to.
 	Destination destination.Destination `yaml:"destination"`
 
@@ -101,19 +98,22 @@ type WorkloadIdentityAWSRAService struct {
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
-func (o *WorkloadIdentityAWSRAService) GetName() string {
+func (o *Config) GetName() string {
 	return o.Name
 }
 
 // Init initializes the destination.
-func (o *WorkloadIdentityAWSRAService) Init(ctx context.Context) error {
+func (o *Config) Init(ctx context.Context) error {
 	return trace.Wrap(o.Destination.Init(ctx, []string{}))
 }
 
 // CheckAndSetDefaults checks the WorkloadIdentityAWSRAService values and sets any defaults.
-func (o *WorkloadIdentityAWSRAService) CheckAndSetDefaults() error {
-	if err := validateOutputDestination(o.Destination); err != nil {
-		return trace.Wrap(err)
+func (o *Config) CheckAndSetDefaults() error {
+	if o.Destination == nil {
+		return trace.BadParameter("no destination configured for output")
+	}
+	if err := o.Destination.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating destination")
 	}
 	if err := o.Selector.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err, "validating selector")
@@ -143,13 +143,13 @@ func (o *WorkloadIdentityAWSRAService) CheckAndSetDefaults() error {
 	}
 
 	if o.SessionDuration == 0 {
-		o.SessionDuration = defaultAWSSessionDuration
+		o.SessionDuration = DefaultAWSSessionDuration
 	}
-	if o.SessionDuration > maxAWSSessionDuration {
+	if o.SessionDuration > MaxAWSSessionDuration {
 		return trace.BadParameter("session_duration: must be less than or equal to 12 hours")
 	}
 	if o.SessionRenewalInterval == 0 {
-		o.SessionRenewalInterval = defaultAWSSessionRenewalInterval
+		o.SessionRenewalInterval = DefaultAWSSessionRenewalInterval
 	}
 	if o.SessionRenewalInterval >= o.SessionDuration {
 		return trace.BadParameter("session_renewal_interval: must be less than session_duration")
@@ -158,34 +158,38 @@ func (o *WorkloadIdentityAWSRAService) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Describe returns the file descriptions for the WorkloadIdentityJWTService.
-func (o *WorkloadIdentityAWSRAService) Describe() []FileDescription {
-	fds := []FileDescription{
+// Describe returns the file descriptions for the service.
+func (o *Config) Describe() []bot.FileDescription {
+	// TODO: this is wrong/has been copy pasted from the JWT-SVID output.
+	fds := []bot.FileDescription{
 		{
-			Name: JWTSVIDPath,
+			Name: internal.JWTSVIDPath,
 		},
 	}
 	return fds
 }
 
-func (o *WorkloadIdentityAWSRAService) Type() string {
-	return WorkloadIdentityAWSRAType
+func (o *Config) Type() string {
+	return ServiceType
 }
 
 // MarshalYAML marshals the WorkloadIdentityJWTService into YAML.
-func (o *WorkloadIdentityAWSRAService) MarshalYAML() (any, error) {
-	type raw WorkloadIdentityAWSRAService
-	return encoding.WithTypeHeader((*raw)(o), WorkloadIdentityAWSRAType)
+func (o *Config) MarshalYAML() (any, error) {
+	type raw Config
+	return encoding.WithTypeHeader((*raw)(o), ServiceType)
 }
 
-// UnmarshalYAML unmarshals the WorkloadIdentityJWTService from YAML.
-func (o *WorkloadIdentityAWSRAService) UnmarshalYAML(node *yaml.Node) error {
-	dest, err := extractOutputDestination(node)
+func (o *Config) UnmarshalYAML(*yaml.Node) error {
+	return trace.NotImplemented("unmarshaling %T with UnmarshalYAML is not supported, use UnmarshalConfig instead", o)
+}
+
+func (o *Config) UnmarshalConfig(ctx bot.UnmarshalConfigContext, node *yaml.Node) error {
+	dest, err := internal.ExtractOutputDestination(ctx, node)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Alias type to remove UnmarshalYAML to avoid recursion
-	type raw WorkloadIdentityAWSRAService
+	// Alias type to remove UnmarshalYAML to avoid getting our "not implemented" error
+	type raw Config
 	if err := node.Decode((*raw)(o)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -194,10 +198,10 @@ func (o *WorkloadIdentityAWSRAService) UnmarshalYAML(node *yaml.Node) error {
 }
 
 // GetDestination returns the destination.
-func (o *WorkloadIdentityAWSRAService) GetDestination() destination.Destination {
+func (o *Config) GetDestination() destination.Destination {
 	return o.Destination
 }
 
-func (o *WorkloadIdentityAWSRAService) GetCredentialLifetime() bot.CredentialLifetime {
+func (o *Config) GetCredentialLifetime() bot.CredentialLifetime {
 	return bot.CredentialLifetime{}
 }

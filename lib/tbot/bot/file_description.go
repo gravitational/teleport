@@ -16,9 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package accesslists
+package bot
 
-func isZero[T comparable](t T) bool {
-	var zero T
-	return t == zero
+// FileDescription is a minimal spec needed to create an empty end-user-owned
+// file with bot-writable ACLs during `tbot init`.
+type FileDescription struct {
+	// Name is the name of the file or directory to create.
+	Name string
+
+	// IsDir designates whether this describes a subdirectory inside the
+	// Destination.
+	IsDir bool
 }

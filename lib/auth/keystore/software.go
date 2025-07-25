@@ -115,17 +115,12 @@ func (s *softwareKeyStore) generateDecrypter(ctx context.Context, alg cryptosuit
 		return nil, nil, softwareHash, trace.Wrap(err)
 	}
 
-	decrypter := key
-	if alg == cryptosuites.RSA2048 {
-		decrypter = newOAEPDecrypter(softwareHash, decrypter)
-	}
-
 	privateKeyPEM, err := keys.MarshalDecrypter(key)
 	if err != nil {
 		return nil, nil, softwareHash, trace.Wrap(err)
 	}
 
-	return privateKeyPEM, decrypter, softwareHash, trace.Wrap(err)
+	return privateKeyPEM, newOAEPDecrypter(softwareHash, key), softwareHash, trace.Wrap(err)
 }
 
 // getSigner returns a crypto.Signer for the given pem-encoded private key.

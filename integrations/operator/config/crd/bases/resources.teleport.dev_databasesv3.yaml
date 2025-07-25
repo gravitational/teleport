@@ -97,7 +97,7 @@ spec:
                       enable access across AWS accounts.
                     type: string
                   docdb:
-                    description: DocumentDB contains AWS DocumentDB specific metadata.
+                    description: DocumentDB contains Amazon DocumentDB-specific metadata.
                     properties:
                       cluster_id:
                         description: ClusterID is the cluster identifier.
@@ -110,7 +110,7 @@ spec:
                         type: string
                     type: object
                   elasticache:
-                    description: ElastiCache contains AWS ElastiCache Redis specific
+                    description: ElastiCache contains Amazon ElastiCache Redis-specific
                       metadata.
                     properties:
                       endpoint_type:
@@ -230,8 +230,8 @@ spec:
                         type: string
                     type: object
                   redshift_serverless:
-                    description: RedshiftServerless contains AWS Redshift Serverless
-                      specific metadata.
+                    description: RedshiftServerless contains Amazon Redshift Serverless-specific
+                      metadata.
                     properties:
                       endpoint_name:
                         description: EndpointName is the VPC endpoint name.

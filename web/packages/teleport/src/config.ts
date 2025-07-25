@@ -700,9 +700,7 @@ const cfg = {
     return cfg.routes.joinTokens;
   },
 
-  getJoinTokenUrl(
-    req: { action: 'list' | 'listV2' } | { action: 'create' | 'update' }
-  ) {
+  getJoinTokenUrl(req: { action: 'list' | 'listV2' | 'create' | 'update' }) {
     switch (req.action) {
       case 'create':
         return generatePath(cfg.api.joinToken.create);
@@ -713,7 +711,7 @@ const cfg = {
       case 'listV2':
         return generatePath(cfg.api.joinToken.listV2);
       default:
-        req satisfies never;
+        req.action satisfies never;
         return '';
     }
   },
