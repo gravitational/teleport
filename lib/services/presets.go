@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
 
@@ -32,6 +33,8 @@ import (
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/trait"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
@@ -754,6 +757,59 @@ func NewSystemIdentityCenterAccessRole() types.Role {
 			Allow: types.RoleConditions{
 				AccountAssignments: defaultAllowAccountAssignments(true)[teleport.SystemIdentityCenterAccessRoleName],
 			},
+		},
+	}
+}
+
+const (
+	roleTraitForRolesAnywhereProfileARNLabel = "iam-roles-anywhere-profile-arn"
+	roleTraitForRolesAnywhereAllowedRoles    = "iam-roles"
+)
+
+// NewAWSIAMRolesAnywhereProfileTemplateRole creates a role that allows users to access AWS
+// using both `app_labels` and `aws_role_arns` rules, using traits.
+//
+// This role is meant to be used by Access Lists, which must inject traits.
+// See also AWSIAMRolesAnywhereAccessListGrants.
+func NewAWSIAMRolesAnywhereProfileTemplateRole() types.Role {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil
+	}
+
+	profileARNLabelTemplate := fmt.Sprintf(`{{external[%q]}}`, roleTraitForRolesAnywhereProfileARNLabel)
+	allowedAWSRoleARNsTemplate := fmt.Sprintf(`{{external[%q]}}`, roleTraitForRolesAnywhereAllowedRoles)
+
+	return &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name:        teleport.SystemAWSIAMRolesAnywhereProfileTemplateRole,
+			Namespace:   apidefaults.Namespace,
+			Description: "Access AWS IAM Roles Anywhere Profile resources",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.SystemResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				AppLabels: types.Labels{
+					types.AWSRolesAnywhereProfileARNLabel: []string{profileARNLabelTemplate},
+				},
+				AWSRoleARNs: []string{allowedAWSRoleARNsTemplate},
+			},
+		},
+	}
+}
+
+// AWSIAMRolesAnywhereAccessListGrants creates a set of grants to be used in an Access List.
+// These grants are meant to be used with the role defined in NewAWSIAMRolesAnywhereProfileTemplateRole.
+// Combining the two, it will grant users access to a particular AWS App (IAM Roles Anywhere Profile) and a set of IAM Roles.
+func AWSIAMRolesAnywhereAccessListGrants(profileARN string, roles []string) accesslist.Grants {
+	return accesslist.Grants{
+		Roles: []string{teleport.SystemAWSIAMRolesAnywhereProfileTemplateRole},
+		Traits: trait.Traits{
+			roleTraitForRolesAnywhereProfileARNLabel: []string{profileARN},
+			roleTraitForRolesAnywhereAllowedRoles:    roles,
 		},
 	}
 }

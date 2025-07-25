@@ -2725,13 +2725,15 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 
 		params := awsra.AWSRolesAnywherProfileSyncerParams{
-			Clock:             process.Clock,
-			Logger:            logger,
-			KeyStoreManager:   authServer.GetKeyStore(),
-			Cache:             authServer.Cache,
-			StatusReporter:    authServer.Services,
-			AppServerUpserter: authServer.Services,
-			HostUUID:          process.Config.HostUUID,
+			Clock:              process.Clock,
+			Logger:             logger,
+			KeyStoreManager:    authServer.GetKeyStore(),
+			Cache:              authServer.Cache,
+			StatusReporter:     authServer.Services,
+			AppServerUpserter:  authServer.Services,
+			AccessListsEnabled: modules.GetModules().Features().GetEntitlement(entitlements.AccessLists).Enabled,
+			AccessListManager:  authServer.Services,
+			HostUUID:           process.Config.HostUUID,
 		}
 
 		runWhileLockedConfig := backend.RunWhileLockedConfig{
