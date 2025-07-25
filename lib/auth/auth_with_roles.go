@@ -4697,16 +4697,6 @@ func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 	return a.authServer.DeleteRole(ctx, name)
 }
 
-// GetClusterName gets the name of the cluster.
-// TODO(noah): DELETE IN v19.0.0 - when the apiserver getClusterName method is also
-// deleted.
-func (a *ServerWithRoles) GetClusterName(ctx context.Context) (types.ClusterName, error) {
-	if err := a.authorizeAction(types.KindClusterName, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.GetClusterName(ctx)
-}
-
 // GetAuthPreference gets cluster auth preference.
 func (a *ServerWithRoles) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	if err := a.authorizeAction(types.KindClusterAuthPreference, types.VerbRead); err != nil {
