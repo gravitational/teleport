@@ -21,6 +21,8 @@ import styled from 'styled-components';
 
 import Flex from 'design/Flex/Flex';
 
+import { TeleportProviderBasic } from 'teleport/mocks/providers';
+
 import { Instance } from './Instance';
 import { methods } from './JoinMethodIcon.story';
 
@@ -37,9 +39,9 @@ const meta = {
       control: 'select',
       options: methods,
     },
-    versionDiff: {
+    version: {
       control: 'select',
-      options: ['n+', 'n+1', 'n', 'n*', 'n-1', 'n-'],
+      options: ['6.0.0', '5.0.0', '4.4.0', '4.3.999', '3.2.1', '2.0.1'],
     },
     os: {
       control: 'select',
@@ -58,8 +60,7 @@ export const Item: Story = {
     activeAt: new Date('2025-07-18T14:54:32Z').getTime(),
     hostname: 'hostname',
     method: 'kubernetes',
-    version: '17.2.6',
-    versionDiff: 'n',
+    version: '4.4.0',
     os: 'linux',
   },
 };
@@ -73,7 +74,6 @@ export const ItemWithNoHeartbeatData: Story = {
 type Props = {
   id: Parameters<typeof Instance>[0]['id'];
   version?: Parameters<typeof Instance>[0]['version'];
-  versionDiff?: Parameters<typeof Instance>[0]['versionDiff'];
   hostname?: Parameters<typeof Instance>[0]['hostname'];
   activeAt?: number;
   method?: Parameters<typeof Instance>[0]['method'];
@@ -81,16 +81,20 @@ type Props = {
 };
 function Wrapper(props: Props) {
   return (
-    <Container>
-      <Container400>
-        <Instance
-          {...props}
-          activeAt={
-            props.activeAt ? new Date(props.activeAt).toISOString() : undefined
-          }
-        />
-      </Container400>
-    </Container>
+    <TeleportProviderBasic>
+      <Container>
+        <Container400>
+          <Instance
+            {...props}
+            activeAt={
+              props.activeAt
+                ? new Date(props.activeAt).toISOString()
+                : undefined
+            }
+          />
+        </Container400>
+      </Container>
+    </TeleportProviderBasic>
   );
 }
 

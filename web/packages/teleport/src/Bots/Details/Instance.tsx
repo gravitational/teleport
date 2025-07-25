@@ -19,6 +19,7 @@
 import format from 'date-fns/format';
 import formatDistanceToNowStrict from 'date-fns/formatDistanceToNowStrict';
 import parseISO from 'date-fns/parseISO';
+import { ReactElement } from 'react';
 import styled from 'styled-components';
 
 import Flex from 'design/Flex/Flex';
@@ -32,19 +33,23 @@ import { ResourceIcon } from 'design/ResourceIcon';
 import Text from 'design/Text/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
 
-import { ClusterVersionDiff } from '../../useClusterVersion';
+import {
+  ClientCompatibility,
+  useClusterVersion,
+} from '../../useClusterVersion';
 import { JoinMethodIcon } from './JoinMethodIcon';
 
 export function Instance(props: {
   id: string;
   version?: string;
-  versionDiff?: ClusterVersionDiff;
   hostname?: string;
   activeAt?: string;
   method?: string;
   os?: string;
 }) {
-  const { id, version, versionDiff, hostname, activeAt, method, os } = props;
+  const { id, version, hostname, activeAt, method, os } = props;
+  const { check } = useClusterVersion();
+  const versionCheck = check(version);
 
   return (
     <Container>
@@ -64,7 +69,7 @@ export function Instance(props: {
       </TopRow>
       <BottomRow>
         <Flex gap={2}>
-          <Version version={version} versionDiff={versionDiff} />
+          <Version version={version} check={versionCheck} />
 
           {hostname ? (
             <HoverTooltip placement="top" tipContent={'Hostname'}>
@@ -128,38 +133,41 @@ const OsIconContainer = styled(Flex)`
 
 function Version(props: {
   version: string | undefined;
-  versionDiff: ClusterVersionDiff | undefined;
+  check: ClientCompatibility;
 }) {
-  const { version, versionDiff } = props;
+  const { version, check } = props;
 
-  const Wrapper = (() => {
-    switch (versionDiff) {
-      case 'n-1':
-        return WarningOutlined;
-      case 'n-':
-        return DangerOutlined;
-      default:
-        return SecondaryOutlined;
+  let Wrapper = SecondaryOutlined;
+  let icon: ReactElement | null = <ArrowFatLinesUp size={'small'} />;
+  let tooltip = 'Version is up to date';
+  if (check?.isCompatible) {
+    switch (check.reason) {
+      case 'match':
+        icon = null;
+        break;
+      case 'upgrade-minor':
+        tooltip = 'An upgrade is available';
+        break;
+      case 'upgrade-major':
+        Wrapper = WarningOutlined;
+        tooltip =
+          'Version is one major version behind. Consider upgrading soon.';
+        break;
     }
-  })();
-
-  const icon =
-    versionDiff?.startsWith('n-') || versionDiff === 'n*' ? (
-      <ArrowFatLinesUp size={'small'} />
-    ) : undefined;
-
-  const tooltip = (() => {
-    switch (versionDiff) {
-      case 'n-1':
-        return 'Version is one major version behind. Consider upgrading soon.';
-      case 'n-':
-        return 'Version is more than two major versions behind, and is no longer compatible.';
-      case 'n*':
-        return 'An upgrade is available';
-      default:
-        return 'Version is up to date';
+  } else {
+    switch (check?.reason) {
+      case 'too-old':
+        Wrapper = DangerOutlined;
+        tooltip =
+          'Version is two or more major versions behind, and is no longer compatible.';
+        break;
+      case 'too-new':
+        Wrapper = DangerOutlined;
+        tooltip =
+          'Version is two or more major versions ahead, and is not compatible.';
+        break;
     }
-  })();
+  }
 
   return version ? (
     <HoverTooltip placement="top" tipContent={tooltip}>

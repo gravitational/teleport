@@ -27,25 +27,28 @@ describe('useClusterVersion', () => {
     const { result } = renderHook(() => useClusterVersion(), {
       wrapper: Wrapper,
     });
-    expect(result.current.clusterVersion?.version).toBe('4.4.0-dev');
+    expect(result.current.clusterVersion).toBe('4.4.0-dev');
   });
 
   it.each`
-    version      | diff
-    ${'4.4.0'}   | ${'n'}
-    ${'4.4.1'}   | ${'n'}
-    ${'4.3.999'} | ${'n*'}
-    ${'4.3.0'}   | ${'n*'}
-    ${'5.0.0'}   | ${'n+1'}
-    ${'6.0.0'}   | ${'n+'}
-    ${'3.0.0'}   | ${'n-1'}
-    ${'2.0.0'}   | ${'n-'}
-  `('diff("$version") should be "$diff"', ({ version, diff }) => {
-    const { result } = renderHook(() => useClusterVersion(), {
-      wrapper: Wrapper,
-    });
-    expect(result.current.diff(version)).toBe(diff);
-  });
+    clientVersion | compatibility
+    ${'4.4.0'}    | ${{ isCompatible: true, reason: 'match' }}
+    ${'4.4.1'}    | ${{ isCompatible: true, reason: 'match' }}
+    ${'4.3.999'}  | ${{ isCompatible: true, reason: 'upgrade-minor' }}
+    ${'4.3.0'}    | ${{ isCompatible: true, reason: 'upgrade-minor' }}
+    ${'5.0.0'}    | ${{ isCompatible: true, reason: 'match' }}
+    ${'3.0.0'}    | ${{ isCompatible: true, reason: 'upgrade-major' }}
+    ${'6.0.0'}    | ${{ isCompatible: false, reason: 'too-new' }}
+    ${'2.0.0'}    | ${{ isCompatible: false, reason: 'too-old' }}
+  `(
+    'diff("$clientVersion") should be "$compatibility"',
+    ({ clientVersion, compatibility }) => {
+      const { result } = renderHook(() => useClusterVersion(), {
+        wrapper: Wrapper,
+      });
+      expect(result.current.check(clientVersion)).toStrictEqual(compatibility);
+    }
+  );
 });
 
 function Wrapper(props: PropsWithChildren) {

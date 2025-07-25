@@ -32,7 +32,6 @@ import { fontWeights } from 'design/theme/typography';
 import { listBotInstances } from 'teleport/services/bot/bot';
 import useTeleport from 'teleport/useTeleport';
 
-import { useClusterVersion } from '../../useClusterVersion';
 import { Instance } from './Instance';
 
 export function InstancesPanel(props: { botName: string }) {
@@ -47,7 +46,6 @@ export function InstancesPanel(props: { botName: string }) {
   const ctx = useTeleport();
   const flags = ctx.getFeatureFlags();
   const hasListPermission = flags.listBotInstances;
-  const { diff } = useClusterVersion();
 
   const {
     isSuccess,
@@ -138,7 +136,6 @@ export function InstancesPanel(props: { botName: string }) {
                       hostname={instance.host_name_latest}
                       method={instance.join_method_latest}
                       version={instance.version_latest}
-                      versionDiff={diff(instance.version_latest)}
                       os={instance.os_latest}
                     />
                   </React.Fragment>
