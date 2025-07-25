@@ -187,7 +187,12 @@ func (c *WebsocketUpgradeConn) readLocked(b []byte) (int, error) {
 			}
 			// If this is a client connection, we should respond with a Pong frame.
 			pongFrame := ws.NewPongFrame(frame.Payload)
-			if err := c.writeFrame(pongFrame); err != nil {
+			// Attempt to write the Pong frame as a best-effort response to a Ping.
+			// If the client is currently locked and the write would block due to a stalled read,
+			// we skip sending the Pong. This avoids blocking the read loop.
+			// If this attempt fails, we’ll respond to the next Ping frame, typically received
+			// around 15 seconds later.
+			if err := c.tryWriteFrameBestEffort(pongFrame); err != nil {
 				c.logger.DebugContext(c.logContext, "error writing Pong frame", "error", err)
 				return 0, err
 			}
@@ -266,12 +271,30 @@ func (c *WebsocketUpgradeConn) websocketCloseProtocol(closeCode ws.StatusCode, c
 func (c *WebsocketUpgradeConn) writeFrame(frame ws.Frame) error {
 	c.writeMutex.Lock()
 	defer c.writeMutex.Unlock()
+	return c.writeFrameLocked(frame)
+}
 
+// writeFrameLocked writes a WebSocket frame to the connection without acquiring
+// the write mutex. This is used when we already hold the write mutex.
+func (c *WebsocketUpgradeConn) writeFrameLocked(frame ws.Frame) error {
 	// If the connection is a client connection, we should mask the frame.
 	frame.Header.Masked = c.connType == clientConnection
 
 	// There is no need to mask from server to client.
 	return ws.WriteFrame(c.conn, frame)
+}
+
+// tryWriteFrameBestEffort attempts a non-blocking write of a WebSocket frame to the connection,
+// but only if no other goroutine is currently writing. If the write mutex is already
+// locked, it returns immediately. This is particularly useful for handling Ping frames
+// without stalling the read loop, especially when the write buffer is full and
+// write operations would otherwise block.
+func (c *WebsocketUpgradeConn) tryWriteFrameBestEffort(frame ws.Frame) error {
+	if !c.writeMutex.TryLock() {
+		return nil
+	}
+	defer c.writeMutex.Unlock()
+	return c.writeFrameLocked(frame)
 }
 
 // Write writes a binary frame to the connection.
@@ -320,22 +343,16 @@ func (c *WebsocketUpgradeConn) CloseWithStatus(status ws.StatusCode, message str
 
 // SetDeadline sets the deadline for the connection.
 func (c *WebsocketUpgradeConn) SetDeadline(t time.Time) error {
-	c.writeMutex.Lock()
-	defer c.writeMutex.Unlock()
 	return c.conn.SetDeadline(t)
 }
 
 // SetWriteDeadline sets the write deadline for the connection.
 func (c *WebsocketUpgradeConn) SetWriteDeadline(t time.Time) error {
-	c.writeMutex.Lock()
-	defer c.writeMutex.Unlock()
 	return c.conn.SetWriteDeadline(t)
 }
 
 // SetReadDeadline sets the read deadline for the connection.
 func (c *WebsocketUpgradeConn) SetReadDeadline(t time.Time) error {
-	c.writeMutex.Lock()
-	defer c.writeMutex.Unlock()
 	return c.conn.SetReadDeadline(t)
 }
 
