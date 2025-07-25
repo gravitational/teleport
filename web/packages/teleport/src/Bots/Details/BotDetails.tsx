@@ -154,7 +154,7 @@ export function BotDetails() {
               <PanelContentContainer>
                 <Grid>
                   <GridLabel>Bot name</GridLabel>
-                  <Flex inline alignItems={'center'} gap={1} mr={0}>
+                  <Flex inline alignItems={'center'} gap={1}>
                     <MonoText>{data.name}</MonoText>
                     <CopyButton name={data.name} />
                   </Flex>
