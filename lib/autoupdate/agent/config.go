@@ -48,6 +48,7 @@ const (
 )
 
 // UpdateConfig describes the update.yaml file schema.
+// Pointer values should be replaced and not mutated, see Copy.
 type UpdateConfig struct {
 	// Version of the configuration file
 	Version string `yaml:"version"`
@@ -62,14 +63,13 @@ type UpdateConfig struct {
 // Copy an UpdateConfig. Pointers are not copied.
 func (cfg *UpdateConfig) Copy() *UpdateConfig {
 	if cfg == nil {
-		return nil
+		return &UpdateConfig{}
 	}
-	// All pointer fields use immutable values.
-	// This may need additional logic if changes.
 	return toPtr(*cfg)
 }
 
 // UpdateSpec describes the spec field in update.yaml.
+// Pointer values should be replaced and not mutated, see Copy.
 type UpdateSpec struct {
 	// Proxy address
 	Proxy string `yaml:"proxy"`
@@ -86,6 +86,7 @@ type UpdateSpec struct {
 }
 
 // UpdateStatus describes the status field in update.yaml.
+// Pointer values should be replaced and not mutated, see Copy.
 type UpdateStatus struct {
 	// IDFile is the path to a temporary file containing the updater ID.
 	IDFile string `yaml:"id_file,omitempty"`

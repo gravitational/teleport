@@ -171,6 +171,10 @@ func ReadHelloUpdaterInfo(ctx context.Context, log *slog.Logger, hostUUID string
 		return nil, trace.Wrap(err, "reading config file %s", configPath)
 	}
 
+	// Note that only IDFile may be read from Status on the initial HELLO.
+	// Any fields set after the agent starts (e.g., active version) will be
+	// outdated until the agent is confirmed healthy.
+
 	info.UpdateGroup = cfg.Spec.Group
 	if info.UpdateGroup == "" {
 		info.UpdateGroup = defaultSetting
