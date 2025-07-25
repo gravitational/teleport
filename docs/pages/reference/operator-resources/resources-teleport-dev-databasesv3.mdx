@@ -69,8 +69,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |account_id|string|AccountID is the AWS account ID this database belongs to.|
 |assume_role_arn|string|AssumeRoleARN is an optional AWS role ARN to assume when accessing a database. Set this field and ExternalID to enable access across AWS accounts.|
-|docdb|[object](#specawsdocdb)|DocumentDB contains AWS DocumentDB specific metadata.|
-|elasticache|[object](#specawselasticache)|ElastiCache contains AWS ElastiCache Redis specific metadata.|
+|docdb|[object](#specawsdocdb)|DocumentDB contains Amazon DocumentDB-specific metadata.|
+|elasticache|[object](#specawselasticache)|ElastiCache contains Amazon ElastiCache Redis-specific metadata.|
 |external_id|string|ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.|
 |iam_policy_status|string or integer|IAMPolicyStatus indicates whether the IAM Policy is configured properly for database access. If not, the user must update the AWS profile identity to allow access to the Database. Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database. Can be either the string or the integer representation of each option.|
 |memorydb|[object](#specawsmemorydb)|MemoryDB contains AWS MemoryDB specific metadata.|
@@ -78,7 +78,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |rds|[object](#specawsrds)|RDS contains RDS specific metadata.|
 |rdsproxy|[object](#specawsrdsproxy)|RDSProxy contains AWS Proxy specific metadata.|
 |redshift|[object](#specawsredshift)|Redshift contains Redshift specific metadata.|
-|redshift_serverless|[object](#specawsredshift_serverless)|RedshiftServerless contains AWS Redshift Serverless specific metadata.|
+|redshift_serverless|[object](#specawsredshift_serverless)|RedshiftServerless contains Amazon Redshift Serverless-specific metadata.|
 |region|string|Region is a AWS cloud region.|
 |secret_store|[object](#specawssecret_store)|SecretStore contains secret store configurations.|
 |session_tags|[object](#specawssession_tags)|SessionTags is a list of AWS STS session tags.|

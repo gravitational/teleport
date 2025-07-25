@@ -38,6 +38,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -143,13 +144,13 @@ func newMockServer(t *testing.T) *mockServer {
 
 	authCfg := &auth.InitConfig{
 		Backend:        bk,
-		VersionStorage: auth.NewFakeTeleportVersion(),
+		VersionStorage: authtest.NewFakeTeleportVersion(),
 		Authority:      testauthority.New(),
 		ClusterName:    clusterName,
 		StaticTokens:   staticTokens,
 	}
 
-	authServer, err := auth.NewServer(authCfg, auth.WithClock(clock))
+	authServer, err := auth.NewServer(authCfg, authtest.WithClock(clock))
 	require.NoError(t, err)
 
 	return &mockServer{

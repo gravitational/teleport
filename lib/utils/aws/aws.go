@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/textproto"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -214,6 +215,17 @@ func VerifyAWSSignature(req *http.Request, credProvider aws.CredentialsProvider)
 	creds, err := credProvider.Retrieve(ctx)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// If the original request does not sign "content-length" (e.g. "aws sts
+	// get-caller-identity"), do not set reqCopy.ContentLength as go sdk's
+	// signer will forcefully sign "content-length" if it is set on the HTTP
+	// request.
+	findContentLength := slices.ContainsFunc(sigV4.SignedHeaders, func(header string) bool {
+		return strings.EqualFold(header, "content-length")
+	})
+	if !findContentLength {
+		reqCopy.ContentLength = 0
 	}
 
 	signer := NewSigner(sigV4.Service)

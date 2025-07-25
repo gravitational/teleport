@@ -27,16 +27,40 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+func ApplicationTunnelServiceBuilder(botCfg *config.BotConfig, cfg *config.ApplicationTunnelService) bot.ServiceBuilder {
+	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+		svc := &ApplicationTunnelService{
+			getBotIdentity:     deps.BotIdentity,
+			botIdentityReadyCh: deps.BotIdentityReadyCh,
+			proxyPinger:        deps.ProxyPinger,
+			botClient:          deps.Client,
+			botCfg:             botCfg,
+			cfg:                cfg,
+			identityGenerator:  deps.IdentityGenerator,
+			clientBuilder:      deps.ClientBuilder,
+		}
+		svc.log = deps.Logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
+		)
+		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
+		return svc, nil
+	}
+}
 
 // ApplicationTunnelService is a service that listens on a socket and forwards
 // traffic to an application registered in Teleport Application Access. It is
@@ -45,7 +69,7 @@ import (
 type ApplicationTunnelService struct {
 	botCfg             *config.BotConfig
 	cfg                *config.ApplicationTunnelService
-	proxyPingCache     *proxyPingCache
+	proxyPinger        connection.ProxyPinger
 	log                *slog.Logger
 	botClient          *apiclient.Client
 	getBotIdentity     getBotIdentityFn
@@ -100,9 +124,6 @@ func (s *ApplicationTunnelService) Run(ctx context.Context) error {
 	}()
 	s.log.InfoContext(ctx, "Listening for connections.", "address", l.Addr().String())
 
-	if s.statusReporter == nil {
-		s.statusReporter = readyz.NoopReporter()
-	}
 	s.statusReporter.Report(readyz.Healthy)
 
 	select {
@@ -140,11 +161,11 @@ func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (l
 		}
 	}
 
-	proxyPing, err := s.proxyPingCache.ping(ctx)
+	proxyPing, err := s.proxyPinger.Ping(ctx)
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "pinging proxy")
 	}
-	proxyAddr, err := proxyPing.proxyWebAddr()
+	proxyAddr, err := proxyPing.ProxyWebAddr()
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "determining proxy web addr")
 	}
