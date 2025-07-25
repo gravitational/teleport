@@ -38,7 +38,9 @@ import { Instance } from './Instance';
 export function InstancesPanel(props: { botName: string }) {
   const { botName } = props;
 
-  const [sort, setSort] = useState('active_at_latest:desc');
+  const [sort, setSort] = useState<
+    'active_at_latest:asc' | 'active_at_latest:desc'
+  >('active_at_latest:desc');
 
   const contentRef = React.useRef<HTMLDivElement>(null);
 
