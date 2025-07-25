@@ -51,7 +51,7 @@ var (
 type TestModules struct{}
 
 func (p *TestModules) GenerateLongTermResourceGrouping(context.Context, modules.AccessResourcesGetter, types.AccessRequest) (*types.LongTermResourceGrouping, error) {
-	return nil, nil
+	return &types.LongTermResourceGrouping{}, nil
 }
 
 func (p *TestModules) GenerateAccessRequestPromotions(context.Context, modules.AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {

@@ -5458,6 +5458,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if req.GetDryRun() {
 		// NOTE: Some dry-run options are set in [services.ValidateAccessRequestForUser].
 		_, promotions := a.generateAccessRequestPromotions(ctx, req, allAccessLists)
+		// TODO(kiosion): if long-term, skip promotion generation, and instead, use info from LongTermResourceGrouping to add additional reviewers.
 		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessLists, promotions)
 
 		if req.GetRequestKind().IsLongTerm() {
@@ -5673,28 +5674,31 @@ func (a *Server) checkResourcesRequestable(ctx context.Context, resourceIDs []ty
 	return nil
 }
 
-type cacheWithStaticAccessLists struct {
+// cacheWithFetchedAccessLists is a wrapper around authclient.Cache to provide pre-fetched Access Lists
+// for use in both generating long-term resource groupings, and generating access request promotions.
+// This avoids the need to fetch Access Lists from the backend multiple times per-CreateAccessRequest call.
+type cacheWithFetchedAccessLists struct {
 	authclient.Cache
-	staticACLs []*accesslist.AccessList
+	fetchedACLs []*accesslist.AccessList
 }
 
-func (c *cacheWithStaticAccessLists) GetAccessLists(context.Context) ([]*accesslist.AccessList, error) {
-	return c.staticACLs, nil
+func (c *cacheWithFetchedAccessLists) GetAccessLists(context.Context) ([]*accesslist.AccessList, error) {
+	return c.fetchedACLs, nil
 }
-func (c *cacheWithStaticAccessLists) ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error) {
-	return c.staticACLs, "", nil
+func (c *cacheWithFetchedAccessLists) ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error) {
+	return c.fetchedACLs, "", nil
 }
 
 // generateLongTermResourceGrouping will validate and group resources based on coverage by access lists.
 func (a *Server) generateLongTermResourceGrouping(ctx context.Context, req types.AccessRequest, acls []*accesslist.AccessList) (*types.LongTermResourceGrouping, error) {
-	return modules.GetModules().GenerateLongTermResourceGrouping(ctx, &cacheWithStaticAccessLists{a.Cache, acls}, req)
+	return modules.GetModules().GenerateLongTermResourceGrouping(ctx, &cacheWithFetchedAccessLists{a.Cache, acls}, req)
 }
 
 // generateAccessRequestPromotions will return potential access list promotions for an access request. On error, this function will log
 // the error and return whatever it has. The caller is expected to deal with the possibility of a nil promotions object.
 func (a *Server) generateAccessRequestPromotions(ctx context.Context, req types.AccessRequest, acls []*accesslist.AccessList) (types.AccessRequest, *types.AccessRequestAllowedPromotions) {
 	reqCopy := req.Copy()
-	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, &cacheWithStaticAccessLists{a.Cache, acls}, reqCopy)
+	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, &cacheWithFetchedAccessLists{a.Cache, acls}, reqCopy)
 	if err != nil {
 		// Do not fail the request if the promotions failed to generate.
 		// The request promotion will be blocked, but the request can still be approved.

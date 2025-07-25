@@ -557,13 +557,13 @@ func (r *AccessRequestV3) SetLongTermResourceGrouping(grouping *LongTermResource
 }
 
 // IsLongTerm checks if the request kind is long-term.
-func (ark AccessRequestKind) IsLongTerm() bool {
-	return ark == AccessRequestKind_LONG_TERM
+func (a AccessRequestKind) IsLongTerm() bool {
+	return a == AccessRequestKind_LONG_TERM
 }
 
 // IsShortTerm checks if the request kind is explicitly short-term, or is undefined.
-func (ark AccessRequestKind) IsShortTerm() bool {
-	return ark != AccessRequestKind_LONG_TERM
+func (a AccessRequestKind) IsShortTerm() bool {
+	return a != AccessRequestKind_LONG_TERM
 }
 
 // Copy returns a copy of the access request resource.
