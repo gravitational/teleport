@@ -16,7 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box, ButtonSecondary, Link, Stack, Text, ResourceIcon, Flex } from 'design';
+import {
+  Box,
+  ButtonSecondary,
+  Flex,
+  Link,
+  ResourceIcon,
+  Stack,
+  Text,
+} from 'design';
 import Dialog, {
   DialogContent,
   DialogFooter,
@@ -27,6 +35,10 @@ import {
   TextSelectCopy,
   TextSelectCopyMulti,
 } from 'shared/components/TextSelectCopy';
+import {
+  generateAppLinksForApp,
+  generateClaudeDesktopConfigForApp,
+} from 'shared/services/mcp';
 
 import { generateTshLoginCommand } from 'teleport/lib/util';
 import { App } from 'teleport/services/apps';
@@ -42,25 +54,8 @@ export function MCPAppConnectDialog(props: { app: App; onClose: () => void }) {
   const { clusterId } = useStickyClusterId();
   const { username, authType } = ctx.storeUser.state;
   const accessRequestId = ctx.storeUser.getAccessRequestId();
-  const mcpServerName = `teleport-mcp-${app.name}`;
-  const mcpServerConfig = {
-    command: 'tsh',
-    args: ['mcp', 'connect', app.name],
-  };
-  const claudeConfig = {
-    mcpServers: {
-      [mcpServerName]: mcpServerConfig,
-    },
-  };
-  const cursorDeepLink = `cursor://anysphere.cursor-deeplink/mcp/install?name=${encodeURIComponent(
-    mcpServerName
-  )}&config=${encodeURIComponent(btoa(JSON.stringify(mcpServerConfig)))}`;
-  const vscodeEncodedConfig= encodeURIComponent(JSON.stringify({
-    ...mcpServerConfig,
-    name: mcpServerName,
-  }));
-  const vscodeLink = `vscode:mcp/install?${vscodeEncodedConfig}`;
-  const vscodeInsidersink = `vscode-insiders:mcp/install?${vscodeEncodedConfig}`;
+  const claudeConfig = generateClaudeDesktopConfigForApp(app.name);
+  const links = generateAppLinksForApp(app.name);
 
   return (
     <Dialog
@@ -103,13 +98,13 @@ export function MCPAppConnectDialog(props: { app: App; onClose: () => void }) {
               {' - Configure your MCP client'}
             </Text>
             <Flex alignItems="center" justifyContent="left" columnGap={2}>
-              <Link href={cursorDeepLink} target="_blank">
+              <Link href={links.cursor} target="_blank">
                 <ResourceIcon name="mcpCursor" height="32px" />
               </Link>
-              <Link href={vscodeLink} target="_blank">
+              <Link href={links.vscode} target="_blank">
                 <ResourceIcon name="mcpVscode" height="25px" />
               </Link>
-              <Link href={vscodeInsidersink} target="_blank">
+              <Link href={links.vscodeInsiders} target="_blank">
                 <ResourceIcon name="mcpVscodeInsiders" height="25px" />
               </Link>
             </Flex>
@@ -121,7 +116,7 @@ export function MCPAppConnectDialog(props: { app: App; onClose: () => void }) {
               bash={false}
               lines={[
                 {
-                  text: JSON.stringify(claudeConfig, null, 2),
+                  text: claudeConfig,
                 },
               ]}
             />
@@ -131,7 +126,7 @@ export function MCPAppConnectDialog(props: { app: App; onClose: () => void }) {
             </Box>
             <TextSelectCopy text={`tsh mcp config ${app.name}`} />
             <Box>
-              *Note: You might need to restart your MCP tool to load the updated
+              *Note: You might need to restart your MCP client to load the updated
               configuration.
             </Box>
           </Stack>
