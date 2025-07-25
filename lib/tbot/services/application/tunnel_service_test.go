@@ -118,7 +118,7 @@ func TestE2E_ApplicationTunnelService(t *testing.T) {
 	require.NoError(t, err)
 
 	// Spin up goroutine for bot to run in
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(ctx)
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
