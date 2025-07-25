@@ -183,6 +183,7 @@ func TestKube(t *testing.T) {
 	t.Run("Exec", suite.bind(testKubeExec))
 	t.Run("Deny", suite.bind(testKubeDeny))
 	t.Run("PortForward", suite.bind(testKubePortForward))
+	t.Run("PortForwardPodDisconnect", suite.bind(testKubePortForwardPodDisconnect))
 	t.Run("TransportProtocol", suite.bind(testKubeTransportProtocol))
 	t.Run("TrustedClustersClientCert", suite.bind(testKubeTrustedClustersClientCert))
 	t.Run("TrustedClustersSNI", suite.bind(testKubeTrustedClustersSNI))
@@ -591,6 +592,137 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 		)
 	}
 
+}
+
+// TestKubePortForward tests kubernetes port forwarding
+// with pod disconnecting.
+func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
+	tconf := suite.teleKubeConfig(Host)
+
+	teleport := helpers.NewInstance(t, helpers.InstanceConfig{
+		ClusterName: helpers.Site,
+		HostID:      helpers.HostID,
+		NodeName:    Host,
+		Priv:        suite.priv,
+		Pub:         suite.pub,
+		Logger:      suite.log,
+	})
+
+	username := suite.me.Username
+	kubeGroups := []string{kube.TestImpersonationGroup}
+	role, err := types.NewRole("kubemaster", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{username},
+			KubeGroups: kubeGroups,
+			KubernetesLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	teleport.AddUserWithRole(username, role)
+
+	err = teleport.CreateEx(t, nil, tconf)
+	require.NoError(t, err)
+
+	err = teleport.Start()
+	require.NoError(t, err)
+	defer teleport.StopAll()
+
+	// set up kube configuration using proxy
+	proxyClient, proxyClientConfig, err := kube.ProxyClient(kube.ProxyConfig{
+		T:          teleport,
+		Username:   username,
+		KubeGroups: kubeGroups,
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		builder func(*rest.Config, kubePortForwardArgs) (*kubePortForwarder, error)
+	}{
+		{
+			name:    "SPDY portForwarder with pod disconnection",
+			builder: newPortForwarder,
+		},
+		{
+			name:    "SPDY over Websocket portForwarder with pod disconnection",
+			builder: newPortForwarderSPDYOverWebsocket,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name,
+			func(t *testing.T) {
+				// Create a new pod.
+				// Avoid interfering with singleton pod in test suite.
+				tmpPodName := fmt.Sprintf("%v-%d", testPod, time.Now().Unix())
+				p := newPod(testNamespace, tmpPodName)
+				_, err := suite.CoreV1().Pods(testNamespace).Create(context.Background(), p, metav1.CreateOptions{})
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					_ = proxyClient.CoreV1().Pods(testNamespace).Delete(context.Background(), tmpPodName, metav1.DeleteOptions{})
+				})
+
+				// Wait for pod to be running.
+				require.Eventually(t, func() bool {
+					rsp, err := suite.CoreV1().Pods(testNamespace).Get(context.Background(), tmpPodName, metav1.GetOptions{})
+					if err != nil {
+						return false
+					}
+					return rsp.Status.Phase == v1.PodRunning
+				}, 60*time.Second, time.Millisecond*500)
+
+				// Forward local port to target port 80 of the nginx container
+				listener, err := net.Listen("tcp", "localhost:0")
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					require.NoError(t, listener.Close())
+				})
+
+				localPort := listener.Addr().(*net.TCPAddr).Port
+
+				forwarder, err := tt.builder(proxyClientConfig, kubePortForwardArgs{
+					ports:        []string{fmt.Sprintf("%v:80", localPort)},
+					podName:      tmpPodName,
+					podNamespace: testNamespace,
+				})
+				require.NoError(t, err)
+
+				forwarderCh := make(chan error)
+				go func() { forwarderCh <- forwarder.ForwardPorts() }()
+
+				select {
+				case <-time.After(10 * time.Second):
+					t.Fatalf("Timeout waiting for port forwarding.")
+				case <-forwarder.readyC:
+				}
+
+				resp, err := http.Get(fmt.Sprintf("http://localhost:%v", localPort))
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+				require.NoError(t, resp.Body.Close())
+
+				// Delete the pod.
+				// Expect pod deletion close port-forwarding.
+				err = proxyClient.CoreV1().Pods(testNamespace).Delete(context.Background(), tmpPodName, metav1.DeleteOptions{})
+				require.NoError(t, err)
+
+				// Verify port-forward closes
+				select {
+				case err := <-forwarderCh:
+					require.Error(t, err, "Expected port-forwarding error after pod deletion")
+				case <-time.After(5 * time.Second):
+					t.Fatalf("Timeout waiting for port forwarding error after pod deletion.")
+				}
+			},
+		)
+	}
 }
 
 // TestKubeTrustedClustersClientCert tests scenario with trusted clusters
