@@ -20,7 +20,6 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"sync"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -28,11 +27,72 @@ import (
 	"golang.org/x/net/context"
 )
 
+// Client extends the [agent.ExtendedAgent] interface with an [io.Closer].
+type Client interface {
+	agent.ExtendedAgent
+	io.Closer
+}
+
+// ClientGetter is a function used to get a new agent client.
+type ClientGetter func() (Client, error)
+
+type client struct {
+	agent.ExtendedAgent
+	conn io.ReadWriteCloser
+}
+
+// NewClient creates a new SSH Agent client with an open connection using
+// the provided connection function. The resulting connection can be any
+// [io.ReadWriteCloser], such as a [net.Conn] or [ssh.Channel].
+func NewClient(connect func() (io.ReadWriteCloser, error)) (Client, error) {
+	conn, err := connect()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &client{
+		ExtendedAgent: agent.NewClient(conn),
+		conn:          conn,
+	}, nil
+}
+
+// NewSystemAgentClient creates a new SSH Agent client with an open connection
+// to the system agent, advertised by SSH_AUTH_SOCK or other system parameters.
+func NewSystemAgentClient() (Client, error) {
+	return NewClient(DialSystemAgent)
+}
+
+// NewStaticClient creates a new SSH Agent client for the given static agent.
+func NewStaticClient(agent agent.ExtendedAgent) Client {
+	return &client{
+		ExtendedAgent: agent,
+	}
+}
+
+// Close the agent client and prevent further requests.
+func (c *client) Close() error {
+	if c.conn == nil {
+		return nil
+	}
+	err := c.conn.Close()
+	return trace.Wrap(err)
+}
+
 const channelType = "auth-agent@openssh.com"
 
 // ServeChannelRequests routes agent channel requests to a new agent
 // connection retrieved from the provided getter.
-func ServeChannelRequests(ctx context.Context, client *ssh.Client, getter Getter) error {
+//
+// This method differs from [agent.ForwardToAgent] in that each agent
+// forwarding channel is handled with a new connection to the forward
+// agent, rather than sharing a single long-lived connection.
+//
+// Specifically, this is necessary for Windows' named pipe ssh agent
+// implementation, as the named pipe connection can be disrupted after
+// signature requests. This issue may be resolved directly by the
+// [agent] library once https://github.com/golang/go/issues/61383
+// is addressed.
+func ServeChannelRequests(ctx context.Context, client *ssh.Client, getForwardAgent ClientGetter) error {
 	channels := client.HandleChannelOpen(channelType)
 	if channels == nil {
 		return errors.New("agent forwarding channel already open")
@@ -47,170 +107,20 @@ func ServeChannelRequests(ctx context.Context, client *ssh.Client, getter Getter
 
 			go ssh.DiscardRequests(reqs)
 
-			forwardAgent, err := getter()
+			forwardAgent, err := getForwardAgent()
 			if err != nil {
-				slog.ErrorContext(context.Background(), "failed to connect to agent for forwarding", "err", err)
+				slog.ErrorContext(ctx, "failed to connect to forwarded agent", "err", err)
 				continue
 			}
 
 			go func() {
 				defer channel.Close()
+				defer forwardAgent.Close()
 				if err := agent.ServeAgent(forwardAgent, channel); err != nil && !errors.Is(err, io.EOF) {
-					slog.ErrorContext(context.Background(), "unexpected error serving forwarded agent", "err", err)
+					slog.ErrorContext(ctx, "unexpected error serving forwarded agent", "err", err)
 				}
 			}()
 		}
 	}()
 	return nil
-}
-
-// Client is a client implementation of [agent.ExtendedAgent] that handles reconnects
-// to gracefully handle connection and ssh agent service disruptions.
-//
-// This is specifically needed for Window's named pipe ssh agent implementation as the named pipe
-// connection can be disrupted after signature requests. This issue may be resolved directly by
-// the crypto/ssh/agent library once https://github.com/golang/go/issues/61383 is addressed.
-type Client struct {
-	connect connectFn
-	conn    io.ReadWriteCloser
-	connMu  sync.Mutex
-	closed  bool
-}
-
-// connectFn is a function to connect to an SSH agent. The returned connection is
-// any [io.ReadWriteCloser], such as a [net.Conn] or [ssh.Channel].
-type connectFn func() (io.ReadWriteCloser, error)
-
-// NewClient creates a new SSH Agent client with an open connection.
-func NewClient(connect connectFn) (*Client, error) {
-	conn, err := connect()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &Client{
-		connect: connect,
-		conn:    conn,
-	}, nil
-}
-
-func (c *Client) withReconnectRetry(do func(a agent.ExtendedAgent) error) error {
-	c.connMu.Lock()
-	defer c.connMu.Unlock()
-
-	if c.closed {
-		return trace.Errorf("the ssh agent client is closed")
-	}
-
-	if c.conn != nil {
-		err := do(agent.NewClient(c.conn))
-		if isClosedConnectionError(err) {
-			// unset conn and reconnect below.
-			c.conn = nil
-		} else {
-			return err
-		}
-	}
-
-	conn, err := c.connect()
-	if err != nil {
-		return trace.Wrap(err, "failed to connect to the ssh agent service")
-	}
-	c.conn = conn
-
-	return do(agent.NewClient(conn))
-}
-
-// Close the agent client and prevent further requests.
-func (c *Client) Close() error {
-	c.connMu.Lock()
-	defer c.connMu.Unlock()
-
-	if c.conn == nil {
-		return nil
-	}
-
-	c.closed = true
-	return trace.Wrap(c.conn.Close())
-}
-
-// List implements [agent.ExtendedAgent.List].
-func (c *Client) List() (keys []*agent.Key, err error) {
-	err = c.withReconnectRetry(func(a agent.ExtendedAgent) error {
-		keys, err = a.List()
-		return trace.Wrap(err)
-	})
-	return keys, trace.Wrap(err)
-}
-
-// List implements [agent.ExtendedAgent.Signers].
-func (c *Client) Signers() (signers []ssh.Signer, err error) {
-	err = c.withReconnectRetry(func(a agent.ExtendedAgent) error {
-		signers, err = a.Signers()
-		return trace.Wrap(err)
-	})
-	return signers, trace.Wrap(err)
-}
-
-// SignWithFlags implements [agent.ExtendedAgent.Sign].
-func (c *Client) Sign(key ssh.PublicKey, data []byte) (signature *ssh.Signature, err error) {
-	err = c.withReconnectRetry(func(a agent.ExtendedAgent) error {
-		signature, err = a.Sign(key, data)
-		return trace.Wrap(err)
-	})
-	return signature, trace.Wrap(err)
-}
-
-// SignWithFlags implements [agent.ExtendedAgent.SignWithFlags].
-// key.
-func (c *Client) SignWithFlags(key ssh.PublicKey, data []byte, flags agent.SignatureFlags) (signature *ssh.Signature, err error) {
-	err = c.withReconnectRetry(func(a agent.ExtendedAgent) error {
-		signature, err = a.SignWithFlags(key, data, flags)
-		return trace.Wrap(err)
-	})
-	return signature, trace.Wrap(err)
-}
-
-// Add implements [agent.ExtendedAgent.Add].
-func (c *Client) Add(key agent.AddedKey) error {
-	return c.withReconnectRetry(func(a agent.ExtendedAgent) error {
-		return trace.Wrap(a.Add(key))
-	})
-}
-
-// Remove implements [agent.ExtendedAgent.Remove].
-func (c *Client) Remove(key ssh.PublicKey) error {
-	return c.withReconnectRetry(func(a agent.ExtendedAgent) error {
-		return trace.Wrap(a.Remove(key))
-	})
-}
-
-// RemoveAll implements [agent.ExtendedAgent.RemoveAll].
-func (c *Client) RemoveAll() error {
-	return c.withReconnectRetry(func(a agent.ExtendedAgent) error {
-		return trace.Wrap(a.RemoveAll())
-	})
-}
-
-// Lock implements [agent.ExtendedAgent.Lock].
-func (c *Client) Lock(passphrase []byte) error {
-	return c.withReconnectRetry(func(a agent.ExtendedAgent) error {
-		return trace.Wrap(a.Lock(passphrase))
-	})
-}
-
-// Unlock implements [agent.ExtendedAgent.Unlock].
-func (c *Client) Unlock(passphrase []byte) error {
-	return c.withReconnectRetry(func(a agent.ExtendedAgent) error {
-		return trace.Wrap(a.Unlock(passphrase))
-	})
-}
-
-// Extension implements [agent.ExtendedAgent.Extension].
-func (c *Client) Extension(extensionType string, contents []byte) (response []byte, err error) {
-	err = c.withReconnectRetry(func(a agent.ExtendedAgent) error {
-		response, err = a.Extension(extensionType, contents)
-		return trace.Wrap(err)
-	})
-	return response, trace.Wrap(err)
 }

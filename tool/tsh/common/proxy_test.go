@@ -985,8 +985,8 @@ func createAgent(t *testing.T) (agent.ExtendedAgent, string) {
 	keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
 	require.True(t, ok)
 
-	agentServer := sshagent.NewServer(func() (sshagent.AgentCloser, error) {
-		return sshagent.NopCloser(keyring), nil
+	agentServer := sshagent.NewServer(func() (sshagent.Client, error) {
+		return sshagent.NewStaticClient(keyring), nil
 	})
 
 	// Start the SSH agent.

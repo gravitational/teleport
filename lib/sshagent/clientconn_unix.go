@@ -22,7 +22,6 @@ package sshagent
 
 import (
 	"context"
-	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -36,6 +35,11 @@ import (
 // DialSystemAgent connects to the SSH agent advertised by SSH_AUTH_SOCK.
 func DialSystemAgent() (io.ReadWriteCloser, error) {
 	socketPath := os.Getenv(teleport.SSHAuthSock)
+
+	if socketPath == "" {
+		return nil, trace.NotFound("no system agent advertised by SSH_AUTH_SOCK")
+	}
+
 	logger := slog.With(teleport.ComponentKey, teleport.ComponentKeyAgent)
 	logger.DebugContext(context.Background(), "Connecting to the system agent", "socket_path", socketPath)
 
@@ -45,8 +49,4 @@ func DialSystemAgent() (io.ReadWriteCloser, error) {
 	}
 
 	return conn, nil
-}
-
-func isClosedConnectionError(err error) bool {
-	return errors.Is(err, io.EOF)
 }

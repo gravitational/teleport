@@ -52,7 +52,7 @@ type DialParams struct {
 
 	// GetUserAgent gets an SSH agent for use in connecting to the remote host. Used by the
 	// forwarding proxy.
-	GetUserAgent sshagent.Getter
+	GetUserAgent sshagent.ClientGetter
 
 	// IsAgentlessNode indicates whether the Node is an OpenSSH Node.
 	// This includes Nodes whose sub kind is OpenSSH and OpenSSHEICE.

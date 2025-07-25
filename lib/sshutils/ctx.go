@@ -159,7 +159,7 @@ func (c *ConnectionContext) SetSessionID(sessionID rsession.ID) {
 // StartAgentChannel sets up a new agent forwarding channel against this connection.  The channel
 // is automatically closed when either ConnectionContext, or the supplied context.Context
 // gets canceled.
-func (c *ConnectionContext) StartAgentChannel() (sshagent.AgentCloser, error) {
+func (c *ConnectionContext) StartAgentChannel() (sshagent.Client, error) {
 	// refuse to start an agent if forwardAgent has not yet been set.
 	if !c.GetForwardAgent() {
 		return nil, trace.AccessDenied("agent forwarding has not been requested")

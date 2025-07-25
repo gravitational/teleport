@@ -412,7 +412,7 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 	)
 
 	// request user agent connection if a SSH user agent is set
-	var userAgent sshagent.AgentCloser
+	var userAgent sshagent.Client
 	if params.GetUserAgent != nil {
 		ua, err := params.GetUserAgent()
 		if err != nil {

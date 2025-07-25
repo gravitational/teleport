@@ -716,7 +716,7 @@ func TestRouter_DialHost(t *testing.T) {
 		},
 	}
 
-	agentGetter := func() (sshagent.AgentCloser, error) {
+	agentGetter := func() (sshagent.Client, error) {
 		return nil, nil
 	}
 	createSigner := func(_ context.Context, _ agentless.LocalAccessPoint, _ agentless.CertGenerator) (ssh.Signer, error) {

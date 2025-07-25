@@ -24,7 +24,6 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
-	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -37,7 +36,6 @@ import (
 
 	"github.com/Microsoft/go-winio"
 	"github.com/gravitational/trace"
-	"golang.org/x/sys/windows"
 
 	"github.com/gravitational/teleport"
 )
@@ -75,10 +73,6 @@ func DialSystemAgent() (io.ReadWriteCloser, error) {
 	}
 
 	return nil, trace.Wrap(err)
-}
-
-func isClosedConnectionError(err error) bool {
-	return errors.Is(err, io.EOF) || errors.Is(err, windows.ERROR_NO_DATA)
 }
 
 // SIDs that are computer or domain SIDs start with this prefix.

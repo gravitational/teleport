@@ -71,30 +71,42 @@ func TestSSHAgentClient(t *testing.T) {
 	stopServer := startAgentServer()
 	defer stopServer()
 
-	// Initial connection should succeed.
-	agentClient, err := sshagent.NewClient(func() (io.ReadWriteCloser, error) {
+	clientConnect := func() (io.ReadWriteCloser, error) {
 		return net.Dial("unix", agentPath)
-	})
-	require.NoError(t, err)
+	}
+	clientGetter := func() (sshagent.Client, error) {
+		return sshagent.NewClient(clientConnect)
+	}
 
-	// requests should succeed.
+	// Get a new agent client and make successful requests.
+	agentClient, err := clientGetter()
+	require.NoError(t, err)
 	_, err = agentClient.List()
 	require.NoError(t, err)
 
-	// Close the server, client should fail with an io.EOF.
+	// Close the server and all client connections, client should fail.
 	stopServer()
 	_, err = agentClient.List()
+	// TODO(Joerger): Ideally we would check for the error (io.EOF),
+	// but the agent library isn't properly wrapping its errors.
 	require.Error(t, err)
-	require.ErrorIs(t, err, io.EOF)
 
-	// Re-open the server, the client should automatically attempt to reconnect.
+	// Getting a new client should fail.
+	_, err = clientGetter()
+	require.Error(t, err)
+
+	// Re-open the server. Get a new agent client connection.
 	stopServer = startAgentServer()
 	defer stopServer()
 
+	agentClient, err = clientGetter()
+	require.NoError(t, err)
 	_, err = agentClient.List()
 	require.NoError(t, err)
 
 	// Close the client, it should return an error when receiving requests.
 	err = agentClient.Close()
+	require.NoError(t, err)
+	_, err = agentClient.List()
 	require.Error(t, err)
 }

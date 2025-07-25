@@ -256,17 +256,14 @@ func (ns *NodeSession) createServerSession(ctx context.Context, chanReqCallback 
 
 // selectKeyAgent picks the appropriate key agent for forwarding to the
 // server, if any.
-func selectKeyAgent(ctx context.Context, tc *TeleportClient) sshagent.Getter {
+func selectKeyAgent(ctx context.Context, tc *TeleportClient) sshagent.ClientGetter {
 	switch tc.ForwardAgent {
 	case ForwardAgentYes:
 		log.DebugContext(context.Background(), "Selecting system key agent")
-		return func() (sshagent.AgentCloser, error) {
-			return sshagent.NewClient(sshagent.DialSystemAgent)
-		}
+		return sshagent.NewSystemAgentClient
 	case ForwardAgentLocal:
-		log.DebugContext(context.Background(), "Selecting local Teleport key agent")
-		return func() (sshagent.AgentCloser, error) {
-			return sshagent.NopCloser(tc.localAgent.ExtendedAgent), nil
+		return func() (sshagent.Client, error) {
+			return sshagent.NewStaticClient(tc.localAgent.ExtendedAgent), nil
 		}
 	default:
 		log.DebugContext(context.Background(), "No Key Agent selected")

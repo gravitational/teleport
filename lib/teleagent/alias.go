@@ -24,10 +24,10 @@ import (
 
 // TODO(Joerger): Remove this file once no longer needed by /e
 type (
-	Agent = sshagent.AgentCloser
+	Agent = sshagent.Client
 )
 
 var (
-	NopCloser = sshagent.NopCloser
+	NopCloser = sshagent.NewStaticClient
 	NewServer = sshagent.NewServer
 )

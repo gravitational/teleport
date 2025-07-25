@@ -48,7 +48,7 @@ import (
 // Dialer is the interface that groups basic dialing methods.
 type Dialer interface {
 	DialSite(ctx context.Context, cluster string, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error)
-	DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter sshagent.Getter, singer agentless.SignerCreator) (net.Conn, error)
+	DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter sshagent.ClientGetter, singer agentless.SignerCreator) (net.Conn, error)
 	DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, cluster string, clusterAccessChecker func(types.RemoteCluster) error) (net.Conn, error)
 }
 
@@ -76,7 +76,7 @@ type ServerConfig struct {
 	LocalAddr net.Addr
 
 	// agentGetterFn used by tests to serve the agent directly
-	agentGetterFn func(rw io.ReadWriter) sshagent.Getter
+	agentGetterFn func(rw io.ReadWriter) sshagent.ClientGetter
 
 	// authzContextFn used by tests to inject an access checker
 	authzContextFn func(info credentials.AuthInfo) (*authz.Context, error)
@@ -98,9 +98,9 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.agentGetterFn == nil {
-		c.agentGetterFn = func(rw io.ReadWriter) sshagent.Getter {
-			return func() (sshagent.AgentCloser, error) {
-				return sshagent.NopCloser(agent.NewClient(rw)), nil
+		c.agentGetterFn = func(rw io.ReadWriter) sshagent.ClientGetter {
+			return func() (sshagent.Client, error) {
+				return sshagent.NewStaticClient(agent.NewClient(rw)), nil
 			}
 		}
 	}

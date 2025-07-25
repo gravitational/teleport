@@ -111,7 +111,7 @@ type Server struct {
 	identityContext srv.IdentityContext
 
 	// userAgent is the SSH user agent that was forwarded to the proxy.
-	userAgent sshagent.AgentCloser
+	userAgent sshagent.Client
 
 	// agentlessSigner is used for client authentication when no SSH
 	// user agent is provided, ie when connecting to agentless nodes.
@@ -197,7 +197,7 @@ type ServerConfig struct {
 	// of the server being connected to, whether it is the local cluster or a
 	// remote cluster.
 	TargetClusterAccessPoint srv.AccessPoint
-	UserAgent                sshagent.AgentCloser
+	UserAgent                sshagent.Client
 	TargetConn               net.Conn
 	SrcAddr                  net.Addr
 	DstAddr                  net.Addr

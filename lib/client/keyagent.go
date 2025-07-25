@@ -135,11 +135,11 @@ func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 	}
 
 	if shouldAddKeysToAgent(conf.KeysOption) {
-		sshAgent, err := sshagent.NewClient(sshagent.DialSystemAgent)
+		systemAgent, err := sshagent.NewSystemAgentClient()
 		if err != nil {
 			a.log.WarnContext(context.Background(), "Unable to connect to system agent", "error", err)
 		} else {
-			a.systemAgent = sshAgent
+			a.systemAgent = systemAgent
 		}
 	} else {
 		log.DebugContext(context.Background(), "Skipping connection to the local ssh-agent.")
