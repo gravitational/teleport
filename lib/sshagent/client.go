@@ -17,6 +17,7 @@
 package sshagent
 
 import (
+	"context"
 	"errors"
 	"io"
 	"log/slog"
@@ -24,7 +25,6 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/net/context"
 )
 
 // Client extends the [agent.ExtendedAgent] interface with an [io.Closer].
