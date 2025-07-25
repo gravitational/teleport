@@ -22,6 +22,7 @@ package sshagent
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -44,4 +45,8 @@ func DialSystemAgent() (io.ReadWriteCloser, error) {
 	}
 
 	return conn, nil
+}
+
+func isClosedConnectionError(err error) bool {
+	return errors.Is(err, io.EOF)
 }

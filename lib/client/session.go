@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
@@ -236,7 +237,7 @@ func (ns *NodeSession) createServerSession(ctx context.Context, chanReqCallback 
 	// if agent forwarding was requested (and we have a agent to forward),
 	// forward the agent to endpoint.
 	tc := ns.nodeClient.TC
-	targetAgent := selectKeyAgent(tc)
+	targetAgent := selectKeyAgent(ctx, tc)
 
 	if targetAgent != nil {
 		log.DebugContext(ctx, "Forwarding Selected Key Agent")
@@ -255,11 +256,19 @@ func (ns *NodeSession) createServerSession(ctx context.Context, chanReqCallback 
 
 // selectKeyAgent picks the appropriate key agent for forwarding to the
 // server, if any.
-func selectKeyAgent(tc *TeleportClient) agent.ExtendedAgent {
+func selectKeyAgent(ctx context.Context, tc *TeleportClient) agent.ExtendedAgent {
 	switch tc.ForwardAgent {
 	case ForwardAgentYes:
 		log.DebugContext(context.Background(), "Selecting system key agent")
-		return tryGetSystemAgent()
+
+		systemAgent, err := sshagent.NewClient(sshagent.DialSystemAgent)
+		if err != nil {
+			log.WarnContext(context.Background(), "Unable to connect to system agent", "error", err)
+			return nil
+		}
+
+		context.AfterFunc(ctx, func() { systemAgent.Close() })
+		return systemAgent
 	case ForwardAgentLocal:
 		log.DebugContext(context.Background(), "Selecting local Teleport key agent")
 		return tc.localAgent.ExtendedAgent

@@ -18,153 +18,160 @@ package sshagent
 
 import (
 	"io"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
 
-// Client is a client implementation of [agent.ExtendedAgent] that opens
-// a new connection for every agent request. This strategy ensures that the system
-// agent remains reachable by the client during long requests or agent forwarding
-// sessions. Specifically, this is necessary for Windows' named pipe ssh agent
-// implementation, as the named pipe connection can be disrupted after signature
-// requests. This issue may be resolved directly by the crypto/ssh/agent library
-// once https://github.com/golang/go/issues/61383 is addressed.
+// Client is a client implementation of [agent.ExtendedAgent] that handles reconnects
+// to gracefully handle connection and ssh agent service disruptions.
+//
+// This is specifically needed for Window's named pipe ssh agent implementation as the named pipe
+// connection can be disrupted after signature requests. This issue may be resolved directly by
+// the crypto/ssh/agent library once https://github.com/golang/go/issues/61383 is addressed.
 type Client struct {
 	connect connectFn
+	conn    io.ReadWriteCloser
+	connMu  sync.Mutex
+	closed  bool
 }
 
 // connectFn is a function to connect to an SSH agent. The returned connection is
 // any [io.ReadWriteCloser], such as a [net.Conn] or [ssh.Channel].
 type connectFn func() (io.ReadWriteCloser, error)
 
-// NewClient creates a new SSH Agent client. For each agent request, the
-// client will use the provided connect function to open a new connection
-// to the ssh agent.
-func NewClient(connect connectFn) *Client {
-	return &Client{
-		connect: connect,
-	}
-}
-
-// List implements [agent.ExtendedAgent.List].
-func (c *Client) List() ([]*agent.Key, error) {
-	conn, err := c.connect()
+// NewClient creates a new SSH Agent client with an open connection.
+func NewClient(connect connectFn) (*Client, error) {
+	conn, err := connect()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer conn.Close()
 
-	keys, err := agent.NewClient(conn).List()
+	return &Client{
+		connect: connect,
+		conn:    conn,
+	}, nil
+}
+
+func (c *Client) withReconnectRetry(do func(a agent.ExtendedAgent) error) error {
+	c.connMu.Lock()
+	defer c.connMu.Unlock()
+
+	if c.closed {
+		return trace.Errorf("the ssh agent client is closed")
+	}
+
+	if c.conn != nil {
+		err := do(agent.NewClient(c.conn))
+		if isClosedConnectionError(err) {
+			// unset conn and reconnect below.
+			c.conn = nil
+		} else {
+			return err
+		}
+	}
+
+	conn, err := c.connect()
+	if err != nil {
+		return trace.Wrap(err, "failed to connect to the ssh agent service")
+	}
+	c.conn = conn
+
+	return do(agent.NewClient(conn))
+}
+
+// Close the agent client and prevent further requests.
+func (c *Client) Close() error {
+	c.connMu.Lock()
+	defer c.connMu.Unlock()
+
+	if c.conn == nil {
+		return nil
+	}
+
+	c.closed = true
+	return trace.Wrap(c.conn.Close())
+}
+
+// List implements [agent.ExtendedAgent.List].
+func (c *Client) List() (keys []*agent.Key, err error) {
+	err = c.withReconnectRetry(func(a agent.ExtendedAgent) error {
+		keys, err = a.List()
+		return trace.Wrap(err)
+	})
 	return keys, trace.Wrap(err)
 }
 
 // List implements [agent.ExtendedAgent.Signers].
-func (c *Client) Signers() ([]ssh.Signer, error) {
-	conn, err := c.connect()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer conn.Close()
-
-	signers, err := agent.NewClient(conn).Signers()
+func (c *Client) Signers() (signers []ssh.Signer, err error) {
+	err = c.withReconnectRetry(func(a agent.ExtendedAgent) error {
+		signers, err = a.Signers()
+		return trace.Wrap(err)
+	})
 	return signers, trace.Wrap(err)
 }
 
 // SignWithFlags implements [agent.ExtendedAgent.Sign].
-func (c *Client) Sign(key ssh.PublicKey, data []byte) (*ssh.Signature, error) {
-	conn, err := c.connect()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer conn.Close()
-
-	signature, err := agent.NewClient(conn).Sign(key, data)
+func (c *Client) Sign(key ssh.PublicKey, data []byte) (signature *ssh.Signature, err error) {
+	err = c.withReconnectRetry(func(a agent.ExtendedAgent) error {
+		signature, err = a.Sign(key, data)
+		return trace.Wrap(err)
+	})
 	return signature, trace.Wrap(err)
 }
 
 // SignWithFlags implements [agent.ExtendedAgent.SignWithFlags].
 // key.
-func (c *Client) SignWithFlags(key ssh.PublicKey, data []byte, flags agent.SignatureFlags) (*ssh.Signature, error) {
-	conn, err := c.connect()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer conn.Close()
-
-	signature, err := agent.NewClient(conn).SignWithFlags(key, data, flags)
+func (c *Client) SignWithFlags(key ssh.PublicKey, data []byte, flags agent.SignatureFlags) (signature *ssh.Signature, err error) {
+	err = c.withReconnectRetry(func(a agent.ExtendedAgent) error {
+		signature, err = a.SignWithFlags(key, data, flags)
+		return trace.Wrap(err)
+	})
 	return signature, trace.Wrap(err)
 }
 
 // Add implements [agent.ExtendedAgent.Add].
 func (c *Client) Add(key agent.AddedKey) error {
-	conn, err := c.connect()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer conn.Close()
-
-	err = agent.NewClient(conn).Add(key)
-	return trace.Wrap(err)
+	return c.withReconnectRetry(func(a agent.ExtendedAgent) error {
+		return trace.Wrap(a.Add(key))
+	})
 }
 
 // Remove implements [agent.ExtendedAgent.Remove].
 func (c *Client) Remove(key ssh.PublicKey) error {
-	conn, err := c.connect()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer conn.Close()
-
-	err = agent.NewClient(conn).Remove(key)
-	return trace.Wrap(err)
+	return c.withReconnectRetry(func(a agent.ExtendedAgent) error {
+		return trace.Wrap(a.Remove(key))
+	})
 }
 
 // RemoveAll implements [agent.ExtendedAgent.RemoveAll].
 func (c *Client) RemoveAll() error {
-	conn, err := c.connect()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer conn.Close()
-
-	err = agent.NewClient(conn).RemoveAll()
-	return trace.Wrap(err)
+	return c.withReconnectRetry(func(a agent.ExtendedAgent) error {
+		return trace.Wrap(a.RemoveAll())
+	})
 }
 
 // Lock implements [agent.ExtendedAgent.Lock].
 func (c *Client) Lock(passphrase []byte) error {
-	conn, err := c.connect()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer conn.Close()
-
-	err = agent.NewClient(conn).Lock(passphrase)
-	return trace.Wrap(err)
+	return c.withReconnectRetry(func(a agent.ExtendedAgent) error {
+		return trace.Wrap(a.Lock(passphrase))
+	})
 }
 
 // Unlock implements [agent.ExtendedAgent.Unlock].
 func (c *Client) Unlock(passphrase []byte) error {
-	conn, err := c.connect()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer conn.Close()
-
-	err = agent.NewClient(conn).Unlock(passphrase)
-	return trace.Wrap(err)
+	return c.withReconnectRetry(func(a agent.ExtendedAgent) error {
+		return trace.Wrap(a.Unlock(passphrase))
+	})
 }
 
 // Extension implements [agent.ExtendedAgent.Extension].
-func (c *Client) Extension(extensionType string, contents []byte) ([]byte, error) {
-	conn, err := c.connect()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer conn.Close()
-
-	response, err := agent.NewClient(conn).Extension(extensionType, contents)
+func (c *Client) Extension(extensionType string, contents []byte) (response []byte, err error) {
+	err = c.withReconnectRetry(func(a agent.ExtendedAgent) error {
+		response, err = a.Extension(extensionType, contents)
+		return trace.Wrap(err)
+	})
 	return response, trace.Wrap(err)
 }
