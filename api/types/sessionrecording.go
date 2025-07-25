@@ -59,6 +59,7 @@ type SessionRecordingConfig interface {
 
 	// Clone returns a copy of the resource.
 	Clone() SessionRecordingConfig
+
 	// CheckAndSetDefaults verifies the constraints for a SessionRecordingConfig
 	CheckAndSetDefaults() error
 }
