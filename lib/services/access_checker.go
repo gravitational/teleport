@@ -755,18 +755,9 @@ func (a *accessChecker) checkDatabaseRoles(database types.Database) (*checkDatab
 		allowedRoleSet = append(allowedRoleSet, role)
 
 	}
-	var deniedRoleSet RoleSet
-	for _, role := range autoCreateRoles {
-		match, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, database, false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if !match {
-			continue
-		}
-		deniedRoleSet = append(deniedRoleSet, role)
 
-	}
+	// Deny matching is greedy; do not check any labels.
+	deniedRoleSet := autoCreateRoles
 
 	// The collected role list can be empty and that should be ok, we want to
 	// leave the behavior of what happens when a user is created with default
