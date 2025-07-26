@@ -34,7 +34,7 @@ In this step, we'll configure RBAC in Rancher to allow the Teleport Kubernetes S
 
    ```code
    # List all rolebindings with their names and associated groups
-   kubectl get rolebindings -n <namespace> -o custom-columns='NAME:.metadata.name,ROLE:.roleRef.name,GROUPS:.subjects[?(@.kind=="Group")].name'
+   $ kubectl get rolebindings -n <namespace> -o custom-columns='NAME:.metadata.name,ROLE:.roleRef.name,GROUPS:.subjects[?(@.kind=="Group")].name'
    
    # Example output:
      NAME                     ROLE            GROUPS
@@ -91,7 +91,7 @@ In this role, we have defined the following allow rules:
 
 Once you have finished configuring the kube-access role, create it using the following command:
 
-```code
+```bash
 tctl create -f kube-access.yaml
 ```
 
@@ -99,7 +99,7 @@ tctl create -f kube-access.yaml
 
 Assign the kube-access role to your Teleport user by running the appropriate commands for your authentication provider:
 
-```code
+```bash
 tctl users update <username> --set-roles=kube-access
 ```
 
@@ -111,16 +111,11 @@ You've now configured the Teleport Kubernetes Service to give your Teleport user
 access to the Rancher cluster as a user with the built-in Rancher Cluster Member Role. In this step,
 we will authenticate to your Rancher cluster via Teleport and test our new access controls.
 
-### Log in to Teleport
+### Log  in to Teleport
 
-```code
-<<<<<<< HEAD
+```bash
 tsh login --proxy teleport.example.com
 tsh status
-=======
-$ tsh login --proxy teleport.example.com
-$ tsh status
->>>>>>> 65821460ed3bbbe51741fde27d0681c35ec70df7
 
 # Example output showing Kubernetes group membership:
 > Profile URL:        https://teleport.example.com:443
@@ -134,12 +129,8 @@ $ tsh status
 
 ### List Accessible Kubernetes Clusters
 
-```code
-<<<<<<< HEAD
+```bash
 tsh kube ls
-=======
-$ tsh kube ls
->>>>>>> 65821460ed3bbbe51741fde27d0681c35ec70df7
 
 # You should see your enrolled clusters in the list:
 Kube Cluster Name   Labels                         Selected
@@ -149,7 +140,7 @@ rancher-cluster
 
 ### Access Your Cluster
 
-```code
+```bash
 tsh kube login rancher-cluster
 ```
 
@@ -157,7 +148,7 @@ tsh kube login rancher-cluster
 
 ```code
 # Check specific permissions
-kubectl auth can-i create deployments
+$ kubectl auth can-i create deployments
 no
 ```
 
@@ -246,7 +237,7 @@ spec:
 1. Save the configuration to `access_list.yaml`
 2. Create the access list:
 
-```code
+```bash
 tctl create -f access_list.yaml
 ```
 
