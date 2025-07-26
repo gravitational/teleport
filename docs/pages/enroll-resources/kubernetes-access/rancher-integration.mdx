@@ -91,16 +91,16 @@ In this role, we have defined the following allow rules:
 
 Once you have finished configuring the kube-access role, create it using the following command:
 
-```bash
-tctl create -f kube-access.yaml
+```code
+$ tctl create -f kube-access.yaml
 ```
 
 ### Assign the Role
 
 Assign the kube-access role to your Teleport user by running the appropriate commands for your authentication provider:
 
-```bash
-tctl users update <username> --set-roles=kube-access
+```code
+$ tctl users update <username> --set-roles=kube-access
 ```
 
 ## Step 4/4. Access and verify resources
@@ -113,9 +113,9 @@ we will authenticate to your Rancher cluster via Teleport and test our new acces
 
 ### Log  in to Teleport
 
-```bash
-tsh login --proxy teleport.example.com
-tsh status
+```code
+$ tsh login --proxy teleport.example.com
+$ tsh status
 
 # Example output showing Kubernetes group membership:
 > Profile URL:        https://teleport.example.com:443
@@ -129,8 +129,8 @@ tsh status
 
 ### List Accessible Kubernetes Clusters
 
-```bash
-tsh kube ls
+```code
+$ tsh kube ls
 
 # You should see your enrolled clusters in the list:
 Kube Cluster Name   Labels                         Selected
@@ -140,8 +140,8 @@ rancher-cluster
 
 ### Access Your Cluster
 
-```bash
-tsh kube login rancher-cluster
+```code
+$ tsh kube login rancher-cluster
 ```
 
 ### Verify Permissions
@@ -237,8 +237,8 @@ spec:
 1. Save the configuration to `access_list.yaml`
 2. Create the access list:
 
-```bash
-tctl create -f access_list.yaml
+```code
+$ tctl create -f access_list.yaml
 ```
 
 When a Teleport SSO user who is a member of the "platform" group logs in:
