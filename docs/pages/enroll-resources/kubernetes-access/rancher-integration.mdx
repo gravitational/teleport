@@ -114,8 +114,13 @@ we will authenticate to your Rancher cluster via Teleport and test our new acces
 ### Log in to Teleport
 
 ```code
+<<<<<<< HEAD
 tsh login --proxy teleport.example.com
 tsh status
+=======
+$ tsh login --proxy teleport.example.com
+$ tsh status
+>>>>>>> 65821460ed3bbbe51741fde27d0681c35ec70df7
 
 # Example output showing Kubernetes group membership:
 > Profile URL:        https://teleport.example.com:443
@@ -130,7 +135,11 @@ tsh status
 ### List Accessible Kubernetes Clusters
 
 ```code
+<<<<<<< HEAD
 tsh kube ls
+=======
+$ tsh kube ls
+>>>>>>> 65821460ed3bbbe51741fde27d0681c35ec70df7
 
 # You should see your enrolled clusters in the list:
 Kube Cluster Name   Labels                         Selected
