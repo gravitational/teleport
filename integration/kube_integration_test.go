@@ -28,7 +28,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
@@ -667,42 +666,63 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 		},
 	}
 
-	// Setup random generator for pod name uniqueness.
-	rnd := rand.New(rand.NewSource(time.Now().Unix()))
-	rndBuf := make([]byte, 4)
+	// // Setup random generator for pod name uniqueness.
+	// rnd := rand.New(rand.NewSource(time.Now().Unix()))
+	// rndBuf := make([]byte, 4)
 
 	for _, tt := range tests {
 		t.Run(tt.name,
 			func(t *testing.T) {
-				// Create a new pod.
-				// Avoid interfering with singleton pod in test suite.
-				rnd.Read(rndBuf)
-				tmpPodName := fmt.Sprintf("%v-%x", testPod, rndBuf)
-				p := newPod(testNamespace, tmpPodName)
-				_, err := suite.CoreV1().Pods(testNamespace).Create(context.Background(), p, metav1.CreateOptions{})
-				require.NoError(t, err)
-				t.Cleanup(func() {
-					// Later logic will also attempt to delete the pod.
-					// Fine if this cleanup delete has nothing to delete.
-					_ = suite.CoreV1().Pods(testNamespace).Delete(context.Background(), tmpPodName, metav1.DeleteOptions{})
-				})
+				// // Create a new pod.
+				/// // Avoid interfering with singleton pod in test suite.
+				// rnd.Read(rndBuf)
+				// tmpPodName := fmt.Sprintf("%v-%x", testPod, rndBuf)
+				// p := newPod(testNamespace, tmpPodName)
+				// _, err := suite.CoreV1().Pods(testNamespace).Create(context.Background(), p, metav1.CreateOptions{})
+				// require.NoError(t, err)
+				// t.Cleanup(func() {
+				// 	// Later logic will also attempt to delete the pod.
+				// 	// Fine if this cleanup delete has nothing to delete.
+				// 	_ = suite.CoreV1().Pods(testNamespace).Delete(context.Background(), tmpPodName, metav1.DeleteOptions{})
+				// })
 
-				// Wait for pod to be running.
-				require.Eventually(t, func() bool {
-					pod, err := suite.CoreV1().Pods(testNamespace).Get(context.Background(), tmpPodName, metav1.GetOptions{})
+				// // Wait for pod to be running.
+				// require.Eventually(t, func() bool {
+				// 	pod, err := suite.CoreV1().Pods(testNamespace).Get(context.Background(), testPod, metav1.GetOptions{})
+				// 	if err != nil {
+				// 		return false
+				// 	}
+				// 	if pod.Status.Phase != v1.PodRunning {
+				// 		return false
+				// 	}
+				// 	if len(pod.Status.ContainerStatuses) == 0 {
+				// 		return false
+				// 	}
+				// 	for _, containerStatus := range pod.Status.ContainerStatuses {
+				// 		if containerStatus.Name == nginx {
+				// 			return containerStatus.Ready
+				// 		}
+				// 	}
+				// 	return false
+				// }, 60*time.Second, time.Millisecond*500)
+
+				t.Cleanup(func() {
+					// Test pod would have been deleted if test is successful.
+					// Setup next test with test pod as needed.
+					pod := newPod(testNamespace, testPod)
+					_, err = suite.CoreV1().Pods(testNamespace).Create(context.Background(), pod, metav1.CreateOptions{})
 					if err != nil {
-						return false
+						require.True(t, kubeerrors.IsAlreadyExists(err), "Failed to create test pod: %v", err)
 					}
-					if pod.Status.Phase != v1.PodRunning {
-						return false
-					}
-					for _, containerStatus := range pod.Status.ContainerStatuses {
-						if containerStatus.Name == nginx {
-							return containerStatus.Ready
+					// Wait for pod to be running.
+					require.Eventually(t, func() bool {
+						rsp, err := suite.CoreV1().Pods(testNamespace).Get(context.Background(), testPod, metav1.GetOptions{})
+						if err != nil {
+							return false
 						}
-					}
-					return false
-				}, 60*time.Second, time.Millisecond*500)
+						return rsp.Status.Phase == v1.PodRunning
+					}, 60*time.Second, time.Millisecond*500)
+				})
 
 				// Forward local port to container port.
 				listener, err := net.Listen("tcp", "localhost:0")
@@ -713,7 +733,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 				localPort := listener.Addr().(*net.TCPAddr).Port
 				forwarder, err := tt.builder(proxyClientConfig, kubePortForwardArgs{
 					ports:        []string{fmt.Sprintf("%v:80", localPort)},
-					podName:      tmpPodName,
+					podName:      testPod,
 					podNamespace: testNamespace,
 				})
 				require.NoError(t, err)
@@ -730,7 +750,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 				// Wait for port-forwarding to be ready.
 				start := time.Now()
 				select {
-				case <-time.After(30 * time.Second):
+				case <-time.After(5 * time.Second):
 					t.Fatalf("Timeout waiting for port forwarding after %v", time.Since(start))
 				case err := <-forwarderCh:
 					t.Fatalf("Port forwarding failed immediately: %v", err)
@@ -745,7 +765,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 				require.NoError(t, resp.Body.Close())
 
 				// Delete the pod.
-				err = suite.CoreV1().Pods(testNamespace).Delete(context.Background(), tmpPodName, metav1.DeleteOptions{})
+				err = suite.CoreV1().Pods(testNamespace).Delete(context.Background(), testPod, metav1.DeleteOptions{})
 				require.NoError(t, err)
 
 				impersonatingForwarder, err := tt.builder(impersonatingProxyClientConfig, kubePortForwardArgs{
