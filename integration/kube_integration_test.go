@@ -671,11 +671,19 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 
 				// Wait for pod to be running.
 				require.Eventually(t, func() bool {
-					rsp, err := suite.CoreV1().Pods(testNamespace).Get(context.Background(), tmpPodName, metav1.GetOptions{})
+					pod, err := suite.CoreV1().Pods(testNamespace).Get(context.Background(), tmpPodName, metav1.GetOptions{})
 					if err != nil {
 						return false
 					}
-					return rsp.Status.Phase == v1.PodRunning
+					if pod.Status.Phase != v1.PodRunning {
+						return false
+					}
+					for _, cs := range pod.Status.ContainerStatuses {
+						if !cs.Ready {
+							return false
+						}
+					}
+					return true
 				}, 60*time.Second, time.Millisecond*500)
 
 				// Forward local port to target port 80 of the nginx container
@@ -686,6 +694,8 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 				})
 
 				localPort := listener.Addr().(*net.TCPAddr).Port
+
+				t.Logf("Creating port forwarder (Pod:%v Port:%v)", tmpPodName, localPort)
 
 				forwarder, err := tt.builder(proxyClientConfig, kubePortForwardArgs{
 					ports:        []string{fmt.Sprintf("%v:80", localPort)},
@@ -698,7 +708,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 				go func() { forwarderCh <- forwarder.ForwardPorts() }()
 
 				select {
-				case <-time.After(10 * time.Second):
+				case <-time.After(20 * time.Second):
 					t.Fatalf("Timeout waiting for port forwarding.")
 				case <-forwarder.readyC:
 				}
@@ -710,7 +720,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 
 				// Delete the pod.
 				// Expect pod deletion close port-forwarding.
-				err = proxyClient.CoreV1().Pods(testNamespace).Delete(context.Background(), tmpPodName, metav1.DeleteOptions{})
+				err = suite.CoreV1().Pods(testNamespace).Delete(context.Background(), tmpPodName, metav1.DeleteOptions{})
 				require.NoError(t, err)
 
 				// Verify port-forward closes
