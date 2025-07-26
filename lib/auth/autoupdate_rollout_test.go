@@ -138,7 +138,7 @@ func TestSampleAgentsFromGroup(t *testing.T) {
 	require.Len(t, canarySet, sampleSize, "some canary got duplicated")
 
 	// Test execution: check that agents belonging to the catch-all group are sampled.
-	canariesCatchAll, err = auth.SampleAgentsFromAutoUpdateGroup(t.Context(), testGroupName, sampleSize, []string{"group-a", testGroupName})
+	canariesCatchAll, err = auth.SampleAgentsFromAutoUpdateGroup(ctx, testGroupName, sampleSize, []string{"group-a", testGroupName})
 	require.NoError(t, err)
 	require.Len(t, canariesCatchAll, sampleSize)
 	canarySet = make(map[string]*autoupdatev1pb.Canary)
