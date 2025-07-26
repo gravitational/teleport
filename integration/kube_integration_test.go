@@ -692,7 +692,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 					if err != nil {
 						return false
 					}
-					return pod.Status.Phase != v1.PodRunning
+					return pod.Status.Phase == v1.PodRunning
 				}, 60*time.Second, time.Millisecond*500)
 
 				// Forward local port to container port.
