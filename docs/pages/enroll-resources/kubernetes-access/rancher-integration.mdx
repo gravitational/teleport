@@ -110,11 +110,11 @@ At this point, you have configured the Teleport Kubernetes Service to give your 
 access to the Rancher cluster as a user with the built-in Rancher Cluster Member Role. In this step,
 we will authenticate to your Rancher cluster via Teleport and test our new access controls.
 
-### Login to Teleport
+### Log in to Teleport
 
-```bash
-tsh login --proxy teleport.example.com
-tsh status
+```code
+$ tsh login --proxy teleport.example.com
+$ tsh status
 
 # Example output showing Kubernetes group membership:
 > Profile URL:        https://teleport.example.com:443
@@ -128,8 +128,8 @@ tsh status
 
 ### List Accessible Kubernetes Clusters
 
-```bash
-tsh kube ls
+```code
+$ tsh kube ls
 
 # You should see your enrolled clusters in the list:
 Kube Cluster Name   Labels                         Selected
