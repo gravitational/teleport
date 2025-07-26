@@ -704,8 +704,6 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 					return false
 				}, 60*time.Second, time.Millisecond*500)
 
-				time.Sleep(10 * time.Second)
-
 				// Forward local port to container port.
 				listener, err := net.Listen("tcp", "localhost:0")
 				require.NoError(t, err)
@@ -720,14 +718,24 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 				})
 				require.NoError(t, err)
 
-				forwarderCh := make(chan error)
-				go func() { forwarderCh <- forwarder.ForwardPorts() }()
+				forwarderCh := make(chan error, 1)
+				go func() {
+					err := forwarder.ForwardPorts()
+					forwarderCh <- err
+					if err != nil {
+						t.Logf("Port forwarding error: %v", err)
+					}
+				}()
 
 				// Wait for port-forwarding to be ready.
+				start := time.Now()
 				select {
 				case <-time.After(30 * time.Second):
-					t.Fatalf("Timeout waiting for port forwarding.")
+					t.Fatalf("Timeout waiting for port forwarding after %v", time.Since(start))
+				case err := <-forwarderCh:
+					t.Fatalf("Port forwarding failed immediately: %v", err)
 				case <-forwarder.readyC:
+					t.Logf("Port forwarding ready after %v", time.Since(start))
 				}
 
 				// Validate that port-forwarding is working.
