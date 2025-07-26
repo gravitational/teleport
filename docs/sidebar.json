@@ -287,11 +287,6 @@
       ]
     },
     {
-      "type": "doc",
-      "label": "Model Context Protocol (MCP)",
-      "id": "connect-your-client/model-context-protocol/model-context-protocol"
-    },
-    {
       "type": "category",
       "label": "Enroll Resources",
       "link": {
