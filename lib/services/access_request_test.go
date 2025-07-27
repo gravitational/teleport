@@ -19,8 +19,13 @@
 package services
 
 import (
+	"bytes"
 	"context"
+	"embed"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"slices"
 	"strconv"
 	"strings"
@@ -32,6 +37,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -2921,219 +2927,58 @@ func TestValidate_RequestedPendingTTLAndMaxDuration(t *testing.T) {
 	require.Equal(t, now.Add(requestedPendingTTL), req.Expiry())
 }
 
-// TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role tests that requests containing
-// kubernetes resources, the kinds are enforced defined by users static role
-// field `request.kubernetes_resources`
-// Test cases with V7 access request format hitting role v7.
-// TODO(@creack): Find a better way to test the matrix of role version / access request format.
-func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testing.T) {
-	myClusterName := "teleport-cluster"
+//go:embed suite/testdata/roles
+var testdataRoles embed.FS
 
-	// set up test roles
-	roleDesc := map[string]types.RoleSpecV6{
-		"kube-access-wildcard": {
-			Allow: types.RoleConditions{
-				KubernetesLabels: types.Labels{
-					"*": {"*"},
-				},
-				KubernetesResources: []types.KubernetesResource{
-					{Kind: "*", Namespace: "*", Name: "*", Verbs: []string{"*"}},
-				},
-			},
-		},
-		"kube-no-access": {
-			Allow: types.RoleConditions{},
-		},
-		"kube-access-namespace": {
-			Allow: types.RoleConditions{
-				KubernetesLabels: types.Labels{
-					"*": {"*"},
-				},
-				KubernetesResources: []types.KubernetesResource{
-					{Kind: "namespace", Namespace: "*", Name: "*", Verbs: []string{"*"}},
-				},
-			},
-		},
-		"kube-access-pod": {
-			Allow: types.RoleConditions{
-				KubernetesLabels: types.Labels{
-					"*": {"*"},
-				},
-				KubernetesResources: []types.KubernetesResource{
-					{Kind: "pod", Namespace: "*", Name: "*", Verbs: []string{"*"}},
-				},
-			},
-		},
-		"kube-access-deployment": {
-			Allow: types.RoleConditions{
-				KubernetesLabels: types.Labels{
-					"*": {"*"},
-				},
-				KubernetesResources: []types.KubernetesResource{
-					{Kind: "deployment", Namespace: "*", Name: "*", Verbs: []string{"*"}},
-				},
-			},
-		},
-		"db-access-wildcard": {
-			Allow: types.RoleConditions{
-				DatabaseLabels: types.Labels{
-					"*": {"*"},
-				},
-			},
-		},
+// loadTestRoles reads one or more files from lib/services/suite/testdata/roles and returns the parsed
+// roles as a map keys by role name.
+func loadTestRoles(t *testing.T, targets ...string) map[string]types.Role {
+	t.Helper()
 
-		"request-undefined_search-wildcard": {
-			Allow: types.RoleConditions{
-				Request: &types.AccessRequestConditions{
-					SearchAsRoles: []string{"kube-access-wildcard", "db-access-wildcard"},
-				},
-			},
-		},
-		"request-pod_search-as-roles-undefined": {
-			Allow: types.RoleConditions{
-				Request: &types.AccessRequestConditions{
-					KubernetesResources: []types.RequestKubernetesResource{
-						{Kind: "pod"},
-					},
-				},
-			},
-		},
-		"request-namespace_search-namespace": {
-			Allow: types.RoleConditions{
-				Request: &types.AccessRequestConditions{
-					SearchAsRoles: []string{"kube-access-namespace", "db-access-wildcard"},
-					KubernetesResources: []types.RequestKubernetesResource{
-						{Kind: "namespace"},
-					},
-				},
-			},
-		},
-		// Allows requesting for any subresources, but NOT kube_cluster
-		"request-wildcard_search-wildcard": {
-			Allow: types.RoleConditions{
-				Request: &types.AccessRequestConditions{
-					SearchAsRoles: []string{"kube-access-wildcard", "db-access-wildcard"},
-					KubernetesResources: []types.RequestKubernetesResource{
-						{Kind: "*"},
-					},
-				},
-			},
-		},
-		// Allows wildcard search, but should only accept kube secret
-		"request-secret_search-wildcard": {
-			Allow: types.RoleConditions{
-				Request: &types.AccessRequestConditions{
-					SearchAsRoles: []string{"kube-access-wildcard"},
-					KubernetesResources: []types.RequestKubernetesResource{
-						{Kind: "secret"},
-					},
-				},
-			},
-		},
-		"request-pod_search-pods": {
-			Allow: types.RoleConditions{
-				Request: &types.AccessRequestConditions{
-					SearchAsRoles: []string{"kube-access-pod"},
-					KubernetesResources: []types.RequestKubernetesResource{
-						{Kind: "pod"},
-					},
-				},
-			},
-		},
-		"request-deployment_search-deployment": {
-			Allow: types.RoleConditions{
-				Request: &types.AccessRequestConditions{
-					SearchAsRoles: []string{"kube-access-deployment"},
-					KubernetesResources: []types.RequestKubernetesResource{
-						{Kind: "deployment"},
-					},
-				},
-			},
-		},
-		"request-deployment-pod_search-deployment-pod": {
-			Allow: types.RoleConditions{
-				Request: &types.AccessRequestConditions{
-					SearchAsRoles: []string{"kube-access-deployment", "kube-access-pod"},
-					KubernetesResources: []types.RequestKubernetesResource{
-						{Kind: "deployment"},
-						{Kind: "pod"},
-					},
-				},
-			},
-		},
-		"request-namespace-but-no-access": {
-			Allow: types.RoleConditions{
-				Request: &types.AccessRequestConditions{
-					SearchAsRoles: []string{"db-access-wildcard", "kube-no-access"},
-					KubernetesResources: []types.RequestKubernetesResource{
-						{Kind: "namespace"},
-					},
-				},
-			},
-		},
-		"request-namespace_search-namespace_deny-secret": {
-			Allow: types.RoleConditions{
-				Request: &types.AccessRequestConditions{
-					SearchAsRoles: []string{"kube-access-namespace"},
-					KubernetesResources: []types.RequestKubernetesResource{
-						{Kind: "namespace"},
-					},
-				},
-			},
-			Deny: types.RoleConditions{
-				Request: &types.AccessRequestConditions{
-					KubernetesResources: []types.RequestKubernetesResource{
-						{Kind: "secret"},
-					},
-				},
-			},
-		},
-		"request-undefined_search-wildcard_deny-deployment-pod": {
-			Allow: types.RoleConditions{
-				Request: &types.AccessRequestConditions{
-					SearchAsRoles: []string{"kube-access-wildcard"},
-				},
-			},
-			Deny: types.RoleConditions{
-				Request: &types.AccessRequestConditions{
-					KubernetesResources: []types.RequestKubernetesResource{
-						{Kind: "deployment"},
-						{Kind: "pod"},
-					},
-				},
-			},
-		},
-		"request-wildcard-cancels-deny-wildcard": {
-			Allow: types.RoleConditions{
-				Request: &types.AccessRequestConditions{
-					SearchAsRoles: []string{"kube-access-namespace"},
-					KubernetesResources: []types.RequestKubernetesResource{
-						{Kind: "*"},
-					},
-				},
-			},
-			Deny: types.RoleConditions{
-				Request: &types.AccessRequestConditions{
-					KubernetesResources: []types.RequestKubernetesResource{
-						{Kind: "*"},
-					},
-				},
-			},
-		},
+	var testRoles []types.RoleV6
+	for _, target := range targets {
+		roleContent, err := testdataRoles.ReadFile("suite/testdata/roles/" + target + ".yaml")
+		require.NoError(t, err, "Failed to read test roles from embedded file: %q.", target)
+
+		for d := yaml.NewDecoder(bytes.NewReader(roleContent)); ; {
+			// TODO(@creack): Find a better way to parse YAML files.
+			// Currently loading into map[string]any and then converting to dump back to JSON
+			// so the types.Rolev6 can be unmarshalled as that type only has JSON struct tags.
+			var rawRole map[string]any
+			if err := d.Decode(&rawRole); err != nil {
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				t.Fatalf("Failed to decode role: %s", err)
+			}
+			buf, err := json.Marshal(rawRole)
+			require.NoError(t, err)
+			var role types.RoleV6
+			require.NoError(t, json.Unmarshal(buf, &role))
+			testRoles = append(testRoles, role)
+		}
 	}
-	roles := make(map[string]types.Role)
-	for name, spec := range roleDesc {
-		role, err := types.NewRoleWithVersion(name, types.V7, spec)
-		require.NoError(t, err)
-		roles[name] = role
+
+	// Convert to types.Role and return.
+	roles := map[string]types.Role{}
+	for _, r := range testRoles {
+		role, err := types.NewRoleWithVersion(r.GetName(), r.GetVersion(), r.Spec)
+		require.NoError(t, err, "Failed to create role %q.", r.GetName())
+		if _, ok := roles[r.GetName()]; ok {
+			t.Fatalf("Duplicate role name %q found in test data.", r.GetName())
+		}
+		roles[r.GetName()] = role
 	}
+	return roles
+}
+
+// initAccessRequestValidateTest initializes a mockGetter for testing access request validation.
+// Returns a function that takes the user name and its list of roles for the test case and returns the mockGetter.
+func initAccessRequestValidateTest(t *testing.T, clusterName string, roles map[string]types.Role) func(t *testing.T, userName string, userRoles []string) *mockGetter {
+	t.Helper()
 
 	// Define a kube server
-	kube, err := types.NewKubernetesClusterV3(types.Metadata{
-		Name: "kube",
-	},
-		types.KubernetesClusterSpecV3{},
-	)
+	kube, err := types.NewKubernetesClusterV3(types.Metadata{Name: "kube"}, types.KubernetesClusterSpecV3{})
 	require.NoError(t, err)
 	kubeServer, err := types.NewKubernetesServerV3FromCluster(kube, "_", "_")
 	require.NoError(t, err)
@@ -3155,6 +3000,34 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 	})
 	require.NoError(t, err)
 
+	return func(t *testing.T, userName string, userRoles []string) *mockGetter {
+		t.Helper()
+
+		uls, err := userloginstate.New(header.Metadata{Name: userName}, userloginstate.Spec{Roles: userRoles})
+		require.NoError(t, err)
+
+		return &mockGetter{
+			roles:       roles,
+			clusterName: clusterName,
+			userStates:  map[string]*userloginstate.UserLoginState{uls.GetName(): uls},
+			kubeServers: map[string]types.KubeServer{kube.GetName(): kubeServer},
+			dbServers:   map[string]types.DatabaseServer{dbServer.GetName(): dbServer},
+		}
+	}
+}
+
+// TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role tests that requests containing
+// kubernetes resources, the kinds are enforced defined by users static role
+// field `request.kubernetes_resources`
+// Test cases with V7 access request format hitting role v7.
+func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testing.T) {
+	t.Parallel()
+
+	const myClusterName = "teleport-cluster"
+
+	roles := loadTestRoles(t, "v7_kube_accessrequest_validate")
+	newMockGetter := initAccessRequestValidateTest(t, myClusterName, roles)
+
 	// start test
 	testCases := []struct {
 		desc                      string
@@ -3167,8 +3040,8 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 	}{
 		{
 			desc:                 "request.kubernetes_resources undefined allows anything (kube_cluster and its subresources)",
-			userStaticRoles:      []string{"request-undefined_search-wildcard"},
-			expectedRequestRoles: []string{"kube-access-wildcard", "db-access-wildcard"},
+			userStaticRoles:      []string{"v7-kube-request-undefined_search-wildcard"},
+			expectedRequestRoles: []string{"v7-kube-access-wildcard", "v7-kube-db-access-wildcard"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubernetesCluster, ClusterName: myClusterName, Name: "kube"},
 				{Kind: types.KindDatabase, ClusterName: myClusterName, Name: "db"},
@@ -3177,8 +3050,8 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		},
 		{
 			desc:                 "request.kubernetes_resources undefined takes precedence over configured allow field (allows anything)",
-			userStaticRoles:      []string{"request-undefined_search-wildcard", "request-secret_search-wildcard"},
-			expectedRequestRoles: []string{"kube-access-wildcard", "db-access-wildcard"},
+			userStaticRoles:      []string{"v7-kube-request-undefined_search-wildcard", "v7-kube-request-secret_search-wildcard"},
+			expectedRequestRoles: []string{"v7-kube-access-wildcard", "v7-kube-db-access-wildcard"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubernetesCluster, ClusterName: myClusterName, Name: "kube"},
 				{Kind: types.KindDatabase, ClusterName: myClusterName, Name: "db"},
@@ -3187,7 +3060,7 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		},
 		{
 			desc:            "configured deny request.kubernetes_resources takes precedence over undefined deny field",
-			userStaticRoles: []string{"request-wildcard-cancels-deny-wildcard", "request-namespace_search-namespace"},
+			userStaticRoles: []string{"v7-kube-request-wildcard-cancels-deny-wildcard", "v7-kube-request-namespace_search-namespace"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
 				{Kind: types.KindDatabase, ClusterName: myClusterName, Name: "db"},
@@ -3196,8 +3069,8 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		},
 		{
 			desc:                 "request.kubernetes_resources does not get applied with a role without search_as_roles defined",
-			userStaticRoles:      []string{"request-namespace_search-namespace", "request-pod_search-as-roles-undefined"},
-			expectedRequestRoles: []string{"kube-access-namespace", "db-access-wildcard"},
+			userStaticRoles:      []string{"v7-kube-request-namespace_search-namespace", "v7-kube-request-pod_search-as-roles-undefined"},
+			expectedRequestRoles: []string{"v7-kube-access-namespace", "v7-kube-db-access-wildcard"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindDatabase, ClusterName: myClusterName, Name: "db"},
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "some-namespace"},
@@ -3205,8 +3078,8 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		},
 		{
 			desc:                 "wildcard allows any kube subresources",
-			userStaticRoles:      []string{"request-wildcard_search-wildcard"},
-			expectedRequestRoles: []string{"kube-access-wildcard", "db-access-wildcard"},
+			userStaticRoles:      []string{"v7-kube-request-wildcard_search-wildcard"},
+			expectedRequestRoles: []string{"v7-kube-access-wildcard", "v7-kube-db-access-wildcard"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "some-namespace"},
 				{Kind: types.KindDatabase, ClusterName: myClusterName, Name: "db"},
@@ -3215,7 +3088,7 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		},
 		{
 			desc:            "wildcard rejects kube_cluster kind among other valid requests",
-			userStaticRoles: []string{"request-wildcard_search-wildcard"},
+			userStaticRoles: []string{"v7-kube-request-wildcard_search-wildcard"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "some-namespace"},
 				{Kind: types.KindDatabase, ClusterName: myClusterName, Name: "db"},
@@ -3225,7 +3098,7 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		},
 		{
 			desc:            "wildcard rejects single kube_cluster request",
-			userStaticRoles: []string{"request-wildcard_search-wildcard"},
+			userStaticRoles: []string{"v7-kube-request-wildcard_search-wildcard"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubernetesCluster, ClusterName: myClusterName, Name: "kube"},
 			},
@@ -3233,7 +3106,7 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		},
 		{
 			desc:            "error with `no roles configured` if search_as_roles does not grant kube resource access",
-			userStaticRoles: []string{"request-namespace-but-no-access"},
+			userStaticRoles: []string{"v7-kube-request-namespace-but-no-access"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindDatabase, ClusterName: myClusterName, Name: "db"},
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
@@ -3243,8 +3116,8 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		{
 			desc: "prune search_as_roles that does not meet request.kubernetes_resources (unconfigured field)",
 			// search as role "kube-access-namespace" got pruned b/c the request included "kube_cluster" which wasn't allowed.
-			userStaticRoles:      []string{"request-undefined_search-wildcard", "request-namespace_search-namespace"},
-			expectedRequestRoles: []string{"kube-access-wildcard", "db-access-wildcard"},
+			userStaticRoles:      []string{"v7-kube-request-undefined_search-wildcard", "v7-kube-request-namespace_search-namespace"},
+			expectedRequestRoles: []string{"v7-kube-access-wildcard", "v7-kube-db-access-wildcard"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubernetesCluster, ClusterName: myClusterName, Name: "kube"},
 				{Kind: types.KindDatabase, ClusterName: myClusterName, Name: "db"},
@@ -3254,11 +3127,11 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		{
 			desc: "prune search_as_roles that does not match request.kubernetes_resources field",
 			userStaticRoles: []string{
-				"request-pod_search-pods",
-				"request-namespace_search-namespace",
-				"request-deployment_search-deployment",
+				"v7-kube-request-pod_search-pods",
+				"v7-kube-request-namespace_search-namespace",
+				"v7-kube-request-deployment_search-deployment",
 			},
-			expectedRequestRoles: []string{"kube-access-namespace", "db-access-wildcard"},
+			expectedRequestRoles: []string{"v7-kube-access-namespace", "v7-kube-db-access-wildcard"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindDatabase, ClusterName: myClusterName, Name: "db"},
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "some-namespace"},
@@ -3267,11 +3140,11 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		{
 			desc: "reject when kinds don't match (root only)",
 			userStaticRoles: []string{
-				"request-pod_search-pods",
-				"request-namespace_search-namespace",
-				"request-deployment_search-deployment",
+				"v7-kube-request-pod_search-pods",
+				"v7-kube-request-namespace_search-namespace",
+				"v7-kube-request-deployment_search-deployment",
 			},
-			expectedRequestRoles: []string{"kube-access-pod", "kube-access-namespace", "db-access-wildcard"},
+			expectedRequestRoles: []string{"v7-kube-access-pod", "v7-kube-access-namespace", "v7-kube-db-access-wildcard"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindDatabase, ClusterName: myClusterName, Name: "db"},
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
@@ -3282,9 +3155,9 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		{
 			desc: "reject when kinds don't match (leaf only)",
 			userStaticRoles: []string{
-				"request-pod_search-pods",
-				"request-namespace_search-namespace",
-				"request-deployment_search-deployment",
+				"v7-kube-request-pod_search-pods",
+				"v7-kube-request-namespace_search-namespace",
+				"v7-kube-request-deployment_search-deployment",
 			},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindDatabase, ClusterName: "some-leaf", Name: "db2"},
@@ -3295,9 +3168,9 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		{
 			desc: "reject when kinds don't match (mix of leaf and root cluster)",
 			userStaticRoles: []string{
-				"request-pod_search-pods",
-				"request-namespace_search-namespace",
-				"request-deployment_search-deployment",
+				"v7-kube-request-pod_search-pods",
+				"v7-kube-request-namespace_search-namespace",
+				"v7-kube-request-deployment_search-deployment",
 			},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeDeployment, ClusterName: "some-leaf", Name: "kube", SubResourceName: "namespace/secret-name"},
@@ -3308,11 +3181,11 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		{
 			desc: "prune roles that does not give you access",
 			userStaticRoles: []string{
-				"request-namespace_search-namespace",
-				"request-namespace-but-no-access",
-				"request-deployment_search-deployment",
+				"v7-kube-request-namespace_search-namespace",
+				"v7-kube-request-namespace-but-no-access",
+				"v7-kube-request-deployment_search-deployment",
 			},
-			expectedRequestRoles: []string{"kube-access-namespace"},
+			expectedRequestRoles: []string{"v7-kube-access-namespace"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace2"},
@@ -3321,13 +3194,13 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		{
 			desc: "don't further prune roles when leaf requests are present",
 			userStaticRoles: []string{
-				"request-namespace_search-namespace",
-				"request-namespace-but-no-access",
-				"request-deployment_search-deployment",
+				"v7-kube-request-namespace_search-namespace",
+				"v7-kube-request-namespace-but-no-access",
+				"v7-kube-request-deployment_search-deployment",
 			},
 			// db-access-wildcard and kube-no-access shouldn't be in the list, but a leaf is present
 			// which skips matcher tests.
-			expectedRequestRoles: []string{"kube-access-namespace", "db-access-wildcard", "kube-no-access"},
+			expectedRequestRoles: []string{"v7-kube-access-namespace", "v7-kube-db-access-wildcard", "v7-kube-no-access"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace2"},
@@ -3336,7 +3209,7 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		},
 		{
 			desc:            "reject if kinds don't match even though search_as_roles allows wildcard access",
-			userStaticRoles: []string{"request-secret_search-wildcard"},
+			userStaticRoles: []string{"v7-kube-request-secret_search-wildcard"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "some-namespace"},
 			},
@@ -3344,8 +3217,8 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		},
 		{
 			desc:                 "deny namespace request when deny is not matched",
-			userStaticRoles:      []string{"request-namespace_search-namespace_deny-secret"},
-			expectedRequestRoles: []string{"kube-access-namespace"},
+			userStaticRoles:      []string{"v7-kube-request-namespace_search-namespace_deny-secret"},
+			expectedRequestRoles: []string{"v7-kube-access-namespace"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace2"},
@@ -3354,8 +3227,8 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		},
 		{
 			desc:                 "deny namespace request when deny is not matched with leaf clusters",
-			userStaticRoles:      []string{"request-namespace_search-namespace_deny-secret"},
-			expectedRequestRoles: []string{"kube-access-namespace"},
+			userStaticRoles:      []string{"v7-kube-request-namespace_search-namespace_deny-secret"},
+			expectedRequestRoles: []string{"v7-kube-access-namespace"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeNamespace, ClusterName: "leaf-cluster", Name: "kube", SubResourceName: "namespace"},
 				{Kind: types.KindKubeNamespace, ClusterName: "leaf-cluster", Name: "kube", SubResourceName: "namespace2"},
@@ -3364,8 +3237,8 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		},
 		{
 			desc:                 "allow a list of different request.kubernetes_resources from same role",
-			userStaticRoles:      []string{"request-deployment-pod_search-deployment-pod", "request-namespace_search-namespace"},
-			expectedRequestRoles: []string{"kube-access-deployment", "kube-access-pod"},
+			userStaticRoles:      []string{"v7-kube-request-deployment-pod_search-deployment-pod", "v7-kube-request-namespace_search-namespace"},
+			expectedRequestRoles: []string{"v7-kube-access-deployment", "v7-kube-access-pod"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeDeployment, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace/deployment"},
 				{Kind: types.KindKubePod, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace/pod"},
@@ -3373,7 +3246,7 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		},
 		{
 			desc:            "deny request when deny is defined from another role (denies are globally matched)",
-			userStaticRoles: []string{"request-namespace_search-namespace_deny-secret", "request-secret_search-wildcard"},
+			userStaticRoles: []string{"v7-kube-request-namespace_search-namespace_deny-secret", "v7-kube-request-secret_search-wildcard"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeSecret, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace/secret-name"},
 			},
@@ -3381,8 +3254,8 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		},
 		{
 			desc:                 "deny wildcard request when deny is not matched - ns",
-			userStaticRoles:      []string{"request-undefined_search-wildcard_deny-deployment-pod"},
-			expectedRequestRoles: []string{"kube-access-wildcard"},
+			userStaticRoles:      []string{"v7-kube-request-undefined_search-wildcard_deny-deployment-pod"},
+			expectedRequestRoles: []string{"v7-kube-access-wildcard"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
 			},
@@ -3390,8 +3263,8 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		},
 		{
 			desc:                 "deny wildcard request when deny is not matched - cluster",
-			userStaticRoles:      []string{"request-undefined_search-wildcard_deny-deployment-pod"},
-			expectedRequestRoles: []string{"kube-access-wildcard"},
+			userStaticRoles:      []string{"v7-kube-request-undefined_search-wildcard_deny-deployment-pod"},
+			expectedRequestRoles: []string{"v7-kube-access-wildcard"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubernetesCluster, ClusterName: myClusterName, Name: "kube"},
 			},
@@ -3399,7 +3272,7 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		},
 		{
 			desc:            "deny wildcard request when deny is matched",
-			userStaticRoles: []string{"request-undefined_search-wildcard_deny-deployment-pod"},
+			userStaticRoles: []string{"v7-kube-request-undefined_search-wildcard_deny-deployment-pod"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
 				{Kind: types.KindKubernetesCluster, ClusterName: myClusterName, Name: "kube"},
@@ -3409,7 +3282,7 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		},
 		{
 			desc:            "request.kubernetes_resources cancel each other (config error where no kube resources becomes requestable)",
-			userStaticRoles: []string{"request-wildcard-cancels-deny-wildcard"},
+			userStaticRoles: []string{"v7-kube-request-wildcard-cancels-deny-wildcard"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
 				{Kind: types.KindKubeDeployment, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace/deployment"},
@@ -3418,8 +3291,8 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		},
 		{
 			desc:                 "request.kubernetes_resources cancel each other also rejects kube_cluster kinds (config error)",
-			userStaticRoles:      []string{"request-wildcard-cancels-deny-wildcard"},
-			expectedRequestRoles: []string{"kube-access-wildcard"},
+			userStaticRoles:      []string{"v7-kube-request-wildcard-cancels-deny-wildcard"},
+			expectedRequestRoles: []string{"v7-kube-access-wildcard"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubernetesCluster, ClusterName: myClusterName, Name: "kube"},
 			},
@@ -3428,12 +3301,12 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		{
 			desc: "allow when requested role matches requested kinds",
 			userStaticRoles: []string{
-				"request-namespace_search-namespace",
-				"request-namespace-but-no-access",
-				"request-deployment_search-deployment",
+				"v7-kube-request-namespace_search-namespace",
+				"v7-kube-request-namespace-but-no-access",
+				"v7-kube-request-deployment_search-deployment",
 			},
-			requestRoles:         []string{"kube-access-namespace"},
-			expectedRequestRoles: []string{"kube-access-namespace"},
+			requestRoles:         []string{"v7-kube-access-namespace"},
+			expectedRequestRoles: []string{"v7-kube-access-namespace"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace2"},
@@ -3442,11 +3315,11 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		{
 			desc: "reject when requested role does not match ALL requested kinds",
 			userStaticRoles: []string{
-				"request-namespace_search-namespace",
-				"request-namespace-but-no-access",
-				"request-deployment_search-deployment",
+				"v7-kube-request-namespace_search-namespace",
+				"v7-kube-request-namespace-but-no-access",
+				"v7-kube-request-deployment_search-deployment",
 			},
-			requestRoles: []string{"kube-access-namespace", "kube-access-deployment"},
+			requestRoles: []string{"v7-kube-access-namespace", "v7-kube-access-deployment"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace2"},
@@ -3456,11 +3329,11 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 		{
 			desc: "reject when requested role does not allow all requested kinds",
 			userStaticRoles: []string{
-				"request-namespace_search-namespace",
-				"request-namespace-but-no-access",
-				"request-deployment_search-deployment",
+				"v7-kube-request-namespace_search-namespace",
+				"v7-kube-request-namespace-but-no-access",
+				"v7-kube-request-deployment_search-deployment",
 			},
-			requestRoles: []string{"kube-access-namespace"},
+			requestRoles: []string{"v7-kube-access-namespace"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
 				{Kind: types.KindKubeDeployment, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace/deployment"},
@@ -3470,39 +3343,23 @@ func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testin
 	}
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			uls, err := userloginstate.New(header.Metadata{
-				Name: "test-user",
-			}, userloginstate.Spec{
-				Roles: tc.userStaticRoles,
-			})
-			require.NoError(t, err)
-			userStates := map[string]*userloginstate.UserLoginState{
-				uls.GetName(): uls,
-			}
+			t.Parallel()
 
-			g := &mockGetter{
-				roles:       roles,
-				userStates:  userStates,
-				clusterName: myClusterName,
-				kubeServers: make(map[string]types.KubeServer),
-				dbServers:   make(map[string]types.DatabaseServer),
-			}
-			g.kubeServers[kube.GetName()] = kubeServer
-			g.dbServers[dbServer.GetName()] = dbServer
+			// Init the mock.
+			const userName = "test-user"
+			g := newMockGetter(t, userName, tc.userStaticRoles)
 
-			req, err := types.NewAccessRequestWithResources(
-				"some-id", uls.GetName(), tc.requestRoles, tc.requestResourceIDs)
+			// Create the access request.
+			req, err := types.NewAccessRequestWithResources("some-id", userName, tc.requestRoles, tc.requestResourceIDs)
 			require.NoError(t, err)
 
+			// Create the request validator.
 			clock := clockwork.NewFakeClock()
-			identity := tlsca.Identity{
-				Expires: clock.Now().UTC().Add(8 * time.Hour),
-			}
-
-			validator, err := newRequestValidator(context.Background(), clock, g, uls.GetName(), WithExpandVars(true))
+			validator, err := newRequestValidator(t.Context(), clock, g, userName, WithExpandVars(true))
 			require.NoError(t, err)
 
-			err = validator.validate(context.Background(), req, identity)
+			// Execute the validation.
+			err = validator.validate(t.Context(), req, tlsca.Identity{Expires: clock.Now().UTC().Add(8 * time.Hour)})
 			if tc.wantInvalidRequestKindErr {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), InvalidKubernetesKindAccessRequest)
