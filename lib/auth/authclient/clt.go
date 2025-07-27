@@ -309,6 +309,15 @@ func (c *Client) DeleteAllTokens() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// PatchToken not implemented: can only be called locally
+func (c *Client) PatchToken(
+	ctx context.Context,
+	token string,
+	updateFn func(types.ProvisionToken) (types.ProvisionToken, error),
+) (types.ProvisionToken, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
 // AddUserLoginAttempt logs user login attempt
 func (c *Client) AddUserLoginAttempt(user string, attempt services.LoginAttempt, ttl time.Duration) error {
 	panic("not implemented")
@@ -1228,6 +1237,14 @@ type ProvisioningService interface {
 
 	// CreateToken creates a new provision token for the auth server
 	CreateToken(ctx context.Context, token types.ProvisionToken) error
+
+	// PatchToken performs a conditional update on the named token using
+	// `updateFn`, retrying internally if a comparison failure occurs.
+	PatchToken(
+		ctx context.Context,
+		token string,
+		updateFn func(types.ProvisionToken) (types.ProvisionToken, error),
+	) (types.ProvisionToken, error)
 
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken
