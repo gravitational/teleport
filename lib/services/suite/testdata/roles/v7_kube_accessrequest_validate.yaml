@@ -144,7 +144,7 @@ spec:
   allow:
     request:
       search_as_roles:
-      - v7-kube-access-namespace
+      - v7-kube-access-wildcard
       kubernetes_resources:
       - kind: 'secret'
   deny: {}

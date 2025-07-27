@@ -11,6 +11,7 @@ spec:
       '*': '*'
     kubernetes_resources:
     - kind: '*'
+      api_group: '*'
       name: '*'
       namespace: '*'
       verbs:
@@ -34,9 +35,16 @@ spec:
     kubernetes_labels:
       '*': '*'
     kubernetes_resources:
-    - kind: 'namespace'
+    - kind: 'namespaces'
+      api_group: '*'
       name: '*'
       namespace: '*'
+      verbs:
+      - '*'
+    - kind: '*'
+      api_group: '*'
+      name: '*'
+      namespace: '^.*$'
       verbs:
       - '*'
   deny: {}
@@ -50,7 +58,8 @@ spec:
     kubernetes_labels:
       '*': '*'
     kubernetes_resources:
-    - kind: 'pod'
+    - kind: 'pods'
+      api_group: ''
       name: '*'
       namespace: '*'
       verbs:
@@ -66,7 +75,8 @@ spec:
     kubernetes_labels:
       '*': '*'
     kubernetes_resources:
-    - kind: 'deployment'
+    - kind: 'deployments'
+      api_group: 'apps'
       name: '*'
       namespace: '*'
       verbs:
@@ -103,7 +113,8 @@ spec:
   allow:
     request:
       kubernetes_resources:
-      - kind: 'pod'
+      - kind: 'pods'
+        api_group: ''
   deny: {}
 ---
 kind: role
@@ -117,7 +128,8 @@ spec:
       - v8-kube-access-namespace
       - v8-kube-db-access-wildcard
       kubernetes_resources:
-      - kind: 'namespace'
+      - kind: 'namespaces'
+        api_group: ''
   deny: {}
 ---
 kind: role
@@ -133,6 +145,7 @@ spec:
       - v8-kube-db-access-wildcard
       kubernetes_resources:
       - kind: '*'
+        api_group: '*'
   deny: {}
 ---
 kind: role
@@ -144,9 +157,10 @@ spec:
   allow:
     request:
       search_as_roles:
-      - v8-kube-access-namespace
+      - v8-kube-access-wildcard
       kubernetes_resources:
-      - kind: 'secret'
+      - kind: 'secrets'
+        api_group: ''
   deny: {}
 ---
 kind: role
@@ -159,7 +173,8 @@ spec:
       search_as_roles:
       - v8-kube-access-pod
       kubernetes_resources:
-      - kind: 'pod'
+      - kind: 'pods'
+        api_group: ''
   deny: {}
 ---
 kind: role
@@ -172,7 +187,8 @@ spec:
       search_as_roles:
       - v8-kube-access-deployment
       kubernetes_resources:
-      - kind: 'deployment'
+      - kind: 'deployments'
+        api_group: 'apps'
   deny: {}
 ---
 kind: role
@@ -186,8 +202,10 @@ spec:
       - v8-kube-access-deployment
       - v8-kube-access-pod
       kubernetes_resources:
-      - kind: 'deployment'
-      - kind: 'pod'
+      - kind: 'deployments'
+        api_group: 'apps'
+      - kind: 'pods'
+        api_group: ''
   deny: {}
 ---
 kind: role
@@ -201,7 +219,8 @@ spec:
       - v8-kube-db-access-wildcard
       - v8-kube-no-access
       kubernetes_resources:
-      - kind: 'namespace'
+      - kind: 'namespaces'
+        api_group: ''
   deny: {}
 ---
 kind: role
@@ -214,11 +233,13 @@ spec:
       search_as_roles:
       - v8-kube-access-namespace
       kubernetes_resources:
-      - kind: 'namespace'
+      - kind: 'namespaces'
+        api_group: ''
   deny:
     request:
       kubernetes_resources:
-      - kind: 'secret'
+      - kind: 'secrets'
+        api_group: ''
 ---
 kind: role
 version: v8
@@ -232,8 +253,10 @@ spec:
   deny:
     request:
       kubernetes_resources:
-      - kind: 'deployment'
-      - kind: 'pod'
+      - kind: 'deployments'
+        api_group: 'apps'
+      - kind: 'pods'
+        api_group: ''
 ---
 kind: role
 version: v8
@@ -246,7 +269,9 @@ spec:
       - v8-kube-access-namespace
       kubernetes_resources:
       - kind: '*'
+        api_group: '*'
   deny:
     request:
       kubernetes_resources:
       - kind: '*'
+        api_group: '*'
