@@ -2921,12 +2921,12 @@ func TestValidate_RequestedPendingTTLAndMaxDuration(t *testing.T) {
 	require.Equal(t, now.Add(requestedPendingTTL), req.Expiry())
 }
 
-// TestValidate_WithAllowRequestKubernetesResourcesV7V7 tests that requests containing
+// TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role tests that requests containing
 // kubernetes resources, the kinds are enforced defined by users static role
 // field `request.kubernetes_resources`
 // Test cases with V7 access request format hitting role v7.
 // TODO(@creack): Find a better way to test the matrix of role version / access request format.
-func TestValidate_WithAllowRequestKubernetesResourcesV7V7(t *testing.T) {
+func TestValidate_WithAllowRequestKubernetesResources_V7Request_V7Role(t *testing.T) {
 	myClusterName := "teleport-cluster"
 
 	// set up test roles
@@ -3517,11 +3517,11 @@ func TestValidate_WithAllowRequestKubernetesResourcesV7V7(t *testing.T) {
 	}
 }
 
-// TestValidate_WithAllowRequestKubernetesResourcesV7V8 tests that requests containing
+// TestValidate_WithAllowRequestKubernetesResources_V7Request_V8Role tests that requests containing
 // kubernetes resources, the kinds are enforced defined by users static role
 // field `request.kubernetes_resources`
 // Test cases with V7 access request format hitting role v8.
-func TestValidate_WithAllowRequestKubernetesResourcesV7V8(t *testing.T) {
+func TestValidate_WithAllowRequestKubernetesResources_V7Request_V8Role(t *testing.T) {
 	myClusterName := "teleport-cluster"
 
 	// set up test roles
@@ -4113,11 +4113,11 @@ func TestValidate_WithAllowRequestKubernetesResourcesV7V8(t *testing.T) {
 	}
 }
 
-// TestValidate_WithAllowRequestKubernetesResourcesV7V8 tests that requests containing
+// TestValidate_WithAllowRequestKubernetesResource_V8Request_V7Role tests that requests containing
 // kubernetes resources, the kinds are enforced defined by users static role
 // field `request.kubernetes_resources`
 // Test cases with V8 access request format hitting role v7.
-func TestValidate_WithAllowRequestKubernetesResourcesV8V7(t *testing.T) {
+func TestValidate_WithAllowRequestKubernetesResource_V8Request_V7Role(t *testing.T) {
 	myClusterName := "teleport-cluster"
 
 	// set up test roles
@@ -4715,11 +4715,11 @@ func TestValidate_WithAllowRequestKubernetesResourcesV8V7(t *testing.T) {
 	}
 }
 
-// TestValidate_WithAllowRequestKubernetesResourcesV7V8 tests that requests containing
+// TestValidate_WithAllowRequestKubernetesResources_V8Request_V8Role tests that requests containing
 // kubernetes resources, the kinds are enforced defined by users static role
 // field `request.kubernetes_resources`
 // Test cases with V8 access request format hitting role v8.
-func TestValidate_WithAllowRequestKubernetesResourcesV8V8(t *testing.T) {
+func TestValidate_WithAllowRequestKubernetesResources_V8Request_V8Role(t *testing.T) {
 	myClusterName := "teleport-cluster"
 
 	// set up test roles
