@@ -701,14 +701,8 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 				})
 				require.NoError(t, err)
 
-				forwarderCh := make(chan error, 1)
-				go func() {
-					err := forwarder.ForwardPorts()
-					forwarderCh <- err
-					if err != nil {
-						t.Logf("Port forwarding error: %v", err)
-					}
-				}()
+				forwarderCh := make(chan error)
+				go func() { forwarderCh <- forwarder.ForwardPorts() }()
 
 				// Wait for port-forwarding to be ready.
 				start := time.Now()
