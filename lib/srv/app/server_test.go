@@ -375,12 +375,17 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	})
 	require.NoError(t, err)
 
-	inventoryHandle := inventory.NewDownstreamHandle(s.authClient.InventoryControlStream, proto.UpstreamInventoryHello{
-		ServerID: s.hostUUID,
-		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleApp},
-		Hostname: "test",
-	})
+	inventoryHandle, err := inventory.NewDownstreamHandle(s.authClient.InventoryControlStream,
+		func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
+			return proto.UpstreamInventoryHello{
+				ServerID: s.hostUUID,
+				Version:  teleport.Version,
+				Services: []types.SystemRole{types.RoleApp},
+				Hostname: "test",
+			}, nil
+		})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	s.appServer, err = New(s.closeContext, &Config{
 		Clock:              s.clock,
@@ -579,9 +584,9 @@ func TestShutdown(t *testing.T) {
 			require.NoError(t, s.appServer.Shutdown(ctx))
 
 			// Send a Goodbye to simulate process shutdown.
-			if !test.hasForkedChild {
-				require.NoError(t, s.appServer.c.InventoryHandle.SendGoodbye(ctx))
-			}
+			deleteResources := !test.hasForkedChild
+			softReload := test.hasForkedChild
+			require.NoError(t, s.appServer.c.InventoryHandle.SetAndSendGoodbye(ctx, deleteResources, softReload))
 			require.NoError(t, s.appServer.c.InventoryHandle.Close())
 
 			// Validate app servers based on the test.

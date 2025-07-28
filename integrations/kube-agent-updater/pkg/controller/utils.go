@@ -21,6 +21,7 @@ package controller
 import (
 	"strconv"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/distribution/reference"
 	"github.com/gravitational/trace"
 	v1 "k8s.io/api/core/v1"
@@ -29,27 +30,26 @@ import (
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
-func getWorkloadVersion(podSpec v1.PodSpec) (string, error) {
-	var current string
+func getWorkloadVersion(podSpec v1.PodSpec) (*semver.Version, error) {
 	image, err := getContainerImageFromPodSpec(podSpec, teleportContainerName)
 	if err != nil {
-		return current, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	imageRef, err := reference.ParseNamed(image)
 	if err != nil {
-		return current, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	taggedImageRef, ok := imageRef.(reference.Tagged)
 	if !ok {
-		return "", trace.BadParameter("imageRef %s is not tagged", imageRef)
+		return nil, trace.BadParameter("imageRef %s is not tagged", imageRef)
 	}
-	current = taggedImageRef.Tag()
-	current, err = version.EnsureSemver(current)
+	currentTag := taggedImageRef.Tag()
+	currentVersion, err := version.EnsureSemver(currentTag)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.BadParameter("failed to parse image version: %v", err)
 	}
-	return current, nil
+	return currentVersion, nil
 }
 
 func getContainerImageFromPodSpec(spec v1.PodSpec, container string) (string, error) {
