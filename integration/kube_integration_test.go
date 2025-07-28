@@ -695,7 +695,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 				})
 				localPort := listener.Addr().(*net.TCPAddr).Port
 				forwarder, err := tt.builder(proxyClientConfig, kubePortForwardArgs{
-					ports:        []string{fmt.Sprintf("%v:80", localPort)},
+					ports:        []string{net.JoinHostPort(strconv.Itoa(localPort), "80")},
 					podName:      testPod,
 					podNamespace: testNamespace,
 				})
