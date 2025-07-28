@@ -279,7 +279,8 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 	return h.uploadBlob(ctx, sessionID, h.sessionBlob(sessionID), reader)
 }
 
-// Upload implements [events.UploadHandler] and uploads a session summary.
+// UploadSummary implements [events.UploadHandler] and uploads a session
+// summary.
 func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
 	return h.uploadBlob(ctx, sessionID, h.summaryBlob(sessionID), reader)
 }
