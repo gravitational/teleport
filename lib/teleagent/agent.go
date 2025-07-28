@@ -32,18 +32,18 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
+
+// TODO(Joerger): Move this file to lib/sshagent and replace aliases.
 
 // Agent extends the agent.ExtendedAgent interface.
 // APIs which accept this interface promise to
 // call `Close()` when they are done using the
 // supplied agent.
-type Agent interface {
-	agent.ExtendedAgent
-	io.Closer
-}
+type Agent = sshagent.Client
 
 // nopCloser wraps an agent.Agent in the extended
 // Agent interface by adding a NOP closer.
@@ -60,7 +60,7 @@ func NopCloser(std agent.ExtendedAgent) Agent {
 }
 
 // Getter is a function used to get an agent instance.
-type Getter func() (Agent, error)
+type Getter = sshagent.ClientGetter
 
 // AgentServer is implementation of SSH agent server
 type AgentServer struct {
