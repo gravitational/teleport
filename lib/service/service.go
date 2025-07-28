@@ -995,9 +995,7 @@ func RunWithSignalChannel(ctx context.Context, cfg servicecfg.Config, newTelepor
 
 // NewTeleport takes the daemon configuration, instantiates all required services
 // and starts them under a supervisor, returning the supervisor object.
-func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
-	var err error
-
+func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	// Before we do anything reset the SIGINT handler back to the default.
 	system.ResetInterruptSignalHandler()
 
@@ -1015,6 +1013,12 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		teleport.ComponentKey, teleport.Component(teleport.ComponentProcess, processID),
 		"pid", fmt.Sprintf("%v.%v", os.Getpid(), processID),
 	)
+
+	defer func() {
+		if err != nil {
+			cfg.Logger.ErrorContext(context.Background(), "Failed to start Teleport instance", "error", err)
+		}
+	}()
 
 	// Use the custom metrics registry if specified, else create a new one.
 	// We must create the registry in NewTeleport, as opposed to ApplyConfig(),
@@ -2645,7 +2649,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.AccessLists = services.AccessLists
 	cfg.AccessMonitoringRules = services.AccessMonitoringRules
 	cfg.AppSession = services.Identity
-	cfg.Apps = services.Apps
+	cfg.Applications = services.Applications
 	cfg.ClusterConfig = services.ClusterConfigurationInternal
 	cfg.CrownJewels = services.CrownJewels
 	cfg.DatabaseObjects = services.DatabaseObjects
@@ -2684,6 +2688,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.PluginStaticCredentials = services.PluginStaticCredentials
 	cfg.GitServers = services.GitServers
 	cfg.BotInstance = services.BotInstance
+	cfg.Plugin = services.Plugins
 
 	return accesspoint.NewCache(cfg)
 }
@@ -2698,7 +2703,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.AccessLists = client.AccessListClient()
 	cfg.AccessMonitoringRules = client.AccessMonitoringRuleClient()
 	cfg.AppSession = client
-	cfg.Apps = client
+	cfg.Applications = client
 	cfg.ClusterConfig = client
 	cfg.CrownJewels = client.CrownJewelServiceClient()
 	cfg.DatabaseObjects = client.DatabaseObjectsClient()

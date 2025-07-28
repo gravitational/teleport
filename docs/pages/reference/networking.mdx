@@ -1,6 +1,9 @@
 ---
 title: Networking
 description: This reference explains the networking requirements of a Teleport cluster, including its public address, ports, and support for HTTP CONNECT proxies.
+labels:
+ - conceptual
+ - platform-wide
 ---
 
 A Teleport cluster is a distributed system that may comprise a number of
@@ -261,4 +264,5 @@ expose ports directly.
 <Admonition type="important">
 Direct auth joining is only supported for SSH and Kubernetes agents. Application, database, and other discovery-based features are not supported when joining auth directly.
 </Admonition>
+
 

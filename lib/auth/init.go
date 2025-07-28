@@ -173,7 +173,7 @@ type InitConfig struct {
 	Restrictions services.Restrictions
 
 	// Apps is a service that manages application resources.
-	Apps services.Apps
+	Apps services.Applications
 
 	// Databases is a service that manages database resources.
 	Databases services.Databases
@@ -1225,6 +1225,8 @@ func GetPresetRoles() []types.Role {
 		services.NewPresetTerraformProviderRole(),
 		services.NewSystemIdentityCenterAccessRole(),
 		services.NewPresetWildcardWorkloadIdentityIssuerRole(),
+		services.NewPresetAccessPluginRole(),
+		services.NewPresetListAccessRequestResourcesRole(),
 	}
 
 	// Certain `New$FooRole()` functions will return a nil role if the
