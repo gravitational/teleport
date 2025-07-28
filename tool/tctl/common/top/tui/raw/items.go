@@ -38,32 +38,6 @@ func (m metricItem) Title() string       { return m.name }
 func (m metricItem) Description() string { return m.description + "\n" + m.value }
 func (m metricItem) FilterValue() string { return m.name }
 
-func updateListPreserveFilterAndSelection(l *list.Model, newItems []list.Item) {
-	// 1. Save the current filter input and selection
-	// currentFilter := l.FilterValue()
-	selectedItem := l.SelectedItem()
-
-	// 2. Build filter terms from new items
-	terms := make([]string, len(newItems))
-	for i, item := range newItems {
-		terms[i] = item.FilterValue()
-	}
-
-	// 3. Apply filter with new terms
-	// l.SetFilterText(currentFilter)
-
-	// 4. Set new items (needed to update full item list)
-	l.SetItems(newItems)
-
-	// 5. Reselect previously selected item if it still exists
-	for i, item := range l.VisibleItems() {
-		if selectedItem != nil && item.FilterValue() == selectedItem.FilterValue() {
-			l.Select(i)
-			break
-		}
-	}
-}
-
 func convertMetricsToListItems(msg common.MetricsMsg) []list.Item {
 	items := []list.Item{}
 
@@ -112,7 +86,7 @@ func convertMetricsToListItems(msg common.MetricsMsg) []list.Item {
 }
 
 var (
-	titleStyle        = lipgloss.NewStyle().Bold(true)
+	// TODO: align this with other styles
 	descStyle         = lipgloss.NewStyle().Faint(true)
 	selectedStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	selectedDescStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
@@ -121,7 +95,6 @@ var (
 type itemDelegate struct{}
 
 func (d itemDelegate) Height() int {
-	// Height will be dynamic in Spacing; use DelegateWithHeightFunc for per-metricItem height
 	return 3
 }
 
@@ -149,5 +122,5 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 		renderedDesc = selectedDescStyle.Render(strings.Join(descLines, "\n"))
 	}
 
-	w.Write([]byte(fmt.Sprintf("%s\n%s", title, renderedDesc)))
+	fmt.Fprintf(w, "%s\n%s", title, renderedDesc)
 }
