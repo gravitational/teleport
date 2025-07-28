@@ -4681,7 +4681,7 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 		)
 		createAccessList(t, authServer, al.name,
 			withOwners([]accesslist.Owner{{Name: testUsername}}),
-			withNextAuditDate(authServer.clock.Now().Add(time.Duration(al.dueInDays)*24*time.Hour)),
+			withNextAuditDate(authServer.GetClock().Now().Add(time.Duration(al.dueInDays)*24*time.Hour)),
 		)
 	}
 
@@ -4732,7 +4732,7 @@ func withOwners(owners []accesslist.Owner) createAccessListOpt {
 	}
 }
 
-func createAccessList(t *testing.T, authServer *Server, name string, opts ...createAccessListOpt) {
+func createAccessList(t *testing.T, authServer *auth.Server, name string, opts ...createAccessListOpt) {
 	t.Helper()
 	ctx := t.Context()
 
