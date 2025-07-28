@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	tlsv3pb "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	discoveryv3pb "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	"github.com/google/go-cmp/cmp"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
@@ -35,7 +34,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/testing/protocmp"
-	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
@@ -188,15 +186,4 @@ func TestSDS_FetchSecrets(t *testing.T) {
 			require.Empty(t, cmp.Diff(res, want, protocmp.Transform()))
 		})
 	}
-}
-
-func findSecret(t *testing.T, resources []*anypb.Any, name string) *tlsv3pb.Secret {
-	for _, a := range resources {
-		secret := &tlsv3pb.Secret{}
-		require.NoError(t, a.UnmarshalTo(secret))
-		if secret.Name == name {
-			return secret
-		}
-	}
-	return nil
 }
