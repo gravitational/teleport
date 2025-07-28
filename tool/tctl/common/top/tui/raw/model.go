@@ -19,6 +19,7 @@ package raw
 import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/gravitational/teleport/tool/tctl/common/top/tui/common"
 )
 
@@ -28,7 +29,13 @@ type Model struct {
 }
 
 func New() Model {
-	l := list.New([]list.Item{}, itemDelegate{}, 0, 0)
+	d := list.NewDefaultDelegate()
+	d.Styles.NormalDesc = lipgloss.NewStyle().Faint(true)
+	d.Styles.NormalTitle = lipgloss.NewStyle().Faint(true)
+	d.Styles.SelectedTitle = lipgloss.NewStyle().Faint(false).Foreground(lipgloss.Color("4"))
+	d.Styles.SelectedDesc = lipgloss.NewStyle().Faint(false)
+
+	l := list.New([]list.Item{}, d, 0, 0)
 	l.SetShowTitle(false)
 	l.SetShowFilter(true)
 	l.SetShowStatusBar(true)

@@ -18,12 +18,9 @@ package raw
 
 import (
 	"fmt"
-	"io"
 	"sort"
 
 	"github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/gravitational/teleport/tool/tctl/common/top/tui/common"
 )
 
@@ -34,7 +31,7 @@ type metricItem struct {
 }
 
 func (m metricItem) Title() string       { return m.name }
-func (m metricItem) Description() string { return m.description + "\n" + m.value }
+func (m metricItem) Description() string { return m.value }
 func (m metricItem) FilterValue() string { return m.name }
 
 func convertMetricsToListItems(msg common.MetricsMsg) []list.Item {
@@ -62,9 +59,9 @@ func convertMetricsToListItems(msg common.MetricsMsg) []list.Item {
 			case m.Gauge != nil:
 				value = fmt.Sprintf("%.2f", m.Gauge.GetValue())
 			case m.Summary != nil:
-				value = fmt.Sprintf("count: %d\nsum: %.2f", m.Summary.GetSampleCount(), m.Summary.GetSampleSum())
+				value = fmt.Sprintf("count: %d sum: %.2f", m.Summary.GetSampleCount(), m.Summary.GetSampleSum())
 			case m.Histogram != nil:
-				value = fmt.Sprintf("count: %d\nsum: %.2f", m.Histogram.GetSampleCount(), m.Histogram.GetSampleSum())
+				value = fmt.Sprintf("count: %d sum: %.2f", m.Histogram.GetSampleCount(), m.Histogram.GetSampleSum())
 			default:
 				value = "n/a"
 			}
@@ -82,45 +79,4 @@ func convertMetricsToListItems(msg common.MetricsMsg) []list.Item {
 	})
 
 	return items
-}
-
-var (
-	normalDescStyle    = lipgloss.NewStyle().Faint(true).Render
-	normalTitleStyle   = lipgloss.NewStyle().Faint(true).Render
-	selectedTitleStyle = lipgloss.NewStyle().Faint(false).Foreground(lipgloss.Color("4")).Render
-	selectedDescStyle  = lipgloss.NewStyle().Faint(false).Render
-)
-
-type itemDelegate struct{}
-
-func (d itemDelegate) Height() int {
-	return 3
-}
-
-func (d itemDelegate) Spacing() int {
-	return 1
-}
-
-func (d itemDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd {
-	return nil
-}
-
-func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	it, ok := listItem.(metricItem)
-	if !ok {
-		return
-	}
-
-	selected := index == m.Index()
-	titleStyle := normalTitleStyle
-	descStyle := normalDescStyle
-
-	if selected {
-		titleStyle = selectedTitleStyle
-		descStyle = selectedDescStyle
-	}
-
-	fmt.Fprintf(w, "%s\n%s",
-		titleStyle(it.Title()),
-		descStyle(it.Description()))
 }
