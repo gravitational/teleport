@@ -31,11 +31,9 @@ const makeProps = (): BotListProps => ({
   onClose: () => {},
   onDelete: () => {},
   onEdit: () => {},
-  fetchRoles: async () => [],
+  onSelect: () => {},
   selectedBot: null,
-  selectedRoles: [],
   setSelectedBot: () => {},
-  setSelectedRoles: () => {},
 });
 
 test('renders table with bots', () => {

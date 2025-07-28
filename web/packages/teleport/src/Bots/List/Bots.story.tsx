@@ -48,6 +48,7 @@ export const List = () => {
       onClose={() => {}}
       onDelete={() => {}}
       onEdit={() => {}}
+      onSelect={() => {}}
       selectedBot={null}
       setSelectedBot={() => {}}
     />
