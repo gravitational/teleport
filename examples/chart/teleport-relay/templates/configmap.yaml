@@ -34,5 +34,7 @@ data:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       transport_listen_addr: "0.0.0.0:3040"
+      transport_proxy_protocol: {{ .Values.transportProxyProtocol }}
       peer_listen_addr: "0.0.0.0:3041"
       tunnel_listen_addr: "0.0.0.0:3042"
+      tunnel_proxy_protocol: {{ .Values.tunnelProxyProtocol }}

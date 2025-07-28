@@ -14,6 +14,9 @@ shutdownDelay: '0s'
 publicHostnames: []
 #  - 'relay-staging.example.com'
 
+transportProxyProtocol: false
+tunnelProxyProtocol: false
+
 # This sets the container image
 # https://kubernetes.io/docs/concepts/containers/images/
 image:
