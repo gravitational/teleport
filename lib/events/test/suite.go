@@ -70,7 +70,7 @@ func UploadDownload(t *testing.T, handler events.MultipartHandler) {
 func UploadDownloadSummary(t *testing.T, handler events.MultipartHandler) {
 	val := "this is the summary file"
 	id := session.NewID()
-	_, err := handler.UploadSummary(context.TODO(), id, bytes.NewBuffer([]byte(val)))
+	_, err := handler.UploadSummary(t.Context(), id, bytes.NewBuffer([]byte(val)))
 	require.NoError(t, err)
 
 	f, err := os.CreateTemp("", string(id))
