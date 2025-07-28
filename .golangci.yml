@@ -150,6 +150,7 @@ linters:
             - '!**/e/lib/aws/identitycenter/test/**'
             - '!**/e/lib/devicetrust/testenv/**'
             - '!**/e/lib/jamf/testenv/**'
+            - '!**/e/lib/idp/saml/testenv/**'
             - '!**/e/lib/operatortest/**'
             - '!**/e/tests/**'
             - '!**/integration/helpers/**'
