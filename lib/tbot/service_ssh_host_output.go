@@ -94,7 +94,7 @@ func (s *SSHHostOutputService) Run(ctx context.Context) error {
 		Name:            "output-renewal",
 		F:               s.generate,
 		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
-		RetryLimit:      renewalRetryLimit,
+		RetryLimit:      internal.RenewalRetryLimit,
 		Log:             s.log,
 		ReloadCh:        s.reloadCh,
 		IdentityReadyCh: s.botIdentityReadyCh,
@@ -175,7 +175,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.SSHHostCertPath,
-		Writer:     newBotConfigWriter(ctx, s.cfg.Destination, ""),
+		Writer:     internal.NewBotConfigWriter(ctx, s.cfg.Destination, ""),
 		KeyRing:    keyRing,
 		Format:     identityfile.FormatOpenSSH,
 

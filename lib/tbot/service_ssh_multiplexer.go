@@ -440,7 +440,7 @@ func (s *SSHMultiplexerService) identityRenewalLoop(
 			return s.writeArtifacts(ctx, proxyHost, authClient)
 		},
 		Interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
-		RetryLimit: renewalRetryLimit,
+		RetryLimit: internal.RenewalRetryLimit,
 		Log:        s.log,
 		ReloadCh:   s.reloadCh,
 	})
