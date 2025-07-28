@@ -2768,7 +2768,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		// Device verification.
 		var deviceVerificationPassed bool
 		switch role.GetOptions().DeviceTrustMode {
-		case constants.DeviceTrustModeOff, constants.DeviceTrustModeOptional:
+		case constants.DeviceTrustModeOff, constants.DeviceTrustModeOptional, "":
 			// OK, extensions not enforced.
 			deviceVerificationPassed = true
 		case constants.DeviceTrustModeRequiredForHumans:
