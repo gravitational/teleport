@@ -181,24 +181,24 @@ func (s *KubeSuite) bind(test kubeIntegrationTest) func(t *testing.T) {
 
 func TestKube(t *testing.T) {
 	suite := newKubeSuite(t)
-	// t.Run("Exec", suite.bind(testKubeExec))
-	// t.Run("Deny", suite.bind(testKubeDeny))
-	// t.Run("PortForward", suite.bind(testKubePortForward))
+	t.Run("Exec", suite.bind(testKubeExec))
+	t.Run("Deny", suite.bind(testKubeDeny))
+	t.Run("PortForward", suite.bind(testKubePortForward))
 	t.Run("PortForwardPodDisconnect", suite.bind(testKubePortForwardPodDisconnect))
-	// t.Run("TransportProtocol", suite.bind(testKubeTransportProtocol))
-	// t.Run("TrustedClustersClientCert", suite.bind(testKubeTrustedClustersClientCert))
-	// t.Run("TrustedClustersSNI", suite.bind(testKubeTrustedClustersSNI))
-	// t.Run("Disconnect", suite.bind(testKubeDisconnect))
-	// t.Run("Join", suite.bind(testKubeJoin))
-	// t.Run("JoinWeb", suite.bind(testKubeJoinWeb))
-	// t.Run("IPPinning", suite.bind(testIPPinning))
-	// // ExecWithNoAuth tests that a user can get the pod and exec into it when
-	// // moderated session is not enforced.
-	// // Users under moderated session should only be able to get the pod and shouldn't
-	// // be able to exec into a pod
-	// t.Run("ExecWithNoAuth", suite.bind(testExecNoAuth))
-	// t.Run("EphemeralContainers", suite.bind(testKubeEphemeralContainers))
-	// t.Run("ExecInWeb", suite.bind(testKubeExecWeb))
+	t.Run("TransportProtocol", suite.bind(testKubeTransportProtocol))
+	t.Run("TrustedClustersClientCert", suite.bind(testKubeTrustedClustersClientCert))
+	t.Run("TrustedClustersSNI", suite.bind(testKubeTrustedClustersSNI))
+	t.Run("Disconnect", suite.bind(testKubeDisconnect))
+	t.Run("Join", suite.bind(testKubeJoin))
+	t.Run("JoinWeb", suite.bind(testKubeJoinWeb))
+	t.Run("IPPinning", suite.bind(testIPPinning))
+	// ExecWithNoAuth tests that a user can get the pod and exec into it when
+	// moderated session is not enforced.
+	// Users under moderated session should only be able to get the pod and shouldn't
+	// be able to exec into a pod
+	t.Run("ExecWithNoAuth", suite.bind(testExecNoAuth))
+	t.Run("EphemeralContainers", suite.bind(testKubeEphemeralContainers))
+	t.Run("ExecInWeb", suite.bind(testKubeExecWeb))
 }
 
 func testExec(t *testing.T, suite *KubeSuite, pinnedIP string, clientError string) {
