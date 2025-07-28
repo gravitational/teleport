@@ -21,6 +21,7 @@ import (
 	"io"
 	"net"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -42,7 +43,11 @@ func TestSSHAgentClient(t *testing.T) {
 		require.NoError(t, err)
 
 		// create a context to close existing connections on server shutdown.
-		ctx, cancel := context.WithCancel(context.Background())
+		serveCtx, serveCancel := context.WithCancel(context.Background())
+
+		// Track open connections.
+		var connWg sync.WaitGroup
+
 		go func() {
 			for {
 				conn, err := l.Accept()
@@ -50,21 +55,30 @@ func TestSSHAgentClient(t *testing.T) {
 					assert.True(t, utils.IsUseOfClosedNetworkError(err))
 					return
 				}
-				context.AfterFunc(ctx, func() {
+
+				connCtx, cancel := context.WithCancel(serveCtx)
+				connWg.Add(1)
+				context.AfterFunc(connCtx, func() {
 					conn.Close()
+					connWg.Done()
 				})
 
 				go func() {
-					defer conn.Close()
+					defer cancel()
 					agent.ServeAgent(keyring, conn)
 				}()
 			}
 		}()
 
-		return func() {
+		// Close the listener, stop serving, and wait for all open client
+		// connections to close.
+		stopServer := func() {
 			l.Close()
-			cancel()
+			serveCancel()
+			connWg.Wait()
 		}
+
+		return stopServer
 	}
 
 	stopServer := startAgentServer()
