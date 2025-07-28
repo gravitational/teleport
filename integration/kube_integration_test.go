@@ -666,45 +666,9 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 		},
 	}
 
-	// // Setup random generator for pod name uniqueness.
-	// rnd := rand.New(rand.NewSource(time.Now().Unix()))
-	// rndBuf := make([]byte, 4)
-
 	for _, tt := range tests {
 		t.Run(tt.name,
 			func(t *testing.T) {
-				// // Create a new pod.
-				/// // Avoid interfering with singleton pod in test suite.
-				// rnd.Read(rndBuf)
-				// tmpPodName := fmt.Sprintf("%v-%x", testPod, rndBuf)
-				// p := newPod(testNamespace, tmpPodName)
-				// _, err := suite.CoreV1().Pods(testNamespace).Create(context.Background(), p, metav1.CreateOptions{})
-				// require.NoError(t, err)
-				// t.Cleanup(func() {
-				// 	// Later logic will also attempt to delete the pod.
-				// 	// Fine if this cleanup delete has nothing to delete.
-				// 	_ = suite.CoreV1().Pods(testNamespace).Delete(context.Background(), tmpPodName, metav1.DeleteOptions{})
-				// })
-
-				// // Wait for pod to be running.
-				// require.Eventually(t, func() bool {
-				// 	pod, err := suite.CoreV1().Pods(testNamespace).Get(context.Background(), testPod, metav1.GetOptions{})
-				// 	if err != nil {
-				// 		return false
-				// 	}
-				// 	if pod.Status.Phase != v1.PodRunning {
-				// 		return false
-				// 	}
-				// 	if len(pod.Status.ContainerStatuses) == 0 {
-				// 		return false
-				// 	}
-				// 	for _, containerStatus := range pod.Status.ContainerStatuses {
-				// 		if containerStatus.Name == nginx {
-				// 			return containerStatus.Ready
-				// 		}
-				// 	}
-				// 	return false
-				// }, 60*time.Second, time.Millisecond*500)
 
 				t.Cleanup(func() {
 					// Test pod would have been deleted if test is successful.
