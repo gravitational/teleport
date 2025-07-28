@@ -122,16 +122,16 @@ func TestRoundtrip(t *testing.T) {
 			},
 		},
 		{
-			name: "implicit-dynamic-type",
-			modificationFn: func(accessList *accesslist.AccessList) {
-				accessList.Spec.Type = ""
-			},
-		},
-		{
 			name: "static-type",
 			modificationFn: func(accessList *accesslist.AccessList) {
 				accessList.Spec.Type = accesslist.Static
 				accessList.Spec.Audit = accesslist.Audit{}
+			},
+		},
+		{
+			name: "static-type non-zero audit",
+			modificationFn: func(accessList *accesslist.AccessList) {
+				accessList.Spec.Type = accesslist.Static
 			},
 		},
 	} {
@@ -411,7 +411,7 @@ func TestConvAccessList(t *testing.T) {
 			},
 		},
 		{
-			name: "SCIM, Static access list allows for empty owners",
+			name: "for SCIM (non-reviewable) nothing is defaulted",
 			input: &accesslistv1.AccessList{
 				Header: &v1.ResourceHeader{
 					Version: "v1",
@@ -421,15 +421,21 @@ func TestConvAccessList(t *testing.T) {
 					},
 				},
 				Spec: &accesslistv1.AccessListSpec{
-					Type:               string(accesslist.SCIM),
-					Title:              "test access list",
-					Description:        "test description",
-					Owners:             []*accesslistv1.AccessListOwner{},
-					OwnershipRequires:  &accesslistv1.AccessListRequires{},
-					MembershipRequires: &accesslistv1.AccessListRequires{},
-					Grants: &accesslistv1.AccessListGrants{
-						Roles: []string{"role1"},
+					Type:   string(accesslist.SCIM),
+					Title:  "Test Title",
+					Owners: []*accesslistv1.AccessListOwner{},
+					Audit: &accesslistv1.AccessListAudit{
+						NextAuditDate: &timestamppb.Timestamp{},
+						Recurrence: &accesslistv1.Recurrence{
+							Frequency:  0,
+							DayOfMonth: 0,
+						},
+						Notifications: &accesslistv1.Notifications{
+							Start: &durationpb.Duration{},
+						},
 					},
+					MembershipRequires: &accesslistv1.AccessListRequires{},
+					OwnershipRequires:  &accesslistv1.AccessListRequires{},
 				},
 				Status: &accesslistv1.AccessListStatus{},
 			},
