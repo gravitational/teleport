@@ -1349,6 +1349,9 @@ type UserState interface {
 	// GetUserType returns the user type for the user login state.
 	GetUserType() types.UserType
 
+	// GetLabel fetches the given user label.
+	GetLabel(key string) (value string, ok bool)
+
 	// IsBot returns true if the user belongs to a bot.
 	IsBot() bool
 

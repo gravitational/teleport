@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -113,22 +114,24 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	emitter := &eventstest.MockRecorderEmitter{}
 
-	minimalCfg := SessionControllerConfig{
-		Semaphores: mockSemaphores{},
-		AccessPoint: mockAccessPoint{
-			authPreference: &types.AuthPreferenceV2{
-				Spec: types.AuthPreferenceSpecV2{},
-			},
-			clusterName: &types.ClusterNameV2{
-				Spec: types.ClusterNameSpecV2{
-					ClusterName: "llama",
+	minimalCfg := func() SessionControllerConfig {
+		return SessionControllerConfig{
+			Semaphores: mockSemaphores{},
+			AccessPoint: mockAccessPoint{
+				authPreference: &types.AuthPreferenceV2{
+					Spec: types.AuthPreferenceSpecV2{},
+				},
+				clusterName: &types.ClusterNameV2{
+					Spec: types.ClusterNameSpecV2{
+						ClusterName: "llama",
+					},
 				},
 			},
-		},
-		LockEnforcer: mockLockEnforcer{},
-		Emitter:      emitter,
-		Component:    teleport.ComponentNode,
-		ServerID:     "1234",
+			LockEnforcer: mockLockEnforcer{},
+			Emitter:      emitter,
+			Component:    teleport.ComponentNode,
+			ServerID:     "1234",
+		}
 	}
 
 	minimalIdentity := IdentityContext{
@@ -143,7 +146,7 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 	}
 
 	cfgWithDeviceMode := func(mode string) SessionControllerConfig {
-		cfg := minimalCfg
+		cfg := minimalCfg()
 		authPref, _ := cfg.AccessPoint.GetAuthPreference(context.Background())
 		authPref.(*types.AuthPreferenceV2).Spec.DeviceTrust = &types.DeviceTrust{
 			Mode: mode,
@@ -157,6 +160,14 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 		idCtx.UnmappedIdentity.DeviceID = "deviceid1"
 		idCtx.UnmappedIdentity.DeviceAssetTag = "assettag1"
 		idCtx.UnmappedIdentity.DeviceCredentialID = "credentialid1"
+		return idCtx
+	}
+	botIdentity := func() IdentityContext {
+		ident := *minimalIdentity.UnmappedIdentity
+		idCtx := minimalIdentity
+		idCtx.UnmappedIdentity = &ident
+		idCtx.UnmappedIdentity.BotName = "wall-e"
+		idCtx.UnmappedIdentity.BotInstanceID = uuid.NewString()
 		return idCtx
 	}
 	assertTrustedDeviceRequired := func(t *testing.T, _ context.Context, err error, _ *eventstest.MockRecorderEmitter) {
@@ -450,6 +461,22 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 			buildType: modules.BuildEnterprise,
 			cfg:       cfgWithDeviceMode(constants.DeviceTrustModeRequired),
 			identity:  identityWithDeviceExtensions(),
+			assertion: func(t *testing.T, _ context.Context, err error, _ *eventstest.MockRecorderEmitter) {
+				assert.NoError(t, err, "AcquireSessionContext returned an unexpected error")
+			},
+		},
+		{
+			name:      "device extensions enforced for bot",
+			buildType: modules.BuildEnterprise,
+			cfg:       cfgWithDeviceMode(constants.DeviceTrustModeRequired),
+			identity:  botIdentity(),
+			assertion: assertTrustedDeviceRequired,
+		},
+		{
+			name:      "device extensions not enforced for bot with mode=required-for-humans",
+			buildType: modules.BuildEnterprise,
+			cfg:       cfgWithDeviceMode(constants.DeviceTrustModeRequiredForHumans),
+			identity:  botIdentity(),
 			assertion: func(t *testing.T, _ context.Context, err error, _ *eventstest.MockRecorderEmitter) {
 				assert.NoError(t, err, "AcquireSessionContext returned an unexpected error")
 			},
