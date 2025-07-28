@@ -259,10 +259,7 @@ func getCurrentDatabase(conn mysql.Executer) (string, error) {
 }
 
 func formatDatabaseName(name string) string {
-	if name == "" {
-		return "(none)"
-	}
-	return name
+	return cmp.Or(name, "(none)")
 }
 
 // descriptiveLimitations defines a user-friendly text containing the REPL
