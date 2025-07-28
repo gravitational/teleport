@@ -103,10 +103,17 @@ export function BotDetails() {
             <ArrowLeft size="medium" />
           </ButtonIcon>
         </HoverTooltip>
-        <Flex flex={1} gap={2} justifyContent="space-between">
+        <Flex
+          flex={1}
+          gap={2}
+          justifyContent="space-between"
+          overflow={'hidden'}
+        >
           {isSuccess && data ? (
             <>
-              <FeatureHeaderTitle>{data.name}</FeatureHeaderTitle>
+              <FeatureHeaderTitle>
+                <TitleText>{data.name}</TitleText>
+              </FeatureHeaderTitle>
 
               <EditButton onClick={handleEdit} disabled={!hasEditPermission}>
                 <Pencil size="medium" /> Edit Bot
@@ -160,7 +167,12 @@ export function BotDetails() {
               <PanelContentContainer>
                 <Grid>
                   <GridLabel>Bot name</GridLabel>
-                  <Flex inline alignItems={'center'} gap={1}>
+                  <Flex
+                    inline
+                    alignItems={'center'}
+                    gap={1}
+                    overflow={'hidden'}
+                  >
                     <MonoText>{data.name}</MonoText>
                     <CopyButton name={data.name} />
                   </Flex>
@@ -179,15 +191,15 @@ export function BotDetails() {
             <Panel title="Roles" isSubPanel>
               <PanelContentContainer>
                 {data.roles.length ? (
-                  <RolesContainer>
+                  <LabelsContainer>
                     {data.roles.toSorted().map(r => (
-                      <SecondaryOutlined mr="1" key={r}>
-                        <Text fontSize={'12px'}>{r}</Text>
+                      <SecondaryOutlined key={r}>
+                        <LabelText>{r}</LabelText>
                       </SecondaryOutlined>
                     ))}
-                  </RolesContainer>
+                  </LabelsContainer>
                 ) : (
-                  'No roles assigned'
+                  <EmptyText>No roles assigned</EmptyText>
                 )}
               </PanelContentContainer>
             </Panel>
@@ -205,20 +217,20 @@ export function BotDetails() {
                           <GridLabel>
                             <Trait traitName={r.name} />
                           </GridLabel>
-                          <div>
+                          <LabelsContainer>
                             {r.values.length > 0
                               ? r.values.toSorted().map(v => (
-                                  <SecondaryOutlined mr="1" key={v}>
-                                    <Text fontSize={'12px'}>{v}</Text>
+                                  <SecondaryOutlined key={v}>
+                                    <LabelText>{v}</LabelText>
                                   </SecondaryOutlined>
                                 ))
                               : 'no values'}
-                          </div>
+                          </LabelsContainer>
                         </React.Fragment>
                       ))}
                   </Grid>
                 ) : (
-                  'No traits set'
+                  <EmptyText>No traits set</EmptyText>
                 )}
               </PanelContentContainer>
             </Panel>
@@ -266,7 +278,11 @@ const PanelContentContainer = styled(Flex)`
   padding-top: 0;
 `;
 
-const RolesContainer = styled.div``;
+const LabelsContainer = styled(Flex)`
+  flex-wrap: wrap;
+  overflow: hidden;
+  gap: ${props => props.theme.space[1]}px;
+`;
 
 const Divider = styled.div`
   height: 1px;
@@ -284,6 +300,7 @@ const Grid = styled(Box)`
   display: grid;
   grid-template-columns: repeat(2, auto);
   gap: ${({ theme }) => theme.space[2]}px;
+  overflow: hidden;
 `;
 
 const GridLabel = styled(Text)`
@@ -298,6 +315,24 @@ const MonoText = styled(Text)`
 
 const EditButton = styled(ButtonSecondary)`
   gap: ${props => props.theme.space[2]}px;
+  white-space: nowrap;
+`;
+
+const TitleText = styled(Text)`
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const LabelText = styled(Text)`
+  font-size: ${({ theme }) => theme.fontSizes[1]}px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const EmptyText = styled(Text)`
+  color: ${p => p.theme.colors.text.muted};
 `;
 
 const traitDescriptions: { [key in (typeof traitsPreset)[number]]: string } = {
@@ -357,6 +392,10 @@ function JoinTokens(props: { botName: string; onViewAllClicked: () => void }) {
     }
   );
 
+  // FIXME: if token data existing in the cache, the MFA prompt still displays,
+  // then when clicked tokens are revealed without the prompt. Because the
+  // skipAuthnRetry flag is part of the cache key - find a better way.
+
   const requiresMfa = isError && isAdminActionRequiresMfaError(error);
 
   const handleVerifyClick = () => {
@@ -408,28 +447,32 @@ function JoinTokens(props: { botName: string; onViewAllClicked: () => void }) {
         {isSuccess ? (
           <>
             {data.items.length ? (
-              <Flex gap={1} flexWrap={'wrap'}>
+              <LabelsContainer>
                 {data.items
                   .toSorted((a, b) => a.safeName.localeCompare(b.safeName))
                   .map(t => {
                     return (
-                      <SecondaryOutlined key={t.id}>
-                        <HoverTooltip placement="top" tipContent={t.method}>
+                      <HoverTooltip
+                        key={t.id}
+                        placement="top"
+                        tipContent={t.method}
+                      >
+                        <SecondaryOutlined>
                           <Flex alignItems={'center'} gap={1}>
                             <JoinMethodIcon
                               method={t.method}
                               size={'small'}
                               includeTooltip={false}
                             />
-                            <Text fontSize={'12px'}>{t.safeName}</Text>
+                            <LabelText>{t.safeName}</LabelText>
                           </Flex>
-                        </HoverTooltip>
-                      </SecondaryOutlined>
+                        </SecondaryOutlined>
+                      </HoverTooltip>
                     );
                   })}
-              </Flex>
+              </LabelsContainer>
             ) : (
-              'No join tokens'
+              <EmptyText>No join tokens</EmptyText>
             )}
           </>
         ) : undefined}
