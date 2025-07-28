@@ -594,7 +594,7 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 
 }
 
-// TestKubePortForward tests kubernetes port forwarding
+// testKubePortForwardPodDisconnect tests Kubernetes port forwarding
 // with pod disconnection.
 func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 	tconf := suite.teleKubeConfig(Host)
