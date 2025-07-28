@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -86,10 +85,10 @@ func convertMetricsToListItems(msg common.MetricsMsg) []list.Item {
 }
 
 var (
-	// TODO: align this with other styles
-	descStyle         = lipgloss.NewStyle().Faint(true)
-	selectedStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	selectedDescStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	normalDescStyle    = lipgloss.NewStyle().Faint(true).Render
+	normalTitleStyle   = lipgloss.NewStyle().Faint(true).Render
+	selectedTitleStyle = lipgloss.NewStyle().Faint(false).Foreground(lipgloss.Color("4")).Render
+	selectedDescStyle  = lipgloss.NewStyle().Faint(false).Render
 )
 
 type itemDelegate struct{}
@@ -112,15 +111,16 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 		return
 	}
 
-	title := it.Title()
-	desc := it.Description()
-	descLines := strings.Split(desc, "\n")
-	renderedDesc := descStyle.Render(strings.Join(descLines, "\n"))
+	selected := index == m.Index()
+	titleStyle := normalTitleStyle
+	descStyle := normalDescStyle
 
-	if index == m.Index() {
-		title = selectedStyle.Render(title)
-		renderedDesc = selectedDescStyle.Render(strings.Join(descLines, "\n"))
+	if selected {
+		titleStyle = selectedTitleStyle
+		descStyle = selectedDescStyle
 	}
 
-	fmt.Fprintf(w, "%s\n%s", title, renderedDesc)
+	fmt.Fprintf(w, "%s\n%s",
+		titleStyle(it.Title()),
+		descStyle(it.Description()))
 }
