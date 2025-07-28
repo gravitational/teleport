@@ -54,7 +54,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	kubetypes "k8s.io/apimachinery/pkg/types"
 	streamspdy "k8s.io/apimachinery/pkg/util/httpstream/spdy"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
@@ -2115,17 +2114,6 @@ func newPod(ns, name string) *v1.Pod {
 			Containers: []v1.Container{{
 				Name:  nginx,
 				Image: localPodImage,
-				ReadinessProbe: &v1.Probe{
-					ProbeHandler: v1.ProbeHandler{
-						HTTPGet: &v1.HTTPGetAction{
-							Path: "/",
-							Port: intstr.FromInt(80),
-						},
-					},
-					InitialDelaySeconds: 1,
-					PeriodSeconds:       2,
-					FailureThreshold:    5,
-				},
 			}},
 		},
 	}
