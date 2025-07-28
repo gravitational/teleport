@@ -392,10 +392,6 @@ function JoinTokens(props: { botName: string; onViewAllClicked: () => void }) {
     }
   );
 
-  // FIXME: if token data existing in the cache, the MFA prompt still displays,
-  // then when clicked tokens are revealed without the prompt. Because the
-  // skipAuthnRetry flag is part of the cache key - find a better way.
-
   const requiresMfa = isError && isAdminActionRequiresMfaError(error);
 
   const handleVerifyClick = () => {
