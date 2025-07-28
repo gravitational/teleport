@@ -32,10 +32,11 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/gravitational/trace"
 	"github.com/guptarohit/asciigraph"
-	dto "github.com/prometheus/client_model/go"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/tool/tctl/common/top/tui/common"
 	"github.com/gravitational/teleport/tool/tctl/common/top/tui/keymap"
+	"github.com/gravitational/teleport/tool/tctl/common/top/tui/raw"
 )
 
 // topModel is a [tea.Model] implementation which
@@ -51,6 +52,8 @@ type topModel struct {
 	report          *Report
 	reportError     error
 	addr            string
+
+	raw raw.Model
 }
 
 func newTopModel(refreshInterval time.Duration, clt MetricsClient, addr string) *topModel {
@@ -59,10 +62,10 @@ func newTopModel(refreshInterval time.Duration, clt MetricsClient, addr string) 
 		clt:             clt,
 		refreshInterval: refreshInterval,
 		addr:            addr,
+		raw:             raw.New(),
 	}
 }
 
-type metricsMsg map[string]*dto.MetricFamily
 type tickMsg time.Time
 
 // tick provides a ticker at a specified interval.
@@ -72,7 +75,7 @@ func (m *topModel) tick() tea.Cmd {
 	})
 }
 
-// fetchMetricsCmd fetches metrics from target and returns [metricsMsg].
+// fetchMetricsCmd fetches metrics from target and returns [common.MetricsMsg].
 func (m *topModel) fetchMetricsCmd() tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -84,12 +87,12 @@ func (m *topModel) fetchMetricsCmd() tea.Cmd {
 			return err
 		}
 
-		return metricsMsg(metrics)
+		return common.MetricsMsg(metrics)
 	}
 }
 
-// generateReportCmd returns a command to generate a [Report] from given [metricsMsg]
-func (m *topModel) generateReportCmd(metrics metricsMsg) tea.Cmd {
+// generateReportCmd returns a command to generate a [Report] from given [common.MetricsMsg]
+func (m *topModel) generateReportCmd(metrics common.MetricsMsg) tea.Cmd {
 	return func() tea.Msg {
 		report, err := generateReport(metrics, m.report, m.refreshInterval)
 		if err != nil {
@@ -101,20 +104,27 @@ func (m *topModel) generateReportCmd(metrics metricsMsg) tea.Cmd {
 
 // Init kickstarts the ticker to begin polling.
 func (m *topModel) Init() tea.Cmd {
-	return func() tea.Msg {
-		return tickMsg(time.Now())
-	}
+
+	return tea.Batch(
+		func() tea.Msg {
+			return tickMsg(time.Now())
+		},
+		m.raw.Init(),
+	)
 }
 
 // Update processes messages in order to updated the
 // view based on user input and new metrics data.
 func (m *topModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		h, v := lipgloss.NewStyle().GetFrameSize()
 		m.height = msg.Height - v
 		m.width = msg.Width - h
+		// TODO: figure out how to calcualte the correct list height settings
+		m.raw.Update(tea.WindowSizeMsg{Width: m.width, Height: m.height - 7})
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, keymap.Keymap.Quit):
@@ -134,15 +144,23 @@ func (m *topModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keymap.Keymap.Left):
 			m.selected = max(m.selected-1, 0)
 		}
+		m.raw, cmd = m.raw.Update(msg)
+		cmds = append(cmds, cmd)
 	case tickMsg:
 		cmds = append(cmds, m.tick(), m.fetchMetricsCmd())
-	case metricsMsg:
+	case common.MetricsMsg:
 		cmds = append(cmds, m.generateReportCmd(msg))
+
+		m.raw, cmd = m.raw.Update(msg)
+		cmds = append(cmds, cmd)
 	case *Report:
 		m.report = msg
 		m.reportError = nil
 	case error:
 		m.reportError = msg
+	default:
+		m.raw, cmd = m.raw.Update(msg)
+		cmds = append(cmds, cmd)
 	}
 	return m, tea.Batch(cmds...)
 }
@@ -150,6 +168,7 @@ func (m *topModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View formats the metrics and draws them to
 // the screen.
 func (m *topModel) View() string {
+
 	availableHeight := m.height
 	header := headerView(m.selected, m.width)
 	availableHeight -= lipgloss.Height(header)
@@ -234,6 +253,9 @@ func (m *topModel) footerView() string {
 // contentView generates the appropriate content
 // based on which tab is selected.
 func (m *topModel) contentView() string {
+
+	return m.raw.View()
+
 	if m.report == nil {
 		return ""
 	}
