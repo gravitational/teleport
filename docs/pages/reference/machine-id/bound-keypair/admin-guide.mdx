@@ -250,7 +250,7 @@ concurrent or stateless reuse.
 ## Recovery after a cluster rollback
 
 If your Teleport cluster is rolled back for any reason, joining bots may fail
-[join state verification](#join-state-verification) as their local join state
+[join state verification](concepts.mdx#join-state-verification) as their local join state
 document may not match the values currently (or previously) known to Teleport.
 
 The simplest workaround is to temporarily set all bound keypair tokens to
