@@ -126,26 +126,37 @@ func (m *topModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// TODO: figure out how to calcualte the correct list height settings
 		m.raw.Update(tea.WindowSizeMsg{Width: m.width, Height: m.height - 7})
 	case tea.KeyMsg:
-		switch {
-		case key.Matches(msg, keymap.Keymap.Quit):
-			return m, tea.Quit
-		case key.Matches(msg, keymap.Keymap.Common):
-			m.selected = 0
-		case key.Matches(msg, keymap.Keymap.Backend):
-			m.selected = 1
-		case key.Matches(msg, keymap.Keymap.Cache):
-			m.selected = 2
-		case key.Matches(msg, keymap.Keymap.Watcher):
-			m.selected = 3
-		case key.Matches(msg, keymap.Keymap.Audit):
-			m.selected = 4
-		case key.Matches(msg, keymap.Keymap.Right):
-			m.selected = min(m.selected+1, len(tabs)-1)
-		case key.Matches(msg, keymap.Keymap.Left):
-			m.selected = max(m.selected-1, 0)
+		if m.selected == 5 && m.raw.Focused() {
+			m.raw, cmd = m.raw.Update(msg)
+			cmds = append(cmds, cmd)
+		} else {
+			switch {
+			case key.Matches(msg, keymap.Keymap.Quit):
+				return m, tea.Quit
+			case key.Matches(msg, keymap.Keymap.Common):
+				m.selected = 0
+			case key.Matches(msg, keymap.Keymap.Backend):
+				m.selected = 1
+			case key.Matches(msg, keymap.Keymap.Cache):
+				m.selected = 2
+			case key.Matches(msg, keymap.Keymap.Watcher):
+				m.selected = 3
+			case key.Matches(msg, keymap.Keymap.Audit):
+				m.selected = 4
+			case key.Matches(msg, keymap.Keymap.Raw):
+				m.selected = 5
+			case key.Matches(msg, keymap.Keymap.Right):
+				m.selected = min(m.selected+1, len(tabs)-1)
+			case key.Matches(msg, keymap.Keymap.Left):
+				m.selected = max(m.selected-1, 0)
+			case key.Matches(msg, keymap.Keymap.Filter),
+				key.Matches(msg, keymap.Keymap.Up),
+				key.Matches(msg, keymap.Keymap.Down):
+				// Forward key presses to raw list
+				m.raw, cmd = m.raw.Update(msg)
+				cmds = append(cmds, cmd)
+			}
 		}
-		m.raw, cmd = m.raw.Update(msg)
-		cmds = append(cmds, cmd)
 	case tickMsg:
 		cmds = append(cmds, m.tick(), m.fetchMetricsCmd())
 	case common.MetricsMsg:
@@ -253,9 +264,6 @@ func (m *topModel) footerView() string {
 // contentView generates the appropriate content
 // based on which tab is selected.
 func (m *topModel) contentView() string {
-
-	return m.raw.View()
-
 	if m.report == nil {
 		return ""
 	}
@@ -271,6 +279,8 @@ func (m *topModel) contentView() string {
 		return renderWatcher(m.report, m.height, m.width)
 	case 4:
 		return renderAudit(m.report, m.height, m.width)
+	case 5:
+		return m.raw.View()
 	default:
 		return ""
 	}
@@ -615,5 +625,5 @@ var (
 	failedEventStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color(fmt.Sprintf("%d", asciigraph.Red)))
 	trimmedEventStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(fmt.Sprintf("%d", asciigraph.Goldenrod)))
 
-	tabs = []string{"Common", "Backend", "Cache", "Watcher", "Audit"}
+	tabs = []string{"Common", "Backend", "Cache", "Watcher", "Audit", "Raw Metrics"}
 )

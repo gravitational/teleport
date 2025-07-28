@@ -6,6 +6,8 @@ type keyMap struct {
 	Quit  key.Binding
 	Right key.Binding
 	Left  key.Binding
+	Up    key.Binding
+	Down  key.Binding
 
 	// Tabs
 	Common  key.Binding
@@ -13,6 +15,8 @@ type keyMap struct {
 	Cache   key.Binding
 	Watcher key.Binding
 	Audit   key.Binding
+	Raw     key.Binding
+	Filter  key.Binding
 }
 
 var (
@@ -29,6 +33,14 @@ var (
 			key.WithKeys("right", "tab", "l"),
 			key.WithHelp("→", "next"),
 		),
+		Up: key.NewBinding(
+			key.WithKeys("up", "k"),
+			key.WithHelp("↑", "up"),
+		),
+		Down: key.NewBinding(
+			key.WithKeys("down", "j"),
+			key.WithHelp("↓", "down"),
+		),
 		Common: key.NewBinding(
 			key.WithKeys("1"), key.WithHelp("1", "common"),
 		),
@@ -43,6 +55,13 @@ var (
 		),
 		Audit: key.NewBinding(
 			key.WithKeys("5"), key.WithHelp("5", "audit"),
+		),
+		Raw: key.NewBinding(
+			key.WithKeys("6"), key.WithHelp("6", "raw"),
+		),
+
+		Filter: key.NewBinding(
+			key.WithKeys("/"), key.WithHelp("/", "filter"),
 		),
 	}
 )
