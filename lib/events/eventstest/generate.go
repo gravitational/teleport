@@ -20,13 +20,16 @@ package eventstest
 
 import (
 	"bytes"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/events"
 )
 
@@ -146,6 +149,157 @@ func GenerateTestSession(params SessionParams) []apievents.AuditEvent {
 
 	i++
 	sessionEnd.Metadata.Index = i
+	genEvents = append(genEvents, &sessionEnd)
+
+	return genEvents
+}
+
+// DBSessionParams specifies optional parameters
+// for a generated database session.
+type DBSessionParams struct {
+	// Queries is the number of queries to generate.
+	Queries int64
+	// Clock is an optional clock setting start
+	// and offset time of the event
+	Clock clockwork.Clock
+	// ServerID is an optional server ID
+	ServerID string
+	// DatabaseService is an optional database service name. (Caveat: this is
+	// actually the database resource name, not a database service, but that's
+	// how the event field is named.)
+	DatabaseService string
+	// SessionID is an optional session ID to set
+	SessionID string
+	// ClusterName is an optional originating cluster name
+	ClusterName string
+}
+
+// SetDefaults sets parameters defaults
+func (p *DBSessionParams) SetDefaults() {
+	if p.Clock == nil {
+		p.Clock = clockwork.NewFakeClockAt(
+			time.Date(2020, 0o3, 30, 15, 58, 54, 561*int(time.Millisecond), time.UTC))
+	}
+	if p.ServerID == "" {
+		p.ServerID = uuid.New().String()
+	}
+	if p.DatabaseService == "" {
+		p.DatabaseService = "testdb"
+	}
+	if p.SessionID == "" {
+		p.SessionID = uuid.New().String()
+	}
+}
+
+// GenerateTestDBSession generates test database session events starting with
+// session start event, adds params.Queries events and returns the result.
+func GenerateTestDBSession(params DBSessionParams) []apievents.AuditEvent {
+	params.SetDefaults()
+
+	startTime := params.Clock.Now().UTC()
+	endTime := startTime.Add(time.Minute)
+	userMetadata := apievents.UserMetadata{
+		User:     "bob@example.com",
+		UserKind: apievents.UserKind_USER_KIND_HUMAN,
+	}
+	sessionMetadata := apievents.SessionMetadata{
+		SessionID:        params.SessionID,
+		PrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
+	}
+	databaseMetadata := apievents.DatabaseMetadata{
+		DatabaseService:  params.DatabaseService,
+		DatabaseProtocol: types.DatabaseProtocolPostgreSQL,
+		DatabaseURI:      "localhost:5432",
+		DatabaseName:     "Northwind",
+		DatabaseUser:     "postgres",
+		DatabaseType:     types.DatabaseTypeSelfHosted,
+		DatabaseOrigin:   types.OriginConfigFile,
+	}
+
+	sessionStart := apievents.DatabaseSessionStart{
+		Metadata: apievents.Metadata{
+			Index:       0,
+			Type:        events.DatabaseSessionStartEvent,
+			ID:          "3f2876b7-6467-4741-8dc4-43c133bdd748",
+			Code:        events.DatabaseSessionStartCode,
+			Time:        startTime,
+			ClusterName: params.ClusterName,
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   teleport.Version,
+			ServerID:        params.ServerID,
+			ServerNamespace: "default",
+		},
+		UserMetadata:     userMetadata,
+		SessionMetadata:  sessionMetadata,
+		DatabaseMetadata: databaseMetadata,
+		Status: apievents.Status{
+			Success: true,
+		},
+		PostgresPID: 12345,
+		ClientMetadata: apievents.ClientMetadata{
+			UserAgent: "psql",
+		},
+	}
+
+	sessionEnd := apievents.DatabaseSessionEnd{
+		Metadata: apievents.Metadata{
+			Index:       20,
+			Type:        events.DatabaseSessionEndEvent,
+			ID:          "9ee71c9-e509-47ed-bbac-16b7a38b660d",
+			Code:        events.DatabaseSessionEndCode,
+			Time:        endTime,
+			ClusterName: params.ClusterName,
+		},
+		UserMetadata:     userMetadata,
+		SessionMetadata:  sessionMetadata,
+		DatabaseMetadata: databaseMetadata,
+		StartTime:        startTime,
+		EndTime:          endTime,
+	}
+
+	genEvents := []apievents.AuditEvent{&sessionStart}
+	for i := range params.Queries {
+		query := &apievents.DatabaseSessionQuery{
+			Metadata: apievents.Metadata{
+				Index:       i * 2,
+				Type:        events.DatabaseSessionQueryEvent,
+				ID:          uuid.New().String(),
+				Code:        events.DatabaseSessionQueryCode,
+				Time:        startTime.Add(time.Minute + time.Duration(i*2)*time.Millisecond),
+				ClusterName: params.ClusterName,
+			},
+			UserMetadata:     userMetadata,
+			SessionMetadata:  sessionMetadata,
+			DatabaseMetadata: databaseMetadata,
+			DatabaseQuery:    fmt.Sprintf("SELECT order_id FROM order where customer_id=%d", i),
+			Status: apievents.Status{
+				Success: true,
+			},
+		}
+
+		result := &apievents.DatabaseSessionCommandResult{
+			Metadata: apievents.Metadata{
+				Index:       i*2 + 1,
+				Type:        events.DatabaseSessionCommandResultEvent,
+				ID:          uuid.New().String(),
+				Code:        events.DatabaseSessionCommandResultCode,
+				Time:        startTime.Add(time.Minute + time.Duration(i*2+1)*time.Millisecond),
+				ClusterName: params.ClusterName,
+			},
+			UserMetadata:     userMetadata,
+			SessionMetadata:  sessionMetadata,
+			DatabaseMetadata: databaseMetadata,
+			Status: apievents.Status{
+				Success: true,
+			},
+			AffectedRecords: 10,
+		}
+
+		genEvents = append(genEvents, query, result)
+	}
+
+	sessionEnd.Metadata.Index = int64(len(genEvents))
 	genEvents = append(genEvents, &sessionEnd)
 
 	return genEvents
