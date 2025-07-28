@@ -109,7 +109,7 @@ require (
 	github.com/go-ldap/ldap/v3 v3.4.8
 	github.com/go-logr/logr v1.4.2
 	github.com/go-mysql-org/go-mysql v1.9.1 // replaced
-	github.com/go-piv/piv-go/v2 v2.3.0
+	github.com/go-piv/piv-go/v2 v2.4.0
 	github.com/go-resty/resty/v2 v2.15.3
 	github.com/go-webauthn/webauthn v0.11.2
 	github.com/gobwas/ws v1.4.0
