@@ -287,8 +287,10 @@ func newTestServer(t *testing.T) *testServer {
 		t.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
 	}
 
-	// MySQL 8.4
-	const img = "mysql@sha256:85144db2a70009020bc161bb11c34064e80e8e951b983c5fe3905ef688b54de8"
+	// MySQL 8.4.6 index digest
+	// https://docs.docker.com/dhi/core-concepts/digests/#multi-platform-images-and-manifests
+	// https://hub.docker.com/layers/library/mysql/8.4.6/images/sha256-9b9413211d004062e6d5be1118e1051773fe66d832ec9ebcae1c2fcce5af5f5b
+	const img = "mysql@sha256:d2c60b1b225c6d7845f0abdb596fc35c2d4122bcad6ec219588035a118f75d93"
 	container, err := mysqlcontainer.Run(ctx, img, opts...)
 	if reuseName == "" {
 		defer testcontainers.CleanupContainer(t, container)
