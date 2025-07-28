@@ -32,6 +32,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/gravitational/trace"
 	"github.com/guptarohit/asciigraph"
+	dto "github.com/prometheus/client_model/go"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/tool/tctl/common/top/tui/keymap"
@@ -61,35 +62,54 @@ func newTopModel(refreshInterval time.Duration, clt MetricsClient, addr string) 
 	}
 }
 
-// refresh pulls metrics from Teleport and builds
-// a [Report] according to the configured refresh
-// interval.
-func (m *topModel) refresh() tea.Cmd {
-	return func() tea.Msg {
-		if m.report != nil {
-			<-time.After(m.refreshInterval)
-		}
+type metricsMsg map[string]*dto.MetricFamily
+type tickMsg time.Time
 
+// tick provides a ticker at a specified interval.
+func (m *topModel) tick() tea.Cmd {
+	return tea.Tick(m.refreshInterval, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
+}
+
+// fetchMetricsCmd fetches metrics from target and returns [metricsMsg].
+func (m *topModel) fetchMetricsCmd() tea.Cmd {
+	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		report, err := fetchAndGenerateReport(ctx, m.clt, m.report, m.refreshInterval)
+		metrics, err := m.clt.GetMetrics(ctx)
+
 		if err != nil {
 			return err
 		}
 
+		return metricsMsg(metrics)
+	}
+}
+
+// generateReportCmd returns a command to generate a [Report] from given [metricsMsg]
+func (m *topModel) generateReportCmd(metrics metricsMsg) tea.Cmd {
+	return func() tea.Msg {
+		report, err := generateReport(metrics, m.report, m.refreshInterval)
+		if err != nil {
+			return err
+		}
 		return report
 	}
 }
 
-// Init is a noop but required to implement [tea.Model].
+// Init kickstarts the ticker to begin polling.
 func (m *topModel) Init() tea.Cmd {
-	return m.refresh()
+	return func() tea.Msg {
+		return tickMsg(time.Now())
+	}
 }
 
 // Update processes messages in order to updated the
 // view based on user input and new metrics data.
 func (m *topModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		h, v := lipgloss.NewStyle().GetFrameSize()
@@ -114,15 +134,17 @@ func (m *topModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keymap.Keymap.Left):
 			m.selected = max(m.selected-1, 0)
 		}
+	case tickMsg:
+		cmds = append(cmds, m.tick(), m.fetchMetricsCmd())
+	case metricsMsg:
+		cmds = append(cmds, m.generateReportCmd(msg))
 	case *Report:
 		m.report = msg
 		m.reportError = nil
-		return m, m.refresh()
 	case error:
 		m.reportError = msg
-		return m, m.refresh()
 	}
-	return m, nil
+	return m, tea.Batch(cmds...)
 }
 
 // View formats the metrics and draws them to
