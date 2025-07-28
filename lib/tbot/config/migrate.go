@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
 )
 
 type destinationMixinV1 struct {
@@ -265,7 +266,7 @@ func (c *configV1Destination) migrate() (ServiceConfig, error) {
 				break
 			}
 		}
-		return &ApplicationOutput{
+		return &application.OutputConfig{
 			Destination:           dest,
 			Roles:                 c.Roles,
 			AppName:               c.App,

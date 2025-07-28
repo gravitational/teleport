@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
@@ -164,7 +165,7 @@ func TestKubernetesOutputService_render(t *testing.T) {
 				log:            logtest.NewLogger(),
 			}
 
-			keyRing, err := NewClientKeyRing(
+			keyRing, err := internal.NewClientKeyRing(
 				id,
 				[]types.CertAuthority{fakeCA(t, types.HostCA, mockClusterName)},
 			)
