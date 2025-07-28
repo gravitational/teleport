@@ -34,7 +34,7 @@ import (
 	"github.com/guptarohit/asciigraph"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/tool/tctl/common/top/tui/keymap"
+	"github.com/gravitational/teleport/tool/tctl/common/top/tui"
 )
 
 // topModel is a [tea.Model] implementation which
@@ -50,6 +50,39 @@ type topModel struct {
 	report          *Report
 	reportError     error
 	addr            string
+	keys            *tui.KeyMap
+}
+
+func newTopKeyMap() *tui.KeyMap {
+	return &tui.KeyMap{
+		Quit: key.NewBinding(
+			key.WithKeys("q", "ctrl+c"),
+			key.WithHelp("q", "quit"),
+		),
+		Left: key.NewBinding(
+			key.WithKeys("left", "esc", "shift+tab", "h"),
+			key.WithHelp("←", "previous"),
+		),
+		Right: key.NewBinding(
+			key.WithKeys("right", "tab", "l"),
+			key.WithHelp("→", "next"),
+		),
+		Common: key.NewBinding(
+			key.WithKeys("1"), key.WithHelp("1", "common"),
+		),
+		Backend: key.NewBinding(
+			key.WithKeys("2"), key.WithHelp("2", "backend"),
+		),
+		Cache: key.NewBinding(
+			key.WithKeys("3"), key.WithHelp("3", "cache"),
+		),
+		Watcher: key.NewBinding(
+			key.WithKeys("4"), key.WithHelp("4", "watcher"),
+		),
+		Audit: key.NewBinding(
+			key.WithKeys("5"), key.WithHelp("5", "audit"),
+		),
+	}
 }
 
 func newTopModel(refreshInterval time.Duration, clt MetricsClient, addr string) *topModel {
@@ -58,6 +91,7 @@ func newTopModel(refreshInterval time.Duration, clt MetricsClient, addr string) 
 		clt:             clt,
 		refreshInterval: refreshInterval,
 		addr:            addr,
+		keys:            newTopKeyMap(),
 	}
 }
 
@@ -97,21 +131,21 @@ func (m *topModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width - h
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, keymap.Keymap.Quit):
+		case key.Matches(msg, m.keys.Quit):
 			return m, tea.Quit
-		case key.Matches(msg, keymap.Keymap.Common):
+		case key.Matches(msg, m.keys.Common):
 			m.selected = 0
-		case key.Matches(msg, keymap.Keymap.Backend):
+		case key.Matches(msg, m.keys.Backend):
 			m.selected = 1
-		case key.Matches(msg, keymap.Keymap.Cache):
+		case key.Matches(msg, m.keys.Cache):
 			m.selected = 2
-		case key.Matches(msg, keymap.Keymap.Watcher):
+		case key.Matches(msg, m.keys.Watcher):
 			m.selected = 3
-		case key.Matches(msg, keymap.Keymap.Audit):
+		case key.Matches(msg, m.keys.Audit):
 			m.selected = 4
-		case key.Matches(msg, keymap.Keymap.Right):
+		case key.Matches(msg, m.keys.Right):
 			m.selected = min(m.selected+1, len(tabs)-1)
-		case key.Matches(msg, keymap.Keymap.Left):
+		case key.Matches(msg, m.keys.Left):
 			m.selected = max(m.selected-1, 0)
 		}
 	case *Report:
@@ -195,7 +229,7 @@ func (m *topModel) footerView() string {
 		Inline(true).
 		Width(35).
 		Align(lipgloss.Center).
-		Render(m.help.View(keymap.Keymap))
+		Render(m.help.View(m.keys))
 
 	center := lipgloss.NewStyle().
 		Inline(true).
