@@ -58,8 +58,18 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.list.SetSize(msg.Width, msg.Height)
 	case common.MetricsMsg:
+		filterValue := m.list.FilterInput.Value()
+		selected := m.list.Index()
 		cmd = m.list.SetItems(convertMetricsToItems(msg))
 		cmds = append(cmds, cmd)
+
+		// There is a glitch in the list.Model view when a filter has been applied
+		// the pagination status is broken after replacing all items. Workaround this by
+		// manually resetting the filter and updating the selection.
+		if m.list.FilterState() == list.FilterApplied {
+			m.list.SetFilterText(filterValue)
+			m.list.Select(selected)
+		}
 	default:
 		m.list, cmd = m.list.Update(msg)
 		cmds = append(cmds, cmd)
