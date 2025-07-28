@@ -98,6 +98,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
+	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
@@ -2192,6 +2193,8 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
+	sessionSummarizerProvider := summarizer.NewSessionSummarizerProvider()
+
 	// create the audit log, which will be consuming (and recording) all events
 	// and recording all sessions.
 	if cfg.Auth.NoAudit {
@@ -2229,8 +2232,9 @@ func (process *TeleportProcess) initAuthService() error {
 			}
 		}
 		streamer, err = events.NewProtoStreamer(events.ProtoStreamerConfig{
-			Uploader:  uploadHandler,
-			Encrypter: encryptedIO,
+			Uploader:                  uploadHandler,
+			Encrypter:                 encryptedIO,
+			SessionSummarizerProvider: sessionSummarizerProvider,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2351,6 +2355,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Tracer:                      process.TracingProvider.Tracer(teleport.ComponentAuth),
 			Logger:                      logger,
 			RunWhileLockedRetryInterval: cfg.Testing.RunWhileLockedRetryInterval,
+			SessionSummarizerProvider:   sessionSummarizerProvider,
 		}, func(as *auth.Server) error {
 			if !process.Config.CachePolicy.Enabled {
 				return nil
