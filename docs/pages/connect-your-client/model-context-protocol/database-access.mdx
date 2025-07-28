@@ -46,7 +46,7 @@ or [Database Access Controls](../../enroll-resources/database-access/rbac.mdx).
 First, sign in into your Teleport cluster using `tsh login`:
 
 ```code
-$ tsh login --proxy=<Var name="teleport.example.com" />:443 --user=myuser@example.com
+$ tsh login --proxy=<Var name="teleport.example.com:443" /> --user=myuser@example.com
 ```
 
 Only databases that you have access to can be exposed as MCP servers. You can
@@ -131,14 +131,14 @@ Here is a sample JSON configuration for launching Teleport MCP servers:
         "mcp",
         "db",
         "start",
-        "teleport://clusters/<Var name="teleport.example.com" />/databases/postgres-dev?dbName=employees&dbUser=postgres"
+        "teleport://clusters/<Var name="teleport.example.com:443" />/databases/postgres-dev?dbName=employees&dbUser=postgres"
       ]
     }
   }
 }
 
 If you already have an entry for "teleport-databases" server, add the following database resource URI to the command arguments list:
-teleport://clusters/<Var name="teleport.example.com" />/databases/postgres-dev?dbName=employees&dbUser=postgres
+teleport://clusters/<Var name="teleport.example.com:443" />/databases/postgres-dev?dbName=employees&dbUser=postgres
 ```
 </TabItem>
 </Tabs>
