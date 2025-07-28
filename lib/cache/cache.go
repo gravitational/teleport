@@ -43,6 +43,7 @@ import (
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/backendmetrics"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -207,6 +208,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindWorkloadIdentity},
 		{Kind: types.KindHealthCheckConfig},
 		{Kind: types.KindBotInstance},
+		{Kind: types.KindRelayServer},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -263,8 +265,25 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindAutoUpdateAgentRollout},
 		{Kind: types.KindUserTask},
 		{Kind: types.KindGitServer},
+		{Kind: types.KindRelayServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
+	return cfg
+}
+
+func ForRelay(cfg Config) Config {
+	cfg.target = "relay"
+	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindCertAuthority, Filter: makeAllKnownCAsFilter().IntoMap()},
+		{Kind: types.KindClusterAuthPreference},
+		{Kind: types.KindClusterNetworkingConfig},
+		{Kind: types.KindNode},
+		{Kind: types.KindRelayServer},
+		{Kind: types.KindRole},
+		{Kind: types.KindSessionRecordingConfig},
+		{Kind: types.KindUser},
+	}
+	cfg.QueueSize = defaults.RelayQueueSize
 	return cfg
 }
 
@@ -513,6 +532,8 @@ type Cache struct {
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
 }
+
+var _ authclient.Cache = (*Cache)(nil)
 
 func (c *Cache) setInitError(err error) {
 	c.initOnce.Do(func() {

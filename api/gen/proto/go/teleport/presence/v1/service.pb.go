@@ -504,11 +504,295 @@ func (x *DeleteReverseTunnelRequest) GetName() string {
 	return ""
 }
 
+// Request message for the PresenceService.GetRelayServer rpc.
+type GetRelayServerRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRelayServerRequest) Reset() {
+	*x = GetRelayServerRequest{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRelayServerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRelayServerRequest) ProtoMessage() {}
+
+func (x *GetRelayServerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRelayServerRequest.ProtoReflect.Descriptor instead.
+func (*GetRelayServerRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *GetRelayServerRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+// Response message for the PresenceService.GetRelayServer rpc.
+type GetRelayServerResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RelayServer   *RelayServer           `protobuf:"bytes,1,opt,name=relay_server,json=relayServer,proto3" json:"relay_server,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRelayServerResponse) Reset() {
+	*x = GetRelayServerResponse{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRelayServerResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRelayServerResponse) ProtoMessage() {}
+
+func (x *GetRelayServerResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRelayServerResponse.ProtoReflect.Descriptor instead.
+func (*GetRelayServerResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *GetRelayServerResponse) GetRelayServer() *RelayServer {
+	if x != nil {
+		return x.RelayServer
+	}
+	return nil
+}
+
+// Request message for the PresenceService.ListRelayServers rpc.
+type ListRelayServersRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The maximum number of items to return. The service may return fewer than
+	// this value. If unspecified, the service will use a sensible default.
+	PageSize int64 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// A pagination token returned from a previous request. If empty, the request
+	// will return the first page.
+	PageToken     string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRelayServersRequest) Reset() {
+	*x = ListRelayServersRequest{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRelayServersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRelayServersRequest) ProtoMessage() {}
+
+func (x *ListRelayServersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRelayServersRequest.ProtoReflect.Descriptor instead.
+func (*ListRelayServersRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ListRelayServersRequest) GetPageSize() int64 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListRelayServersRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+// Response message for the PresenceService.ListRelayServers rpc.
+type ListRelayServersResponse struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Relays []*RelayServer         `protobuf:"bytes,1,rep,name=relays,proto3" json:"relays,omitempty"`
+	// A token that can be sent as the page_token to retrieve the next page. If
+	// this field is empty, there are no more pages.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRelayServersResponse) Reset() {
+	*x = ListRelayServersResponse{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRelayServersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRelayServersResponse) ProtoMessage() {}
+
+func (x *ListRelayServersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRelayServersResponse.ProtoReflect.Descriptor instead.
+func (*ListRelayServersResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ListRelayServersResponse) GetRelays() []*RelayServer {
+	if x != nil {
+		return x.Relays
+	}
+	return nil
+}
+
+func (x *ListRelayServersResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
+}
+
+// Request message for the PresenceService.DeleteRelayServer rpc.
+type DeleteRelayServerRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteRelayServerRequest) Reset() {
+	*x = DeleteRelayServerRequest{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteRelayServerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteRelayServerRequest) ProtoMessage() {}
+
+func (x *DeleteRelayServerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteRelayServerRequest.ProtoReflect.Descriptor instead.
+func (*DeleteRelayServerRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *DeleteRelayServerRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+// Response message for the PresenceService.DeleteRelayServer rpc.
+type DeleteRelayServerResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteRelayServerResponse) Reset() {
+	*x = DeleteRelayServerResponse{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteRelayServerResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteRelayServerResponse) ProtoMessage() {}
+
+func (x *DeleteRelayServerResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteRelayServerResponse.ProtoReflect.Descriptor instead.
+func (*DeleteRelayServerResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{14}
+}
+
 var File_teleport_presence_v1_service_proto protoreflect.FileDescriptor
 
 const file_teleport_presence_v1_service_proto_rawDesc = "" +
 	"\n" +
-	"\"teleport/presence/v1/service.proto\x12\x14teleport.presence.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a google/protobuf/field_mask.proto\x1a!teleport/legacy/types/types.proto\"-\n" +
+	"\"teleport/presence/v1/service.proto\x12\x14teleport.presence.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a google/protobuf/field_mask.proto\x1a!teleport/legacy/types/types.proto\x1a'teleport/presence/v1/relay_server.proto\"-\n" +
 	"\x17GetRemoteClusterRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"W\n" +
 	"\x19ListRemoteClustersRequest\x12\x1b\n" +
@@ -534,7 +818,21 @@ const file_teleport_presence_v1_service_proto_rawDesc = "" +
 	"\x1aUpsertReverseTunnelRequest\x12=\n" +
 	"\x0ereverse_tunnel\x18\x01 \x01(\v2\x16.types.ReverseTunnelV2R\rreverseTunnel\"0\n" +
 	"\x1aDeleteReverseTunnelRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name2\xe2\x05\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"+\n" +
+	"\x15GetRelayServerRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"^\n" +
+	"\x16GetRelayServerResponse\x12D\n" +
+	"\frelay_server\x18\x01 \x01(\v2!.teleport.presence.v1.RelayServerR\vrelayServer\"U\n" +
+	"\x17ListRelayServersRequest\x12\x1b\n" +
+	"\tpage_size\x18\x01 \x01(\x03R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\"}\n" +
+	"\x18ListRelayServersResponse\x129\n" +
+	"\x06relays\x18\x01 \x03(\v2!.teleport.presence.v1.RelayServerR\x06relays\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\".\n" +
+	"\x18DeleteRelayServerRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"\x1b\n" +
+	"\x19DeleteRelayServerResponse2\xb8\b\n" +
 	"\x0fPresenceService\x12Y\n" +
 	"\x10GetRemoteCluster\x12-.teleport.presence.v1.GetRemoteClusterRequest\x1a\x16.types.RemoteClusterV3\x12w\n" +
 	"\x12ListRemoteClusters\x12/.teleport.presence.v1.ListRemoteClustersRequest\x1a0.teleport.presence.v1.ListRemoteClustersResponse\x12_\n" +
@@ -542,7 +840,10 @@ const file_teleport_presence_v1_service_proto_rawDesc = "" +
 	"\x13DeleteRemoteCluster\x120.teleport.presence.v1.DeleteRemoteClusterRequest\x1a\x16.google.protobuf.Empty\x12w\n" +
 	"\x12ListReverseTunnels\x12/.teleport.presence.v1.ListReverseTunnelsRequest\x1a0.teleport.presence.v1.ListReverseTunnelsResponse\x12_\n" +
 	"\x13UpsertReverseTunnel\x120.teleport.presence.v1.UpsertReverseTunnelRequest\x1a\x16.types.ReverseTunnelV2\x12_\n" +
-	"\x13DeleteReverseTunnel\x120.teleport.presence.v1.DeleteReverseTunnelRequest\x1a\x16.google.protobuf.EmptyBTZRgithub.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1;presencev1b\x06proto3"
+	"\x13DeleteReverseTunnel\x120.teleport.presence.v1.DeleteReverseTunnelRequest\x1a\x16.google.protobuf.Empty\x12k\n" +
+	"\x0eGetRelayServer\x12+.teleport.presence.v1.GetRelayServerRequest\x1a,.teleport.presence.v1.GetRelayServerResponse\x12q\n" +
+	"\x10ListRelayServers\x12-.teleport.presence.v1.ListRelayServersRequest\x1a..teleport.presence.v1.ListRelayServersResponse\x12t\n" +
+	"\x11DeleteRelayServer\x12..teleport.presence.v1.DeleteRelayServerRequest\x1a/.teleport.presence.v1.DeleteRelayServerResponseBTZRgithub.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1;presencev1b\x06proto3"
 
 var (
 	file_teleport_presence_v1_service_proto_rawDescOnce sync.Once
@@ -556,7 +857,7 @@ func file_teleport_presence_v1_service_proto_rawDescGZIP() []byte {
 	return file_teleport_presence_v1_service_proto_rawDescData
 }
 
-var file_teleport_presence_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_teleport_presence_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_teleport_presence_v1_service_proto_goTypes = []any{
 	(*GetRemoteClusterRequest)(nil),    // 0: teleport.presence.v1.GetRemoteClusterRequest
 	(*ListRemoteClustersRequest)(nil),  // 1: teleport.presence.v1.ListRemoteClustersRequest
@@ -567,36 +868,51 @@ var file_teleport_presence_v1_service_proto_goTypes = []any{
 	(*ListReverseTunnelsResponse)(nil), // 6: teleport.presence.v1.ListReverseTunnelsResponse
 	(*UpsertReverseTunnelRequest)(nil), // 7: teleport.presence.v1.UpsertReverseTunnelRequest
 	(*DeleteReverseTunnelRequest)(nil), // 8: teleport.presence.v1.DeleteReverseTunnelRequest
-	(*types.RemoteClusterV3)(nil),      // 9: types.RemoteClusterV3
-	(*fieldmaskpb.FieldMask)(nil),      // 10: google.protobuf.FieldMask
-	(*types.ReverseTunnelV2)(nil),      // 11: types.ReverseTunnelV2
-	(*emptypb.Empty)(nil),              // 12: google.protobuf.Empty
+	(*GetRelayServerRequest)(nil),      // 9: teleport.presence.v1.GetRelayServerRequest
+	(*GetRelayServerResponse)(nil),     // 10: teleport.presence.v1.GetRelayServerResponse
+	(*ListRelayServersRequest)(nil),    // 11: teleport.presence.v1.ListRelayServersRequest
+	(*ListRelayServersResponse)(nil),   // 12: teleport.presence.v1.ListRelayServersResponse
+	(*DeleteRelayServerRequest)(nil),   // 13: teleport.presence.v1.DeleteRelayServerRequest
+	(*DeleteRelayServerResponse)(nil),  // 14: teleport.presence.v1.DeleteRelayServerResponse
+	(*types.RemoteClusterV3)(nil),      // 15: types.RemoteClusterV3
+	(*fieldmaskpb.FieldMask)(nil),      // 16: google.protobuf.FieldMask
+	(*types.ReverseTunnelV2)(nil),      // 17: types.ReverseTunnelV2
+	(*RelayServer)(nil),                // 18: teleport.presence.v1.RelayServer
+	(*emptypb.Empty)(nil),              // 19: google.protobuf.Empty
 }
 var file_teleport_presence_v1_service_proto_depIdxs = []int32{
-	9,  // 0: teleport.presence.v1.ListRemoteClustersResponse.remote_clusters:type_name -> types.RemoteClusterV3
-	9,  // 1: teleport.presence.v1.UpdateRemoteClusterRequest.remote_cluster:type_name -> types.RemoteClusterV3
-	10, // 2: teleport.presence.v1.UpdateRemoteClusterRequest.update_mask:type_name -> google.protobuf.FieldMask
-	11, // 3: teleport.presence.v1.ListReverseTunnelsResponse.reverse_tunnels:type_name -> types.ReverseTunnelV2
-	11, // 4: teleport.presence.v1.UpsertReverseTunnelRequest.reverse_tunnel:type_name -> types.ReverseTunnelV2
-	0,  // 5: teleport.presence.v1.PresenceService.GetRemoteCluster:input_type -> teleport.presence.v1.GetRemoteClusterRequest
-	1,  // 6: teleport.presence.v1.PresenceService.ListRemoteClusters:input_type -> teleport.presence.v1.ListRemoteClustersRequest
-	3,  // 7: teleport.presence.v1.PresenceService.UpdateRemoteCluster:input_type -> teleport.presence.v1.UpdateRemoteClusterRequest
-	4,  // 8: teleport.presence.v1.PresenceService.DeleteRemoteCluster:input_type -> teleport.presence.v1.DeleteRemoteClusterRequest
-	5,  // 9: teleport.presence.v1.PresenceService.ListReverseTunnels:input_type -> teleport.presence.v1.ListReverseTunnelsRequest
-	7,  // 10: teleport.presence.v1.PresenceService.UpsertReverseTunnel:input_type -> teleport.presence.v1.UpsertReverseTunnelRequest
-	8,  // 11: teleport.presence.v1.PresenceService.DeleteReverseTunnel:input_type -> teleport.presence.v1.DeleteReverseTunnelRequest
-	9,  // 12: teleport.presence.v1.PresenceService.GetRemoteCluster:output_type -> types.RemoteClusterV3
-	2,  // 13: teleport.presence.v1.PresenceService.ListRemoteClusters:output_type -> teleport.presence.v1.ListRemoteClustersResponse
-	9,  // 14: teleport.presence.v1.PresenceService.UpdateRemoteCluster:output_type -> types.RemoteClusterV3
-	12, // 15: teleport.presence.v1.PresenceService.DeleteRemoteCluster:output_type -> google.protobuf.Empty
-	6,  // 16: teleport.presence.v1.PresenceService.ListReverseTunnels:output_type -> teleport.presence.v1.ListReverseTunnelsResponse
-	11, // 17: teleport.presence.v1.PresenceService.UpsertReverseTunnel:output_type -> types.ReverseTunnelV2
-	12, // 18: teleport.presence.v1.PresenceService.DeleteReverseTunnel:output_type -> google.protobuf.Empty
-	12, // [12:19] is the sub-list for method output_type
-	5,  // [5:12] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	15, // 0: teleport.presence.v1.ListRemoteClustersResponse.remote_clusters:type_name -> types.RemoteClusterV3
+	15, // 1: teleport.presence.v1.UpdateRemoteClusterRequest.remote_cluster:type_name -> types.RemoteClusterV3
+	16, // 2: teleport.presence.v1.UpdateRemoteClusterRequest.update_mask:type_name -> google.protobuf.FieldMask
+	17, // 3: teleport.presence.v1.ListReverseTunnelsResponse.reverse_tunnels:type_name -> types.ReverseTunnelV2
+	17, // 4: teleport.presence.v1.UpsertReverseTunnelRequest.reverse_tunnel:type_name -> types.ReverseTunnelV2
+	18, // 5: teleport.presence.v1.GetRelayServerResponse.relay_server:type_name -> teleport.presence.v1.RelayServer
+	18, // 6: teleport.presence.v1.ListRelayServersResponse.relays:type_name -> teleport.presence.v1.RelayServer
+	0,  // 7: teleport.presence.v1.PresenceService.GetRemoteCluster:input_type -> teleport.presence.v1.GetRemoteClusterRequest
+	1,  // 8: teleport.presence.v1.PresenceService.ListRemoteClusters:input_type -> teleport.presence.v1.ListRemoteClustersRequest
+	3,  // 9: teleport.presence.v1.PresenceService.UpdateRemoteCluster:input_type -> teleport.presence.v1.UpdateRemoteClusterRequest
+	4,  // 10: teleport.presence.v1.PresenceService.DeleteRemoteCluster:input_type -> teleport.presence.v1.DeleteRemoteClusterRequest
+	5,  // 11: teleport.presence.v1.PresenceService.ListReverseTunnels:input_type -> teleport.presence.v1.ListReverseTunnelsRequest
+	7,  // 12: teleport.presence.v1.PresenceService.UpsertReverseTunnel:input_type -> teleport.presence.v1.UpsertReverseTunnelRequest
+	8,  // 13: teleport.presence.v1.PresenceService.DeleteReverseTunnel:input_type -> teleport.presence.v1.DeleteReverseTunnelRequest
+	9,  // 14: teleport.presence.v1.PresenceService.GetRelayServer:input_type -> teleport.presence.v1.GetRelayServerRequest
+	11, // 15: teleport.presence.v1.PresenceService.ListRelayServers:input_type -> teleport.presence.v1.ListRelayServersRequest
+	13, // 16: teleport.presence.v1.PresenceService.DeleteRelayServer:input_type -> teleport.presence.v1.DeleteRelayServerRequest
+	15, // 17: teleport.presence.v1.PresenceService.GetRemoteCluster:output_type -> types.RemoteClusterV3
+	2,  // 18: teleport.presence.v1.PresenceService.ListRemoteClusters:output_type -> teleport.presence.v1.ListRemoteClustersResponse
+	15, // 19: teleport.presence.v1.PresenceService.UpdateRemoteCluster:output_type -> types.RemoteClusterV3
+	19, // 20: teleport.presence.v1.PresenceService.DeleteRemoteCluster:output_type -> google.protobuf.Empty
+	6,  // 21: teleport.presence.v1.PresenceService.ListReverseTunnels:output_type -> teleport.presence.v1.ListReverseTunnelsResponse
+	17, // 22: teleport.presence.v1.PresenceService.UpsertReverseTunnel:output_type -> types.ReverseTunnelV2
+	19, // 23: teleport.presence.v1.PresenceService.DeleteReverseTunnel:output_type -> google.protobuf.Empty
+	10, // 24: teleport.presence.v1.PresenceService.GetRelayServer:output_type -> teleport.presence.v1.GetRelayServerResponse
+	12, // 25: teleport.presence.v1.PresenceService.ListRelayServers:output_type -> teleport.presence.v1.ListRelayServersResponse
+	14, // 26: teleport.presence.v1.PresenceService.DeleteRelayServer:output_type -> teleport.presence.v1.DeleteRelayServerResponse
+	17, // [17:27] is the sub-list for method output_type
+	7,  // [7:17] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_teleport_presence_v1_service_proto_init() }
@@ -604,13 +920,14 @@ func file_teleport_presence_v1_service_proto_init() {
 	if File_teleport_presence_v1_service_proto != nil {
 		return
 	}
+	file_teleport_presence_v1_relay_server_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_presence_v1_service_proto_rawDesc), len(file_teleport_presence_v1_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
