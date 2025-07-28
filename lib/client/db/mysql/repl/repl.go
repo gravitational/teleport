@@ -36,6 +36,7 @@ import (
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 )
 
+// REPL implements [dbrepl.REPLInstance] for MySQL.
 type REPL struct {
 	client     io.ReadWriteCloser
 	serverConn net.Conn
@@ -57,6 +58,7 @@ type mysqlConn interface {
 	GetConnectionID() uint32
 }
 
+// New implements [dbrepl.REPLNewFunc].
 func New(_ context.Context, cfg *dbrepl.NewREPLConfig) (dbrepl.REPLInstance, error) {
 	cmds, err := newCommands()
 	if err != nil {
@@ -172,6 +174,11 @@ func (r *REPL) getPrompt() string {
 		suffix = dbName
 	}
 	padding := len(dbName)
+	// pad the suffix with leading spaces until it is len(dbName), for example:
+	// default: "mysql>"
+	// comment: "   */>"
+	// string:  "    '>"
+	// query:   "    ->"
 	return fmt.Sprintf("%*s> ", padding, suffix)
 }
 
