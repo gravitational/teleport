@@ -600,6 +600,10 @@ type Global struct {
 	AdvertiseIP string           `yaml:"advertise_ip,omitempty"`
 	CachePolicy CachePolicy      `yaml:"cache,omitempty"`
 
+	// ShutdownDelay is a fixed delay between receiving a termination signal and
+	// the beginning of the shutdown procedures.
+	ShutdownDelay types.Duration `yaml:"shutdown_delay,omitempty"`
+
 	// CipherSuites is a list of TLS ciphersuites that Teleport supports. If
 	// omitted, a Teleport selected list of defaults will be used.
 	CipherSuites []string `yaml:"ciphersuites,omitempty"`

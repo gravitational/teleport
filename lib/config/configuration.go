@@ -580,6 +580,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	cfg.CachePolicy = *cachePolicy
 
+	cfg.ShutdownDelay = time.Duration(fc.ShutdownDelay)
+
 	// Apply (TLS) cipher suites and (SSH) ciphers, KEX algorithms, and MAC
 	// algorithms.
 	if len(fc.CipherSuites) > 0 {
