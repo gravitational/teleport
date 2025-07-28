@@ -1,5 +1,5 @@
 teleport:
-  address: ""              # e.g., teleport.example.com:443 
+  address: ""              # e.g., example.teleport.sh:443 
   identitySecretName: ""   # e.g., teleport-plugin-email-identity
   identitySecretPath: ""   # e.g., identity
 
