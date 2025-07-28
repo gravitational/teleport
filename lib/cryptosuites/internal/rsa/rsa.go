@@ -27,15 +27,18 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = slog.With(teleport.ComponentKey, teleport.ComponentKeyGen)
+var (
+	log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentKeyGen)
 
-// precomputedKeys is a queue of cached keys ready for usage.
-var precomputedKeys = make(chan *rsa.PrivateKey, 25)
+	// PrecomputedKeys is a queue of cached keys ready for usage.
+	PrecomputedKeys = make(chan *rsa.PrivateKey, 25)
 
-// startPrecomputeOnce is used to start the background task that precomputes key pairs.
-var startPrecomputeOnce sync.Once
+	// StartPrecomputeOnce is used to start the background task that precomputes key pairs.
+	StartPrecomputeOnce sync.Once
+)
 
 // GenerateKey returns a newly generated RSA private key.
 func GenerateKey() (*rsa.PrivateKey, error) {
@@ -44,7 +47,7 @@ func GenerateKey() (*rsa.PrivateKey, error) {
 
 func getOrGenerateRSAPrivateKey() (*rsa.PrivateKey, error) {
 	select {
-	case k := <-precomputedKeys:
+	case k := <-PrecomputedKeys:
 		return k, nil
 	default:
 		rsaKeyPair, err := generateRSAPrivateKey()
@@ -70,7 +73,7 @@ func precomputeKeys() {
 			time.Sleep(backoff)
 		}
 
-		precomputedKeys <- rsaPrivateKey
+		PrecomputedKeys <- rsaPrivateKey
 	}
 }
 
@@ -79,12 +82,12 @@ func precomputeTestKeys() {
 	keysToReuse := make([]*rsa.PrivateKey, 0, testKeysNumber)
 	for range testKeysNumber {
 		k := <-generatedTestKeys
-		precomputedKeys <- k
+		PrecomputedKeys <- k
 		keysToReuse = append(keysToReuse, k)
 	}
 	for {
 		for _, k := range keysToReuse {
-			precomputedKeys <- k
+			PrecomputedKeys <- k
 		}
 	}
 }
@@ -113,7 +116,7 @@ func generateTestKeys() <-chan *rsa.PrivateKey {
 // computed in advance. This should only be enabled if large spikes in key computation
 // are expected (e.g. in auth/proxy services). Safe to double-call.
 func PrecomputeKeys() {
-	startPrecomputeOnce.Do(func() {
+	StartPrecomputeOnce.Do(func() {
 		go precomputeKeys()
 	})
 }
@@ -122,8 +125,10 @@ func PrecomputeKeys() {
 // reduce CPU usage. This method should only be in tests. Safe to call multiple
 // times. This function takes *testing.M so it can only be used from TestMain in
 // tests.
+// Deprecated: prefer using cyptosuitestest.PrecomputeRSAKeys instead
+// TODO(tross): Delete once references in teleport.e are gone.
 func PrecomputeTestKeys(_ *testing.M) {
-	startPrecomputeOnce.Do(func() {
+	StartPrecomputeOnce.Do(func() {
 		go precomputeTestKeys()
 	})
 }

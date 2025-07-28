@@ -1,6 +1,9 @@
 ---
 title: Database Access with AWS RDS Oracle with Kerberos Authentication
 description: How to configure Teleport Database Access with AWS RDS Oracle with Kerberos authentication.
+labels:
+ - how-to
+ - zero-trust
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Amazon RDS for Oracle" dbConfigure="with Kerberos authentication"!)
@@ -16,7 +19,7 @@ Database Service forwards user traffic to the database.
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v17.4.0 or higher)"!)
 
 - An Amazon RDS for Oracle database instance.
 - An AWS Directory Service Managed Microsoft AD.

@@ -56,7 +56,6 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/mod/semver"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -1650,6 +1649,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	}
 
 	group := r.URL.Query().Get(webclient.AgentUpdateGroupParameter)
+	updaterID := r.URL.Query().Get(webclient.AgentUpdateIDParameter)
 
 	return webclient.PingResponse{
 		Auth:              authSettings,
@@ -1658,7 +1658,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		MinClientVersion:  teleport.MinClientSemVer().String(),
 		ClusterName:       h.auth.clusterName,
 		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
-		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, "" /* updater UUID */),
+		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, updaterID),
 		Edition:           modules.GetModules().BuildType(),
 		FIPS:              modules.IsBoringBinary(),
 	}, nil
@@ -1694,7 +1694,18 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 			AutoUpdate:       h.automaticUpdateSettings184(ctx, group, "" /* updater UUID */),
 		}, nil
 	})
-	return resp, err
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Now we modulate the autoupdate answer on a per-request basis.
+	// We don't want to cache one answer per updater UUID, so we take the
+	// cached result and just override what we must.
+	updaterID := r.URL.Query().Get(webclient.AgentUpdateIDParameter)
+	if updaterID != "" {
+		resp.AutoUpdate = h.automaticUpdateSettings184(r.Context(), group, updaterID)
+	}
+	return resp, nil
 }
 
 func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -2272,8 +2283,14 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// semver parsing requires a 'v' at the beginning of the version string.
-	version := semver.Major("v" + ping.ServerVersion)
+
+	const group, agentUUD = "", ""
+	targetVersion, err := h.autoUpdateAgentVersion(r.Context(), group, agentUUD)
+	if err != nil {
+		h.logger.WarnContext(r.Context(), "Error retrieving the target version", "error", err)
+		targetVersion = teleport.SemVer()
+	}
+
 	instTmpl, err := template.New("").Parse(installer.GetScript())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2289,7 +2306,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	}
 
 	// By default, it uses the stable/v<majorVersion> channel.
-	repoChannel := fmt.Sprintf("stable/%s", version)
+	repoChannel := fmt.Sprintf("stable/v%d", targetVersion.Major)
 
 	// If the updater must be installed, then change the repo to stable/cloud
 	// It must also install the version specified in
@@ -2302,7 +2319,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 
 	tmpl := installers.Template{
 		PublicProxyAddr:   h.PublicProxyAddr(),
-		MajorVersion:      shsprintf.EscapeDefaultContext(version),
+		MajorVersion:      shsprintf.EscapeDefaultContext(fmt.Sprintf("v%d", targetVersion.Major)),
 		TeleportPackage:   teleportPackage,
 		RepoChannel:       shsprintf.EscapeDefaultContext(repoChannel),
 		AutomaticUpgrades: strconv.FormatBool(installUpdater),

@@ -198,7 +198,7 @@ message Event {
     // ProvisioningPrincipalState is a resource for tracking the provisioning of
     // users and groups into downstream systems.
     teleport.provisioning.v1.PrincipalState ProvisioningPrincipalState = 70;
-    // AutoUpdateVersion is a resource for controlling the autoupdate agent rollout.
+    // AutoUpdateAgentRollout is a resource for controlling the autoupdate agent rollout.
     teleport.autoupdate.v1.AutoUpdateAgentRollout AutoUpdateAgentRollout = 71;
     // IdentityCenterAccount is a resource for tracking Identity Center accounts
     teleport.identitycenter.v1.Account IdentityCenterAccount = 72;
@@ -214,5 +214,9 @@ message Event {
     teleport.workloadidentity.v1.WorkloadIdentity WorkloadIdentity = 76;
     // WorkloadIdentityX509Revocation is a resource for workload identity x509 revocation.
     teleport.workloadidentity.v1.WorkloadIdentityX509Revocation WorkloadIdentityX509Revocation = 77;
+    // AutoUpdateAgentReport is a resource for counting agents connected to an auth instance.
+    teleport.autoupdate.v1.AutoUpdateAgentReport AutoUpdateAgentReport = 79;
+    // PluginV1 is a resource for Teleport plugins.
+    types.PluginV1 plugin = 84;
   }
 }

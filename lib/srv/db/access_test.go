@@ -64,7 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -104,14 +104,18 @@ import (
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
-	cryptosuites.PrecomputeRSATestKeys(m)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cryptosuitestest.PrecomputeRSAKeys(ctx)
 	modules.SetInsecureTestMode(true)
 	registerTestSnowflakeEngine()
 	registerTestElasticsearchEngine()
 	registerTestOpenSearchEngine()
 	registerTestSQLServerEngine()
 	registerTestDynamoDBEngine()
-	os.Exit(m.Run())
+	exitCode := m.Run()
+	cancel()
+	os.Exit(exitCode)
 }
 
 // TestAccessPostgres verifies access scenarios to a Postgres database based
@@ -2571,12 +2575,17 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
-	inventoryHandle := inventory.NewDownstreamHandle(clt.InventoryControlStream, proto.UpstreamInventoryHello{
-		ServerID: p.HostID,
-		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleDatabase},
-		Hostname: "test",
-	})
+	inventoryHandle, err := inventory.NewDownstreamHandle(clt.InventoryControlStream,
+		func(_ context.Context) (proto.UpstreamInventoryHello, error) {
+			return proto.UpstreamInventoryHello{
+				ServerID: p.HostID,
+				Version:  teleport.Version,
+				Services: []types.SystemRole{types.RoleDatabase},
+				Hostname: "test",
+			}, nil
+		})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	// Create database server agent itself.
 	server, err := New(ctx, Config{

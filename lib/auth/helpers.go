@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net"
-	"strings"
 	"testing"
 	"time"
 
@@ -515,7 +514,7 @@ func InitTestAuthCache(p TestAuthCacheParams) error {
 		AccessLists:             p.AuthServer.Services.AccessLists,
 		AccessMonitoringRules:   p.AuthServer.Services.AccessMonitoringRules,
 		AppSession:              p.AuthServer.Services.Identity,
-		Apps:                    p.AuthServer.Services.Apps,
+		Applications:            p.AuthServer.Services.Applications,
 		ClusterConfig:           p.AuthServer.Services.ClusterConfigurationInternal,
 		CrownJewels:             p.AuthServer.Services.CrownJewels,
 		DatabaseObjects:         p.AuthServer.Services.DatabaseObjects,
@@ -554,6 +553,7 @@ func InitTestAuthCache(p TestAuthCacheParams) error {
 		PluginStaticCredentials: p.AuthServer.Services.PluginStaticCredentials,
 		GitServers:              p.AuthServer.Services.GitServers,
 		BotInstance:             p.AuthServer.Services.BotInstance,
+		Plugin:                  p.AuthServer.Services.Plugins,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1497,38 +1497,4 @@ func CreateUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []str
 	}
 
 	return created, upsertedRole, nil
-}
-
-// flushClt is the set of methods expected by the flushCache helper.
-type flushClt interface {
-	// GetNamespace returns namespace by name
-	GetNamespace(name string) (*types.Namespace, error)
-	// UpsertNamespace upserts namespace
-	UpsertNamespace(types.Namespace) error
-	// DeleteNamespace deletes namespace by name
-	DeleteNamespace(name string) error
-}
-
-// flushCache is a helper for waiting until preceding changes have propagated to the
-// cache during a test. this is useful for writing tests that may want to update backend
-// state and then perform some operation that depends on the auth server knoowing that state.
-// note that this is only intended for use with the memory backend, as this helper relies on the assumption that
-// write events for different keys show up in the order in which the writes were performed, which
-// is not necessarily true for all backends.
-func flushCache(t *testing.T, clt flushClt) {
-	// the pattern of writing a resource and then waiting for it to appear
-	// works for any resource type (when using memory backend). we use namespaces
-	// here because namespaces are deprecated and therefore unlikely to interfer
-	// with tests.
-	name := strings.ReplaceAll(uuid.NewString(), "-", "")
-	defer clt.DeleteNamespace(name)
-
-	ns, err := types.NewNamespace(name)
-	require.NoError(t, err)
-
-	require.NoError(t, clt.UpsertNamespace(ns))
-	require.Eventually(t, func() bool {
-		_, err := clt.GetNamespace(name)
-		return err == nil
-	}, time.Second*20, time.Millisecond*200)
 }

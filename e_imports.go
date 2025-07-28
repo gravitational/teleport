@@ -133,7 +133,7 @@ import (
 	_ "golang.org/x/crypto/ssh"
 	_ "golang.org/x/crypto/ssh/agent"
 	_ "golang.org/x/exp/constraints"
-	_ "golang.org/x/mod/semver"
+	_ "golang.org/x/mod/semver" //nolint:depguard // Usage precedes the x/mod/semver rule.
 	_ "golang.org/x/net/html"
 	_ "golang.org/x/net/http/httpproxy"
 	_ "golang.org/x/net/http2"
