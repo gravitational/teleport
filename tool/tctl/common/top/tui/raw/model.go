@@ -58,7 +58,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.list.SetSize(msg.Width, msg.Height)
 	case common.MetricsMsg:
-		cmd = m.list.SetItems(convertMetricsToListItems(msg))
+		cmd = m.list.SetItems(convertMetricsToItems(msg))
 		cmds = append(cmds, cmd)
 	default:
 		m.list, cmd = m.list.Update(msg)

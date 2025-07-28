@@ -20,6 +20,9 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/dustin/go-humanize"
+	dto "github.com/prometheus/client_model/go"
+
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/gravitational/teleport/tool/tctl/common/top/tui/common"
 )
@@ -34,43 +37,52 @@ func (m metricItem) Title() string       { return m.name }
 func (m metricItem) Description() string { return m.value }
 func (m metricItem) FilterValue() string { return m.name }
 
-func convertMetricsToListItems(msg common.MetricsMsg) []list.Item {
+func getLabelString(labels []*dto.LabelPair) string {
+	out := ""
+	for i, label := range labels {
+		if i > 0 {
+			out += ","
+		}
+		out += fmt.Sprintf(`%s="%s"`, label.GetName(), label.GetValue())
+	}
+
+	return fmt.Sprintf("{%s}", out)
+}
+
+func listItemFromPromMetric(mf *dto.MetricFamily, m *dto.Metric) list.Item {
+	value := "n/a"
+
+	switch mf.GetType() {
+	case dto.MetricType_COUNTER:
+		value = humanize.FormatFloat("", m.GetCounter().GetValue())
+	case dto.MetricType_GAUGE:
+		value = humanize.FormatFloat("", m.GetGauge().GetValue())
+	case dto.MetricType_SUMMARY:
+		value = fmt.Sprintf("count: %d sum: %s",
+			m.GetSummary().GetSampleCount(),
+			humanize.FormatFloat("", m.GetSummary().GetSampleSum()),
+		)
+	case dto.MetricType_HISTOGRAM:
+		// List view does not allow enough space to make historgram buckets meaningful, only show sum and count.
+		value = fmt.Sprintf("count: %d sum: %s",
+			m.GetHistogram().GetSampleCount(),
+			humanize.FormatFloat("", m.GetHistogram().GetSampleSum()),
+		)
+	}
+
+	return metricItem{
+		name:        mf.GetName() + getLabelString(m.GetLabel()),
+		description: mf.GetHelp(),
+		value:       value,
+	}
+}
+
+func convertMetricsToItems(msg common.MetricsMsg) []list.Item {
 	items := []list.Item{}
 
 	for _, mf := range msg {
 		for _, m := range mf.GetMetric() {
-			nameWithLabels := mf.GetName()
-
-			if len(m.Label) > 0 {
-				labels := ""
-				for i, label := range m.Label {
-					if i > 0 {
-						labels += ","
-					}
-					labels += fmt.Sprintf(`%s="%s"`, label.GetName(), label.GetValue())
-				}
-				nameWithLabels += fmt.Sprintf(`{%s}`, labels)
-			}
-
-			var value string
-			switch {
-			case m.Counter != nil:
-				value = fmt.Sprintf("%.2f", m.Counter.GetValue())
-			case m.Gauge != nil:
-				value = fmt.Sprintf("%.2f", m.Gauge.GetValue())
-			case m.Summary != nil:
-				value = fmt.Sprintf("count: %d sum: %.2f", m.Summary.GetSampleCount(), m.Summary.GetSampleSum())
-			case m.Histogram != nil:
-				value = fmt.Sprintf("count: %d sum: %.2f", m.Histogram.GetSampleCount(), m.Histogram.GetSampleSum())
-			default:
-				value = "n/a"
-			}
-
-			items = append(items, metricItem{
-				name:        nameWithLabels,
-				description: mf.GetHelp(),
-				value:       value,
-			})
+			items = append(items, listItemFromPromMetric(mf, m))
 		}
 	}
 
