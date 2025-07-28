@@ -34,6 +34,7 @@ import (
 	"github.com/guptarohit/asciigraph"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/tool/tctl/common/top/tui/keymap"
 )
 
 // topModel is a [tea.Model] implementation which
@@ -95,22 +96,22 @@ func (m *topModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height - v
 		m.width = msg.Width - h
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "q", "ctrl+c":
+		switch {
+		case key.Matches(msg, keymap.Keymap.Quit):
 			return m, tea.Quit
-		case "1":
+		case key.Matches(msg, keymap.Keymap.Common):
 			m.selected = 0
-		case "2":
+		case key.Matches(msg, keymap.Keymap.Backend):
 			m.selected = 1
-		case "3":
+		case key.Matches(msg, keymap.Keymap.Cache):
 			m.selected = 2
-		case "4":
+		case key.Matches(msg, keymap.Keymap.Watcher):
 			m.selected = 3
-		case "5":
+		case key.Matches(msg, keymap.Keymap.Audit):
 			m.selected = 4
-		case "right":
+		case key.Matches(msg, keymap.Keymap.Right):
 			m.selected = min(m.selected+1, len(tabs)-1)
-		case "left":
+		case key.Matches(msg, keymap.Keymap.Left):
 			m.selected = max(m.selected-1, 0)
 		}
 	case *Report:
@@ -194,7 +195,7 @@ func (m *topModel) footerView() string {
 		Inline(true).
 		Width(35).
 		Align(lipgloss.Center).
-		Render(m.help.View(helpKeys))
+		Render(m.help.View(keymap.Keymap))
 
 	center := lipgloss.NewStyle().
 		Inline(true).
@@ -558,41 +559,7 @@ func tabView(selectedTab int) string {
 	return output
 }
 
-// keyMap is used to display the help text at
-// the bottom of the screen.
-type keyMap struct {
-	quit  key.Binding
-	right key.Binding
-	left  key.Binding
-}
-
-func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.left, k.right, k.quit}
-}
-
-func (k keyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{
-		{k.left, k.right},
-		{k.quit},
-	}
-}
-
 var (
-	helpKeys = keyMap{
-		quit: key.NewBinding(
-			key.WithKeys("q", "esc", "ctrl+c"),
-			key.WithHelp("q", "quit"),
-		),
-		left: key.NewBinding(
-			key.WithKeys("left", "esc"),
-			key.WithHelp("left", "previous"),
-		),
-		right: key.NewBinding(
-			key.WithKeys("right"),
-			key.WithHelp("right", "next"),
-		),
-	}
-
 	statusBarStyle = lipgloss.NewStyle()
 
 	separator = lipgloss.NewStyle().
