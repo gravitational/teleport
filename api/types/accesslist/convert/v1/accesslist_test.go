@@ -122,9 +122,16 @@ func TestRoundtrip(t *testing.T) {
 			},
 		},
 		{
+			name: "implicit-dynamic-type",
+			modificationFn: func(accessList *accesslist.AccessList) {
+				accessList.Spec.Type = ""
+			},
+		},
+		{
 			name: "static-type",
 			modificationFn: func(accessList *accesslist.AccessList) {
 				accessList.Spec.Type = accesslist.Static
+				accessList.Spec.Audit = accesslist.Audit{}
 			},
 		},
 	} {
@@ -420,21 +427,6 @@ func TestConvAccessList(t *testing.T) {
 					Owners:             []*accesslistv1.AccessListOwner{},
 					OwnershipRequires:  &accesslistv1.AccessListRequires{},
 					MembershipRequires: &accesslistv1.AccessListRequires{},
-					Audit: &accesslistv1.AccessListAudit{
-						Recurrence: &accesslistv1.Recurrence{
-							Frequency:  1,
-							DayOfMonth: 1,
-						},
-						NextAuditDate: &timestamppb.Timestamp{
-							Seconds: 6,
-							Nanos:   1,
-						},
-						Notifications: &accesslistv1.Notifications{
-							Start: &durationpb.Duration{
-								Seconds: 1209600,
-							},
-						},
-					},
 					Grants: &accesslistv1.AccessListGrants{
 						Roles: []string{"role1"},
 					},
