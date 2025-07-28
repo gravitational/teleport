@@ -45,6 +45,11 @@ import {
   getBotSuccess,
 } from 'teleport/test/helpers/bots';
 import { successGetRoles } from 'teleport/test/helpers/roles';
+import {
+  listV2TokensError,
+  listV2TokensMfaError,
+  listV2TokensSuccess,
+} from 'teleport/test/helpers/tokens';
 
 import { BotDetails } from './BotDetails';
 
@@ -89,6 +94,7 @@ describe('BotDetails', () => {
     history.goBack = jest.fn();
 
     withFetchSuccess();
+    withFetchJoinTokensSuccess();
     renderComponent({ history });
     await waitForLoading();
 
@@ -100,6 +106,7 @@ describe('BotDetails', () => {
 
   it('should show page title', async () => {
     withFetchSuccess();
+    withFetchJoinTokensSuccess();
     renderComponent();
     await waitForLoading();
 
@@ -111,6 +118,7 @@ describe('BotDetails', () => {
 
   it('should show bot metadata', async () => {
     withFetchSuccess();
+    withFetchJoinTokensSuccess();
     renderComponent();
     await waitForLoading();
 
@@ -125,6 +133,7 @@ describe('BotDetails', () => {
 
   it('should show bot roles', async () => {
     withFetchSuccess();
+    withFetchJoinTokensSuccess();
     renderComponent();
     await waitForLoading();
 
@@ -139,6 +148,7 @@ describe('BotDetails', () => {
 
   it('should show bot traits', async () => {
     withFetchSuccess();
+    withFetchJoinTokensSuccess();
     renderComponent();
     await waitForLoading();
 
@@ -151,6 +161,58 @@ describe('BotDetails', () => {
     expect(within(panel!).getByText('value-1')).toBeInTheDocument();
     expect(within(panel!).getByText('value-2')).toBeInTheDocument();
     expect(within(panel!).getByText('value-3')).toBeInTheDocument();
+  });
+
+  it('should show bot join tokens', async () => {
+    withFetchSuccess();
+    withFetchJoinTokensSuccess();
+    renderComponent();
+    await waitForLoading();
+
+    const panel = screen
+      .getByRole('heading', { name: 'Join Tokens' })
+      .closest('section');
+    expect(panel).toBeInTheDocument();
+
+    expect(within(panel!).getByText('github')).toBeInTheDocument();
+    expect(within(panel!).getByText('iam')).toBeInTheDocument();
+    expect(within(panel!).getByText('oracle')).toBeInTheDocument();
+  });
+
+  it('should show bot join tokens outdated proxy warning', async () => {
+    withFetchSuccess();
+    withFetchJoinTokensOutdatedProxy();
+    renderComponent();
+    await waitForLoading();
+
+    const panel = screen
+      .getByRole('heading', { name: 'Join Tokens' })
+      .closest('section');
+    expect(panel).toBeInTheDocument();
+
+    expect(
+      within(panel!).getByText(
+        'Error: We could not complete your request. Your proxy (v18.0.0) may be behind the minimum required version (v19.0.0) to support this request. Ensure all proxies are upgraded and try again.'
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('should show bot join tokens mfa message', async () => {
+    withFetchSuccess();
+    withFetchJoinTokensMfaError();
+    renderComponent();
+    await waitForLoading();
+
+    const panel = screen
+      .getByRole('heading', { name: 'Join Tokens' })
+      .closest('section');
+    expect(panel).toBeInTheDocument();
+
+    expect(
+      within(panel!).getByText(
+        'Multi-factor authentication is required to view join tokens'
+      )
+    ).toBeInTheDocument();
   });
 
   it('should show an unauthorised error state', async () => {
@@ -172,6 +234,7 @@ describe('BotDetails', () => {
   describe('Edit', () => {
     it('should disable edit action if no edit permission', async () => {
       withFetchSuccess();
+      withFetchJoinTokensSuccess();
       renderComponent({
         customAcl: makeAcl({
           bots: {
@@ -188,6 +251,7 @@ describe('BotDetails', () => {
 
     it('should show edit form on edit action', async () => {
       withFetchSuccess();
+      withFetchJoinTokensSuccess();
       renderComponent();
       await waitForLoading();
 
@@ -209,6 +273,7 @@ describe('BotDetails', () => {
 
     it("should update the bot's details on edit success", async () => {
       withFetchSuccess();
+      withFetchJoinTokensSuccess();
       renderComponent();
       await waitForLoading();
 
@@ -305,6 +370,28 @@ const withFetchSuccess = () => {
   server.use(getBotSuccess());
 };
 
+const withFetchJoinTokensSuccess = () => {
+  server.use(listV2TokensSuccess());
+};
+
+const withFetchJoinTokensMfaError = () => {
+  server.use(listV2TokensMfaError());
+};
+
+const withFetchJoinTokensOutdatedProxy = () => {
+  server.use(
+    listV2TokensError(404, 'path not found', {
+      proxyVersion: {
+        major: 19,
+        minor: 0,
+        patch: 0,
+        preRelease: 'dev',
+        string: '18.0.0',
+      },
+    })
+  );
+};
+
 const withSaveSuccess = (
   version: 1 | 2 = 2,
   overrides?: Partial<EditBotRequest>
@@ -336,6 +423,10 @@ function makeWrapper(options?: {
         edit: true,
       },
       roles: {
+        ...defaultAccess,
+        list: true,
+      },
+      tokens: {
         ...defaultAccess,
         list: true,
       },
