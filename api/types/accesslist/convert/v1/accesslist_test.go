@@ -33,6 +33,8 @@ import (
 )
 
 func TestWithOwnersIneligibleStatusField(t *testing.T) {
+	t.Parallel()
+
 	proto := []*accesslistv1.AccessListOwner{
 		{
 			Name:             "expired",
@@ -144,6 +146,8 @@ func TestRoundtrip(t *testing.T) {
 
 // Make sure that we don't panic if any of the message fields are missing.
 func TestFromProtoNils(t *testing.T) {
+	t.Parallel()
+
 	t.Run("spec", func(t *testing.T) {
 		accessList := ToProto(newAccessList(t, "access-list"))
 		accessList.Spec = nil
@@ -311,6 +315,8 @@ func TestNextAuditDateZeroTime(t *testing.T) {
 }
 
 func TestConvAccessList(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		input *accesslistv1.AccessList
