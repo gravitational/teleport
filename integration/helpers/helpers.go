@@ -161,9 +161,7 @@ func CreateAgent(keyRing *client.KeyRing) (*sshagent.Server, string, string, err
 		return nil, "", "", trace.Wrap(err)
 	}
 
-	agentServer := sshagent.NewServer(func() (sshagent.Client, error) {
-		return sshagent.NopCloser(keyring), nil
-	})
+	agentServer := sshagent.NewServer(sshagent.NewStaticClientGetter(keyring))
 
 	// start the SSH agent
 	err = agentServer.ListenUnixSocket(sockDirName, sockName, nil)
