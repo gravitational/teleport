@@ -597,27 +597,6 @@ of SSO buttons in the Teleport Web UI.
 | BitBucket | `display: Bitbucket` | ![bitbucket](../../../img/teleport-sso/bitbucket@2x.png) |
 | OpenID | `display: Okta` | ![Okta](../../../img/teleport-sso/openId@2x.png) |
 
-## Troubleshooting
-
-Troubleshooting SSO configuration can be challenging. Usually a Teleport administrator
-must be able to:
-
-<Tabs>
-<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
-- Ensure that HTTP/TLS certificates are configured properly for both Teleport
-  proxy and the SSO provider.
-</TabItem>
-</Tabs>
-
-- Be able to see what SAML/OIDC claims and values are getting exported and passed
-  by the SSO provider to Teleport.
-- Be able to see how Teleport maps the received claims to role mappings as defined
-  in the connector.
-
-If something is not working, we recommend to:
-
-- Double-check the host names, tokens and TCP ports in a connector definition.
-
 ## Identifier-first login
 
 Identifier-first login is a feature that simplifies the login experience in clusters with
@@ -671,6 +650,27 @@ Match users that end in "@example.com" or weren't matched to any other connector
 ```yaml
 user_matchers: ['*', '*@example.com']
 ```
+
+## Troubleshooting
+
+Troubleshooting SSO configuration can be challenging. Usually a Teleport administrator
+must be able to:
+
+<Tabs>
+<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
+- Ensure that HTTP/TLS certificates are configured properly for both Teleport
+  proxy and the SSO provider.
+</TabItem>
+</Tabs>
+
+- Be able to see what SAML/OIDC claims and values are getting exported and passed
+  by the SSO provider to Teleport.
+- Be able to see how Teleport maps the received claims to role mappings as defined
+  in the connector.
+
+If something is not working, we recommend to:
+
+- Double-check the host names, tokens and TCP ports in a connector definition.
 
 ### Using the Web UI
 
