@@ -91,7 +91,7 @@ type VersionStorage interface {
 // operations.
 type RecordingEncryptionManager interface {
 	services.RecordingEncryption
-	recordingencryption.DecryptionKeyFinder
+	recordingencryption.KeyUnwrapper
 	SetCache(cache recordingencryption.Cache)
 }
 
@@ -1298,6 +1298,8 @@ func GetPresetRoles() []types.Role {
 		services.NewPresetTerraformProviderRole(),
 		services.NewSystemIdentityCenterAccessRole(),
 		services.NewPresetWildcardWorkloadIdentityIssuerRole(),
+		services.NewPresetAccessPluginRole(),
+		services.NewPresetListAccessRequestResourcesRole(),
 	}
 
 	// Certain `New$FooRole()` functions will return a nil role if the

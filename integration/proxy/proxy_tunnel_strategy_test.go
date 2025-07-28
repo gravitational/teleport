@@ -35,8 +35,8 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -444,7 +444,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 		},
 	}
 
-	_, role, err := auth.CreateUserAndRole(p.auth.Process.GetAuthServer(), p.username, []string{p.username}, nil)
+	_, role, err := authtest.CreateUserAndRole(p.auth.Process.GetAuthServer(), p.username, []string{p.username}, nil)
 	require.NoError(t, err)
 
 	role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})

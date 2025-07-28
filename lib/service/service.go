@@ -295,6 +295,18 @@ const (
 	// all listening sockets and exiting.
 	TeleportExitEvent = "TeleportExit"
 
+	// TeleportTerminatingEvent is generated when the Teleport process receives
+	// a signal to shut down. It's always generated as part of the process
+	// lifecycle and it's always generated before TeleportExitEvent, but there
+	// might be some configured delay between this event and the
+	// TeleportExitEvent signaling the actual beginning of the shut down
+	// procedures. It should be used to advertise the fact that the Teleport
+	// instance is going to shut down at some near time in the future, not to
+	// reduce the functionality of services - i.e., it's perfectly fine for
+	// services to ignore this event altogether, and nothing should get closed
+	// as a result of this event.
+	TeleportTerminatingEvent = "TeleportTerminating"
+
 	// TeleportPhaseChangeEvent is generated to indicate that the CA rotation
 	// phase has been updated, used in tests.
 	TeleportPhaseChangeEvent = "TeleportPhaseChange"
@@ -1007,9 +1019,7 @@ func RunWithSignalChannel(ctx context.Context, cfg servicecfg.Config, newTelepor
 
 // NewTeleport takes the daemon configuration, instantiates all required services
 // and starts them under a supervisor, returning the supervisor object.
-func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
-	var err error
-
+func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	// Before we do anything reset the SIGINT handler back to the default.
 	system.ResetInterruptSignalHandler()
 
@@ -1023,6 +1033,12 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		teleport.ComponentKey, teleport.Component(teleport.ComponentProcess, processID),
 		"pid", fmt.Sprintf("%v.%v", os.Getpid(), processID),
 	)
+
+	defer func() {
+		if err != nil {
+			cfg.Logger.ErrorContext(context.Background(), "Failed to start Teleport instance", "error", err)
+		}
+	}()
 
 	// Use the custom metrics registry if specified, else create a new one.
 	// We must create the registry in NewTeleport, as opposed to ApplyConfig(),
@@ -6599,23 +6615,44 @@ func (process *TeleportProcess) WaitWithContext(ctx context.Context) {
 // StartShutdown launches non-blocking graceful shutdown process that signals
 // completion, returns context that will be closed once the shutdown is done
 func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Context {
-	// by the time we get here we've already extracted the parent pipe, which is
-	// the only potential imported file descriptor that's not a listening
-	// socket, so closing every imported FD with a prefix of "" will close all
-	// imported listeners that haven't been used so far
-	warnOnErr(process.ExitContext(), process.closeImportedDescriptors(""), process.logger)
-	warnOnErr(process.ExitContext(), process.stopListeners(), process.logger)
+	shutdownDelayTimer := process.Clock.NewTimer(process.Config.ShutdownDelay)
+	defer shutdownDelayTimer.Stop()
 
 	hasChildren := process.forkedTeleportCount.Load() > 0
+	if hasChildren {
+		ctx = services.ProcessForkedContext(ctx)
+	}
+
+	process.BroadcastEvent(Event{Name: TeleportTerminatingEvent})
+
 	if process.inventoryHandle != nil {
 		deleteResources := !hasChildren
 		if err := process.inventoryHandle.SetAndSendGoodbye(ctx, deleteResources, hasChildren); err != nil {
 			process.logger.WarnContext(process.ExitContext(), "Failed sending inventory goodbye during shutdown", "error", err)
 		}
 	}
-	if hasChildren {
-		ctx = services.ProcessForkedContext(ctx)
+
+	if d := process.Config.ShutdownDelay; d > 0 {
+		if hasChildren {
+			process.logger.InfoContext(ctx, "Ignoring shutdown delay due to the presence of forked processes")
+		} else {
+			process.logger.InfoContext(ctx, "Waiting for shutdown delay", "shutdown_delay", d.String())
+			select {
+			case <-shutdownDelayTimer.Chan():
+			case <-process.ExitContext().Done():
+				process.logger.WarnContext(ctx, "Skipping shutdown delay early due to process exit")
+			case <-ctx.Done():
+				process.logger.WarnContext(ctx, "Skipping shutdown delay early due to context cancellation")
+			}
+		}
 	}
+
+	// by the time we get here we've already extracted the parent pipe, which is
+	// the only potential imported file descriptor that's not a listening
+	// socket, so closing every imported FD with a prefix of "" will close all
+	// imported listeners that haven't been used so far
+	warnOnErr(process.ExitContext(), process.closeImportedDescriptors(""), process.logger)
+	warnOnErr(process.ExitContext(), process.stopListeners(), process.logger)
 
 	process.BroadcastEvent(Event{Name: TeleportExitEvent, Payload: ctx})
 	localCtx, cancel := context.WithCancel(ctx)
@@ -6657,6 +6694,9 @@ func (process *TeleportProcess) Shutdown(ctx context.Context) {
 
 // Close broadcasts close signals and exits immediately
 func (process *TeleportProcess) Close() error {
+	// generate a TeleportTerminatingEvent to unblock any service waiting on
+	// that event before TeleportExitEvent
+	process.BroadcastEvent(Event{Name: TeleportTerminatingEvent})
 	process.BroadcastEvent(Event{Name: TeleportExitEvent})
 
 	var errors []error

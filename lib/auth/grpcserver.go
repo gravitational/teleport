@@ -402,7 +402,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			clusterName, err := auth.GetClusterName(auth.CloseContext())
+			clusterName, err := auth.authServer.GetClusterName(auth.CloseContext())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -3248,6 +3248,35 @@ func (g *GRPCServer) GetTokens(ctx context.Context, _ *emptypb.Empty) (*types.Pr
 	}
 	return &types.ProvisionTokenV2List{
 		ProvisionTokens: provisionTokensV2,
+	}, nil
+}
+
+// ListProvisionTokens retrieves a paginated list of provision tokens.
+func (g *GRPCServer) ListProvisionTokens(ctx context.Context, req *authpb.ListProvisionTokensRequest) (*authpb.ListProvisionTokensResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	roles, err := types.NewTeleportRoles(req.FilterRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ts, nextKey, err := auth.ServerWithRoles.ListProvisionTokens(ctx, int(req.Limit), req.StartKey, roles, req.FilterBotName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	provisionTokensV2 := make([]*types.ProvisionTokenV2, len(ts))
+	for i, t := range ts {
+		var ok bool
+		if provisionTokensV2[i], ok = t.(*types.ProvisionTokenV2); !ok {
+			return nil, trace.Errorf("encountered unexpected token type: %T", t)
+		}
+	}
+	return &authpb.ListProvisionTokensResponse{
+		Tokens:  provisionTokensV2,
+		NextKey: nextKey,
 	}, nil
 }
 

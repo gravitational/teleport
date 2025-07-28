@@ -34,7 +34,7 @@ func TestWorkloadIdentityX509Service_YAML(t *testing.T) {
 			name: "full",
 			in: WorkloadIdentityX509Service{
 				Destination: dest,
-				Selector: WorkloadIdentitySelector{
+				Selector: bot.WorkloadIdentitySelector{
 					Name: "my-workload-identity",
 				},
 				IncludeFederatedTrustBundles: true,
@@ -48,7 +48,7 @@ func TestWorkloadIdentityX509Service_YAML(t *testing.T) {
 			name: "minimal",
 			in: WorkloadIdentityX509Service{
 				Destination: dest,
-				Selector: WorkloadIdentitySelector{
+				Selector: bot.WorkloadIdentitySelector{
 					Name: "my-workload-identity",
 				},
 			},
@@ -65,7 +65,7 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 			name: "valid",
 			in: func() *WorkloadIdentityX509Service {
 				return &WorkloadIdentityX509Service{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
 					Destination: &destination.Directory{
@@ -80,7 +80,7 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 			name: "valid with labels",
 			in: func() *WorkloadIdentityX509Service {
 				return &WorkloadIdentityX509Service{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Labels: map[string][]string{
 							"key": {"value"},
 						},
@@ -97,7 +97,7 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 			name: "missing selectors",
 			in: func() *WorkloadIdentityX509Service {
 				return &WorkloadIdentityX509Service{
-					Selector: WorkloadIdentitySelector{},
+					Selector: bot.WorkloadIdentitySelector{},
 					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
@@ -111,7 +111,7 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 			name: "too many selectors",
 			in: func() *WorkloadIdentityX509Service {
 				return &WorkloadIdentityX509Service{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 						Labels: map[string][]string{
 							"key": {"value"},

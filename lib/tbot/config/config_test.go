@@ -32,7 +32,9 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
@@ -198,10 +200,10 @@ func TestBotConfig_YAML(t *testing.T) {
 						Symlinks: botfs.SymlinksSecure,
 					},
 				},
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: "gitlab",
 					TokenValue: "my-gitlab-token",
-					Gitlab: GitlabOnboardingConfig{
+					Gitlab: onboarding.GitlabOnboardingConfig{
 						TokenEnvVarName: "MY_CUSTOM_ENV_VAR",
 					},
 				},
@@ -281,7 +283,7 @@ func TestBotConfig_YAML(t *testing.T) {
 							RenewalInterval: 15 * time.Second,
 						},
 					},
-					&ApplicationTunnelService{
+					&application.TunnelConfig{
 						Listen:  "tcp://127.0.0.1:123",
 						Roles:   []string{"access"},
 						AppName: "my-app",
@@ -294,7 +296,7 @@ func TestBotConfig_YAML(t *testing.T) {
 						Destination: &destination.Directory{
 							Path: "/an/output/path",
 						},
-						Selector: WorkloadIdentitySelector{
+						Selector: bot.WorkloadIdentitySelector{
 							Name: "my-workload-identity",
 						},
 						CredentialLifetime: bot.CredentialLifetime{
@@ -304,7 +306,7 @@ func TestBotConfig_YAML(t *testing.T) {
 					},
 					&WorkloadIdentityAPIService{
 						Listen: "tcp://127.0.0.1:123",
-						Selector: WorkloadIdentitySelector{
+						Selector: bot.WorkloadIdentitySelector{
 							Name: "my-workload-identity",
 						},
 						CredentialLifetime: bot.CredentialLifetime{
@@ -316,7 +318,7 @@ func TestBotConfig_YAML(t *testing.T) {
 						Destination: &destination.Directory{
 							Path: "/an/output/path",
 						},
-						Selector: WorkloadIdentitySelector{
+						Selector: bot.WorkloadIdentitySelector{
 							Name: "my-workload-identity",
 						},
 						Audiences: []string{"audience1", "audience2"},
@@ -396,7 +398,7 @@ func testYAML[T any](t *testing.T, tests []testYAMLCase[T]) {
 func TestBotConfig_InsecureWithCAPins(t *testing.T) {
 	cfg := &BotConfig{
 		Insecure: true,
-		Onboarding: OnboardingConfig{
+		Onboarding: onboarding.Config{
 			CAPins: []string{"123"},
 		},
 	}
@@ -407,7 +409,7 @@ func TestBotConfig_InsecureWithCAPins(t *testing.T) {
 func TestBotConfig_InsecureWithCAPath(t *testing.T) {
 	cfg := &BotConfig{
 		Insecure: true,
-		Onboarding: OnboardingConfig{
+		Onboarding: onboarding.Config{
 			CAPath: "/tmp/invalid-path/some.crt",
 		},
 	}
@@ -418,7 +420,7 @@ func TestBotConfig_InsecureWithCAPath(t *testing.T) {
 func TestBotConfig_WithCAPathAndCAPins(t *testing.T) {
 	cfg := &BotConfig{
 		Insecure: false,
-		Onboarding: OnboardingConfig{
+		Onboarding: onboarding.Config{
 			CAPath: "/tmp/invalid-path/some.crt",
 			CAPins: []string{"123"},
 		},
@@ -493,12 +495,12 @@ func TestBotConfig_Base64(t *testing.T) {
 			expected: BotConfig{
 				Version:     V2,
 				ProxyServer: "example.teleport.sh:443",
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: "token",
 					TokenValue: "my-token",
 				},
 				Services: []ServiceConfig{
-					&ApplicationTunnelService{
+					&application.TunnelConfig{
 						Listen:  "tcp://127.0.0.1:8080",
 						AppName: "testapp",
 					},
@@ -511,12 +513,12 @@ func TestBotConfig_Base64(t *testing.T) {
 			expected: BotConfig{
 				Version:    V2,
 				AuthServer: "example.teleport.sh:443",
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: "token",
 					TokenValue: "my-token",
 				},
 				Services: []ServiceConfig{
-					&ApplicationTunnelService{
+					&application.TunnelConfig{
 						Listen:  "tcp://127.0.0.1:8080",
 						AppName: "testapp",
 					},

@@ -141,9 +141,9 @@ type AccessList struct {
 
 // Spec is the specification for an access list.
 type Spec struct {
-	// Type can be currently "dynamic" (the default if empty string) which denotes a regular
-	// Access List, "scim" which represents an Access List created from SCIM group or "static"
-	// for Access Lists managed by IaC tools.
+	// Type can be an empty string which denotes a regular Access List, "scim" which represents
+	// an Access List created from SCIM group or "static" for Access Lists managed by IaC
+	// tools.
 	Type Type `json:"type" yaml:"type"`
 
 	// Title is a plaintext short description of the access list.
@@ -193,6 +193,9 @@ const (
 	// for them and the ownership is optional.
 	SCIM Type = "scim"
 )
+
+// AllTypes is a slice of all currently supported access list types.
+var AllTypes = []Type{DeprecatedDynamic, Default, Static, SCIM}
 
 // IsReviewable returns true if the AccessList type supports the audit reviews in the web UI.
 func (t Type) IsReviewable() bool {

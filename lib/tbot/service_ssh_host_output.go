@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -36,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -43,15 +45,34 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
+func SSHHostOutputServiceBuilder(botCfg *config.BotConfig, cfg *config.SSHHostOutput) bot.ServiceBuilder {
+	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+		svc := &SSHHostOutputService{
+			botAuthClient:      deps.Client,
+			botIdentityReadyCh: deps.BotIdentityReadyCh,
+			botCfg:             botCfg,
+			cfg:                cfg,
+			reloadCh:           deps.ReloadCh,
+			identityGenerator:  deps.IdentityGenerator,
+			clientBuilder:      deps.ClientBuilder,
+		}
+		svc.log = deps.Logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
+		)
+		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
+		return svc, nil
+	}
+}
+
 type SSHHostOutputService struct {
 	botAuthClient      *apiclient.Client
 	botIdentityReadyCh <-chan struct{}
 	botCfg             *config.BotConfig
 	cfg                *config.SSHHostOutput
-	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
-	reloadBroadcaster  *internal.ChannelBroadcaster
 	statusReporter     readyz.Reporter
+	reloadCh           <-chan struct{}
 	identityGenerator  *identity.Generator
 	clientBuilder      *client.Builder
 }
@@ -68,17 +89,14 @@ func (s *SSHHostOutputService) OneShot(ctx context.Context) error {
 }
 
 func (s *SSHHostOutputService) Run(ctx context.Context) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
-	defer unsubscribe()
-
 	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
 		Service:         s.String(),
 		Name:            "output-renewal",
 		F:               s.generate,
 		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
-		RetryLimit:      renewalRetryLimit,
+		RetryLimit:      internal.RenewalRetryLimit,
 		Log:             s.log,
-		ReloadCh:        reloadCh,
+		ReloadCh:        s.reloadCh,
 		IdentityReadyCh: s.botIdentityReadyCh,
 		StatusReporter:  s.statusReporter,
 	})
@@ -157,7 +175,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.SSHHostCertPath,
-		Writer:     newBotConfigWriter(ctx, s.cfg.Destination, ""),
+		Writer:     internal.NewBotConfigWriter(ctx, s.cfg.Destination, ""),
 		KeyRing:    keyRing,
 		Format:     identityfile.FormatOpenSSH,
 

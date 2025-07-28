@@ -27,37 +27,41 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-var _ alpnproxy.LocalProxyMiddleware = (*alpnProxyMiddleware)(nil)
-
-type alpnProxyMiddleware struct {
-	onNewConnection func(ctx context.Context, lp *alpnproxy.LocalProxy) error
-	onStart         func(ctx context.Context, lp *alpnproxy.LocalProxy) error
-}
-
-func (a alpnProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy) error {
-	if a.onNewConnection != nil {
-		return a.onNewConnection(ctx, lp)
+func DatabaseTunnelServiceBuilder(botCfg *config.BotConfig, cfg *config.DatabaseTunnelService) bot.ServiceBuilder {
+	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+		svc := &DatabaseTunnelService{
+			botCfg:             botCfg,
+			cfg:                cfg,
+			proxyPinger:        deps.ProxyPinger,
+			botClient:          deps.Client,
+			getBotIdentity:     deps.BotIdentity,
+			botIdentityReadyCh: deps.BotIdentityReadyCh,
+			identityGenerator:  deps.IdentityGenerator,
+			clientBuilder:      deps.ClientBuilder,
+		}
+		svc.log = deps.Logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
+		)
+		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
+		return svc, nil
 	}
-	return nil
-}
-
-func (a alpnProxyMiddleware) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) error {
-	if a.onStart != nil {
-		return a.onStart(ctx, lp)
-	}
-	return nil
 }
 
 // DatabaseTunnelService is a service that listens on a local port and forwards
@@ -66,7 +70,7 @@ func (a alpnProxyMiddleware) OnStart(ctx context.Context, lp *alpnproxy.LocalPro
 type DatabaseTunnelService struct {
 	botCfg             *config.BotConfig
 	cfg                *config.DatabaseTunnelService
-	proxyPingCache     *proxyPingCache
+	proxyPinger        connection.ProxyPinger
 	log                *slog.Logger
 	botClient          *apiclient.Client
 	getBotIdentity     getBotIdentityFn
@@ -95,11 +99,11 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 		}
 	}
 
-	proxyPing, err := s.proxyPingCache.ping(ctx)
+	proxyPing, err := s.proxyPinger.Ping(ctx)
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "pinging proxy")
 	}
-	proxyAddr, err := proxyPing.proxyWebAddr()
+	proxyAddr, err := proxyPing.ProxyWebAddr()
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "determining proxy web address")
 	}
@@ -130,8 +134,8 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 	}
 	s.log.DebugContext(ctx, "Issued initial certificate for local proxy.")
 
-	middleware := alpnProxyMiddleware{
-		onNewConnection: func(ctx context.Context, lp *alpnproxy.LocalProxy) error {
+	middleware := internal.ALPNProxyMiddleware{
+		OnNewConnectionFunc: func(ctx context.Context, lp *alpnproxy.LocalProxy) error {
 			ctx, span := tracer.Start(ctx, "DatabaseTunnelService/OnNewConnection")
 			defer span.End()
 
@@ -226,9 +230,6 @@ func (s *DatabaseTunnelService) Run(ctx context.Context) error {
 	}()
 	s.log.InfoContext(ctx, "Listening for connections.", "address", l.Addr().String())
 
-	if s.statusReporter == nil {
-		s.statusReporter = readyz.NoopReporter()
-	}
 	s.statusReporter.Report(readyz.Healthy)
 
 	select {

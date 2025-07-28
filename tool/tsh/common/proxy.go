@@ -529,7 +529,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 
 	appName := cf.AppName
 	if portMapping.TargetPort != 0 {
-		appName = fmt.Sprintf("%s:%d", appName, portMapping.TargetPort)
+		appName = net.JoinHostPort(appName, strconv.Itoa(portMapping.TargetPort))
 	}
 	fmt.Printf("Proxying connections to %s on %v\n", appName, proxyApp.GetAddr())
 	// If target port is not equal to zero, the user must know about the port flag.

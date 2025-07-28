@@ -618,6 +618,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	cfg.CachePolicy = *cachePolicy
 
+	cfg.ShutdownDelay = time.Duration(fc.ShutdownDelay)
+
 	// Apply (TLS) cipher suites and (SSH) ciphers, KEX algorithms, and MAC
 	// algorithms.
 	if len(fc.CipherSuites) > 0 {
@@ -2205,6 +2207,11 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 	}
 
+	locateServer := servicecfg.LocateServer{
+		Enabled: fc.WindowsDesktop.LDAP.LocateServer.Enabled,
+		Site:    fc.WindowsDesktop.LDAP.LocateServer.Site,
+	}
+
 	cfg.WindowsDesktop.LDAP = servicecfg.LDAPConfig{
 		Addr:               fc.WindowsDesktop.LDAP.Addr,
 		Username:           fc.WindowsDesktop.LDAP.Username,
@@ -2213,6 +2220,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		InsecureSkipVerify: fc.WindowsDesktop.LDAP.InsecureSkipVerify,
 		ServerName:         fc.WindowsDesktop.LDAP.ServerName,
 		CA:                 cert,
+		LocateServer:       locateServer,
 	}
 
 	cfg.WindowsDesktop.PKIDomain = fc.WindowsDesktop.PKIDomain

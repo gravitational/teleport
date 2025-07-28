@@ -130,10 +130,15 @@ function makeDownloadFilename(updater: AppUpdater, version: string): string {
 
 async function fetchChecksum(fileUrl: string): Promise<string> {
   const checksumUrl = `${fileUrl}.sha512`;
-  const checksum = await fetch(checksumUrl, {
+  const response = await fetch(checksumUrl, {
     signal: AbortSignal.timeout(CHECKSUM_FETCH_TIMEOUT),
   });
-  const checksumText = await checksum.text();
+  if (!response.ok) {
+    throw new Error(
+      `Could not retrieve checksum from "${response.url}" (${response.status} ${response.statusText}).`
+    );
+  }
+  const checksumText = await response.text();
   if (!CHECKSUM_FORMAT.test(checksumText)) {
     throw new Error(`Invalid checksum format ${checksumText}`);
   }

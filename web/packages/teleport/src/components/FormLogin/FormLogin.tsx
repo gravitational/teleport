@@ -66,6 +66,8 @@ export default function LoginForm(props: Props) {
     isPasswordlessEnabled,
     authProviders = [],
     primaryAuthType,
+    title = 'Sign in to Teleport',
+    ssoTitle = 'Sign in to Teleport with SSO',
   } = props;
 
   const [showIdentifierFirstLogin, setShowIdentifierFirstLogin] = useState(
@@ -101,6 +103,8 @@ export default function LoginForm(props: Props) {
         onLoginWithSso={props.onLoginWithSso}
         onUseLocalLogin={() => setShowIdentifierFirstLogin(false)}
         isLocalAuthEnabled={isLocalAuthEnabled}
+        title={title}
+        ssoTitle={ssoTitle}
       />
     );
   }
@@ -109,7 +113,7 @@ export default function LoginForm(props: Props) {
   return (
     <Card my="5" mx="auto" maxWidth={500} minWidth={300} py={4}>
       <Text typography="h1" mb={4} textAlign="center">
-        Sign in to Teleport
+        {title}
       </Text>
       {errorMessage && <Alerts.Danger m={4}>{errorMessage}</Alerts.Danger>}
       {showAccessChangedMessage && (
@@ -488,6 +492,10 @@ const loginViews = { default: [LoginOptions, LocalLogin] };
 export type Props = {
   // Deprecated. TODO(bl-nero): Remove after e/ is updated.
   title?: string;
+  /**
+   * ssoTitle is the login form title for the identifier-first login view.
+   */
+  ssoTitle?: string;
   isLocalAuthEnabled?: boolean;
   isPasswordlessEnabled: boolean;
   authProviders?: AuthProvider[];
