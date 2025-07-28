@@ -36,8 +36,8 @@ a bot initially. When ready to deploy to production, it's trivial to adjust
 onboarding and recovery settings to select your desired balance between
 resiliency and security.
 
-Additionally, with [`insecure` recovery](#disabling-join-state-verification) and
-in situations that can accommodate the security complications, Bound Keypair
+Additionally, with [`insecure` recovery](admin-guide.mdx#disabling-join-state-verification)
+and in situations that can accommodate the security complications, Bound Keypair
 Joining can be used to join bots in otherwise unsupported CI/CD providers by
 persisting the bot's keypair in the platform keystore.
 
@@ -46,17 +46,17 @@ persisting the bot's keypair in the platform keystore.
 While Bound Keypair Joining does enable or simplify a number use cases, it does
 have limitations that may make it unfit in some instances.
 
-In particular, the [secure recovery modes](#recovery) introduce some deployment
+In particular, the [secure recovery modes](concepts.mdx#recovery) introduce some deployment
 restrictions:
 - Each bot deployment must be issued a unique token. For deployment at scale,
   use of Teleport's
   [Terraform provider](../../terraform-provider/terraform-provider.mdx) is
   recommended to create tokens in bulk for each deployment.
 - Each bot deployment must be able to store client-side state (used for
-  [join state verification](#join-state-verification)).
+  [join state verification](concepts.mdx#join-state-verification)).
 
 This limitation can be worked around using the
-[`insecure` recovery mode](#disabling-join-state-verification), but doing so
+[`insecure` recovery mode](admin-guide.mdx#disabling-join-state-verification), but doing so
 does meaningfully reduce the join method's security protections and should be
 used with care.
 
