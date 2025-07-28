@@ -110,26 +110,40 @@ func (l *Handler) Close() error {
 	return nil
 }
 
-// Download downloads session recording from storage, in case of file handler reads the
-// file from local directory
-func (l *Handler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
-	path := l.path(sessionID)
+// Download reads a session recording from a local directory.
+func (l *Handler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return downloadFile(l.recordingPath(sessionID), writer)
+}
+
+// DownloadSummary reads a session summary from a local directory.
+func (l *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return downloadFile(l.summaryPath(sessionID), writer)
+}
+
+func downloadFile(path string, writer events.RandomAccessWriter) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
 	defer f.Close()
-	_, err = io.Copy(writer.(io.Writer), f)
+	_, err = io.Copy(writer, f)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-// Upload uploads session recording to file storage, in case of file handler,
-// writes the file to local directory
+// Upload writes a session recording to a local directory.
 func (l *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path := l.path(sessionID)
+	return uploadFile(l.recordingPath(sessionID), reader)
+}
+
+// UploadSummary writes a session summary to a local directory.
+func (l *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return uploadFile(l.summaryPath(sessionID), reader)
+}
+
+func uploadFile(path string, reader io.Reader) (string, error) {
 	f, err := os.Create(path)
 	if err != nil {
 		return "", trace.ConvertSystemError(err)
@@ -141,8 +155,12 @@ func (l *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 	return fmt.Sprintf("%v://%v", teleport.SchemeFile, path), nil
 }
 
-func (l *Handler) path(sessionID session.ID) string {
+func (l *Handler) recordingPath(sessionID session.ID) string {
 	return filepath.Join(l.Directory, string(sessionID)+tarExt)
+}
+
+func (l *Handler) summaryPath(sessionID session.ID) string {
+	return filepath.Join(l.Directory, string(sessionID)+summaryExt)
 }
 
 // sessionIDFromPath extracts session ID from the filename
