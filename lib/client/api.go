@@ -94,11 +94,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/agentconn"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -4917,7 +4917,7 @@ func connectToSSHAgent() agent.ExtendedAgent {
 	logger := log.With(teleport.ComponentKey, teleport.ComponentKeyAgent)
 
 	socketPath := os.Getenv(teleport.SSHAuthSock)
-	conn, err := agentconn.Dial(socketPath)
+	conn, err := sshagent.Dial(socketPath)
 	if err != nil {
 		logger.WarnContext(ctx, "Unable to connect to SSH agent on socket",
 			"socket_path", socketPath,
