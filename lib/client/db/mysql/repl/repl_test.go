@@ -312,7 +312,7 @@ func newTestServer(t *testing.T) *testServer {
 
 // testServer is a MySQL server for tests.
 type testServer struct {
-	// Port is the MySQL connection endpoint host.
+	// host is the MySQL connection endpoint host.
 	host string
 	// port is the MySQL connection endpoint port.
 	port string
@@ -326,7 +326,7 @@ type testServer struct {
 
 // hostPort returns the server host:port.
 func (s *testServer) hostPort() string {
-	return s.host + ":" + s.port
+	return net.JoinHostPort(s.host, s.port)
 }
 
 func (s *testServer) connectTCP(t *testing.T, timeout time.Duration) net.Conn {
