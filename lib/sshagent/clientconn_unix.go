@@ -17,14 +17,28 @@
 package sshagent
 
 import (
+	"context"
+	"log/slog"
 	"net"
+	"os"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
 )
 
-// Dial creates net.Conn to a SSH agent listening on a Unix socket.
-func Dial(socket string) (net.Conn, error) {
-	conn, err := net.Dial("unix", socket)
+// DialSystemAgent connects to the SSH agent advertised by SSH_AUTH_SOCK.
+func DialSystemAgent() (net.Conn, error) {
+	socketPath := os.Getenv(teleport.SSHAuthSock)
+
+	if socketPath == "" {
+		return nil, trace.NotFound("no system agent advertised by SSH_AUTH_SOCK")
+	}
+
+	logger := slog.With(teleport.ComponentKey, teleport.ComponentKeyAgent)
+	logger.DebugContext(context.Background(), "Connecting to the system agent", "socket_path", socketPath)
+
+	conn, err := net.Dial("unix", socketPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
