@@ -19,6 +19,7 @@ package repl
 import (
 	"bytes"
 	"cmp"
+	"crypto/rand"
 	_ "embed"
 	"io"
 	"net"
@@ -36,7 +37,6 @@ import (
 	clientproto "github.com/gravitational/teleport/api/client/proto"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
@@ -268,20 +268,13 @@ func TestInteractively(t *testing.T) {
 	repl.Run(t.Context())
 }
 
-func mustCryptoRandomHex(t *testing.T, length int) string {
-	t.Helper()
-	out, err := utils.CryptoRandomHex(length)
-	require.NoError(t, err)
-	return out
-}
-
 func newTestServer(t *testing.T) *testServer {
 	t.Helper()
 	ctx := t.Context()
 
 	user := cmp.Or(os.Getenv("MYSQL_TEST_SERVER_USER"), "root")
 	db := cmp.Or(os.Getenv("MYSQL_TEST_SERVER_DB"), "mysql")
-	pass := cmp.Or(os.Getenv("MYSQL_TEST_SERVER_PASS"), mustCryptoRandomHex(t, 32))
+	pass := cmp.Or(os.Getenv("MYSQL_TEST_SERVER_PASS"), rand.Text())
 	reuseName := os.Getenv("MYSQL_TEST_SERVER_REUSE_CONTAINER_BY_NAME")
 
 	opts := []testcontainers.ContainerCustomizer{
