@@ -36,11 +36,6 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-// TODO(Joerger): Remove in favor of NewStaticClientGetter
-func NopCloser(std agent.ExtendedAgent) Client {
-	return NewStaticClient(std)
-}
-
 // Server is an SSH agent server implementation.
 type Server struct {
 	getAgent ClientGetter

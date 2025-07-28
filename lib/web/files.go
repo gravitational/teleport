@@ -171,9 +171,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.Wrap(err)
 	}
 
-	getAgent := func() (sshagent.Client, error) {
-		return sshagent.NopCloser(tc.LocalAgent()), nil
-	}
+	getAgent := sshagent.NewStaticClientGetter(tc.LocalAgent())
 
 	cert, err := sctx.GetSSHCertificate()
 	if err != nil {

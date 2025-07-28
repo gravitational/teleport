@@ -99,9 +99,7 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 
 	if c.agentGetterFn == nil {
 		c.agentGetterFn = func(rw io.ReadWriter) sshagent.ClientGetter {
-			return func() (sshagent.Client, error) {
-				return sshagent.NopCloser(agent.NewClient(rw)), nil
-			}
+			return sshagent.NewStaticClientGetter(agent.NewClient(rw))
 		}
 	}
 
