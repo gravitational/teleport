@@ -19,8 +19,24 @@
 package internal
 
 const (
+	// HostCAPath is the default filename for the host CA certificate
+	HostCAPath = "teleport-host-ca.crt"
+
+	// UserCAPath is the default filename for the user CA certificate
+	UserCAPath = "teleport-user-ca.crt"
+
+	// DatabaseCAPath is the default filename for the database CA
+	// certificate
+	DatabaseCAPath = "teleport-database-ca.crt"
+
 	// JWTSVIDPath is the name of the artifact that a JWT SVID will be written to.
 	JWTSVIDPath = "jwt_svid"
+
+	// IdentityFilePath is the name of the artifact that the identity will be written to.
+	IdentityFilePath = "identity"
+
+	// DefaultTLSPrefix is the default prefix in generated TLS certs.
+	DefaultTLSPrefix = "tls"
 
 	// RenewalRetryLimit is the number of permissible consecutive
 	// failures in renewing credentials before the loop exits fatally.
