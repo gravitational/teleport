@@ -1,6 +1,7 @@
 //go:build !windows
 
-// Copyright 2025 Gravitational, Inc
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +19,7 @@ package sshagent
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -28,7 +30,7 @@ import (
 )
 
 // DialSystemAgent connects to the SSH agent advertised by SSH_AUTH_SOCK.
-func DialSystemAgent() (net.Conn, error) {
+func DialSystemAgent() (io.ReadWriteCloser, error) {
 	socketPath := os.Getenv(teleport.SSHAuthSock)
 
 	if socketPath == "" {

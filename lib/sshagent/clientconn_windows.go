@@ -1,6 +1,7 @@
 //go:build windows
 
-// Copyright 2025 Gravitational, Inc
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +21,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
+	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -42,7 +44,7 @@ const namedPipe = `\\.\pipe\openssh-ssh-agent`
 // connection to the Cygwin SSH agent advertised by SSH_AUTH_SOCK will be attempted.
 //
 // This is behind a build flag because winio.DialPipe is only available on Windows.
-func DialSystemAgent() (net.Conn, error) {
+func DialSystemAgent() (io.ReadWriteCloser, error) {
 	logger := slog.With(teleport.ComponentKey, teleport.ComponentKeyAgent)
 	logger.DebugContext(context.Background(), "Connecting to the Windows system agent", "socket_path", namedPipe)
 
