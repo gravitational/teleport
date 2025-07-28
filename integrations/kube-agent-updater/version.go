@@ -28,4 +28,4 @@ func Version() *semver.Version {
 	return api.SemVer()
 }
 
-var SemVersion = api.SemVersion
+var SemVersion = api.SemVer()
