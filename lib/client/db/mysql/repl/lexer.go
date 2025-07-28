@@ -17,6 +17,7 @@
 package repl
 
 import (
+	"cmp"
 	"io"
 	"regexp"
 	"strings"
