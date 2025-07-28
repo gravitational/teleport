@@ -124,7 +124,8 @@ func (m *topModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height - v
 		m.width = msg.Width - h
 		// TODO: figure out how to calcualte the correct list height settings
-		m.raw.Update(tea.WindowSizeMsg{Width: m.width, Height: m.height - 7})
+		m.raw, cmd = m.raw.Update(tea.WindowSizeMsg{Width: msg.Width, Height: msg.Height - 6})
+		cmds = append(cmds, cmd)
 	case tea.KeyMsg:
 		if m.selected == 5 && m.raw.Focused() {
 			m.raw, cmd = m.raw.Update(msg)

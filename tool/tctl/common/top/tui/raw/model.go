@@ -28,7 +28,7 @@ type Model struct {
 }
 
 func New() Model {
-	l := list.New([]list.Item{}, itemDelegate{}, 120, 30)
+	l := list.New([]list.Item{}, itemDelegate{}, 0, 0)
 	l.SetShowTitle(false)
 	l.SetShowFilter(true)
 	l.SetShowStatusBar(true)
@@ -48,6 +48,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.list.SetSize(msg.Width, msg.Height)
 	case common.MetricsMsg:
 		cmd = m.list.SetItems(convertMetricsToListItems(msg))
 		cmds = append(cmds, cmd)
