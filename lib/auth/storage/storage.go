@@ -284,7 +284,7 @@ func (p *ProcessStorage) ReadRDPLicense(ctx context.Context, key *types.RDPLicen
 // ReadLocalIdentity reads, parses and returns the given pub/pri key + cert from the
 // key storage (dataDir).
 func ReadLocalIdentity(dataDir string, id state.IdentityID) (*state.Identity, error) {
-	storage, err := NewProcessStorage(context.TODO(), dataDir)
+	storage, _, err := NewProcessStorage(context.TODO(), dataDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

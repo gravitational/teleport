@@ -25,6 +25,6 @@ func WriteFile(dataDir string, id string) error {
 
 // ReadOrCreateFile looks for a hostid file in the data dir. If present,
 // returns the UUID from it, otherwise generates one
-func ReadOrCreateFile(dataDir string) (string, error) {
+func ReadOrCreateFile(dataDir string, opts ...func(*options)) (string, error) {
 	return "", trace.NotImplemented("host id writing is not supported on windows")
 }

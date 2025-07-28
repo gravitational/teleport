@@ -30,9 +30,9 @@ import (
 )
 
 // NewProcessStorage returns a new instance of the process storage.
-func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, error) {
+func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, *kubernetes.Backend, error) {
 	if path == "" {
-		return nil, trace.BadParameter("missing parameter path")
+		return nil, nil, trace.BadParameter("missing parameter path")
 	}
 
 	litebk, err := lite.NewWithConfig(ctx, lite.Config{
@@ -41,24 +41,20 @@ func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, error
 		Sync:      lite.SyncFull,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	// identityStorage holds the storage backend for identity and state.
-	// if the agent is running in Kubernetes it's replaced by kubernetes secret storage
-	var identityStorage stateBackend = litebk
-
-	// if running in a K8S cluster and required env vars are available
+	// If running in a K8S cluster and required env vars are available
 	// the agent will automatically switch state storage from local
 	// sqlite into a Kubernetes Secret.
 	if kubernetes.InKubeCluster() {
 		kubeStorage, err := kubernetes.New()
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 
-		identityStorage = kubeStorage
+		return &ProcessStorage{BackendStorage: litebk, stateStorage: kubeStorage}, kubeStorage, nil
 	}
 
-	return &ProcessStorage{BackendStorage: litebk, stateStorage: identityStorage}, nil
+	return &ProcessStorage{BackendStorage: litebk, stateStorage: litebk}, nil, nil
 }

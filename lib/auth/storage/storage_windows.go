@@ -25,18 +25,19 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/backend/kubernetes"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
 // NewProcessStorage returns a new instance of the process storage.
-func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, error) {
+func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, *kubernetes.Backend, error) {
 	m, err := memory.New(memory.Config{
 		Context:   ctx,
 		EventsOff: true,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	return &ProcessStorage{BackendStorage: m, stateStorage: m}, nil
+	return &ProcessStorage{BackendStorage: m, stateStorage: m}, nil, nil
 }
