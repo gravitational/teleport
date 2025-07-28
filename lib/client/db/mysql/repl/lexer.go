@@ -45,10 +45,7 @@ const clientDefaultStatementDelimiter = ";"
 
 // delimiter returns the current client-side delimiter.
 func (l *lexer) delimiter() string {
-	if l.delim == "" {
-		return clientDefaultStatementDelimiter
-	}
-	return l.delim
+	return cmp.Or(l.delim, clientDefaultStatementDelimiter)
 }
 
 // validDelimiterRegex only allows somewhat sane choices for delimiters.
