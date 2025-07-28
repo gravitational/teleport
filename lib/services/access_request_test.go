@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"embed"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -37,7 +36,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -2926,47 +2925,40 @@ func TestValidate_RequestedPendingTTLAndMaxDuration(t *testing.T) {
 	require.Equal(t, now.Add(requestedPendingTTL), req.Expiry())
 }
 
-//go:embed suite/testdata/roles
+//go:embed testdata/roles
 var testdataRoles embed.FS
 
-// loadTestRoles reads one or more files from lib/services/suite/testdata/roles and returns the parsed
+// loadTestRoles reads one or more files from lib/services/testdata/roles and returns the parsed
 // roles as a map keys by role name.
 func loadTestRoles(t *testing.T, targets ...string) map[string]types.Role {
 	t.Helper()
 
-	var testRoles []types.RoleV6
+	roles := map[string]types.Role{}
 	for _, target := range targets {
-		roleContent, err := testdataRoles.ReadFile("suite/testdata/roles/" + target + ".yaml")
+		roleContent, err := testdataRoles.ReadFile("testdata/roles/" + target + ".yaml")
 		require.NoError(t, err, "Failed to read test roles from embedded file: %q.", target)
 
-		for d := yaml.NewDecoder(bytes.NewReader(roleContent)); ; {
-			// TODO(@creack): Find a better way to parse YAML files.
-			// Currently loading into map[string]any and then converting to dump back to JSON
-			// so the types.Rolev6 can be unmarshalled as that type only has JSON struct tags.
-			var rawRole map[string]any
-			if err := d.Decode(&rawRole); err != nil {
+		for d := kyaml.NewYAMLOrJSONDecoder(bytes.NewReader(roleContent), 32*1024); ; {
+			var r types.RoleV6
+			if err := d.Decode(&r); err != nil {
 				if errors.Is(err, io.EOF) {
 					break
 				}
 				t.Fatalf("Failed to decode role: %s", err)
 			}
-			buf, err := json.Marshal(rawRole)
-			require.NoError(t, err)
-			var role types.RoleV6
-			require.NoError(t, json.Unmarshal(buf, &role))
-			testRoles = append(testRoles, role)
+			// The k8s yaml parser yields an empty document when the file
+			// starts with the "---" header (which is required by the default by yamllint).
+			// Skip the empty document.
+			if r.Kind == "" {
+				continue
+			}
+			role, err := types.NewRoleWithVersion(r.GetName(), r.GetVersion(), r.Spec)
+			require.NoError(t, err, "Failed to create role %q.", r.GetName())
+			if _, ok := roles[r.GetName()]; ok {
+				t.Fatalf("Duplicate role name %q found in test data.", r.GetName())
+			}
+			roles[r.GetName()] = role
 		}
-	}
-
-	// Convert to types.Role and return.
-	roles := map[string]types.Role{}
-	for _, r := range testRoles {
-		role, err := types.NewRoleWithVersion(r.GetName(), r.GetVersion(), r.Spec)
-		require.NoError(t, err, "Failed to create role %q.", r.GetName())
-		if _, ok := roles[r.GetName()]; ok {
-			t.Fatalf("Duplicate role name %q found in test data.", r.GetName())
-		}
-		roles[r.GetName()] = role
 	}
 	return roles
 }
