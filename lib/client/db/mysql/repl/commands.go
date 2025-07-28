@@ -126,7 +126,7 @@ func newCommands() (*commandManager, error) {
 			execFunc: func(_ *REPL, _ string) (string, bool) {
 				var sb strings.Builder
 				for _, l := range descriptiveLimitations {
-					sb.WriteString("- " + strings.Join(strings.Split(l, "\n"), "\n  ") + lineBreak)
+					sb.WriteString("- " + strings.ReplaceAll(l, "\n", "\n  ") + lineBreak)
 				}
 				return fmt.Sprintf(
 					"Teleport MySQL interactive shell (v%s)\n\nLimitations: \n%s",
