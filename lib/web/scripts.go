@@ -89,7 +89,7 @@ func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScri
 	version, err := h.autoUpdateAgentVersion(ctx, defaultGroup, defaultUpdater)
 	if err != nil {
 		h.logger.WarnContext(ctx, "Failed to get intended agent version", "error", err)
-		version = teleport.Version
+		version = teleport.SemVer()
 	}
 
 	// if there's a rollout, we do new autoupdates
@@ -145,15 +145,10 @@ func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScri
 // - "https://cdn.cloud.gravitational.io" (dev builds/staging)
 const EnvVarCDNBaseURL = "TELEPORT_CDN_BASE_URL"
 
-func getCDNBaseURL(version string) (string, error) {
+func getCDNBaseURL(version *semver.Version) (string, error) {
 	// If the user explicitly overrides the CDN base URL, we use it.
 	if override := os.Getenv(EnvVarCDNBaseURL); override != "" {
 		return override, nil
-	}
-
-	v, err := semver.NewVersion(version)
-	if err != nil {
-		return "", trace.Wrap(err)
 	}
 
 	// For backward compatibility we don't fail if the user is running AGPL and
@@ -161,5 +156,5 @@ func getCDNBaseURL(version string) (string, error) {
 	// cannot automatically install binaries subject to a license the user has
 	// not agreed to.
 
-	return teleportassets.CDNBaseURLForVersion(v), nil
+	return teleportassets.CDNBaseURLForVersion(version), nil
 }

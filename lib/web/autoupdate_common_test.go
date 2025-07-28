@@ -23,10 +23,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -38,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -90,7 +94,7 @@ func TestAutoUpdateAgentVersion(t *testing.T) {
 		rollout         *autoupdatepb.AutoUpdateAgentRollout
 		rolloutErr      error
 		channel         *automaticupgrades.Channel
-		expectedVersion string
+		expectedVersion *semver.Version
 		expectError     require.ErrorAssertionFunc
 	}{
 		{
@@ -104,14 +108,14 @@ func TestAutoUpdateAgentVersion(t *testing.T) {
 			},
 			channel:         &automaticupgrades.Channel{StaticVersion: testVersionLow},
 			expectError:     require.NoError,
-			expectedVersion: testVersionHigh,
+			expectedVersion: semver.Must(version.EnsureSemver(testVersionHigh)),
 		},
 		{
 			name:            "version is looked up from channel if rollout is not here",
 			rolloutErr:      trace.NotFound("rollout is not here"),
 			channel:         &automaticupgrades.Channel{StaticVersion: testVersionLow},
 			expectError:     require.NoError,
-			expectedVersion: testVersionLow,
+			expectedVersion: semver.Must(version.EnsureSemver(testVersionLow)),
 		},
 		{
 			name:       "hard error getting rollout should not fallback to version channels",
@@ -363,6 +367,7 @@ func TestGetVersionFromRollout(t *testing.T) {
 		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:       testVersionHigh,
 		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE:     testVersionHigh,
 		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK: testVersionHigh,
+		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY:     testVersionHigh,
 	}
 
 	activeDoneOnly := map[autoupdatepb.AutoUpdateAgentGroupState]string{
@@ -370,6 +375,15 @@ func TestGetVersionFromRollout(t *testing.T) {
 		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:       testVersionHigh,
 		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE:     testVersionHigh,
 		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK: testVersionLow,
+		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY:     testVersionLow,
+	}
+
+	activeCanaryDone := map[autoupdatepb.AutoUpdateAgentGroupState]string{
+		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED:  testVersionLow,
+		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:       testVersionHigh,
+		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE:     testVersionHigh,
+		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK: testVersionLow,
+		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY:     testVersionHigh,
 	}
 
 	tests := map[string]map[string]map[autoupdatepb.AutoUpdateAgentGroupState]string{
@@ -390,6 +404,8 @@ func TestGetVersionFromRollout(t *testing.T) {
 		for schedule, stateCases := range scheduleCases {
 			for state, expectedVersion := range stateCases {
 				t.Run(fmt.Sprintf("%s/%s/%s", mode, schedule, state), func(t *testing.T) {
+					expectedSemVersion, err := version.EnsureSemver(expectedVersion)
+					require.NoError(t, err)
 					rollout := &autoupdatepb.AutoUpdateAgentRollout{
 						Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
 							StartVersion:   testVersionLow,
@@ -410,10 +426,67 @@ func TestGetVersionFromRollout(t *testing.T) {
 					}
 					version, err := getVersionFromRollout(rollout, groupName, "")
 					require.NoError(t, err)
-					require.Equal(t, expectedVersion, version)
+					require.Equal(t, expectedSemVersion, version)
 				})
 			}
 		}
+	}
+
+	canaryTestCases := map[bool]map[autoupdatepb.AutoUpdateAgentGroupState]string{
+		true:  activeCanaryDone,
+		false: activeDoneOnly,
+	}
+
+	for canaryMatching, statesCases := range canaryTestCases {
+		const (
+			schedule = autoupdate.AgentsScheduleRegular
+			mode     = autoupdate.AgentsUpdateModeEnabled
+		)
+
+		for state, expectedVersion := range statesCases {
+			t.Run(fmt.Sprintf("canary(%s)/%s", strconv.FormatBool(canaryMatching), state), func(t *testing.T) {
+				expectedSemVersion, err := version.EnsureSemver(expectedVersion)
+				require.NoError(t, err)
+
+				rollout := &autoupdatepb.AutoUpdateAgentRollout{
+					Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
+						StartVersion:   testVersionLow,
+						TargetVersion:  testVersionHigh,
+						Schedule:       schedule,
+						AutoupdateMode: mode,
+						// Strategy does not affect which version are served
+						Strategy: autoupdate.AgentsStrategyTimeBased,
+					},
+					Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{
+						Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
+							{
+								Name:  groupName,
+								State: state,
+								Canaries: []*autoupdatepb.Canary{
+									{
+										UpdaterId: uuid.NewString(),
+										HostId:    uuid.NewString(),
+										Hostname:  "test-host",
+										Success:   false,
+									},
+								},
+							},
+						},
+					},
+				}
+				var updaterID string
+				if canaryMatching {
+					updaterID = rollout.GetStatus().GetGroups()[0].GetCanaries()[0].GetUpdaterId()
+				} else {
+					updaterID = uuid.NewString()
+				}
+				version, err := getVersionFromRollout(rollout, groupName, updaterID)
+				require.NoError(t, err)
+				require.Equal(t, expectedSemVersion, version)
+			})
+
+		}
+
 	}
 }
 
@@ -428,12 +501,14 @@ func TestGetTriggerFromRollout(t *testing.T) {
 		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:       false,
 		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE:     false,
 		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK: false,
+		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY:     false,
 	}
 	alwaysUpdate := map[autoupdatepb.AutoUpdateAgentGroupState]bool{
 		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED:  true,
 		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:       true,
 		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE:     true,
 		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK: true,
+		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY:     true,
 	}
 
 	tests := map[string]map[string]map[string]map[autoupdatepb.AutoUpdateAgentGroupState]bool{
@@ -465,6 +540,7 @@ func TestGetTriggerFromRollout(t *testing.T) {
 					autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:       false,
 					autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE:     true,
 					autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK: true,
+					autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY:     false,
 				},
 			},
 			autoupdate.AgentsStrategyHaltOnError: {
@@ -474,6 +550,7 @@ func TestGetTriggerFromRollout(t *testing.T) {
 					autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:       true,
 					autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE:     true,
 					autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK: true,
+					autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY:     false,
 				},
 			},
 		},
@@ -507,6 +584,92 @@ func TestGetTriggerFromRollout(t *testing.T) {
 				}
 			}
 		}
+	}
+
+	canaryTestCases := map[bool]map[string]map[autoupdatepb.AutoUpdateAgentGroupState]bool{
+		true: {
+			autoupdate.AgentsStrategyTimeBased: {
+				autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED:  false,
+				autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:       false,
+				autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE:     true,
+				autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK: true,
+				autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY:     true,
+			},
+			autoupdate.AgentsStrategyHaltOnError: {
+				autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED:  false,
+				autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:       true,
+				autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE:     true,
+				autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK: true,
+				autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY:     true,
+			},
+		},
+		false: {
+			autoupdate.AgentsStrategyTimeBased: {
+				autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED:  false,
+				autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:       false,
+				autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE:     true,
+				autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK: true,
+				autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY:     false,
+			},
+			autoupdate.AgentsStrategyHaltOnError: {
+				autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED:  false,
+				autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:       true,
+				autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE:     true,
+				autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK: true,
+				autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY:     false,
+			},
+		},
+	}
+
+	for canaryMatching, strategyCases := range canaryTestCases {
+		const (
+			schedule = autoupdate.AgentsScheduleRegular
+			mode     = autoupdate.AgentsUpdateModeEnabled
+		)
+
+		for strategy, statesCases := range strategyCases {
+			for state, expectedTrigger := range statesCases {
+				t.Run(fmt.Sprintf("canary(%s)/%s/%s", strconv.FormatBool(canaryMatching), strategy, state), func(t *testing.T) {
+					rollout := &autoupdatepb.AutoUpdateAgentRollout{
+						Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
+							StartVersion:   testVersionLow,
+							TargetVersion:  testVersionHigh,
+							Schedule:       schedule,
+							AutoupdateMode: mode,
+							Strategy:       strategy,
+						},
+						Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{
+							Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
+								{
+									Name:  groupName,
+									State: state,
+									Canaries: []*autoupdatepb.Canary{
+										{
+											UpdaterId: uuid.NewString(),
+											HostId:    uuid.NewString(),
+											Hostname:  "test-host",
+											Success:   false,
+										},
+									},
+								},
+							},
+						},
+					}
+					var updaterID string
+					if canaryMatching {
+						updaterID = rollout.GetStatus().GetGroups()[0].GetCanaries()[0].GetUpdaterId()
+					} else {
+						updaterID = uuid.NewString()
+					}
+					trigger, err := getTriggerFromRollout(rollout, groupName, updaterID)
+					require.NoError(t, err)
+					require.Equal(t, expectedTrigger, trigger)
+				})
+
+			}
+
+		}
+
 	}
 }
 
@@ -657,10 +820,13 @@ func TestGetVersionFromChannel(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(mock.ServeHTTP))
 	t.Cleanup(srv.Close)
 
+	testVersion, err := version.EnsureSemver(testVersionHigh)
+	require.NoError(t, err)
+
 	tests := []struct {
 		name           string
 		channels       automaticupgrades.Channels
-		expectedResult string
+		expectedResult *semver.Version
 		expectError    require.ErrorAssertionFunc
 	}{
 		{
@@ -669,7 +835,7 @@ func TestGetVersionFromChannel(t *testing.T) {
 				channelName: {ForwardURL: srv.URL + "/with-leading-v"},
 				"default":   {ForwardURL: srv.URL + "/low"},
 			},
-			expectedResult: testVersionHigh,
+			expectedResult: testVersion,
 			expectError:    require.NoError,
 		},
 		{
@@ -678,7 +844,7 @@ func TestGetVersionFromChannel(t *testing.T) {
 				channelName: {ForwardURL: srv.URL + "/without-leading-v"},
 				"default":   {ForwardURL: srv.URL + "/low"},
 			},
-			expectedResult: testVersionHigh,
+			expectedResult: testVersion,
 			expectError:    require.NoError,
 		},
 		{
@@ -686,7 +852,7 @@ func TestGetVersionFromChannel(t *testing.T) {
 			channels: automaticupgrades.Channels{
 				"default": {ForwardURL: srv.URL + "/with-leading-v"},
 			},
-			expectedResult: testVersionHigh,
+			expectedResult: testVersion,
 			expectError:    require.NoError,
 		},
 		{
@@ -694,7 +860,7 @@ func TestGetVersionFromChannel(t *testing.T) {
 			channels: automaticupgrades.Channels{
 				"default": {ForwardURL: srv.URL + "/without-leading-v"},
 			},
-			expectedResult: testVersionHigh,
+			expectedResult: testVersion,
 			expectError:    require.NoError,
 		},
 		{
