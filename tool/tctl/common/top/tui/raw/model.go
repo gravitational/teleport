@@ -29,10 +29,10 @@ type Model struct {
 
 func New() Model {
 	l := list.New([]list.Item{}, itemDelegate{}, 120, 30)
-	l.SetShowTitle(true)
+	l.SetShowTitle(false)
 	l.SetShowFilter(true)
 	l.SetShowStatusBar(true)
-	l.SetShowHelp(true)
+	l.SetShowHelp(false)
 
 	return Model{
 		list: l,
@@ -62,4 +62,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 func (m Model) View() string {
 	return m.list.View()
+}
+
+func (m Model) Focused() bool {
+	return m.list.FilterState() == list.Filtering
 }
