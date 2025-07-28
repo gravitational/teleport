@@ -2102,8 +2102,6 @@ func newNamespace(name string) *v1.Namespace {
 // fixtures/alpine directory. Check the Dockerfile there for details.
 const localPodImage = "alpine-webserver:v1"
 
-const nginx = "nginx"
-
 func newPod(ns, name string) *v1.Pod {
 	return &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -2112,7 +2110,7 @@ func newPod(ns, name string) *v1.Pod {
 		},
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{{
-				Name:  nginx,
+				Name:  "nginx",
 				Image: localPodImage,
 			}},
 		},
