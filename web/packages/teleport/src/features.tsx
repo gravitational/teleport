@@ -126,7 +126,7 @@ export class FeatureJoinTokens implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags): boolean {
-    return flags.tokens;
+    return flags.listTokens;
   }
 }
 

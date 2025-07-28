@@ -1,4 +1,4 @@
-/**
+/*
  * Teleport
  * Copyright (C) 2025 Gravitational, Inc.
  *
@@ -16,13 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { getBot, listBotTokens } from 'teleport/services/bot/bot';
-import { createQueryHook } from 'teleport/services/queryHelpers';
+import { ListJoinTokensResponse } from './types';
 
-export const { createQueryKey: createGetBotQueryKey, useQuery: useGetBot } =
-  createQueryHook(['bot', 'get'], getBot);
+export function validateListJoinTokensResponse(
+  data: unknown
+): data is ListJoinTokensResponse {
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
 
-export const {
-  createQueryKey: createListBotTokensQueryKey,
-  useQuery: useListBotTokens,
-} = createQueryHook(['bot', 'token', 'list'], listBotTokens);
+  if (!('items' in data)) {
+    return false;
+  }
+
+  if (!Array.isArray(data.items)) {
+    return false;
+  }
+
+  return data.items.every(x => typeof x === 'object' || x !== null);
+}

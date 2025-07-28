@@ -186,6 +186,8 @@ export { ShieldCheck } from './Icons/ShieldCheck';
 export { ShieldWarning } from './Icons/ShieldWarning';
 export { Sliders } from './Icons/Sliders';
 export { SlidersVertical } from './Icons/SlidersVertical';
+export { SortAscending } from './Icons/SortAscending';
+export { SortDescending } from './Icons/SortDescending';
 export { Speed } from './Icons/Speed';
 export { Spinner } from './Icons/Spinner';
 export { SquaresFour } from './Icons/SquaresFour';

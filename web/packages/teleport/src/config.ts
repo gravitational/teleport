@@ -324,7 +324,14 @@ const cfg = {
       createV2: '/v2/webapi/token',
     },
     joinTokenYamlPath: '/v1/webapi/tokens/yaml',
-    joinTokensPath: '/v1/webapi/tokens',
+
+    joinToken: {
+      create: '/v1/webapi/tokens',
+      update: '/v1/webapi/tokens',
+      list: '/v1/webapi/tokens',
+      listV2: '/v2/webapi/tokens',
+    },
+
     dbScriptPath: '/scripts/:token/install-database.sh',
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
@@ -690,8 +697,20 @@ const cfg = {
     return cfg.routes.joinTokens;
   },
 
-  getJoinTokensUrl() {
-    return cfg.api.joinTokensPath;
+  getJoinTokenUrl(req: { action: 'list' | 'listV2' | 'create' | 'update' }) {
+    switch (req.action) {
+      case 'create':
+        return generatePath(cfg.api.joinToken.create);
+      case 'update':
+        return generatePath(cfg.api.joinToken.update);
+      case 'list':
+        return generatePath(cfg.api.joinToken.list);
+      case 'listV2':
+        return generatePath(cfg.api.joinToken.listV2);
+      default:
+        req.action satisfies never;
+        return '';
+    }
   },
 
   getJoinTokenYamlUrl() {
@@ -1495,6 +1514,7 @@ const cfg = {
         });
       default:
         req satisfies never;
+        return '';
     }
   },
 
@@ -1524,6 +1544,7 @@ const cfg = {
         });
       default:
         req satisfies never;
+        return '';
     }
   },
 
