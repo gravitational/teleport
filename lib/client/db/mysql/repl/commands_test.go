@@ -109,8 +109,8 @@ func TestCommands(t *testing.T) {
 			expectExit: true,
 		},
 		{
-			desc:    "session",
-			cmdName: "session",
+			desc:    "status",
+			cmdName: "status",
 			assertCommandReply: func(t require.TestingT, val any, _ ...any) {
 				require.Contains(t, val, "test-service", "expected session command to contain service name")
 				require.Contains(t, val, "test-user", "expected session command to contain username")
@@ -173,4 +173,12 @@ func (c *fakeMySQLConn) Execute(command string, args ...any) (*mysql.Result, err
 
 func (c *fakeMySQLConn) UseDB(dbName string) error {
 	return nil
+}
+
+func (c *fakeMySQLConn) GetServerVersion() string {
+	return "1.2.3 Fake MySQL Server"
+}
+
+func (c *fakeMySQLConn) GetConnectionID() uint32 {
+	return 12345
 }

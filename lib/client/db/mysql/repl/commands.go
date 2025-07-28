@@ -108,15 +108,18 @@ func newCommands() (*commandManager, error) {
 			execFunc:    func(_ *REPL, _ string) (string, bool) { return "", true },
 		},
 		{
-			name:        "session",
+			name:        "status",
 			shortcut:    's',
-			description: "Display information about the current session, like user, and database instance.",
+			description: "Get status information.",
 			execFunc: func(r *REPL, _ string) (string, bool) {
-				return fmt.Sprintf("Connected to %q instance using database %q as user %q.",
-					r.route.ServiceName,
-					formatDatabaseName(r.route.Database),
-					r.route.Username,
-				), false
+				table := asciitable.MakeHeadlessTable(2)
+				table.AddRow([]string{"Teleport database:", r.route.ServiceName})
+				table.AddRow([]string{"Connection ID:", fmt.Sprintf("%v", r.myConn.GetConnectionID())})
+				table.AddRow([]string{"Current database:", formatDatabaseName(r.route.Database)})
+				table.AddRow([]string{"Current user:", r.route.Username})
+				table.AddRow([]string{"Server version:", r.myConn.GetServerVersion()})
+				table.AddRow([]string{"Using delimiter:", r.lex.delimiter()})
+				return table.String(), false
 			},
 		},
 		{

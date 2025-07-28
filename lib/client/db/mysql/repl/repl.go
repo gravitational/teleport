@@ -53,6 +53,8 @@ type REPL struct {
 type mysqlConn interface {
 	Execute(command string, args ...any) (*mysql.Result, error)
 	UseDB(dbName string) error
+	GetServerVersion() string
+	GetConnectionID() uint32
 }
 
 func New(_ context.Context, cfg *dbrepl.NewREPLConfig) (dbrepl.REPLInstance, error) {

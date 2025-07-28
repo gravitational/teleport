@@ -72,7 +72,7 @@ help$$
 \d //
 \h
 help
-session
+status
 \s
 teleport
 \t

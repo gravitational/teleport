@@ -179,49 +179,59 @@ lp info.
 foo> \xyz
 
 Unknown command.
-delimiter \d   Set statement delimiter. With no argument the delimiter resets to the default.   
-help      \h   Show the list of supported commands.                                             
-quit      \q   Terminates the session.                                                          
-session   \s   Display information about the current session, like user, and database instance. 
-teleport  \t   Show Teleport interactive shell information, such as execution limitations.      
+delimiter \d   Set statement delimiter. With no argument the delimiter resets to the default. 
+help      \h   Show the list of supported commands.                                           
+quit      \q   Terminates the session.                                                        
+status    \s   Get status information.                                                        
+teleport  \t   Show Teleport interactive shell information, such as execution limitations.    
 use       \u   Use another database.
 
 foo> delimiter $$
 foo> help$$
 
-delimiter \d   Set statement delimiter. With no argument the delimiter resets to the default.   
-help      \h   Show the list of supported commands.                                             
-quit      \q   Terminates the session.                                                          
-session   \s   Display information about the current session, like user, and database instance. 
-teleport  \t   Show Teleport interactive shell information, such as execution limitations.      
+delimiter \d   Set statement delimiter. With no argument the delimiter resets to the default. 
+help      \h   Show the list of supported commands.                                           
+quit      \q   Terminates the session.                                                        
+status    \s   Get status information.                                                        
+teleport  \t   Show Teleport interactive shell information, such as execution limitations.    
 use       \u   Use another database.
 
 foo> \d //
 foo> \h
 
-delimiter \d   Set statement delimiter. With no argument the delimiter resets to the default.   
-help      \h   Show the list of supported commands.                                             
-quit      \q   Terminates the session.                                                          
-session   \s   Display information about the current session, like user, and database instance. 
-teleport  \t   Show Teleport interactive shell information, such as execution limitations.      
+delimiter \d   Set statement delimiter. With no argument the delimiter resets to the default. 
+help      \h   Show the list of supported commands.                                           
+quit      \q   Terminates the session.                                                        
+status    \s   Get status information.                                                        
+teleport  \t   Show Teleport interactive shell information, such as execution limitations.    
 use       \u   Use another database.
 
 foo> help
 
-delimiter \d   Set statement delimiter. With no argument the delimiter resets to the default.   
-help      \h   Show the list of supported commands.                                             
-quit      \q   Terminates the session.                                                          
-session   \s   Display information about the current session, like user, and database instance. 
-teleport  \t   Show Teleport interactive shell information, such as execution limitations.      
+delimiter \d   Set statement delimiter. With no argument the delimiter resets to the default. 
+help      \h   Show the list of supported commands.                                           
+quit      \q   Terminates the session.                                                        
+status    \s   Get status information.                                                        
+teleport  \t   Show Teleport interactive shell information, such as execution limitations.    
 use       \u   Use another database.
 
-foo> session
+foo> status
 
-Connected to "mysql-test-container" instance using database "foo" as user "root".
+Teleport database: mysql-test-container 
+Connection ID:     11                   
+Current database:  foo                  
+Current user:      root                 
+Server version:    8.4.6                
+Using delimiter:   //
 
 foo> \s
 
-Connected to "mysql-test-container" instance using database "foo" as user "root".
+Teleport database: mysql-test-container 
+Connection ID:     11                   
+Current database:  foo                  
+Current user:      root                 
+Server version:    8.4.6                
+Using delimiter:   //
 
 foo> teleport
 
@@ -270,14 +280,19 @@ Limitations:
 - Pressing CTRL-C will have no effect in this shell.
 
 
-Connected to "mysql-test-container" instance using database "mysql" as user "root".
+Teleport database: mysql-test-container 
+Connection ID:     11                   
+Current database:  mysql                
+Current user:      root                 
+Server version:    8.4.6                
+Using delimiter:   ;
 
 
-delimiter \d   Set statement delimiter. With no argument the delimiter resets to the default.   
-help      \h   Show the list of supported commands.                                             
-quit      \q   Terminates the session.                                                          
-session   \s   Display information about the current session, like user, and database instance. 
-teleport  \t   Show Teleport interactive shell information, such as execution limitations.      
+delimiter \d   Set statement delimiter. With no argument the delimiter resets to the default. 
+help      \h   Show the list of supported commands.                                           
+quit      \q   Terminates the session.                                                        
+status    \s   Get status information.                                                        
+teleport  \t   Show Teleport interactive shell information, such as execution limitations.    
 use       \u   Use another database.
 
 mysql> use `bar`;drop database foo;drop database bar;drop database test_commands
