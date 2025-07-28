@@ -33,10 +33,7 @@ import { ResourceIcon } from 'design/ResourceIcon';
 import Text from 'design/Text/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
 
-import {
-  ClientCompatibility,
-  useClusterVersion,
-} from '../../useClusterVersion';
+import { useClusterVersion } from '../../useClusterVersion';
 import { JoinMethodIcon } from './JoinMethodIcon';
 
 export function Instance(props: {
@@ -48,8 +45,6 @@ export function Instance(props: {
   os?: string;
 }) {
   const { id, version, hostname, activeAt, method, os } = props;
-  const { check } = useClusterVersion();
-  const versionCheck = check(version);
 
   const hasHeartbeatData = !!version || !!hostname || !!method || !!os;
 
@@ -72,7 +67,7 @@ export function Instance(props: {
       {hasHeartbeatData ? (
         <BottomRow>
           <Flex gap={2}>
-            <Version version={version} check={versionCheck} />
+          <Version version={version} />
 
             {hostname ? (
               <HoverTooltip placement="top" tipContent={'Hostname'}>
@@ -141,17 +136,16 @@ const EmptyText = styled(Text)`
   color: ${p => p.theme.colors.text.muted};
 `;
 
-function Version(props: {
-  version: string | undefined;
-  check: ClientCompatibility;
-}) {
-  const { version, check } = props;
+function Version(props: { version: string | undefined }) {
+  const { version } = props;
+  const { checkCompatibility } = useClusterVersion();
+  const versionCompatibility = checkCompatibility(version);
 
   let Wrapper = SecondaryOutlined;
   let icon: ReactElement | null = <ArrowFatLinesUp size={'small'} />;
   let tooltip = 'Version is up to date';
-  if (check?.isCompatible) {
-    switch (check.reason) {
+  if (versionCompatibility?.isCompatible) {
+    switch (versionCompatibility.reason) {
       case 'match':
         icon = null;
         break;
@@ -165,7 +159,7 @@ function Version(props: {
         break;
     }
   } else {
-    switch (check?.reason) {
+    switch (versionCompatibility?.reason) {
       case 'too-old':
         Wrapper = DangerOutlined;
         tooltip =
@@ -174,7 +168,7 @@ function Version(props: {
       case 'too-new':
         Wrapper = DangerOutlined;
         tooltip =
-          'Version is two or more major versions ahead, and is not compatible.';
+          'Version is one or more major versions ahead, and is not compatible.';
         break;
     }
   }

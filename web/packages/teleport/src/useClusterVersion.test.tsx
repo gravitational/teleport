@@ -46,7 +46,9 @@ describe('useClusterVersion', () => {
       const { result } = renderHook(() => useClusterVersion(), {
         wrapper: Wrapper,
       });
-      expect(result.current.check(clientVersion)).toStrictEqual(compatibility);
+      expect(result.current.checkCompatibility(clientVersion)).toStrictEqual(
+        compatibility
+      );
     }
   );
 });

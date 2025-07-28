@@ -36,13 +36,15 @@ export function useClusterVersion(): {
    * @param version the compare version as string.
    * @returns an indication of cluster compatibility
    */
-  check: (clientVersion: string | undefined) => ClientCompatibility | null;
+  checkCompatibility: (
+    clientVersion: string | undefined
+  ) => ClientCompatibility | null;
 } {
   const ctx = useTeleport();
   const clusterVersion = ctx.storeUser.getClusterAuthVersion();
   return {
     clusterVersion,
-    check: (clientVersion?: string) =>
+    checkCompatibility: (clientVersion?: string) =>
       checkClientCompatibility(clientVersion, clusterVersion),
   };
 }
