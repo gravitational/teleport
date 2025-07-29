@@ -331,17 +331,22 @@ specified earlier will begin to be added to the Teleport cluster automatically.
 
 To discover EC2 instances in AWS accounts other than the account your Teleport
 Discovery Service is running in, Teleport must have permission to assume an IAM
-role in each of those accounts.
+role in each of those accounts. This guide assumes you have finished the main
+EC2 discovery guide above and should be repeated for each AWS account you want
+to discover instances from.
 
-In each AWS account where your want to discover EC2 instances:
+## Step 1/4. Update EC2 invite token
 
-1. Add a new entry to `spec.allow` in the token created in
-  [Step 1](#step17-create-an-ec2-invite-token) and set `aws_account` to the
-  account number of the new account.
-1. Create a new role and note its ARN. Create an IAM policy as described in
-  [Step 2](#step-27-define-an-iam-policy) and attach it to the new role.
-1. Edit the trust policy of the new role to allow the Discovery Service's role
-  to assume it:
+Add a new entry to `spec.allow` in the token created in
+[Step 1](#step17-create-an-ec2-invite-token) and set `aws_account` to the
+account number of the new account.
+
+## Step 2/4. Configure IAM permissions
+
+Create a new role and note its ARN. Create an IAM policy as described in
+[Step 2](#step-27-define-an-iam-policy) and attach it to the new role.
+Edit the trust policy of the new role to allow the Discovery Service's role
+to assume it:
 ```json
 {
     "Version": "2012-10-17",
@@ -356,8 +361,8 @@ In each AWS account where your want to discover EC2 instances:
     ]
 }
 ```
-1. Edit the Discovery Service's version of the [Step 2](#step-27-define-an-iam-policy)
-  policy and add the following statement to allow the Discovery Service to assume the new role:
+Edit the Discovery Service's version of the [Step 2](#step-27-define-an-iam-policy)
+policy and add the following statement to allow the Discovery Service to assume the new role:
 ```json
 {
     "Version": "2012-10-17",
@@ -381,13 +386,16 @@ In each AWS account where your want to discover EC2 instances:
         {
             "Effect": "Allow",
             "Action": "sts:AssumeRole",
-            "Resource": "arn:aws:iam::123456789012:role/<Var name="new role ARN" />"
+            "Resource": "<Var name="new role ARN" />"
         }
     ]
 }
 ```
-1. Add an entry to the `discovery_service.aws` section of your `teleport.yaml`
-  file as described in [Step 4](#step-47-configure-teleport-to-discover-ec2-instances):
+
+## Step 3/4. Update Teleport configuration
+
+Add an entry to the `discovery_service.aws` section of your `teleport.yaml`
+file as described in [Step 4](#step-47-configure-teleport-to-discover-ec2-instances):
 ```yaml
 # ...
 discovery_service:
@@ -411,6 +419,8 @@ discovery_service:
 
 Set `assume_role_arn` to the ARN of your new role. Optionally, set
 `external_id` to the external ID Teleport should use when assuming this role.
+
+## Step 4/4. Bootstrap the Discovery Service AWS configuration
 
 When all of your accounts are ready, run `teleport discovery bootstrap` again
 to generate the remaining IAM policies and SSM documents, as described in
