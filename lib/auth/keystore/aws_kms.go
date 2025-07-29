@@ -561,23 +561,27 @@ func (a *awsKMSKeystore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 			return nil
 		}
 
-		// Check if this key was created by this Teleport cluster.
-		output, err := a.kms.ListResourceTags(ctx, &kms.ListResourceTagsInput{
-			KeyId: aws.String(key.id),
-		})
-		if err != nil {
-			// It's entirely expected that we won't be allowed to fetch
-			// tags for some keys, don't worry about deleting those.
-			a.logger.DebugContext(ctx, "failed to fetch tags for AWS KMS key, skipping", "key_arn", arn, "error", err)
-			return nil
-		}
-
-		// All tags must match for this key to be considered for deletion.
-		for k, v := range a.tags {
-			if !slices.ContainsFunc(output.Tags, func(tag kmstypes.Tag) bool {
-				return aws.ToString(tag.TagKey) == k && aws.ToString(tag.TagValue) == v
-			}) {
+		// When not using the filtered tagging api, check if this key was created by this Teleport
+		// cluster. The ListResourceTags tags API has a much lower rate limit than DescribeKey so
+		// this allows us to do more before getting rate limited.
+		if os.Getenv("TELEPORT_UNSTABLE_SCOPED_KMS_KEY_DELETION") != "yes" {
+			output, err := a.kms.ListResourceTags(ctx, &kms.ListResourceTagsInput{
+				KeyId: aws.String(key.id),
+			})
+			if err != nil {
+				// It's entirely expected that we won't be allowed to fetch
+				// tags for some keys, don't worry about deleting those.
+				a.logger.DebugContext(ctx, "failed to fetch tags for AWS KMS key, skipping", "key_arn", arn, "error", err)
 				return nil
+			}
+
+			// All tags must match for this key to be considered for deletion.
+			for k, v := range a.tags {
+				if !slices.ContainsFunc(output.Tags, func(tag kmstypes.Tag) bool {
+					return aws.ToString(tag.TagKey) == k && aws.ToString(tag.TagValue) == v
+				}) {
+					return nil
+				}
 			}
 		}
 
@@ -671,11 +675,11 @@ func (a *awsKMSKeystore) forEachKey(ctx context.Context, fn func(ctx context.Con
 // forEachOwnedKey calls fn with the AWS key ID of all owned keys in the AWS account and
 // region that would be returned by GetResources. It may call fn concurrently.
 func (a *awsKMSKeystore) forEachOwnedKey(ctx context.Context, fn func(ctx context.Context, keyARN string) error) error {
+	const maxGoRoutines = 5
 	errGroup, ctx := errgroup.WithContext(ctx)
-	paginationToken := ""
-	more := true
+	errGroup.SetLimit(maxGoRoutines)
 
-	var tagFilters []rgttypes.TagFilter
+	tagFilters := make([]rgttypes.TagFilter, 0, len(a.tags))
 	for k, v := range a.tags {
 		tagFilters = append(tagFilters, rgttypes.TagFilter{
 			Key: aws.String(k),
@@ -685,22 +689,18 @@ func (a *awsKMSKeystore) forEachOwnedKey(ctx context.Context, fn func(ctx contex
 		})
 	}
 
-	for more {
-		var paginationTokenInput *string
-		if paginationToken != "" {
-			paginationTokenInput = aws.String(paginationToken)
-		}
+	var paginationToken string
+	for more := true; more; more = paginationToken != "" {
 		var output, err = a.rgt.GetResources(ctx, &resourcegroupstaggingapi.GetResourcesInput{
 			ResourceTypeFilters: []string{"kms:key"},
 			TagFilters:          tagFilters,
 			ResourcesPerPage:    aws.Int32(100),
-			PaginationToken:     paginationTokenInput,
+			PaginationToken:     aws.String(paginationToken),
 		})
 		if err != nil {
 			return trace.Wrap(err, "failed to list AWS KMS keys")
 		}
 		paginationToken = aws.ToString(output.PaginationToken)
-		more = paginationToken != ""
 		for _, keyEntry := range output.ResourceTagMappingList {
 			keyID := aws.ToString(keyEntry.ResourceARN)
 			errGroup.Go(func() error {
