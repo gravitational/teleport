@@ -204,10 +204,7 @@ impl ScardBackend {
         if timeout != TIMEOUT_INFINITE && timeout != TIMEOUT_IMMEDIATE {
             // We've never seen one of these but we log a warning here in case we ever come
             // across one and need to debug a related issue.
-            warn!(
-                "logic for a non-infinite/non-immediate timeout [{}] is not implemented",
-                timeout
-            );
+            warn!("logic for a non-infinite/non-immediate timeout [{timeout}] is not implemented");
         }
 
         let reader_states = Self::create_get_status_change_reader_states(call);
@@ -513,8 +510,7 @@ impl ScardBackend {
         Err(pdu_other_err!(
             "",
             source:SmartcardBackendError(format!(
-                "received unsupported combination of ScardIoCtlCode [{:?}] with ScardCall [{:?}]",
-                ioctl, call
+                "received unsupported combination of ScardIoCtlCode [{ioctl:?}] with ScardCall [{call:?}]"
             ))
         ))
     }
@@ -575,7 +571,7 @@ impl Contexts {
     }
 
     fn set_scard_cancel_response(&mut self, id: u32, resp: DeviceControlResponse) -> PduResult<()> {
-        debug!("setting SCARD_IOCTL_CANCEL response for context [{}]", id);
+        debug!("setting SCARD_IOCTL_CANCEL response for context [{id}]");
         self.get_internal_mut(id)?.set_scard_cancel_response(resp)
     }
 
@@ -721,7 +717,7 @@ struct SmartcardBackendError(pub String);
 
 impl std::fmt::Display for SmartcardBackendError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:#?}", self)
+        write!(f, "{self:#?}")
     }
 }
 

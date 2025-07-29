@@ -13,9 +13,6 @@ wasm-opt = false
 [lib]
 crate-type = ["cdylib"]
 
-[lints]
-workspace = true
-
 [dependencies]
 console_error_panic_hook = "0.1.7"
 getrandom = { version = "0.2", features = ["js"] }

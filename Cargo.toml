@@ -18,9 +18,6 @@ debug = 1
 codegen-units = 1
 lto = "thin"
 
-[workspace.lints.clippy]
-uninlined_format_args = "allow"
-
 [workspace.dependencies]
 # Note: To use a local IronRDP repository as a crate (for example, ironrdp-cliprdr), define the dependency as follows:
 # ironrdp-cliprdr = { path = "/path/to/local/IronRDP/crates/ironrdp-cliprdr" }

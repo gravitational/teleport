@@ -223,7 +223,7 @@ impl Client {
         let mut network_client = crate::network_client::NetworkClient::new();
         let kerberos_config = params
             .kdc_addr
-            .map(|kdc_addr| Url::parse(&format!("tcp://{}", kdc_addr)))
+            .map(|kdc_addr| Url::parse(&format!("tcp://{kdc_addr}")))
             .transpose()
             .map_err(ClientError::UrlError)?
             .map(|kdc_url| KerberosConfig {
@@ -505,10 +505,7 @@ impl Client {
         let pending_resize = pending_resize.pending_resize.take();
         if let Some((width, height)) = pending_resize {
             // If there was a resize pending, perform it now.
-            debug!(
-                "Pending resize for size [{:?}x{:?}] found, sending now",
-                width, height
-            );
+            debug!("Pending resize for size [{width:?}x{height:?}] found, sending now");
             let pdu: DisplayControlPdu = DisplayControlMonitorLayout::new_single_primary_monitor(
                 width,
                 height,
@@ -682,7 +679,7 @@ impl Client {
         x224_processor: Arc<Mutex<x224::Processor>>,
         pdu: RdpdrPdu,
     ) -> ClientResult<()> {
-        debug!("sending rdp: {:?}", pdu);
+        debug!("sending rdp: {pdu:?}");
         // Process the RDPDR PDU.
         let encoded = Client::x224_process_svc_messages(
             x224_processor,
@@ -705,13 +702,10 @@ impl Client {
         // Adjust the screen size to the nearest supported resolution (per the RDP spec).
         let init_width = width;
         let init_height = height;
-        debug!(
-            "Received screen resize [{:?}x{:?}]",
-            init_width, init_height
-        );
+        debug!("Received screen resize [{init_width:?}x{init_height:?}]");
         let (width, height) = MonitorLayoutEntry::adjust_display_size(init_width, init_height);
         if width != init_width || height != init_height {
-            debug!("Adjusted screen resize to [{:?}x{:?}]", width, height);
+            debug!("Adjusted screen resize to [{width:?}x{height:?}]");
         }
 
         // Determine whether to withhold the resize or perform it immediately.
@@ -783,7 +777,7 @@ impl Client {
             SvcProcessorMessages::<DrdynvcClient>::new(messages),
         )
         .await?;
-        debug!("Writing resize to [{:?}x{:?}]", width, height);
+        debug!("Writing resize to [{width:?}x{height:?}]");
         write_stream.write_all(&encoded).await?;
 
         Ok(())
@@ -794,7 +788,7 @@ impl Client {
         x224_processor: Arc<Mutex<x224::Processor>>,
         sda: tdp::SharedDirectoryAnnounce,
     ) -> ClientResult<()> {
-        debug!("received tdp: {:?}", sda);
+        debug!("received tdp: {sda:?}");
         let pdu = Self::add_drive(x224_processor.clone(), sda).await?;
         Self::write_rdpdr(
             write_stream,
@@ -810,7 +804,7 @@ impl Client {
         res: tdp::SharedDirectoryInfoResponse,
     ) -> ClientResult<()> {
         task::spawn_blocking(move || {
-            debug!("received tdp: {:?}", res);
+            debug!("received tdp: {res:?}");
             let mut x224_processor = Self::x224_lock(&x224_processor)?;
             let rdpdr: &mut TeleportRdpdrBackend = Self::rdpdr_backend(&mut x224_processor)?;
             rdpdr.handle_tdp_sd_info_response(res)?;
@@ -824,7 +818,7 @@ impl Client {
         res: tdp::SharedDirectoryCreateResponse,
     ) -> ClientResult<()> {
         task::spawn_blocking(move || {
-            debug!("received tdp: {:?}", res);
+            debug!("received tdp: {res:?}");
             let mut x224_processor = Self::x224_lock(&x224_processor)?;
             let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
             rdpdr.handle_tdp_sd_create_response(res)?;
@@ -838,7 +832,7 @@ impl Client {
         res: tdp::SharedDirectoryDeleteResponse,
     ) -> ClientResult<()> {
         task::spawn_blocking(move || {
-            debug!("received tdp: {:?}", res);
+            debug!("received tdp: {res:?}");
             let mut x224_processor = Self::x224_lock(&x224_processor)?;
             let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
             rdpdr.handle_tdp_sd_delete_response(res)?;
@@ -852,7 +846,7 @@ impl Client {
         res: tdp::SharedDirectoryListResponse,
     ) -> ClientResult<()> {
         task::spawn_blocking(move || {
-            debug!("received tdp: {:?}", res);
+            debug!("received tdp: {res:?}");
             let mut x224_processor = Self::x224_lock(&x224_processor)?;
             let rdpdr: &mut TeleportRdpdrBackend = Self::rdpdr_backend(&mut x224_processor)?;
             rdpdr.handle_tdp_sd_list_response(res)?;
@@ -866,7 +860,7 @@ impl Client {
         res: tdp::SharedDirectoryReadResponse,
     ) -> ClientResult<()> {
         task::spawn_blocking(move || {
-            debug!("received tdp: {:?}", res);
+            debug!("received tdp: {res:?}");
             let mut x224_processor = Self::x224_lock(&x224_processor)?;
             let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
             rdpdr.handle_tdp_sd_read_response(res)?;
@@ -880,7 +874,7 @@ impl Client {
         res: tdp::SharedDirectoryWriteResponse,
     ) -> ClientResult<()> {
         task::spawn_blocking(move || {
-            debug!("received tdp: {:?}", res);
+            debug!("received tdp: {res:?}");
             let mut x224_processor = Self::x224_lock(&x224_processor)?;
             let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
             rdpdr.handle_tdp_sd_write_response(res)?;
@@ -894,7 +888,7 @@ impl Client {
         res: tdp::SharedDirectoryMoveResponse,
     ) -> ClientResult<()> {
         task::spawn_blocking(move || {
-            debug!("received tdp: {:?}", res);
+            debug!("received tdp: {res:?}");
             let mut x224_processor = Self::x224_lock(&x224_processor)?;
             let rdpdr: &mut TeleportRdpdrBackend = Self::rdpdr_backend(&mut x224_processor)?;
             rdpdr.handle_tdp_sd_move_response(res)?;
@@ -908,7 +902,7 @@ impl Client {
         res: tdp::SharedDirectoryTruncateResponse,
     ) -> ClientResult<()> {
         task::spawn_blocking(move || {
-            debug!("received tdp: {:?}", res);
+            debug!("received tdp: {res:?}");
             let mut x224_processor = Self::x224_lock(&x224_processor)?;
             let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
             rdpdr.handle_tdp_sd_truncate_response(res)?;
@@ -1342,14 +1336,14 @@ impl ClientHandle {
     fn blocking_send(&self, fun: ClientFunction) -> ClientResult<()> {
         self.0
             .blocking_send(fun)
-            .map_err(|e| ClientError::SendError(format!("{:?}", e)))
+            .map_err(|e| ClientError::SendError(format!("{e:?}")))
     }
 
     async fn send(&self, fun: ClientFunction) -> ClientResult<()> {
         self.0
             .send(fun)
             .await
-            .map_err(|e| ClientError::SendError(format!("{:?}", e)))
+            .map_err(|e| ClientError::SendError(format!("{e:?}")))
     }
 }
 
@@ -1488,7 +1482,7 @@ impl Display for ClientError {
                 ConnectorErrorKind::Custom => {
                     write!(f, "Error: {}", e.context)?;
                     if let Some(src) = e.source() {
-                        write!(f, " ({})", src)
+                        write!(f, " ({src})")
                     } else {
                         Ok(())
                     }
@@ -1544,7 +1538,7 @@ impl From<SessionError> for ClientError {
 
 impl<T> From<SendError<T>> for ClientError {
     fn from(value: SendError<T>) -> Self {
-        ClientError::SendError(format!("{:?}", value))
+        ClientError::SendError(format!("{value:?}"))
     }
 }
 

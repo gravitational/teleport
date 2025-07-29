@@ -65,7 +65,7 @@ impl UnixPath {
         CString::new(self.path.clone()).map_err(|e| {
             pdu_other_err!(
                 "",
-                source:PathError(format!("Error converting UnixPath to CString: {}", e))
+                source:PathError(format!("Error converting UnixPath to CString: {e}"))
             )
         })
     }
@@ -145,7 +145,7 @@ pub struct PathError(pub String);
 
 impl std::fmt::Display for PathError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:#?}", self)
+        write!(f, "{self:#?}")
     }
 }
 
