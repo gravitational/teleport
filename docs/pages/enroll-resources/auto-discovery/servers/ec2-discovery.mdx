@@ -87,6 +87,7 @@ the command:
                 "iam:ListPolicyVersions",
                 "iam:CreatePolicyVersion",
                 "iam:CreatePolicy",
+                "iam:GetRole",
                 "ssm:CreateDocument",
                 "iam:DeletePolicyVersion",
                 "iam:AttachRolePolicy",
@@ -334,8 +335,57 @@ role in each of those accounts.
 
 In each AWS account where your want to discover EC2 instances:
 
+1. Add a new entry to `spec.allow` in the token created in
+  [Step 1](#step17-create-an-ec2-invite-token) and set `aws_account` to the
+  account number of the new account.
 1. Create a new role and note its ARN. Create an IAM policy as described in
   [Step 2](#step-27-define-an-iam-policy) and attach it to the new role.
+1. Edit the trust policy of the new role to allow the Discovery Service's role
+  to assume it:
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "<Var name="discovery service role's ARN" />"
+            },
+            "Action": "sts:AssumeRole"
+        }
+    ]
+}
+```
+1. Edit the Discovery Service's version of the [Step 2](#step-27-define-an-iam-policy)
+  policy and add the following statement to allow the Discovery Service to assume the new role:
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "iam:GetPolicy",
+                "iam:TagPolicy",
+                "iam:ListPolicyVersions",
+                "iam:CreatePolicyVersion",
+                "iam:CreatePolicy",
+                "iam:GetRole",
+                "ssm:CreateDocument",
+                "iam:DeletePolicyVersion",
+                "iam:AttachRolePolicy",
+                "iam:PutRolePermissionsBoundary"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": "sts:AssumeRole",
+            "Resource": "arn:aws:iam::123456789012:role/<Var name="new role ARN" />"
+        }
+    ]
+}
+```
 1. Add an entry to the `discovery_service.aws` section of your `teleport.yaml`
   file as described in [Step 4](#step-47-configure-teleport-to-discover-ec2-instances):
 ```yaml
