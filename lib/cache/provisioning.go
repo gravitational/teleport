@@ -30,6 +30,7 @@ import (
 type provisioningStateGetter interface {
 	GetProvisioningState(context.Context, services.DownstreamID, services.ProvisioningStateID) (*provisioningv1.PrincipalState, error)
 	ListProvisioningStatesForAllDownstreams(context.Context, int, *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error)
+	ListProvisioningStatesForAllDownstreams2(context.Context, int, string) ([]*provisioningv1.PrincipalState, string, error)
 }
 
 type provisioningStateExecutor struct{}
