@@ -14,6 +14,7 @@ run-name: Lint UI - ${{ github.run_id }} - @${{ github.actor }}
 on:
   pull_request:
     paths-ignore:
+      - '.github/workflows/lint-ui.yaml'
       - 'web/**'
       - 'gen/proto/js/**'
       - 'gen/proto/ts/**'
@@ -25,6 +26,7 @@ on:
       - 'tsconfig.node.json'
   merge_group:
     paths-ignore:
+      - '.github/workflows/lint-ui.yaml'
       - 'web/**'
       - 'gen/proto/js/**'
       - 'gen/proto/ts/**'
