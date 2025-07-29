@@ -21,7 +21,6 @@ package gatewaytest
 import (
 	"crypto/tls"
 	"crypto/x509/pkix"
-	"fmt"
 	"io"
 	"net"
 	"slices"
@@ -82,7 +81,7 @@ func (m *MockTCPPortAllocator) Listen(localAddress, localPort string) (net.Liste
 		return nil, trace.BadParameter("address already in use")
 	}
 
-	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", "localhost", "0"))
+	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -129,7 +128,7 @@ func (m *MockListener) Addr() net.Addr {
 		return m.realListener.Addr()
 	}
 
-	addr, err := net.ResolveTCPAddr("", fmt.Sprintf("%s:%s", "localhost", m.fakePort))
+	addr, err := net.ResolveTCPAddr("", net.JoinHostPort("localhost", m.fakePort))
 
 	if err != nil {
 		panic(err)

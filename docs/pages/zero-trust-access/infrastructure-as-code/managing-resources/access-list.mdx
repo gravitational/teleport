@@ -15,14 +15,23 @@ on [the IaC users and roles guide](./user-and-role.mdx) by allowing users with
 the `manager` role to grant the `support-engineer` role to users meeting
 specific criteria.
 
-Please note that Access Lists can be managed via IaC but Access List memberships
-cannot. The goal of Access Lists is to decentralize granting and reviewing
-access. By allowing managers to grant access within specific guidelines and
-automatically enforcing review, users can request common access rights without
-having to go through the centralized team managing the Teleport IaC.
-This reduces the load on the centralized IaC/security team, ensures the access
-reviewer is aware of the context, reduces the request resolution time, and
-ensures access grants are periodically reviewed.
+## How it works
+
+Access Lists are registered with the Teleport Auth Service as resources stored
+on the Auth Service backend. The Teleport Auth Service exposes a gRPC API that
+enables clients to create, delete, or modify backend resources, including Access
+Lists. The Teleport Kubernetes Operator and Terraform provider, along with the
+`tctl` command-line tool, can manage agentless SSH services by authenticating to
+the Teleport Auth Service and interacting with its gRPC API.
+
+Access Lists can be managed via IaC but Access List memberships cannot. The goal
+of Access Lists is to decentralize granting and reviewing access. By allowing
+managers to grant access within specific guidelines and automatically enforcing
+review, users can request common access rights without having to go through the
+centralized team managing the Teleport IaC. This reduces the load on the
+centralized IaC/security team, ensures the access reviewer is aware of the
+context, reduces the request resolution time, and ensures access grants are
+periodically reviewed.
 
 ## Prerequisites
 

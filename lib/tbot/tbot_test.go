@@ -46,6 +46,7 @@ import (
 	"golang.org/x/crypto/ssh/knownhosts"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -61,10 +62,13 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	apisshutils "github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -104,7 +108,7 @@ func defaultTestServerOpts(t *testing.T, log *slog.Logger) testenv.TestServerOpt
 }
 
 // makeBot creates a server-side bot and returns joining parameters.
-func makeBot(t *testing.T, client *authclient.Client, name string, roles ...string) (*config.OnboardingConfig, *machineidv1pb.Bot) {
+func makeBot(t *testing.T, client *authclient.Client, name string, roles ...string) (*onboarding.Config, *machineidv1pb.Bot) {
 	ctx := context.TODO()
 	t.Helper()
 
@@ -135,7 +139,7 @@ func makeBot(t *testing.T, client *authclient.Client, name string, roles ...stri
 	err = client.CreateToken(ctx, tok)
 	require.NoError(t, err)
 
-	return &config.OnboardingConfig{
+	return &onboarding.Config{
 		TokenValue: tok.GetName(),
 		JoinMethod: types.JoinMethodToken,
 	}, b
@@ -150,7 +154,7 @@ func makeBot(t *testing.T, client *authclient.Client, name string, roles ...stri
 func defaultBotConfig(
 	t *testing.T,
 	process *service.TeleportProcess,
-	onboarding *config.OnboardingConfig,
+	onboarding *onboarding.Config,
 	serviceConfigs config.ServiceConfigs,
 	opts defaultBotConfigOpts,
 ) *config.BotConfig {
@@ -163,7 +167,7 @@ func defaultBotConfig(
 
 	cfg := &config.BotConfig{
 		AuthServer:            authServer,
-		AuthServerAddressMode: config.WarnIfAuthServerIsProxy,
+		AuthServerAddressMode: connection.WarnIfAuthServerIsProxy,
 		Onboarding:            *onboarding,
 		Storage: &config.StorageConfig{
 			Destination: &destination.Memory{},
@@ -323,7 +327,7 @@ func TestBot(t *testing.T) {
 		Destination:  &destination.Memory{},
 		AllowReissue: true,
 	}
-	appOutput := &config.ApplicationOutput{
+	appOutput := &application.OutputConfig{
 		Destination: &destination.Memory{},
 		AppName:     appName,
 	}
@@ -380,7 +384,7 @@ func TestBot(t *testing.T) {
 	t.Run("bot identity", func(t *testing.T) {
 		// Some rough checks to ensure the bot identity used follows our
 		// expected rules for bot identities.
-		botIdent := b.BotIdentity()
+		botIdent := b.getBotIdentity()
 		tlsIdent, err := tlsca.FromSubject(
 			botIdent.X509Cert.Subject, botIdent.X509Cert.NotAfter,
 		)
@@ -701,7 +705,7 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 	// Wait for the client to be available.
 	var client *client.Client
 	require.Eventually(t, func() bool {
-		client = thirdBot.Client()
+		client = thirdBot.getClient()
 		return client != nil
 	}, 5*time.Second, 100*time.Millisecond, "timeout waiting for client to become available")
 
@@ -1243,6 +1247,50 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	}
 }
 
+func TestBotDeviceTrust(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	log := logtest.NewLogger()
+
+	// Start a test server with `device.trust.mode="required-for-humans"`.
+	process := testenv.MakeTestServer(t,
+		defaultTestServerOpts(t, log),
+		testenv.WithAuthConfig(func(cfg *servicecfg.AuthConfig) {
+			cfg.Preference.SetDeviceTrust(&types.DeviceTrust{
+				Mode: constants.DeviceTrustModeRequiredForHumans,
+			})
+		}),
+	)
+	rootClient := testenv.MakeDefaultAuthClient(t, process)
+
+	// Run a bot with an identity output.
+	onboarding, _ := makeBot(t, rootClient, "test", "access")
+	botConfig := defaultBotConfig(
+		t, process, onboarding,
+		config.ServiceConfigs{
+			&config.IdentityOutput{
+				Destination: &destination.Memory{},
+			},
+		},
+		defaultBotConfigOpts{
+			useAuthServer: true,
+			insecure:      true,
+		},
+	)
+
+	// If we're able to successfully run the bot, it means we could:
+	//
+	// 	1. Join the cluster
+	// 	2. Request an user certificate to "impersonate" the bot's roles
+	b := New(botConfig, log)
+	require.NoError(t, b.Run(ctx))
+
+	// Run it again to check renewing the bot's internal identity works too.
+	b = New(botConfig, log)
+	require.NoError(t, b.Run(ctx))
+}
+
 // TestBotJoiningURI ensures configured joining URIs work in place of
 // traditional YAML onboarding config.
 func TestBotJoiningURI(t *testing.T) {
@@ -1294,7 +1342,7 @@ func TestBotJoiningURI(t *testing.T) {
 
 	// Perform some cursory checks on the identity to make sure a cert bundle
 	// was actually produced.
-	id := bot.BotIdentity()
+	id := bot.getBotIdentity()
 	tlsIdent, err := tlsca.FromSubject(
 		id.X509Cert.Subject, id.X509Cert.NotAfter,
 	)

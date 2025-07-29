@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/migration"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
@@ -90,7 +91,7 @@ type VersionStorage interface {
 // operations.
 type RecordingEncryptionManager interface {
 	services.RecordingEncryption
-	recordingencryption.DecryptionKeyFinder
+	recordingencryption.KeyUnwrapper
 	SetCache(cache recordingencryption.Cache)
 }
 
@@ -402,6 +403,14 @@ type InitConfig struct {
 
 	// ScopedAccess is a service that manages scoped access resources.
 	ScopedAccess services.ScopedAccess
+
+	// Summarizer manages summary inference configuration resources.
+	Summarizer services.Summarizer
+
+	// SessionSummarizerProvider is a provider of the session summarizer service.
+	// It allows for late initialization of the summarizer in the enterprise
+	// plugin. The summarizer itself summarizes session recordings.
+	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 }
 
 // Init instantiates and configures an instance of AuthServer

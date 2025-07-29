@@ -3347,7 +3347,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 	// add implicit roles to the set and build a checker
 	roleSet := services.NewRoleSet(parsedRoles...)
-	clusterName, err := a.GetClusterName(ctx)
+	clusterName, err := a.authServer.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4695,16 +4695,6 @@ func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 	}
 
 	return a.authServer.DeleteRole(ctx, name)
-}
-
-// GetClusterName gets the name of the cluster.
-// TODO(noah): DELETE IN v19.0.0 - when the apiserver getClusterName method is also
-// deleted.
-func (a *ServerWithRoles) GetClusterName(ctx context.Context) (types.ClusterName, error) {
-	if err := a.authorizeAction(types.KindClusterName, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.GetClusterName(ctx)
 }
 
 // GetAuthPreference gets cluster auth preference.

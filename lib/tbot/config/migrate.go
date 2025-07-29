@@ -27,6 +27,8 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
 )
 
 type destinationMixinV1 struct {
@@ -264,7 +266,7 @@ func (c *configV1Destination) migrate() (ServiceConfig, error) {
 				break
 			}
 		}
-		return &ApplicationOutput{
+		return &application.OutputConfig{
 			Destination:           dest,
 			Roles:                 c.Roles,
 			AppName:               c.App,
@@ -359,14 +361,14 @@ func (c *configV1Destination) migrate() (ServiceConfig, error) {
 }
 
 type configV1 struct {
-	Onboarding      OnboardingConfig `yaml:"onboarding"`
-	Debug           bool             `yaml:"debug"`
-	AuthServer      string           `yaml:"auth_server"`
-	CertificateTTL  time.Duration    `yaml:"certificate_ttl"`
-	RenewalInterval time.Duration    `yaml:"renewal_interval"`
-	Oneshot         bool             `yaml:"oneshot"`
-	FIPS            bool             `yaml:"fips"`
-	DiagAddr        string           `yaml:"diag_addr"`
+	Onboarding      onboarding.Config `yaml:"onboarding"`
+	Debug           bool              `yaml:"debug"`
+	AuthServer      string            `yaml:"auth_server"`
+	CertificateTTL  time.Duration     `yaml:"certificate_ttl"`
+	RenewalInterval time.Duration     `yaml:"renewal_interval"`
+	Oneshot         bool              `yaml:"oneshot"`
+	FIPS            bool              `yaml:"fips"`
+	DiagAddr        string            `yaml:"diag_addr"`
 
 	Destinations  []configV1Destination `yaml:"destinations"`
 	StorageConfig *storageConfigV1      `yaml:"storage"`

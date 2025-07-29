@@ -26,9 +26,11 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -37,6 +39,26 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
+func DatabaseOutputServiceBuider(botCfg *config.BotConfig, cfg *config.DatabaseOutput) bot.ServiceBuilder {
+	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+		svc := &DatabaseOutputService{
+			botAuthClient:      deps.Client,
+			botIdentityReadyCh: deps.BotIdentityReadyCh,
+			botCfg:             botCfg,
+			cfg:                cfg,
+			reloadCh:           deps.ReloadCh,
+			identityGenerator:  deps.IdentityGenerator,
+			clientBuilder:      deps.ClientBuilder,
+		}
+		svc.log = deps.Logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
+		)
+		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
+		return svc, nil
+	}
+}
+
 // DatabaseOutputService generates the artifacts necessary to connect to a
 // database using Teleport.
 type DatabaseOutputService struct {
@@ -44,10 +66,9 @@ type DatabaseOutputService struct {
 	botIdentityReadyCh <-chan struct{}
 	botCfg             *config.BotConfig
 	cfg                *config.DatabaseOutput
-	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
-	reloadBroadcaster  *internal.ChannelBroadcaster
 	statusReporter     readyz.Reporter
+	reloadCh           <-chan struct{}
 	identityGenerator  *identity.Generator
 	clientBuilder      *client.Builder
 }
@@ -64,17 +85,14 @@ func (s *DatabaseOutputService) OneShot(ctx context.Context) error {
 }
 
 func (s *DatabaseOutputService) Run(ctx context.Context) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
-	defer unsubscribe()
-
 	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
 		Service:         s.String(),
 		Name:            "output-renewal",
 		F:               s.generate,
 		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
-		RetryLimit:      renewalRetryLimit,
+		RetryLimit:      internal.RenewalRetryLimit,
 		Log:             s.log,
-		ReloadCh:        reloadCh,
+		ReloadCh:        s.reloadCh,
 		IdentityReadyCh: s.botIdentityReadyCh,
 		StatusReporter:  s.statusReporter,
 	})
@@ -175,16 +193,16 @@ func (s *DatabaseOutputService) render(
 	)
 	defer span.End()
 
-	keyRing, err := NewClientKeyRing(routedIdentity, hostCAs)
+	keyRing, err := internal.NewClientKeyRing(routedIdentity, hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := writeTLSCAs(ctx, s.cfg.Destination, hostCAs, userCAs, databaseCAs); err != nil {
+	if err := internal.WriteTLSCAs(ctx, s.cfg.Destination, hostCAs, userCAs, databaseCAs); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := writeIdentityFile(ctx, s.log, keyRing, s.cfg.Destination); err != nil {
+	if err := internal.WriteIdentityFile(ctx, s.log, keyRing, s.cfg.Destination); err != nil {
 		return trace.Wrap(err, "writing identity file")
 	}
 	if err := identity.SaveIdentity(
@@ -207,7 +225,7 @@ func (s *DatabaseOutputService) render(
 			return trace.Wrap(err, "writing cockroach database files")
 		}
 	case config.TLSDatabaseFormat:
-		if err := writeIdentityFileTLS(
+		if err := internal.WriteIdentityFileTLS(
 			ctx, s.log, keyRing, s.cfg.Destination,
 		); err != nil {
 			return trace.Wrap(err, "writing tls database format files")
@@ -231,14 +249,14 @@ func writeCockroachDatabaseFiles(
 	defer span.End()
 
 	// Cockroach format specifically uses database CAs rather than hostCAs
-	keyRing, err := NewClientKeyRing(routedIdentity, databaseCAs)
+	keyRing, err := internal.NewClientKeyRing(routedIdentity, databaseCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.DefaultCockroachDirName,
-		Writer:     newBotConfigWriter(ctx, dest, config.DefaultCockroachDirName),
+		Writer:     internal.NewBotConfigWriter(ctx, dest, config.DefaultCockroachDirName),
 		KeyRing:    keyRing,
 		Format:     identityfile.FormatCockroach,
 
@@ -269,14 +287,14 @@ func writeMongoDatabaseFiles(
 	defer span.End()
 
 	// Mongo format specifically uses database CAs rather than hostCAs
-	keyRing, err := NewClientKeyRing(routedIdentity, databaseCAs)
+	keyRing, err := internal.NewClientKeyRing(routedIdentity, databaseCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.DefaultMongoPrefix,
-		Writer:     newBotConfigWriter(ctx, dest, ""),
+		Writer:     internal.NewBotConfigWriter(ctx, dest, ""),
 		KeyRing:    keyRing,
 		Format:     identityfile.FormatMongo,
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
