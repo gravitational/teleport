@@ -34,7 +34,7 @@ const logger = new Logger('resolveAutoUpdatesStatus');
  * The version is selected using the following precedence:
  * 1. `TELEPORT_TOOLS_VERSION` env var, if defined.
  * 2. `tools_version` from the cluster manually selected to manage updates, if selected.
- * 3. Most compatible version, if found.
+ * 3. Highest compatible version, if found.
  * 4. If there's no version at this point, stop auto updates.
  */
 export async function resolveAutoUpdatesStatus(sources: {
@@ -43,115 +43,143 @@ export async function resolveAutoUpdatesStatus(sources: {
   getClusterVersions(): Promise<GetClusterVersionsResponse>;
 }): Promise<AutoUpdatesStatus> {
   if (sources.versionEnvVar === 'off') {
-    return { enabled: false, reason: 'disabled-by-env-var' };
+    return {
+      enabled: false,
+      reason: 'disabled-by-env-var',
+      options: {
+        clusters: [],
+        unreachableClusters: [],
+        highestCompatibleVersion: '',
+        managingClusterUri: '',
+      },
+    };
   }
   if (sources.versionEnvVar) {
     return {
       enabled: true,
       version: sources.versionEnvVar,
-      source: { kind: 'env-var' },
+      source: 'env-var',
+      options: {
+        clusters: [],
+        unreachableClusters: [],
+        highestCompatibleVersion: '',
+        managingClusterUri: '',
+      },
     };
   }
 
   const clusterVersions = await sources.getClusterVersions();
-  return findVersionFromClusters({
-    clusterVersions,
+  const options = createAutoUpdateOptions({
     managingClusterUri: sources.managingClusterUri,
+    clusterVersions,
   });
+  return findVersionFromClusters(options);
+}
+
+function createAutoUpdateOptions(sources: {
+  managingClusterUri: string | undefined;
+  clusterVersions: GetClusterVersionsResponse;
+}): AutoUpdatesOptions {
+  const { reachableClusters, unreachableClusters } = sources.clusterVersions;
+  const clusters = makeClusters(reachableClusters);
+  const highestCompatibleVersion = findMostCompatibleToolsVersion(clusters);
+  // If the managing cluster URI doesn't exist within connected clusters, ignore it completely.
+  // The client version cannot be determined in this case.
+  // Additionally, a cluster not listed in the connected clusters should not attempt
+  // to manage versions for them.
+  const managingClusterExists =
+    clusters.some(c => c.clusterUri === sources.managingClusterUri) ||
+    unreachableClusters.some(c => c.clusterUri === sources.managingClusterUri);
+
+  return {
+    clusters,
+    unreachableClusters,
+    highestCompatibleVersion,
+    managingClusterUri: managingClusterExists
+      ? sources.managingClusterUri
+      : undefined,
+  };
 }
 
 /**
  * Attempts to find tools version from a user-selected cluster or connected
  * clusters.
  */
-function findVersionFromClusters(sources: {
-  managingClusterUri: string | undefined;
-  clusterVersions: GetClusterVersionsResponse;
-}): AutoUpdatesStatus {
-  const { reachableClusters, unreachableClusters } = sources.clusterVersions;
-  const clusters = makeClusters(reachableClusters);
+function findVersionFromClusters(
+  options: AutoUpdatesOptions
+): AutoUpdatesStatus {
+  const { managingClusterUri, clusters, highestCompatibleVersion } = options;
+
+  if (managingClusterUri) {
+    const managingCluster = clusters.find(
+      c => c.clusterUri === managingClusterUri
+    );
+
+    if (managingCluster?.toolsAutoUpdate) {
+      return {
+        options,
+        enabled: true,
+        version: managingCluster.toolsVersion,
+        source: 'managing-cluster',
+      };
+    }
+
+    logger.warn(
+      `Cluster ${managingClusterUri} managing updates is unreachable or not managing updates.`
+    );
+    return {
+      options,
+      enabled: false,
+      reason: 'managing-cluster-unable-to-manage',
+    };
+  }
+
   const autoUpdateCandidateClusters = clusters.filter(c => c.toolsAutoUpdate);
   if (!autoUpdateCandidateClusters.length) {
     return {
+      options,
       enabled: false,
       reason: 'no-cluster-with-auto-update',
-      clusters,
-      unreachableClusters,
     };
   }
 
-  const { managingClusterUri } = sources;
-  const managingCluster = clusters.find(
-    c => c.clusterUri === managingClusterUri
-  );
-
-  if (managingCluster?.toolsAutoUpdate) {
+  if (highestCompatibleVersion) {
     return {
+      options,
       enabled: true,
-      version: managingCluster.toolsVersion,
-      source: {
-        kind: 'managing-cluster',
-        clusters,
-        clusterUri: managingCluster.clusterUri,
-        unreachableClusters,
-      },
-    };
-  }
-
-  const managingClusterIsSkipped =
-    !!managingCluster ||
-    unreachableClusters.some(c => c.clusterUri === managingClusterUri);
-
-  if (managingClusterIsSkipped) {
-    logger.warn(
-      `Cluster ${managingClusterUri} managing updates is unreachable or not managing updates, continuing resolution with most compatible version.`
-    );
-  }
-
-  const mostCompatibleVersion = findMostCompatibleToolsVersion(clusters);
-  if (mostCompatibleVersion) {
-    return {
-      enabled: true,
-      version: mostCompatibleVersion,
-      source: {
-        kind: 'most-compatible',
-        clusters,
-        unreachableClusters,
-        skippedManagingClusterUri: managingClusterIsSkipped
-          ? managingClusterUri
-          : '',
-      },
+      version: highestCompatibleVersion,
+      source: 'highest-compatible',
     };
   }
 
   return {
+    options,
     enabled: false,
     reason: 'no-compatible-version',
-    unreachableClusters,
-    clusters,
   };
 }
 
 /** When `false` is returned, the user will need to click 'Download' manually. */
 export function shouldAutoDownload(updatesStatus: AutoUpdatesEnabled): boolean {
-  const { kind } = updatesStatus.source;
-  switch (kind) {
+  const { source } = updatesStatus;
+  switch (source) {
     case 'env-var':
     case 'managing-cluster':
       return true;
-    case 'most-compatible':
+    case 'highest-compatible':
       return (
-        // Prevent auto-downloading in cases where the most-compatible approach had
+        // Prevent auto-downloading in cases where the highest-compatible approach had
         // to ignore some unreachable clusters.
-        // This can happen when a cluster that manages updates becomes temporarily unavailable
-        // – we don't want another cluster to suddenly take over managing updates.
-        updatesStatus.source.unreachableClusters.length === 0 &&
-        // Do not download the most compatible version automatically if the managing
-        // cluster is unreachable or has auto-updates disabled.
-        !updatesStatus.source.skippedManagingClusterUri
+        // Since compatibility can't be verified against those clusters,
+        // the selected version might be incompatible with them.
+        // If the clusters are temporarily unavailable, a future update check may
+        // revert to a previously compatible version.
+        // To avoid these version switches, the decision whether to install the
+        // update is left to the user.
+        updatesStatus.options.unreachableClusters.length === 0
       );
     default:
-      kind satisfies never;
+      source satisfies never;
   }
 }
 
@@ -206,69 +234,56 @@ function findMostCompatibleToolsVersion(
   }
 }
 
-export type AutoUpdatesEnabled = {
+export interface AutoUpdatesEnabled {
   enabled: true;
   version: string;
-  source:
-    | {
-        /** TELEPORT_TOOLS_VERSION configures app version. */
-        kind: 'env-var';
-      }
-    | {
-        /** Updates are auto by a specific cluster. */
-        kind: 'managing-cluster';
-        /** URI of the managing cluster. */
-        clusterUri: RootClusterUri;
-        /** Clusters considered during version resolution. */
-        clusters: Cluster[];
-        /** Clusters from which version information could not be retrieved. */
-        unreachableClusters: UnreachableCluster[];
-      }
-    | {
-        /** Updates determined by the most compatible clusters available. */
-        kind: 'most-compatible';
-        /** Clusters considered during version resolution. */
-        clusters: Cluster[];
-        /**
-         * Clusters from which version information could not be retrieved.
-         * If non-empty, the update is not automatically downloaded.
-         * */
-        unreachableClusters: UnreachableCluster[];
-        /**
-         * Indicates whether a cluster configured to manage updates is unreachable
-         * or not managing updates (toolsAutoUpdate: false).
-         */
-        skippedManagingClusterUri: string;
-      };
-};
+  /**
+   * Source of the update:
+   * - `env-var` - TELEPORT_TOOLS_VERSION configures app version.
+   * - `managing-cluster` - updates are managed by a manually configured cluster.
+   * - `highest-compatible` - updates are determined by the highest compatible version available.
+   */
+  source: 'env-var' | 'managing-cluster' | 'highest-compatible';
+  /**
+   * Represents the options considered during the auto-update version resolution process.
+   * If updates are configured via the environment variable, all fields will be empty or undefined.
+   */
+  options: AutoUpdatesOptions;
+}
 
-export type AutoUpdatesDisabled =
-  | {
-      enabled: false;
-      /** `TELEPORT_TOOLS_VERSION` is 'off'. */
-      reason: 'disabled-by-env-var';
-    }
-  | {
-      enabled: false;
-      /** There is no cluster that could manage updates. */
-      reason: 'no-cluster-with-auto-update';
-      /** Clusters considered during version resolution. */
-      clusters: Cluster[];
-      /** Clusters from which version information could not be retrieved. */
-      unreachableClusters: UnreachableCluster[];
-    }
-  | {
-      enabled: false;
-      /**
-       * There are clusters that could manage updates, but they specify
-       * incompatible client tools versions.
-       */
-      reason: 'no-compatible-version';
-      /** Clusters considered during version resolution. */
-      clusters: Cluster[];
-      /** Clusters from which version information could not be retrieved. */
-      unreachableClusters: UnreachableCluster[];
-    };
+export interface AutoUpdatesDisabled {
+  enabled: false;
+  /**
+   * Reason the updates are disabled:
+   * `disabled-by-env-var` - `TELEPORT_TOOLS_VERSION` is 'off'.
+   * `managing-cluster-unable-to-manage` - the manually selected managing cluster is either
+   * unreachable or it has since disabled autoupdates.
+   * `no-cluster-with-auto-update` - there is no cluster that could manage updates.
+   * `no-compatible-version` - there are clusters that could manage updates, but
+   * they specify incompatible client tools versions.
+   */
+  reason:
+    | 'disabled-by-env-var'
+    | 'managing-cluster-unable-to-manage'
+    | 'no-cluster-with-auto-update'
+    | 'no-compatible-version';
+  /**
+   * Represents the options considered during the auto-update version resolution process.
+   * If updates are disabled via the environment variable, all fields will be empty or undefined.
+   */
+  options: AutoUpdatesOptions;
+}
+
+export interface AutoUpdatesOptions {
+  /** The highest version that is compatible with all other clusters. */
+  highestCompatibleVersion: string | undefined;
+  /** URI of a manually selected cluster to manage updates. */
+  managingClusterUri: string | undefined;
+  /** Clusters considered during version resolution. */
+  clusters: Cluster[];
+  /** Clusters from which version information could not be retrieved. */
+  unreachableClusters: UnreachableCluster[];
+}
 
 export type AutoUpdatesStatus = AutoUpdatesEnabled | AutoUpdatesDisabled;
 

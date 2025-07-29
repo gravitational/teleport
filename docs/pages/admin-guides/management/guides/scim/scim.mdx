@@ -43,7 +43,9 @@ and match `spec.title` to the name of `displayName` of  SCIM group that we be pr
 resource "teleport_access_list" "acl-group-requester" {
   header = {
     version = "v1"
-    name = "scim-group-requester"
+    metadata = {
+      name = "scim-group-requester"
+    }
   }
   spec = {
     title = "GroupRequester"

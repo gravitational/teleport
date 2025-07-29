@@ -253,7 +253,7 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	if err := cfg.Heartbeat.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if cfg.LDAPConfig.Addr != "" || cfg.LDAPConfig.LocateServer.Enabled {
+	if cfg.LDAPConfig.Enabled() {
 		if err := cfg.LDAPConfig.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
@@ -369,6 +369,16 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		ClusterName: s.clusterName,
 		LC:          s.getLDAPConfig(),
 	})
+
+	if s.cfg.LDAPConfig.Enabled() {
+		tc, err := s.tlsConfigForLDAP()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := s.ca.Update(s.closeCtx, tc); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	ok := false
 	defer func() {
