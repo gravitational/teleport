@@ -8,6 +8,9 @@ publish.workspace = true
 [lib]
 crate-type = ["staticlib"]
 
+[lints]
+workspace = true
+
 [dependencies]
 bitflags = "2.9.1"
 boring = { git = "https://github.com/gravitational/boring", rev = "99897308abb5976ea05625b8314c24b16eebb01b", optional = true }
