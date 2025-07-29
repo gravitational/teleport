@@ -674,7 +674,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 							t.Logf("Get pod error: %v", err)
 							return false
 						}
-						t.Logf("Get pod `%v`: Status:%v", testPod, rsp.Status.Phase)
+						t.Logf("Get pod %q: Status: %s", testPod, rsp.Status.Phase)
 						if rsp.Status.Phase == v1.PodRunning {
 							t.Logf("Pod `%v` is running", testPod)
 							return true
