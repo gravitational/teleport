@@ -17,6 +17,7 @@
 package repl
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -44,6 +45,10 @@ type REPL struct {
 	term       *term.Terminal
 	parser     *parser
 	myConn     mysqlConn
+
+	// teleportVersion is used in golden tests to fake the current Teleport
+	// version and prevent test failures when the real version is incremented.
+	teleportVersion string
 
 	// testPassword is normally blank, only used in tests where the REPL connects
 	// directly to a MySQL instance without Teleport proxying.
@@ -148,7 +153,7 @@ Connected to instance %q as user %q.
 Type 'help' or '\h' for help.
 
 `,
-		teleport.Version,
+		cmp.Or(r.teleportVersion, teleport.Version),
 		r.route.GetServiceName(),
 		r.route.GetUsername())
 	return trace.Wrap(err)

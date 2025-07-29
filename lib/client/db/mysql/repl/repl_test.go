@@ -167,6 +167,7 @@ func TestGetPrompt(t *testing.T) {
 						inStringToken: token{text: test.inStringKind},
 					},
 				},
+				teleportVersion: "v19.0.0-dev",
 			}
 			if test.inQuery {
 				r.parser.lex.queryBuf.WriteString("select")
