@@ -376,17 +376,18 @@ func (f *fakeAWSRGTService) GetResources(_ context.Context, input *resourcegroup
 	pageLimit := min(int(aws.ToInt32(input.ResourcesPerPage)), f.pageLimit)
 	output := &resourcegroupstaggingapi.GetResourcesOutput{}
 	i := 0
-	if input.PaginationToken != nil {
+	if input.PaginationToken != nil && *input.PaginationToken != "" {
 		var err error
 		i, err = strconv.Atoi(aws.ToString(input.PaginationToken))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
+keys:
 	for ; i < len(f.kms.keys) && len(output.ResourceTagMappingList) < pageLimit; i++ {
 		for _, t := range input.TagFilters {
 			if !f.kms.keys[i].satisfiesFilter(t) {
-				continue
+				continue keys
 			}
 		}
 		convertedTags := convertKMSTagsToRGT(f.kms.keys[i].tags)
