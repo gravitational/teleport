@@ -83,7 +83,10 @@ function createAutoUpdateOptions(sources: {
   const { reachableClusters, unreachableClusters } = sources.clusterVersions;
   const clusters = makeClusters(reachableClusters);
   const highestCompatibleVersion = findMostCompatibleToolsVersion(clusters);
-  // If the managing cluster doesn't exist, ignore it completely.
+  // If the managing cluster URI doesn't exist within connected clusters, ignore it completely.
+  // The client version cannot be determined in this case.
+  // Additionally, a cluster not listed in the connected clusters should not attempt
+  // to manage versions for them.
   const managingClusterExists =
     clusters.some(c => c.clusterUri === sources.managingClusterUri) ||
     unreachableClusters.some(c => c.clusterUri === sources.managingClusterUri);
@@ -166,9 +169,12 @@ export function shouldAutoDownload(updatesStatus: AutoUpdatesEnabled): boolean {
       return (
         // Prevent auto-downloading in cases where the highest-compatible approach had
         // to ignore some unreachable clusters.
-        // This can happen when a cluster that automatically manages updates becomes
-        // temporarily unavailable – we don't want another cluster to suddenly
-        // take over managing updates.
+        // Since compatibility can't be verified against those clusters,
+        // the selected version might be incompatible with them.
+        // If the clusters are temporarily unavailable, a future update check may
+        // revert to a previously compatible version.
+        // To avoid these version switches, the decision whether to install the
+        // update is left to the user.
         updatesStatus.options.unreachableClusters.length === 0
       );
     default:
@@ -251,7 +257,7 @@ export interface AutoUpdatesDisabled {
    * `disabled-by-env-var` - `TELEPORT_TOOLS_VERSION` is 'off'.
    * `no-cluster-with-auto-update` - there is no cluster that could manage updates.
    * `managing-cluster-unable-to-manage` - the manually selected managing cluster is either
-   * unreachable or stopped autoupdates.
+   * unreachable or it has since disabled autoupdates.
    * `no-compatible-version` - there are clusters that could manage updates, but
    * they specify incompatible client tools versions.
    */
