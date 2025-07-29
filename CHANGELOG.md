@@ -53,6 +53,7 @@ support will be part of a future release.
 * Fix certificate revocation failures in Active Directory environments when Teleport is using HSM-backed key material. [#56928](https://github.com/gravitational/teleport/pull/56928)
 
 Enterprise:
+
 * Fix SCIM user provisioning when a user already exists and is managed by the same connector as the SCIM integration.
 * Fix SCIM integration front-end enroll flow.
 
