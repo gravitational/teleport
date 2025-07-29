@@ -133,15 +133,17 @@ func Test_mcpListCommand(t *testing.T) {
 	tests := []struct {
 		name       string
 		cf         *CLIConf
+		mcpServers []types.Application
 		wantOutput string
 	}{
 		{
-			name: "text format",
-			cf:   &CLIConf{},
-			wantOutput: `Name       Description Type  Labels  
----------- ----------- ----- ------- 
-allow-read description stdio env=dev 
-deny-write description stdio env=dev 
+			name:       "text format",
+			cf:         &CLIConf{},
+			mcpServers: mcpServers,
+			wantOutput: `Name       Description Type  Allowed Tools       Labels  
+---------- ----------- ----- ------------------- ------- 
+allow-read description stdio [read_*]            env=dev 
+deny-write description stdio [*], except: [wr... env=dev 
 
 `,
 		},
@@ -150,6 +152,7 @@ deny-write description stdio env=dev
 			cf: &CLIConf{
 				Verbose: true,
 			},
+			mcpServers: mcpServers,
 			wantOutput: `Name       Description Type  Labels  Command Args Allowed Tools          
 ---------- ----------- ----- ------- ------- ---- ---------------------- 
 allow-read description stdio env=dev test    arg  [read_*]               
@@ -158,10 +161,27 @@ deny-write description stdio env=dev test    arg  [*], except: [write_*]
 `,
 		},
 		{
+			name: "text format with rbac warning",
+			cf:   &CLIConf{},
+			mcpServers: []types.Application{
+				mustMakeMCPAppWithNameAndLabels(t, "no-access", devLabels),
+			},
+			wantOutput: `Name      Description Type  Allowed Tools Labels  
+--------- ----------- ----- ------------- ------- 
+no-access description stdio (none) [!]    env=dev 
+
+[!] Warning: you do not have access to any tools on the MCP server.
+Please contact your Teleport administrator to ensure your Teleport role has
+appropriate 'allow.mcp.tools' set. For details on MCP access RBAC, see:
+https://goteleport.com/docs/enroll-resources/mcp-access/rbac/
+`,
+		},
+		{
 			name: "JSON format",
 			cf: &CLIConf{
 				Format: "json",
 			},
+			mcpServers: mcpServers,
 			wantOutput: `[
   {
     "kind": "app",
@@ -238,6 +258,7 @@ deny-write description stdio env=dev test    arg  [*], except: [write_*]
 			cf: &CLIConf{
 				Format: "yaml",
 			},
+			mcpServers: mcpServers,
 			wantOutput: `- kind: app
   metadata:
     description: description
@@ -296,7 +317,7 @@ deny-write description stdio env=dev test    arg  [*], except: [write_*]
 
 			cmd := &mcpListCommand{
 				cf:            tt.cf,
-				mcpServers:    mcpServers,
+				mcpServers:    tt.mcpServers,
 				accessChecker: accessChecker,
 			}
 
