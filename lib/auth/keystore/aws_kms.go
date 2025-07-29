@@ -540,8 +540,9 @@ func (a *awsKMSKeystore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 
 	var keysToDelete []string
 	var mu sync.RWMutex
+	scopedKeyDeletion := os.Getenv("TELEPORT_UNSTABLE_SCOPED_KMS_KEY_DELETION") == "yes"
 	keyListFn := a.forEachKey
-	if os.Getenv("TELEPORT_UNSTABLE_SCOPED_KMS_KEY_DELETION") == "yes" {
+	if scopedKeyDeletion {
 		keyListFn = a.forEachOwnedKey
 	}
 	err := keyListFn(ctx, func(ctx context.Context, arn string) error {
@@ -564,7 +565,7 @@ func (a *awsKMSKeystore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 		// When not using the filtered tagging api, check if this key was created by this Teleport
 		// cluster. The ListResourceTags tags API has a much lower rate limit than DescribeKey so
 		// this allows us to do more before getting rate limited.
-		if os.Getenv("TELEPORT_UNSTABLE_SCOPED_KMS_KEY_DELETION") != "yes" {
+		if !scopedKeyDeletion {
 			output, err := a.kms.ListResourceTags(ctx, &kms.ListResourceTagsInput{
 				KeyId: aws.String(key.id),
 			})
