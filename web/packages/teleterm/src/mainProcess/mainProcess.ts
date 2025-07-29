@@ -161,7 +161,12 @@ export default class MainProcess {
     this.appUpdater = new AppUpdater(
       makeAppUpdaterStorage(this.appStateFileStorage),
       getClusterVersions,
-      getDownloadBaseUrl
+      getDownloadBaseUrl,
+      event => {
+        this.windowsManager
+          .getWindow()
+          .webContents.send(RendererIpc.AppUpdateEvent, event);
+      }
     );
   }
 
@@ -637,6 +642,34 @@ export default class MainProcess {
 
         return path.basename(dirPath);
       }
+    );
+
+    ipcMain.handle(MainProcessIpc.CheckForAppUpdates, () =>
+      this.appUpdater.checkForUpdates()
+    );
+
+    ipcMain.handle(
+      MainProcessIpc.ChangeManagingCluster,
+      (
+        event,
+        args: {
+          clusterUri: RootClusterUri | undefined;
+        }
+      ) => {
+        return this.appUpdater.changeManagingCluster(args.clusterUri);
+      }
+    );
+
+    ipcMain.handle(MainProcessIpc.DownloadAppUpdate, () => {
+      return this.appUpdater.download();
+    });
+
+    ipcMain.on(MainProcessIpc.CancelAppUpdateDownload, () => {
+      this.appUpdater.cancelDownload();
+    });
+
+    ipcMain.handle(MainProcessIpc.QuiteAndInstallAppUpdate, () =>
+      this.appUpdater.quitAndInstall()
     );
 
     subscribeToTerminalContextMenuEvent(this.configService);
