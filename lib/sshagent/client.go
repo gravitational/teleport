@@ -38,7 +38,7 @@ type ClientGetter func() (Client, error)
 
 type client struct {
 	agent.ExtendedAgent
-	conn io.ReadWriteCloser
+	conn io.Closer
 }
 
 // NewClient creates a new SSH Agent client with an open connection using
@@ -118,6 +118,7 @@ func ServeChannelRequests(ctx context.Context, client *ssh.Client, getForwardAge
 
 			forwardAgent, err := getForwardAgent()
 			if err != nil {
+				_ = channel.Close()
 				slog.ErrorContext(ctx, "failed to connect to forwarded agent", "err", err)
 				continue
 			}
