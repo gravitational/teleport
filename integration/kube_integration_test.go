@@ -664,7 +664,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 					// Setup next test with test pod as needed.
 					pod := newPod(testNamespace, testPod)
 					if _, err := suite.CoreV1().Pods(testNamespace).Create(context.Background(), pod, metav1.CreateOptions{}); err != nil {
-						require.True(t, kubeerrors.IsAlreadyExists(err), "Failed to create test pod: %v", err)
+						require.True(t, kubeerrors.IsAlreadyExists(err), "Failed to create test pod: %s.", err)
 					}
 
 					// Wait for pod to be running.
