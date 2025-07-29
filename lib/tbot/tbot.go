@@ -244,6 +244,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			return trace.BadParameter("unknown service type: %T", svcCfg)
 		}
 	}
+	services = append(services, MCPServiceBuilder(b.cfg))
 
 	bt, err := bot.New(bot.Config{
 		Connection:         b.cfg.ConnectionConfig(),
