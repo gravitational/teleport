@@ -713,7 +713,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 
 				// Validate that port-forwarding is working.
 				t.Log("Checking port forwarding")
-				resp, err := http.Get(fmt.Sprintf("http://localhost:%v", localPort))
+				resp, err := http.Get(fmt.Sprintf("http://localhost:%d", localPort))
 				require.NoError(t, err)
 				require.Equal(t, http.StatusOK, resp.StatusCode)
 				require.NoError(t, resp.Body.Close())
