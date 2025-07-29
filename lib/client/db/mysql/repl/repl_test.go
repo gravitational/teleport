@@ -161,13 +161,15 @@ func TestGetPrompt(t *testing.T) {
 				route: clientproto.RouteToDatabase{
 					Database: test.database,
 				},
-				lex: lexer{
-					inComment:     test.inComment,
-					inStringToken: token{text: test.inStringKind},
+				parser: &parser{
+					lex: lexer{
+						inComment:     test.inComment,
+						inStringToken: token{text: test.inStringKind},
+					},
 				},
 			}
 			if test.inQuery {
-				r.lex.queryBuf.WriteString("select")
+				r.parser.lex.queryBuf.WriteString("select")
 			}
 			require.Equal(t, test.want, r.getPrompt())
 		})
@@ -175,12 +177,12 @@ func TestGetPrompt(t *testing.T) {
 }
 
 func FuzzEval(f *testing.F) {
-	cmds, err := newCommands()
+	parser, err := newParser()
 	require.NoError(f, err)
 
-	for _, cmd := range cmds.byName {
+	for _, cmd := range parser.commands.byName {
 		f.Add(cmd.name)
-		f.Add(cmds.shortcutPrefix + string(cmd.shortcut))
+		f.Add(parser.commands.shortcutPrefix + string(cmd.shortcut))
 	}
 
 	f.Add("")  // eof
@@ -224,7 +226,7 @@ func FuzzEval(f *testing.F) {
 					return nil, io.EOF
 				},
 			},
-			commands: cmds,
+			parser: parser,
 		}
 		require.NotPanics(t, func() {
 			for line := range strings.SplitSeq(line, "\n") {

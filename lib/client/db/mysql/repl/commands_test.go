@@ -30,8 +30,9 @@ import (
 
 func TestCommands(t *testing.T) {
 	t.Parallel()
-	commands, err := newCommands()
+	parser, err := newParser()
 	require.NoError(t, err)
+	commands := parser.commands
 	require.NotEmpty(t, commands.byName)
 	require.ElementsMatch(t,
 		slices.Collect(maps.Values(commands.byName)),
@@ -52,7 +53,7 @@ func TestCommands(t *testing.T) {
 	}
 
 	repl := &REPL{
-		commands: commands,
+		parser: parser,
 		myConn: &fakeMySQLConn{
 			exec: func(command string, args ...any) (*mysql.Result, error) {
 				resultSet, err := mysql.BuildSimpleTextResultset([]string{"current_database"}, [][]any{{"example"}})

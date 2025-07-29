@@ -87,7 +87,7 @@ func newCommands() (*commandManager, error) {
 			description: "Set statement delimiter. With no argument the delimiter resets to the default.",
 			execFunc: func(r *REPL, args string) (reply string, exit bool) {
 				delim := getArg(args)
-				if err := r.lex.setDelimiter(delim); err != nil {
+				if err := r.parser.lex.setDelimiter(delim); err != nil {
 					return err.Error(), false
 				}
 				return "", false
@@ -97,8 +97,8 @@ func newCommands() (*commandManager, error) {
 			name:        "help",
 			shortcut:    'h',
 			description: "Show the list of supported commands.",
-			execFunc: func(r *REPL, _ string) (string, bool) {
-				return r.commands.help(), false
+			execFunc: func(_ *REPL, _ string) (string, bool) {
+				return c.help(), false
 			},
 		},
 		{
@@ -118,7 +118,7 @@ func newCommands() (*commandManager, error) {
 				table.AddRow([]string{"Current database:", formatDatabaseName(r.route.Database)})
 				table.AddRow([]string{"Current user:", r.route.Username})
 				table.AddRow([]string{"Server version:", r.myConn.GetServerVersion()})
-				table.AddRow([]string{"Using delimiter:", r.lex.delimiter()})
+				table.AddRow([]string{"Using delimiter:", r.parser.lex.delimiter()})
 				return table.String(), false
 			},
 		},

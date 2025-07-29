@@ -42,9 +42,8 @@ type REPL struct {
 	serverConn net.Conn
 	route      clientproto.RouteToDatabase
 	term       *term.Terminal
-	commands   *commandManager
+	parser     *parser
 	myConn     mysqlConn
-	lex        lexer
 
 	// testPassword is normally blank, only used in tests where the REPL connects
 	// directly to a MySQL instance without Teleport proxying.
@@ -60,7 +59,7 @@ type mysqlConn interface {
 
 // New implements [dbrepl.REPLNewFunc].
 func New(_ context.Context, cfg *dbrepl.NewREPLConfig) (dbrepl.REPLInstance, error) {
-	cmds, err := newCommands()
+	parser, err := newParser()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -69,7 +68,7 @@ func New(_ context.Context, cfg *dbrepl.NewREPLConfig) (dbrepl.REPLInstance, err
 		serverConn: cfg.ServerConn,
 		route:      cfg.Route,
 		term:       term.NewTerminal(cfg.Client, ""),
-		commands:   cmds,
+		parser:     parser,
 	}, nil
 }
 
@@ -164,11 +163,11 @@ func (r *REPL) getPrompt() string {
 	dbName := formatDatabaseName(r.route.Database)
 	var suffix string
 	switch {
-	case r.lex.isInComment():
+	case r.parser.lex.isInComment():
 		suffix = "/*"
-	case r.lex.isInString():
-		suffix = r.lex.inStringKind()
-	case r.lex.isInQuery():
+	case r.parser.lex.isInString():
+		suffix = r.parser.lex.inStringKind()
+	case r.parser.lex.isInQuery():
 		suffix = "-"
 	default:
 		suffix = dbName
@@ -183,26 +182,11 @@ func (r *REPL) getPrompt() string {
 }
 
 func (r *REPL) eval(line string) iter.Seq2[string, bool] {
-	r.lex.setLine(line)
 	return func(yield func(string, bool) bool) {
-		for !r.lex.isEmpty() {
-			switch {
-			case r.lex.isInComment():
-				r.lex.discardMultiLineComment()
-			case r.lex.isInString():
-				r.lex.acceptString()
-			case !r.lex.isInQuery():
-				if !yield(r.parseCommand()) {
-					return
-				}
-			default:
-				if !yield(r.parseQuery()) {
-					return
-				}
+		for evaluator := range r.parser.parse(line) {
+			if !yield(evaluator.eval(r)) {
+				return
 			}
-		}
-		if r.lex.isInQuery() {
-			r.lex.writeString(lineBreak)
 		}
 	}
 }
@@ -215,79 +199,6 @@ func (r *REPL) print(reply string) error {
 	}
 	_, err := r.term.Write([]byte(lineBreak + reply + lineBreak + lineBreak))
 	return trace.Wrap(err)
-}
-
-// parseCommand looks for a command and its args on the current line, executing
-// the command and returning a client reply and whether the REPL should exit.
-// If the line contains the current delimiter and the command is not the special
-// DELIMITER command, then it must be parsed as a potential query instead.
-func (r *REPL) parseCommand() (string, bool) {
-	r.lex.discardWhitespace()
-	line := r.lex.peekString()
-	cmd, args, err := r.commands.findCommand(line)
-	switch {
-	case err != nil:
-		r.lex.discardRemaining()
-		return err.Error(), false
-	case cmd != nil:
-		if cmd.name != "delimiter" && strings.Contains(line, r.lex.delimiter()) {
-			return r.parseQuery()
-		}
-		r.lex.discardRemaining()
-		return cmd.execFunc(r, args)
-	default:
-		return r.parseQuery()
-	}
-}
-
-// parseQuery looks for a query in the input, executing the query and returning
-// a client reply and whether the REPL should exit.
-func (r *REPL) parseQuery() (string, bool) {
-	if r.lex.advanceByDelimiter() {
-		query := r.lex.getQuery()
-		if !r.lex.isMultilineQuery() || strings.HasPrefix(query, r.commands.shortcutPrefix) {
-			cmd, args, err := r.commands.findCommand(query)
-			switch {
-			case err != nil:
-				return err.Error(), false
-			case cmd != nil:
-				return cmd.execFunc(r, args)
-			}
-		}
-		return r.runStatement(query), false
-	}
-
-	tok := r.lex.scan()
-	switch tok.kind {
-	case tokenSingleComment:
-		// intentionally skip writing out comments to our query buffer
-		r.lex.discardSingleLineComment()
-	case tokenOpenComment:
-		r.lex.setOpenComment()
-		r.lex.discardMultiLineComment()
-	case tokenBackslash:
-		r.lex.writeString(tok.text)
-		r.lex.acceptEscapedRune()
-	case tokenSingleQuote, tokenDoubleQuote, tokenBacktick:
-		r.lex.writeString(tok.text)
-		r.lex.setOpenString(tok)
-		r.lex.acceptString()
-	default:
-		r.lex.writeString(tok.text)
-	}
-	return "", false
-}
-
-// runStatement executes a single statement and formats the response as a reply
-// to the REPL client.
-func (r *REPL) runStatement(statement string) string {
-	result, err := r.myConn.Execute(statement)
-	if err != nil {
-		return errorReplyPrefix + err.Error()
-	}
-	defer result.Close()
-	reply := formatResult(result)
-	return reply
 }
 
 // rewriteTermError changes the term.Terminal error to match caller expectations.
