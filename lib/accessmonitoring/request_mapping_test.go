@@ -20,6 +20,7 @@ package accessmonitoring
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -237,6 +238,62 @@ func TestEvaluateCondition(t *testing.T) {
 				},
 			},
 			match: false,
+		},
+		{
+			description: "creation time is between",
+			condition: `
+				access_request.spec.creation_time.day() == "Sunday" &&
+				access_request.spec.creation_time.clock_between("09:00", "21:00")
+				`,
+			env: AccessRequestExpressionEnv{
+				CreationTime: time.Date(2025, time.July, 27, 14, 30, 0, 0, time.UTC), // 2025-07-27T14:30Z
+			},
+			match: true,
+		},
+		{
+			description: "creation time is different day",
+			condition: `
+				access_request.spec.creation_time.day() == "Sunday" &&
+				access_request.spec.creation_time.clock_between("09:00", "21:00")
+				`,
+			env: AccessRequestExpressionEnv{
+				CreationTime: time.Date(2025, time.July, 26, 14, 30, 0, 0, time.UTC), // 2025-07-27T14:30Z
+			},
+			match: false,
+		},
+		{
+			description: "creation time exactly equals start interval",
+			condition: `
+				access_request.spec.creation_time.day() == "Sunday" &&
+				access_request.spec.creation_time.clock_between("09:00", "21:00")
+				`,
+			env: AccessRequestExpressionEnv{
+				CreationTime: time.Date(2025, time.July, 27, 9, 0, 0, 0, time.UTC), // 2025-07-27T9:00Z
+			},
+			match: false,
+		},
+		{
+			description: "creation time exactly equals end interval",
+			condition: `
+				access_request.spec.creation_time.day() == "Sunday" &&
+				access_request.spec.creation_time.clock_between("09:00", "21:00")
+				`,
+			env: AccessRequestExpressionEnv{
+				CreationTime: time.Date(2025, time.July, 27, 21, 0, 0, 0, time.UTC), // 2025-07-27T21:00Z
+			},
+			match: false,
+		},
+		{
+			description: "normalize timezone",
+			condition: `
+				access_request.spec.creation_time.day() == "Sunday" &&
+				access_request.spec.creation_time.clock_between("09:00", "21:00")
+				`,
+			env: AccessRequestExpressionEnv{
+				CreationTime: time.Date(2025, time.July, 27, 22, 0, 0, 0, time.UTC), // 2025-07-27T9:00Z
+				Timezone:     "America/Phoenix",                                     // UTC−07:00
+			},
+			match: true,
 		},
 	}
 

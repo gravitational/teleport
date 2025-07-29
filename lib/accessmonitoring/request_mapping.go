@@ -42,6 +42,10 @@ type AccessRequestExpressionEnv struct {
 	// UserTraits includes arbitrary user traits dynamically provided by the
 	// access monitoring rule handler.
 	UserTraits map[string][]string
+
+	// Timezone specifies the timezone to use for clock comparison conditions.
+	// Empty string indicates `UTC`.
+	Timezone string
 }
 
 type accessRequestExpression typical.Expression[AccessRequestExpressionEnv, any]
@@ -132,6 +136,65 @@ func newRequestConditionParser() (*typical.Parser[AccessRequestExpressionEnv, an
 	defParserSpec := expression.DefaultParserSpec[AccessRequestExpressionEnv]()
 	defParserSpec.Variables = typicalEnvVar
 
+	defParserSpec.Functions["day"] = typical.UnaryFunction[AccessRequestExpressionEnv](
+		func(time time.Time) (string, error) {
+			return time.Weekday().String(), nil
+		})
+	defParserSpec.Methods["day"] = typical.UnaryFunction[AccessRequestExpressionEnv](
+		func(time time.Time) (string, error) {
+			return time.Weekday().String(), nil
+		})
+
+	defParserSpec.Functions["clock_between"] = typical.TernaryFunctionWithEnv(
+		func(env AccessRequestExpressionEnv, timestamp time.Time, intervalStart, intervalEnd string) (bool, error) {
+			var err error
+			loc := time.UTC
+
+			if env.Timezone != "" {
+				loc, err = time.LoadLocation(env.Timezone)
+				if err != nil {
+					return false, trace.Wrap(err, "failed to load time locale: %q", env.Timezone)
+				}
+			}
+			timestamp = timestamp.In(loc)
+
+			startTime, err := clockTime(timestamp, intervalStart)
+			if err != nil {
+				return false, trace.Wrap(err, "invalid start interval: %q", intervalStart)
+			}
+
+			endTime, err := clockTime(timestamp, intervalEnd)
+			if err != nil {
+				return false, trace.Wrap(err, "invalid end interval: %q", intervalEnd)
+			}
+			return timestamp.After(startTime) && timestamp.Before(endTime), nil
+		})
+
+	defParserSpec.Methods["clock_between"] = typical.TernaryFunctionWithEnv(
+		func(env AccessRequestExpressionEnv, timestamp time.Time, intervalStart, intervalEnd string) (bool, error) {
+			var err error
+			loc := time.UTC
+
+			if env.Timezone != "" {
+				loc, err = time.LoadLocation(env.Timezone)
+				if err != nil {
+					return false, trace.Wrap(err, "failed to load time locale: %q", env.Timezone)
+				}
+			}
+			timestamp = timestamp.In(loc)
+
+			startTime, err := clockTime(timestamp, intervalStart)
+			if err != nil {
+				return false, trace.Wrap(err, "invalid start interval: %q", intervalStart)
+			}
+
+			endTime, err := clockTime(timestamp, intervalEnd)
+			if err != nil {
+				return false, trace.Wrap(err, "invalid end interval: %q", intervalEnd)
+			}
+			return timestamp.After(startTime) && timestamp.Before(endTime), nil
+		})
+
 	requestConditionParser, err := typical.NewParser[AccessRequestExpressionEnv, any](defParserSpec)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -154,4 +217,17 @@ func EvaluateCondition(expr string, env AccessRequestExpressionEnv) (bool, error
 	}
 	matched, ok := match.(bool)
 	return ok && matched, nil
+}
+
+// clockTime returns a new time value overriding the hour and minute.
+func clockTime(timestamp time.Time, hourMinute string) (time.Time, error) {
+	const hourMinuteFormat = "15:04" // 24-hour hour:minute format
+
+	parsed, err := time.ParseInLocation(hourMinuteFormat, hourMinute, timestamp.Location())
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return time.Date(timestamp.Year(), timestamp.Month(), timestamp.Day(),
+		parsed.Hour(), parsed.Minute(), 0, 0, timestamp.Location()), nil
 }

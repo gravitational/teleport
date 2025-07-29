@@ -609,6 +609,68 @@ func (e ternaryFuncExpr[TEnv, TArg1, TArg2, TArg3, TResult]) Evaluate(env TEnv) 
 	return res, nil
 }
 
+type ternaryFunctionWithEnv[TEnv, TArg1, TArg2, TArg3, TResult any] struct {
+	impl func(TEnv, TArg1, TArg2, TArg3) (TResult, error)
+}
+
+func TernaryFunctionWithEnv[TEnv, TArg1, TArg2, TArg3, TResult any](impl func(TEnv, TArg1, TArg2, TArg3) (TResult, error)) Function {
+	return ternaryFunctionWithEnv[TEnv, TArg1, TArg2, TArg3, TResult]{impl}
+}
+
+func (f ternaryFunctionWithEnv[TEnv, TArg1, TArg2, TArg3, TResult]) buildExpression(name string, args ...any) (any, error) {
+	if len(args) != 3 {
+		return nil, trace.BadParameter("function (%s) accepts 3 arguments, given %d", name, len(args))
+	}
+	arg1Expr, err := coerce[TEnv, TArg1](args[0])
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing first argument to (%s)", name)
+	}
+	arg2Expr, err := coerce[TEnv, TArg2](args[1])
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing second argument to (%s)", name)
+	}
+	arg3Expr, err := coerce[TEnv, TArg3](args[2])
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing third argument to (%s)", name)
+	}
+	return ternaryFuncWithEnvExpr[TEnv, TArg1, TArg2, TArg3, TResult]{
+		name:     name,
+		impl:     f.impl,
+		arg1Expr: arg1Expr,
+		arg2Expr: arg2Expr,
+		arg3Expr: arg3Expr,
+	}, nil
+}
+
+type ternaryFuncWithEnvExpr[TEnv, TArg1, TArg2, TArg3, TResult any] struct {
+	name     string
+	impl     func(TEnv, TArg1, TArg2, TArg3) (TResult, error)
+	arg1Expr Expression[TEnv, TArg1]
+	arg2Expr Expression[TEnv, TArg2]
+	arg3Expr Expression[TEnv, TArg3]
+}
+
+func (e ternaryFuncWithEnvExpr[TEnv, TArg1, TArg2, TArg3, TResult]) Evaluate(env TEnv) (TResult, error) {
+	var nul TResult
+	arg1, err := e.arg1Expr.Evaluate(env)
+	if err != nil {
+		return nul, trace.Wrap(err, "evaluating first argument to function (%s)", e.name)
+	}
+	arg2, err := e.arg2Expr.Evaluate(env)
+	if err != nil {
+		return nul, trace.Wrap(err, "evaluating second argument to function (%s)", e.name)
+	}
+	arg3, err := e.arg3Expr.Evaluate(env)
+	if err != nil {
+		return nul, trace.Wrap(err, "evaluating third argument to function (%s)", e.name)
+	}
+	res, err := e.impl(env, arg1, arg2, arg3)
+	if err != nil {
+		return nul, trace.Wrap(err, "evaluating function (%s)", e.name)
+	}
+	return res, nil
+}
+
 type unaryVariadicFunction[TEnv, TVarArgs, TResult any] struct {
 	impl func(...TVarArgs) (TResult, error)
 }
