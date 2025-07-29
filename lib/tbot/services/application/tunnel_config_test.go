@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package application
 
 import (
 	"testing"
@@ -28,10 +28,10 @@ import (
 func TestApplicationTunnelService_YAML(t *testing.T) {
 	t.Parallel()
 
-	tests := []testYAMLCase[ApplicationTunnelService]{
+	tests := []testYAMLCase[TunnelConfig]{
 		{
 			name: "full",
-			in: ApplicationTunnelService{
+			in: TunnelConfig{
 				Listen:  "tcp://0.0.0.0:3621",
 				AppName: "my-app",
 				CredentialLifetime: bot.CredentialLifetime{
@@ -47,11 +47,11 @@ func TestApplicationTunnelService_YAML(t *testing.T) {
 func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testCheckAndSetDefaultsCase[*ApplicationTunnelService]{
+	tests := []testCheckAndSetDefaultsCase[*TunnelConfig]{
 		{
 			name: "valid",
-			in: func() *ApplicationTunnelService {
-				return &ApplicationTunnelService{
+			in: func() *TunnelConfig {
+				return &TunnelConfig{
 					Listen:  "tcp://0.0.0.0:3621",
 					Roles:   []string{"role1", "role2"},
 					AppName: "my-app",
@@ -61,8 +61,8 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing listen",
-			in: func() *ApplicationTunnelService {
-				return &ApplicationTunnelService{
+			in: func() *TunnelConfig {
+				return &TunnelConfig{
 					Roles:   []string{"role1", "role2"},
 					AppName: "my-app",
 				}
@@ -71,8 +71,8 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "listen not url",
-			in: func() *ApplicationTunnelService {
-				return &ApplicationTunnelService{
+			in: func() *TunnelConfig {
+				return &TunnelConfig{
 					Listen:  "\x00",
 					Roles:   []string{"role1", "role2"},
 					AppName: "my-app",
@@ -82,8 +82,8 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing app name",
-			in: func() *ApplicationTunnelService {
-				return &ApplicationTunnelService{
+			in: func() *TunnelConfig {
+				return &TunnelConfig{
 					Listen: "tcp://0.0.0.0:3621",
 					Roles:  []string{"role1", "role2"},
 				}
