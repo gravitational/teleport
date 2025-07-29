@@ -20,6 +20,7 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -556,7 +557,14 @@ func TestPortForwardUnderlyingProtocol(t *testing.T) {
 			readyCh := make(chan struct{})
 			// errCh receives a single error from ForwardPorts goroutine.
 			errCh := make(chan error)
-			t.Cleanup(func() { require.NoError(t, <-errCh) })
+			t.Cleanup(func() {
+				err := <-errCh
+				// ErrLostConnectionToPod is an expected error.
+				// Server allowed to communicate error to client.
+				if !errors.Is(err, portforward.ErrLostConnectionToPod) {
+					require.NoError(t, <-errCh)
+				}
+			})
 			// stopCh control the port forwarding lifecycle. When it gets closed the
 			// port forward will terminate.
 			stopCh := make(chan struct{})
