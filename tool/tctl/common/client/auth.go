@@ -35,10 +35,8 @@ import (
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
-	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // InitFunc initiates connection to auth service, makes ping request and return the client instance.
@@ -47,13 +45,8 @@ import (
 type InitFunc func(ctx context.Context) (client *authclient.Client, close func(context.Context), err error)
 
 // GetInitFunc wraps lazy loading auth init function for commands which requires the auth client.
-func GetInitFunc(ccf tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) InitFunc {
+func GetInitFunc(clientConfig *authclient.Config) InitFunc {
 	return func(ctx context.Context) (*authclient.Client, func(context.Context), error) {
-		clientConfig, err := tctlcfg.ApplyConfig(&ccf, cfg)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-
 		resolver, err := reversetunnelclient.CachingResolver(
 			ctx,
 			reversetunnelclient.WebClientResolver(&webclient.Config{
@@ -70,7 +63,7 @@ func GetInitFunc(ccf tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) InitFunc {
 		dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 			Resolver:              resolver,
 			ClientConfig:          clientConfig.SSH,
-			Log:                   cfg.Logger,
+			Log:                   clientConfig.Log,
 			InsecureSkipTLSVerify: clientConfig.Insecure,
 			GetClusterCAs:         apiclient.ClusterCAsFromCertPool(clientConfig.TLS.RootCAs),
 		})
@@ -87,7 +80,7 @@ func GetInitFunc(ccf tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) InitFunc {
 			}
 			fmt.Fprintf(os.Stderr,
 				"ERROR: Cannot connect to the auth server. Is the auth server running on %q?\n",
-				cfg.AuthServerAddresses()[0].Addr)
+				clientConfig.AuthServers[0].Addr)
 			return nil, nil, trace.NewAggregate(&common.ExitCodeError{Code: 1}, err)
 		}
 
