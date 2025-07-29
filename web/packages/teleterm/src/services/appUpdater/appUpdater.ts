@@ -16,12 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { rm } from 'node:fs/promises';
 import process from 'process';
 
 import {
   autoUpdater,
+  CancellationToken,
   AppUpdater as ElectronAppUpdater,
   ProgressInfo,
+  UpdateDownloadedEvent,
   UpdateInfo,
 } from 'electron-updater';
 import { ProviderRuntimeOptions } from 'electron-updater/out/providers/Provider';
@@ -30,6 +33,7 @@ import type { GetClusterVersionsResponse } from 'gen-proto-ts/teleport/lib/telet
 import { AbortError } from 'shared/utils/error';
 
 import Logger from 'teleterm/logger';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import {
   AutoUpdatesEnabled,
@@ -48,11 +52,14 @@ export class AppUpdater {
   private readonly logger = new Logger('AppUpdater');
   private readonly unregisterEventHandlers: () => void;
   private autoUpdatesStatus: AutoUpdatesStatus | undefined;
+  private downloadCancellationToken: CancellationToken | undefined;
+  private downloadedFilePath: string | undefined;
 
   constructor(
-    private storage: AppUpdaterStorage,
-    private getClusterVersions: () => Promise<GetClusterVersionsResponse>,
-    getDownloadBaseUrl: () => Promise<string>
+    private readonly storage: AppUpdaterStorage,
+    private readonly getClusterVersions: () => Promise<GetClusterVersionsResponse>,
+    readonly getDownloadBaseUrl: () => Promise<string>,
+    private readonly emit: (event: AppUpdateEvent) => void
   ) {
     const getClientToolsVersion: ClientToolsVersionGetter = async () => {
       await this.refreshAutoUpdatesStatus();
@@ -88,14 +95,89 @@ export class AppUpdater {
     // Downloads are saved to the path specified in dev-app-update.yml.
     autoUpdater.forceDevUpdateConfig = true;
 
-    this.unregisterEventHandlers = registerEventHandlers(
-      () => {}, //TODO: send the events to the window.
+    const unregisterEventHandlers = registerEventHandlers(
+      this.emit,
       () => this.autoUpdatesStatus
     );
+
+    const onUpdateDownloaded = (event: UpdateDownloadedEvent) => {
+      this.downloadedFilePath = event.downloadedFile;
+    };
+
+    autoUpdater.on('update-downloaded', onUpdateDownloaded);
+
+    this.unregisterEventHandlers = () => {
+      unregisterEventHandlers();
+      autoUpdater.off('update-downloaded', onUpdateDownloaded);
+    };
   }
 
   dispose(): void {
     this.unregisterEventHandlers();
+  }
+
+  /**
+   * Sets given cluster as managing app version.
+   * When `undefined` is passed, the managing cluster is cleared.
+   *
+   * Cancels download when it's active and removes any potentially downloaded
+   * version which no longer should be auto-applied.
+   */
+  async changeManagingCluster(
+    clusterUri: RootClusterUri | undefined
+  ): Promise<void> {
+    this.cancelDownload();
+    await this.clearStaleDownloadedUpdate();
+    this.storage.put({ managingClusterUri: clusterUri });
+    await this.checkForUpdates();
+  }
+
+  /**
+   * Asks the server whether there is an update.
+   * * If a newer version is found and `autoUpdatesStatus` permits it,
+   *  * the update is downloaded automatically.
+   */
+  async checkForUpdates(): Promise<void> {
+    const result = await autoUpdater.checkForUpdates();
+    this.downloadCancellationToken = result.cancellationToken;
+  }
+
+  /** Starts the download manually. */
+  async download(): Promise<void> {
+    this.downloadCancellationToken = new CancellationToken();
+    await autoUpdater.downloadUpdate(this.downloadCancellationToken);
+  }
+
+  /** Cancels download. */
+  cancelDownload(): void {
+    this.downloadCancellationToken?.cancel();
+  }
+
+  /**
+   * Removes the previously downloaded update if it exists.
+   * This prevents no longer valid updates from being applied.
+   */
+  private async clearStaleDownloadedUpdate(): Promise<void> {
+    if (!this.downloadedFilePath) {
+      return;
+    }
+    this.logger.info(
+      'Changed managing cluster, clearing downloaded update at',
+      this.downloadedFilePath
+    );
+    try {
+      await rm(this.downloadedFilePath);
+    } catch (error) {
+      this.logger.error('Failed to clear downloaded update', error);
+    }
+  }
+
+  /**
+   * Restarts the app and installs the update after it has been downloaded.
+   * It should only be called after update-downloaded has been emitted.
+   */
+  quitAndInstall(): void {
+    autoUpdater.quitAndInstall();
   }
 
   private async refreshAutoUpdatesStatus(): Promise<void> {
@@ -162,12 +244,15 @@ function registerEventHandlers(
     });
   };
   const onError = (error: Error) => {
-    // Functions can't be sent through IPC.
-    delete error.toString;
-
+    const serializedError = {
+      name: error.name,
+      message: error.message,
+      cause: error.cause,
+      stack: error.stack,
+    };
     emit({
       kind: 'error',
-      error: error,
+      error: serializedError,
       update: updateInfo,
       autoUpdatesStatus: getAutoUpdatesStatus() as AutoUpdatesEnabled,
     });
