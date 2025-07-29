@@ -192,3 +192,7 @@ func (cfg *LDAPConfig) CheckAndSetDefaults() error {
 
 	return nil
 }
+
+func (cfg *LDAPConfig) Enabled() bool {
+	return cfg.Addr != "" || cfg.LocateServer.Enabled
+}
