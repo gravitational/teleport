@@ -215,6 +215,9 @@ export type MainProcessClient = {
   subscribeToAppUpdateEvents(listener: (args: AppUpdateEvent) => void): {
     cleanup: () => void;
   };
+  subscribeToOpenAppUpdateDialog(listener: () => void): {
+    cleanup: () => void;
+  };
 };
 
 export type ChildProcessAddresses = {
@@ -320,6 +323,7 @@ export enum RendererIpc {
   NativeThemeUpdate = 'renderer-native-theme-update',
   ConnectMyComputerAgentUpdate = 'renderer-connect-my-computer-agent-update',
   DeepLinkLaunch = 'renderer-deep-link-launch',
+  OpenAppUpdateDialog = 'renderer-open-app-update-dialog',
   AppUpdateEvent = 'renderer-app-update-event',
 }
 
