@@ -17,8 +17,9 @@
 package top
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/dustin/go-humanize"
@@ -43,9 +44,14 @@ func (m metricItem) FilterValue() string { return m.name }
 //
 // Empty slice will return:
 //
-//	"{}"
+//	""
 func getMetricLabelString(labels []*dto.LabelPair) string {
-	out := ""
+	var out string
+
+	if len(labels) == 0 {
+		return ""
+	}
+
 	for i, label := range labels {
 		if i > 0 {
 			out += ","
@@ -87,7 +93,7 @@ func metricItemFromPromMetric(mf *dto.MetricFamily, m *dto.Metric) list.Item {
 // convertMetricsToItems converts a [metricsMsg] into a sorted slice of [list.Item] to be used in a list view.
 func convertMetricsToItems(msg metricsMsg) []list.Item {
 
-	itemCount := 0
+	var itemCount int
 	for _, mf := range msg {
 		itemCount += len(mf.GetMetric())
 	}
@@ -101,8 +107,8 @@ func convertMetricsToItems(msg metricsMsg) []list.Item {
 	}
 
 	// Sort the item list to keep the display order consistent.
-	sort.Slice(items, func(i, j int) bool {
-		return items[i].FilterValue() < items[j].FilterValue()
+	slices.SortFunc(items, func(i, j list.Item) int {
+		return cmp.Compare(i.FilterValue(), j.FilterValue())
 	})
 
 	return items
