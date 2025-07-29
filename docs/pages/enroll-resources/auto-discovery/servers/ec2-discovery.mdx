@@ -337,14 +337,51 @@ to discover instances from.
 
 ## Step 1/4. Update EC2 invite token
 
-Add a new entry to `spec.allow` in the token created in
-[Step 1](#step17-create-an-ec2-invite-token) and set `aws_account` to the
+Add a new entry to `spec.allow` in `token.yaml` and set `aws_account` to the
 account number of the new account.
+
+```yaml
+# token.yaml
+kind: token
+version: v2
+metadata:
+  name: aws-discovery-iam-token
+spec:
+  roles: [Node]
+  join_method: iam
+  allow:
+  # add an allow rule for each aws account
+  - aws_account: "123456789"
+    # ...
+```
 
 ## Step 2/4. Configure IAM permissions
 
-Create a new role and note its ARN. Create an IAM policy as described in
-[Step 2](#step-27-define-an-iam-policy) and attach it to the new role.
+Create a new role and note its ARN. Create the following IAM policy and attach
+it to the new role:
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "iam:GetPolicy",
+                "iam:TagPolicy",
+                "iam:ListPolicyVersions",
+                "iam:CreatePolicyVersion",
+                "iam:CreatePolicy",
+                "iam:GetRole",
+                "ssm:CreateDocument",
+                "iam:DeletePolicyVersion",
+                "iam:AttachRolePolicy",
+                "iam:PutRolePermissionsBoundary"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
 Edit the trust policy of the new role to allow the Discovery Service's role
 to assume it:
 ```json
@@ -361,8 +398,8 @@ to assume it:
     ]
 }
 ```
-Edit the Discovery Service's version of the [Step 2](#step-27-define-an-iam-policy)
-policy and add the following statement to allow the Discovery Service to assume the new role:
+Edit the Discovery Service's policy and add the following statement to allow
+the Discovery Service to assume the new role:
 ```json
 {
     "Version": "2012-10-17",
@@ -394,8 +431,8 @@ policy and add the following statement to allow the Discovery Service to assume 
 
 ## Step 3/4. Update Teleport configuration
 
-Add an entry to the `discovery_service.aws` section of your `teleport.yaml`
-file as described in [Step 4](#step-47-configure-teleport-to-discover-ec2-instances):
+Add an entry to the `discovery_service.aws` section of your `teleport.yaml` file
+for the new AWS account:
 ```yaml
 # ...
 discovery_service:
@@ -423,8 +460,7 @@ Set `assume_role_arn` to the ARN of your new role. Optionally, set
 ## Step 4/4. Bootstrap the Discovery Service AWS configuration
 
 When all of your accounts are ready, run `teleport discovery bootstrap` again
-to generate the remaining IAM policies and SSM documents, as described in
-[Step 5](#step-57-bootstrap-the-discovery-service-aws-configuration). For each
+to generate the remaining IAM policies and SSM documents. For each
 distinct `assume_role_arn`/`external_id`, Teleport will assume that role and
 attach the new policies to it (unless overridden by `--attach-to-user` or `--attach-to-role`).
 
