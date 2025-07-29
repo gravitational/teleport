@@ -60,9 +60,11 @@ var (
 )
 
 func TestPPv2SizeConsts(t *testing.T) {
-	// static assertions
-	var _ [proxyV2Address4Size]struct{} = [unsafe.Sizeof(proxyV2Address4{})]struct{}{}
-	var _ [proxyV2Address6Size]struct{} = [unsafe.Sizeof(proxyV2Address6{})]struct{}{}
+	//nolint:staticcheck // the fact that the two types are the same is precisely the point here
+	var (
+		_ [proxyV2Address4Size]struct{} = [unsafe.Sizeof(proxyV2Address4{})]struct{}{}
+		_ [proxyV2Address6Size]struct{} = [unsafe.Sizeof(proxyV2Address6{})]struct{}{}
+	)
 
 	// double-check the runtime size as measured by binary.Size
 	require.Equal(t, proxyV2Address4Size, binary.Size(proxyV2Address4{}))
