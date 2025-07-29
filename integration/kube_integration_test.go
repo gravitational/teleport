@@ -708,7 +708,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 				case err := <-forwarderCh:
 					t.Fatalf("Port forwarding failed immediately: %v", err)
 				case <-forwarder.readyC:
-					t.Logf("Port forwarding ready after %v", time.Since(start))
+					t.Logf("Port forwarding ready after %s", time.Since(start))
 				}
 
 				// Validate that port-forwarding is working.
