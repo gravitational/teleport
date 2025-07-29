@@ -660,8 +660,11 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 		t.Run(tt.name,
 			func(t *testing.T) {
 				t.Cleanup(func() {
-					// Test pod would have been deleted if test is successful.
-					// Setup next test with test pod as needed.
+					// Current CI RBAC allows only for a pod named "test-pod".
+					// Kube integration test suite has also single instance of
+					// "test-pod" used by multiple tests.
+					// Here we continue the use and maintenance of the single "test-pod" pod approach.
+					// On successful test, "test-pod" is deleted, and re-created for the next test.
 					pod := newPod(testNamespace, testPod)
 					if _, err := suite.CoreV1().Pods(testNamespace).Create(context.Background(), pod, metav1.CreateOptions{}); err != nil {
 						require.True(t, kubeerrors.IsAlreadyExists(err), "Failed to create test pod: %s.", err)
@@ -697,8 +700,9 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 				})
 				require.NoError(t, err)
 
-				forwarderCh := make(chan error)
+				forwarderCh := make(chan error, 1)
 				go func() { forwarderCh <- forwarder.ForwardPorts() }()
+				t.Cleanup(func() { close(forwarder.stopC) })
 
 				// Wait for port-forwarding to be ready.
 				start := time.Now()
@@ -707,7 +711,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 					t.Fatalf("Timeout waiting for port forwarding after %s", time.Since(start))
 				case err := <-forwarderCh:
 					if err != nil {
-						t.Fatalf("Port forwarding failed immediately: %v", err)
+						t.Fatalf("Port forwarding failed immediately: %s", err)
 					}
 				case <-forwarder.readyC:
 					t.Logf("Port forwarding ready after %s", time.Since(start))
@@ -747,20 +751,18 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 				// This enables error reporting from KubeAPI back to client.
 				t.Log("Checking for port-forward disconnection")
 				//nolint:bodyclose // http response is expected to be nil and return an error
-				_, err = http.Get(fmt.Sprintf("http://localhost:%v", localPort))
+				_, err = http.Get(fmt.Sprintf("http://localhost:%d", localPort))
 				require.Error(t, err)
 
 				// Wait for port-forwarding to exit.
 				start = time.Now()
 				select {
 				case <-time.After(5 * time.Second):
-					t.Fatalf("Timed out waiting for port forward exit (%v)", time.Since(start))
+					t.Fatalf("Timed out waiting for port forward exit (%s)", time.Since(start))
 				case err := <-forwarderCh:
 					t.Log("Exited port forwarding after pod deletion")
-					require.Error(t, err)
 					require.Equal(t, err, portforward.ErrLostConnectionToPod)
 				}
-
 			},
 		)
 	}
