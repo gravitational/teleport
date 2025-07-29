@@ -376,7 +376,7 @@ test.each<{
             clusterUri: '/clusters/cluster-b',
             toolsVersion: '15.0.0',
             minToolsVersion: '14.0.0-aa',
-            toolsAutoUpdate: true,
+            toolsAutoUpdate: false,
           },
         ],
         unreachableClusters: [],
@@ -387,7 +387,7 @@ test.each<{
       enabled: false,
       reason: 'managing-cluster-unable-to-manage',
       options: {
-        highestCompatibleVersion: '15.0.0',
+        highestCompatibleVersion: undefined,
         managingClusterUri: '/clusters/cluster-a',
         clusters: [
           {
@@ -399,7 +399,7 @@ test.each<{
           },
           {
             clusterUri: '/clusters/cluster-b',
-            toolsAutoUpdate: true,
+            toolsAutoUpdate: false,
             toolsVersion: '15.0.0',
             minToolsVersion: '14.0.0-aa',
             otherCompatibleClusters: ['/clusters/cluster-a'],

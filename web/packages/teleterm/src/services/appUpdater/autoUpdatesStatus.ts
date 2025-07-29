@@ -109,14 +109,6 @@ function findVersionFromClusters(
   options: AutoUpdatesOptions
 ): AutoUpdatesStatus {
   const { managingClusterUri, clusters, highestCompatibleVersion } = options;
-  const autoUpdateCandidateClusters = clusters.filter(c => c.toolsAutoUpdate);
-  if (!autoUpdateCandidateClusters.length) {
-    return {
-      options,
-      enabled: false,
-      reason: 'no-cluster-with-auto-update',
-    };
-  }
 
   if (managingClusterUri) {
     const managingCluster = clusters.find(
@@ -139,6 +131,15 @@ function findVersionFromClusters(
       options,
       enabled: false,
       reason: 'managing-cluster-unable-to-manage',
+    };
+  }
+
+  const autoUpdateCandidateClusters = clusters.filter(c => c.toolsAutoUpdate);
+  if (!autoUpdateCandidateClusters.length) {
+    return {
+      options,
+      enabled: false,
+      reason: 'no-cluster-with-auto-update',
     };
   }
 
@@ -255,16 +256,16 @@ export interface AutoUpdatesDisabled {
   /**
    * Reason the updates are disabled:
    * `disabled-by-env-var` - `TELEPORT_TOOLS_VERSION` is 'off'.
-   * `no-cluster-with-auto-update` - there is no cluster that could manage updates.
    * `managing-cluster-unable-to-manage` - the manually selected managing cluster is either
    * unreachable or it has since disabled autoupdates.
+   * `no-cluster-with-auto-update` - there is no cluster that could manage updates.
    * `no-compatible-version` - there are clusters that could manage updates, but
    * they specify incompatible client tools versions.
    */
   reason:
     | 'disabled-by-env-var'
-    | 'no-cluster-with-auto-update'
     | 'managing-cluster-unable-to-manage'
+    | 'no-cluster-with-auto-update'
     | 'no-compatible-version';
   /**
    * Represents the options considered during the auto-update version resolution process.
