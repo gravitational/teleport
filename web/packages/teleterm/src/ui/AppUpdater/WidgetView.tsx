@@ -186,7 +186,7 @@ function AvailableUpdate(props: {
       {(hasUnreachableClusters ||
         props.skippedManagingClusterUri ||
         isNonTeleportServer) && (
-        <Stack gap={0} ml={1}>
+        <Stack ml={1}>
           {props.skippedManagingClusterUri && (
             <IconAndText
               Icon={Warning}
