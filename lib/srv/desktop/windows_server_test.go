@@ -35,7 +35,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/windows"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -115,7 +115,7 @@ func TestGenerateCredentials(t *testing.T) {
 		domain      = "test.example.com"
 	)
 
-	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: clusterName,
 		Dir:         t.TempDir(),
 	})
@@ -141,7 +141,7 @@ func TestGenerateCredentials(t *testing.T) {
 	require.NoError(t, err)
 	commonName := base32.HexEncoding.EncodeToString(cert.SubjectKeyId) + "_" + clusterName
 
-	client, err := tlsServer.NewClient(auth.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
+	client, err := tlsServer.NewClient(authtest.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, client.Close())

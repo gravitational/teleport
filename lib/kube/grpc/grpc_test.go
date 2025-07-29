@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -623,7 +624,7 @@ func TestListKubernetesResources(t *testing.T) {
 // initGRPCServer creates a grpc server serving on the provided listener.
 func initGRPCServer(t *testing.T, testCtx *TestContext, listener net.Listener) {
 	clusterName := testCtx.ClusterName
-	serverIdentity, err := auth.NewServerIdentity(testCtx.AuthServer, testCtx.HostID, types.RoleProxy)
+	serverIdentity, err := authtest.NewServerIdentity(testCtx.AuthServer, testCtx.HostID, types.RoleProxy)
 	require.NoError(t, err)
 	tlsConfig, err := serverIdentity.TLSConfig(nil)
 	require.NoError(t, err)
@@ -652,7 +653,7 @@ func initGRPCServer(t *testing.T, testCtx *TestContext, listener net.Listener) {
 	)
 	t.Cleanup(grpcServer.GracefulStop)
 	// Auth client, lock watcher and authorizer for Kube proxy.
-	proxyAuthClient, err := testCtx.TLSServer.NewClient(auth.TestBuiltin(types.RoleProxy))
+	proxyAuthClient, err := testCtx.TLSServer.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyAuthClient.Close()) })
 
