@@ -398,7 +398,7 @@ keys:
 }
 
 func convertKMSTagsToRGT(kmsTags []kmstypes.Tag) []rgttypes.Tag {
-	var out []rgttypes.Tag
+	out := make([]rgttypes.Tag, 0, len(kmsTags))
 	for _, t := range kmsTags {
 		out = append(out, rgttypes.Tag{
 			Key:   t.TagKey,
