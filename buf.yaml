@@ -18,6 +18,7 @@ lint:
     - COMMENT_SERVICE
     - PACKAGE_NO_IMPORT_CYCLE
     - UNARY_RPC
+    - PAGINATION_REQUIRED
   except:
     - FIELD_NOT_REQUIRED
     - RPC_REQUEST_RESPONSE_UNIQUE
@@ -83,3 +84,5 @@ breaking:
   ignore:
     # TODO(codingllama): Remove ignore once the PDP API is stable.
     - api/proto/teleport/decision/v1alpha1
+plugins:
+  - plugin: pagination
