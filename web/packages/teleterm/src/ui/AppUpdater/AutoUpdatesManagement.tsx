@@ -142,7 +142,7 @@ function ManagingClusterSelector({
                 }
               }}
             />
-            Use the most compatible version from your clusters
+            Use the highest compatible version from your clusters
           </label>
           {!localIsAutoManaged && (
             <>
