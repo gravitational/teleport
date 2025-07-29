@@ -143,6 +143,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	peerquic "github.com/gravitational/teleport/lib/proxy/peer/quic"
+	"github.com/gravitational/teleport/lib/relaytunnel"
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -2901,6 +2902,20 @@ func (process *TeleportProcess) newLocalCacheForProxy(clt authclient.ClientI, ca
 	return authclient.NewProxyWrapper(clt, cache), nil
 }
 
+func (process *TeleportProcess) newLocalCacheForRelay(clt authclient.ClientI, cacheName []string) (authclient.ReadRelayAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.NewLocalCache(clt, cache.ForRelay, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cache, nil
+}
+
 // newLocalCacheForRemoteProxy returns new instance of access point configured for a remote proxy.
 func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt authclient.ClientI, cacheName []string) (authclient.RemoteProxyAccessPoint, error) {
 	// if caching is disabled, return access point
@@ -3043,6 +3058,7 @@ func (process *TeleportProcess) initSSH() error {
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentNode, process.id))
 
 	proxyGetter := reversetunnel.NewConnectedProxyGetter()
+	relayInfoHolder := new(relaytunnel.RelayInfoHolder)
 
 	process.RegisterCriticalFunc("ssh.node", func() error {
 		// restartingOnGracefulShutdown will be set to true before the function
@@ -3206,6 +3222,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetX11ForwardingConfig(cfg.SSH.X11),
 			regular.SetAllowFileCopying(cfg.SSH.AllowFileCopying),
 			regular.SetConnectedProxyGetter(proxyGetter),
+			regular.SetRelayInfoGetter(relayInfoHolder.GetRelayInfo),
 			regular.SetCreateHostUser(!cfg.SSH.DisableCreateHostUser),
 			regular.SetStoragePresenceService(storagePresence),
 			regular.SetInventoryControlHandle(process.inventoryHandle),
@@ -3252,6 +3269,7 @@ func (process *TeleportProcess) initSSH() error {
 		}
 
 		var agentPool *reversetunnel.AgentPool
+		var relayTunnelClient *relaytunnel.Client
 		if useLocalListener {
 			listener, err := process.importOrCreateListener(ListenerNodeSSH, cfg.SSH.Addr.Addr)
 			if err != nil {
@@ -3302,7 +3320,7 @@ func (process *TeleportProcess) initSSH() error {
 			}
 		}
 
-		if conn.UseTunnel() {
+		if conn.UseTunnel() && os.Getenv("TELEPORT_UNSTABLE_DISABLE_REVERSE_TUNNEL") != "yes" {
 			var serverHandler reversetunnel.ServerHandler = s
 			if resumableServer != nil {
 				serverHandler = resumableServer
@@ -3333,6 +3351,34 @@ func (process *TeleportProcess) initSSH() error {
 			}
 			logger.InfoContext(process.ExitContext(), "Service is starting in tunnel mode.")
 		}
+		if conn.UseTunnel() && cfg.RelayServer != "" {
+			var serverHandler reversetunnel.ServerHandler = s
+			if resumableServer != nil {
+				serverHandler = resumableServer
+			}
+
+			relayTunnelClient, err = relaytunnel.NewClient(relaytunnel.ClientConfig{
+				Log: logger,
+
+				GetCertificate: conn.ClientGetCertificate,
+				GetPool:        conn.ClientGetPool,
+				Ciphersuites:   cfg.CipherSuites,
+
+				TunnelType: types.NodeTunnel,
+				RelayAddr:  cfg.RelayServer,
+
+				HandleConnection: serverHandler.HandleConnection,
+				RelayInfoSetter:  relayInfoHolder.SetRelayInfo,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := relayTunnelClient.Start(); err != nil {
+				return trace.Wrap(err)
+			}
+			defer relayTunnelClient.Close()
+			logger.InfoContext(process.ExitContext(), "Service is starting in relay tunnel mode.")
+		}
 
 		// Broadcast that the node has started.
 		process.BroadcastEvent(Event{Name: NodeSSHReady, Payload: nil})
@@ -3360,6 +3406,9 @@ func (process *TeleportProcess) initSSH() error {
 		s.Wait()
 		agentPool.Stop()
 		agentPool.Wait()
+		if relayTunnelClient != nil {
+			relayTunnelClient.Close()
+		}
 
 		logger.InfoContext(process.ExitContext(), "Exited.")
 		return nil
@@ -3952,7 +4001,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 			}
 		}
 	case types.RoleRelay:
-		dnsNames = append(dnsNames, process.Config.Relay.APIPublicHostnames...)
+		dnsNames = append(dnsNames, process.Config.Relay.PublicHostnames...)
 	case types.RoleAuth, types.RoleAdmin:
 		addrs = process.Config.Auth.PublicAddrs
 	case types.RoleNode:
