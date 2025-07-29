@@ -28,6 +28,7 @@ import { ClusterLogout } from '../ClusterLogout';
 import { ResourceSearchErrors } from '../Search/ResourceSearchErrors';
 import { assertUnreachable } from '../utils';
 import { ConfigureSSHClients } from '../Vnet/ConfigureSSHClients';
+import { AppUpdates } from './modals/AppUpdates';
 import { ChangeAccessRequestKind } from './modals/ChangeAccessRequestKind';
 import { AskPin, ChangePin, OverwriteSlot, Touch } from './modals/HardwareKeys';
 import { ReAuthenticate } from './modals/ReAuthenticate';
@@ -292,6 +293,9 @@ function renderDialog({
           host={dialog.host}
         />
       );
+    }
+    case 'app-updates': {
+      return <AppUpdates hidden={hidden} onClose={() => handleClose()} />;
     }
 
     default: {

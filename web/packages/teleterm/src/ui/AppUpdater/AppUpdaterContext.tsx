@@ -34,6 +34,7 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 interface AppUpdaterContext {
   updateEvent: AppUpdateEvent;
   platform: Platform;
+  openDialog(): void;
   checkForUpdates(): Promise<void>;
   download(): void;
   cancelDownload(): void;
@@ -48,6 +49,10 @@ export function AppUpdaterContextProvider(props: PropsWithChildren) {
   const [updateEvent, setUpdateEvent] = useState<AppUpdateEvent>({
     kind: 'checking-for-update',
   });
+
+  const openDialog = useCallback(() => {
+    appContext.modalsService.openRegularDialog({ kind: 'app-updates' });
+  }, [appContext]);
 
   const checkForUpdates = useCallback(async () => {
     try {
@@ -89,11 +94,16 @@ export function AppUpdaterContextProvider(props: PropsWithChildren) {
   );
 
   useEffect(() => {
-    const { cleanup } =
+    const { cleanup: cleanUpEvents } =
       appContext.mainProcessClient.subscribeToAppUpdateEvents(setUpdateEvent);
+    const { cleanup: cleanUpDialog } =
+      appContext.mainProcessClient.subscribeToOpenAppUpdateDialog(openDialog);
 
-    return cleanup;
-  }, [appContext]);
+    return () => {
+      cleanUpEvents();
+      cleanUpDialog();
+    };
+  }, [appContext, openDialog]);
 
   const value = useMemo(
     () => ({
@@ -104,6 +114,7 @@ export function AppUpdaterContextProvider(props: PropsWithChildren) {
       cancelDownload,
       quitAndInstall,
       changeManagingCluster,
+      openDialog,
     }),
     [
       appContext.mainProcessClient,
@@ -113,6 +124,7 @@ export function AppUpdaterContextProvider(props: PropsWithChildren) {
       download,
       quitAndInstall,
       updateEvent,
+      openDialog,
     ]
   );
 
