@@ -5,7 +5,11 @@
 set -eu
 
 version_le() {
-  [ "$(printf '%s\n' "$1" "$2" | sort -V | head -n1)" = "$1" ]
+  if command -v dpkg &>/dev/null; then
+    dpkg --compare-versions "$1" le "$2"
+  else
+    [ "$(printf '%s\n' "$1" "$2" | sort -V | head -n1)" = "$1" ]
+  fi
 }
 
 unlink() {
@@ -24,6 +28,13 @@ case "$1" in
     ;;
   upgrade)
     target_version="$2"
+    # We need to compare versions by their major version to determine whether
+    # a package unlink is required. Starting with versions 17.3.0, 16.5.0, and 15.5.0,
+    # the package structure changed — all Teleport binaries were moved to the `/opt/teleport`
+    # directory. After installation, symlinks are created in `/usr/local/bin`, and all
+    # symlinks are managed by `teleport-update`.
+    # When downgrading to an older version that does not use `teleport-update`,
+    # these symlinks must be removed by `teleport-update unlink-package` before installation.
     if [[ -n "$target_version" ]]; then
       major="${target_version%%.*}"
       case "$major" in
