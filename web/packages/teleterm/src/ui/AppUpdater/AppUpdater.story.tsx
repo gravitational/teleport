@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react-vite';
+import { Meta, StoryObj } from '@storybook/react-vite';
 import { useEffect, useState } from 'react';
 
 import { Stack } from 'design/Flex';
@@ -72,6 +72,7 @@ export interface StoryProps {
 
 const meta: Meta<StoryProps> = {
   title: 'Teleterm/AppUpdater',
+  component: WidgetAndDetails,
   argTypes: {
     envVar: {
       control: { type: 'radio' },
@@ -132,7 +133,7 @@ const meta: Meta<StoryProps> = {
     clusterFoo: 'Enabled client updates - v18 cluster',
     clusterBar: 'Not exists',
     clusterBarSetToManageUpdates: false,
-    step: 'Update available',
+    step: 'Update not available',
     platform: 'darwin',
     nonTeleportCdn: false,
   },
@@ -266,7 +267,7 @@ async function resolveEvent(storyProps: StoryProps): Promise<AppUpdateEvent> {
   }
 }
 
-export function Details(storyProps: StoryProps) {
+function WidgetAndDetails(storyProps: StoryProps) {
   const [state, setState] = useState<AppUpdateEvent>();
   useEffect(() => {
     resolveEvent(storyProps).then(setState);
@@ -285,54 +286,119 @@ export function Details(storyProps: StoryProps) {
   }
 
   return (
-    <Stack maxWidth="432px">
-      <DetailsView
-        platform={storyProps.platform}
-        updateEvent={state}
-        clusterGetter={{
-          findCluster: () => undefined,
-        }}
-        changeManagingCluster={() => {}}
-        onCheckForUpdates={() => {}}
-        onDownload={() => {}}
-        onCancelDownload={() => {}}
-        onInstall={() => {}}
-      />
+    <Stack gap={6} maxWidth="432px">
+      <Stack width="100%">
+        <h3 style={{ margin: 0 }}>Widget View</h3>
+        <p>If nothing is rendered, the widget is hidden in that state.</p>
+        <WidgetView
+          platform={storyProps.platform}
+          updateEvent={state}
+          clusterGetter={{
+            findCluster: () => undefined,
+          }}
+          onMore={() => {}}
+          onDownload={() => {}}
+          onInstall={() => {}}
+        />
+      </Stack>
+      <Stack width="100%">
+        <h3>Details View</h3>
+        <DetailsView
+          platform={storyProps.platform}
+          updateEvent={state}
+          clusterGetter={{
+            findCluster: () => undefined,
+          }}
+          changeManagingCluster={() => {}}
+          onCheckForUpdates={() => {}}
+          onDownload={() => {}}
+          onCancelDownload={() => {}}
+          onInstall={() => {}}
+        />
+      </Stack>
     </Stack>
   );
 }
 
-export function Widget(storyProps: StoryProps) {
-  const [state, setState] = useState<AppUpdateEvent>();
-  useEffect(() => {
-    resolveEvent(storyProps).then(setState);
-  }, [storyProps]);
+export const EnabledWithEnvVar: StoryObj<StoryProps> = {
+  args: {
+    envVar: 'Set to version - v15',
+  },
+};
 
-  if (!state) {
-    return (
-      <p>
-        This step is only available when controls values allow resolving a
-        client tools version.
-        <br />
-        Storybook does not support showing or hiding controls based on exact
-        values of other controls.
-      </p>
-    );
-  }
+export const EnabledWithSingleCluster: StoryObj<StoryProps> = {
+  args: {
+    clusterFoo: 'Enabled client updates - v18 cluster',
+  },
+};
 
-  return (
-    <Stack maxWidth="432px">
-      <p>If nothing is rendered, the widget is hidden in that state.</p>
-      <WidgetView
-        platform={storyProps.platform}
-        updateEvent={state}
-        clusterGetter={{
-          findCluster: () => undefined,
-        }}
-        onMore={() => {}}
-        onDownload={() => {}}
-        onInstall={() => {}}
-      />
-    </Stack>
-  );
-}
+export const EnabledWithHighestCompatible: StoryObj<StoryProps> = {
+  args: {
+    clusterFoo: 'Enabled client updates - v17 cluster',
+    clusterBar: 'Enabled client updates - v16 cluster',
+  },
+};
+
+export const EnabledWithManagingCluster: StoryObj<StoryProps> = {
+  args: {
+    clusterFoo: 'Enabled client updates - v17 cluster',
+    clusterBar: 'Enabled client updates - v16 cluster',
+    clusterBarSetToManageUpdates: true,
+  },
+};
+
+export const EnabledWithManagingClusterAndSomeUnreachable: StoryObj<StoryProps> =
+  {
+    args: {
+      clusterFoo: 'Unreachable',
+      clusterBar: 'Enabled client updates - v16 cluster',
+      clusterBarSetToManageUpdates: true,
+    },
+  };
+
+export const DisabledBecauseSingleClusterUnreachable: StoryObj<StoryProps> = {
+  args: {
+    clusterFoo: 'Unreachable',
+    clusterBar: 'Not exists',
+  },
+};
+export const DisabledBecauseSingleClusterHasNoAutoupdates: StoryObj<StoryProps> =
+  {
+    args: {
+      clusterFoo: 'Disabled client updates - v18 cluster',
+      clusterBar: 'Not exists',
+    },
+  };
+
+export const DisabledBecauseManagingClusterIsUnreachable: StoryObj<StoryProps> =
+  {
+    args: {
+      clusterFoo: 'Enabled client updates - v17 cluster',
+      clusterBar: 'Unreachable',
+      clusterBarSetToManageUpdates: true,
+    },
+  };
+
+export const DisabledBecauseManagingClusterHasNoAutoupdates: StoryObj<StoryProps> =
+  {
+    args: {
+      clusterFoo: 'Enabled client updates - v17 cluster',
+      clusterBar: 'Disabled client updates - v17 cluster',
+      clusterBarSetToManageUpdates: true,
+    },
+  };
+
+export const DisableBecauseNoClusterManagingUpdates: StoryObj<StoryProps> = {
+  args: {
+    clusterFoo: 'Disabled client updates - v18 cluster',
+    clusterBar: 'Disabled client updates - v17 cluster',
+  },
+};
+
+export const DisabledBecauseClustersRequireIncompatibleVersions: StoryObj<StoryProps> =
+  {
+    args: {
+      clusterFoo: 'Enabled client updates - v18 cluster',
+      clusterBar: 'Enabled client updates - v16 cluster',
+    },
+  };
