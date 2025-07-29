@@ -11,6 +11,10 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 )
 
+// LeaderLockRetryInterval is the interval between attempts to acquire the underlying
+// back-end lock while acuiring the Leader Lock.
+var LeaderLockRetryInterval time.Duration = time.Minute
+
 // withLeaderLock wraps a plugin’s execution function to ensure that it runs
 // exclusively on a single Auth instance at any given time. This is achieved by acquiring
 // a distributed lock before execution, which prevents concurrent runs of the same plugin
@@ -64,7 +68,7 @@ func executeWithLeaderLock(ctx context.Context, deps instanceDependencies, plugi
 					LockNameComponents: []string{lockName},
 					Backend:            deps.parentProcess.GetBackend(),
 					TTL:                time.Minute * 3,
-					RetryInterval:      time.Minute,
+					RetryInterval:      LeaderLockRetryInterval,
 				},
 				RefreshLockInterval: time.Minute,
 			}, func(ctx context.Context) error {
