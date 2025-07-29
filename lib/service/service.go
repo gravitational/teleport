@@ -45,7 +45,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"testing"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
@@ -892,13 +891,6 @@ func (process *TeleportProcess) getAuthSubjectiveAddr() string {
 	process.Lock()
 	defer process.Unlock()
 	return process.authSubjectiveAddr
-}
-
-func (process *TeleportProcess) GetIdentityForTesting(t *testing.T, role types.SystemRole) (i *state.Identity, err error) {
-	if !testing.Testing() {
-		panic("GetIdentityForTesting can only be called in tests")
-	}
-	return process.getIdentity(role)
 }
 
 // getIdentity returns the current identity (credentials to the auth server) for
