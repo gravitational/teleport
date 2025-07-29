@@ -671,6 +671,61 @@ func (x *Page) GetCount() uint64 {
 	return 0
 }
 
+// PatchSCIMResourceRequest describes a SCIM PATCH operation
+type PatchSCIMResourceRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Target identifies the resource to patch
+	Target *RequestTarget `protobuf:"bytes,1,opt,name=target,proto3" json:"target,omitempty"`
+	// Payload is the SCIM PATCH Request payload.
+	Payload       *structpb.Value `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PatchSCIMResourceRequest) Reset() {
+	*x = PatchSCIMResourceRequest{}
+	mi := &file_teleport_scim_v1_scim_service_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PatchSCIMResourceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PatchSCIMResourceRequest) ProtoMessage() {}
+
+func (x *PatchSCIMResourceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scim_v1_scim_service_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PatchSCIMResourceRequest.ProtoReflect.Descriptor instead.
+func (*PatchSCIMResourceRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_scim_v1_scim_service_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *PatchSCIMResourceRequest) GetTarget() *RequestTarget {
+	if x != nil {
+		return x.Target
+	}
+	return nil
+}
+
+func (x *PatchSCIMResourceRequest) GetPayload() *structpb.Value {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
 var File_teleport_scim_v1_scim_service_proto protoreflect.FileDescriptor
 
 const file_teleport_scim_v1_scim_service_proto_rawDesc = "" +
@@ -720,13 +775,17 @@ const file_teleport_scim_v1_scim_service_proto_rawDesc = "" +
 	"\x04Page\x12\x1f\n" +
 	"\vstart_index\x18\x01 \x01(\x04R\n" +
 	"startIndex\x12\x14\n" +
-	"\x05count\x18\x02 \x01(\x04R\x05count2\xe0\x03\n" +
+	"\x05count\x18\x02 \x01(\x04R\x05count\"\x85\x01\n" +
+	"\x18PatchSCIMResourceRequest\x127\n" +
+	"\x06target\x18\x01 \x01(\v2\x1f.teleport.scim.v1.RequestTargetR\x06target\x120\n" +
+	"\apayload\x18\x02 \x01(\v2\x16.google.protobuf.ValueR\apayload2\xbd\x04\n" +
 	"\vSCIMService\x12_\n" +
 	"\x11ListSCIMResources\x12*.teleport.scim.v1.ListSCIMResourcesRequest\x1a\x1e.teleport.scim.v1.ResourceList\x12W\n" +
 	"\x0fGetSCIMResource\x12(.teleport.scim.v1.GetSCIMResourceRequest\x1a\x1a.teleport.scim.v1.Resource\x12]\n" +
 	"\x12CreateSCIMResource\x12+.teleport.scim.v1.CreateSCIMResourceRequest\x1a\x1a.teleport.scim.v1.Resource\x12]\n" +
 	"\x12UpdateSCIMResource\x12+.teleport.scim.v1.UpdateSCIMResourceRequest\x1a\x1a.teleport.scim.v1.Resource\x12Y\n" +
-	"\x12DeleteSCIMResource\x12+.teleport.scim.v1.DeleteSCIMResourceRequest\x1a\x16.google.protobuf.EmptyBLZJgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1;scimv1b\x06proto3"
+	"\x12DeleteSCIMResource\x12+.teleport.scim.v1.DeleteSCIMResourceRequest\x1a\x16.google.protobuf.Empty\x12[\n" +
+	"\x11PatchSCIMResource\x12*.teleport.scim.v1.PatchSCIMResourceRequest\x1a\x1a.teleport.scim.v1.ResourceBLZJgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1;scimv1b\x06proto3"
 
 var (
 	file_teleport_scim_v1_scim_service_proto_rawDescOnce sync.Once
@@ -740,7 +799,7 @@ func file_teleport_scim_v1_scim_service_proto_rawDescGZIP() []byte {
 	return file_teleport_scim_v1_scim_service_proto_rawDescData
 }
 
-var file_teleport_scim_v1_scim_service_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_teleport_scim_v1_scim_service_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_teleport_scim_v1_scim_service_proto_goTypes = []any{
 	(*ListSCIMResourcesRequest)(nil),  // 0: teleport.scim.v1.ListSCIMResourcesRequest
 	(*GetSCIMResourceRequest)(nil),    // 1: teleport.scim.v1.GetSCIMResourceRequest
@@ -752,9 +811,11 @@ var file_teleport_scim_v1_scim_service_proto_goTypes = []any{
 	(*ResourceList)(nil),              // 7: teleport.scim.v1.ResourceList
 	(*RequestTarget)(nil),             // 8: teleport.scim.v1.RequestTarget
 	(*Page)(nil),                      // 9: teleport.scim.v1.Page
-	(*structpb.Struct)(nil),           // 10: google.protobuf.Struct
-	(*timestamppb.Timestamp)(nil),     // 11: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),             // 12: google.protobuf.Empty
+	(*PatchSCIMResourceRequest)(nil),  // 10: teleport.scim.v1.PatchSCIMResourceRequest
+	(*structpb.Struct)(nil),           // 11: google.protobuf.Struct
+	(*timestamppb.Timestamp)(nil),     // 12: google.protobuf.Timestamp
+	(*structpb.Value)(nil),            // 13: google.protobuf.Value
+	(*emptypb.Empty)(nil),             // 14: google.protobuf.Empty
 }
 var file_teleport_scim_v1_scim_service_proto_depIdxs = []int32{
 	8,  // 0: teleport.scim.v1.ListSCIMResourcesRequest.target:type_name -> teleport.scim.v1.RequestTarget
@@ -766,25 +827,29 @@ var file_teleport_scim_v1_scim_service_proto_depIdxs = []int32{
 	5,  // 6: teleport.scim.v1.UpdateSCIMResourceRequest.resource:type_name -> teleport.scim.v1.Resource
 	8,  // 7: teleport.scim.v1.DeleteSCIMResourceRequest.target:type_name -> teleport.scim.v1.RequestTarget
 	6,  // 8: teleport.scim.v1.Resource.meta:type_name -> teleport.scim.v1.Meta
-	10, // 9: teleport.scim.v1.Resource.attributes:type_name -> google.protobuf.Struct
-	11, // 10: teleport.scim.v1.Meta.created:type_name -> google.protobuf.Timestamp
-	11, // 11: teleport.scim.v1.Meta.modified:type_name -> google.protobuf.Timestamp
+	11, // 9: teleport.scim.v1.Resource.attributes:type_name -> google.protobuf.Struct
+	12, // 10: teleport.scim.v1.Meta.created:type_name -> google.protobuf.Timestamp
+	12, // 11: teleport.scim.v1.Meta.modified:type_name -> google.protobuf.Timestamp
 	5,  // 12: teleport.scim.v1.ResourceList.resources:type_name -> teleport.scim.v1.Resource
-	0,  // 13: teleport.scim.v1.SCIMService.ListSCIMResources:input_type -> teleport.scim.v1.ListSCIMResourcesRequest
-	1,  // 14: teleport.scim.v1.SCIMService.GetSCIMResource:input_type -> teleport.scim.v1.GetSCIMResourceRequest
-	2,  // 15: teleport.scim.v1.SCIMService.CreateSCIMResource:input_type -> teleport.scim.v1.CreateSCIMResourceRequest
-	3,  // 16: teleport.scim.v1.SCIMService.UpdateSCIMResource:input_type -> teleport.scim.v1.UpdateSCIMResourceRequest
-	4,  // 17: teleport.scim.v1.SCIMService.DeleteSCIMResource:input_type -> teleport.scim.v1.DeleteSCIMResourceRequest
-	7,  // 18: teleport.scim.v1.SCIMService.ListSCIMResources:output_type -> teleport.scim.v1.ResourceList
-	5,  // 19: teleport.scim.v1.SCIMService.GetSCIMResource:output_type -> teleport.scim.v1.Resource
-	5,  // 20: teleport.scim.v1.SCIMService.CreateSCIMResource:output_type -> teleport.scim.v1.Resource
-	5,  // 21: teleport.scim.v1.SCIMService.UpdateSCIMResource:output_type -> teleport.scim.v1.Resource
-	12, // 22: teleport.scim.v1.SCIMService.DeleteSCIMResource:output_type -> google.protobuf.Empty
-	18, // [18:23] is the sub-list for method output_type
-	13, // [13:18] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	8,  // 13: teleport.scim.v1.PatchSCIMResourceRequest.target:type_name -> teleport.scim.v1.RequestTarget
+	13, // 14: teleport.scim.v1.PatchSCIMResourceRequest.payload:type_name -> google.protobuf.Value
+	0,  // 15: teleport.scim.v1.SCIMService.ListSCIMResources:input_type -> teleport.scim.v1.ListSCIMResourcesRequest
+	1,  // 16: teleport.scim.v1.SCIMService.GetSCIMResource:input_type -> teleport.scim.v1.GetSCIMResourceRequest
+	2,  // 17: teleport.scim.v1.SCIMService.CreateSCIMResource:input_type -> teleport.scim.v1.CreateSCIMResourceRequest
+	3,  // 18: teleport.scim.v1.SCIMService.UpdateSCIMResource:input_type -> teleport.scim.v1.UpdateSCIMResourceRequest
+	4,  // 19: teleport.scim.v1.SCIMService.DeleteSCIMResource:input_type -> teleport.scim.v1.DeleteSCIMResourceRequest
+	10, // 20: teleport.scim.v1.SCIMService.PatchSCIMResource:input_type -> teleport.scim.v1.PatchSCIMResourceRequest
+	7,  // 21: teleport.scim.v1.SCIMService.ListSCIMResources:output_type -> teleport.scim.v1.ResourceList
+	5,  // 22: teleport.scim.v1.SCIMService.GetSCIMResource:output_type -> teleport.scim.v1.Resource
+	5,  // 23: teleport.scim.v1.SCIMService.CreateSCIMResource:output_type -> teleport.scim.v1.Resource
+	5,  // 24: teleport.scim.v1.SCIMService.UpdateSCIMResource:output_type -> teleport.scim.v1.Resource
+	14, // 25: teleport.scim.v1.SCIMService.DeleteSCIMResource:output_type -> google.protobuf.Empty
+	5,  // 26: teleport.scim.v1.SCIMService.PatchSCIMResource:output_type -> teleport.scim.v1.Resource
+	21, // [21:27] is the sub-list for method output_type
+	15, // [15:21] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scim_v1_scim_service_proto_init() }
@@ -798,7 +863,7 @@ func file_teleport_scim_v1_scim_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scim_v1_scim_service_proto_rawDesc), len(file_teleport_scim_v1_scim_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

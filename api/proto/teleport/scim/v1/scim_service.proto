@@ -40,6 +40,9 @@ service SCIMService {
 
   // DeleteSCIMResource deletes a SCIM-managed resource
   rpc DeleteSCIMResource(DeleteSCIMResourceRequest) returns (google.protobuf.Empty);
+
+  // PatchSCIMResource handles a request to patch a resource,
+  rpc PatchSCIMResource(PatchSCIMResourceRequest) returns (Resource);
 }
 
 // ListSCIMResourcesRequest represents a request to fetch multiple resources
@@ -147,4 +150,13 @@ message RequestTarget {
 message Page {
   uint64 start_index = 1;
   uint64 count = 2;
+}
+
+// PatchSCIMResourceRequest describes a SCIM PATCH operation
+message PatchSCIMResourceRequest {
+  // Target identifies the resource to patch
+  RequestTarget target = 1;
+
+  // Payload is the SCIM PATCH Request payload.
+  google.protobuf.Value payload = 2;
 }

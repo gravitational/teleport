@@ -83,3 +83,12 @@ func (c *Client) DeleteSCIMResource(ctx context.Context, req *scimpb.DeleteSCIMR
 	}
 	return res, nil
 }
+
+// PatchSCIMResource handles a request to patch a resource.
+func (c *Client) PatchSCIMResource(ctx context.Context, req *scimpb.PatchSCIMResourceRequest) (*scimpb.Resource, error) {
+	res, err := c.grpcClient.PatchSCIMResource(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err, "handling SCIM patch request")
+	}
+	return res, nil
+}
