@@ -60,12 +60,6 @@ requirements for your platform:
   script](https://cloud.google.com/compute/docs/instances/startup-scripts), or
   similar.
 
-  For a quick demo environment you can use to follow this guide, consider
-  installing our DigitalOcean 1-Click droplet. View the installation page on
-  [DigitalOcean
-  Marketplace](https://marketplace.digitalocean.com/apps/teleport). Once your
-  droplet is ready, SSH into the droplet and follow the configuration wizard.
-
 You must also have **one** of the following:
 - A registered domain name.
 - An authoritative DNS nameserver managed by your organization, plus an existing
@@ -109,7 +103,7 @@ You must also have **one** of the following:
    instructions in this guide:
 
    ```code
-   $ docker run -it -v .:/etc/teleport-tls -p 3030:443 ubuntu:22.04
+   $ docker run -it -v .:/etc/teleport-tls -p 3080:443 ubuntu:22.04
    ```
 
 1. Make sure `curl` is installed on your container:
@@ -135,10 +129,6 @@ Authenticator](https://www.google.com/landing/2step/), or
 [1Password](https://support.1password.com/one-time-passwords/).
 
 ## Step 1/4. Configure DNS
-
-Teleport uses TLS to provide secure access to its Proxy Service and Auth
-Service, and this requires a domain name that clients can use to verify
-Teleport's certificate. 
 
 If you are following this guide with a local Docker container, you can skip to
 [Step 2](#step-24-set-up-teleport-on-your-linux-host).
@@ -267,7 +257,7 @@ internet, a local container, or a private network:
    Community Edition.
 
    If you are running Teleport on a local Docker container, visit
-   https://localhost:3030.
+   https://localhost:3080.
 
    You should see a welcome screen similar to the following:
 
@@ -303,7 +293,7 @@ allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
    NOTE: Make sure teleport.example.com:443 points at a Teleport proxy which users can access.
    ```
 
-   If using a local container, replace the host and port with `localhost:3030`.
+   If using a local container, replace the host and port with `localhost:3080`.
 
 1. Visit the provided URL in order to create your Teleport user.
 
