@@ -63,7 +63,7 @@ func newTopModel(refreshInterval time.Duration, clt MetricsClient, addr string) 
 	delegate.Styles.SelectedTitle = lipgloss.NewStyle().Faint(false).Foreground(selectedColor)
 	delegate.Styles.SelectedDesc = lipgloss.NewStyle().Faint(false)
 
-	metricsList := list.New([]list.Item{}, delegate, 0, 0)
+	metricsList := list.New(nil, delegate, 0, 0)
 	metricsList.SetShowTitle(false)
 	metricsList.SetShowFilter(true)
 	metricsList.SetShowStatusBar(true)
@@ -133,17 +133,17 @@ func (m *topModel) isMetricFilterFocused() bool {
 // Update processes messages in order to updated the
 // view based on user input and new metrics data.
 func (m *topModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		h, v := lipgloss.NewStyle().GetFrameSize()
 		m.height = msg.Height - v
 		m.width = msg.Width - h
-		m.metricsList.SetSize(m.width, m.height-4 /* account for status bar height */)
+		m.metricsList.SetSize(m.width, m.height-6 /* account for UI height */)
 	case tea.KeyMsg:
 		if m.isMetricFilterFocused() {
 			// Redirect all keybinds to the list until the user is done.
+			var cmd tea.Cmd
 			m.metricsList, cmd = m.metricsList.Update(msg)
 			cmds = append(cmds, cmd)
 		} else {
@@ -163,13 +163,14 @@ func (m *topModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case key.Matches(msg, m.keys.Raw):
 				m.selected = 5
 			case key.Matches(msg, m.keys.Right):
-				m.selected = min(m.selected+1, len(tabs)-1)
+				m.selected = (m.selected + 1) % len(tabs)
 			case key.Matches(msg, m.keys.Left):
-				m.selected = max(m.selected-1, 0)
+				m.selected = (m.selected - 1 + len(tabs)) % len(tabs)
 			case key.Matches(msg, m.keys.Filter),
 				key.Matches(msg, m.keys.Up),
 				key.Matches(msg, m.keys.Down):
 				// Only a subset of keybinds are forwarded to the list view.
+				var cmd tea.Cmd
 				m.metricsList, cmd = m.metricsList.Update(msg)
 				cmds = append(cmds, cmd)
 			}
@@ -182,6 +183,7 @@ func (m *topModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		filterValue := m.metricsList.FilterInput.Value()
 		selected := m.metricsList.Index()
 
+		var cmd tea.Cmd
 		cmd = m.metricsList.SetItems(convertMetricsToItems(msg))
 		cmds = append(cmds, cmd)
 
@@ -200,6 +202,7 @@ func (m *topModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.reportError = msg
 	default:
 		// Forward internal messages to the metrics list.
+		var cmd tea.Cmd
 		m.metricsList, cmd = m.metricsList.Update(msg)
 		cmds = append(cmds, cmd)
 	}
@@ -210,7 +213,6 @@ func (m *topModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View formats the metrics and draws them to
 // the screen.
 func (m *topModel) View() string {
-
 	availableHeight := m.height
 	header := headerView(m.selected, m.width)
 	availableHeight -= lipgloss.Height(header)
@@ -311,7 +313,7 @@ func (m *topModel) contentView() string {
 	case 4:
 		return renderAudit(m.report, m.height, m.width)
 	case 5:
-		return m.metricsList.View()
+		return boxedViewWithStyle("Prometheus Metrics", m.metricsList.View(), m.width, lipgloss.NewStyle())
 	default:
 		return ""
 	}
