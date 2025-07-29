@@ -45,9 +45,6 @@ const namedPipe = `\\.\pipe\openssh-ssh-agent`
 //
 // This is behind a build flag because winio.DialPipe is only available on Windows.
 func DialSystemAgent() (io.ReadWriteCloser, error) {
-	logger := slog.With(teleport.ComponentKey, teleport.ComponentKeyAgent)
-	logger.DebugContext(context.Background(), "Connecting to the Windows system agent", "socket_path", namedPipe)
-
 	conn, err := winio.DialPipe(namedPipe, nil)
 	if err == nil {
 		return conn, nil
@@ -59,9 +56,6 @@ func DialSystemAgent() (io.ReadWriteCloser, error) {
 	msys := os.Getenv("MSYSTEM")
 	socketPath := os.Getenv(teleport.SSHAuthSock)
 	if msys != "" && socketPath != "" {
-		logger := slog.With(teleport.ComponentKey, teleport.ComponentKeyAgent)
-		logger.DebugContext(context.Background(), "Connecting to the Cygwin system agent", "socket_path", socketPath)
-
 		conn, err := dialCygwin(socketPath)
 		if err != nil {
 			return nil, trace.Wrap(err)

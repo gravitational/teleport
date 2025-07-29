@@ -43,7 +43,7 @@ func TestSSHAgentClient(t *testing.T) {
 		require.NoError(t, err)
 
 		// create a context to close existing connections on server shutdown.
-		serveCtx, serveCancel := context.WithCancel(context.Background())
+		serveCtx, serveCancel := context.WithCancel(t.Context())
 
 		// Track open connections.
 		var connWg sync.WaitGroup
@@ -82,7 +82,7 @@ func TestSSHAgentClient(t *testing.T) {
 	}
 
 	stopServer := startAgentServer()
-	defer stopServer()
+	t.Cleanup(stopServer)
 
 	clientConnect := func() (io.ReadWriteCloser, error) {
 		return net.Dial("unix", agentPath)
@@ -110,7 +110,7 @@ func TestSSHAgentClient(t *testing.T) {
 
 	// Re-open the server. Get a new agent client connection.
 	stopServer = startAgentServer()
-	defer stopServer()
+	t.Cleanup(stopServer)
 
 	agentClient, err = clientGetter()
 	require.NoError(t, err)
