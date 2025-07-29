@@ -367,11 +367,6 @@ func newFakeAWSRGTService(t *testing.T, clock clockwork.Clock, account string, r
 	}
 }
 
-type fakeAWSRGTResource struct {
-	arn  arn.ARN
-	tags []rgttypes.Tag
-}
-
 func (f *fakeAWSRGTService) GetResources(_ context.Context, input *resourcegroupstaggingapi.GetResourcesInput, _ ...func(*resourcegroupstaggingapi.Options)) (*resourcegroupstaggingapi.GetResourcesOutput, error) {
 	pageLimit := min(int(aws.ToInt32(input.ResourcesPerPage)), f.pageLimit)
 	output := &resourcegroupstaggingapi.GetResourcesOutput{}
