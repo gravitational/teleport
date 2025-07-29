@@ -1,8 +1,7 @@
 resource "teleport_access_list" "characters" {
   header = {
-    version = "v1"
     metadata = {
-      name = "characters"
+      name = "crane-operation"
     }
   }
   spec = {
@@ -37,7 +36,6 @@ resource "teleport_access_list_member" "fighter" {
 
 resource "teleport_access_list" "npcs" {
   header = {
-    version = "v1"
     metadata = {
       name = "npcs"
     }
