@@ -1,0 +1,15 @@
+discovery_service:
+  # ...
+  aws:
+    - types: ["ec2"]
+      tags:
+       - "env": "prod"
+      regions: ["us-west1", "us-east1"]
+      install: # optional section when default-installer is used.
+        script_name: "default-installer"
+    - types: ["ec2"]
+      tags:
+       - "env": "devel"
+      regions: ["us-west1", "us-east1"]
+      install:
+        script_name: "devel-installer"
