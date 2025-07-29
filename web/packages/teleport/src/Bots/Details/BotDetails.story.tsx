@@ -16,16 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 import { Meta, StoryObj } from '@storybook/react-vite';
-import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import createMemoryHistory from 'history/createMemoryHistory';
+import { MemoryRouter, Route, Router } from 'react-router';
 
+import cfg from 'teleport/config';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
-import { getBotError, getBotSuccess } from 'teleport/test/helpers/bots';
+import {
+  editBotSuccess,
+  getBotError,
+  getBotSuccess,
+} from 'teleport/test/helpers/bots';
+import { successGetRoles } from 'teleport/test/helpers/roles';
 
 import { BotDetails } from './BotDetails';
 
 const meta = {
   title: 'Teleport/Bots/Details',
   component: Details,
+  beforeEach: () => {
+    queryClient.clear(); // Prevent cached data sharing between stories
+  },
 } satisfies Meta<typeof Details>;
 
 type Story = StoryObj<typeof meta>;
@@ -45,49 +56,65 @@ export const DetailsWithFetchSuccess: Story = {
     msw: {
       handlers: [
         getBotSuccess({
-          status: 'active',
-          kind: 'bot',
-          subKind: '',
-          version: 'v1',
-          metadata: {
-            name: 'ansible-worker',
-            description: '',
-            labels: new Map(),
-            namespace: '',
-            revision: '',
-          },
-          spec: {
-            roles: ['terraform-provider'],
-            traits: [
-              {
-                name: 'logins',
-                values: ['guest'],
-              },
-              {
-                name: 'db_names',
-                values: ['*'],
-              },
-              {
-                name: 'custom_idp',
-                values: ['val-1', 'val-2', 'val-3'],
-              },
-            ],
-            max_session_ttl: {
-              seconds: 43200,
+          name: 'ansible-worker',
+          roles: ['terraform-provider'],
+          traits: [
+            {
+              name: 'logins',
+              values: ['guest'],
             },
+            {
+              name: 'db_names',
+              values: ['*'],
+            },
+            {
+              name: 'custom_idp',
+              values: ['val-1', 'val-2', 'val-3'],
+            },
+          ],
+          max_session_ttl: {
+            seconds: 43200,
           },
         }),
+        successGetRoles({
+          startKey: '',
+          items: ['access', 'editor', 'terraform-provider'].map(r => ({
+            content: r,
+            id: r,
+            name: r,
+            kind: 'role',
+          })),
+        }),
+        editBotSuccess(),
       ],
     },
   },
 };
 
 function Details() {
+  const history = createMemoryHistory({
+    initialEntries: ['/web/bot/ansible-worker'],
+  });
   return (
-    <MemoryRouter>
-      <TeleportProviderBasic>
-        <BotDetails />
-      </TeleportProviderBasic>
-    </MemoryRouter>
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <TeleportProviderBasic>
+          <Router history={history}>
+            <Route path={cfg.routes.bot}>
+              <BotDetails />
+            </Route>
+          </Router>
+        </TeleportProviderBasic>
+      </MemoryRouter>
+    </QueryClientProvider>
   );
 }
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: false,
+    },
+  },
+});
