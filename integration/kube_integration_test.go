@@ -704,7 +704,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 				start := time.Now()
 				select {
 				case <-time.After(5 * time.Second):
-					t.Fatalf("Timeout waiting for port forwarding after %v", time.Since(start))
+					t.Fatalf("Timeout waiting for port forwarding after %s", time.Since(start))
 				case err := <-forwarderCh:
 					if err != nil {
 						t.Fatalf("Port forwarding failed immediately: %v", err)
