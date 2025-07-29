@@ -215,7 +215,7 @@ function AvailableUpdate(props: {
 
 function IconAndText(props: { Icon: ComponentType<IconProps>; text: string }) {
   return (
-    <Flex gap={1} color="text.slightlyMuted">
+    <Flex gap={1} color="text.slightlyMuted" alignItems="start">
       <props.Icon size="small" />
       <P3
         css={`
