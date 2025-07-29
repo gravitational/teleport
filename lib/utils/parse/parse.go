@@ -32,7 +32,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/ohler55/ojg/jp"
-	"github.com/ohler55/ojg/oj"
 
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/typical"
@@ -232,47 +231,38 @@ func RegexpReplace(inputs []string, match string, replacement string) ([]string,
 // for any of the json blobs results in a value other than a string or list of strings,
 // the function will return an error. If any of the input values are normal strings and
 // not json blobs, this expression will return an empty list rather than an error.
-func JSONPath(inputs []string, path string) ([]string, error) {
-	out := make([]string, 0, len(inputs))
-	for _, input := range inputs {
-		jsonObject, err := oj.ParseString(input)
-		if err != nil {
-			// Input contained a non-json value. This can happen in multi provider scenarios
-			// where a claim is a string/list from one provider and a json object from another.
-			return nil, nil
-		}
+func JSONPath(input any, path string) ([]string, error) {
+	jpExpr, err := jp.ParseString(path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-		jpExpr, err := jp.ParseString(path)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		results := jpExpr.Get(jsonObject)
-		for _, result := range results {
-			switch r := result.(type) {
-			case string:
-				out = append(out, r)
-			case []string:
-				out = append(out, r...)
-			case []any:
-				for _, v := range r {
-					if s, ok := v.(string); ok {
-						out = append(out, s)
-					} else {
-						resultsJSON, err := json.Marshal(results)
-						if err != nil {
-							return nil, trace.Wrap(err)
-						}
-						return nil, trace.BadParameter("jsonpath interpolation must result in a string or list of strings, but resulted in %v", string(resultsJSON))
+	var out []string
+	results := jpExpr.Get(input)
+	for _, result := range results {
+		switch r := result.(type) {
+		case string:
+			out = append(out, r)
+		case []string:
+			out = append(out, r...)
+		case []any:
+			for _, v := range r {
+				if s, ok := v.(string); ok {
+					out = append(out, s)
+				} else {
+					resultsJSON, err := json.Marshal(results)
+					if err != nil {
+						return nil, trace.Wrap(err)
 					}
+					return nil, trace.BadParameter("jsonpath interpolation must result in a string or list of strings, but resulted in %v", string(resultsJSON))
 				}
-			default:
-				resultsJSON, err := json.Marshal(results)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				return nil, trace.BadParameter("jsonpath interpolation must result in a string or list of strings, but resulted in %v", string(resultsJSON))
 			}
+		default:
+			resultsJSON, err := json.Marshal(results)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return nil, trace.BadParameter("jsonpath interpolation must result in a string or list of strings, but resulted in %v", string(resultsJSON))
 		}
 	}
 
