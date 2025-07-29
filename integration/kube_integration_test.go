@@ -712,38 +712,39 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 				}
 
 				// Validate that port-forwarding is working.
-				t.Logf("Checking port forwarding")
+				t.Log("Checking port forwarding")
 				resp, err := http.Get(fmt.Sprintf("http://localhost:%v", localPort))
 				require.NoError(t, err)
 				require.Equal(t, http.StatusOK, resp.StatusCode)
 				require.NoError(t, resp.Body.Close())
-				t.Logf("Port forward working")
+				t.Log("Port forward working")
 
 				// Delete the pod.
-				t.Logf("Requesting pod deletion")
+				t.Log("Requesting pod deletion")
 				err = suite.CoreV1().Pods(testNamespace).Delete(context.Background(), testPod, metav1.DeleteOptions{})
 				require.NoError(t, err)
 
 				// Wait for pod deletion.
 				require.Eventually(t, func() bool {
-					t.Logf("Checking pod deletion")
+					t.Log("Checking pod deletion")
 
 					if _, err := suite.CoreV1().Pods(testNamespace).Get(context.Background(), testPod, metav1.GetOptions{}); err != nil {
 						if kubeerrors.IsNotFound(err) {
-							t.Logf("Pod successfully deleted")
+							t.Log("Pod successfully deleted")
 							return true
 						}
 						t.Logf("Get pod error: %v", err)
 						return false
 					}
 
-					t.Logf("Pod still exists, waiting for deletion...")
+					t.Log("Pod still exists, waiting for deletion...")
 					return false
 				}, 60*time.Second, 500*time.Millisecond)
 
-				// Attempt curl after pod deletion.
+				// Attempt an http GET after pod deletion.
 				// This enables error reporting from KubeAPI back to client.
-				t.Logf("Checking for port-forward disconnection")
+				t.Log("Checking for port-forward disconnection")
+				//nolint:bodyclose // http response is expected to be nil and return an error
 				_, err = http.Get(fmt.Sprintf("http://localhost:%v", localPort))
 				require.Error(t, err)
 
@@ -751,9 +752,9 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 				start = time.Now()
 				select {
 				case <-time.After(5 * time.Second):
-					t.Fatalf("Timed out waiting for port forwarding exit after %v", time.Since(start))
+					t.Fatalf("Timed out waiting for port forward exit (%v)", time.Since(start))
 				case err := <-forwarderCh:
-					t.Logf("Exited port forwarding after pod deletion (error: %v)", err)
+					t.Log("Exited port forwarding after pod deletion")
 					require.Error(t, err)
 					require.Equal(t, err, portforward.ErrLostConnectionToPod)
 				}
