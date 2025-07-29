@@ -889,7 +889,7 @@ test-helm-update-snapshots: helmunit/installed
 # Runs all Go tests except integration, called by CI/CD.
 #
 .PHONY: test-go
-test-go: test-go-prepare test-go-unit test-go-touch-id test-go-vnet-daemon test-go-tsh test-go-chaos
+test-go: test-go-prepare test-go-unit test-go-touch-id test-go-vnet-daemon test-go-tsh test-go-chaos test-go-buf-plugins
 
 #
 # Runs a test to ensure no environment variable leak into build binaries.
@@ -935,6 +935,12 @@ test-go-unit-tbot:
 	$(CGOFLAG) go test -cover -json $(FLAGS) $(ADDFLAGS) ./tool/tbot/... ./lib/tbot/... \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
+
+# Runs tbot unit tests
+.PHONY: test-go-buf-plugins
+test-go-buf-plugins: FLAGS ?= -race -shuffle on
+test-go-buf-plugins:
+	$(MAKE) -C dev/bufplugin/buf-plugin-ensure-paginated test
 
 # Make sure untagged touchid code build/tests.
 .PHONY: test-go-touch-id
@@ -1213,6 +1219,7 @@ lint-go:
 	golangci-lint run -c .golangci.yml --build-tags='$(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_LINT_TAG) $(VNETDAEMON_TAG)' $(GO_LINT_FLAGS)
 	$(MAKE) -C integrations/terraform lint
 	$(MAKE) -C integrations/event-handler lint
+	$(MAKE) -C dev/bufplugin/buf-plugin-ensure-paginated lint
 
 .PHONY: fix-imports
 fix-imports:

@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package repeat;
+
+message Foo {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+
+}
+
+service FooService {
+  rpc GetFoos(GetFoosRequest) returns (GetFoosResponse);
+}
+
+message GetFoosRequest {
+}
+
+message GetFoosResponse {
+  repeated Foo foos = 1;
+}
+

@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package config;
+
+message Foo {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+
+}
+
+service FooService {
+  rpc SearchFoos(ListFoosRequest) returns (ListFoosResponse);
+}
+
+message ListFoosRequest {
+  int32 max = 1;
+  string token = 2;
+}
+
+message ListFoosResponse {
+  repeated Foo foos = 1;
+  string next = 2;
+}
+
