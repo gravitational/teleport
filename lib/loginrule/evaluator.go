@@ -26,10 +26,9 @@ type EvaluationInput struct {
 	// or the internal static traits (for local users) which will be input to
 	// the login rule evaluation.
 	Traits map[string][]string
-	// UnmappedClaims are non-string-like claims. These claims are not mapped
-	// to traits by default, but can be mapped to traits with some expressions,
-	// e.g. with the `jsonpath` function.
-	UnmappedClaims map[string]any
+	// Claims contains all pre-mapped claims, including non-string-like claims.
+	// Claims is a superset of Traits.
+	Claims map[string]any
 }
 
 // EvaluationOutput holds the output of a login rule evaluation.
