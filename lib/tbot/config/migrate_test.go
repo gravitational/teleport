@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
 )
 
 func TestMigrate(t *testing.T) {
@@ -139,12 +140,12 @@ destinations:
 						},
 						Roles: []string{"foo"},
 					},
-					&ApplicationOutput{
+					&application.OutputConfig{
 						Destination:           &destination.Memory{},
 						AppName:               "my-app",
 						SpecificTLSExtensions: true,
 					},
-					&ApplicationOutput{
+					&application.OutputConfig{
 						Destination: &destination.Memory{},
 						AppName:     "my-app",
 					},
@@ -296,7 +297,7 @@ destinations:
 					Destination: &destination.Memory{},
 				},
 				Services: ServiceConfigs{
-					&ApplicationOutput{
+					&application.OutputConfig{
 						Destination: &destination.Directory{
 							Path:     "/path/example",
 							Symlinks: "try-secure",
@@ -631,7 +632,7 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&ApplicationOutput{
+					&application.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
@@ -674,7 +675,7 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&ApplicationOutput{
+					&application.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
