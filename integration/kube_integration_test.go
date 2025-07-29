@@ -642,15 +642,6 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 	})
 	require.NoError(t, err)
 
-	// impersonating client requests will be denied
-	_, impersonatingProxyClientConfig, err := kube.ProxyClient(kube.ProxyConfig{
-		T:             teleport,
-		Username:      username,
-		KubeGroups:    kubeGroups,
-		Impersonation: &rest.ImpersonationConfig{UserName: "bob", Groups: []string{kube.TestImpersonationGroup}},
-	})
-	require.NoError(t, err)
-
 	tests := []struct {
 		name    string
 		builder func(*rest.Config, kubePortForwardArgs) (*kubePortForwarder, error)
@@ -668,23 +659,28 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 	for _, tt := range tests {
 		t.Run(tt.name,
 			func(t *testing.T) {
-
 				t.Cleanup(func() {
 					// Test pod would have been deleted if test is successful.
 					// Setup next test with test pod as needed.
 					pod := newPod(testNamespace, testPod)
-					_, err = suite.CoreV1().Pods(testNamespace).Create(context.Background(), pod, metav1.CreateOptions{})
-					if err != nil {
+					if _, err := suite.CoreV1().Pods(testNamespace).Create(context.Background(), pod, metav1.CreateOptions{}); err != nil {
 						require.True(t, kubeerrors.IsAlreadyExists(err), "Failed to create test pod: %v", err)
 					}
+
 					// Wait for pod to be running.
 					require.Eventually(t, func() bool {
 						rsp, err := suite.CoreV1().Pods(testNamespace).Get(context.Background(), testPod, metav1.GetOptions{})
 						if err != nil {
+							t.Logf("Get pod error: %v", err)
 							return false
 						}
-						return rsp.Status.Phase == v1.PodRunning
-					}, 60*time.Second, time.Millisecond*500)
+						t.Logf("Get pod `%v`: Status:%v", testPod, rsp.Status.Phase)
+						if rsp.Status.Phase == v1.PodRunning {
+							t.Logf("Pod `%v` is running", testPod)
+							return true
+						}
+						return false
+					}, 60*time.Second, 500*time.Millisecond)
 				})
 
 				// Forward local port to container port.
@@ -716,26 +712,52 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 				}
 
 				// Validate that port-forwarding is working.
+				t.Logf("Checking port forwarding")
 				resp, err := http.Get(fmt.Sprintf("http://localhost:%v", localPort))
 				require.NoError(t, err)
 				require.Equal(t, http.StatusOK, resp.StatusCode)
 				require.NoError(t, resp.Body.Close())
+				t.Logf("Port forward working")
 
 				// Delete the pod.
+				t.Logf("Requesting pod deletion")
 				err = suite.CoreV1().Pods(testNamespace).Delete(context.Background(), testPod, metav1.DeleteOptions{})
 				require.NoError(t, err)
 
-				impersonatingForwarder, err := tt.builder(impersonatingProxyClientConfig, kubePortForwardArgs{
-					ports:        []string{fmt.Sprintf("%v:80", localPort)},
-					podName:      testPod,
-					podNamespace: testNamespace,
-				})
-				require.NoError(t, err)
+				// Wait for pod deletion.
+				require.Eventually(t, func() bool {
+					t.Logf("Checking pod deletion")
 
-				// This request should be denied
-				err = impersonatingForwarder.ForwardPorts()
+					if _, err := suite.CoreV1().Pods(testNamespace).Get(context.Background(), testPod, metav1.GetOptions{}); err != nil {
+						if kubeerrors.IsNotFound(err) {
+							t.Logf("Pod successfully deleted")
+							return true
+						}
+						t.Logf("Get pod error: %v", err)
+						return false
+					}
+
+					t.Logf("Pod still exists, waiting for deletion...")
+					return false
+				}, 60*time.Second, 500*time.Millisecond)
+
+				// Attempt curl after pod deletion.
+				// This enables error reporting from KubeAPI back to client.
+				t.Logf("Checking for port-forward disconnection")
+				_, err = http.Get(fmt.Sprintf("http://localhost:%v", localPort))
 				require.Error(t, err)
-				require.Regexp(t, ".*impersonation request has been denied.*|.*403 Forbidden.*", err.Error())
+
+				// Wait for port-forwarding to exit.
+				start = time.Now()
+				select {
+				case <-time.After(5 * time.Second):
+					t.Fatalf("Timed out waiting for port forwarding exit after %v", time.Since(start))
+				case err := <-forwarderCh:
+					t.Logf("Exited port forwarding after pod deletion (error: %v)", err)
+					require.Error(t, err)
+					require.Equal(t, err, portforward.ErrLostConnectionToPod)
+				}
+
 			},
 		)
 	}
