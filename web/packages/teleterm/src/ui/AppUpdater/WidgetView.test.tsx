@@ -31,9 +31,10 @@ test('download button is available when autoDownload is false', async () => {
       updateEvent={makeUpdateAvailableEvent(makeUpdateInfo(false, '18.0.0'), {
         enabled: true,
         version: '18.0.0',
-        source: {
-          kind: 'most-compatible',
-          skippedManagingClusterUri: '',
+        source: 'highest-compatible',
+        options: {
+          highestCompatibleVersion: '18.0.0',
+          managingClusterUri: undefined,
           clusters: [
             {
               clusterUri: '/cluster/bar',
@@ -69,23 +70,27 @@ test('error is displayed when cluster specify incompatible versions', async () =
       updateEvent={makeUpdateNotAvailableEvent({
         enabled: false,
         reason: 'no-compatible-version',
-        clusters: [
-          {
-            clusterUri: '/cluster/foo',
-            toolsAutoUpdate: true,
-            toolsVersion: '16.0.0',
-            minToolsVersion: '15.0.0-aa',
-            otherCompatibleClusters: [],
-          },
-          {
-            clusterUri: '/cluster/bar',
-            toolsAutoUpdate: true,
-            toolsVersion: '18.0.0',
-            minToolsVersion: '17.0.0-aa',
-            otherCompatibleClusters: [],
-          },
-        ],
-        unreachableClusters: [],
+        options: {
+          highestCompatibleVersion: undefined,
+          managingClusterUri: undefined,
+          clusters: [
+            {
+              clusterUri: '/cluster/foo',
+              toolsAutoUpdate: true,
+              toolsVersion: '16.0.0',
+              minToolsVersion: '15.0.0-aa',
+              otherCompatibleClusters: [],
+            },
+            {
+              clusterUri: '/cluster/bar',
+              toolsAutoUpdate: true,
+              toolsVersion: '18.0.0',
+              minToolsVersion: '17.0.0-aa',
+              otherCompatibleClusters: [],
+            },
+          ],
+          unreachableClusters: [],
+        },
       })}
       clusterGetter={{
         findCluster: () => undefined,

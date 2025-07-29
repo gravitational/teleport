@@ -31,9 +31,10 @@ test('download button is available when autoDownload is false', async () => {
       updateEvent={makeUpdateAvailableEvent(makeUpdateInfo(false, '18.0.0'), {
         enabled: true,
         version: '18.0.0',
-        source: {
-          kind: 'most-compatible',
-          skippedManagingClusterUri: '',
+        source: 'highest-compatible',
+        options: {
+          highestCompatibleVersion: '18.0.0',
+          managingClusterUri: undefined,
           clusters: [
             {
               clusterUri: '/cluster/bar',
@@ -64,32 +65,36 @@ test('download button is available when autoDownload is false', async () => {
   ).toBeInTheDocument();
 });
 
-test('when there is no compatible client version, user is needs to select cluster', async () => {
+test('when there is no compatible client version, user needs to select cluster', async () => {
   const changeManagingClusterSpy = jest.fn();
   render(
     <DetailsView
       updateEvent={makeUpdateNotAvailableEvent({
         enabled: false,
         reason: 'no-compatible-version',
-        clusters: [
-          {
-            clusterUri: '/clusters/foo',
-            toolsAutoUpdate: true,
-            toolsVersion: '16.0.0',
-            minToolsVersion: '15.0.0-aa',
-            otherCompatibleClusters: [],
-          },
-          {
-            clusterUri: '/clusters/bar',
-            toolsAutoUpdate: false,
-            toolsVersion: '18.0.0',
-            minToolsVersion: '17.0.0-aa',
-            otherCompatibleClusters: [],
-          },
-        ],
-        unreachableClusters: [
-          { clusterUri: '/clusters/baz', errorMessage: 'NET_ERR' },
-        ],
+        options: {
+          highestCompatibleVersion: undefined,
+          managingClusterUri: undefined,
+          clusters: [
+            {
+              clusterUri: '/clusters/foo',
+              toolsAutoUpdate: true,
+              toolsVersion: '16.0.0',
+              minToolsVersion: '15.0.0-aa',
+              otherCompatibleClusters: [],
+            },
+            {
+              clusterUri: '/clusters/bar',
+              toolsAutoUpdate: false,
+              toolsVersion: '18.0.0',
+              minToolsVersion: '17.0.0-aa',
+              otherCompatibleClusters: [],
+            },
+          ],
+          unreachableClusters: [
+            { clusterUri: '/clusters/baz', errorMessage: 'NET_ERR' },
+          ],
+        },
       })}
       clusterGetter={{
         findCluster: () => undefined,
@@ -109,29 +114,26 @@ test('when there is no compatible client version, user is needs to select cluste
   ).toBeInTheDocument();
   expect(
     await screen.findByText(
-      'Unable to retrieve accepted client versions from baz. Compatibility with this cluster will not be verified.'
+      'Unable to retrieve accepted client versions from the cluster baz.'
     )
   ).toBeInTheDocument();
   expect(
     await screen.findByRole('checkbox', {
-      name: 'Use the most compatible version from your clusters',
+      name: 'Use the highest compatible version from your clusters',
     })
   ).not.toBeChecked();
   const radioOptions = await screen.findAllByRole('radio');
   expect(radioOptions).toHaveLength(3);
 
-  expect(radioOptions.at(0)).toBeEnabled();
   expect(radioOptions.at(0).closest('label')).toHaveTextContent(
     // The cluster name and the helper text are normally in separate lines.
     'foo16.0.0 client, only compatible with this cluster.'
   );
-  expect(radioOptions.at(1)).toBeDisabled();
   expect(radioOptions.at(1).closest('label')).toHaveTextContent(
-    'bar18.0.0 client, automatic client tools updates disabled on this cluster.'
+    'bar18.0.0 client.⚠︎ Cannot provide updates, automatic client tools updates are disabled on this cluster.'
   );
-  expect(radioOptions.at(2)).toBeDisabled();
   expect(radioOptions.at(2).closest('label')).toHaveTextContent(
-    'baz⚠︎ Unreachable cluster: NET_ERR'
+    'baz⚠︎ Cannot provide updates, cluster is unreachable.NET_ERR'
   );
 
   await userEvent.click(radioOptions.at(0));

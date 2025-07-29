@@ -32,7 +32,6 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 import {
   ClusterGetter,
   clusterNameGetter,
-  findUnreachableClusters,
   formatMB,
   getDownloadHost,
   iconMac,
@@ -55,10 +54,11 @@ export function WidgetView(props: {
 }) {
   const getClusterName = clusterNameGetter(props.clusterGetter);
   const { updateEvent } = props;
+  const { autoUpdatesStatus } = updateEvent;
 
   if (
-    updateEvent.autoUpdatesStatus.enabled === false &&
-    updateEvent.autoUpdatesStatus.reason === 'no-compatible-version'
+    autoUpdatesStatus.enabled === false &&
+    autoUpdatesStatus.reason === 'no-compatible-version'
   ) {
     return (
       <Alert
@@ -71,6 +71,42 @@ export function WidgetView(props: {
         }}
       >
         App updates are disabled
+      </Alert>
+    );
+  }
+
+  if (
+    autoUpdatesStatus.enabled === false &&
+    autoUpdatesStatus.reason === 'managing-cluster-unable-to-manage'
+  ) {
+    return (
+      <Alert
+        kind="danger"
+        width="100%"
+        details={`Cluster ${getClusterName(autoUpdatesStatus.options.managingClusterUri)} was chosen to manage updates but is not able to provide them.`}
+        secondaryAction={{
+          content: 'Resolve',
+          onClick: props.onMore,
+        }}
+      >
+        App updates are disabled
+      </Alert>
+    );
+  }
+
+  // If an error occurred when there was no update info, return early.
+  if (updateEvent.kind === 'error' && !updateEvent.update) {
+    return (
+      <Alert
+        kind="danger"
+        width="100%"
+        details={updateEvent.error.message}
+        secondaryAction={{
+          content: 'More',
+          onClick: props.onMore,
+        }}
+      >
+        An error occurred
       </Alert>
     );
   }
@@ -89,15 +125,11 @@ export function WidgetView(props: {
   });
 
   const unreachableClusters =
-    // It's important only when the most compatible version was found.
-    updateEvent.autoUpdatesStatus.source.kind === 'most-compatible'
-      ? findUnreachableClusters(updateEvent.autoUpdatesStatus)
+    // It's important only when the highest compatible version was found.
+    updateEvent.autoUpdatesStatus.source === 'highest-compatible'
+      ? updateEvent.autoUpdatesStatus.options.unreachableClusters
       : [];
   const downloadBaseUrl = getDownloadHost(updateEvent);
-  const skippedManagingClusterUri =
-    updateEvent.autoUpdatesStatus.source.kind === 'most-compatible'
-      ? updateEvent.autoUpdatesStatus.source.skippedManagingClusterUri
-      : '';
 
   return (
     <AvailableUpdate
@@ -105,7 +137,6 @@ export function WidgetView(props: {
       platform={props.platform}
       description={description}
       unreachableClusters={unreachableClusters}
-      skippedManagingClusterUri={skippedManagingClusterUri}
       downloadHost={downloadBaseUrl}
       onMore={props.onMore}
       getClusterName={getClusterName}
@@ -120,7 +151,6 @@ function AvailableUpdate(props: {
   version: string;
   description: string | { Icon: ComponentType<IconProps>; text: string };
   unreachableClusters: UnreachableCluster[];
-  skippedManagingClusterUri: string;
   downloadHost: string;
   platform: Platform;
   onMore(): void;
@@ -183,18 +213,8 @@ function AvailableUpdate(props: {
           </ButtonSecondary>
         </Flex>
       </Flex>
-      {(hasUnreachableClusters ||
-        props.skippedManagingClusterUri ||
-        isNonTeleportServer) && (
+      {(hasUnreachableClusters || isNonTeleportServer) && (
         <Stack ml={1}>
-          {props.skippedManagingClusterUri && (
-            <IconAndText
-              Icon={Warning}
-              text={`This update is not managed by the chosen cluster 
-              ${props.getClusterName(props.skippedManagingClusterUri)}. Click
-              More to install the update.`}
-            />
-          )}
           {hasUnreachableClusters && (
             <IconAndText
               Icon={Warning}
@@ -255,17 +275,12 @@ function makeUpdaterContent({
         };
       }
 
-      const skippedManagingClusterUri =
-        updateEvent.autoUpdatesStatus.source.kind === 'most-compatible' &&
-        updateEvent.autoUpdatesStatus.source.skippedManagingClusterUri;
       return {
         description: 'Update available',
-        button: skippedManagingClusterUri
-          ? undefined
-          : {
-              name: 'Download',
-              action: onDownload,
-            },
+        button: {
+          name: 'Download',
+          action: onDownload,
+        },
       };
     case 'update-downloaded':
       return {

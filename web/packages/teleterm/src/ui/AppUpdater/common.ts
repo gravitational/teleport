@@ -15,13 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { UnreachableCluster } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
+
 import { Cluster as TshdCluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
-import {
-  AppUpdateEvent,
-  AutoUpdatesStatus,
-} from 'teleterm/services/appUpdater';
+import { AppUpdateEvent } from 'teleterm/services/appUpdater';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 import iconWinLinux from '../../../build_resources/icon-linux/512x512.png';
@@ -32,28 +29,6 @@ export { iconMac, iconWinLinux };
 export function formatMB(bytes: number): string {
   const mb = bytes / (1024 * 1024);
   return `${mb.toFixed(2)} MB`;
-}
-
-export function findUnreachableClusters(
-  status: AutoUpdatesStatus
-): UnreachableCluster[] {
-  if (status.enabled === true) {
-    switch (status.source.kind) {
-      case 'env-var':
-        return [];
-      case 'managing-cluster':
-      case 'most-compatible':
-        return status.source.unreachableClusters;
-    }
-  }
-
-  switch (status.reason) {
-    case 'disabled-by-env-var':
-      return [];
-    case 'no-compatible-version':
-    case 'no-cluster-with-auto-update':
-      return status.unreachableClusters;
-  }
 }
 
 export function getDownloadHost(event: AppUpdateEvent): string {
