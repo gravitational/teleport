@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -212,7 +213,7 @@ func makeExecServerRunner(ctx context.Context, session *sessionHandler) (stdioSe
 
 	cmdCtx, cmdCancel := context.WithCancel(ctx)
 	cmd := exec.CommandContext(cmdCtx, mcpSpec.Command, mcpSpec.Args...)
-	cmd.Stderr = mcputils.NewStderrTraceLogWriter(ctx, logger)
+	cmd.Stderr = mcputils.NewStderrLogWriter(ctx, logger, slog.LevelDebug)
 	// WaitDelay forces a SIGKILL if the process fails to exit 10 seconds after
 	// cmd.Cancel is called. See the WaitDelay doc for details.
 	cmd.WaitDelay = 10 * time.Second
