@@ -163,7 +163,7 @@ func Test_renderSSHConfig(t *testing.T) {
 				ACLs:     botfs.ACLOff,
 			}
 
-			err := renderSSHConfig(
+			err := RenderSSHConfig(
 				context.Background(),
 				logtest.NewLogger(),
 				&connection.ProxyPong{

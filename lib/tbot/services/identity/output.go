@@ -198,7 +198,7 @@ func (s *OutputService) generate(ctx context.Context) error {
 		if err != nil {
 			return trace.Wrap(err, "pinging proxy")
 		}
-		if err := renderSSHConfig(
+		if err := RenderSSHConfig(
 			ctx,
 			s.log,
 			proxyPing,
@@ -261,7 +261,8 @@ type alpnTester interface {
 	IsUpgradeRequired(ctx context.Context, addr string, insecure bool) (bool, error)
 }
 
-func renderSSHConfig(
+// TODO: extract this so it can be reused?
+func RenderSSHConfig(
 	ctx context.Context,
 	log *slog.Logger,
 	proxyPing *connection.ProxyPong,

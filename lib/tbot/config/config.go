@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
+	"github.com/gravitational/teleport/lib/tbot/services/delegation"
 	"github.com/gravitational/teleport/lib/tbot/services/example"
 	"github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
@@ -448,6 +449,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 		case awsra.ServiceType:
 			v := &awsra.Config{}
 			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case delegation.ServiceType:
+			v := &delegation.Config{}
+			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
