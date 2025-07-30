@@ -26,7 +26,10 @@ import { UnreachableCluster } from 'gen-proto-ts/teleport/lib/teleterm/auto_upda
 import { getErrorMessage } from 'shared/utils/error';
 
 import { Platform } from 'teleterm/mainProcess/types';
-import { AppUpdateEvent } from 'teleterm/services/appUpdater';
+import {
+  AppUpdateEvent,
+  AutoUpdatesStatus,
+} from 'teleterm/services/appUpdater';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import {
@@ -56,34 +59,17 @@ export function WidgetView(props: {
   const { updateEvent } = props;
   const { autoUpdatesStatus } = updateEvent;
 
-  if (
-    autoUpdatesStatus.enabled === false &&
-    autoUpdatesStatus.reason === 'no-compatible-version'
-  ) {
-    return (
-      <Alert
-        kind="danger"
-        width="100%"
-        details="Your clusters require incompatible client versions. Choose one to enable app updates."
-        secondaryAction={{
-          content: 'Resolve',
-          onClick: props.onMore,
-        }}
-      >
-        App updates are disabled
-      </Alert>
-    );
-  }
+  const issueRequiringAttention = findAutoUpdatesIssuesRequiringAttention(
+    autoUpdatesStatus,
+    getClusterName
+  );
 
-  if (
-    autoUpdatesStatus.enabled === false &&
-    autoUpdatesStatus.reason === 'managing-cluster-unable-to-manage'
-  ) {
+  if (issueRequiringAttention) {
     return (
       <Alert
         kind="danger"
         width="100%"
-        details={`Cluster ${getClusterName(autoUpdatesStatus.options.managingClusterUri)} was chosen to manage updates but is not able to provide them.`}
+        details={issueRequiringAttention}
         secondaryAction={{
           content: 'Resolve',
           onClick: props.onMore,
@@ -297,5 +283,35 @@ function makeUpdaterContent({
           text: getErrorMessage(updateEvent.error),
         },
       };
+  }
+}
+
+/**
+ * Returns issues that need to be resolved for autoupdates to work.
+ *
+ * One specific state is intentionally omitted:
+ * When there is `no-cluster-with-auto-update` *and* an unreachable cluster exists.
+ *
+ * This case could mean one of two things:
+ * 1. The user is trying to log in to an unreachable cluster, which will already
+ * produce an error.
+ * 2. There are multiple clusters, and one of them (not the one being logged in)
+ * is unreachable. But if the user logs in to the reachable one, they likely
+ * don't care about the other, unreachable cluster.
+ */
+
+function findAutoUpdatesIssuesRequiringAttention(
+  status: AutoUpdatesStatus,
+  getClusterName: (clusterUri: RootClusterUri) => string
+): string | undefined {
+  if (status.enabled === false && status.reason === 'no-compatible-version') {
+    return 'Your clusters require incompatible client versions. Choose one to enable app updates.';
+  }
+
+  if (
+    status.enabled === false &&
+    status.reason === 'managing-cluster-unable-to-manage'
+  ) {
+    return `Cluster ${getClusterName(status.options.managingClusterUri)} was chosen to manage updates but is not able to provide them.`;
   }
 }
