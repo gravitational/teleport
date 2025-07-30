@@ -696,7 +696,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 					}, 60*time.Second, 500*time.Millisecond)
 				})
 
-				// Forward local port to container port.
+				// Setup port-forwarding configuration.
 				listener, err := net.Listen("tcp", "localhost:0")
 				require.NoError(t, err)
 				t.Cleanup(func() {
@@ -710,9 +710,24 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 				})
 				require.NoError(t, err)
 
+				// Forward local port to container port.
+				// 60 second timeout accommodates CI pod deletion.
+				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+				done := make(chan struct{})
 				forwarderCh := make(chan error, 1)
-				go func() { forwarderCh <- forwarder.ForwardPorts() }()
-				t.Cleanup(func() { close(forwarder.stopC) })
+				go func() {
+					defer close(done)
+					select {
+					case forwarderCh <- forwarder.ForwardPorts():
+					case <-ctx.Done():
+						forwarderCh <- ctx.Err()
+					}
+				}()
+				t.Cleanup(func() {
+					close(forwarder.stopC)
+					cancel()
+					<-done
+				})
 
 				// Wait for port-forwarding to be ready.
 				start := time.Now()
