@@ -6,11 +6,19 @@ labels:
  - identity-security
 ---
 
-Identity Security with Access Graph on a self-hosted Teleport cluster requires setting up 
-Access Graph, a dedicated service which uses PostgreSQL as its backing storage and communicates 
-with Auth Service and Proxy Service to collect information about resources and access.
+This guide shows you how to set up Teleport Access Graph in a self-hosted
+Teleport cluster.
 
-This guide will help you set up the service and enable Access Graph in your Teleport cluster.
+## How it works
+
+Unlike Teleport services like the Auth Service, Proxy Service, and agent
+services, Teleport Access Graph does not run from the `teleport` binary, but as
+a separate piece of software available from Teleport as a container image.
+Teleport Access Graph uses TLS credentials to authenticate to the Teleport Auth
+Service. It must also connect to PostgreSQL for its backing storage. After
+obtaining credentials from your Teleport cluster, you create a configuration
+file for Teleport Access Graph and start a container that loads the
+configuration file and Teleport credentials.
 
 ## Prerequisites
 

@@ -785,15 +785,24 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 		}
 		certBytes, signer, err := asrv.keyStore.GetTLSCertAndSigner(ctx, ca)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			asrv.logger.WarnContext(ctx, "Couldn't get CA certificate", "ca_type", caID.Type, "error", err)
+			continue
 		}
 		cert, err := tlsca.ParseCertificatePEM(certBytes)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			asrv.logger.WarnContext(ctx, "Couldn't parse CA certificate", "ca_type", caID.Type, "error", err)
+			continue
 		}
+
+		if cert.KeyUsage&x509.KeyUsageCRLSign == 0 {
+			asrv.logger.WarnContext(ctx, "Certificate authority can't sign CRLs, some Active Directory integrations will require a CA rotation", "ca_type", caID.Type)
+			continue
+		}
+
 		crl, err := keystore.GenerateCRL(cert, signer)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			asrv.logger.WarnContext(ctx, "Failed to generate CRL", "ca_type", caID.Type, "error", err)
+			continue
 		}
 		kp.CRL = crl
 		updated = true
