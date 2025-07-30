@@ -663,9 +663,16 @@ func delegatedCertTest(ctx context.Context, cfg Config, ident *identity.Identity
 		return trace.Wrap(err)
 	}
 
+	sshPubKey, err := ssh.NewPublicKey(ident.PrivateKey.Signer.Public())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sshPub := ssh.MarshalAuthorizedKey(sshPubKey)
+
 	certs, err := client.GenerateDelegatedCerts(ctx, proto.DelegatedCertsRequest{
 		Assertion:    val,
 		TLSPublicKey: tlsPub,
+		SSHPublicKey: sshPub,
 		Roles:        ident.TLSIdentity.Groups,
 	})
 	if err != nil {

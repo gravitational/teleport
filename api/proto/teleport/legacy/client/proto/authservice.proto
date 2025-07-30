@@ -106,6 +106,10 @@ message DelegatedCertsRequest {
   // Roles specifies a set of roles to request. The returned certs will be
   // granted the intersection of user and bot allowed roles.
   repeated string Roles = 4 [(gogoproto.jsontag) = "roles"];
+  // SSHPublicKey is a public key in SSH authorized_keys format, to be used as
+  // the subject for the issued SSH certificate. If omitted, only a TLS cert
+  // will be returned.
+  bytes SSHPublicKey = 5 [(gogoproto.jsontag) = "ssh_public_key,omitempty"];
 }
 
 // OpenSSHCertRequest specifies certificate-generation parameters
