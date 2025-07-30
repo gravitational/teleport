@@ -96,7 +96,7 @@ func (s *Service) GetClusterVersions(ctx context.Context, _ *api.GetClusterVersi
 				mu.Lock()
 				unreachableClusters = append(unreachableClusters, &api.UnreachableCluster{
 					ClusterUri:   cluster.URI.String(),
-					ErrorMessage: err.Error(),
+					ErrorMessage: pingErr.Error(),
 				})
 				mu.Unlock()
 				return nil
