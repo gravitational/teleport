@@ -19,12 +19,14 @@ package repl
 import (
 	"bytes"
 	"cmp"
+	"context"
 	"crypto/rand"
 	_ "embed"
 	"io"
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -39,6 +41,30 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
+
+var servers map[string]*testServer
+var serversMu sync.Mutex
+
+func TestMain(m *testing.M) {
+	servers = make(map[string]*testServer)
+	code := m.Run()
+
+	// The "Ryuk" container will cleanup everything anyhow, but only after 10s
+	// without any client connections.
+	// We can speed up container cleanup after a -count=N run, e.g., a flaky
+	// test detector run, by terminating them immediately after tests have run.
+	// https://github.com/testcontainers/moby-ryuk
+	serversMu.Lock()
+	defer serversMu.Unlock()
+	// if we don't clean up after 10 seconds, RYUK will get them anyway.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for _, srv := range servers {
+		// ignore errors, Ryuk or worst case VM termination in CI will deal with it
+		_ = srv.container.Terminate(ctx)
+	}
+	os.Exit(code)
+}
 
 func TestREPL(t *testing.T) {
 	testSrv := newTestServer(t)
@@ -268,26 +294,29 @@ func TestInteractively(t *testing.T) {
 	})
 	require.NoError(t, err)
 	repl.(*REPL).testPassword = testSrv.password
-	repl.Run(t.Context())
+	require.NoError(t, repl.Run(t.Context()))
 }
 
 func newTestServer(t *testing.T) *testServer {
 	t.Helper()
 	ctx := t.Context()
 
+	reuseName := cmp.Or(os.Getenv("MYSQL_TEST_SERVER_REUSE_CONTAINER_BY_NAME"), "default-mysql-test-server")
+	serversMu.Lock()
+	// hold the lock for the entire func to avoid parallel container requests
+	defer serversMu.Unlock()
+	if srv, ok := servers[reuseName]; ok {
+		return srv
+	}
+
 	user := cmp.Or(os.Getenv("MYSQL_TEST_SERVER_USER"), "root")
 	db := cmp.Or(os.Getenv("MYSQL_TEST_SERVER_DB"), "mysql")
 	pass := cmp.Or(os.Getenv("MYSQL_TEST_SERVER_PASS"), rand.Text())
-	reuseName := os.Getenv("MYSQL_TEST_SERVER_REUSE_CONTAINER_BY_NAME")
-
 	opts := []testcontainers.ContainerCustomizer{
 		mysqlcontainer.WithDatabase(db),
 		mysqlcontainer.WithUsername(user),
 		mysqlcontainer.WithPassword(pass),
-	}
-	if reuseName != "" {
-		opts = append(opts, testcontainers.WithReuseByName(reuseName))
-		t.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
+		testcontainers.WithReuseByName(reuseName),
 	}
 
 	// MySQL 8.4.6 index digest
@@ -295,9 +324,6 @@ func newTestServer(t *testing.T) *testServer {
 	// https://hub.docker.com/layers/library/mysql/8.4.6/images/sha256-9b9413211d004062e6d5be1118e1051773fe66d832ec9ebcae1c2fcce5af5f5b
 	const img = "mysql@sha256:d2c60b1b225c6d7845f0abdb596fc35c2d4122bcad6ec219588035a118f75d93"
 	container, err := mysqlcontainer.Run(ctx, img, opts...)
-	if reuseName == "" {
-		defer testcontainers.CleanupContainer(t, container)
-	}
 	require.NoError(t, err)
 
 	host, err := container.Host(ctx)
@@ -306,17 +332,22 @@ func newTestServer(t *testing.T) *testServer {
 	mappedPort, err := container.MappedPort(ctx, "3306/tcp")
 	require.NoError(t, err)
 
-	return &testServer{
-		host:     host,
-		port:     mappedPort.Port(),
-		username: user,
-		password: pass,
-		database: db,
+	srv := &testServer{
+		container: container,
+		host:      host,
+		port:      mappedPort.Port(),
+		username:  user,
+		password:  pass,
+		database:  db,
 	}
+	servers[reuseName] = srv
+	return srv
 }
 
 // testServer is a MySQL server for tests.
 type testServer struct {
+	// container is the container hosting the server.
+	container testcontainers.Container
 	// host is the MySQL connection endpoint host.
 	host string
 	// port is the MySQL connection endpoint port.
