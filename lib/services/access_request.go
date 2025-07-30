@@ -182,6 +182,7 @@ type DynamicAccess interface {
 // actors with limited privileges.
 type DynamicAccessOracle interface {
 	GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error)
+	GetRemoteAccessCapabilities(ctx context.Context, req types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error)
 }
 
 func shouldFilterRequestableRolesByResource(a RequestValidatorGetter, req types.AccessCapabilitiesRequest) (bool, error) {
@@ -255,6 +256,34 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 	return &caps, nil
 }
 
+// PruneMappedSearchAsRoles calculates the roles required to access the given
+// resources based on the supplied set of `search_as` roles.
+func PruneMappedSearchAsRoles(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, mappedUser UserState, mappedSearchAsRoles []string, resources []types.ResourceID, loginHint string) ([]string, error) {
+	clusterNameResource, err := getter.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	localClusterName := clusterNameResource.GetClusterName()
+
+	hasRemoteResources := slices.ContainsFunc(resources,
+		func(rID types.ResourceID) bool { return rID.ClusterName != localClusterName })
+	if hasRemoteResources {
+		return nil, trace.BadParameter("request must only contain resources in local cluster")
+	}
+
+	rv, err := newRequestValidatorForUser(ctx, clock, getter, mappedUser)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	roles, err := rv.pruneResourceRequestRoles(ctx, resources, loginHint, mappedSearchAsRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return roles, nil
+}
+
 func (v *requestValidator) calcRequireReasonCap(ctx context.Context, req types.AccessCapabilitiesRequest, caps types.AccessCapabilities) (requireReason bool, err error) {
 	var roles []string
 	if req.RequestableRoles {
@@ -294,14 +323,14 @@ func (m *requestValidator) allowedSearchAsRoles() ([]string, error) {
 //
 // If loginHint is provided, it will attempt to prune the list to a single role.
 func (m *requestValidator) applicableSearchAsRoles(ctx context.Context, resourceIDs []types.ResourceID, loginHint string) ([]string, error) {
-	rolesToRequest, err := m.allowedSearchAsRoles()
+	searchAsRoles, err := m.allowedSearchAsRoles()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Prune the list of roles to request to only those which may be necessary
 	// to access the requested resources.
-	rolesToRequest, err = m.pruneResourceRequestRoles(ctx, resourceIDs, loginHint, rolesToRequest)
+	rolesToRequest, err := m.pruneResourceRequestRoles(ctx, resourceIDs, loginHint, searchAsRoles)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1098,12 +1127,20 @@ func newRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 		return requestValidator{}, trace.Wrap(err)
 	}
 
-	m := requestValidator{
-		logger:    slog.With(teleport.ComponentKey, "request.validator"),
-		clock:     clock,
-		getter:    getter,
-		userState: uls,
+	v, err := newRequestValidatorForUser(ctx, clock, getter, uls, opts...)
+	if err != nil {
+		return requestValidator{}, trace.Wrap(err)
+	}
 
+	return v, nil
+}
+
+func newRequestValidatorForUser(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, user UserState, opts ...ValidateRequestOption) (requestValidator, error) {
+	m := requestValidator{
+		logger:               slog.With(teleport.ComponentKey, "request.validator"),
+		clock:                clock,
+		getter:               getter,
+		userState:            user,
 		requiringReasonRoles: make(map[string]struct{}),
 	}
 	for _, opt := range opts {
@@ -1231,7 +1268,6 @@ func (m *requestValidator) validate(ctx context.Context, req types.AccessRequest
 		if len(prunedRoles) != len(req.GetRoles()) {
 			return getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKinds, true /* requestedRoles */)
 		}
-
 	}
 
 	if m.opts.expandVars {
@@ -2235,6 +2271,10 @@ func (m *requestValidator) pruneResourceRequestRoles(
 	localClusterName := clusterNameResource.GetClusterName()
 
 	for _, resourceID := range resourceIDs {
+		m.logger.LogAttrs(ctx, slog.LevelDebug, "Validating resource",
+			slog.Any("id", types.ResourceIDToString(resourceID)),
+			slog.String("cluster", localClusterName))
+
 		if resourceID.ClusterName != localClusterName {
 			rbacLogger.LogAttrs(ctx, logutils.TraceLevel, `Requested resource is in a foreign cluster, unable to prune roles - All available "search_as_roles" will be requested`,
 				slog.Any("requested_resources", types.ResourceIDToString(resourceID)),
@@ -2260,6 +2300,12 @@ func (m *requestValidator) pruneResourceRequestRoles(
 			matchers            []RoleMatcher
 			kubeResourceMatcher *KubeResourcesMatcher
 		)
+
+		log := m.logger.With(
+			slog.String("resource_kind", resource.GetKind()),
+			slog.String("resource_id", resource.GetName()))
+		log.DebugContext(ctx, "Checking access to resource")
+
 		kubernetesResources, err := getKubeResourcesFromResourceIDs(resourceIDs, resource.GetName())
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2277,15 +2323,22 @@ func (m *requestValidator) pruneResourceRequestRoles(
 		}
 
 		for _, role := range allRoles {
+			log := log.With(slog.String("role", role.GetName()))
+
+			log.LogAttrs(ctx, slog.LevelDebug, "Checking role access")
+
 			roleAllowsAccess, err := m.roleAllowsResource(role, resource, loginHint, matchers...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			if !roleAllowsAccess {
+				log.DebugContext(ctx, "Role does not allow access to resource")
+
 				// Role does not allow access to this resource. We will prune it
 				// unless it allows access to another resource.
 				continue
 			}
+			log.DebugContext(ctx, "Role allows access to resource")
 			rolesForResource = append(rolesForResource, role)
 		}
 		// If any of the requested resources didn't match with the provided roles,

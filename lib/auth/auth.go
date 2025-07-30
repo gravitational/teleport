@@ -5973,6 +5973,12 @@ func (a *Server) GetAccessCapabilities(ctx context.Context, req types.AccessCapa
 	return caps, nil
 }
 
+// GetRemoteAccessCapabilities requires information more readily available in
+// [ServerWithRoles], so the main implementation is there.
+func (a *Server) GetRemoteAccessCapabilities(context.Context, types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error) {
+	return nil, trace.NotImplemented("GetRemoteAccessCapabilities not implemented")
+}
+
 func (a *Server) getCache() (c *cache.Cache, ok bool) {
 	c, ok = a.Cache.(*cache.Cache)
 	return
