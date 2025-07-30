@@ -531,11 +531,11 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 		builder func(*rest.Config, kubePortForwardArgs) (*kubePortForwarder, error)
 	}{
 		{
-			name:    "SPDY portForwarder",
+			name:    "SPDY",
 			builder: newPortForwarder,
 		},
 		{
-			name:    "SPDY over Websocket portForwarder",
+			name:    "SPDY over Websocket",
 			builder: newPortForwarderSPDYOverWebsocket,
 		},
 	}
@@ -559,15 +559,28 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 				})
 				require.NoError(t, err)
 
-				forwarderCh := make(chan error)
-				go func() { forwarderCh <- forwarder.ForwardPorts() }()
+				// Forward local port to container port.
+				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+				done := make(chan struct{})
+				forwarderCh := make(chan error, 1)
+				go func() {
+					defer close(done)
+					select {
+					case forwarderCh <- forwarder.ForwardPorts():
+					case <-ctx.Done():
+						forwarderCh <- ctx.Err()
+					}
+				}()
+				t.Cleanup(func() {
+					cancel()
+					<-done
+				})
 
 				select {
 				case <-time.After(5 * time.Second):
 					t.Fatalf("Timeout waiting for port forwarding.")
 				case <-forwarder.readyC:
 				}
-				t.Cleanup(func() {})
 
 				resp, err := http.Get(fmt.Sprintf("http://localhost:%v", localPort))
 				require.NoError(t, err)
