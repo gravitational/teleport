@@ -60,9 +60,7 @@ const (
 	// reservedFreeDisk is the minimum required free space left on disk during downloads.
 	// TODO(sclevine): This value is arbitrary and could be replaced by, e.g., min(1%, 200mb) in the future
 	//   to account for a range of disk sizes.
-	reservedFreeDisk = 10_000_000
-	// debugSocketFileName is the name of Teleport's debug socket in the data dir.
-	debugSocketFileName = "debug.sock" // 10 MB
+	reservedFreeDisk = 10_000_000 // 10 MB
 	// requiredUmask must be set before this package can be used.
 	// Use syscall.Umask to set when no other goroutines are running.
 	requiredUmask = 0o022
@@ -119,7 +117,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		cfg.SystemDir = packageSystemDir
 	}
 	validator := Validator{Log: cfg.Log}
-	debugClient := debug.NewClient(filepath.Join(ns.dataDir, debugSocketFileName))
+	debugClient := debug.NewClient(ns.dataDir)
 	return &Updater{
 		Log:                 cfg.Log,
 		Pool:                certPool,
@@ -360,13 +358,15 @@ func toPtr[T any](t T) *T {
 // If the initial installation succeeds, the override configuration is persisted.
 // Otherwise, the configuration is not changed.
 // This function is idempotent.
-func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
+func (u *Updater) Install(ctx context.Context, override OverrideConfig) (err error) {
 	// Read configuration from update.yaml and override any new values passed as flags.
 	cfg, err := readConfig(u.UpdateConfigFile)
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
-	if err := validateConfigSpec(&cfg.Spec, override); err != nil {
+	origCfg := cfg.Copy()
+	// Set the desired state.
+	if err := updateConfigSpec(&cfg.Spec, override); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -408,6 +408,21 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 	default:
 		u.Log.InfoContext(ctx, "Initiating installation.", targetKey, target, activeKey, active)
 	}
+
+	// Write update.yaml before attempting to install.
+	// This ensures that update.yaml always exists when the agent is started and sends HELLO.
+	// The written file does not contain updated versions, only the desired configuration.
+	// It is reverted if the installation fails to start, so that configuration is not persisted.
+	if err := writeConfig(u.UpdateConfigFile, cfg); err != nil {
+		return trace.Wrap(err, "failed to write %s", updateConfigName)
+	}
+	defer func() {
+		if err != nil {
+			if err := writeConfig(u.UpdateConfigFile, origCfg); err != nil {
+				u.Log.ErrorContext(ctx, "Failed to revert invalid partial configuration.", "path", u.UpdateConfigFile, errorKey, err)
+			}
+		}
+	}()
 
 	if err := u.update(ctx, cfg, target, override.AllowOverwrite, resp.AGPL); err != nil {
 		if errors.Is(err, ErrFilePresent) && !override.AllowOverwrite {
@@ -460,7 +475,7 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
-	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
+	if err := updateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return trace.Wrap(err)
 	}
 	active := cfg.Status.Active
@@ -699,7 +714,7 @@ func (u *Updater) Status(ctx context.Context) (Status, error) {
 	if err != nil {
 		return out, trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
-	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
+	if err := updateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return out, trace.Wrap(err)
 	}
 	if cfg.Spec.Proxy == "" {
@@ -766,7 +781,7 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
-	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
+	if err := updateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -878,7 +893,7 @@ func (u *Updater) find(ctx context.Context, cfg *UpdateConfig, id string) (FindR
 	}
 	group := cfg.Spec.Group
 	if group == "" {
-		group = "default"
+		group = defaultSetting
 	}
 	resp, err := webclient.Find(&webclient.Config{
 		Context:     ctx,
@@ -1162,7 +1177,7 @@ func (u *Updater) LinkPackage(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
-	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
+	if err := updateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return trace.Wrap(err)
 	}
 	active := cfg.Status.Active

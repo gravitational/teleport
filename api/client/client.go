@@ -2433,6 +2433,27 @@ func (c *Client) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) 
 	return tokens, nil
 }
 
+// ListProvisionTokens retrieves a paginated list of provision tokens.
+func (c *Client) ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error) {
+	resp, err := c.grpc.ListProvisionTokens(ctx, &proto.ListProvisionTokensRequest{
+		Limit:         int32(pageSize),
+		StartKey:      pageToken,
+		FilterRoles:   anyRoles.StringSlice(),
+		FilterBotName: botName,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	// Convert concrete type []*types.ProvisionTokenV2 to interface type []types.ProvisionToken
+	tokens := make([]types.ProvisionToken, len(resp.Tokens))
+	for i, token := range resp.Tokens {
+		tokens[i] = token
+	}
+
+	return tokens, resp.NextKey, nil
+}
+
 // UpsertToken creates or updates a provision token.
 func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) error {
 	tokenV2, ok := token.(*types.ProvisionTokenV2)
@@ -3186,6 +3207,68 @@ func (c *Client) DeleteAutoUpdateAgentRollout(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
+func (c *Client) TriggerAutoUpdateAgentGroup(ctx context.Context, groups []string, state autoupdatev1pb.AutoUpdateAgentGroupState) (*autoupdatev1pb.AutoUpdateAgentRollout, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	rollout, err := client.TriggerAutoUpdateAgentGroup(ctx, &autoupdatev1pb.TriggerAutoUpdateAgentGroupRequest{Groups: groups, DesiredState: state})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rollout, nil
+}
+
+func (c *Client) ForceAutoUpdateAgentGroup(ctx context.Context, groups []string) (*autoupdatev1pb.AutoUpdateAgentRollout, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	rollout, err := client.ForceAutoUpdateAgentGroup(ctx, &autoupdatev1pb.ForceAutoUpdateAgentGroupRequest{Groups: groups})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rollout, nil
+}
+
+func (c *Client) RollbackAutoUpdateAgentGroup(ctx context.Context, groups []string, allStartedGroups bool) (*autoupdatev1pb.AutoUpdateAgentRollout, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	rollout, err := client.RollbackAutoUpdateAgentGroup(ctx, &autoupdatev1pb.RollbackAutoUpdateAgentGroupRequest{Groups: groups, AllStartedGroups: allStartedGroups})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rollout, nil
+}
+
+// GetAutoUpdateAgentReport gets the AutoUpdateAgentReport from a specific Auth Service instance.
+func (c *Client) GetAutoUpdateAgentReport(ctx context.Context, name string) (*autoupdatev1pb.AutoUpdateAgentReport, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	report, err := client.GetAutoUpdateAgentReport(ctx, &autoupdatev1pb.GetAutoUpdateAgentReportRequest{Name: name})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return report, nil
+}
+
+// ListAutoUpdateAgentReports returns an AutoUpdateAgentReports page.
+func (c *Client) ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdatev1pb.AutoUpdateAgentReport, string, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.ListAutoUpdateAgentReports(ctx, &autoupdatev1pb.ListAutoUpdateAgentReportsRequest{
+		PageSize:  int32(pageSize),
+		NextToken: pageToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return resp.GetAutoupdateAgentReports(), resp.GetNextKey(), nil
+}
+
+// UpsertAutoUpdateAgentReport upserts an AutoUpdateAgentReport resource.
+func (c *Client) UpsertAutoUpdateAgentReport(ctx context.Context, report *autoupdatev1pb.AutoUpdateAgentReport) (*autoupdatev1pb.AutoUpdateAgentReport, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.UpsertAutoUpdateAgentReport(ctx, &autoupdatev1pb.UpsertAutoUpdateAgentReportRequest{
+		AutoupdateAgentReport: report,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 // GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
 func (c *Client) GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error) {
 	rsp, err := c.ClusterConfigClient().GetClusterAccessGraphConfig(ctx, &clusterconfigpb.GetClusterAccessGraphConfigRequest{})
@@ -3195,7 +3278,7 @@ func (c *Client) GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfi
 	return rsp.AccessGraph, nil
 }
 
-// GetInstaller gets all installer script resources
+// GetInstallers gets all installer script resources
 func (c *Client) GetInstallers(ctx context.Context) ([]types.Installer, error) {
 	resp, err := c.grpc.GetInstallers(ctx, &emptypb.Empty{})
 	if err != nil {
@@ -3421,6 +3504,30 @@ func (c *Client) GetApps(ctx context.Context) ([]types.Application, error) {
 		apps[i] = items.Apps[i]
 	}
 	return apps, nil
+}
+
+// ListApps returns a page of application resources.
+//
+// Note that application resources here refers to "dynamically-added"
+// applications such as applications created by `tctl create`, or the CreateApp
+// API. Applications defined in the `app_service.apps` section of the service
+// YAML configuration are not collected in this API.
+//
+// For a page of registered applications that are served by an application
+// service, use ListResources instead.
+func (c *Client) ListApps(ctx context.Context, limit int, start string) ([]types.Application, string, error) {
+	resp, err := c.grpc.ListApps(ctx, &proto.ListAppsRequest{
+		Limit:    int32(limit),
+		StartKey: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	apps := make([]types.Application, 0, len(resp.Applications))
+	for _, app := range resp.Applications {
+		apps = append(apps, app)
+	}
+	return apps, resp.NextKey, nil
 }
 
 // DeleteApp deletes specified application resource.

@@ -214,14 +214,17 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAutoUpdateVersion},
 		{Kind: types.KindAutoUpdateConfig},
 		{Kind: types.KindAutoUpdateAgentRollout},
+		{Kind: types.KindAutoUpdateAgentReport},
 		{Kind: types.KindUserTask},
 		{Kind: types.KindProvisioningPrincipalState},
 		{Kind: types.KindIdentityCenterAccount},
 		{Kind: types.KindIdentityCenterPrincipalAssignment},
 		{Kind: types.KindIdentityCenterAccountAssignment},
 		{Kind: types.KindWorkloadIdentity},
+		{Kind: types.KindPlugin, LoadSecrets: true},
 		{Kind: types.KindPluginStaticCredentials},
 		{Kind: types.KindGitServer},
+		{Kind: types.KindBotInstance},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -549,7 +552,7 @@ type Cache struct {
 	dynamicAccessCache           services.DynamicAccessExt
 	presenceCache                services.Presence
 	restrictionsCache            services.Restrictions
-	appsCache                    services.Apps
+	appsCache                    services.Applications
 	kubernetesCache              services.Kubernetes
 	crownJewelsCache             services.CrownJewels
 	databaseServicesCache        services.DatabaseServices
@@ -769,7 +772,7 @@ type Config struct {
 	// Restrictions is a restrictions service
 	Restrictions services.Restrictions
 	// Apps is an apps service.
-	Apps services.Apps
+	Apps services.Applications
 	// Kubernetes is an kubernetes service.
 	Kubernetes services.Kubernetes
 	// CrownJewels is a CrownJewels service.
@@ -883,6 +886,9 @@ type Config struct {
 	PluginStaticCredentials services.PluginStaticCredentials
 	// GitServers is the Git server service.
 	GitServers services.GitServerGetter
+	// BotInstanceService is the upstream service that we're caching
+	BotInstanceService services.BotInstance
+	Plugin             services.Plugins
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -2035,6 +2041,22 @@ func (c *Cache) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	return rg.reader.GetTokens(ctx)
 }
 
+// ListProvisionTokens returns a paginated list of provision tokens. Items can
+// be filtered by role and bot name. Tokens with ANY of the provided roles are
+// returned. If a bot name is provided, only tokens having a role of Bot are
+// returned.
+func (c *Cache) ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetTokens")
+	defer span.End()
+
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.tokens)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListProvisionTokens(ctx, pageSize, pageToken, anyRoles, botName)
+}
+
 // GetToken finds and returns token by ID
 func (c *Cache) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetToken")
@@ -2406,86 +2428,6 @@ func (c *Cache) GetProxies() ([]types.Server, error) {
 	return rg.reader.GetProxies()
 }
 
-type remoteClustersCacheKey struct {
-	name string
-}
-
-// GetRemoteClusters returns a list of remote clusters
-func (c *Cache) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetRemoteClusters")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.remoteClusters)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	if !rg.IsCacheRead() {
-		cachedRemotes, err := utils.FnCacheGet(ctx, c.fnCache, remoteClustersCacheKey{}, func(ctx context.Context) ([]types.RemoteCluster, error) {
-			remotes, err := rg.reader.GetRemoteClusters(ctx)
-			return remotes, err
-		})
-		if err != nil || cachedRemotes == nil {
-			return nil, trace.Wrap(err)
-		}
-
-		remotes := make([]types.RemoteCluster, 0, len(cachedRemotes))
-		for _, remote := range cachedRemotes {
-			remotes = append(remotes, remote.Clone())
-		}
-		return remotes, nil
-	}
-	return rg.reader.GetRemoteClusters(ctx)
-}
-
-// GetRemoteCluster returns a remote cluster by name
-func (c *Cache) GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetRemoteCluster")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.remoteClusters)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	if !rg.IsCacheRead() {
-		cachedRemote, err := utils.FnCacheGet(ctx, c.fnCache, remoteClustersCacheKey{clusterName}, func(ctx context.Context) (types.RemoteCluster, error) {
-			remote, err := rg.reader.GetRemoteCluster(ctx, clusterName)
-			return remote, err
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return cachedRemote.Clone(), nil
-	}
-	rc, err := rg.reader.GetRemoteCluster(ctx, clusterName)
-	if trace.IsNotFound(err) && rg.IsCacheRead() {
-		// release read lock early
-		rg.Release()
-		// fallback is sane because this method is never used
-		// in construction of derivative caches.
-		if rc, err := c.Config.Trust.GetRemoteCluster(ctx, clusterName); err == nil {
-			return rc, nil
-		}
-	}
-	return rc, trace.Wrap(err)
-}
-
-// ListRemoteClusters returns a page of remote clusters.
-func (c *Cache) ListRemoteClusters(ctx context.Context, pageSize int, nextToken string) ([]types.RemoteCluster, string, error) {
-	_, span := c.Tracer.Start(ctx, "cache/ListRemoteClusters")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.remoteClusters)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	remoteClusters, token, err := rg.reader.ListRemoteClusters(ctx, pageSize, nextToken)
-	return remoteClusters, token, trace.Wrap(err)
-}
-
 // GetUser is a part of auth.Cache implementation.
 func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 	_, span := c.Tracer.Start(ctx, "cache/GetUser")
@@ -2692,6 +2634,20 @@ func (c *Cache) GetApps(ctx context.Context) ([]types.Application, error) {
 	}
 	defer rg.Release()
 	return rg.reader.GetApps(ctx)
+}
+
+// ListApps returns a page of application resources.
+func (c *Cache) ListApps(ctx context.Context, pageSize int, pageToken string) ([]types.Application, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListApps")
+	defer span.End()
+
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.apps)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.ListApps(ctx, pageSize, pageToken)
 }
 
 // GetApp returns the specified application resource.

@@ -48,6 +48,9 @@ type Provisioner interface {
 
 	// GetTokens returns all non-expired tokens
 	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
+
+	// ListProvisionTokens retrieves a paginated list of provision tokens.
+	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
 }
 
 // MustCreateProvisionToken returns a new valid provision token

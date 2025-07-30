@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -72,7 +73,7 @@ import (
 type TestContext struct {
 	HostID               string
 	ClusterName          string
-	TLSServer            *auth.TestTLSServer
+	TLSServer            *authtest.TLSServer
 	AuthServer           *auth.Server
 	AuthClient           *authclient.Client
 	Authz                authz.Authorizer
@@ -125,7 +126,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	kubeConfigLocation := newKubeConfigFile(t, cfg.Clusters...)
 
 	// Create and start test auth server.
-	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Clock:       clockwork.NewFakeClockAt(time.Now()),
 		ClusterName: testCtx.ClusterName,
 		Dir:         t.TempDir(),
@@ -141,7 +142,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		// the LockWatcher to hit the connection rate limit and fail with an error
 		// different from the expected one. We setup a custom rate limiter to avoid
 		// this issue.
-		auth.WithLimiterConfig(
+		authtest.WithLimiterConfig(
 			&limiter.Config{
 				MaxConnections: 100000,
 			},
@@ -162,12 +163,12 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 
 	// Auth client for Kube service.
-	testCtx.AuthClient, err = testCtx.TLSServer.NewClient(auth.TestServerID(types.RoleKube, testCtx.HostID))
+	testCtx.AuthClient, err = testCtx.TLSServer.NewClient(authtest.TestServerID(types.RoleKube, testCtx.HostID))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testCtx.AuthClient.Close()) })
 
 	// Auth client, lock watcher and authorizer for Kube proxy.
-	proxyAuthClient, err := testCtx.TLSServer.NewClient(auth.TestBuiltin(types.RoleProxy))
+	proxyAuthClient, err := testCtx.TLSServer.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyAuthClient.Close()) })
 
@@ -189,7 +190,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 
 	// TLS config for kube proxy and Kube service.
-	serverIdentity, err := auth.NewServerIdentity(authServer.AuthServer, testCtx.HostID, types.RoleKube)
+	serverIdentity, err := authtest.NewServerIdentity(authServer.AuthServer, testCtx.HostID, types.RoleKube)
 	require.NoError(t, err)
 	kubeServiceTLSConfig, err := serverIdentity.TLSConfig(nil)
 	require.NoError(t, err)
@@ -228,12 +229,17 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	testCtx.kubeProxyListener, err = net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	inventoryHandle := inventory.NewDownstreamHandle(client.InventoryControlStream, proto.UpstreamInventoryHello{
-		ServerID: testCtx.HostID,
-		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleKube},
-		Hostname: "test",
-	})
+	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
+		func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
+			return proto.UpstreamInventoryHello{
+				ServerID: testCtx.HostID,
+				Version:  teleport.Version,
+				Services: []types.SystemRole{types.RoleKube},
+				Hostname: "test",
+			}, nil
+		})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	// Create kubernetes service server.
 	testCtx.KubeServer, err = proxy.NewTLSServer(proxy.TLSServerConfig{
@@ -300,7 +306,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	t.Cleanup(kubeServersWatcher.Close)
 
 	// TLS config for kube proxy and Kube service.
-	proxyServerIdentity, err := auth.NewServerIdentity(authServer.AuthServer, testCtx.HostID, types.RoleProxy)
+	proxyServerIdentity, err := authtest.NewServerIdentity(authServer.AuthServer, testCtx.HostID, types.RoleProxy)
 	require.NoError(t, err)
 	proxyTLSConfig, err := proxyServerIdentity.TLSConfig(nil)
 	require.NoError(t, err)
@@ -446,12 +452,12 @@ type RoleSpec struct {
 
 // CreateUserWithTraitsAndRole creates Teleport user and role with specified names
 func (c *TestContext) CreateUserWithTraitsAndRole(ctx context.Context, t *testing.T, username string, userTraits map[string][]string, roleSpec RoleSpec) (types.User, types.Role) {
-	user, role, err := auth.CreateUserAndRole(
+	user, role, err := authtest.CreateUserAndRole(
 		c.TLSServer.Auth(),
 		username,
 		[]string{roleSpec.Name},
 		nil,
-		auth.WithUserMutator(func(user types.User) {
+		authtest.WithUserMutator(func(user types.User) {
 			user.SetTraits(userTraits)
 		}),
 	)

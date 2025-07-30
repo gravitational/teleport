@@ -325,6 +325,9 @@ export const eventCodes = {
   AUTOUPDATE_VERSION_CREATE: 'AUV001I',
   AUTOUPDATE_VERSION_UPDATE: 'AUV002I',
   AUTOUPDATE_VERSION_DELETE: 'AUV003I',
+  AUTOUPDATE_AGENT_ROLLOUT_TRIGGER: 'AUAR001I',
+  AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE: 'AUAR002I',
+  AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK: 'AUAR003I',
 } as const;
 
 /**
@@ -1877,6 +1880,27 @@ export type RawEvents = {
     typeof eventCodes.AUTOUPDATE_VERSION_DELETE,
     {
       user: string;
+    }
+  >;
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER,
+    {
+      user: string;
+      groups: string[];
+    }
+  >;
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE,
+    {
+      user: string;
+      groups: string[];
+    }
+  >;
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK,
+    {
+      user: string;
+      groups: string[];
     }
   >;
 };

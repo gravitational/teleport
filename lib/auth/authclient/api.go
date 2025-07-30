@@ -242,6 +242,9 @@ type ReadProxyAccessPoint interface {
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
 
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 
@@ -570,6 +573,9 @@ type ReadAppsAccessPoint interface {
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
 
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 }
@@ -760,6 +766,10 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetApps returns all application resources.
 	GetApps(context.Context) ([]types.Application, error)
+
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 
@@ -1055,6 +1065,9 @@ type Cache interface {
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
 
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 
@@ -1244,6 +1257,12 @@ type Cache interface {
 	// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
 	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
 
+	// GetAutoUpdateAgentReport gets the AutoUpdateAgentRollout from the backend.
+	GetAutoUpdateAgentReport(ctx context.Context, name string) (*autoupdate.AutoUpdateAgentReport, error)
+
+	// ListAutoUpdateAgentReports lists all AutoUpdateAgentReports from the backend.
+	ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdate.AutoUpdateAgentReport, string, error)
+
 	// GetAccessGraphSettings returns the access graph settings.
 	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
 
@@ -1278,6 +1297,15 @@ type Cache interface {
 
 	// GitServerGetter defines methods for fetching Git servers.
 	services.GitServerGetter
+
+	// GetBotInstance returns the specified BotInstance resource.
+	GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error)
+
+	// ListBotInstances returns a page of BotInstance resources.
+	ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string, sort *types.SortBy) ([]*machineidv1.BotInstance, string, error)
+
+	// ListProvisionTokens returns a paginated list of provision tokens.
+	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
 }
 
 type NodeWrapper struct {

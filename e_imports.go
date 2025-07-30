@@ -81,8 +81,6 @@ import (
 	_ "github.com/ghodss/yaml"
 	_ "github.com/go-jose/go-jose/v3"
 	_ "github.com/go-jose/go-jose/v3/json"
-	// TODO(Joerger): Remove once /e uses v2
-	_ "github.com/go-piv/piv-go/piv"
 	_ "github.com/go-piv/piv-go/v2/piv"
 	_ "github.com/gogo/protobuf/proto"
 	_ "github.com/google/go-attestation/attest"
@@ -135,7 +133,7 @@ import (
 	_ "golang.org/x/crypto/ssh"
 	_ "golang.org/x/crypto/ssh/agent"
 	_ "golang.org/x/exp/constraints"
-	_ "golang.org/x/mod/semver"
+	_ "golang.org/x/mod/semver" //nolint:depguard // Usage precedes the x/mod/semver rule.
 	_ "golang.org/x/net/html"
 	_ "golang.org/x/net/http/httpproxy"
 	_ "golang.org/x/net/http2"

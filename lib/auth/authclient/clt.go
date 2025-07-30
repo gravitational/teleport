@@ -1232,6 +1232,9 @@ type ProvisioningService interface {
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken
 	RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error)
+
+	// ListProvisionTokens retrieves a paginated list of provision tokens.
+	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
 }
 
 type ValidateTrustedClusterRequest struct {
@@ -1596,7 +1599,7 @@ type ClientI interface {
 	services.DynamicAccess
 	services.DynamicAccessOracle
 	services.Restrictions
-	services.Apps
+	services.Applications
 	services.Databases
 	services.DatabaseServices
 	services.Kubernetes

@@ -89,26 +89,57 @@ func TestWithOwnersIneligibleStatusField(t *testing.T) {
 }
 
 func TestRoundtrip(t *testing.T) {
-	t.Run("with custom subkind", func(t *testing.T) {
-		accessList := newAccessList(t, "access-list")
-		accessList.ResourceHeader.SetSubKind("access-list-subkind")
+	t.Parallel()
 
-		converted, err := FromProto(ToProto(accessList))
-		require.NoError(t, err)
+	type testCase struct {
+		name           string
+		modificationFn func(*accesslist.AccessList)
+	}
 
-		require.Empty(t, cmp.Diff(accessList, converted))
-	})
+	for _, tc := range []testCase{
+		{
+			name:           "no-modifications",
+			modificationFn: func(accessList *accesslist.AccessList) {},
+		},
+		{
+			name: "with-subkind",
+			modificationFn: func(accessList *accesslist.AccessList) {
+				accessList.ResourceHeader.SetSubKind("access-list-subkind")
+			},
+		},
+		{
+			name: "deprecated-dynamic-type",
+			modificationFn: func(accessList *accesslist.AccessList) {
+				accessList.Spec.Type = accesslist.DeprecatedDynamic
+			},
+		},
+		{
+			name: "default-type",
+			modificationFn: func(accessList *accesslist.AccessList) {
+				accessList.Spec.Type = accesslist.Default
+			},
+		},
+		{
+			name: "static-type",
+			modificationFn: func(accessList *accesslist.AccessList) {
+				accessList.Spec.Type = accesslist.Static
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			accessList := newAccessList(t, "access-list")
+			tc.modificationFn(accessList)
 
-	t.Run("with non-default type", func(t *testing.T) {
-		accessList := newAccessList(t, "access-list")
-		accessList.Spec.Type = accesslist.Static
+			converted, err := FromProto(ToProto(accessList))
+			require.NoError(t, err)
 
-		converted, err := FromProto(ToProto(accessList))
-		require.NoError(t, err)
+			if accessList.Spec.Type == accesslist.DeprecatedDynamic {
+				accessList.Spec.Type = accesslist.Default
+			}
 
-		require.Empty(t, cmp.Diff(accessList, converted))
-		require.Equal(t, accesslist.Static, converted.Spec.Type)
-	})
+			require.Empty(t, cmp.Diff(accessList, converted))
+		})
+	}
 }
 
 func Test_FromProto_withBadType(t *testing.T) {
@@ -184,6 +215,20 @@ func TestFromProtoNils(t *testing.T) {
 
 		_, err := FromProto(msg)
 		require.NoError(t, err)
+	})
+
+	t.Run("requires is not set to nil", func(t *testing.T) {
+		acl := newAccessList(t, "access-list")
+		acl.Spec.MembershipRequires = accesslist.Requires{}
+		acl.Spec.OwnershipRequires = accesslist.Requires{}
+		msg := ToProto(acl)
+		// Ensure Requires fields are not set to nil for backward compatibility.
+		// Older implementations of FromProto (e.g., in Teleport v16) may incorrectly set these fields to nil:
+		// https://github.com/gravitational/teleport/blob/branch/v16/api/types/accesslist/convert/v1/accesslist.go#L46
+		// Since FromProto is invoked client-side (e.g., by the Terraform provider),
+		// setting Requires to nil could introduce breaking changes for existing clients.
+		require.NotNil(t, msg.Spec.MembershipRequires)
+		require.NotNil(t, msg.Spec.OwnershipRequires)
 	})
 }
 
@@ -290,8 +335,10 @@ func TestConvAccessList(t *testing.T) {
 					},
 				},
 				Spec: &accesslistv1.AccessListSpec{
-					Title:       "test access list",
-					Description: "test description",
+					Title:              "test access list",
+					Description:        "test description",
+					OwnershipRequires:  &accesslistv1.AccessListRequires{},
+					MembershipRequires: &accesslistv1.AccessListRequires{},
 					Owners: []*accesslistv1.AccessListOwner{
 						{
 							Name: "test-user1",
@@ -330,8 +377,10 @@ func TestConvAccessList(t *testing.T) {
 					},
 				},
 				Spec: &accesslistv1.AccessListSpec{
-					Title:       "test access list",
-					Description: "test description",
+					Title:              "test access list",
+					Description:        "test description",
+					OwnershipRequires:  &accesslistv1.AccessListRequires{},
+					MembershipRequires: &accesslistv1.AccessListRequires{},
 					Owners: []*accesslistv1.AccessListOwner{
 						{
 							Name: "test-user1",
@@ -368,10 +417,12 @@ func TestConvAccessList(t *testing.T) {
 					},
 				},
 				Spec: &accesslistv1.AccessListSpec{
-					Type:        string(accesslist.SCIM),
-					Title:       "test access list",
-					Description: "test description",
-					Owners:      []*accesslistv1.AccessListOwner{},
+					Type:               string(accesslist.SCIM),
+					Title:              "test access list",
+					Description:        "test description",
+					Owners:             []*accesslistv1.AccessListOwner{},
+					OwnershipRequires:  &accesslistv1.AccessListRequires{},
+					MembershipRequires: &accesslistv1.AccessListRequires{},
 					Audit: &accesslistv1.AccessListAudit{
 						Recurrence: &accesslistv1.Recurrence{
 							Frequency:  1,

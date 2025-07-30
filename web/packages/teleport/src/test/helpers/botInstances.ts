@@ -34,9 +34,9 @@ export const listBotInstancesSuccess = (mock: ListBotInstancesResponse) =>
     return HttpResponse.json(mock);
   });
 
-export const listBotInstancesError = (status: number) =>
+export const listBotInstancesError = (status: number, error: string = null) =>
   http.get(listBotInstancesPath, () => {
-    return new HttpResponse(null, { status });
+    return HttpResponse.json({ error: { message: error } }, { status });
   });
 
 export const getBotInstanceSuccess = (mock: GetBotInstanceResponse) =>

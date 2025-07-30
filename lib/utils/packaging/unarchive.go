@@ -70,22 +70,22 @@ func RemoveWithSuffix(dir, suffix string, skipNames []string) error {
 
 // replaceZip un-archives the Teleport package in .zip format, iterates through
 // the compressed content, and ignores everything not matching the binaries specified
-// in the execNames argument. The data is extracted to extractDir, and symlinks are created
-// in toolsDir pointing to the extractDir path with binaries.
-func replaceZip(toolsDir string, archivePath string, extractDir string, execNames []string) error {
+// in the execNames argument. The data is extracted to extractDir, and copies are created in toolsDir.
+func replaceZip(archivePath string, extractDir string, execNames []string) (map[string]string, error) {
+	execPaths := make(map[string]string, len(execNames))
 	f, err := os.Open(archivePath)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer f.Close()
 
 	fi, err := f.Stat()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	zipReader, err := zip.NewReader(f, fi.Size())
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	var totalSize uint64 = 0
@@ -101,7 +101,7 @@ func replaceZip(toolsDir string, archivePath string, extractDir string, execName
 	}
 	// Verify that we have enough space for uncompressed zipFile.
 	if err := checkFreeSpace(extractDir, totalSize); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	for _, zipFile := range zipReader.File {
@@ -123,26 +123,17 @@ func replaceZip(toolsDir string, archivePath string, extractDir string, execName
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			defer destFile.Close()
-
 			if _, err := io.Copy(destFile, file); err != nil {
-				return trace.Wrap(err)
-			}
-			appPath := filepath.Join(toolsDir, baseName)
-			// For the Windows build, we need to copy the binary to perform updates without requiring
-			// administrative access, which would otherwise be needed for creating symlinks.
-			// Since symlinks are not used on the Windows platform, there's no need to remove appPath
-			// before copying the new binary — it will simply be replaced.
-			if err := utils.CopyFile(dest, appPath, 0o755); err != nil {
-				return trace.Wrap(err)
+				return trace.NewAggregate(err, destFile.Close())
 			}
 			return trace.Wrap(destFile.Close())
 		}(zipFile); err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
+		execPaths[baseName] = baseName
 	}
 
-	return nil
+	return execPaths, nil
 }
 
 // checkFreeSpace verifies that we have enough requested space (in bytes) at specific directory.

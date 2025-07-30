@@ -1,5 +1,99 @@
 # Changelog
 
+## 17.7.0 (07/28/25)
+
+### Managed Updates canary support
+
+Managed Updates v2 now support performing canary updates. When canary updates
+are enabled for a group, Teleport will update a few agents first and confirm
+they come back healthy before updating the rest of the group.
+
+You can unable canary updates by setting `canary_count` in your
+`autoupdate_config`:
+
+```yaml
+kind: autoupdate_config
+spec:
+  agents:
+    mode: enabled
+    schedules:
+      regular:
+      - name: dev
+        days:
+        - Mon
+        - Tue
+        - Wed
+        - Thu
+        start_hour: 20
+        canary_count: 5
+    strategy: halt-on-error
+```
+
+Each group can have a maximum of 5 canaries, canaries are picked randomly among
+the connected agents.
+
+Canary update support is currently only support by Linux agents, Kubernetes
+support will be part of a future release.
+
+### Other fixes and improvements
+
+* Allow YubiKeys running 5.7.4+ firmware to be usable as PIV hardware keys. [#57217](https://github.com/gravitational/teleport/pull/57217)
+* Tctl will now warn the user when importing a SPIFFE issuer override chain that contains the root CA. [#57168](https://github.com/gravitational/teleport/pull/57168)
+* Fixed fallback for web login when second factor is set to `on` but only OTP is configured. [#57159](https://github.com/gravitational/teleport/pull/57159)
+* Fix a bug causing `tctl`/`tsh` to fail on read-only file systems. [#57148](https://github.com/gravitational/teleport/pull/57148)
+* The `teleport-distroless` container image now disables client tools updates by default (when using tsh/tctl, you will always use the version from the image). You can enable them back by unsetting the `TELEPORT_TOOLS_VERSION` environment variable. [#57148](https://github.com/gravitational/teleport/pull/57148)
+* Fixed a crash in Teleport Connect that could occur when copying large clipboard content during desktop sessions. [#57131](https://github.com/gravitational/teleport/pull/57131)
+* Audit log events for SPIFFE SVID issuances now include the name/label selector used by the client. [#57128](https://github.com/gravitational/teleport/pull/57128)
+* Fixed client tools managed updates downgrade to older version. [#57111](https://github.com/gravitational/teleport/pull/57111)
+* Removed unnecessary macOS entitlements from Teleport Connect subprocesses. [#57067](https://github.com/gravitational/teleport/pull/57067)
+* Machine and Workload ID: The `tbot` client will now discard expired identities if needed during renewal to allow automatic recovery without restarting the process. [#57062](https://github.com/gravitational/teleport/pull/57062)
+* Define access-plugin preset role. [#57057](https://github.com/gravitational/teleport/pull/57057)
+* Resolved an issue where RemoteCluster objects stored in the cache had incorrect revisions, causing Update calls to fail. [#56974](https://github.com/gravitational/teleport/pull/56974)
+* Update Application APIs to use pagination to avoid exceeding message size limitations. [#56949](https://github.com/gravitational/teleport/pull/56949)
+* Fix certificate revocation failures in Active Directory environments when Teleport is using HSM-backed key material. [#56928](https://github.com/gravitational/teleport/pull/56928)
+
+Enterprise:
+
+* Fix SCIM user provisioning when a user already exists and is managed by the same connector as the SCIM integration.
+* Fix SCIM integration front-end enroll flow.
+
+## 17.6.0 (07/22/25)
+
+## VNet for SSH
+
+Teleport VNet now has native support for SSH, enabling any SSH client to connect to Teleport SSH servers with zero configuration. Advanced Teleport features like per-session MFA now have first-class support for a seamless user experience. [#55313](https://github.com/gravitational/teleport/pull/55313)
+
+### Other fixes and improvements
+
+* `tctl` top now supports the local unix sock debug endpoint. [#57027](https://github.com/gravitational/teleport/pull/57027)
+* Added support to `tsh` App Access commands for Azure CLI (`az`) version `2.73.0` and newer. [#56951](https://github.com/gravitational/teleport/pull/56951)
+* Fixed a bug in the Teleport install scripts when running on MacOS. The install scripts now error instead of trying to install non existing MacOS FIPS binaries. [#56942](https://github.com/gravitational/teleport/pull/56942)
+* Fixed using relative path `TELEPORT_HOME` env with client tools managed update. [#56934](https://github.com/gravitational/teleport/pull/56934)
+* Client tools managed updates support multi-cluster environments and track each version in the configuration file. [#56934](https://github.com/gravitational/teleport/pull/56934)
+
+## 17.5.6 (07/17/25)
+
+* Fix backward compatibility issue introduced in the 17.5.5 / 18.0.1 release related to Access List type, causing the `unknown access_list type "dynamic"` validation error. [#56888](https://github.com/gravitational/teleport/pull/56888)
+* Added support for glob-style matching to Spacelift join rules. [#56878](https://github.com/gravitational/teleport/pull/56878)
+* Improve PKINIT compatibility by always including CDP information in the certificate. [#56876](https://github.com/gravitational/teleport/pull/56876)
+
+## 17.5.5 (07/15/25)
+
+* Fixed backward compatibility for Access List 'membershipRequires is missing' for older terraform providers. [#56743](https://github.com/gravitational/teleport/pull/56743)
+* Fixed VNet DNS configuration on Windows hosts joined to Active Directory domains. [#56739](https://github.com/gravitational/teleport/pull/56739)
+* Updated default client timeout and upload rate for Pyroscope. [#56731](https://github.com/gravitational/teleport/pull/56731)
+* Bot instances are now sortable by latest heartbeat time in the web UI. [#56685](https://github.com/gravitational/teleport/pull/56685)
+* Updated Go to 1.23.11. [#56680](https://github.com/gravitational/teleport/pull/56680)
+* Fixed `tbot` SPIFFE Workload API failing to renew SPIFFE SVIDs. [#56663](https://github.com/gravitational/teleport/pull/56663)
+* Fixed some icons displaying as white/black blocks. [#56620](https://github.com/gravitational/teleport/pull/56620)
+* Terraform Provider: add support for skipping proxy certificate verification in development environments. [#56530](https://github.com/gravitational/teleport/pull/56530)
+* Made VNet DNS available over IPv4. [#56476](https://github.com/gravitational/teleport/pull/56476)
+* Fixed `heartbeat_connections_received_total` undercounting Database and Kubernetes heartbeats by 1. [#54726](https://github.com/gravitational/teleport/pull/54726)
+
+Enterprise:
+* Added enrolment for a generic SCIM Integration.
+* Fixed a email integration enrollment documentation link.
+
 ## 17.5.4 (07/02/25)
 
 * Fixes broken `tbot` joining in the Terraform provider. [#56343](https://github.com/gravitational/teleport/pull/56343)
@@ -2497,7 +2591,7 @@ access start time up to a week in advance.
 
 The Teleport Terraform provider and Kubernetes operator now support declaring
 agentless OpenSSH and OpenSSH EC2 ICE servers. You can follow [this
-guide](docs/pages/admin-guides/infrastructure-as-code/managing-resources/agentless-ssh-servers.mdx)
+guide](docs/pages/zero-trust-access/infrastructure-as-code/managing-resources/agentless-ssh-servers.mdx)
 to register OpenSSH agents with infrastructure as code.
 
 Setting up EC2 ICE automatic discovery with IaC will come in a future update.
@@ -2877,7 +2971,7 @@ When deployed with the `teleport-cluster` chart, the operator now runs in a
 separate pod. This ensures that Teleport's availability won't be impacted if the
 operator becomes unready.
 
-See [the Standalone Operator guide](docs/pages/admin-guides/infrastructure-as-code/teleport-operator/teleport-operator-standalone.mdx)
+See [the Standalone Operator guide](docs/pages/zero-trust-access/infrastructure-as-code/teleport-operator/teleport-operator-standalone.mdx)
 for installation instructions.
 
 #### Roles v6 and v7 support for Kubernetes Operator
@@ -7695,7 +7789,7 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 ### Documentation
 
 * Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](docs/pages/admin-guides/management/admin/trustedclusters.mdx).
-* Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](docs/pages/admin-guides/access-controls/compliance-frameworks/fedramp.mdx).
+* Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](docs/pages/zero-trust-access/compliance-frameworks/fedramp.mdx).
 
 ## 4.1.13 
 

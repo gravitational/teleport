@@ -24,6 +24,7 @@ import (
 	"maps"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
@@ -32,6 +33,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/autoupdate/rollout"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -47,6 +49,12 @@ type Cache interface {
 
 	// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
 	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
+
+	// GetAutoUpdateAgentReport gets a AutoUpdateAgentReport from the backend.
+	GetAutoUpdateAgentReport(ctx context.Context, name string) (*autoupdate.AutoUpdateAgentReport, error)
+
+	// ListAutoUpdateAgentReports lists all AutoUpdateAgentReport from the backend.
+	ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdate.AutoUpdateAgentReport, string, error)
 }
 
 // ServiceConfig holds configuration options for the auto update gRPC service.
@@ -74,6 +82,7 @@ type Service struct {
 	backend    services.AutoUpdateService
 	emitter    apievents.Emitter
 	cache      Cache
+	clock      clockwork.Clock
 }
 
 // NewService returns a new AutoUpdate API service using the given storage layer and authorizer.
@@ -93,6 +102,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		backend:    cfg.Backend,
 		cache:      cfg.Cache,
 		emitter:    cfg.Emitter,
+		clock:      clockwork.NewRealClock(),
 	}, nil
 }
 
@@ -641,6 +651,392 @@ func (s *Service) DeleteAutoUpdateAgentRollout(ctx context.Context, req *autoupd
 	}
 
 	if err := s.backend.DeleteAutoUpdateAgentRollout(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+func (s *Service) getAllReports(ctx context.Context) ([]*autoupdate.AutoUpdateAgentReport, error) {
+	var reports []*autoupdate.AutoUpdateAgentReport
+
+	// this is an in-memory client, we go for the default page size
+	const pageSize = 0
+	var pageToken string
+	for {
+		page, nextToken, err := s.cache.ListAutoUpdateAgentReports(ctx, pageSize, pageToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		reports = append(reports, page...)
+		if nextToken == "" {
+			return reports, nil
+		}
+		pageToken = nextToken
+	}
+}
+
+// TriggerAutoUpdateAgentGroup triggers automatic updates for one or many groups
+// in the rollout.
+func (s *Service) TriggerAutoUpdateAgentGroup(ctx context.Context, req *autoupdate.TriggerAutoUpdateAgentGroupRequest) (result *autoupdate.AutoUpdateAgentRollout, err error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateAgentRollout, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer func() {
+		var errMsg string
+		if err != nil {
+			errMsg = err.Error()
+		}
+		userMetadata := authz.ClientUserMetadata(ctx)
+		s.emitEvent(ctx, &apievents.AutoUpdateAgentRolloutTrigger{
+			Metadata: apievents.Metadata{
+				Type: events.AutoUpdateAgentRolloutTriggerEvent,
+				Code: events.AutoUpdateAgentRolloutTriggerCode,
+			},
+			UserMetadata:       userMetadata,
+			Groups:             req.Groups,
+			ConnectionMetadata: authz.ConnectionMetadata(ctx),
+			Status: apievents.Status{
+				Success: err == nil,
+				Error:   errMsg,
+			},
+		})
+	}()
+
+	const maxTries = 3
+
+	var existingRollout, newRollout *autoupdate.AutoUpdateAgentRollout
+	for range maxTries {
+		existingRollout, err = s.backend.GetAutoUpdateAgentRollout(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting rollout")
+		}
+		reports, err := s.getAllReports(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting reports")
+		}
+
+		err = rollout.TriggerGroups(existingRollout, reports, rollout.GroupListToGroupSet(req.Groups), req.DesiredState, s.clock.Now())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		newRollout, err = s.backend.UpdateAutoUpdateAgentRollout(ctx, existingRollout)
+		if err == nil {
+			return newRollout, nil
+		}
+		if !trace.IsCompareFailed(err) {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return nil, trace.LimitExceeded("max update tries exceeded")
+}
+
+// ForceAutoUpdateAgentGroup forces one or many groups of the agent rollout into
+// a DONE state.
+func (s *Service) ForceAutoUpdateAgentGroup(ctx context.Context, req *autoupdate.ForceAutoUpdateAgentGroupRequest) (result *autoupdate.AutoUpdateAgentRollout, err error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateAgentRollout, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer func() {
+		var errMsg string
+		if err != nil {
+			errMsg = err.Error()
+		}
+		userMetadata := authz.ClientUserMetadata(ctx)
+		s.emitEvent(ctx, &apievents.AutoUpdateAgentRolloutForceDone{
+			Metadata: apievents.Metadata{
+				Type: events.AutoUpdateAgentRolloutForceDoneEvent,
+				Code: events.AutoUpdateAgentRolloutForceDoneCode,
+			},
+			UserMetadata:       userMetadata,
+			Groups:             req.Groups,
+			ConnectionMetadata: authz.ConnectionMetadata(ctx),
+			Status: apievents.Status{
+				Success: err == nil,
+				Error:   errMsg,
+			},
+		})
+	}()
+
+	const maxTries = 3
+
+	var existingRollout, newRollout *autoupdate.AutoUpdateAgentRollout
+	for range maxTries {
+		existingRollout, err = s.backend.GetAutoUpdateAgentRollout(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		err = rollout.ForceGroupsDone(existingRollout, rollout.GroupListToGroupSet(req.Groups), s.clock.Now())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		newRollout, err = s.backend.UpdateAutoUpdateAgentRollout(ctx, existingRollout)
+		if err == nil {
+			return newRollout, nil
+		}
+		if !trace.IsCompareFailed(err) {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return nil, trace.LimitExceeded("max update tries exceeded")
+}
+
+// RollbackAutoUpdateAgentGroup forces one or many groups of the agent rollout into
+// a DONE state.
+func (s *Service) RollbackAutoUpdateAgentGroup(ctx context.Context, req *autoupdate.RollbackAutoUpdateAgentGroupRequest) (result *autoupdate.AutoUpdateAgentRollout, err error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateAgentRollout, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(req.Groups) == 0 && !req.AllStartedGroups {
+		return nil, trace.BadParameter("at least one group must be specified or the all_started_groups flag set")
+	}
+
+	defer func() {
+		var errMsg string
+		if err != nil {
+			errMsg = err.Error()
+		}
+		userMetadata := authz.ClientUserMetadata(ctx)
+		s.emitEvent(ctx, &apievents.AutoUpdateAgentRolloutRollback{
+			Metadata: apievents.Metadata{
+				Type: events.AutoUpdateAgentRolloutRollbackEvent,
+				Code: events.AutoUpdateAgentRolloutRollbackCode,
+			},
+			UserMetadata:       userMetadata,
+			ConnectionMetadata: authz.ConnectionMetadata(ctx),
+			Status: apievents.Status{
+				Success: err == nil,
+				Error:   errMsg,
+			},
+			Groups: req.Groups,
+		})
+	}()
+
+	const maxTries = 3
+
+	var existingRollout, newRollout *autoupdate.AutoUpdateAgentRollout
+	for range maxTries {
+		existingRollout, err = s.backend.GetAutoUpdateAgentRollout(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		groups := rollout.GroupListToGroupSet(req.Groups)
+		if req.AllStartedGroups {
+			startedGroups := rollout.GetStartedGroups(existingRollout)
+			for group := range startedGroups {
+				groups[group] = struct{}{}
+			}
+		}
+
+		if len(groups) == 0 {
+			return nil, trace.AlreadyExists("no groups to rollback")
+		}
+
+		err = rollout.RollbackGroups(existingRollout, groups, s.clock.Now())
+
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		newRollout, err = s.backend.UpdateAutoUpdateAgentRollout(ctx, existingRollout)
+		if err == nil {
+			return newRollout, nil
+		}
+		if !trace.IsCompareFailed(err) {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return nil, trace.LimitExceeded("max update tries exceeded")
+}
+
+func (s *Service) ListAutoUpdateAgentReports(ctx context.Context, req *autoupdate.ListAutoUpdateAgentReportsRequest) (*autoupdate.ListAutoUpdateAgentReportsResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateAgentReport, types.VerbRead, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	reports, nextKey, err := s.cache.ListAutoUpdateAgentReports(ctx, int(req.GetPageSize()), req.GetNextToken())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &autoupdate.ListAutoUpdateAgentReportsResponse{
+		AutoupdateAgentReports: reports,
+		NextKey:                nextKey,
+	}, nil
+
+}
+
+// GetAutoUpdateAgentReport gets an AutoUpdateAgentReport.
+func (s *Service) GetAutoUpdateAgentReport(ctx context.Context, req *autoupdate.GetAutoUpdateAgentReportRequest) (*autoupdate.AutoUpdateAgentReport, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateAgentReport, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	report, err := s.cache.GetAutoUpdateAgentReport(ctx, req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return report, nil
+}
+
+// CreateAutoUpdateAgentReport creates an AutoUpdateAgentReport.
+func (s *Service) CreateAutoUpdateAgentReport(ctx context.Context, req *autoupdate.CreateAutoUpdateAgentReportRequest) (*autoupdate.AutoUpdateAgentReport, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Editing an agent report is restricted to cluster administrators.
+	// As of today we don't have any way of having
+	// resources that can only be edited by Teleport Cloud (when running cloud-hosted).
+	// The workaround is to check if the caller has the auth/admin system role.
+	// This is not ideal as it forces local tctl usage and can be bypassed if the user is very creative.
+	// In the future, if we expand the permission system and make cloud
+	// a first class citizen, we'll want to update this permission check.
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
+		return nil, trace.AccessDenied("this request can be only executed by an auth server")
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateAgentReport, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	autoUpdateAgentReport, err := s.backend.CreateAutoUpdateAgentReport(ctx, req.GetAutoupdateAgentReport())
+	return autoUpdateAgentReport, trace.Wrap(err)
+}
+
+// UpdateAutoUpdateAgentReport updates an AutoUpdateAgentReport.
+func (s *Service) UpdateAutoUpdateAgentReport(ctx context.Context, req *autoupdate.UpdateAutoUpdateAgentReportRequest) (*autoupdate.AutoUpdateAgentReport, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Editing an agent report is restricted to cluster administrators.
+	// As of today we don't have any way of having
+	// resources that can only be edited by Teleport Cloud (when running cloud-hosted).
+	// The workaround is to check if the caller has the auth/admin system role.
+	// This is not ideal as it forces local tctl usage and can be bypassed if the user is very creative.
+	// In the future, if we expand the permission system and make cloud
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
+		return nil, trace.AccessDenied("this request can be only executed by an auth server")
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateAgentReport, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	autoUpdateAgentReport, err := s.backend.UpdateAutoUpdateAgentReport(ctx, req.GetAutoupdateAgentReport())
+	return autoUpdateAgentReport, trace.Wrap(err)
+}
+
+// UpsertAutoUpdateAgentReport updates or creates an AutoUpdateAgentReport.
+func (s *Service) UpsertAutoUpdateAgentReport(ctx context.Context, req *autoupdate.UpsertAutoUpdateAgentReportRequest) (*autoupdate.AutoUpdateAgentReport, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Editing an agent report is restricted to cluster administrators.
+	// As of today we don't have any way of having
+	// resources that can only be edited by Teleport Cloud (when running cloud-hosted).
+	// The workaround is to check if the caller has the auth/admin system role.
+	// This is not ideal as it forces local tctl usage and can be bypassed if the user is very creative.
+	// In the future, if we expand the permission system and make cloud
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
+		return nil, trace.AccessDenied("this request can be only executed by an auth server")
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateAgentReport, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	autoUpdateAgentReport, err := s.backend.UpsertAutoUpdateAgentReport(ctx, req.GetAutoupdateAgentReport())
+	return autoUpdateAgentReport, trace.Wrap(err)
+}
+
+// DeleteAutoUpdateAgentReport deletes an AutoUpdateAgentReport.
+func (s *Service) DeleteAutoUpdateAgentReport(ctx context.Context, req *autoupdate.DeleteAutoUpdateAgentReportRequest) (*emptypb.Empty, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Editing an agent report is restricted to cluster administrators.
+	// As of today we don't have any way of having
+	// resources that can only be edited by Teleport Cloud (when running cloud-hosted).
+	// The workaround is to check if the caller has the auth/admin system role.
+	// This is not ideal as it forces local tctl usage and can be bypassed if the user is very creative.
+	// In the future, if we expand the permission system and make cloud
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
+		return nil, trace.AccessDenied("this request can be only executed by an auth server")
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateAgentReport, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.backend.DeleteAutoUpdateAgentReport(ctx, req.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil

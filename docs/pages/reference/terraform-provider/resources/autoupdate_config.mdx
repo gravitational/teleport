@@ -2,6 +2,9 @@
 title: Reference for the teleport_autoupdate_config Terraform resource
 sidebar_label: autoupdate_config
 description: This page describes the supported values of the teleport_autoupdate_config resource of the Teleport Terraform provider.
+labels:
+ - reference
+ - platform-wide
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -85,6 +88,7 @@ Optional:
 
 Optional:
 
+- `canary_count` (Number) canary_count is the number of canary agents that will be updated before the whole group is updated. when set to 0, the group does not enter the canary phase. This number is capped to 5. This number must always be lower than the total number of agents in the group, else the rollout will be stuck.
 - `days` (List of String) days when the update can run. Supported values are "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" and "*"
 - `name` (String) name of the group
 - `start_hour` (Number) start_hour to initiate update

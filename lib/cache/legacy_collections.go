@@ -356,15 +356,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.tunnelConnections
-		case types.KindRemoteCluster:
-			if c.Presence == nil {
-				return nil, trace.BadParameter("missing parameter Presence")
-			}
-			collections.remoteClusters = &genericCollection[types.RemoteCluster, remoteClusterGetter, remoteClusterExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.remoteClusters
 		case types.KindAppServer:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -1225,6 +1216,7 @@ func (provisionTokenExecutor) getReader(cache *Cache, cacheOK bool) tokenGetter 
 type tokenGetter interface {
 	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
+	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
 }
 
 var _ executor[types.ProvisionToken, tokenGetter] = provisionTokenExecutor{}
@@ -1588,7 +1580,13 @@ var _ executor[*dbobjectv1.DatabaseObject, services.DatabaseObjectsGetter] = dat
 type appExecutor struct{}
 
 func (appExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Application, error) {
-	return cache.Apps.GetApps(ctx)
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.Apps.ListApps))
+	// TODO(tross): DELETE IN v21.0.0
+	if trace.IsNotImplemented(err) {
+		apps, err := cache.Apps.GetApps(ctx)
+		return apps, trace.Wrap(err)
+	}
+	return out, trace.Wrap(err)
 }
 
 func (appExecutor) upsert(ctx context.Context, cache *Cache, resource types.Application) error {

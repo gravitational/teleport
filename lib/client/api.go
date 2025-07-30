@@ -752,7 +752,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 		return trace.Wrap(err)
 	}
 
-	// Save profile to record proxy credentials
+	// Save profile to record proxy credentials.
 	if err := tc.SaveProfile(opt.makeCurrentProfile); err != nil {
 		log.Warningf("Failed to save profile: %v", err)
 		return trace.Wrap(err)
@@ -3870,7 +3870,7 @@ func (tc *TeleportClient) directLoginWeb(ctx context.Context, secondFactorType c
 	}
 
 	// authenticate via the web api
-	clt, session, err := SSHAgentLoginWeb(ctx, SSHLoginDirect{
+	clt, session, err := sshAgentLoginWeb(ctx, SSHLoginDirect{
 		SSHLogin: sshLogin,
 		User:     tc.Username,
 		Password: password,
@@ -3891,7 +3891,7 @@ func (tc *TeleportClient) mfaLocalLoginWeb(ctx context.Context, keyRing *KeyRing
 		return nil, nil, trace.Wrap(err)
 	}
 
-	clt, session, err := SSHAgentMFAWebSessionLogin(ctx, SSHLoginMFA{
+	clt, session, err := sshAgentMFAWebSessionLogin(ctx, SSHLoginMFA{
 		SSHLogin:             sshLogin,
 		User:                 tc.Username,
 		Password:             password,
