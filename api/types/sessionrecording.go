@@ -277,45 +277,5 @@ func (c *SessionRecordingConfigV2) CheckAndSetDefaults() error {
 		return trace.BadParameter("session recording mode must be one of %v; got %q", strings.Join(SessionRecordingModes, ","), c.Spec.Mode)
 	}
 
-	return trace.Wrap(c.GetEncryptionConfig().validate())
-}
-
-const (
-	keyTypeAWS      = "aws_kms"
-	keyTypeGCP      = "gcp_kms"
-	keyTypePKCS11   = "pkcs11"
-	keyTypeSoftware = "software"
-)
-
-// validate the constraints for SessionRecordingEncryptionConfig.
-func (c *SessionRecordingEncryptionConfig) validate() error {
-	if c == nil || !c.Enabled {
-		return nil
-	}
-
-	if c.ManualKeyManagement == nil || !c.ManualKeyManagement.Enabled {
-		return nil
-	}
-
-	if len(c.ManualKeyManagement.ActiveKeys) == 0 {
-		return trace.BadParameter("at least one active key must be configured when using manually managed encryption keys")
-	}
-
-	for _, label := range c.ManualKeyManagement.ActiveKeys {
-		switch strings.ToLower(label.Type) {
-		case keyTypeAWS, keyTypeGCP, keyTypePKCS11, keyTypeSoftware:
-		default:
-			return trace.BadParameter("invalid key type %q found for active manually managed key", label.Type)
-		}
-	}
-
-	for _, label := range c.ManualKeyManagement.RotatedKeys {
-		switch strings.ToLower(label.Type) {
-		case keyTypeAWS, keyTypeGCP, keyTypePKCS11, keyTypeSoftware:
-		default:
-			return trace.BadParameter("invalid key type %q found for rotated manually managed key", label.Type)
-		}
-	}
-
 	return nil
 }
