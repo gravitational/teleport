@@ -1,6 +1,9 @@
 ---
 title: Troubleshooting Database Access
 description: Common issues and resolutions for Teleport's Database Access
+labels:
+ - how-to
+ - zero-trust
 ---
 
 Common issues and resolution steps.
@@ -162,7 +165,7 @@ Service propagates the correct MySQL server version via TLS Routing extensions.
 
 If migration to TLS Routing is not possible, another way to bypass this error is
 to use the [Teleport local proxy
-command](../../connect-your-client/gui-clients.mdx#get-connection-information),
+command](../../connect-your-client/gui-clients.mdx#how-gui-clients-access-teleport-protected-databases),
 which allows you to establish a TLS Routing connection to the Teleport Proxy
 Service even if TLS Routing was not enabled on the Teleport cluster.
 

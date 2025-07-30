@@ -1,6 +1,9 @@
 ---
 title: Discover GitLab Access Patterns with Teleport Identity Security
 description: Describes how to synchronize GitLab access patterns using Identity Security and Access Graph.
+labels:
+ - how-to
+ - identity-security
 ---
 
 Gain insights into access patterns within your GitLab account using Identity Security with Access Graph. By scanning all
@@ -40,7 +43,7 @@ graphical representation thereof.
 
 ## Prerequisites
 
-- A running Teleport Enterprise cluster v14.3.20/v15.3.1/v16.0.0 or later.
+- A running Teleport Enterprise cluster v15.3.1 or later.
 - Identity Security enabled for your account.
 - A GitLab instance running GitLab v9.0 or later.
 - For self-hosted clusters:
@@ -80,7 +83,7 @@ The token will be used in the next step to configure the GitLab Sync integration
 ## Step 2/3. Set up Access Graph GitLab Sync
 
 To initiate the setup wizard for configuring Gitlab Sync, access the Teleport UI,
-click the Policy sidebar button, and then click Integrations.
+click the Identity Security sidebar button, and then click Integrations.
 
 Click the "Setup new integration" button, and then select "Gitlab". You'll be prompted
 to create a new Teleport Gitlab integration if you haven't configured one already.

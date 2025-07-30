@@ -1,6 +1,9 @@
 ---
 title: Running Teleport on GCP
 description: How to install and configure Teleport on GCP
+labels:
+ - conceptual
+ - platform-wide
 ---
 
 We've created this guide to give customers an overview of how to deploy a
@@ -220,7 +223,7 @@ We recommend configuring Teleport as per the below steps:
 
 <Tabs>
 	<TabItem label="Teleport Community Edition" scope="oss">
-**1. Configure Teleport Auth Service** using the below example `teleport.yaml`,and start it
+**1. Configure Teleport Auth Service** using the below example `teleport.yaml`, and start it
 using [systemd](../../management/admin/daemon.mdx). The DEB/RPM installations will
 automatically include the `systemd` configuration.
 
@@ -348,5 +351,5 @@ proxy_service:
 **4. Add Users**
 
 Follow our [Local Users](../../management/admin/users.mdx) guide or integrate
-with [Google Workspace](../../access-controls/sso/google-workspace.mdx) to
+with [Google Workspace](../../../zero-trust-access/sso/google-workspace.mdx) to
 provide SSO access.

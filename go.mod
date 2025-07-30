@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport
 
-go 1.24.4
+go 1.24.5
 
 require (
 	cloud.google.com/go/cloudsqlconn v1.17.0
@@ -115,8 +115,7 @@ require (
 	github.com/go-ldap/ldap/v3 v3.4.11
 	github.com/go-logr/logr v1.4.2
 	github.com/go-mysql-org/go-mysql v1.9.1 // replaced
-	github.com/go-piv/piv-go v1.11.0
-	github.com/go-piv/piv-go/v2 v2.3.0
+	github.com/go-piv/piv-go/v2 v2.4.0
 	github.com/go-resty/resty/v2 v2.16.5
 	github.com/go-webauthn/webauthn v0.11.2
 	github.com/gobwas/ws v1.4.0
@@ -139,7 +138,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/googleapis/gax-go/v2 v2.14.1
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
-	github.com/grafana/pyroscope-go v1.2.2
+	github.com/grafana/pyroscope-go v1.2.4
 	github.com/gravitational/license v0.0.0-20250329001817-070456fa8ec1
 	github.com/gravitational/roundtrip v1.0.2
 	github.com/gravitational/teleport/api v0.0.0
@@ -164,6 +163,7 @@ require (
 	github.com/keys-pub/go-libfido2 v1.5.3-0.20220306005615-8ab03fb1ec27 // replaced
 	github.com/lib/pq v1.10.9
 	github.com/mailgun/mailgun-go/v4 v4.23.0
+	github.com/mark3labs/mcp-go v0.32.0
 	github.com/mattn/go-shellwords v1.0.12
 	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/mdlayher/netlink v1.7.2
@@ -202,6 +202,8 @@ require (
 	github.com/spiffe/aws-spiffe-workload-helper v0.0.1-rc.8
 	github.com/spiffe/go-spiffe/v2 v2.5.0
 	github.com/stretchr/testify v1.10.0
+	github.com/tidwall/pretty v1.2.0
+	github.com/tidwall/sjson v1.2.5
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
 	github.com/vulcand/predicate v1.2.0 // replaced
 	github.com/yusufpapurcu/wmi v1.2.4
@@ -526,6 +528,8 @@ require (
 	github.com/thales-e-security/pool v0.0.2 // indirect
 	github.com/theupdateframework/go-tuf v0.7.0 // indirect
 	github.com/theupdateframework/go-tuf/v2 v2.0.2 // indirect
+	github.com/tidwall/gjson v1.14.2 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
 	github.com/titanous/rocacheck v0.0.0-20171023193734-afe73141d399 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
@@ -541,6 +545,7 @@ require (
 	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
+	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 	github.com/zeebo/errs v1.4.0 // indirect

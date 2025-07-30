@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.0.0"
+const Version = "18.1.1"
 
 const VersionMajor = 18
-const VersionMinor = 0
-const VersionPatch = 0
+const VersionMinor = 1
+const VersionPatch = 1
 const VersionPreRelease = ""
 const VersionMetadata = ""

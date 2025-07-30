@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	scopedrole "github.com/gravitational/teleport/lib/scopes/roles"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
@@ -146,6 +147,8 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindToken},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
+		{Kind: scopedrole.KindScopedRole},
+		{Kind: scopedrole.KindScopedRoleAssignment},
 		{Kind: types.KindNode},
 		{Kind: types.KindProxy},
 		{Kind: types.KindAuthServer},
@@ -202,10 +205,12 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindIdentityCenterAccount},
 		{Kind: types.KindIdentityCenterPrincipalAssignment},
 		{Kind: types.KindIdentityCenterAccountAssignment},
+		{Kind: types.KindPlugin, LoadSecrets: true},
 		{Kind: types.KindPluginStaticCredentials},
 		{Kind: types.KindGitServer},
 		{Kind: types.KindWorkloadIdentity},
 		{Kind: types.KindHealthCheckConfig},
+		{Kind: types.KindBotInstance},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -625,7 +630,7 @@ type Config struct {
 	// Restrictions is a restrictions service
 	Restrictions services.Restrictions
 	// Apps is an apps service.
-	Apps services.Apps
+	Apps services.Applications
 	// Kubernetes is an kubernetes service.
 	Kubernetes services.Kubernetes
 	// CrownJewels is a CrownJewels service.
@@ -737,6 +742,9 @@ type Config struct {
 	GitServers services.GitServerGetter
 	// HealthCheckConfig is a health check config service.
 	HealthCheckConfig services.HealthCheckConfigReader
+	// BotInstanceService is the upstream service that we're caching
+	BotInstanceService services.BotInstance
+	Plugin             services.Plugins
 }
 
 // CheckAndSetDefaults checks parameters and sets default values

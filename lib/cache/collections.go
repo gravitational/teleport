@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	scopedrole "github.com/gravitational/teleport/lib/scopes/roles"
 )
 
 // collectionHandler is used by the [Cache] to seed the initial
@@ -136,6 +137,8 @@ type collections struct {
 	auditQueries                       *collection[*secreports.AuditQuery, auditQueryIndex]
 	secReports                         *collection[*secreports.Report, securityReportIndex]
 	secReportsStates                   *collection[*secreports.ReportState, securityReportStateIndex]
+	botInstances                       *collection[*machineidv1.BotInstance, botInstanceIndex]
+	plugins                            *collection[types.Plugin, pluginIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -143,7 +146,7 @@ type collections struct {
 // resources events can be processed by downstream watchers.
 func isKnownUncollectedKind(kind string) bool {
 	switch kind {
-	case types.KindAccessRequest, types.KindHeadlessAuthentication:
+	case types.KindAccessRequest, types.KindHeadlessAuthentication, scopedrole.KindScopedRole, scopedrole.KindScopedRoleAssignment:
 		return true
 	default:
 		return false
@@ -721,6 +724,21 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.secReportsStates = collect
 			out.byKind[resourceKind] = out.secReportsStates
+		case types.KindBotInstance:
+			collect, err := newBotInstanceCollection(c.BotInstanceService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.botInstances = collect
+			out.byKind[resourceKind] = out.botInstances
+		case types.KindPlugin:
+			collect, err := newPluginsCollection(c.Plugin, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			out.plugins = collect
+			out.byKind[resourceKind] = out.plugins
 		default:
 			if _, ok := out.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)

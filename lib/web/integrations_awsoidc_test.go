@@ -44,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/deployserviceconfig"
 	"github.com/gravitational/teleport/lib/services"
 	libui "github.com/gravitational/teleport/lib/ui"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -1154,7 +1154,7 @@ func (m *mockDeployedDatabaseServices) ListDeployedDatabaseServices(ctx context.
 
 func TestAWSOIDCListDeployedDatabaseServices(t *testing.T) {
 	ctx := context.Background()
-	logger := utils.NewSlogLoggerForTests()
+	logger := logtest.NewLogger()
 
 	for _, tt := range []struct {
 		name              string

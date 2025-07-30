@@ -43,6 +43,7 @@ import (
 	debugclient "github.com/gravitational/teleport/lib/client/debug"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/config/systemd"
 	"github.com/gravitational/teleport/lib/configurators"
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -230,6 +231,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	appStartCmd.Flag("insecure", "Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
 	appStartCmd.Flag("skip-version-check", "Skip version checking between server and client.").Default("false").BoolVar(&ccf.SkipVersionCheck)
 	appStartCmd.Flag("no-debug-service", "Disables debug service.").BoolVar(&ccf.DisableDebugService)
+	appStartCmd.Flag("mcp-demo-server", "Enables the Teleport demo MCP server that shows current user and session information.").BoolVar(&ccf.MCPDemoServer)
 	appStartCmd.Alias(appUsageExamples) // We're using "alias" section to display usage examples.
 
 	// "teleport db" command and its subcommands
@@ -378,9 +380,9 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	// "teleport install" command and its subcommands
 	installCmd := app.Command("install", "Teleport install commands.")
 	systemdInstall := installCmd.Command("systemd", "Creates a systemd unit file configuration.")
-	systemdInstall.Flag("env-file", "Full path to the environment file.").Default(config.SystemdDefaultEnvironmentFile).StringVar(&systemdInstallFlags.EnvironmentFile)
-	systemdInstall.Flag("pid-file", "Full path to the PID file.").Default(config.SystemdDefaultPIDFile).StringVar(&systemdInstallFlags.PIDFile)
-	systemdInstall.Flag("fd-limit", "Maximum number of open file descriptors.").Default(fmt.Sprintf("%v", config.SystemdDefaultFileDescriptorLimit)).IntVar(&systemdInstallFlags.FileDescriptorLimit)
+	systemdInstall.Flag("env-file", "Full path to the environment file.").Default(systemd.DefaultEnvironmentFile).StringVar(&systemdInstallFlags.EnvironmentFile)
+	systemdInstall.Flag("pid-file", "Full path to the PID file.").Default(systemd.DefaultPIDFile).StringVar(&systemdInstallFlags.PIDFile)
+	systemdInstall.Flag("fd-limit", "Maximum number of open file descriptors.").Default(fmt.Sprintf("%v", systemd.DefaultFileDescriptorLimit)).IntVar(&systemdInstallFlags.FileDescriptorLimit)
 	systemdInstall.Flag("teleport-path", "Full path to the Teleport binary.").StringVar(&systemdInstallFlags.TeleportInstallationFile)
 	systemdInstall.Flag("output", `Write to stdout with "--output=stdout" or custom path with --output=file:///path`).Short('o').Default(teleport.SchemeStdout).StringVar(&systemdInstallFlags.output)
 	systemdInstall.Alias(systemdInstallExamples) // We're using "alias" section to display usage examples.
@@ -434,6 +436,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("proxy", "Address of the proxy.").StringVar(&dumpFlags.ProxyAddress)
 	dump.Flag("app-name", "Name of the application to start when using app role.").StringVar(&dumpFlags.AppName)
 	dump.Flag("app-uri", "Internal address of the application to proxy.").StringVar(&dumpFlags.AppURI)
+	dump.Flag("mcp-demo-server", "Enables the Teleport demo MCP server that shows current user and session information.").BoolVar(&dumpFlags.MCPDemoServer)
 	dump.Flag("node-name", "Name for the Teleport node.").StringVar(&dumpFlags.NodeName)
 	dump.Flag("node-labels", "Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 
@@ -583,6 +586,15 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationSAMLIdPGCPWorkforce.Flag("pool-provider-name", "Name for the new workforce identity pool provider.").Required().StringVar(&ccf.IntegrationConfSAMLIdPGCPWorkforceArguments.PoolProviderName)
 	integrationSAMLIdPGCPWorkforce.Flag("idp-metadata-url", "Teleport SAML IdP metadata endpoint.").Required().StringVar(&ccf.IntegrationConfSAMLIdPGCPWorkforceArguments.SAMLIdPMetadataURL)
 
+	integrationConfAWSRATrustAnchor := integrationConfigureCmd.Command("awsra-trust-anchor", "Configure AWS IAM Roles Anywhere Integration by creating resources in AWS.")
+	integrationConfAWSRATrustAnchor.Flag("cluster", "Teleport Cluster's name.").Required().StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.Cluster)
+	integrationConfAWSRATrustAnchor.Flag("name", "Integration name.").Required().StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.Name)
+	integrationConfAWSRATrustAnchor.Flag("trust-anchor", "AWS Roles Anywhere Trust Anchor name.").Required().StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.TrustAnchor)
+	integrationConfAWSRATrustAnchor.Flag("trust-anchor-cert-b64", "AWS Roles Anywhere Trust Anchor's certificate, encoded in base64.").Required().StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.TrustAnchorCertBase64)
+	integrationConfAWSRATrustAnchor.Flag("sync-profile", "The AWS IAM Roles Anywhere Profile name to create, which will be used to sync profiles as apps.").Required().StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.SyncProfile)
+	integrationConfAWSRATrustAnchor.Flag("sync-role", "The AWS IAM Role name to create, which will be used to sync profiles as apps.").Required().StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.SyncRole)
+	integrationConfAWSRATrustAnchor.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.AutoConfirm)
+
 	tpmCmd := app.Command("tpm", "Commands related to managing TPM joining functionality.")
 	tpmIdentifyCmd := tpmCmd.Command("identify", "Output identifying information related to the TPM detected on the system.")
 
@@ -725,19 +737,19 @@ Examples:
 	case dbConfigureCreate.FullCommand():
 		err = onDumpDatabaseConfig(dbConfigCreateFlags)
 	case dbConfigureAWSPrintIAM.FullCommand():
-		err = onConfigureDatabasesAWSPrint(configureDatabaseAWSPrintFlags)
+		err = onConfigureDatabasesAWSPrint(ctx, configureDatabaseAWSPrintFlags)
 	case dbConfigureAWSCreateIAM.FullCommand():
-		err = onConfigureDatabasesAWSCreate(configureDatabaseAWSCreateFlags)
+		err = onConfigureDatabasesAWSCreate(ctx, configureDatabaseAWSCreateFlags)
 	case dbConfigureBootstrap.FullCommand():
 		configureDiscoveryBootstrapFlags.config.Service = configurators.DatabaseService
-		err = onConfigureDiscoveryBootstrap(configureDiscoveryBootstrapFlags)
+		err = onConfigureDiscoveryBootstrap(ctx, configureDiscoveryBootstrapFlags)
 	case systemdInstall.FullCommand():
 		err = onDumpSystemdUnitFile(systemdInstallFlags)
 	case installAutoDiscoverNode.FullCommand():
 		err = onInstallAutoDiscoverNode(installAutoDiscoverNodeFlags)
 	case discoveryBootstrapCmd.FullCommand():
 		configureDiscoveryBootstrapFlags.config.Service = configurators.DiscoveryService
-		err = onConfigureDiscoveryBootstrap(configureDiscoveryBootstrapFlags)
+		err = onConfigureDiscoveryBootstrap(ctx, configureDiscoveryBootstrapFlags)
 	case joinOpenSSH.FullCommand():
 		err = onJoinOpenSSH(ccf, conf)
 	case integrationConfDeployServiceCmd.FullCommand():
@@ -762,6 +774,8 @@ Examples:
 		err = onIntegrationConfAzureOIDCCmd(ctx, ccf.IntegrationConfAzureOIDCArguments)
 	case integrationSAMLIdPGCPWorkforce.FullCommand():
 		err = onIntegrationConfSAMLIdPGCPWorkforce(ctx, ccf.IntegrationConfSAMLIdPGCPWorkforceArguments)
+	case integrationConfAWSRATrustAnchor.FullCommand():
+		err = onIntegrationConfAWSRATrustAnchor(ctx, ccf)
 	case tpmIdentifyCmd.FullCommand():
 		var query *tpm.QueryRes
 		query, err = tpm.Query(context.Background(), slog.Default())

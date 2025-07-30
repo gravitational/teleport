@@ -55,8 +55,9 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // scheme is our own test-specific scheme to avoid using the global
@@ -97,7 +98,7 @@ func ValidRandomResourceName(prefix string) string {
 }
 
 func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -213,7 +214,7 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 
 	slogLogger := s.log
 	if slogLogger == nil {
-		slogLogger = utils.NewSlogLoggerForTests()
+		slogLogger = logtest.NewLogger()
 	}
 
 	logger := logr.FromSlogHandler(slogLogger.Handler())

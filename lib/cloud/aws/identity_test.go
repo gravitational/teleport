@@ -22,9 +22,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/cloud/mocks"
 )
 
 // TestGetIdentity verifies parsing of AWS identity received from STS API.
@@ -77,7 +77,7 @@ func TestGetIdentity(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.description, func(t *testing.T) {
-			identity, err := GetIdentityWithClient(context.Background(), &mocks.STSClient{ARN: test.inARN})
+			identity, err := GetIdentityWithClient(context.Background(), &STSClient{ARN: test.inARN})
 			require.NoError(t, err)
 			require.IsType(t, test.outIdentity, identity)
 			require.Equal(t, test.outName, identity.GetName())
@@ -86,4 +86,14 @@ func TestGetIdentity(t *testing.T) {
 			require.Equal(t, test.outType, identity.GetType())
 		})
 	}
+}
+
+type STSClient struct {
+	ARN string
+}
+
+func (m *STSClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
+	return &sts.GetCallerIdentityOutput{
+		Arn: aws.String(m.ARN),
+	}, nil
 }

@@ -36,21 +36,22 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type Suite struct {
 	serverListener net.Listener
 	router         *Router
 	ca             *tlsca.CertAuthority
-	authServer     *auth.TestAuthServer
-	tlsServer      *auth.TestTLSServer
+	authServer     *authtest.AuthServer
+	tlsServer      *authtest.TLSServer
 	accessPoint    *authclient.Client
 }
 
@@ -64,7 +65,7 @@ func NewSuite(t *testing.T) *Suite {
 		l.Close()
 	})
 
-	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "root.example.com",
 		Dir:         t.TempDir(),
 		Clock:       clockwork.NewFakeClockAt(time.Now()),
@@ -81,7 +82,7 @@ func NewSuite(t *testing.T) *Suite {
 		require.NoError(t, err)
 	})
 
-	ap, err := tlsServer.NewClient(auth.TestBuiltin(types.RoleProxy))
+	ap, err := tlsServer.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, ap.Close())
@@ -124,7 +125,7 @@ func (s *Suite) CreateProxyServer(t *testing.T) *Proxy {
 		Listener:          s.serverListener,
 		WebTLSConfig:      tlsConfig,
 		Router:            s.router,
-		Log:               utils.NewSlogLoggerForTests(),
+		Log:               logtest.NewLogger(),
 		AccessPoint:       s.accessPoint,
 		IdentityTLSConfig: tlsConfig,
 		ClusterName:       "root",

@@ -60,6 +60,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -78,6 +79,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // teleportTestUser is additional user used for tests
@@ -91,7 +93,7 @@ var wildcardAllow = types.Labels{
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	modules.SetInsecureTestMode(true)
 	if srv.IsReexec() {
 		srv.RunAndExit(os.Args[1])
@@ -118,17 +120,17 @@ type sshTestFixture struct {
 	signer  ssh.Signer
 	user    string
 	clock   *clockwork.FakeClock
-	testSrv *auth.TestServer
+	testSrv *authtest.Server
 }
 
 func newFixture(t *testing.T) *sshTestFixture {
-	return newCustomFixture(t, func(*auth.TestServerConfig) {})
+	return newCustomFixture(t, func(*authtest.ServerConfig) {})
 }
 
 func newFixtureWithoutDiskBasedLogging(t testing.TB, sshOpts ...ServerOption) *sshTestFixture {
 	t.Helper()
 
-	f := newCustomFixture(t, func(cfg *auth.TestServerConfig) {
+	f := newCustomFixture(t, func(cfg *authtest.ServerConfig) {
 		cfg.Auth.AuditLog = events.NewDiscardAuditLog()
 	}, sshOpts...)
 
@@ -171,7 +173,7 @@ func (f *sshTestFixture) newSSHClient(ctx context.Context, t testing.TB, user *u
 	return client
 }
 
-func newCustomFixture(t testing.TB, mutateCfg func(*auth.TestServerConfig), sshOpts ...ServerOption) *sshTestFixture {
+func newCustomFixture(t testing.TB, mutateCfg func(*authtest.ServerConfig), sshOpts ...ServerOption) *sshTestFixture {
 	ctx := context.Background()
 
 	u, err := user.Current()
@@ -179,8 +181,8 @@ func newCustomFixture(t testing.TB, mutateCfg func(*auth.TestServerConfig), sshO
 
 	clock := clockwork.NewFakeClock()
 
-	serverCfg := auth.TestServerConfig{
-		Auth: auth.TestAuthServerConfig{
+	serverCfg := authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
 			ClusterName: "localhost",
 			Dir:         t.TempDir(),
 			Clock:       clock,
@@ -188,13 +190,13 @@ func newCustomFixture(t testing.TB, mutateCfg func(*auth.TestServerConfig), sshO
 	}
 	mutateCfg(&serverCfg)
 
-	testServer, err := auth.NewTestServer(serverCfg)
+	testServer, err := authtest.NewTestServer(serverCfg)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testServer.Shutdown(ctx)) })
 
 	signer := newSigner(t, ctx, testServer)
 	nodeID := uuid.New().String()
-	nodeClient, err := testServer.NewClient(auth.TestIdentity{
+	nodeClient, err := testServer.NewClient(authtest.TestIdentity{
 		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: nodeID,
@@ -614,10 +616,10 @@ func TestSessionAuditLog(t *testing.T) {
 	require.Equal(t, sessionID, endEvent.SessionID)
 }
 
-func newProxyClient(t *testing.T, testSvr *auth.TestServer) (*authclient.Client, string) {
+func newProxyClient(t *testing.T, testSvr *authtest.Server) (*authclient.Client, string) {
 	// create proxy client used in some tests
 	proxyID := uuid.New().String()
-	proxyClient, err := testSvr.NewClient(auth.TestIdentity{
+	proxyClient, err := testSvr.NewClient(authtest.TestIdentity{
 		I: authz.BuiltinRole{
 			Role:     types.RoleProxy,
 			Username: proxyID,
@@ -627,9 +629,9 @@ func newProxyClient(t *testing.T, testSvr *auth.TestServer) (*authclient.Client,
 	return proxyClient, proxyID
 }
 
-func newNodeClient(t *testing.T, testSvr *auth.TestServer) (*authclient.Client, string) {
+func newNodeClient(t *testing.T, testSvr *authtest.Server) (*authclient.Client, string) {
 	nodeID := uuid.New().String()
-	nodeClient, err := testSvr.NewClient(auth.TestIdentity{
+	nodeClient, err := testSvr.NewClient(authtest.TestIdentity{
 		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: nodeID,
@@ -671,7 +673,7 @@ func TestInactivityTimeout(t *testing.T) {
 	//  * a running SSH server configured with a given disconnection message
 	//  * a client connected to the SSH server,
 	//  * an SSH session running over the client connection
-	mutateCfg := func(cfg *auth.TestServerConfig) {
+	mutateCfg := func(cfg *authtest.ServerConfig) {
 		networkCfg := types.DefaultClusterNetworkingConfig()
 		networkCfg.SetClientIdleTimeout(5 * time.Second)
 		networkCfg.SetClientIdleTimeoutMessage(timeoutMessage)
@@ -2336,7 +2338,7 @@ func TestGlobalRequestClusterDetails(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			f := newCustomFixture(t, func(*auth.TestServerConfig) {}, SetFIPS(tt.fips))
+			f := newCustomFixture(t, func(*authtest.ServerConfig) {}, SetFIPS(tt.fips))
 			recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{Mode: tt.mode})
 			require.NoError(t, err)
 
@@ -2390,7 +2392,7 @@ func newRawNode(t *testing.T, authSrv *auth.Server) *rawNode {
 	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	tlsPub, err := authtest.PrivateKeyToPublicKeyTLS(priv)
 	require.NoError(t, err)
 
 	// Create host key and certificate for node.
@@ -3037,8 +3039,8 @@ func TestHandlePuTTYWinadj(t *testing.T) {
 
 func TestTargetMetadata(t *testing.T) {
 	ctx := context.Background()
-	testServer, err := auth.NewTestServer(auth.TestServerConfig{
-		Auth: auth.TestAuthServerConfig{
+	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
 			ClusterName: "localhost",
 			Dir:         t.TempDir(),
 			Clock:       clockwork.NewFakeClock(),
@@ -3047,7 +3049,7 @@ func TestTargetMetadata(t *testing.T) {
 	require.NoError(t, err)
 
 	nodeID := uuid.New().String()
-	nodeClient, err := testServer.NewClient(auth.TestIdentity{
+	nodeClient, err := testServer.NewClient(authtest.TestIdentity{
 		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: nodeID,
@@ -3136,7 +3138,7 @@ type upack struct {
 	certSigner ssh.Signer
 }
 
-func newUpack(testSvr *auth.TestServer, username string, allowedLogins []string, allowedLabels types.Labels) (*upack, error) {
+func newUpack(testSvr *authtest.Server, username string, allowedLogins []string, allowedLabels types.Labels) (*upack, error) {
 	ctx := context.Background()
 	auth := testSvr.Auth()
 	upriv, upub, err := testauthority.New().GenerateKeyPair()
@@ -3255,13 +3257,13 @@ func newCertAuthorityWatcher(ctx context.Context, t *testing.T, client types.Eve
 }
 
 // newSigner creates a new SSH signer that can be used by the Server.
-func newSigner(t testing.TB, ctx context.Context, testServer *auth.TestServer) ssh.Signer {
+func newSigner(t testing.TB, ctx context.Context, testServer *authtest.Server) ssh.Signer {
 	t.Helper()
 
 	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	tlsPub, err := authtest.PrivateKeyToPublicKeyTLS(priv)
 	require.NoError(t, err)
 
 	certs, err := testServer.Auth().GenerateHostCerts(ctx,

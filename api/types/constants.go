@@ -180,6 +180,14 @@ const (
 	// KindApp is a web app resource.
 	KindApp = "app"
 
+	// SubKindMCP represents an MCP server as a subkind of app.
+	SubKindMCP = KindMCP
+
+	// KindMCP is an MCP server resource.
+	// Currently, MCP servers are accessed through apps.
+	// In the future, they may become a standalone resource kind.
+	KindMCP = "mcp"
+
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
 
@@ -863,6 +871,15 @@ const (
 	// KubernetesClusterLabel indicates name of the kubernetes cluster for auto-discovered services inside kubernetes.
 	KubernetesClusterLabel = TeleportNamespace + "/kubernetes-cluster"
 
+	// AWSRolesAnywhereProfileNameOverrideLabel indicates the name of the AWS IAM Roles Anywhere Profile's tag key
+	// that Teleport will use to override the name of the discovered profile.
+	// Ensure this name is unique and valid DNS label.
+	AWSRolesAnywhereProfileNameOverrideLabel = "TeleportApplicationName"
+
+	// AWSRolesAnywhereProfileARNLabel is the label key to store the Profile ARN when creating an Application
+	// resource from an AWS IAM Roles Anywhere Profile.
+	AWSRolesAnywhereProfileARNLabel = TeleportNamespace + "/aws-roles-anywhere-profile-arn"
+
 	// DiscoveryTypeLabel specifies type of discovered service that should be created from Kubernetes service.
 	// Also added by discovery service to indicate the type of discovered
 	// resource, e.g. "rds" for RDS databases, "eks" for EKS kube clusters, etc.
@@ -897,6 +914,11 @@ const (
 	CloudAzure = "Azure"
 	// CloudGCP identifies that a resource was discovered in GCP.
 	CloudGCP = "GCP"
+
+	// SchemaMCPStdio is a URI schema for MCP servers using stdio transport.
+	SchemaMCPStdio = "mcp+stdio://"
+	// MCPTransportStdio indicates the MCP server uses stdio transport.
+	MCPTransportStdio = "stdio"
 
 	// DiscoveredResourceNode identifies a discovered SSH node.
 	DiscoveredResourceNode = "node"
@@ -1123,9 +1145,14 @@ const (
 	// should not change these resources.
 	SystemResource = "system"
 
-	// PresetResource are resources resources will be created if they don't exist. Updates may be applied
+	// PresetResource are resources that will be created if they don't exist. Updates may be applied
 	// to them, but user changes to these resources will be preserved.
 	PresetResource = "preset"
+
+	// DemoResource are resources that demonstrates specific Teleport features.
+	// These resources are typically managed internally by Teleport and enabled
+	// via flags. Users should not change these resources.
+	DemoResource = "demo"
 
 	// ProxyGroupIDLabel is the internal-use label for proxy heartbeats that's
 	// used by reverse tunnel agents to keep track of multiple independent sets

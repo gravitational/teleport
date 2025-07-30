@@ -80,6 +80,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
@@ -95,7 +96,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
-	libutils "github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
@@ -695,7 +696,7 @@ func TestDiscoveryServer(t *testing.T) {
 			}
 
 			// Create and start test auth server.
-			testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir: t.TempDir(),
 			})
 			require.NoError(t, err)
@@ -721,7 +722,7 @@ func TestDiscoveryServer(t *testing.T) {
 			require.NoError(t, err)
 
 			// Auth client for discovery service.
-			identity := auth.TestServerID(types.RoleDiscovery, "hostID")
+			identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
 			authClient, err := tlsServer.NewClient(identity)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
@@ -731,7 +732,7 @@ func TestDiscoveryServer(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			logger := libutils.NewSlogLoggerForTests()
+			logger := logtest.NewLogger()
 
 			reporter := &mockUsageReporter{}
 			installer := &mockSSMInstaller{
@@ -858,7 +859,7 @@ func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTas
 func TestDiscoveryServerConcurrency(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := libutils.NewSlogLoggerForTests()
+	logger := logtest.NewLogger()
 
 	defaultDiscoveryGroup := "dg01"
 	awsMatcher := types.AWSMatcher{
@@ -910,7 +911,7 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 	}
 
 	// Create and start test auth server.
-	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)
@@ -921,7 +922,7 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
 	// Auth client for discovery service.
-	identity := auth.TestServerID(types.RoleDiscovery, "hostID")
+	identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
 	authClient, err := tlsServer.NewClient(identity)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
@@ -1118,7 +1119,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 
 			ctx := context.Background()
 			// Create and start test auth server.
-			testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir: t.TempDir(),
 			})
 			require.NoError(t, err)
@@ -1129,7 +1130,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
 			// Auth client for discovery service.
-			authClient, err := tlsServer.NewClient(auth.TestServerID(types.RoleDiscovery, "hostID"))
+			authClient, err := tlsServer.NewClient(authtest.TestServerID(types.RoleDiscovery, "hostID"))
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
 
@@ -1426,7 +1427,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 
 			ctx := context.Background()
 			// Create and start test auth server.
-			testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir: t.TempDir(),
 			})
 			require.NoError(t, err)
@@ -1437,7 +1438,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
 			// Auth client for discovery service.
-			identity := auth.TestServerID(types.RoleDiscovery, "hostID")
+			identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
 			authClient, err := tlsServer.NewClient(identity)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
@@ -1453,7 +1454,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				require.NoError(t, r.Close())
 				require.NoError(t, w.Close())
 			})
-			logger := libutils.NewSlogLoggerForTests()
+			logger := logtest.NewLogger()
 
 			clustersNotUpdated := make(chan string, 10)
 			go func() {
@@ -2357,7 +2358,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 			t.Cleanup(cancel)
 
 			// Create and start test auth server.
-			testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir: t.TempDir(),
 			})
 			require.NoError(t, err)
@@ -2385,7 +2386,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 			require.NoError(t, err)
 
 			// Auth client for discovery service.
-			identity := auth.TestServerID(types.RoleDiscovery, "hostID")
+			identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
 			authClient, err := tlsServer.NewClient(identity)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
@@ -2559,7 +2560,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// Create and start test auth server.
-	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)
@@ -2570,7 +2571,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
 	// Auth client for discovery service.
-	identity := auth.TestServerID(types.RoleDiscovery, "hostID")
+	identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
 	authClient, err := tlsServer.NewClient(identity)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
@@ -2991,7 +2992,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir: t.TempDir(),
 			})
 			require.NoError(t, err)
@@ -3002,7 +3003,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
 			// Auth client for discovery service.
-			identity := auth.TestServerID(types.RoleDiscovery, "hostID")
+			identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
 			authClient, err := tlsServer.NewClient(identity)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
@@ -3012,7 +3013,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			logger := libutils.NewSlogLoggerForTests()
+			logger := logtest.NewLogger()
 
 			emitter := &mockEmitter{}
 			reporter := &mockUsageReporter{}
@@ -3299,7 +3300,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir: t.TempDir(),
 			})
 			require.NoError(t, err)
@@ -3310,7 +3311,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
 			// Auth client for discovery service.
-			identity := auth.TestServerID(types.RoleDiscovery, "hostID")
+			identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
 			authClient, err := tlsServer.NewClient(identity)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
@@ -3320,7 +3321,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			logger := libutils.NewSlogLoggerForTests()
+			logger := logtest.NewLogger()
 			emitter := &mockEmitter{}
 			reporter := &mockUsageReporter{}
 			installer := &mockGCPInstaller{
@@ -3381,7 +3382,7 @@ func TestServer_onCreate(t *testing.T) {
 		Config: &Config{
 			DiscoveryGroup: "test-cluster",
 			AccessPoint:    accessPoint,
-			Log:            libutils.NewSlogLoggerForTests(),
+			Log:            logtest.NewLogger(),
 		},
 	}
 
@@ -3495,7 +3496,7 @@ func TestEmitUsageEvents(t *testing.T) {
 		AzureVirtualMachines: &mockAzureClient{},
 		AzureRunCommand:      &mockAzureRunCommandClient{},
 	}
-	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)
@@ -3506,7 +3507,7 @@ func TestEmitUsageEvents(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
 	// Auth client for discovery service.
-	identity := auth.TestServerID(types.RoleDiscovery, "hostID")
+	identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
 	authClient, err := tlsServer.NewClient(identity)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authClient.Close()) })

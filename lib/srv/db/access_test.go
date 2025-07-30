@@ -61,11 +61,12 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -73,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -101,16 +103,21 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
-	cryptosuites.PrecomputeRSATestKeys(m)
+	logtest.InitLogger(testing.Verbose)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cryptosuitestest.PrecomputeRSAKeys(ctx)
 	modules.SetInsecureTestMode(true)
 	registerTestSnowflakeEngine()
 	registerTestElasticsearchEngine()
 	registerTestSQLServerEngine()
-	os.Exit(m.Run())
+	exitCode := m.Run()
+	cancel()
+	os.Exit(exitCode)
 }
 
 // TestAccessPostgres verifies access scenarios to a Postgres database based
@@ -1114,7 +1121,7 @@ func TestMongoDBMaxMessageSize(t *testing.T) {
 
 // TestAccessDisabled makes sure database access can be disabled via modules.
 func TestAccessDisabled(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.DB: {Enabled: false},
@@ -1472,7 +1479,7 @@ func TestRedisNil(t *testing.T) {
 type testContext struct {
 	hostID         string
 	clusterName    string
-	tlsServer      *auth.TestTLSServer
+	tlsServer      *authtest.TLSServer
 	authServer     *auth.Server
 	authClient     *authclient.Client
 	proxyServer    *ProxyServer
@@ -2219,7 +2226,7 @@ func withClientIdleTimeout(clientIdleTimeout time.Duration) roleOptFn {
 // createUserAndRole creates Teleport user and role with specified names
 // and allowed database users/names properties.
 func (c *testContext) createUserAndRole(ctx context.Context, t testing.TB, userName, roleName string, dbUsers, dbNames []string, roleOpts ...roleOptFn) (types.User, types.Role) {
-	user, role, err := auth.CreateUserAndRole(c.tlsServer.Auth(), userName, []string{roleName}, nil)
+	user, role, err := authtest.CreateUserAndRole(c.tlsServer.Auth(), userName, []string{roleName}, nil)
 	require.NoError(t, err)
 	role.SetDatabaseUsers(types.Allow, dbUsers)
 	role.SetDatabaseNames(types.Allow, dbNames)
@@ -2292,7 +2299,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	t.Cleanup(func() { testCtx.Close() })
 
 	// Create and start test auth server.
-	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Clock:       testCtx.clock,
 		ClusterName: testCtx.clusterName,
 		AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
@@ -2337,7 +2344,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	require.NoError(t, err)
 
 	// Auth client for database service.
-	testCtx.authClient, err = testCtx.tlsServer.NewClient(auth.TestServerID(types.RoleDatabase, testCtx.hostID))
+	testCtx.authClient, err = testCtx.tlsServer.NewClient(authtest.TestServerID(types.RoleDatabase, testCtx.hostID))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testCtx.authClient.Close()) })
 
@@ -2345,7 +2352,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	require.NoError(t, err)
 
 	// Auth client, lock watcher and authorizer for database proxy.
-	proxyAuthClient, err := testCtx.tlsServer.NewClient(auth.TestBuiltin(types.RoleProxy))
+	proxyAuthClient, err := testCtx.tlsServer.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyAuthClient.Close()) })
 
@@ -2364,7 +2371,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	require.NoError(t, err)
 
 	// TLS config for database proxy and database service.
-	serverIdentity, err := auth.NewServerIdentity(authServer.AuthServer, testCtx.hostID, types.RoleDatabase)
+	serverIdentity, err := authtest.NewServerIdentity(authServer.AuthServer, testCtx.hostID, types.RoleDatabase)
 	require.NoError(t, err)
 	tlsConfig, err := serverIdentity.TLSConfig(nil)
 	require.NoError(t, err)
@@ -2400,7 +2407,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 		ServerID:       testCtx.hostID,
 		Emitter:        testCtx.emitter,
 		EmitterContext: ctx,
-		Logger:         utils.NewSlogLoggerForTests(),
+		Logger:         logtest.NewLogger(),
 	})
 	require.NoError(t, err)
 
@@ -2513,7 +2520,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	p.setDefaults(c)
 
 	// Database service credentials.
-	serverIdentity, err := auth.NewServerIdentity(c.authServer, p.HostID, types.RoleDatabase)
+	serverIdentity, err := authtest.NewServerIdentity(c.authServer, p.HostID, types.RoleDatabase)
 	require.NoError(t, err)
 	tlsConfig, err := serverIdentity.TLSConfig(nil)
 	require.NoError(t, err)
@@ -2554,7 +2561,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		ServerID:       p.HostID,
 		Emitter:        c.emitter,
 		EmitterContext: context.Background(),
-		Logger:         utils.NewSlogLoggerForTests(),
+		Logger:         logtest.NewLogger(),
 	})
 	require.NoError(t, err)
 
@@ -2563,7 +2570,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	}
 
 	// Auth client for this database server identity.
-	clt, err := c.tlsServer.NewClient(auth.TestServerID(types.RoleDatabase, p.HostID))
+	clt, err := c.tlsServer.NewClient(authtest.TestServerID(types.RoleDatabase, p.HostID))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 

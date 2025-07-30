@@ -48,7 +48,7 @@ test('defaults, with empty labels', async () => {
   expect(screen.queryByPlaceholderText('label key')).not.toBeInTheDocument();
   expect(screen.queryByPlaceholderText('label value')).not.toBeInTheDocument();
 
-  fireEvent.click(screen.getByText(/add a label/i));
+  fireEvent.click(screen.getByText(/add label/i));
 
   expect(screen.getByText(/key/i)).toBeInTheDocument();
   expect(screen.getByText(/value/i)).toBeInTheDocument();
@@ -67,7 +67,7 @@ test('defaults, with empty labels', async () => {
 test('with custom texts', async () => {
   render(<Custom />);
 
-  fireEvent.click(screen.getByText(/add a custom adjective/i));
+  fireEvent.click(screen.getByText(/add custom adjective/i));
 
   expect(screen.getByText(/custom key name/i)).toBeInTheDocument();
   expect(screen.getByText(/custom value/i)).toBeInTheDocument();
@@ -86,7 +86,7 @@ test('with custom texts', async () => {
   // Delete the only row.
   fireEvent.click(screen.getByTitle(/remove custom adjective/i));
   expect(
-    screen.getByRole('button', { name: 'Add a Custom Adjective' })
+    screen.getByRole('button', { name: 'Add Custom Adjective' })
   ).toBeInTheDocument();
   expect(
     screen.queryByPlaceholderText('custom key placeholder')
