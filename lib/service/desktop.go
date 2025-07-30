@@ -237,8 +237,8 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		Hostname:             cfg.Hostname,
 		ConnectedProxyGetter: proxyGetter,
 		ResourceMatchers:     cfg.WindowsDesktop.ResourceMatchers,
-    
-    // For now, NLA is opt-in via an environment variable.
+
+		// For now, NLA is opt-in via an environment variable.
 		// We'll make it the default behavior in a future release.
 		// NLA code is also not FIPS-compliant so we will disable it
 		// in FIPS mode
