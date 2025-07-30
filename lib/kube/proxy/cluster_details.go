@@ -30,6 +30,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/version"
@@ -167,10 +169,29 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 		gvkSupportedResources: gvkSupportedRes,
 	}
 
+	if err := k.startUpdateClusterLoop(ctx, cfg, creds); err != nil {
+		// If we failed to start the update loop, we close the kubeDetails and return.
+		// NOTE: Can't happen, but just to be safe if we add logic in the future.
+		k.Close()
+		return nil, trace.Wrap(err)
+	}
+
+	if err := k.startResourceWatcher(ctx, cfg, creds); err != nil {
+		// Before v19, we didn't have a watcher and therefore didn't have the permission set in the provisionned clusterrole.
+		// Upgrading from an older version requires updating the role.
+		// If we fail to start the watcher, we still have the periodic update loop as a fallback.
+		// TODO(@creack): Attempt to work around this by impersonating system:masters and cluster-admin.
+		cfg.log.WarnContext(ctx, "Failed to start resource watcher, the cluster may be offline or the Teleport clusterrole may be misconfigured", "error", err)
+	}
+
+	return k, nil
+}
+
+func (k *kubeDetails) startUpdateClusterLoop(ctx context.Context, cfg clusterDetailsConfig, creds kubeCreds) error {
 	// If cluster is online and there's no errors, we refresh details seldom (every 5 minutes),
 	// but if the cluster is offline, we try to refresh details more often to catch it getting back online earlier.
 	firstPeriod := defaultRefreshPeriod
-	if isClusterOffline {
+	if k.isClusterOffline {
 		firstPeriod = backoffRefreshStep
 	}
 	refreshDelay, err := retryutils.NewLinear(retryutils.LinearConfig{
@@ -181,8 +202,22 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 		Clock:  cfg.clock,
 	})
 	if err != nil {
-		k.Close()
-		return nil, trace.Wrap(err)
+		// NOTE: Can't happen as we hard-code the step and max values.
+		//       Here in case the lib's logic changes in the future.
+		return trace.Wrap(err)
+	}
+	refreshFail := func() {
+		// If this is first time we get an error, we reset retry mechanism so it will start trying to refresh details quicker, with linear backoff.
+		if refreshDelay.First == defaultRefreshPeriod {
+			refreshDelay.First = backoffRefreshStep
+			refreshDelay.Reset()
+		} else {
+			refreshDelay.Inc()
+		}
+	}
+	refreshSucess := func() {
+		// Restore details refresh delay to the default value, in case previously cluster was offline.
+		refreshDelay.First = defaultRefreshPeriod
 	}
 
 	k.wg.Add(1)
@@ -195,38 +230,87 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 			case <-ctx.Done():
 				return
 			case <-refreshDelay.After():
-				codecFactory, rbacSupportedTypes, gvkSupportedResources, err := newClusterSchemaBuilder(cfg.log, creds.getKubeClient())
-				if err != nil {
-					// If this is first time we get an error, we reset retry mechanism so it will start trying to refresh details quicker, with linear backoff.
-					if refreshDelay.First == defaultRefreshPeriod {
-						refreshDelay.First = backoffRefreshStep
-						refreshDelay.Reset()
-					} else {
-						refreshDelay.Inc()
-					}
-					cfg.log.ErrorContext(ctx, "Failed to update cluster schema", "error", err)
-					continue
+				if err := k.updateClusterSchema(ctx, cfg, creds); err != nil {
+					refreshFail()
+				} else {
+					refreshSucess()
 				}
-
-				kubeVersion, err := creds.getKubeClient().Discovery().ServerVersion()
-				if err != nil {
-					cfg.log.WarnContext(ctx, "Failed to get Kubernetes cluster version, the cluster may be offline", "error", err)
-				}
-
-				// Restore details refresh delay to the default value, in case previously cluster was offline.
-				refreshDelay.First = defaultRefreshPeriod
-
-				k.rwMu.Lock()
-				k.kubeCodecs = codecFactory
-				k.rbacSupportedTypes = rbacSupportedTypes
-				k.gvkSupportedResources = gvkSupportedResources
-				k.isClusterOffline = false
-				k.kubeClusterVersion = kubeVersion
-				k.rwMu.Unlock()
 			}
 		}
 	}()
-	return k, nil
+
+	return nil
+}
+
+func (k *kubeDetails) startResourceWatcher(ctx context.Context, cfg clusterDetailsConfig, creds kubeCreds) error {
+	restConfig := creds.getKubeRestConfig()
+	if restConfig == nil {
+		// Expected in tests.
+		cfg.log.WarnContext(ctx, "Missing Kubernetes REST config, not starting resource watcher")
+		return nil
+	}
+	aecs, err := apiextensionsclientset.NewForConfig(restConfig)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	watcher, err := aecs.ApiextensionsV1().CustomResourceDefinitions().Watch(ctx, metav1.ListOptions{})
+	if err != nil {
+		// TODO(@creack): Handle auto-retrying the watcher. It may be that the cluster is offline.
+		return trace.Wrap(err)
+	}
+
+	k.wg.Add(1)
+	// Start the watcher for custom resources.
+	go func() {
+		defer k.wg.Done()
+		defer watcher.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case _, ok := <-watcher.ResultChan():
+				if !ok {
+					// TODO(@creack): Consider auto-restarting the watcher.
+					cfg.log.WarnContext(ctx, "Custom resource watcher channel closed, stopping watcher")
+					return
+				}
+				// NOTE: We refresh on every event, even though multiple ones get emitted for the same CRD.
+				//       This is because the Add event is emitted before the CRD is fully registered,
+				//       and the Modified event is emitted before the CRD is fully deleted.
+				if err := k.updateClusterSchema(ctx, cfg, creds); err == nil {
+					cfg.log.DebugContext(ctx, "Cluster schema updated")
+				}
+				// NOTE: The error gets logged in updateClusterSchema, don't do any more with it, the
+				//       periodic update loop will handle retrying.
+			}
+		}
+	}()
+
+	return nil
+}
+
+func (k *kubeDetails) updateClusterSchema(ctx context.Context, cfg clusterDetailsConfig, creds kubeCreds) error {
+	codecFactory, rbacSupportedTypes, gvkSupportedResources, err := newClusterSchemaBuilder(cfg.log, creds.getKubeClient())
+	if err != nil {
+		cfg.log.ErrorContext(ctx, "Failed to update cluster schema", "error", err)
+		return trace.Wrap(err)
+	}
+
+	kubeVersion, err := creds.getKubeClient().Discovery().ServerVersion()
+	if err != nil {
+		cfg.log.WarnContext(ctx, "Failed to get Kubernetes cluster version, the cluster may be offline", "error", err)
+	}
+
+	k.rwMu.Lock()
+	k.kubeCodecs = codecFactory
+	k.rbacSupportedTypes = rbacSupportedTypes
+	k.gvkSupportedResources = gvkSupportedResources
+	k.isClusterOffline = false
+	k.kubeClusterVersion = kubeVersion
+	k.rwMu.Unlock()
+	return nil
 }
 
 func (k *kubeDetails) Close() {
