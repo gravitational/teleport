@@ -108,12 +108,13 @@ $ sudo ./install
 After you download and install, all of the Teleport Enterprise binaries are
 installed in the `/usr/local/bin` directory. You can verify you have FIPS-compliant
 binaries installed by running the `teleport version` command and verifying that
-the `X:boringcrypto` library is listed. For example:
+the `X:boringcrypto` library is listed:
 
 ```code
 $ teleport version
-Teleport Enterprise (= teleport.version =) (= teleport.git =) (= teleport.golang =) X:boringcrypto
 ```
+
+The output should end with `X:boringcrypto`.
 
 If your Teleport cluster runs on AWS, the cluster can run in US-East or US-West regions for services
 with low or moderate impact levels. For services with a high impact level, the cluster must run
