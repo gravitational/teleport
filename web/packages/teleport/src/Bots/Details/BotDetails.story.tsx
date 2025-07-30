@@ -21,10 +21,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory } from 'history';
 import { MemoryRouter, Route, Router } from 'react-router';
 
+import Box from 'design/Box';
+
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
+import { listBotInstancesSuccess } from 'teleport/test/helpers/botInstances';
 import {
   editBotSuccess,
   getBotError,
@@ -40,6 +43,7 @@ import {
 } from 'teleport/test/helpers/tokens';
 
 import { BotDetails } from './BotDetails';
+import { listBotInstancesSuccessHandler } from './InstancesPanel.story';
 
 const meta = {
   title: 'Teleport/Bots/Details',
@@ -85,6 +89,7 @@ export const Happy: Story = {
       handlers: [
         successHandler,
         listV2TokensSuccess(),
+        listBotInstancesSuccessHandler,
         successGetRoles({
           startKey: '',
           items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
@@ -116,6 +121,10 @@ export const HappyWithEmpty: Story = {
           isEmpty: true,
         }),
         mfaAuthnChallengeSuccess(),
+        listBotInstancesSuccess({
+          bot_instances: [],
+          next_page_token: '',
+        }),
         successGetRoles({
           startKey: '',
           items: ['access', 'editor', 'terraform-provider'].map(r => ({
@@ -140,6 +149,7 @@ export const HappyWithoutEditPermission: Story = {
       handlers: [
         successHandler,
         listV2TokensSuccess(),
+        listBotInstancesSuccessHandler,
         successGetRoles({
           startKey: '',
           items: ['access', 'editor', 'terraform-provider'].map(r => ({
@@ -164,6 +174,7 @@ export const HappyWithoutTokenListPermission: Story = {
       handlers: [
         successHandler,
         listV2TokensSuccess(),
+        listBotInstancesSuccessHandler,
         successGetRoles({
           startKey: '',
           items: ['access', 'editor', 'terraform-provider'].map(r => ({
@@ -186,6 +197,7 @@ export const HappyWithMFAPrompt: Story = {
         successHandler,
         listV2TokensMfaError(),
         mfaAuthnChallengeSuccess(),
+        listBotInstancesSuccessHandler,
         successGetRoles({
           startKey: '',
           items: ['access', 'editor', 'terraform-provider'].map(r => ({
@@ -207,6 +219,7 @@ export const HappyWithTokensError: Story = {
       handlers: [
         successHandler,
         listV2TokensError(500, 'something went wrong'),
+        listBotInstancesSuccessHandler,
         successGetRoles({
           startKey: '',
           items: ['access', 'editor', 'terraform-provider'].map(r => ({
@@ -236,6 +249,32 @@ export const HappyWithTokensOutdatedProxy: Story = {
             string: '18.0.0',
           },
         }),
+        listBotInstancesSuccessHandler,
+        successGetRoles({
+          startKey: '',
+          items: ['access', 'editor', 'terraform-provider'].map(r => ({
+            content: r,
+            id: r,
+            name: r,
+            kind: 'role',
+          })),
+        }),
+        editBotSuccess(),
+      ],
+    },
+  },
+};
+
+export const HappyWithoutBotInstanceListPermission: Story = {
+  args: {
+    hasBotInstanceListPermission: false,
+  },
+  parameters: {
+    msw: {
+      handlers: [
+        successHandler,
+        listV2TokensSuccess(),
+        listBotInstancesSuccessHandler,
         successGetRoles({
           startKey: '',
           items: ['access', 'editor', 'terraform-provider'].map(r => ({
@@ -299,11 +338,13 @@ function Wrapper(props?: {
   hasBotsRead?: boolean;
   hasBotsEdit?: boolean;
   hasTokensList?: boolean;
+  hasBotInstanceListPermission?: boolean;
 }) {
   const {
     hasBotsRead = true,
     hasBotsEdit = true,
     hasTokensList = true,
+    hasBotInstanceListPermission = true,
   } = props ?? {};
 
   const history = createMemoryHistory({
@@ -324,6 +365,10 @@ function Wrapper(props?: {
       ...defaultAccess,
       list: hasTokensList,
     },
+    botInstances: {
+      ...defaultAccess,
+      list: hasBotInstanceListPermission,
+    },
   });
 
   const ctx = createTeleportContext({
@@ -336,7 +381,9 @@ function Wrapper(props?: {
         <TeleportProviderBasic teleportCtx={ctx}>
           <Router history={history}>
             <Route path={cfg.routes.bot}>
-              <BotDetails />
+              <Box height={800} overflow={'auto'}>
+                <BotDetails />
+              </Box>
             </Route>
           </Router>
         </TeleportProviderBasic>
