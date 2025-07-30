@@ -562,7 +562,7 @@ func TestPortForwardUnderlyingProtocol(t *testing.T) {
 				// ErrLostConnectionToPod is an expected error.
 				// Server allowed to communicate error to client.
 				if !errors.Is(err, portforward.ErrLostConnectionToPod) {
-					require.NoError(t, <-errCh)
+					require.NoError(t, err)
 				}
 			})
 			// stopCh control the port forwarding lifecycle. When it gets closed the
