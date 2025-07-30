@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/google/uuid"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -122,7 +123,22 @@ func (s *Service) handleSSHConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	path, err := s.generateUserSSHConfig(ctx, jwt)
+	var params struct {
+		Roles []string `json:"roles"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+		http.Error(w, "Failed to decode request body as JSON", http.StatusBadRequest)
+		return
+	}
+
+	roles, err := s.getRoles(params.Roles, jwt)
+	if err != nil {
+		s.log.ErrorContext(ctx, "Failed to get roles", "error", err)
+		http.Error(w, "Failed to get roles", http.StatusInternalServerError)
+		return
+	}
+
+	path, err := s.generateUserSSHConfig(ctx, jwt, roles)
 	if err != nil {
 		s.log.ErrorContext(ctx, "Failed to generate user SSH configuration", "error", err)
 		http.Error(w, "Failed to generate user SSH configuration", http.StatusInternalServerError)
@@ -144,14 +160,22 @@ func (s *Service) handleApplicationTunnel(w http.ResponseWriter, r *http.Request
 	}
 
 	var params struct {
-		Name string `json:"application"`
+		Name  string   `json:"application"`
+		Roles []string `json:"roles"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
 		http.Error(w, "Failed to decode request body as JSON", http.StatusBadRequest)
 		return
 	}
 
-	tunnel, err := s.startApplicationTunnel(ctx, jwt, params.Name)
+	roles, err := s.getRoles(params.Roles, jwt)
+	if err != nil {
+		s.log.ErrorContext(ctx, "Failed to get roles", "error", err)
+		http.Error(w, "Failed to get roles", http.StatusInternalServerError)
+		return
+	}
+
+	tunnel, err := s.startApplicationTunnel(ctx, jwt, params.Name, roles)
 	if err != nil {
 		s.log.ErrorContext(ctx, "Failed to start application tunnel", "error", err)
 		http.Error(w, "Failed to start application tunnel", http.StatusInternalServerError)
@@ -160,7 +184,7 @@ func (s *Service) handleApplicationTunnel(w http.ResponseWriter, r *http.Request
 	_ = json.NewEncoder(w).Encode(tunnel)
 }
 
-func (s *Service) generateUserSSHConfig(ctx context.Context, userJWT string) (string, error) {
+func (s *Service) generateUserSSHConfig(ctx context.Context, userJWT string, roles []string) (string, error) {
 	baseID, err := s.identityGenerator.GenerateFacade(ctx,
 		identity.WithLifetime(s.cfg.CredentialLifetime.TTL, s.cfg.CredentialLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
@@ -175,7 +199,7 @@ func (s *Service) generateUserSSHConfig(ctx context.Context, userJWT string) (st
 	}
 	defer baseClient.Close()
 
-	userID, err := s.getUserIdentity(ctx, baseClient, userJWT, []string{"editor", "access"}, nil)
+	userID, err := s.getUserIdentity(ctx, baseClient, userJWT, roles, nil)
 	if err != nil {
 		return "", trace.Wrap(err, "getting user identity")
 	}
@@ -239,7 +263,7 @@ func (s *Service) generateUserSSHConfig(ctx context.Context, userJWT string) (st
 	return filepath.Join(dest.Path, tbotSSH.ConfigName), nil
 }
 
-func (s *Service) startApplicationTunnel(ctx context.Context, jwt string, applicationName string) (*ephemeralApplicationTunnel, error) {
+func (s *Service) startApplicationTunnel(ctx context.Context, jwt string, applicationName string, roles []string) (*ephemeralApplicationTunnel, error) {
 	identityOpts := []identity.GenerateOption{
 		identity.WithLifetime(s.cfg.CredentialLifetime.TTL, s.cfg.CredentialLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
@@ -265,7 +289,7 @@ func (s *Service) startApplicationTunnel(ctx context.Context, jwt string, applic
 		return nil, trace.Wrap(err, "getting route to app")
 	}
 
-	userID, err := s.getUserIdentity(ctx, client, jwt, []string{"editor", "access"}, &routeToApp)
+	userID, err := s.getUserIdentity(ctx, client, jwt, roles, &routeToApp)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting user identity")
 	}
@@ -391,4 +415,23 @@ func (s *Service) getUserIdentity(
 	}
 
 	return id, nil
+}
+
+func (s *Service) getRoles(roles []string, userJWT string) ([]string, error) {
+	if len(roles) != 0 {
+		return roles, nil
+	}
+
+	parsed, err := jwt.ParseSigned(userJWT)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing user JWT")
+	}
+
+	var claims struct {
+		Roles []string `json:"roles"`
+	}
+	if err := parsed.UnsafeClaimsWithoutVerification(&claims); err != nil {
+		return nil, trace.Wrap(err, "extracting claims")
+	}
+	return claims.Roles, nil
 }
