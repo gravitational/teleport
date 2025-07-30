@@ -21,6 +21,7 @@ import { PropsWithChildren } from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
+import { ToastNotificationProvider } from 'shared/components/ToastNotification';
 
 import { getOSSFeatures } from 'teleport/features';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
@@ -38,13 +39,15 @@ export const TeleportProviderBasic: React.FC<
 
   return (
     <MemoryRouter initialEntries={initialEntries}>
-      <InfoGuidePanelProvider>
-        <ContextProvider ctx={ctx}>
-          <FeaturesContextProvider value={getOSSFeatures()}>
-            {children}
-          </FeaturesContextProvider>
-        </ContextProvider>
-      </InfoGuidePanelProvider>
+      <ToastNotificationProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <FeaturesContextProvider value={getOSSFeatures()}>
+              {children}
+            </FeaturesContextProvider>
+          </ContextProvider>
+        </InfoGuidePanelProvider>
+      </ToastNotificationProvider>
     </MemoryRouter>
   );
 };

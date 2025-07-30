@@ -20,13 +20,13 @@ import { fireEvent, screen } from '@testing-library/react';
 
 import { render } from 'design/utils/testing';
 
-import { Notification } from './Notification';
+import { ToastNotification } from './ToastNotification';
 
 test('click on action button does not expand or collapse notification', async () => {
   const description = 'An error happened';
 
   render(
-    <Notification
+    <ToastNotification
       item={{
         id: '865801ca',
         severity: 'error',
