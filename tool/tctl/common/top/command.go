@@ -96,6 +96,13 @@ func (c *Command) newMetricsClient(ctx context.Context) (string, MetricsClient, 
 		"connecting to Teleport metrics server")
 }
 
+// initConfig populates the [*servicecfg.Config]
+//
+// This is required by `tctl top` as it does not make use of the [commonclient.InitFunc]
+// which lazy loads the configuration during client creation, meaning the required configuration
+// fields are not initilized as this command uses a standalone metrics client instead on a local connection.
+//
+// TODO(okraport): remove this workaround once the caller can safely parse the teleport config file without common client.
 func (c *Command) initConfig() error {
 	var fileConf *config.FileConfig
 	var err error
@@ -128,8 +135,7 @@ func (c *Command) TryRun(ctx context.Context, cmd string, _ commonclient.InitFun
 		return false, nil
 	}
 
-	err = c.initConfig()
-	if err != nil {
+	if err := c.initConfig(); err != nil {
 		return true, trace.Wrap(err)
 	}
 
