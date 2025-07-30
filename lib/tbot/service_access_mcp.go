@@ -17,6 +17,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -91,7 +92,7 @@ func (s *MCPService) Run(ctx context.Context) error {
 	server.AddTool(mcp.NewTool(
 		"list_servers",
 	), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		s.log.InfoContext(ctx, "Handling MCP tool request")
+		s.log.InfoContext(ctx, "Handling list_servers tool request")
 		nodeList, err := c.GetNodes(ctx, "default")
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -127,6 +128,7 @@ func (s *MCPService) Run(ctx context.Context) error {
 			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			s.log.InfoContext(ctx, "Handling make_access_request tool request")
 			reasonParam, err := request.RequireString("reason")
 			if err != nil {
 				return nil, trace.Wrap(err, "missing reason")
@@ -172,6 +174,44 @@ func (s *MCPService) Run(ctx context.Context) error {
 	)
 
 	server.AddTool(mcp.NewTool(
+		"check_access_request",
+		mcp.WithDescription("Check the status of an access request by its ID"),
+		mcp.WithString(
+			"request_id",
+			mcp.Required(),
+			mcp.Description("ID of the access request to check status for"),
+		),
+	), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		s.log.InfoContext(ctx, "Handling check_access_request tool request")
+		requestIDParam, err := request.RequireString("request_id")
+		if err != nil {
+			return nil, trace.Wrap(err, "missing request_id")
+		}
+		reqs, err := c.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{
+			Filter: &types.AccessRequestFilter{
+				ID: requestIDParam,
+			},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "listing access requests")
+		}
+		if len(reqs.AccessRequests) == 0 {
+			return nil, trace.NotFound(
+				"access request with ID %q not found", requestIDParam,
+			)
+		}
+
+		marshalledAccessRequests, err := json.MarshalIndent(
+			reqs.AccessRequests, "", "  ",
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "marshalling access requests")
+		}
+
+		return mcp.NewToolResultText("Access Request: " + string(marshalledAccessRequests)), nil
+	})
+
+	server.AddTool(mcp.NewTool(
 		"run_ssh_command",
 		mcp.WithDescription("Run a command on a server via SSH"),
 		mcp.WithString("hostname",
@@ -188,6 +228,8 @@ func (s *MCPService) Run(ctx context.Context) error {
 			mcp.Description("Username on the server to connect as"),
 		),
 	), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		s.log.InfoContext(ctx, "Handling call of run_ssh_command tool")
+
 		hostnameParam, err := request.RequireString("hostname")
 		if err != nil {
 			return nil, trace.Wrap(err, "missing hostname")
