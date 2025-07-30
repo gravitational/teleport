@@ -738,13 +738,6 @@ print-rust-version:
 	@echo $(RUST_VERSION)
 
 #
-# Print the wasm-pack version used to build Teleport.
-#
-.PHONY:print-wasm-pack-version
-print-wasm-pack-version:
-	@echo $(WASM_PACK_VERSION)
-
-#
 # Print the Node version used to build Teleport Connect.
 #
 .PHONY:print-node-version

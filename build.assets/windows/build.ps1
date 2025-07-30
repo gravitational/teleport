@@ -26,7 +26,8 @@
 #
 # #############################################################################
 
-function New-TempDirectory {
+function New-TempDirectory
+{
     <#
     .SYNOPSIS
     Creates a uniquely-named temporary directory.
@@ -35,13 +36,14 @@ function New-TempDirectory {
     string
     #>
 
-    $TempDirectoryPath = Join-Path -Path "$([System.IO.Path]::GetTempPath())" -ChildPath "$([guid]::newguid().Guid)"
+    $TempDirectoryPath = Join-Path -Path "$([System.IO.Path]::GetTempPath() )" -ChildPath "$( [guid]::newguid().Guid )"
     New-Item -ItemType Directory -Path "$TempDirectoryPath" | Out-Null
 
     return "$TempDirectoryPath"
 }
 
-function Install-Go {
+function Install-Go
+{
     <#
     .SYNOPSIS
         Downloads ands installs Go into the supplied toolchain dir
@@ -65,7 +67,8 @@ function Install-Go {
     }
 }
 
-function Enable-Go {
+function Enable-Go
+{
     <#
     .SYNOPSIS
         Adds the Go toolchaion to the system search path
@@ -82,7 +85,8 @@ function Enable-Go {
     }
 }
 
-function Install-Rust {
+function Install-Rust
+{
     <#
     .SYNOPSIS
         Downloads and installs Rust into the supplied toolchain dir
@@ -107,7 +111,8 @@ function Install-Rust {
     }
 }
 
-function Enable-Rust {
+function Enable-Rust
+{
     <#
     .SYNOPSIS
         Adds the Rust toolchain to the system search path
@@ -124,7 +129,8 @@ function Enable-Rust {
     }
 }
 
-function Install-Node {
+function Install-Node
+{
     <#
     .SYNOPSIS
         Downloads ands installs Node into the supplied toolchain dir
@@ -149,7 +155,8 @@ function Install-Node {
     }
 }
 
-function Enable-Node {
+function Enable-Node
+{
     <#
     .SYNOPSIS
         Adds the Node toolchain to the system search path
@@ -164,26 +171,8 @@ function Enable-Node {
     }
 }
 
-function Install-WasmPack {
-    <#
-    .SYNOPSIS
-        Builds and installs wasm-pack and dependent tooling.
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string] $WasmPackVersion
-    )
-    begin {
-        Write-Host "::group::Installing wasm-pack $WasmPackVersion"
-        # TODO(camscale): Don't hard-code wasm-binden-cli version
-        cargo install wasm-bindgen-cli --locked --version 0.2.99
-        cargo install wasm-pack --locked --version "$WasmPackVersion"
-        Write-Host "::endgroup::"
-    }
-}
-
-function Install-Wintun {
+function Install-Wintun
+{
     <#
     .SYNOPSIS
         Downloads wintun.dll into the supplied dir
@@ -200,9 +189,10 @@ function Install-Wintun {
         Invoke-WebRequest -Uri https://www.wintun.net/builds/wintun-0.14.1.zip -OutFile $WintunZipfile
         $ExpectedHash = "07C256185D6EE3652E09FA55C0B673E2624B565E02C4B9091C79CA7D2F24EF51"
         $ZipFileHash = Get-FileHash -Path $WintunZipFile -Algorithm SHA256
-        if ($ZipFileHash.Hash -ne $ExpectedHash) {
+        if ($ZipFileHash.Hash -ne $ExpectedHash)
+        {
             Write-Host "checksum: $ZipFileHash"
-            throw "Checksum verification for wintun.zip failed! Expected $ExpectedHash but got $($ZipFileHash.Hash)"
+            throw "Checksum verification for wintun.zip failed! Expected $ExpectedHash but got $( $ZipFileHash.Hash )"
         }
         Expand-Archive -Force -Path $WintunZipfile -DestinationPath $InstallDir
         Move-Item -Force -Path "$InstallDir/wintun/bin/amd64/wintun.dll" -Destination "$InstallDir/wintun.dll"
@@ -210,7 +200,8 @@ function Install-Wintun {
     }
 }
 
-function Compile-Message-File {
+function Compile-Message-File
+{
     <#
     .SYNOPSIS
         Compiles msgfile.mc into msgfile.dll in the supplied directory.
@@ -226,15 +217,15 @@ function Compile-Message-File {
         Write-Host "::group::Compiling msgfile.dll to $CompileDir..."
         New-Item -Path "$CompileDir" -ItemType Directory -Force | Out-Null
         $SDKRegistry = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Microsoft SDKs\Windows\v10.0"
-        $SDKInstallationDir = $(Get-Item $SDKRegistry).GetValue("InstallationFolder")
-        $SDKVersion = $(Get-Item $SDKRegistry).GetValue("ProductVersion")
+        $SDKInstallationDir = $( Get-Item $SDKRegistry ).GetValue("InstallationFolder")
+        $SDKVersion = $( Get-Item $SDKRegistry ).GetValue("ProductVersion")
         $SDKBinDir = "${SDKInstallationDir}bin\${SDKVersion}.0\x64\"
 
         # Compile .mc to .rc.
         .$SDKBinDir\mc.exe -h "$CompileDir" -r "$CompileDir" "$MessageFile"
 
         # Compile .rc to .res in the same directory as the input file.
-        $MessageFileBasename = $(Get-Item $MessageFile).Basename
+        $MessageFileBasename = $( Get-Item $MessageFile ).Basename
         .$SDKBinDir\rc.exe "$CompileDir\$MessageFileBasename.rc"
 
         # Compile .res to .dll.
@@ -245,7 +236,8 @@ function Compile-Message-File {
     }
 }
 
-function Get-Relcli {
+function Get-Relcli
+{
     <#
     .SYNOPSIS
         Downloads relcli
@@ -263,7 +255,8 @@ function Get-Relcli {
     }
 }
 
-function Generate-Artifacts {
+function Generate-Artifacts
+{
     <#
     .SYNOPSIS
         Invokes relcli to automatically generate manfiests for built artifacts
@@ -278,7 +271,8 @@ function Generate-Artifacts {
 
     $SearchPath = Join-Path -Path $ArtifactDirectory -ChildPath *
     Get-ChildItem -Path $SearchPath -Include "*.exe","*.zip" | ForEach-Object {
-        switch -Wildcard ($_.Name) {
+        switch -Wildcard ($_.Name)
+        {
             "Teleport Connect Setup*.exe" {
                 $description = "Teleport Connect"
                 Break
@@ -305,7 +299,8 @@ function Generate-Artifacts {
     }
 }
 
-function Measure-Block {
+function Measure-Block
+{
     <#
     .SYNOPSIS
     Measure the runtime of a provided block while streaming it's output to Out-Default.
@@ -322,7 +317,8 @@ function Measure-Block {
     }
 }
 
-function Install-BuildRequirements {
+function Install-BuildRequirements
+{
     <#
     .SYNOPSIS
     Installs the tools required to produce a Windows-native Teleport build
@@ -340,22 +336,20 @@ function Install-BuildRequirements {
     $CommandDuration = Measure-Block {
         New-Item -Path "$InstallDirectory" -ItemType Directory -Force | Out-Null
 
-        $RustVersion = $(make --no-print-directory -C "$TeleportSourceDirectory/build.assets" print-rust-version).Trim()
+        $RustVersion = $( make --no-print-directory -C "$TeleportSourceDirectory/build.assets" print-rust-version ).Trim()
         Install-Rust -RustVersion "$RustVersion" -ToolchainDir "$InstallDirectory"
 
-        $NodeVersion = $(make --no-print-directory -C "$TeleportSourceDirectory/build.assets" print-node-version).Trim()
+        $NodeVersion = $( make --no-print-directory -C "$TeleportSourceDirectory/build.assets" print-node-version ).Trim()
         Install-Node -NodeVersion "$NodeVersion" -ToolchainDir "$InstallDirectory"
 
-        $GoVersion = $(make --no-print-directory -C "$TeleportSourceDirectory/build.assets" print-go-version).TrimStart("go")
+        $GoVersion = $( make --no-print-directory -C "$TeleportSourceDirectory/build.assets" print-go-version ).TrimStart("go")
         Install-Go -GoVersion "$GoVersion" -ToolchainDir "$InstallDirectory"
-
-        $WasmPackVersion = $(make --no-print-directory -C "$TeleportSourceDirectory/build.assets" print-wasm-pack-version).Trim()
-        Install-WasmPack -WasmPackVersion "$WasmPackVersion"
     }
-    Write-Host $("All build requirements installed in {0:g}" -f $CommandDuration)
+    Write-Host $( "All build requirements installed in {0:g}" -f $CommandDuration )
 }
 
-function Invoke-SignBinary {
+function Invoke-SignBinary
+{
     <#
     .SYNOPSIS
     Signs the provided binary with the base64-encoded certificate listed in "$WINDOWS_SIGNING_CERT"
@@ -374,20 +368,23 @@ function Invoke-SignBinary {
         [string] $SignedBinaryPath
     )
 
-    if (! $SignedBinaryPath) {
+    if (!$SignedBinaryPath)
+    {
         $ShouldMoveSignedBinary = $true
-        $SignedBinaryPath = Join-Path -Path $(New-TempDirectory) -ChildPath "signed.exe"
+        $SignedBinaryPath = Join-Path -Path $( New-TempDirectory ) -ChildPath "signed.exe"
     }
 
     Write-Host "Signing $UnsignedBinaryPath using WSL sign-binary script:"
     wsl-ubuntu-command sign-binary "$UnsignedBinaryPath" "$SignedBinaryPath"
 
-    if ($ShouldMoveSignedBinary) {
+    if ($ShouldMoveSignedBinary)
+    {
         Move-Item -Path $SignedBinaryPath -Destination $UnsignedBinaryPath -Force
     }
 }
 
-function Build-WindowsAuthenticationPackage {
+function Build-WindowsAuthenticationPackage
+{
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -409,10 +406,11 @@ function Build-WindowsAuthenticationPackage {
         Invoke-SignBinary -UnsignedBinaryPath "$WindowsAuthDirectory\build\$BinaryName" -SignedBinaryPath "$ArtifactDirectory\$BinaryName"
         Write-Host "::endgroup::"
     }
-    Write-Host $("Built Windows authentication package in {0:g}" -f $CommandDuration)
+    Write-Host $( "Built Windows authentication package in {0:g}" -f $CommandDuration )
 }
 
-function Build-Tsh {
+function Build-Tsh
+{
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -432,7 +430,8 @@ function Build-Tsh {
         Write-Host "::group::Building tsh..."
         $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
         go build -tags piv -trimpath -ldflags "-s -w $BuildTypeLDFlags" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"
-        if ($LastExitCode -ne 0) {
+        if ($LastExitCode -ne 0)
+        {
             exit $LastExitCode
         }
         Write-Host "::endgroup::"
@@ -441,12 +440,13 @@ function Build-Tsh {
         Invoke-SignBinary -UnsignedBinaryPath "$UnsignedBinaryPath" -SignedBinaryPath "$SignedBinaryPath"
         Write-Host "::endgroup::"
     }
-    Write-Host $("Built TSH in {0:g}" -f $CommandDuration)
+    Write-Host $( "Built TSH in {0:g}" -f $CommandDuration )
 
     return "$SignedBinaryPath"  # This is needed for building Connect and bundling the zip archive
 }
 
-function Build-Tctl {
+function Build-Tctl
+{
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -466,7 +466,8 @@ function Build-Tctl {
         Write-Host "::group::Building tctl..."
         $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
         go build -tags piv -trimpath -ldflags "-s -w $BuildTypeLDFlags" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tctl"
-        if ($LastExitCode -ne 0) {
+        if ($LastExitCode -ne 0)
+        {
             exit $LastExitCode
         }
         Write-Host "::endgroup::"
@@ -475,12 +476,13 @@ function Build-Tctl {
         Invoke-SignBinary -UnsignedBinaryPath "$UnsignedBinaryPath" -SignedBinaryPath "$SignedBinaryPath"
         Write-Host "::endgroup::"
     }
-    Write-Host $("Built TCTL in {0:g}" -f $CommandDuration)
+    Write-Host $( "Built TCTL in {0:g}" -f $CommandDuration )
 
     return "$SignedBinaryPath"  # This is needed for bundling the zip archive
 }
 
-function Build-Tbot {
+function Build-Tbot
+{
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -499,7 +501,8 @@ function Build-Tbot {
         Write-Host "::group::Building tbot..."
         $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
         go build -trimpath -ldflags "-s -w" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tbot"
-        if ($LastExitCode -ne 0) {
+        if ($LastExitCode -ne 0)
+        {
             exit $LastExitCode
         }
         Write-Host "::endgroup::"
@@ -508,12 +511,13 @@ function Build-Tbot {
         Invoke-SignBinary -UnsignedBinaryPath "$UnsignedBinaryPath" -SignedBinaryPath "$SignedBinaryPath"
         Write-Host "::endgroup::"
     }
-    Write-Host $("Built tbot in {0:g}" -f $CommandDuration)
+    Write-Host $( "Built tbot in {0:g}" -f $CommandDuration )
 
     return "$SignedBinaryPath"  # This is needed for bundling the zip archive
 }
 
-function Package-Artifacts {
+function Package-Artifacts
+{
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -541,12 +545,13 @@ function Package-Artifacts {
         Out-File -FilePath "$PackageDirectory\VERSION" -InputObject "v$TeleportVersion"
         Compress-Archive -Path "$PackageDirectory\*" -DestinationPath "$ArtifactDirectory\teleport-v$TeleportVersion-windows-amd64-bin.zip"
     }
-    Write-Host $("Created archive in {0:g}" -f $CommandDuration)
+    Write-Host $( "Created archive in {0:g}" -f $CommandDuration )
 
     return
 }
 
-function Build-Connect {
+function Build-Connect
+{
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -574,10 +579,11 @@ function Build-Connect {
             -SignedBinaryPath "$ArtifactDirectory\$BinaryName"
         Write-Host "::endgroup::"
     }
-    Write-Host $("Built Teleport Connect in {0:g}" -f $CommandDuration)
+    Write-Host $( "Built Teleport Connect in {0:g}" -f $CommandDuration )
 }
 
-function Write-Version-Objects {
+function Write-Version-Objects
+{
     <#
     .SYNOPSIS
     Produces Windows resource files containing version info metadata
@@ -596,7 +602,7 @@ function Write-Version-Objects {
 
     # install go-winres (v0.3.3)
     go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e
-    $GoWinres = Join-Path -Path $(go env GOPATH) -ChildPath "bin\go-winres.exe"
+    $GoWinres = Join-Path -Path $( go env GOPATH ) -ChildPath "bin\go-winres.exe"
 
     $Year = (Get-Date).Year
 
@@ -645,7 +651,8 @@ function Write-Version-Objects {
         --out "$TeleportSourceDirectory\e\windowsauth\installer\resource.syso"
 }
 
-function Build-Artifacts {
+function Build-Artifacts
+{
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]

@@ -279,11 +279,6 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     rustc --version && \
     rustup target add wasm32-unknown-unknown
 
-# Install wasm-pack for targeting WebAssembly from Rust.
-ARG WASM_PACK_VERSION
-# scl enable is required to use the newer C compiler installed above. Without it, the build fails.
-RUN scl enable ${DEVTOOLSET} "cargo install wasm-pack --locked --version ${WASM_PACK_VERSION}"
-
 # Do a quick switch back to root and copy/setup libfido2 and libpcsclite binaries.
 # Do this last to take better advantage of the multi-stage build.
 USER root
