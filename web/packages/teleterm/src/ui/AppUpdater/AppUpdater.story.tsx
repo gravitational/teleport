@@ -19,7 +19,7 @@
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { useEffect, useState } from 'react';
 
-import { Stack } from 'design/Flex';
+import { Flex, H3, P2, Stack } from 'design';
 import {
   ClusterVersionInfo,
   UnreachableCluster,
@@ -285,11 +285,21 @@ function WidgetAndDetails(storyProps: StoryProps) {
     );
   }
 
+  // The two stacks with text should have the same height so that the widget view and the details
+  // view both start at the same point when they're next to each other.
+  const textHeight = '100px';
+
   return (
-    <Stack gap={6} maxWidth="432px">
-      <Stack width="100%">
-        <h3 style={{ margin: 0 }}>Widget View</h3>
-        <p>If nothing is rendered, the widget is hidden in that state.</p>
+    <Flex rowGap={7} columnGap={10} flexWrap="wrap">
+      <Stack gap={4} maxWidth="432px">
+        <Stack height={textHeight}>
+          <H3>Widget View</H3>
+          <P2>The component is rendered in the login form.</P2>
+          <P2 mt={0}>
+            If nothing is rendered, the widget is hidden in the state described
+            by the story controls.
+          </P2>
+        </Stack>
         <WidgetView
           platform={storyProps.platform}
           updateEvent={state}
@@ -301,8 +311,15 @@ function WidgetAndDetails(storyProps: StoryProps) {
           onInstall={() => {}}
         />
       </Stack>
-      <Stack width="100%">
-        <h3>Details View</h3>
+      <Stack gap={4} maxWidth="432px">
+        <Stack height={textHeight}>
+          <H3>Details View</H3>
+          <P2>
+            The details can be accessed through the widget if the widget is
+            shown. Otherwise the user can access them through "Check for
+            updates" in the additional actions menu.
+          </P2>
+        </Stack>
         <DetailsView
           platform={storyProps.platform}
           updateEvent={state}
@@ -316,7 +333,7 @@ function WidgetAndDetails(storyProps: StoryProps) {
           onInstall={() => {}}
         />
       </Stack>
-    </Stack>
+    </Flex>
   );
 }
 
