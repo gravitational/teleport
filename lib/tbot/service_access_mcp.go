@@ -116,23 +116,32 @@ func (s *MCPService) Run(ctx context.Context) error {
 			mcp.Required(),
 			mcp.Description("Command to run on a server"),
 		),
+		mcp.WithString(
+			"username",
+			mcp.Required(),
+			mcp.Description("Username on the server to connect as"),
+		),
 	), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		targetHostname, err := request.RequireString("hostname")
+		hostnameParam, err := request.RequireString("hostname")
 		if err != nil {
 			return nil, trace.Wrap(err, "missing hostname")
 		}
-		targetCommand, err := request.RequireString("command")
+		commandParam, err := request.RequireString("command")
 		if err != nil {
 			return nil, trace.Wrap(err, "missing command")
+		}
+		usernameParam, err := request.RequireString("username")
+		if err != nil {
+			return nil, trace.Wrap(err, "missing username")
 		}
 
 		sshConfig, err := id.SSHClientConfig()
 		if err != nil {
 			return nil, trace.Wrap(err, "getting SSH client config")
 		}
-		sshConfig.User = "noah"
+		sshConfig.User = usernameParam
 		proxyCfg := proxy.ClientConfig{
-			ProxyAddress:      "leaf.tele.ottr.sh:443",
+			ProxyAddress:      s.botCfg.ProxyServer,
 			TLSRoutingEnabled: true,
 			SSHConfig:         sshConfig,
 			TLSConfigFunc: func(cluster string) (*tls.Config, error) {
@@ -152,9 +161,9 @@ func (s *MCPService) Run(ctx context.Context) error {
 			return nil, trace.Wrap(err, "creating proxy client")
 		}
 		defer proxyClient.Close()
-
-		targetCluster := "leaf.tele.ottr.sh"
-		targetHostPort := targetHostname + ":0"
+		// Default to targetting the cluster of the bot identity.
+		targetCluster := id.Get().ClusterName
+		targetHostPort := hostnameParam + ":0"
 		conn, _, err := proxyClient.DialHost(
 			ctx,
 			targetHostPort,
@@ -183,9 +192,9 @@ func (s *MCPService) Run(ctx context.Context) error {
 		}
 		defer sess.Close()
 
-		output, err := sess.CombinedOutput(targetCommand)
+		output, err := sess.CombinedOutput(commandParam)
 		if err != nil {
-			return nil, fmt.Errorf("running command %q on host %q: %w", targetCommand, targetHostname, err)
+			return nil, fmt.Errorf("running command %q on host %q: %w", commandParam, hostnameParam, err)
 		}
 
 		return &mcp.CallToolResult{
