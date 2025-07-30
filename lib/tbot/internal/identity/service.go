@@ -23,7 +23,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -644,6 +646,36 @@ func botIdentityFromAuth(
 	return newIdentity, nil
 }
 
+func delegatedCertTest(ctx context.Context, cfg Config, ident *identity.Identity) error {
+	val, ok := os.LookupEnv("TELEPORT_JWT_ASSERTION")
+	if !ok {
+		return nil
+	}
+
+	facade := identity.NewFacade(cfg.FIPS, cfg.Connection.Insecure, ident)
+	client, err := cfg.ClientBuilder.Build(ctx, facade)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tlsPub, err := keys.MarshalPublicKey(ident.PrivateKey.Signer.Public())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	certs, err := client.GenerateDelegatedCerts(ctx, proto.DelegatedCertsRequest{
+		Assertion:    val,
+		TLSPublicKey: tlsPub,
+		Roles:        ident.TLSIdentity.Groups,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("fetched delegated certs: %s\n", certs.TLS)
+	return nil
+}
+
 // botIdentityFromToken uses a join token to request a bot identity from an auth
 // server using auth.Register.
 //
@@ -776,5 +808,10 @@ func botIdentityFromToken(
 		PublicKeyBytes:  ssh.MarshalAuthorizedKey(sshPub),
 		TokenHashBytes:  []byte(tokenHash),
 	}, result.Certs)
+
+	if err := delegatedCertTest(ctx, cfg, ident); err != nil {
+		slog.ErrorContext(ctx, "error fetching delegated certs", "error", err)
+	}
+
 	return ident, trace.Wrap(err)
 }

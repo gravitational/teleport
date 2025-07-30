@@ -628,6 +628,24 @@ func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *authpb.UserCert
 	return certs, nil
 }
 
+// GenerateDelegatedCerts generates a set of impersonated certificates for
+// another user (the delegator). The returned certs are assigned roles
+// equivalent to the intersection of roles granted to both the delegatee and
+// delegator.
+func (g *GRPCServer) GenerateDelegatedCerts(ctx context.Context, req *authpb.DelegatedCertsRequest) (*authpb.Certs, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certs, err := auth.generateDelegatedCerts(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return certs, nil
+}
+
 func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) error {
 	switch req.Usage {
 	case authpb.UserCertsRequest_All:

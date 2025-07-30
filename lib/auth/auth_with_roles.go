@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"log/slog"
 	"maps"
 	"net/url"
 	"os"
@@ -29,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
@@ -63,6 +65,7 @@ import (
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
+	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -3584,6 +3587,202 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	certs, err := a.authServer.generateUserCert(ctx, certReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return certs, nil
+}
+
+func roleIntersect(botRoles []types.Role, userRoles, requestedRoles []string) []string {
+	botSet := map[string]struct{}{}
+	for _, role := range botRoles {
+		botSet[role.GetName()] = struct{}{}
+	}
+
+	userSet := map[string]struct{}{}
+	for _, role := range userRoles {
+		userSet[role] = struct{}{}
+	}
+
+	requestedSet := map[string]struct{}{}
+	for _, role := range requestedRoles {
+		requestedSet[role] = struct{}{}
+	}
+
+	var ret []string
+	for candidate := range botSet {
+		_, inUserSet := userSet[candidate]
+		_, inRequestedSet := requestedSet[candidate]
+
+		if inUserSet && inRequestedSet {
+			ret = append(ret, candidate)
+		}
+	}
+
+	return ret
+}
+
+func (a *ServerWithRoles) generateDelegatedCerts(ctx context.Context, req *proto.DelegatedCertsRequest) (*proto.Certs, error) {
+	ident := a.context.Identity.GetIdentity()
+
+	if ident.BotInstanceID == "" {
+		return nil, trace.AccessDenied("only bots allowed")
+	}
+
+	// Start by parsing and verify the incoming JWT from the delegator.
+	// Get the clusters CA.
+	clusterName, err := a.authServer.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ca, err := a.authServer.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.JWTSigner,
+		DomainName: clusterName.GetClusterName(),
+	}, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	signer, err := a.authServer.GetKeyStore().GetJWTSigner(ctx, ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tok, err := jwt.ParseSigned(string(req.Assertion))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var claims libjwt.Claims
+	if err := tok.Claims(signer.Public(), &claims); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	slog.WarnContext(ctx, "validating jwt", "cluster_name", clusterName.GetClusterName(), "claims", claims)
+
+	if err := claims.Claims.ValidateWithLeeway(jwt.Expected{
+		Issuer: clusterName.GetClusterName(),
+		Time:   a.authServer.clock.Now(),
+	}, time.Minute); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Get the desired impersonation user.
+	userState, err := a.authServer.GetUser(ctx, claims.Subject, false)
+	if err != nil {
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	// !! this is probably exploitable and should not make it to production as is
+	botRoles := a.context.Checker.Roles()
+	intersectedRoles := roleIntersect(botRoles, claims.Roles, req.Roles)
+
+	slog.WarnContext(
+		ctx,
+		"computed intersected roles",
+		"user_roles", claims.Roles,
+		"bot_roles", botRoles,
+		"requested_roles", req.Roles,
+		"intersection", intersectedRoles,
+	)
+
+	accessInfo := &services.AccessInfo{
+		Username: userState.GetName(),
+		Roles:    intersectedRoles,
+		Traits:   userState.GetTraits(),
+	}
+
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.RouteToApp == nil {
+		req.RouteToApp = &proto.RouteToApp{}
+	}
+
+	var appSessionID string
+	if req.RouteToApp.Name != "" {
+		// Create a new app session using the same cert request. The user certs
+		// generated below will be linked to this session by the session ID.
+		ws, err := a.authServer.CreateAppSessionFromReq(ctx, NewAppSessionRequest{
+			NewWebSessionRequest: NewWebSessionRequest{
+				User:       userState.GetName(),
+				LoginIP:    a.context.Identity.GetIdentity().LoginIP,
+				SessionTTL: ident.Expires.Sub(a.authServer.GetClock().Now()),
+				Traits:     accessInfo.Traits,
+				Roles:      accessInfo.Roles,
+				// App sessions created through generateUserCerts are securely contained
+				// to the Proxy and Auth roles, and thus should pass hardware key requirements
+				// through the "web_session" attestation. User's will be required to provide
+				// MFA instead.
+				AttestWebSession: true,
+			},
+			PublicAddr:        req.RouteToApp.PublicAddr,
+			ClusterName:       req.RouteToApp.ClusterName,
+			AWSRoleARN:        req.RouteToApp.AWSRoleARN,
+			AzureIdentity:     req.RouteToApp.AzureIdentity,
+			GCPServiceAccount: req.RouteToApp.GCPServiceAccount,
+			DeviceExtensions:  DeviceExtensions(a.context.Identity.GetIdentity().DeviceExtensions),
+			AppName:           req.RouteToApp.Name,
+			AppURI:            req.RouteToApp.URI,
+			AppTargetPort:     int(req.RouteToApp.TargetPort),
+
+			BotName: getBotName(userState),
+			// Always pass through a bot instance ID if available. Legacy bots
+			// joining without an instance ID may have one generated when
+			// `updateBotInstance()` is called below, and this (empty) value will be
+			// overridden.
+			BotInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		appSessionID = ws.GetName()
+	}
+
+	certReq := certRequest{
+		user:              userState,
+		ttl:               ident.Expires.Sub(a.authServer.GetClock().Now()),
+		tlsPublicKey:      req.TLSPublicKey,
+		overrideRoleTTL:   a.hasBuiltinRole(types.RoleAdmin),
+		routeToCluster:    ident.RouteToCluster, // TODO: would probably need to make this settable
+		appSessionID:      appSessionID,
+		appName:           req.RouteToApp.Name,
+		appPublicAddr:     req.RouteToApp.PublicAddr,
+		appURI:            req.RouteToApp.URI,
+		appTargetPort:     int(req.RouteToApp.TargetPort),
+		appClusterName:    req.RouteToApp.ClusterName,
+		awsRoleARN:        req.RouteToApp.AWSRoleARN,
+		azureIdentity:     req.RouteToApp.AzureIdentity,
+		gcpServiceAccount: req.RouteToApp.GCPServiceAccount,
+		checker:           checker,
+		// Copy IP from current identity to the generated certificate, if present,
+		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.
+		loginIP:      ident.LoginIP,
+		botName:      getBotName(userState),
+		impersonator: ident.Username,
+
+		// Always pass through a bot instance ID if available. Legacy bots
+		// joining without an instance ID may have one generated when
+		// `updateBotInstance()` is called below, and this (empty) value will be
+		// overridden.
+		botInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
+		joinToken:     a.context.Identity.GetIdentity().JoinToken,
+		// Propagate any join attributes from the current identity to the new
+		// identity.
+		joinAttributes: a.context.Identity.GetIdentity().JoinAttributes,
+
+		disallowReissue: true,
+		renewable:       false,
+	}
+
+	if ident.Impersonator != "" {
+		certReq.impersonator = ident.Impersonator
 	}
 
 	certs, err := a.authServer.generateUserCert(ctx, certReq)

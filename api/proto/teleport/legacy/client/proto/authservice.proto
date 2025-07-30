@@ -94,6 +94,20 @@ message HostCertsRequest {
   string SystemRoleAssertionID = 13 [(gogoproto.jsontag) = "system_role_assertion_id,omitempty"];
 }
 
+message DelegatedCertsRequest {
+  // TLSPublicKey is a public key in PEM-encoded PKCS#1 or PKIX format, to be used as
+  // the subject for the issued TLS certificate. If omitted, only an SSH cert
+  // will be returned.
+  bytes TLSPublicKey = 1 [(gogoproto.jsontag) = "tls_public_key"];
+  // Assertion is a JWT assertion of the delegator user
+  string Assertion = 2 [(gogoproto.jsontag) = "assertion"];
+  // App specifies the target App if any.
+  RouteToApp RouteToApp = 3 [(gogoproto.jsontag) = "route_to_app"];
+  // Roles specifies a set of roles to request. The returned certs will be
+  // granted the intersection of user and bot allowed roles.
+  repeated string Roles = 4 [(gogoproto.jsontag) = "roles"];
+}
+
 // OpenSSHCertRequest specifies certificate-generation parameters
 // for a certificates used to connect to Agentless nodes.
 message OpenSSHCertRequest {
@@ -2798,6 +2812,9 @@ service AuthService {
   rpc GenerateUserCerts(UserCertsRequest) returns (Certs);
   // GenerateHostCerts generates a set of host certificates.
   rpc GenerateHostCerts(HostCertsRequest) returns (Certs);
+  // GenerateDelegatedCerts generates a set of delegated certificates using an
+  // impersonator (delegatee) and delegator JWT assertion.
+  rpc GenerateDelegatedCerts(DelegatedCertsRequest) returns (Certs);
   // Deprecated: Superseded by GenerateUserCerts.
   rpc GenerateUserSingleUseCerts(stream UserSingleUseCertsRequest) returns (stream UserSingleUseCertsResponse) {
     option deprecated = true;
