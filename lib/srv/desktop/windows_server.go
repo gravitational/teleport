@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -217,6 +216,9 @@ type WindowsServiceConfig struct {
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	Labels               map[string]string
+	// NLA indicates whether the client should perform Network Level Authentication
+	// (NLA) when initiating the RDP session.
+	NLA bool
 }
 
 // HeartbeatConfig contains the configuration for service heartbeats.
@@ -366,10 +368,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		closeCtx:    ctx,
 		close:       close,
 		auditCache:  newSharedDirectoryAuditCache(),
-
-		// For now, NLA is opt-in via an environment variable.
-		// We'll make it the default behavior in a future release.
-		enableNLA: os.Getenv("TELEPORT_ENABLE_RDP_NLA") == "yes",
+		enableNLA:   cfg.NLA,
 	}
 
 	s.ca = windows.NewCertificateStoreClient(windows.CertificateStoreConfig{
