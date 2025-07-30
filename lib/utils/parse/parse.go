@@ -231,7 +231,7 @@ func RegexpReplace(inputs []string, match string, replacement string) ([]string,
 // for any of the json blobs results in a value other than a string or list of strings,
 // the function will return an error. If any of the input values are normal strings and
 // not json blobs, this expression will return an empty list rather than an error.
-func JSONPath(input any, path string) ([]string, error) {
+func JSONPath(input map[string]any, path string) ([]string, error) {
 	jpExpr, err := jp.ParseString(path)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -26,8 +26,8 @@ type EvaluationInput struct {
 	// or the internal static traits (for local users) which will be input to
 	// the login rule evaluation.
 	Traits map[string][]string
-	// Claims contains all pre-mapped claims, including non-string-like claims.
-	// Claims is a superset of Traits.
+	// Claims holds the original, unparsed provider claims. Each claim may be
+	// a standard string/list, or an arbitrary json object.
 	Claims map[string]any
 }
 
