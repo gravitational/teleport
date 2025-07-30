@@ -1803,9 +1803,6 @@ ensure-js-deps:
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
 	else $(MAKE) ensure-js-package-manager && pnpm install --frozen-lockfile; fi
 
-.PHONY: ensure-wasm-deps
-ensure-wasm-deps:
-
 .PHONY: build-ui
 build-ui: ensure-js-deps
 	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || pnpm build-ui-oss
