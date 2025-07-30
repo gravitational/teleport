@@ -59,12 +59,14 @@ type GlobalCLIFlags struct {
 	Insecure bool
 }
 
+type LoadAuthFunc func(cfg *servicecfg.Config) (*authclient.Config, error)
+
 // ApplyConfig takes configuration values from the config file and applies them
 // to 'servicecfg.Config' object.
 //
-// The returned authclient.Config has the credentials needed to dial the auth
+// The returned LoadAuthFunc can be used to create the credentials needed to dial the auth
 // server.
-func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Config, error) {
+func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (LoadAuthFunc, error) {
 	ctx := context.TODO()
 	// --debug flag
 	if ccf.Debug {
@@ -132,8 +134,11 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 		}
 		authConfig, err := LoadConfigFromProfile(ccf, cfg)
 		if err == nil {
-			return authConfig, nil
+			return func(_ *servicecfg.Config) (*authclient.Config, error) {
+				return authConfig, nil
+			}, nil
 		}
+
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		} else if runtime.GOOS == constants.WindowsOS {
@@ -158,40 +163,41 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 		}
 	}
 
-	authConfig := new(authclient.Config)
-	// read the host UUID only in case the identity was not provided,
-	// because it will be used for reading local auth server identity
-	cfg.HostUUID, err = hostid.ReadFile(cfg.DataDir)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, trace.Wrap(err, "Could not load Teleport host UUID file at %s. "+
-				"Please make sure that a Teleport Auth Service instance is running on this host prior to using tctl or provide credentials by logging in with tsh first.",
-				filepath.Join(cfg.DataDir, hostid.FileName))
-		} else if errors.Is(err, fs.ErrPermission) {
-			return nil, trace.Wrap(err, "Teleport does not have permission to read Teleport host UUID file at %s. "+
-				"Ensure that you are running as a user with appropriate permissions or provide credentials by logging in with tsh first.",
-				filepath.Join(cfg.DataDir, hostid.FileName))
+	return func(cfg *servicecfg.Config) (*authclient.Config, error) {
+		authConfig := new(authclient.Config)
+		// read the host UUID only in case the identity was not provided,
+		// because it will be used for reading local auth server identity
+		cfg.HostUUID, err = hostid.ReadFile(cfg.DataDir)
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				return nil, trace.Wrap(err, "Could not load Teleport host UUID file at %s. "+
+					"Please make sure that a Teleport Auth Service instance is running on this host prior to using tctl or provide credentials by logging in with tsh first.",
+					filepath.Join(cfg.DataDir, hostid.FileName))
+			} else if errors.Is(err, fs.ErrPermission) {
+				return nil, trace.Wrap(err, "Teleport does not have permission to read Teleport host UUID file at %s. "+
+					"Ensure that you are running as a user with appropriate permissions or provide credentials by logging in with tsh first.",
+					filepath.Join(cfg.DataDir, hostid.FileName))
+			}
+			return nil, trace.Wrap(err)
 		}
-		return nil, trace.Wrap(err)
-	}
-	identity, err := storage.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), state.IdentityID{Role: types.RoleAdmin, HostUUID: cfg.HostUUID})
-	if err != nil {
-		// The "admin" identity is not present? This means the tctl is running
-		// NOT on the auth server
-		if trace.IsNotFound(err) {
-			return nil, trace.AccessDenied("tctl must be used on an Auth Service host or provided with credentials by logging in with tsh first.")
+		identity, err := storage.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), state.IdentityID{Role: types.RoleAdmin, HostUUID: cfg.HostUUID})
+		if err != nil {
+			// The "admin" identity is not present? This means the tctl is running
+			// NOT on the auth server
+			if trace.IsNotFound(err) {
+				return nil, trace.AccessDenied("tctl must be used on an Auth Service host or provided with credentials by logging in with tsh first.")
+			}
+			return nil, trace.Wrap(err)
 		}
-		return nil, trace.Wrap(err)
-	}
-	authConfig.TLS, err = identity.TLSConfig(cfg.CipherSuites)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	authConfig.TLS.InsecureSkipVerify = ccf.Insecure
-	authConfig.Insecure = ccf.Insecure
-	authConfig.AuthServers = cfg.AuthServerAddresses()
-	authConfig.Log = cfg.Logger
-	authConfig.DialOpts = append(authConfig.DialOpts, metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTCTL))
-
-	return authConfig, nil
+		authConfig.TLS, err = identity.TLSConfig(cfg.CipherSuites)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		authConfig.TLS.InsecureSkipVerify = ccf.Insecure
+		authConfig.Insecure = ccf.Insecure
+		authConfig.AuthServers = cfg.AuthServerAddresses()
+		authConfig.Log = cfg.Logger
+		authConfig.DialOpts = append(authConfig.DialOpts, metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTCTL))
+		return authConfig, nil
+	}, nil
 }

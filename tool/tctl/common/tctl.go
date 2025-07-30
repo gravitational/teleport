@@ -181,12 +181,12 @@ func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 
 	cfg.Debug = ccf.Debug
 
-	clientConfig, err := tctlcfg.ApplyConfig(&ccf, cfg)
+	getAuthFn, err := tctlcfg.ApplyConfig(&ccf, cfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	clientFunc := commonclient.GetInitFunc(clientConfig)
+	clientFunc := commonclient.GetInitFunc(cfg, getAuthFn)
 
 	// Execute whatever is selected.
 	for _, c := range commands {

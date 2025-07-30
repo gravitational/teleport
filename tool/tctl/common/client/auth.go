@@ -35,8 +35,10 @@ import (
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
+	"github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // InitFunc initiates connection to auth service, makes ping request and return the client instance.
@@ -45,8 +47,14 @@ import (
 type InitFunc func(ctx context.Context) (client *authclient.Client, close func(context.Context), err error)
 
 // GetInitFunc wraps lazy loading auth init function for commands which requires the auth client.
-func GetInitFunc(clientConfig *authclient.Config) InitFunc {
+func GetInitFunc(cfg *servicecfg.Config, getAuthFn config.LoadAuthFunc) InitFunc {
 	return func(ctx context.Context) (*authclient.Client, func(context.Context), error) {
+		// Lazy load auth configuration
+		clientConfig, err := getAuthFn(cfg)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
 		resolver, err := reversetunnelclient.CachingResolver(
 			ctx,
 			reversetunnelclient.WebClientResolver(&webclient.Config{
