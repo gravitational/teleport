@@ -3560,7 +3560,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	if a.context.Identity.GetIdentity().Renewable &&
 		req.Username == a.context.User.GetName() &&
 		!isRoleImpersonation(req) &&
-		!certReq.disallowReissue {
+		!certReq.disallowReissue && len(certReq.activeRequests) == 0 {
 		certReq.renewable = true
 	}
 
