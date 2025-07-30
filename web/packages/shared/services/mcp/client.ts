@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-type mcpServerConfig = {
+export type MCPServerConfig = {
   command: string;
   args: string[];
 };
@@ -25,7 +25,7 @@ function mcpServerNameForApp(appName: string): string {
   return `teleport-mcp-${appName}`;
 }
 
-function mcpServerConfigForApp(appName: string): mcpServerConfig {
+function mcpServerConfigForApp(appName: string): MCPServerConfig {
   return {
     // TODO(greedy52) we might need different command path and TELEPORT_HOME
     // env var for Teleport Connect.

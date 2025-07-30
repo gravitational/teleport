@@ -126,7 +126,7 @@ export function MCPAppConnectDialog(props: { app: App; onClose: () => void }) {
             </Box>
             <TextSelectCopy text={`tsh mcp config ${app.name}`} />
             <Box>
-              *Note: You might need to restart your MCP client to load the
+              Note: You might need to restart your MCP client to load the
               updated configuration.
             </Box>
           </Stack>
