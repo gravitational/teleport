@@ -537,7 +537,7 @@ endif
 	rm -f gitref.go
 	rm -rf build.assets/tooling/bin
 	# Clean up wasm-pack build artifacts
-	rm -rf web/packages/shared/libs/ironrdp/pkg/
+	rm -rf web/packages/shared/libs/ironrdp/pkg/ironrdp*
 
 .PHONY: clean-ui
 clean-ui:

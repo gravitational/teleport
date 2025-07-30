@@ -1,0 +1,15 @@
+{
+  "name": "ironrdp",
+  "version": "0.1.0",
+  "license": "AGPL-3.0-only",
+  "files": [
+    "ironrdp_bg.wasm",
+    "ironrdp.js",
+    "ironrdp.d.ts"
+  ],
+  "module": "ironrdp.js",
+  "types": "ironrdp.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
