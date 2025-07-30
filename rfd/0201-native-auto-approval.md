@@ -56,6 +56,7 @@ For example, the requesting user is pre-approved to access all resources in the
 9. Support configuration of automatic reviews using the Terraform provider.
 10. Support automatic reviews of access requests created by a Machine ID bot
 user.
+11. Support automatic reviews of access requests during specified time intervals.
 
 Note: Development is in progress to refactor the access plugins and implement a
 unified set of interfaces. This will help achieve feature parity across access
@@ -109,6 +110,8 @@ for automatic reviews.
   requested resources will be automatically reviewed.
   - `User Traits` input accepts a map of traits. These are used to match a
     requesting user's Teleport traits.
+  - `Timezone` input accepts a timezone location. The default is `UTC`.
+  - `Time Intervals` input accepts a time interval for each selected day.
 - `Notifications` optionally configures `access_monitoring_rules.spec.notification`
   field. The initial implementation will not include the notifications section,
   but we'd like to support configuration of both automatic reviews and notifications
@@ -145,6 +148,12 @@ form, the resource labels are:
 The resulting expression uses AND across the intersection of labels. All requested
 resources must have both labels `env: dev` and `service: demo`.
 
+The `Timezone` input is written to a dedicated access monitoring rule spec:
+`spec.timezone`.
+
+The `Time Intervals` input is converted into a series of expressions using the
+`day` and `clock_between` functions.
+
 The `User Traits` input is converted into a series of `contains_any` expressions.
 The resulting expression uses AND across traits, and OR logic within a trait.
 The requester must match at least one of the values among each configured trait.
@@ -170,7 +179,17 @@ spec:
     access_request.spec.resource_labels_intersection["service"].contains("demo") &&
     contains_any(user.traits["level"], set("L1", "L2")) &&
     contains_any(user.traits["team"], set("Cloud")) &&
-    contains_any(user.traits["location"], set("Seattle"))
+    contains_any(user.traits["location"], set("Seattle")) &&
+    (
+      (
+        access_request.spec.creation_time.day() == "Sunday"
+        && access_request.spec.creation_time.clock_between("00:00", "17:00")
+      ) || (
+        access_request.spec.creation_time.day() == "Saturday"
+        && access_request.spec.creation_time.clock_between("00:00", "17:00")
+      )
+    )
+  timezone: America/Los_Angeles
   desired_state: reviewed
   notification:
     name: slack
@@ -211,6 +230,8 @@ the `builtin` value. This indicates that Teleport is responsible for monitoring
 the rule.
 - `spec.automatic_review.decision` field specifies the proposed state of the
 access request review. This can be either `APPROVED` or `DENIED`.
+- `spec.timezone` field specifies the timezone used for all time-based condition
+expressions. The default is `UTC`.
 
 The `spec.condition` expression has been extended to support new functions and
 dynamic variables:
@@ -225,6 +246,11 @@ user is on-call or pre-approved for the access request.
 union of all requested resource labels.
 - `access_request.spec.resource_labels_intersection` variable is a map containing
 the intersection of all requested resource labels.
+- `day(time)` returns the weekday string of the provided time. For example,
+`Sunday` or `Monday`.
+- `clock_between(time, start, end)` returns `true` if the clock time of the
+provided time is bewtween the start and end clock times. Clock time is represented
+as a 24-hour formatted string containing the hour and minute. For example, `17:15`.
 
 #### Examples
 ```yaml
@@ -265,6 +291,36 @@ spec:
   automatic_review:
     integration: builtin
     decision: DENIED
+```
+
+```yaml
+# This AMR automatically approves requests for the `cloud-prod` role if the
+# requesting user has the `team: cloud` trait and the current time is between
+# 00:00 and 17:00 on either Sunday or Saturday.
+kind: access_monitoring_rule
+version: v1
+metadata:
+  name: cloud-on-call
+spec:
+  subjects:
+    - access_request
+  condition: |-
+    contains_all(set("cloud-prod"), access_request.spec.roles) &&
+    user.traits["team"].contains("cloud") &&
+    (
+      (
+        access_request.spec.creation_time.day() == "Sunday"
+        && access_request.spec.creation_time.clock_between("00:00", "17:00")
+      ) || (
+        access_request.spec.creation_time.day() == "Saturday"
+        && access_request.spec.creation_time.clock_between("00:00", "17:00")
+      )
+    )
+  timezone: UTC
+  desired_state: reviewed
+  automatic_review:
+    integration: builtin
+    decision: APPROVED
 ```
 
 ### Internal automatic review service
@@ -473,6 +529,35 @@ condition: |-
   )
 ```
 
+### Use Existing `between` Condition Function
+The Teleport predicate expression language already supports a `between` function
+that can be used to check whether a specified time value falls between two other
+time values. In Go, time values represent a specific instant in time, including
+the year, month, and day. This makes them unsuitible for configuring schedules
+that recur on arbitrary days of the week.
+
+To use the `between` function for this type of scheduling, we would need a new
+time function to convert a clock time into a Go time value representing that time
+for the current day.
+
+For example, we might want to write and expression like:
+```yaml
+condition: access_request.spec.creation_time.clock_between("00:00", "17:00")
+```
+
+To achieve this using the existing `between` function, we would need a
+`time.clock(clock_time)` function, or something similar, that converts the
+provided clock time into a time value for today. Then we cloud write the
+expression as:
+```yaml
+condition: access_request.spec.creation_time.between(time.clock("00:00"), time.clock("17:00"))
+```
+
+I'm not sure which is better from a UX perspective, but from an implementation
+perspective, using `clock_between` is simpler because it avoids relying on
+`time.Now()`, which means we don't need to use a fake clock in the parser for
+unit testing.
+
 ## Implementation Plan
 
 ### Role Access Request
@@ -496,3 +581,11 @@ access requests.
 with requested resources.
 4. Update automatic review documentation to include details of resource access
 requests.
+
+### Time-based Access Monitoring Rules
+1. Extend the Access Monitoring Rule to support the `day(time)` and
+`clock_between(time, start, end)` functions.
+2. Update WebUI standard editor to support configuration of Access Monitoring
+Rules within specified time intervals.
+3. Update Access Monitoring Rules documentation to include details of time-based
+conditions.
