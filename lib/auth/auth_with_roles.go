@@ -1597,30 +1597,24 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 // Extra roles are determined from the user's search_as_roles and
 // preview_as_roles if [req] requested that each be used.
 func (a *ServerWithRoles) authContextForSearch(ctx context.Context, req *proto.ListResourcesRequest) (*authz.Context, error) {
-	var extraRoles []string
-	if req.UseSearchAsRoles {
-		extraRoles = append(extraRoles, a.context.Checker.GetAllowedSearchAsRoles()...)
-	}
-	if req.UsePreviewAsRoles {
-		extraRoles = append(extraRoles, a.context.Checker.GetAllowedPreviewAsRoles()...)
-	}
-	if len(extraRoles) == 0 {
-		// Return the current auth context unmodified.
-		return &a.context, nil
-	}
-
 	clusterName, err := a.authServer.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Get a new auth context with the additional roles
-	extendedContext, err := a.context.WithExtraRoles(a.authServer, clusterName.GetClusterName(), extraRoles)
+	// Get a new access checker with the additional roles.
+	extendedChecker, err := services.ExtendAccessCheckerRoles(ctx, a.context.Checker, a.authServer, services.ExtendAccessCheckerParam{
+		UseSearchAsRoles:  req.UseSearchAsRoles,
+		UsePreviewAsRoles: req.UsePreviewAsRoles,
+		ClusterName:       clusterName.GetClusterName(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return extendedContext, nil
+	newContext := a.context
+	newContext.Checker = extendedChecker
+	return &newContext, nil
 }
 
 var disableUnqualifiedLookups = os.Getenv("TELEPORT_UNSTABLE_DISABLE_UNQUALIFIED_LOOKUPS") == "yes"
