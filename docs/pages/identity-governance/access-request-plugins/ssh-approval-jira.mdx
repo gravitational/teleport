@@ -61,18 +61,44 @@ webhook run by the plugin, which modifies the Access Request in Teleport.
 
 ## Step 1/7. Define RBAC resources
 
-### Enable Role Access Requests
-
 Before you set up the Jira plugin, you need to enable Role Access Requests in
 your Teleport cluster.
 
 (!docs/pages/includes/plugins/editor-request-rbac.mdx!)
 
-### Create a user and role for the plugin
 
-(!docs/pages/includes/plugins/rbac-update.mdx!)
+## Step 2/8. Define Teleport Jira plugin user
 
-## Step 2/7. Install the Teleport Jira plugin
+The required permissions for the plugin are configured in the preset `access-plugin`
+role. To generate credentials for the plugin, define either a Machine ID bot user
+or a regular Teleport user.
+
+<Tabs>
+<TabItem label="Machine ID">
+(!docs/pages/includes/plugins/rbac-impersonate-machine-id.mdx!)
+</TabItem>
+<TabItem label="Long-lived identity files">
+(!docs/pages/includes/plugins/rbac-impersonate.mdx!)
+</TabItem>
+</Tabs>
+
+## Step 3/8. Export the access plugin identity
+
+Give the plugin access to a Teleport identity file. We recommend using Machine
+ID for this in order to produce short-lived identity files that are less
+dangerous if exfiltrated, though in demo deployments, you can generate
+longer-lived identity files with `tctl`:
+
+<Tabs>
+<TabItem label="Machine ID">
+(!docs/pages/includes/plugins/tbot-identity.mdx secret="teleport-plugin-jira-identity"!)
+</TabItem>
+<TabItem label="Long-lived identity files">
+(!docs/pages/includes/plugins/identity-export.mdx user="access-plugin" secret="teleport-plugin-jira-identity"!)
+</TabItem>
+</Tabs>
+
+## Step 4/7. Install the Teleport Jira plugin
 
 Install the Teleport Jira plugin following the instructions below, which depend
 on whether you are deploying the plugin on a host (e.g., an EC2 instance) or a
@@ -83,22 +109,6 @@ access both Jira and your Teleport Proxy Service (or Teleport Enterprise Cloud
 tenant).
 
 (!docs/pages/includes/plugins/install-access-request.mdx name="jira"!)
-
-## Step 3/7. Export the access plugin identity
-
-Give the plugin access to a Teleport identity file. We recommend using Machine
-ID for this in order to produce short-lived identity files that are less
-susceptible to exfiltration, though in demo deployments, you can generate
-longer-lived identity files with `tctl`:
-
-<Tabs>
-<TabItem label="Machine ID">
-(!docs/pages/includes/plugins/tbot-identity.mdx secret="teleport-plugin-slack-identity"!)
-</TabItem>
-<TabItem label="Long-lived identity files">
-(!docs/pages/includes/plugins/identity-export.mdx user="access-plugin" secret="teleport-plugin-jira-identity"!)
-</TabItem>
-</Tabs>
 
 ## Step 4/7. Set up a Jira project
 
