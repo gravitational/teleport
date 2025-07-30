@@ -61,6 +61,7 @@ const (
 	AuthService_DeleteAllNodes_FullMethodName                      = "/proto.AuthService/DeleteAllNodes"
 	AuthService_GenerateUserCerts_FullMethodName                   = "/proto.AuthService/GenerateUserCerts"
 	AuthService_GenerateHostCerts_FullMethodName                   = "/proto.AuthService/GenerateHostCerts"
+	AuthService_GenerateDelegatedCerts_FullMethodName              = "/proto.AuthService/GenerateDelegatedCerts"
 	AuthService_GenerateUserSingleUseCerts_FullMethodName          = "/proto.AuthService/GenerateUserSingleUseCerts"
 	AuthService_GenerateOpenSSHCert_FullMethodName                 = "/proto.AuthService/GenerateOpenSSHCert"
 	AuthService_IsMFARequired_FullMethodName                       = "/proto.AuthService/IsMFARequired"
@@ -356,6 +357,9 @@ type AuthServiceClient interface {
 	GenerateUserCerts(ctx context.Context, in *UserCertsRequest, opts ...grpc.CallOption) (*Certs, error)
 	// GenerateHostCerts generates a set of host certificates.
 	GenerateHostCerts(ctx context.Context, in *HostCertsRequest, opts ...grpc.CallOption) (*Certs, error)
+	// GenerateDelegatedCerts generates a set of delegated certificates using an
+	// impersonator (delegatee) and delegator JWT assertion.
+	GenerateDelegatedCerts(ctx context.Context, in *DelegatedCertsRequest, opts ...grpc.CallOption) (*Certs, error)
 	// Deprecated: Do not use.
 	// Deprecated: Superseded by GenerateUserCerts.
 	GenerateUserSingleUseCerts(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[UserSingleUseCertsRequest, UserSingleUseCertsResponse], error)
@@ -1301,6 +1305,16 @@ func (c *authServiceClient) GenerateHostCerts(ctx context.Context, in *HostCerts
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Certs)
 	err := c.cc.Invoke(ctx, AuthService_GenerateHostCerts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) GenerateDelegatedCerts(ctx context.Context, in *DelegatedCertsRequest, opts ...grpc.CallOption) (*Certs, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Certs)
+	err := c.cc.Invoke(ctx, AuthService_GenerateDelegatedCerts_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -3820,6 +3834,9 @@ type AuthServiceServer interface {
 	GenerateUserCerts(context.Context, *UserCertsRequest) (*Certs, error)
 	// GenerateHostCerts generates a set of host certificates.
 	GenerateHostCerts(context.Context, *HostCertsRequest) (*Certs, error)
+	// GenerateDelegatedCerts generates a set of delegated certificates using an
+	// impersonator (delegatee) and delegator JWT assertion.
+	GenerateDelegatedCerts(context.Context, *DelegatedCertsRequest) (*Certs, error)
 	// Deprecated: Do not use.
 	// Deprecated: Superseded by GenerateUserCerts.
 	GenerateUserSingleUseCerts(grpc.BidiStreamingServer[UserSingleUseCertsRequest, UserSingleUseCertsResponse]) error
@@ -4549,6 +4566,9 @@ func (UnimplementedAuthServiceServer) GenerateUserCerts(context.Context, *UserCe
 }
 func (UnimplementedAuthServiceServer) GenerateHostCerts(context.Context, *HostCertsRequest) (*Certs, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GenerateHostCerts not implemented")
+}
+func (UnimplementedAuthServiceServer) GenerateDelegatedCerts(context.Context, *DelegatedCertsRequest) (*Certs, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GenerateDelegatedCerts not implemented")
 }
 func (UnimplementedAuthServiceServer) GenerateUserSingleUseCerts(grpc.BidiStreamingServer[UserSingleUseCertsRequest, UserSingleUseCertsResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method GenerateUserSingleUseCerts not implemented")
@@ -5660,6 +5680,24 @@ func _AuthService_GenerateHostCerts_Handler(srv interface{}, ctx context.Context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GenerateHostCerts(ctx, req.(*HostCertsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GenerateDelegatedCerts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DelegatedCertsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GenerateDelegatedCerts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_GenerateDelegatedCerts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GenerateDelegatedCerts(ctx, req.(*DelegatedCertsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -9879,6 +9917,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GenerateHostCerts",
 			Handler:    _AuthService_GenerateHostCerts_Handler,
+		},
+		{
+			MethodName: "GenerateDelegatedCerts",
+			Handler:    _AuthService_GenerateDelegatedCerts_Handler,
 		},
 		{
 			MethodName: "GenerateOpenSSHCert",

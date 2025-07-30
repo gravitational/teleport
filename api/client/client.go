@@ -1101,6 +1101,14 @@ func (c *Client) GenerateUserCerts(ctx context.Context, req proto.UserCertsReque
 	return certs, trace.Wrap(err)
 }
 
+// GenerateUserCerts takes the public key in the OpenSSH `authorized_keys` plain
+// text format, signs it using User Certificate Authority signing key and
+// returns the resulting certificates.
+func (c *Client) GenerateDelegatedCerts(ctx context.Context, req proto.DelegatedCertsRequest) (*proto.Certs, error) {
+	certs, err := c.grpc.GenerateDelegatedCerts(ctx, &req)
+	return certs, trace.Wrap(err)
+}
+
 // GenerateHostCerts generates host certificates.
 func (c *Client) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
