@@ -68,7 +68,7 @@ export class ClientToolsUpdateProvider extends Provider<UpdateInfo> {
     }
 
     const { baseUrl, version } = clientTools;
-    const fileUrl = `https://${baseUrl}/${makeDownloadFilename(this.nativeUpdater, version)}`;
+    const fileUrl = `${baseUrl}/${makeDownloadFilename(this.nativeUpdater, version)}`;
     const sha512 = await fetchChecksum(fileUrl);
 
     return {
