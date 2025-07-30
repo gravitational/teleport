@@ -300,6 +300,7 @@ func (h *portForwardProxy) requestID(stream httpstream.Stream) (string, error) {
 // when the httpstream.Connection is closed.
 func (h *portForwardProxy) run() {
 	h.logger.DebugContext(h.context, "Waiting for port forward streams")
+	var wg sync.WaitGroup
 	for {
 		select {
 		case <-h.context.Done():
@@ -334,10 +335,16 @@ func (h *portForwardProxy) run() {
 				err := trace.BadParameter("error processing stream for request %s: %v", requestID, err)
 				p.sendErr(err)
 			} else if complete {
-				go h.portForward(p)
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					h.portForward(p)
+				}()
 			}
 		}
 	}
+
+	wg.Wait()
 }
 
 // portForward handles the port-forwarding for the given stream pair.
