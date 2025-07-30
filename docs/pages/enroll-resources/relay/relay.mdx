@@ -5,11 +5,11 @@ description: How to deploy and use a Teleport Relay service
 
 <Admonition type="warning">
 
-This page refers to an unreleased Teleport feature and is thus subject to change. The following documentation applies to version `v18.0.2-dev.jsonpath.1-relay.3`.
+This page refers to an unreleased Teleport feature and is thus subject to change. The following documentation applies to version `v18.1.2-dev.relay.2`.
 
 </Admonition>
 
-A Relay service group consists of one or more Teleport instances configured to run the Relay service with the same relay group name, all accessible behind the same load balancer. The Relay service uses two endpoints, one for "API" access (nominally, on port 3040) used by clients for the SSH transport and by agents for configuration discovery, and one for "tunnel" access (nominally, on port 3042) used by agents to run reverse tunnels. Both of those ports should be accessible through a load balancer that forwards connections to all the agents in the same Relay group. The Relay service instances connect to each other for the purpose of forwarding connections over the internal "peer" port (nominally port 3041).
+A Relay service group consists of one or more Teleport instances configured to run the Relay service with the same relay group name, all accessible behind the same load balancer. The Relay service uses two endpoints, one for "transport" access used by clients for the SSH transport and, in the future, for Kubernetes access forwarding, and one for "tunnel" access used by agents to fetch the relay group configuration and to run reverse tunnels. Both of those ports should be accessible through a load balancer that forwards connections to all the agents in the same Relay group. The Relay service instances connect to each other for the purpose of forwarding connections over the internal "peer" port.
 
 The configuration for the Relay service is described as follows:
 
@@ -32,29 +32,38 @@ ssh_service:
   enabled: false
 relay_service:
   enabled: true
+
   # a name assigned to the group, should be the same across instances
   # for the same group and should be unique in the cluster
   relay_group: groupname
+
   # how many tunnels to distinct Relays should be opened by the Teleport
   # instances pointed at this group
   target_connection_count: 2
-  # hostnames or IP addresses that the API endpoint is expected to be reached at
+
+  # hostnames or IP addresses that the endpoints is expected to be reached at
   # by clients and agents alike; normally it will just be one, but can be set to
   # multiple names in case the address should be changed, for seamless migrations
-  api_public_hostnames:
+  public_hostnames:
     - relay-api-load-balancer.example.com
-  api_listen_addr: 0.0.0.0:3040
+
+  transport_listen_addr: 0.0.0.0:3040
+  peer_listen_addr: 0.0.0.0:3041
   tunnel_listen_addr: 0.0.0.0:3042
-  tunnel_public_addr: relay-api-load-balancer.example.com:3042
+
+  # set to true to require (and trust) a PROXY protocol v2 header for connections
+  # to the two listeners
+  #transport_proxy_protocol: false
+  #tunnel_proxy_protocol: false
 ```
 
 <Admonition type="warning">
 
-The current version of the Relay service requires agents to make use of a single Relay tunnel address behind a load balancer. Direct connections from agents to individual Relay instances is planned as an optional mode of operation.
+The current version of the Relay service requires agents to make use of a single Relay tunnel address behind a load balancer. Direct connections from agents to individual Relay instances is planned as an optional mode of operation in future versions.
 
 </Admonition>
 
-Teleport agents running the SSH service can be configured to use a Relay by specifying `teleport.relay_server` to point at the Relay API endpoint in their configuration file:
+Teleport agents running the SSH service can be configured to use a Relay by specifying `teleport.relay_server` to point at the Relay tunnel endpoint in their configuration file:
 
 ```yaml
 version: v3
@@ -62,7 +71,7 @@ teleport:
   join_params:
     # ...
   proxy_server: teleport.example.com:443
-  relay_server: relay-api-load-balancer.example.com:3040
+  relay_server: relay-api-load-balancer.example.com:3042
 auth_service:
   enabled: false
 proxy_service:
@@ -73,18 +82,18 @@ ssh_service:
 
 If `teleport.relay_server` is set, the agent will open reverse tunnels against the Relay in addition to its usual reverse tunnels against the Teleport control plane. Setting the `TELEPORT_UNSTABLE_DISABLE_REVERSE_TUNNEL` envvar to `yes` will disable the standard reverse tunnels (during testing, it can be useful to confirm that the connections are using the Relay). The relay is only used if the agent is using "tunnel mode" (i.e. when the agent is pointed at a proxy rather than directly to an auth).
 
-All Teleport SSH clients can make use of a relay by setting the `TELEPORT_UNSTABLE_RELAY_ADDR` envvar to point at the Relay API endpoint (the same value as `teleport.relay_server` for agents). The envvar should be set at connection time when using `tsh`, the `tsh` OpenSSH integration or a Machine ID `identity` output. The envvar must be set for the `tbot` process when using an `ssh-multiplexer` service. The final release of the Relay feature will include CLI options to set the desired Relay address at `tsh login` time and ways to enable and choose the Relay to use for each output and service in the `tbot` configuration file.
+All Teleport SSH clients can make use of a relay by setting the `TELEPORT_UNSTABLE_RELAY_ADDR` envvar to point at the Relay API endpoint address (using port 443 if unspecified). The envvar should be set at connection time when using `tsh`, the `tsh` OpenSSH integration or a Machine ID `identity` output. The envvar must be set for the `tbot` process when using an `ssh-multiplexer` service. The final release of the Relay feature will include CLI options to set the desired Relay address at `tsh login` time and ways to enable and choose the Relay to use for each output and service in the `tbot` configuration file.
 
 ## Deploying a Relay with the `teleport-relay` chart
 
-The `teleport-relay` chart (available in the `https://charts.releases.development.teleport.dev` Helm repository, or usable directly through the `https://charts.releases.development.teleport.dev/teleport-relay-18.0.2-dev.jsonpath.1-relay.3.tgz` URL) sets up a deployment with two replicas and a load balancer, using ports 3040 and 3042. Use of the chart requires setting some values:
+The `teleport-relay` chart (available in the `https://charts.releases.development.teleport.dev` Helm repository, or usable directly through the `https://charts.releases.development.teleport.dev/teleport-relay-18.1.2-dev.relay.2.tgz` URL) sets up a deployment with two replicas and a load balancer, using ports 443 and 3042. Use of the chart requires setting some values:
 
 ```yaml
 proxyAddr: teleport.example.com:443
 
 # the `teleport.join_params` section of the Teleport config file, the join method should be
 # valid for joining as a Relay; creating such a token currently requires using the `tctl` tool
-# from the prerelease version
+# from the same prerelease version
 joinParams:
   method: iam
   token_name: tokenname
@@ -93,17 +102,20 @@ relayGroup: groupname
 #targetConnectionCount: 2
 shutdownDelay: '1m'
 
-apiPublicHostnames:
+publicHostnames:
   - relay-api-load-balancer.example.com
 
-tunnelPublicAddr: relay-api-load-balancer.example.com:3042
+# set to true to require (and trust) a PROXY protocol v2 header for connections
+# to the two listeners
+#transportProxyProtocol: false
+#tunnelProxyProtocol: false
 
 image:
   # required for the prerelease, will be automatic on final
   # release (except maybe for an "enterprise" flag)
   repository: 'public.ecr.aws/gravitational-staging/teleport-ent-distroless-debug'
   # defaults to the version of the chart, can be overridden
-  #tag: '18.0.2-dev.jsonpath.1-relay.3'
+  #tag: '18.1.2-dev.relay.2'
 
 #deploymentSpec:
 #  replicas: 2
@@ -112,16 +124,10 @@ image:
 terminationGracePeriodSeconds: 300
 ```
 
-Other options are described in [the chart's default `values.yaml`](https://github.com/gravitational/teleport/blob/v18.0.2-dev.jsonpath.1-relay.3/examples/chart/teleport-relay/values.yaml); options such as `serviceSpec` and `serviceAnnotations` can be quite useful to configure the properties of the load balancer, for example.
+Other options are described in [the chart's default `values.yaml`](https://github.com/gravitational/teleport/blob/v18.1.2-dev.relay.2/examples/chart/teleport-relay/values.yaml); options such as `serviceSpec` and `serviceAnnotations` can be quite useful to configure the properties of the load balancer, for example.
 
 <Admonition type="warning">
 
 The Relay service does not support in-place restarts or reusing the same host ID and the `teleport-relay` chart runs as a deployment and does not maintain any state (unlike the `teleport-kube-agent` chart), so the use of a secretless join method (`iam` through EKS Pod Identity, for example) is strongly recommended.
-
-</Admonition>
-
-<Admonition type="warning">
-
-The listeners behind the load balancer don't currently support parsing the client IP with a PROXY protocol header, so for correct auditing (as well as the correct functioning of SSH connection resumption) we recommend using a load balancer that can transparently present the correct source IP address for forwarded connections (an AWS NLB in IP mode can do this, for example).
 
 </Admonition>
