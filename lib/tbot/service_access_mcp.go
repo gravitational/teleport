@@ -227,6 +227,11 @@ func (s *MCPService) Run(ctx context.Context) error {
 			mcp.Required(),
 			mcp.Description("Username on the server to connect as"),
 		),
+		mcp.WithString(
+			"access_request_id",
+			mcp.Required(),
+			mcp.Description("The ID of an approved access request to use when running this command."),
+		),
 	), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		s.log.InfoContext(ctx, "Handling call of run_ssh_command tool")
 
@@ -242,8 +247,26 @@ func (s *MCPService) Run(ctx context.Context) error {
 		if err != nil {
 			return nil, trace.Wrap(err, "missing username")
 		}
+		accessRequestIDParam, err := request.RequireString("access_request_id")
+		if err != nil {
+			return nil, trace.Wrap(err, "missing access_request_id")
+		}
 
-		sshConfig, err := id.SSHClientConfig()
+		requestIdentity, err := s.identityGenerator.GenerateFacade(
+			ctx,
+			identity.WithLogger(s.log),
+			identity.WithLifetime(time.Minute*30, time.Minute),
+			identity.WithRequestModifier(func(request *proto.UserCertsRequest) {
+				request.UseRoleRequests = false
+				request.AccessRequests = []string{accessRequestIDParam}
+				request.RoleRequests = []string{}
+			}),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "generating identity with access request")
+		}
+
+		sshConfig, err := requestIdentity.SSHClientConfig()
 		if err != nil {
 			return nil, trace.Wrap(err, "getting SSH client config")
 		}
@@ -253,7 +276,7 @@ func (s *MCPService) Run(ctx context.Context) error {
 			TLSRoutingEnabled: true,
 			SSHConfig:         sshConfig,
 			TLSConfigFunc: func(cluster string) (*tls.Config, error) {
-				tlsConfig, err := id.TLSConfig()
+				tlsConfig, err := requestIdentity.TLSConfig()
 				if err != nil {
 					return nil, fmt.Errorf("getting TLS config from credentials: %w", err)
 				}
@@ -270,7 +293,7 @@ func (s *MCPService) Run(ctx context.Context) error {
 		}
 		defer proxyClient.Close()
 		// Default to targetting the cluster of the bot identity.
-		targetCluster := id.Get().ClusterName
+		targetCluster := requestIdentity.Get().ClusterName
 		targetHostPort := hostnameParam + ":0"
 		conn, _, err := proxyClient.DialHost(
 			ctx,

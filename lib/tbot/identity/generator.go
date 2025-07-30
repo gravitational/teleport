@@ -205,6 +205,12 @@ func WithRouteToCluster(cluster string) GenerateOption {
 	}
 }
 
+func WithRequestModifier(fn func(*proto.UserCertsRequest)) GenerateOption {
+	return func(opts *generateOpts) {
+		opts.requestModifiers = append(opts.requestModifiers, fn)
+	}
+}
+
 // GenerateFacade calls Generate and wraps the resulting Identity in a Facade
 // for easy use in API clients, etc.
 func (g *Generator) GenerateFacade(ctx context.Context, opts ...GenerateOption) (*Facade, error) {
