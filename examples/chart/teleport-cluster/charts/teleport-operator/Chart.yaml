@@ -1,4 +1,4 @@
-.version: &version "17.7.1-dev.signedjar.1"
+.version: &version "17.7.1-dev.signedjar.2"
 
 name: teleport-operator
 apiVersion: v2
