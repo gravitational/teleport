@@ -751,7 +751,7 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 		}
 
 		if cert.KeyUsage&x509.KeyUsageCRLSign == 0 {
-			asrv.logger.WarnContext(ctx, "Certificate authority can't sign CRLs, some Active Directory integrations will not work", "ca_type", caID.Type)
+			asrv.logger.WarnContext(ctx, "Certificate authority can't sign CRLs, some Active Directory integrations will require a CA rotation", "ca_type", caID.Type)
 			continue
 		}
 
