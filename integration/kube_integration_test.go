@@ -659,10 +659,20 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 	for _, tt := range tests {
 		t.Run(tt.name,
 			func(t *testing.T) {
+				// TODO(rana): Improve k8s isolation per test.
+				// Each test can have an isolated k8s environment.
+				// The isolated environment may have it's own namespace, pods, etc.
+				// This would involve updating CI k8s RBAC (fixtures/ci-teleport-rbac/ci-teleport.yaml).
+				// Existing tests can be updated to use the an isolated k8s environment.
+				// Current k8s integration testing reuses a single k8s environment and pod across tests.
+				// Some tests which delete pods (this one), or require multiple pods would benefit
+				// from isolated k8s environments.
+				// In this test, with k8s isolation per test, pod creation would be moved
+				// from `t.Cleanup()` to test setup.
 				t.Cleanup(func() {
 					// Current CI RBAC allows only for a pod named "test-pod".
-					// Kube integration test suite has also single instance of
-					// "test-pod" used by multiple tests.
+					// Kube integration test suite uses a single instance of
+					// "test-pod" across multiple tests.
 					// Here we continue the use and maintenance of the single "test-pod" pod approach.
 					// On successful test, "test-pod" is deleted, and re-created for the next test.
 					pod := newPod(testNamespace, testPod)
