@@ -1,0 +1,174 @@
+---
+title: Using the AWS CLI tools with Teleport and AWS IAM Identity Center
+description: Provides an overview of the Teleport AWS IAM Identity Center integration.
+labels:
+ - how-to
+ - identity-governance
+---
+
+This guide will show you how to configure the `aws` command-line tool to use
+access granted via Teleport and AWS Identity Center.
+
+## How it works
+
+You can access AWS using your Teleport-managed Account and Permission Set assignments
+using from the AWS CLI tools by using `sso` login and CLI profiles.
+
+## Prerequisites
+
+Before you begin, you will need:
+
+ * A Teleport-managed AWS Identity Center organisation
+ * The AWS CLI tools, installed as per the AWS [installation guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+ * The SSO Start URL and AWS Region for your Identity Center organisation. Ask your AWS administrator for the appropriate values.
+
+## Step 1/2. Configure the AWS SSO Session
+
+This step configures the AWS CLI tools to use SSO for authentication. You can
+either configure this manually, or via the `aws configure sso-session` wizard.
+
+### Using the Wizard
+
+Invoke the AWS SSO configuration wizard by running the following command and
+answering the questions asked by the wizard.  
+
+```shell
+$ aws configure sso-session
+```
+
+You will need to pick a name for the SSO session; this is just a local name for
+this particular SSO configuration. For this example we are using `my-identity-center`. 
+
+```shell
+$ aws configure sso-session
+SSO session name: my-identity-center
+SSO start URL [None]: https://d-9067e5a381.awsapps.com/start
+SSO region [None]: us-east-1
+SSO registration scopes [sso:account:access]:
+```
+
+### Manual Configuration
+
+You can also configure SSO authentication manually by editing your `.aws/config` file. The above example would look like this:
+
+```ini
+[sso-session my-identity-center]
+sso_start_url = https://d-9067e5a381.awsapps.com/start
+sso_region = us-east-1
+sso_registration_scopes = sso:account:access
+```
+
+### Testing the configuration
+
+To test the SSO configuration, try logging into AWS via sso.
+
+```shell
+$ aws sso login --sso-session my-identity-center
+```
+
+This will launch a browser-based flow that will log you into AWS via Teleport
+and ask you confirm the AWS CLI tool's access to AWS using your account.
+
+## Step 2/2. Creating AWS Profiles
+
+You will need to create a separate AWS profile for each AWS Account and Permission Set
+you want to access. These profiles will reference the SSO Session created above,
+which tells the AWS tools to use SSO authentication when the profile is active.
+
+Again you can do this either via an `aws configure` wizard, or editing your `/.aws/config` file directly.
+
+<Admonition>
+You can create as many profiles as you like, so repeat this step for as many AWS
+Account / Permission Set pairs that you need.
+</Admonition>
+
+### Using the Wizard
+
+To create a profile that uses given SSO session, invoke the SSO configuration 
+wizard with the following commands, and answering the questions it asks:
+
+```shell
+$ aws configure sso
+```
+
+The wizard asks several questions about the profile to create, but for our
+purposes, only selecting the AWS Account and Role are important. 
+
+Firstly, select the AWS account this profile will use. The wizard will offer you
+a list of available AWS accounts based on your current Account Assignments, if
+you are only permitted to use a single AWS account, the wizard automatically
+picks that and skips the question.
+
+```shell
+There are 2 AWS accounts available to you.
+> Staging, my.login@example.com (058264527036)
+  Production, my.login@example.com (637423191929)
+```
+
+Next, select the AWS Role to assume when this profile is active. Identity Center
+Permission Sets are provisioned onto AWS accounts as Roles, so select the role
+with the same name as the Permission Set you want to use.
+
+```shell
+There are 3 roles available to you.
+  SecurityAudit
+> AdministratorAccess
+  PowerUserAccess
+```
+
+Again, if only one option is available the wizard will automatically select that
+and skip the question.
+
+After several generic AWS profile questions (e.g. default AWS region, default
+output format, etc), the wizard will ask for the profile name. For this example,
+given that the profile will use the `AdminAccess` role on the `Staging` account
+we will call it `admin-on-staging`.
+
+### Creating the profile manually
+
+While helpful, the `aws configure sso` wizard requires currently-assigned Accounts
+and Permission Sets to work with. You can pre-configure an AWS profile to use
+Account Assignments that you currently do not have access to by editing your 
+`~/.aws/config` file and adding the profile directly.
+
+For example, the `admin-on-staging` profile we created above looks like this:
+
+```ini
+[profile admin-on-staging]
+sso_session = my-identity-center
+sso_account_id = 058264527036
+sso_role_name = AdministratorAccess
+region = us-east-1
+```
+
+### Testing the profile
+
+You can test the profile by running `aws sts get-caller-identity` and verifying
+the returned user ID and assumed Role. For example:
+
+```shell
+$ aws sts get-caller-identity --profile admin-on-staging
+{
+    "UserId": "AROAQ3EGWEC6HINTIKC72:my.login@example.com",
+    "Account": "058264527036",
+    "Arn": "arn:aws:sts::058264527036:assumed-role/AWSReservedSSO_AdministratorAccess_69450ffeac834ef7/my.login@example.com"
+}
+```
+
+## Troubleshooting 
+
+### "Invalid Callback" error
+
+If AWS presents you with an "invalid Callback URL" error message, the most likely 
+culprit is an incorrect AWS region in your `sso-session` configuration. 
+
+### "Error loading SSO Token" error
+
+The AWS cache directory has probably been deleted. Log in again with `aws sso login --sso-session ${SSO_SESSION_NAME}`, 
+where `${SSO_SESSION_NAME}` is the name of your configured SSO session.
+
+## Further reading
+
+For a broader introduction to using the AWS CLI with IAM Identity Center, see the
+AWS [Configuring IAM IDentity Center authentication with the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html#cli-configure-sso-configure)
+guide.
