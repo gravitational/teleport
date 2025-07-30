@@ -50,21 +50,20 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export const UserCheck = forwardRef<HTMLSpanElement, IconProps>(
+export const SortAscending = forwardRef<HTMLSpanElement, IconProps>(
   ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
-      className="icon icon-usercheck"
+      className="icon icon-sortascending"
       {...otherProps}
       ref={ref}
     >
       <path
         fillRule="evenodd"
-        d="M9.625 3a6.375 6.375 0 0 1 3.377 11.781c1.813.593 3.394 1.655 4.677 3.038l.395.449.046.061a.75.75 0 0 1-1.142.96l-.052-.057-.346-.391c-1.77-1.912-4.157-3.091-6.955-3.091-2.985 0-5.502 1.342-7.3 3.482a.75.75 0 0 1-1.15-.964c1.348-1.603 3.068-2.832 5.072-3.488A6.375 6.375 0 0 1 9.625 3m0 1.5a4.875 4.875 0 1 0 0 9.75 4.875 4.875 0 0 0 0-9.75"
+        d="M3.75 6a.75.75 0 0 1 .75-.75h12.75a.75.75 0 0 1 0 1.5H4.5A.75.75 0 0 1 3.75 6m0 6a.75.75 0 0 1 .75-.75h6.75a.75.75 0 0 1 0 1.5H4.5a.75.75 0 0 1-.75-.75m.75 5.25a.75.75 0 0 0 0 1.5h5.25a.75.75 0 0 0 0-1.5zm8.47-2.03a.75.75 0 0 1 1.06 0l2.47 2.47V10.5a.75.75 0 0 1 1.5 0v7.19l2.47-2.47a.75.75 0 1 1 1.06 1.06l-3.75 3.75a.747.747 0 0 1-1.06 0l-3.75-3.75a.75.75 0 0 1 0-1.06"
         clipRule="evenodd"
       />
-      <path d="M22.47 10.97a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-2-2-.052-.056a.75.75 0 0 1 1.056-1.056l.056.052 1.47 1.47z" />
     </Icon>
   )
 );
