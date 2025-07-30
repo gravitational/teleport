@@ -2,6 +2,8 @@ import { StoryObj } from '@storybook/react-vite';
 import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
 
+import { ToastNotificationProvider } from 'shared/components/ToastNotification';
+
 import cfg from 'e-teleport/config';
 import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
@@ -47,9 +49,11 @@ export const Dialog: StoryObj = {
 
     return (
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <InviteCollaboratorsDialog onClose={() => {}} open={true} />
-        </ContextProvider>
+        <ToastNotificationProvider>
+          <ContextProvider ctx={ctx}>
+            <InviteCollaboratorsDialog onClose={() => {}} open={true} />
+          </ContextProvider>
+        </ToastNotificationProvider>
       </MemoryRouter>
     );
   },
@@ -84,9 +88,11 @@ export const DialogError: StoryObj = {
 
     return (
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <InviteCollaboratorsDialog onClose={() => {}} open={true} />
-        </ContextProvider>
+        <ToastNotificationProvider>
+          <ContextProvider ctx={ctx}>
+            <InviteCollaboratorsDialog onClose={() => {}} open={true} />
+          </ContextProvider>
+        </ToastNotificationProvider>
       </MemoryRouter>
     );
   },
@@ -104,9 +110,11 @@ export const DialogSpinner = () => {
 
   return (
     <MemoryRouter>
-      <ContextProvider ctx={ctx}>
-        <InviteCollaboratorsDialog onClose={() => {}} open={true} />
-      </ContextProvider>
+      <ToastNotificationProvider>
+        <ContextProvider ctx={ctx}>
+          <InviteCollaboratorsDialog onClose={() => {}} open={true} />
+        </ContextProvider>
+      </ToastNotificationProvider>
     </MemoryRouter>
   );
 };

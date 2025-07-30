@@ -1,8 +1,7 @@
+import { NotificationEntry } from 'shared/components/ToastNotification';
 import Logger from 'shared/libs/logger';
 
 import { CloudUserInvites } from 'teleport/services/storageService';
-
-import { NotificationEntry } from './Notifications';
 
 const logger = Logger.create('shared/hooks/useAttempt');
 
@@ -24,7 +23,6 @@ export function createSuccessNotification(
   return {
     content,
     severity: 'success',
-    dismissAfterMs: 5000,
   };
 }
 

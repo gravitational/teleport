@@ -16,7 +16,9 @@ export default function Container({
   addNotification,
 }: EnterpriseComponentProps) {
   const ctx = useTeleportE();
-  const state = useRecovery(ctx, msg => addNotification('error', msg));
+  const state = useRecovery(ctx, msg =>
+    addNotification({ severity: 'error', content: msg })
+  );
   return <Recovery {...state} />;
 }
 

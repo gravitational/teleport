@@ -18,6 +18,7 @@ import Dialog, {
 } from 'design/Dialog';
 import { PaperPlane, UserAdd } from 'design/Icon';
 import { Option } from 'shared/components/Select';
+import { useToastNotifications } from 'shared/components/ToastNotification';
 import Validation, { Validator } from 'shared/components/Validation';
 import { useAttemptNext } from 'shared/hooks';
 
@@ -25,11 +26,6 @@ import useTeleport from 'e-teleport/useTeleportE';
 
 import { createSuccessNotification } from './common';
 import { InviteCollaboratorsForm } from './InviteCollaboratorsForm';
-import {
-  NotificationEntry,
-  NotificationItem,
-  Notifications,
-} from './Notifications';
 import { InviteCollaboratorsDialogProps, RoleOption } from './types';
 
 const ClusterName = styled.span<{
@@ -41,11 +37,11 @@ const ClusterName = styled.span<{
   text-decoration-color: ${props => props.theme.colors.text.main};
 `;
 
-function InviteCollaboratorsDialogInner({
+export function InviteCollaboratorsDialog({
   onClose,
-  addNotification,
-}: WrappedProps) {
+}: InviteCollaboratorsDialogProps) {
   const ctx = useTeleport();
+  const toastNotification = useToastNotifications();
 
   const clusterId = ctx.storeUser.getClusterId();
   const { attempt: loadAttempt, run: runLoad } = useAttemptNext('');
@@ -108,7 +104,7 @@ function InviteCollaboratorsDialogInner({
       .sendTeleportInvite(invite)
       .then(() => {
         onClose();
-        addNotification(createSuccessNotification(invite));
+        toastNotification.add(createSuccessNotification(invite));
       })
       .catch(err => {
         setSubmitAttempt({ status: 'failed', statusText: err.message });
@@ -196,52 +192,5 @@ function InviteCollaboratorsDialogInner({
         </Dialog>
       )}
     </Validation>
-  );
-}
-
-type WrappedProps = InviteCollaboratorsDialogProps & {
-  addNotification: (item: NotificationEntry) => void;
-};
-
-/**
- * A wrapper component for the InviteCollaboratorsDialog that adds toast
- * notifications.
- */
-export function InviteCollaboratorsDialog(
-  props: InviteCollaboratorsDialogProps
-) {
-  // We need to generate unique notification IDs, but don't particularly care
-  // what they are. We'll just use an incremental counter.
-  const [count, setCount] = useState<number>(0);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-
-  function addNotification(item: NotificationEntry) {
-    setNotifications([
-      {
-        ...item,
-        id: count.toString(),
-        dismissAfterMs: item.dismissAfterMs,
-      },
-      ...notifications,
-    ]);
-    setCount(count + 1);
-  }
-
-  function dismiss(id: string) {
-    setNotifications(notifications.filter(i => i.id != id));
-  }
-
-  const wrappedProps = {
-    ...props,
-    addNotification,
-  };
-
-  // Note: we control dialog open state here to make sure state is fully reset
-  // when the dialog is closed and reopened.
-  return (
-    <>
-      {props.open && <InviteCollaboratorsDialogInner {...wrappedProps} />}
-      <Notifications items={notifications} dismiss={dismiss} />
-    </>
   );
 }

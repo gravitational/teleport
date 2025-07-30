@@ -173,7 +173,10 @@ describe('recovery dashboard testing', () => {
     renderRecovery();
 
     await waitFor(() => {
-      expect(addNotification).toHaveBeenCalledWith('error', 'failed to fetch');
+      expect(addNotification).toHaveBeenCalledWith({
+        severity: 'error',
+        content: 'failed to fetch',
+      });
     });
     expect(
       screen.queryByText('Recovery codes were last generated on:')

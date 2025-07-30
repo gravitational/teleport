@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
 
 import Box from 'design/Box';
+import { ToastNotificationProvider } from 'shared/components/ToastNotification';
 
 import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import cfg from 'e-teleport/config';
@@ -30,7 +31,11 @@ export default {
           cfg.oss.entitlements.AccessLists = defaultAccessListEntitlement;
         };
       }, []);
-      return <Story />;
+      return (
+        <ToastNotificationProvider>
+          <Story />
+        </ToastNotificationProvider>
+      );
     },
   ],
 };

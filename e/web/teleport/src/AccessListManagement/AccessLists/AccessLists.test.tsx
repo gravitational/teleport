@@ -2,6 +2,10 @@ import { createMemoryHistory } from 'history';
 import { MemoryRouter, Router } from 'react-router';
 
 import { render, screen, waitFor } from 'design/utils/testing';
+import {
+  ToastNotificationProvider,
+  ToastNotifications,
+} from 'shared/components/ToastNotification';
 
 import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import ecfg from 'e-teleport/config';
@@ -137,11 +141,13 @@ describe('access list management caching', () => {
 
     render(
       <Router history={history}>
-        <ContextProvider ctx={ctx}>
-          <AccessListManagementContextProvider>
-            <AccessLists />
-          </AccessListManagementContextProvider>
-        </ContextProvider>
+        <ToastNotificationProvider>
+          <ContextProvider ctx={ctx}>
+            <AccessListManagementContextProvider>
+              <AccessLists />
+            </AccessListManagementContextProvider>
+          </ContextProvider>
+        </ToastNotificationProvider>
       </Router>
     );
 
@@ -165,11 +171,13 @@ describe('access list management caching', () => {
 
     render(
       <Router history={history}>
-        <ContextProvider ctx={ctx}>
-          <AccessListManagementContextProvider>
-            <AccessLists />
-          </AccessListManagementContextProvider>
-        </ContextProvider>
+        <ToastNotificationProvider>
+          <ContextProvider ctx={ctx}>
+            <AccessListManagementContextProvider>
+              <AccessLists />
+            </AccessListManagementContextProvider>
+          </ContextProvider>
+        </ToastNotificationProvider>
       </Router>
     );
 
@@ -193,11 +201,13 @@ describe('access list management caching', () => {
 
     render(
       <Router history={history}>
-        <ContextProvider ctx={ctx}>
-          <AccessListManagementContextProvider>
-            <AccessLists />
-          </AccessListManagementContextProvider>
-        </ContextProvider>
+        <ToastNotificationProvider>
+          <ContextProvider ctx={ctx}>
+            <AccessListManagementContextProvider>
+              <AccessLists />
+            </AccessListManagementContextProvider>
+          </ContextProvider>
+        </ToastNotificationProvider>
       </Router>
     );
 
@@ -223,11 +233,13 @@ describe('access list management caching', () => {
     // Test review by date badge is rendered.
     const { unmount } = render(
       <Router history={createMemoryHistory()}>
-        <ContextProvider ctx={ctx}>
-          <AccessListManagementContextProvider>
-            <AccessLists />
-          </AccessListManagementContextProvider>
-        </ContextProvider>
+        <ToastNotificationProvider>
+          <ContextProvider ctx={ctx}>
+            <AccessListManagementContextProvider>
+              <AccessLists />
+            </AccessListManagementContextProvider>
+          </ContextProvider>
+        </ToastNotificationProvider>
       </Router>
     );
 
@@ -256,11 +268,14 @@ describe('access list management caching', () => {
 
     render(
       <Router history={history}>
-        <ContextProvider ctx={ctx}>
-          <AccessListManagementContextProvider>
-            <AccessLists />
-          </AccessListManagementContextProvider>
-        </ContextProvider>
+        <ToastNotificationProvider>
+          <ContextProvider ctx={ctx}>
+            <AccessListManagementContextProvider>
+              <AccessLists />
+            </AccessListManagementContextProvider>
+          </ContextProvider>
+          <ToastNotifications />
+        </ToastNotificationProvider>
       </Router>
     );
 
@@ -286,11 +301,13 @@ describe('access list management caching', () => {
 
     render(
       <Router history={history}>
-        <ContextProvider ctx={ctx}>
-          <AccessListManagementContextProvider>
-            <AccessLists />
-          </AccessListManagementContextProvider>
-        </ContextProvider>
+        <ToastNotificationProvider>
+          <ContextProvider ctx={ctx}>
+            <AccessListManagementContextProvider>
+              <AccessLists />
+            </AccessListManagementContextProvider>
+          </ContextProvider>
+        </ToastNotificationProvider>
       </Router>
     );
 
@@ -302,11 +319,13 @@ describe('access list management caching', () => {
 function renderComponent(ctx: TeleportEContext) {
   return render(
     <MemoryRouter>
-      <ContextProvider ctx={ctx}>
-        <AccessListManagementContextProvider>
-          <AccessLists />
-        </AccessListManagementContextProvider>
-      </ContextProvider>
+      <ToastNotificationProvider>
+        <ContextProvider ctx={ctx}>
+          <AccessListManagementContextProvider>
+            <AccessLists />
+          </AccessListManagementContextProvider>
+        </ContextProvider>
+      </ToastNotificationProvider>
     </MemoryRouter>
   );
 }

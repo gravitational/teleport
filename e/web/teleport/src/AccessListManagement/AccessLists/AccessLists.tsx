@@ -38,7 +38,7 @@ import { MultiselectMenu } from 'shared/components/Controls/MultiselectMenu';
 import { SortMenu } from 'shared/components/Controls/SortMenu';
 import { ViewModeSwitch } from 'shared/components/Controls/ViewModeSwitch';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
-import { Notification } from 'shared/components/Notification';
+import { useToastNotifications } from 'shared/components/ToastNotification';
 
 import {
   accessListRequiresReview,
@@ -97,20 +97,11 @@ export function AccessLists() {
     decodeUrlQueryParam(searchParams.get('search') || '')
   );
 
+  const toastNotification = useToastNotifications();
+
   const perm = ctx.storeUser.getAccessListAccess();
   const canUpsertAsAdmin = perm.create && perm.edit && perm.list && perm.read;
   const canList = perm.list && perm.read;
-
-  const [notificationItem, setNotificationItem] = useState(() => {
-    if (location.state?.reviewedAccessList) {
-      return (
-        <ReviewedNotifciationItem
-          reviewedAccessList={location.state.reviewedAccessList}
-          onRemove={() => setNotificationItem(null)}
-        />
-      );
-    }
-  });
 
   useEffect(() => {
     if (
@@ -121,6 +112,18 @@ export function AccessLists() {
       )
     ) {
       return;
+    }
+
+    if (location.state?.reviewedAccessList) {
+      const reviewedAccessList = location.state.reviewedAccessList;
+      toastNotification.add({
+        severity: 'info',
+        content: {
+          title: `Submitted review for "${reviewedAccessList.title}"`,
+          description: `Next review date is ${reviewedAccessList.audit.nextDate}`,
+          icon: ShieldCheck,
+        },
+      });
     }
 
     processAccessLists(lists =>
@@ -188,7 +191,6 @@ export function AccessLists() {
           setSearchValue={setSearchValue}
         />
       </Box>
-      {notificationItem}
     </FeatureBox>
   );
 }
@@ -648,12 +650,6 @@ const renderFilterOwner = (
   );
 };
 
-const NotificationContainer = styled.div`
-  position: absolute;
-  top: ${props => props.theme.space[2]}px;
-  right: ${props => props.theme.space[5]}px;
-`;
-
 const AccessListContainer = styled(Flex)<{ viewMode?: ViewMode }>`
   display: ${p => (p.viewMode === ViewMode.LIST ? 'block' : 'grid')};
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -773,31 +769,6 @@ const DebouncedSearchInput = ({
     </InputWrapper>
   );
 };
-
-const ReviewedNotifciationItem = ({
-  reviewedAccessList,
-  onRemove,
-}: {
-  reviewedAccessList: AccessList;
-  onRemove(): void;
-}) => (
-  <NotificationContainer>
-    <Notification
-      key={reviewedAccessList.id}
-      item={{
-        id: reviewedAccessList.id,
-        severity: 'info',
-        content: {
-          title: `Submitted review for "${reviewedAccessList.title}"`,
-          description: `Next review date is ${reviewedAccessList.audit.nextDate}`,
-          icon: ShieldCheck,
-        },
-      }}
-      onRemove={onRemove}
-      isAutoRemovable={true}
-    />
-  </NotificationContainer>
-);
 
 const RefreshButton = ({ onRefresh }: { onRefresh: () => void }) => (
   <HoverTooltip tipContent="Refresh">
