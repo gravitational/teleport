@@ -6,8 +6,28 @@ labels:
  - zero-trust
 ---
 
-This guide will walk you through the process of writing, testing, and adding the
-first Login Rule to your Teleport cluster.
+Login Rules define logic that transforms the external traits of a user who signs
+into Teleport, providing consistent access control policies for users in your
+cluster. A Teleport administrator can use Login Rules to define transformations
+in user traits without requiring changes in their IdP configuration. This is
+particularly useful if the team that manages an organization's identity provider
+(IdP) is separate from the team that manages Teleport.
+
+This guide walks you through the process of writing, testing, and adding the
+first Login Rule to your Teleport cluster. 
+
+## How it works
+
+A Login Rule is a dynamic Teleport resource stored on the Auth Service backend.
+When a user authenticates to Teleport through an IdP, Teleport populates the
+user's **external traits** based on data from the IdP.  Login Rules define logic
+for manipulating a user's external traits. When a user signs into Teleport, the
+Teleport Auth Service executes Login Rules in order of priority. After executing
+all Login Rules the Auth Service encodes the final set of external traits in the
+certificates that it issues to the user.
+
+For more information about configuring Login Rules, see the [Login Rules
+Reference](../../../reference/access-controls/login-rules.mdx).
 
 ## Prerequisites
 
