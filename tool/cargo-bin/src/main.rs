@@ -22,7 +22,7 @@ fn main() {
     // Only reached if run-bin code fails, otherwise process exits early from within
     // binary::run.
     if let Err(res) = res {
-        eprintln!("\x1b[31m{}\x1b[0m", format!("run-bin failed: {res}"));
+        eprintln!("\x1b[31mrun-bin failed: {res}\x1b[0m");
         process::exit(1);
     }
 }
