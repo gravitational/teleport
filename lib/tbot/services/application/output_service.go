@@ -136,7 +136,7 @@ func (s *OutputService) generate(ctx context.Context) error {
 	}
 	defer impersonatedClient.Close()
 
-	routeToApp, _, err := getRouteToApp(
+	routeToApp, _, err := GetRouteToApp(
 		ctx,
 		s.getBotIdentity(),
 		impersonatedClient,
@@ -213,7 +213,7 @@ func (s *OutputService) render(
 	return trace.Wrap(internal.WriteTLSCAs(ctx, s.cfg.Destination, hostCAs, userCAs, databaseCAs))
 }
 
-func getRouteToApp(
+func GetRouteToApp(
 	ctx context.Context,
 	botIdentity *identity.Identity,
 	client *apiclient.Client,

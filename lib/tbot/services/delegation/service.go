@@ -8,33 +8,40 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
 	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/trace"
 )
 
+// TODO: pre-fetch an identity to get the bot's default roles
 func ServiceBuilder(cfg *Config, opts ...ServiceOpt) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		svc := &Service{
-			cfg:               cfg,
-			proxyPinger:       deps.ProxyPinger,
-			identityGenerator: deps.IdentityGenerator,
-			clientBuilder:     deps.ClientBuilder,
-			botAuthClient:     deps.Client,
+			cfg:                cfg,
+			proxyPinger:        deps.ProxyPinger,
+			identityGenerator:  deps.IdentityGenerator,
+			clientBuilder:      deps.ClientBuilder,
+			botAuthClient:      deps.Client,
+			applicationTunnels: make(map[string]*alpnproxy.LocalProxy),
 		}
 		for _, fn := range opts {
 			fn(svc)
@@ -73,8 +80,10 @@ type Service struct {
 	clientBuilder     *client.Builder
 	botAuthClient     *apiclient.Client
 	alpnUpgradeCache  *internal.ALPNUpgradeCache
+	insecure, fips    bool
 
-	insecure, fips bool
+	mu                 sync.Mutex
+	applicationTunnels map[string]*alpnproxy.LocalProxy
 }
 
 func (s *Service) String() string {
@@ -90,6 +99,7 @@ func (s *Service) Run(ctx context.Context) error {
 
 	mux := http.NewServeMux()
 	mux.Handle("POST /ssh-config", http.HandlerFunc(s.handleSSHConfig))
+	mux.Handle("POST /application-tunnel", http.HandlerFunc(s.handleApplicationTunnel))
 
 	srv := &http.Server{Handler: mux}
 	go func() {
@@ -120,10 +130,37 @@ func (s *Service) handleSSHConfig(w http.ResponseWriter, r *http.Request) {
 	}{path})
 }
 
+func (s *Service) handleApplicationTunnel(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	jwt, err := s.getUserJWT(r)
+	if err != nil {
+		http.Error(w, "Authorization header must be provided in the form `Bearer <token>`", http.StatusUnauthorized)
+		return
+	}
+
+	var params struct {
+		Name string `json:"application"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+		http.Error(w, "Failed to decode request body as JSON", http.StatusBadRequest)
+		return
+	}
+
+	tunnel, err := s.startApplicationTunnel(ctx, jwt, params.Name)
+	if err != nil {
+		s.log.ErrorContext(ctx, "Failed to start application tunnel", "error", err)
+		http.Error(w, "Failed to start application tunnel", http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(tunnel)
+}
+
 func (s *Service) generateUserSSHConfig(ctx context.Context, userJWT string) (string, error) {
 	// TODO: get a user certificate instead of this.
 	id, err := s.identityGenerator.GenerateFacade(ctx,
 		identity.WithLifetime(s.cfg.CredentialLifetime.TTL, s.cfg.CredentialLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
 	)
 	if err != nil {
 		return "", trace.Wrap(err, "generating identity")
@@ -133,6 +170,7 @@ func (s *Service) generateUserSSHConfig(ctx context.Context, userJWT string) (st
 	if err != nil {
 		return "", trace.Wrap(err, "building client")
 	}
+	defer client.Close()
 
 	clusterNames, err := internal.GetClusterNames(ctx, client, id.Get().ClusterName)
 	if err != nil {
@@ -185,6 +223,99 @@ func (s *Service) generateUserSSHConfig(ctx context.Context, userJWT string) (st
 	}
 
 	return filepath.Join(dest.Path, ssh.ConfigName), nil
+}
+
+func (s *Service) startApplicationTunnel(ctx context.Context, jwt string, applicationName string) (*ephemeralApplicationTunnel, error) {
+	identityOpts := []identity.GenerateOption{
+		identity.WithLifetime(s.cfg.CredentialLifetime.TTL, s.cfg.CredentialLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
+	}
+
+	// TODO: get a user certificate instead of this.
+	// TODO: add roles
+	id, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
+	if err != nil {
+		return nil, trace.Wrap(err, "generating identity")
+	}
+
+	client, err := s.clientBuilder.Build(ctx, id)
+	if err != nil {
+		return nil, trace.Wrap(err, "building client")
+	}
+	defer client.Close()
+
+	routeToApp, app, err := application.GetRouteToApp(
+		ctx,
+		id.Get(),
+		client,
+		applicationName,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting route to app")
+	}
+
+	routedID, err := s.identityGenerator.Generate(ctx,
+		append(identityOpts, identity.WithRouteToApp(routeToApp))...,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting routed identity")
+	}
+
+	proxyPong, err := s.proxyPinger.Ping(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "pinging proxy")
+	}
+	proxyAddr, err := proxyPong.ProxyWebAddr()
+	if err != nil {
+		return nil, trace.Wrap(err, "determining proxy address")
+	}
+
+	tunnelID := uuid.NewString()
+	socketPath, err := filepath.Abs(filepath.Join(s.cfg.Path, tunnelID+".sock"))
+	if err != nil {
+		return nil, trace.Wrap(err, "getting socket path")
+	}
+
+	lis, err := internal.CreateListener(ctx, s.log, "unix://"+socketPath)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating listener")
+	}
+
+	// TODO: ALPN upgrade stuff.
+	proxy, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
+		RemoteProxyAddr: proxyAddr,
+		ParentContext:   ctx,
+		Protocols: []common.Protocol{
+			application.ALPNProtocolForApp(app),
+		},
+		Cert:               *routedID.TLSCert,
+		InsecureSkipVerify: s.insecure,
+		Listener:           lis,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating local proxy")
+	}
+
+	// TODO: clean up the proxy and this goroutine.
+	s.mu.Lock()
+	s.applicationTunnels[tunnelID] = proxy
+	s.mu.Unlock()
+
+	go func() { proxy.Start(context.Background()) }()
+
+	expiry, _ := id.Expiry()
+
+	return &ephemeralApplicationTunnel{
+		ID:      tunnelID,
+		Address: "unix://" + socketPath,
+		Expires: expiry,
+	}, nil
+}
+
+type ephemeralApplicationTunnel struct {
+	ID      string    `json:"id"`
+	Address string    `json:"address"`
+	Expires time.Time `json:"expires"`
 }
 
 func (s *Service) getUserJWT(r *http.Request) (string, error) {

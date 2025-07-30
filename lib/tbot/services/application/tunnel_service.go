@@ -140,7 +140,7 @@ func (s *TunnelService) Run(ctx context.Context) error {
 	}
 }
 
-func alpnProtocolForApp(app types.Application) common.Protocol {
+func ALPNProtocolForApp(app types.Application) common.Protocol {
 	if app.IsTCP() {
 		return common.ProtocolTCP
 	}
@@ -204,7 +204,7 @@ func (s *TunnelService) buildLocalProxyConfig(ctx context.Context) (lpCfg alpnpr
 
 		RemoteProxyAddr:    proxyAddr,
 		ParentContext:      ctx,
-		Protocols:          []common.Protocol{alpnProtocolForApp(app)},
+		Protocols:          []common.Protocol{ALPNProtocolForApp(app)},
 		Cert:               *appCert,
 		InsecureSkipVerify: s.connCfg.Insecure,
 	}
@@ -251,7 +251,7 @@ func (s *TunnelService) issueCert(
 			s.log.ErrorContext(ctx, "Failed to close impersonated client.", "error", err)
 		}
 	}()
-	route, app, err := getRouteToApp(ctx, s.getBotIdentity(), impersonatedClient, s.cfg.AppName)
+	route, app, err := GetRouteToApp(ctx, s.getBotIdentity(), impersonatedClient, s.cfg.AppName)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
