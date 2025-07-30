@@ -5,7 +5,7 @@
 set -eu
 
 version_le() {
-  if command -v dpkg &>/dev/null; then
+  if command -v dpkg >/dev/null 2>&1; then
     dpkg --compare-versions "$1" le "$2"
   else
     [ "$(printf '%s\n' "$1" "$2" | sort -V | head -n1)" = "$1" ]
