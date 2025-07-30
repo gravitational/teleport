@@ -165,7 +165,8 @@ existing 17.3+ agents by running `teleport-update enable`.
 edition (Community vs Enterprise), the cluster's desired version, and the correct Teleport variant (e.g. FIPS-compliant
 cryptography).
 
-You can find more information about the feature in [our documentation]().
+You can find more information about the feature in [our
+documentation](https://goteleport.com/docs/upgrading/agent-managed-updates/).
 
 ### Package layout changes
 
