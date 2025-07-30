@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "17.6.0"
+const Version = "17.7.1-dev.signedjar.1"
 
 const VersionMajor = 17
-const VersionMinor = 6
-const VersionPatch = 0
-const VersionPreRelease = ""
+const VersionMinor = 7
+const VersionPatch = 1
+const VersionPreRelease = "dev.signedjar.1"
 const VersionMetadata = ""
