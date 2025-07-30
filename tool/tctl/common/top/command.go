@@ -94,10 +94,17 @@ func (c *Command) newMetricsClient(ctx context.Context) (string, MetricsClient, 
 }
 
 // TryRun attempts to run subcommands.
-func (c *Command) TryRun(ctx context.Context, cmd string, _ commonclient.InitFunc) (match bool, err error) {
+func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	if cmd != c.top.FullCommand() {
 		return false, nil
 	}
+
+	// Call clientFunc to init `c.config`
+	_, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return true, trace.Wrap(err)
+	}
+	closeFn(ctx)
 
 	addr, metricsClient, err := c.newMetricsClient(ctx)
 	if err != nil {
