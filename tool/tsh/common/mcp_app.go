@@ -266,7 +266,7 @@ func printMCPServersInText(w io.Writer, mcpServers iter.Seq[mcpServerWithDetails
 		})
 	}
 	t := asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Type", "Allowed Tools", "Labels"}, rows, "Labels")
-	if _, err := fmt.Fprintln(w, t.AsBuffer().String()); err != nil {
+	if _, err := fmt.Fprintln(w, t.String()); err != nil {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(rbacPrinter.maybePrintFootnote(w))
@@ -287,7 +287,7 @@ func printMCPServersInVerboseText(w io.Writer, mcpServers iter.Seq[mcpServerWith
 			rbacPrinter.formatAllowedTools(mcpServer),
 		})
 	}
-	if _, err := fmt.Fprintln(w, t.AsBuffer().String()); err != nil {
+	if _, err := fmt.Fprintln(w, t.String()); err != nil {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(rbacPrinter.maybePrintFootnote(w))

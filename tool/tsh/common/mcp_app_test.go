@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/mcp/claude"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 func Test_fetchMCPServers(t *testing.T) {
@@ -140,12 +141,6 @@ func Test_mcpListCommand(t *testing.T) {
 			name:       "text format",
 			cf:         &CLIConf{},
 			mcpServers: mcpServers,
-			wantOutput: `Name       Description Type  Allowed Tools       Labels  
----------- ----------- ----- ------------------- ------- 
-allow-read description stdio [read_*]            env=dev 
-deny-write description stdio [*], except: [wr... env=dev 
-
-`,
 		},
 		{
 			name: "text format in verbose",
@@ -153,12 +148,6 @@ deny-write description stdio [*], except: [wr... env=dev
 				Verbose: true,
 			},
 			mcpServers: mcpServers,
-			wantOutput: `Name       Description Type  Labels  Command Args Allowed Tools          
----------- ----------- ----- ------- ------- ---- ---------------------- 
-allow-read description stdio env=dev test    arg  [read_*]               
-deny-write description stdio env=dev test    arg  [*], except: [write_*] 
-
-`,
 		},
 		{
 			name: "text format with rbac warning",
@@ -166,15 +155,6 @@ deny-write description stdio env=dev test    arg  [*], except: [write_*]
 			mcpServers: []types.Application{
 				mustMakeMCPAppWithNameAndLabels(t, "no-access", devLabels),
 			},
-			wantOutput: `Name      Description Type  Allowed Tools Labels  
---------- ----------- ----- ------------- ------- 
-no-access description stdio (none) [!]    env=dev 
-
-[!] Warning: you do not have access to any tools on the MCP server.
-Please contact your Teleport administrator to ensure your Teleport role has
-appropriate 'allow.mcp.tools' set. For details on MCP access RBAC, see:
-https://goteleport.com/docs/enroll-resources/mcp-access/rbac/
-`,
 		},
 		{
 			name: "JSON format",
@@ -182,76 +162,6 @@ https://goteleport.com/docs/enroll-resources/mcp-access/rbac/
 				Format: "json",
 			},
 			mcpServers: mcpServers,
-			wantOutput: `[
-  {
-    "kind": "app",
-    "sub_kind": "mcp",
-    "version": "v3",
-    "metadata": {
-      "name": "allow-read",
-      "description": "description",
-      "labels": {
-        "env": "dev"
-      }
-    },
-    "spec": {
-      "uri": "mcp+stdio://",
-      "insecure_skip_verify": false,
-      "mcp": {
-        "command": "test",
-        "args": [
-          "arg"
-        ],
-        "run_as_host_user": "test"
-      }
-    },
-    "permissions": {
-      "mcp": {
-        "tools": {
-          "allowed": [
-            "read_*"
-          ]
-        }
-      }
-    }
-  },
-  {
-    "kind": "app",
-    "sub_kind": "mcp",
-    "version": "v3",
-    "metadata": {
-      "name": "deny-write",
-      "description": "description",
-      "labels": {
-        "env": "dev"
-      }
-    },
-    "spec": {
-      "uri": "mcp+stdio://",
-      "insecure_skip_verify": false,
-      "mcp": {
-        "command": "test",
-        "args": [
-          "arg"
-        ],
-        "run_as_host_user": "test"
-      }
-    },
-    "permissions": {
-      "mcp": {
-        "tools": {
-          "allowed": [
-            "*"
-          ],
-          "denied": [
-            "write_*"
-          ]
-        }
-      }
-    }
-  }
-]
-`,
 		},
 		{
 			name: "YAML format",
@@ -259,52 +169,6 @@ https://goteleport.com/docs/enroll-resources/mcp-access/rbac/
 				Format: "yaml",
 			},
 			mcpServers: mcpServers,
-			wantOutput: `- kind: app
-  metadata:
-    description: description
-    labels:
-      env: dev
-    name: allow-read
-  permissions:
-    mcp:
-      tools:
-        allowed:
-        - read_*
-  spec:
-    insecure_skip_verify: false
-    mcp:
-      args:
-      - arg
-      command: test
-      run_as_host_user: test
-    uri: mcp+stdio://
-  sub_kind: mcp
-  version: v3
-- kind: app
-  metadata:
-    description: description
-    labels:
-      env: dev
-    name: deny-write
-  permissions:
-    mcp:
-      tools:
-        allowed:
-        - '*'
-        denied:
-        - write_*
-  spec:
-    insecure_skip_verify: false
-    mcp:
-      args:
-      - arg
-      command: test
-      run_as_host_user: test
-    uri: mcp+stdio://
-  sub_kind: mcp
-  version: v3
-
-`,
 		},
 	}
 
@@ -323,7 +187,12 @@ https://goteleport.com/docs/enroll-resources/mcp-access/rbac/
 
 			err := cmd.print()
 			require.NoError(t, err)
-			require.Equal(t, tt.wantOutput, buf.String())
+
+			if golden.ShouldSet() {
+				golden.Set(t, buf.Bytes())
+			}
+
+			require.Equal(t, string(golden.Get(t)), buf.String())
 		})
 	}
 }
