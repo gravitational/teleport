@@ -30,6 +30,7 @@ import (
 	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
 	tbotSSH "github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
 
 // TODO: pre-fetch an identity to get the bot's default roles
@@ -160,7 +161,7 @@ func (s *Service) handleApplicationTunnel(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Service) generateUserSSHConfig(ctx context.Context, userJWT string) (string, error) {
-	id, err := s.identityGenerator.GenerateFacade(ctx,
+	baseID, err := s.identityGenerator.GenerateFacade(ctx,
 		identity.WithLifetime(s.cfg.CredentialLifetime.TTL, s.cfg.CredentialLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
 	)
@@ -168,13 +169,24 @@ func (s *Service) generateUserSSHConfig(ctx context.Context, userJWT string) (st
 		return "", trace.Wrap(err, "generating identity")
 	}
 
-	client, err := s.clientBuilder.Build(ctx, id)
+	baseClient, err := s.clientBuilder.Build(ctx, baseID)
 	if err != nil {
 		return "", trace.Wrap(err, "building client")
 	}
-	defer client.Close()
+	defer baseClient.Close()
 
-	clusterNames, err := internal.GetClusterNames(ctx, client, id.Get().ClusterName)
+	userID, err := s.getUserIdentity(ctx, baseClient, userJWT, []string{"editor", "access"}, nil)
+	if err != nil {
+		return "", trace.Wrap(err, "getting user identity")
+	}
+
+	userClient, err := s.clientBuilder.Build(ctx, identity.NewFacade(s.fips, s.insecure, userID))
+	if err != nil {
+		return "", trace.Wrap(err, "building user client")
+	}
+	defer userClient.Close()
+
+	clusterNames, err := internal.GetClusterNames(ctx, baseClient, userID.ClusterName)
 	if err != nil {
 		return "", trace.Wrap(err, "getting cluster names")
 	}
@@ -199,7 +211,7 @@ func (s *Service) generateUserSSHConfig(ctx context.Context, userJWT string) (st
 		return "", trace.Wrap(err, "getting host CAs")
 	}
 
-	keyRing, err := internal.NewClientKeyRing(id.Get(), hostCAs)
+	keyRing, err := internal.NewClientKeyRing(userID, hostCAs)
 	if err != nil {
 		return "", trace.Wrap(err, "creating keyring")
 	}
@@ -232,8 +244,6 @@ func (s *Service) startApplicationTunnel(ctx context.Context, jwt string, applic
 		identity.WithLifetime(s.cfg.CredentialLifetime.TTL, s.cfg.CredentialLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
 	}
-
-	// TODO: add roles
 	id, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
 	if err != nil {
 		return nil, trace.Wrap(err, "generating identity")
@@ -347,9 +357,13 @@ func (s *Service) getUserIdentity(
 	if err != nil {
 		return nil, trace.Wrap(err, "marshaling public key")
 	}
+	sshPub, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	// TODO: roles.
 	userCerts, err := client.GenerateDelegatedCerts(ctx, proto.DelegatedCertsRequest{
+		SSHPublicKey: ssh.MarshalAuthorizedKey(sshPub),
 		TLSPublicKey: pubKey,
 		Assertion:    jwt,
 		RouteToApp:   routeToApp,
@@ -363,30 +377,18 @@ func (s *Service) getUserIdentity(
 	if err != nil {
 		return nil, trace.Wrap(err, "marshaling private key")
 	}
-
-	// TODO: Fix this once the backend supports SSH certificates.
-	/*
-		publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
-		if err != nil {
-			return nil, trace.Wrap(err, "marshaling public key")
-		}
-
-		id, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
-			PrivateKeyBytes: privateKeyPEM,
-			PublicKeyBytes:  publicKeyPEM,
-		}, userCerts)
-		if err != nil {
-			return nil, trace.Wrap(err, "reading identity from store")
-		}
-
-		return id, nil
-	*/
-
-	pair, err := keys.X509KeyPair(userCerts.TLS, privateKeyPEM)
+	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
 	if err != nil {
-		return nil, trace.Wrap(err, "parsing keypair")
+		return nil, trace.Wrap(err, "marshaling public key")
 	}
-	return &identity.Identity{
-		TLSCert: &pair,
-	}, nil
+
+	id, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
+		PrivateKeyBytes: privateKeyPEM,
+		PublicKeyBytes:  publicKeyPEM,
+	}, userCerts)
+	if err != nil {
+		return nil, trace.Wrap(err, "reading identity from store")
+	}
+
+	return id, nil
 }
