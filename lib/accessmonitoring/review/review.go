@@ -241,6 +241,9 @@ func (handler *Handler) getMatchingRule(
 	var reviewRule *accessmonitoringrulesv1.AccessMonitoringRule
 
 	for _, rule := range handler.rules.Get() {
+		// Set timezone for time-based condition expressions
+		env.Timezone = rule.Spec.Timezone
+
 		conditionMatch, err := accessmonitoring.EvaluateCondition(rule.GetSpec().GetCondition(), env)
 		if err != nil {
 			handler.Logger.WarnContext(ctx, "Failed to evaluate access monitoring rule",

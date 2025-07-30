@@ -21,6 +21,7 @@ package services
 import (
 	"context"
 	"slices"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -91,6 +92,12 @@ func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.
 
 	if accessMonitoringRule.Spec.Condition == "" {
 		return trace.BadParameter("accessMonitoringRule condition is missing")
+	}
+
+	if accessMonitoringRule.Spec.Timezone != "" {
+		if _, err := time.LoadLocation(accessMonitoringRule.Spec.Timezone); err != nil {
+			return trace.BadParameter("accessMonitoringRule timezone is invalid: %s", err.Error())
+		}
 	}
 
 	if accessMonitoringRule.Spec.Notification != nil && accessMonitoringRule.Spec.Notification.Name == "" {

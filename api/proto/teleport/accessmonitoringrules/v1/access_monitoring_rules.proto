@@ -67,6 +67,10 @@ message AccessMonitoringRuleSpec {
   // subjects, the desired_state may be set to `reviewed` to indicate that the
   // Access Request should be automatically reviewed.
   string desired_state = 7;
+
+  // timezone specifies the timezone used for time-based conditions.
+  // Default value is `UTC`.
+  string timezone = 8;
 }
 
 // Notification contains configurations for plugin notification rules.

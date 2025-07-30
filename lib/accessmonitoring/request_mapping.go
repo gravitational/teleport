@@ -18,6 +18,7 @@ package accessmonitoring
 
 import (
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -55,7 +56,7 @@ func parseAccessRequestExpression(expr string) (accessRequestExpression, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	parsedExpr, err := parser.Parse(expr)
+	parsedExpr, err := parser.Parse(normalizeExpr(expr))
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing access monitoring rule condition expression")
 	}
@@ -217,6 +218,15 @@ func EvaluateCondition(expr string, env AccessRequestExpressionEnv) (bool, error
 	}
 	matched, ok := match.(bool)
 	return ok && matched, nil
+}
+
+// norlamizeExpr normalizes the expression into a single line string.
+func normalizeExpr(expr string) string {
+	tokens := strings.Split(expr, "\n")
+	for i, token := range tokens {
+		tokens[i] = strings.TrimSpace(token)
+	}
+	return strings.TrimSpace(strings.Join(tokens, " "))
 }
 
 // clockTime returns a new time value overriding the hour and minute.

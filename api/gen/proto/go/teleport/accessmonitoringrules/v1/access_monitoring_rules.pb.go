@@ -145,7 +145,10 @@ type AccessMonitoringRuleSpec struct {
 	// desired_state defines the desired state of the subject. For Access Request
 	// subjects, the desired_state may be set to `reviewed` to indicate that the
 	// Access Request should be automatically reviewed.
-	DesiredState  string `protobuf:"bytes,7,opt,name=desired_state,json=desiredState,proto3" json:"desired_state,omitempty"`
+	DesiredState string `protobuf:"bytes,7,opt,name=desired_state,json=desiredState,proto3" json:"desired_state,omitempty"`
+	// timezone specifies the timezone used for time-based conditions.
+	// Default value is `UTC`.
+	Timezone      string `protobuf:"bytes,8,opt,name=timezone,proto3" json:"timezone,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -218,6 +221,13 @@ func (x *AccessMonitoringRuleSpec) GetAutomaticReview() *AutomaticReview {
 func (x *AccessMonitoringRuleSpec) GetDesiredState() string {
 	if x != nil {
 		return x.DesiredState
+	}
+	return ""
+}
+
+func (x *AccessMonitoringRuleSpec) GetTimezone() string {
+	if x != nil {
+		return x.Timezone
 	}
 	return ""
 }
@@ -826,14 +836,15 @@ const file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDe
 	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x03 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x04 \x01(\tR\aversion\x12O\n" +
-	"\x04spec\x18\x05 \x01(\v2;.teleport.accessmonitoringrules.v1.AccessMonitoringRuleSpecR\x04spec\"\xdf\x02\n" +
+	"\x04spec\x18\x05 \x01(\v2;.teleport.accessmonitoringrules.v1.AccessMonitoringRuleSpecR\x04spec\"\xfb\x02\n" +
 	"\x18AccessMonitoringRuleSpec\x12\x1a\n" +
 	"\bsubjects\x18\x01 \x03(\tR\bsubjects\x12\x16\n" +
 	"\x06states\x18\x02 \x03(\tR\x06states\x12\x1c\n" +
 	"\tcondition\x18\x03 \x01(\tR\tcondition\x12S\n" +
 	"\fnotification\x18\x04 \x01(\v2/.teleport.accessmonitoringrules.v1.NotificationR\fnotification\x12]\n" +
 	"\x10automatic_review\x18\x06 \x01(\v22.teleport.accessmonitoringrules.v1.AutomaticReviewR\x0fautomaticReview\x12#\n" +
-	"\rdesired_state\x18\a \x01(\tR\fdesiredStateJ\x04\b\x05\x10\x06R\x12automatic_approval\"B\n" +
+	"\rdesired_state\x18\a \x01(\tR\fdesiredState\x12\x1a\n" +
+	"\btimezone\x18\b \x01(\tR\btimezoneJ\x04\b\x05\x10\x06R\x12automatic_approval\"B\n" +
 	"\fNotification\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1e\n" +
 	"\n" +
