@@ -19,8 +19,8 @@ app_service:
   # Enables application proxy service.
   enabled: true
   # Enables the builtin Teleport demo MCP server that shows current user and
-  # session information. Wildcard must be allowed for "app_labels" by your role
-  # to access this MCP server.
+  # session information. To access it, this MCP server uses the app label
+  # "teleport.internal/resource-type" with the value "demo".
   mcp_demo_server: true
   # This section contains definitions of all applications proxied by this
   # service. It can contain multiple items.

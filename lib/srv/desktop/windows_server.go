@@ -28,7 +28,6 @@ import (
 	"log/slog"
 	"maps"
 	"net"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -187,6 +186,9 @@ type WindowsServiceConfig struct {
 	Labels               map[string]string
 	// ResourceMatchers match dynamic Windows desktop resources.
 	ResourceMatchers []services.ResourceMatcher
+	// NLA indicates whether the client should perform Network Level Authentication
+	// (NLA) when initiating the RDP session.
+	NLA bool
 }
 
 // HeartbeatConfig contains the configuration for service heartbeats.
@@ -253,7 +255,7 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	if err := cfg.Heartbeat.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if cfg.LDAPConfig.Addr != "" || cfg.LDAPConfig.LocateServer.Enabled {
+	if cfg.LDAPConfig.Enabled() {
 		if err := cfg.LDAPConfig.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
@@ -356,10 +358,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		closeCtx:    ctx,
 		close:       close,
 		auditCache:  newSharedDirectoryAuditCache(),
-
-		// For now, NLA is opt-in via an environment variable.
-		// We'll make it the default behavior in a future release.
-		enableNLA: os.Getenv("TELEPORT_ENABLE_RDP_NLA") == "yes",
+		enableNLA:   cfg.NLA,
 	}
 
 	s.ca = winpki.NewCertificateStoreClient(winpki.CertificateStoreConfig{
@@ -369,6 +368,16 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		ClusterName: s.clusterName,
 		LC:          s.getLDAPConfig(),
 	})
+
+	if s.cfg.LDAPConfig.Enabled() {
+		tc, err := s.tlsConfigForLDAP()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := s.ca.Update(s.closeCtx, tc); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	ok := false
 	defer func() {

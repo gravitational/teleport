@@ -241,6 +241,12 @@ func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) ([]
 	}
 
 	queryResolver := func(resolver *net.Resolver, resolverName string) chan []netip.Addr {
+		if resolver == nil {
+			ch := make(chan []netip.Addr)
+			close(ch)
+			return ch
+		}
+
 		ch := make(chan []netip.Addr, 1)
 		go func() {
 			tctx, cancel := context.WithTimeout(ctx, dnsQueryTimeout)

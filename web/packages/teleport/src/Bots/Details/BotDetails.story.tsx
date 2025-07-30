@@ -127,10 +127,10 @@ export const HappyWithEmpty: Story = {
         }),
         successGetRoles({
           startKey: '',
-          items: ['access', 'editor', 'terraform-provider'].map(r => ({
-            content: r,
-            id: r,
-            name: r,
+          items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
+            content: `role-${r}`,
+            id: `role-${r}`,
+            name: `role-${r}`,
             kind: 'role',
           })),
         }),

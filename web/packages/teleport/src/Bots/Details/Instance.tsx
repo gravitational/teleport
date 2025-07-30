@@ -203,5 +203,5 @@ const LabelText = styled(Text)`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 128px;
+  max-width: 96px;
 `;

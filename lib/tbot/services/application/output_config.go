@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package application
 
 import (
 	"context"
@@ -26,17 +26,13 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
-var (
-	_ ServiceConfig = &ApplicationOutput{}
-	_ Initable      = &ApplicationOutput{}
-)
+const OutputServiceType = "application"
 
-const ApplicationOutputType = "application"
-
-type ApplicationOutput struct {
+type OutputConfig struct {
 	// Name of the service for logs and the /readyz endpoint.
 	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
@@ -57,13 +53,16 @@ type ApplicationOutput struct {
 	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
 }
 
-func (o *ApplicationOutput) Init(ctx context.Context) error {
+func (o *OutputConfig) Init(ctx context.Context) error {
 	return trace.Wrap(o.Destination.Init(ctx, []string{}))
 }
 
-func (o *ApplicationOutput) CheckAndSetDefaults() error {
-	if err := validateOutputDestination(o.Destination); err != nil {
-		return trace.Wrap(err)
+func (o *OutputConfig) CheckAndSetDefaults() error {
+	if o.Destination == nil {
+		return trace.BadParameter("no destination configured for output")
+	}
+	if err := o.Destination.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating configured destination")
 	}
 	if o.AppName == "" {
 		return trace.BadParameter("app_name must not be empty")
@@ -73,57 +72,61 @@ func (o *ApplicationOutput) CheckAndSetDefaults() error {
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
-func (o *ApplicationOutput) GetName() string {
+func (o *OutputConfig) GetName() string {
 	return o.Name
 }
 
-func (o *ApplicationOutput) GetDestination() destination.Destination {
+func (o *OutputConfig) GetDestination() destination.Destination {
 	return o.Destination
 }
 
-func (o *ApplicationOutput) Describe() []bot.FileDescription {
+func (o *OutputConfig) Describe() []bot.FileDescription {
 	out := []bot.FileDescription{
 		{
-			Name: IdentityFilePath,
+			Name: internal.IdentityFilePath,
 		},
 		{
-			Name: HostCAPath,
+			Name: internal.HostCAPath,
 		},
 		{
-			Name: UserCAPath,
+			Name: internal.UserCAPath,
 		},
 		{
-			Name: DatabaseCAPath,
+			Name: internal.DatabaseCAPath,
 		},
 	}
 	if o.SpecificTLSExtensions {
 		out = append(out, []bot.FileDescription{
 			{
-				Name: DefaultTLSPrefix + ".crt",
+				Name: internal.DefaultTLSPrefix + ".crt",
 			},
 			{
-				Name: DefaultTLSPrefix + ".key",
+				Name: internal.DefaultTLSPrefix + ".key",
 			},
 			{
-				Name: DefaultTLSPrefix + ".cas",
+				Name: internal.DefaultTLSPrefix + ".cas",
 			},
 		}...)
 	}
 	return out
 }
 
-func (o *ApplicationOutput) MarshalYAML() (any, error) {
-	type raw ApplicationOutput
-	return encoding.WithTypeHeader((*raw)(o), ApplicationOutputType)
+func (o *OutputConfig) MarshalYAML() (any, error) {
+	type raw OutputConfig
+	return encoding.WithTypeHeader((*raw)(o), OutputServiceType)
 }
 
-func (o *ApplicationOutput) UnmarshalYAML(node *yaml.Node) error {
-	dest, err := extractOutputDestination(node)
+func (o *OutputConfig) UnmarshalYAML(*yaml.Node) error {
+	return trace.NotImplemented("unmarshaling %T with UnmarshalYAML is not supported, use UnmarshalConfig instead", o)
+}
+
+func (o *OutputConfig) UnmarshalConfig(ctx bot.UnmarshalConfigContext, node *yaml.Node) error {
+	dest, err := internal.ExtractOutputDestination(ctx, node)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Alias type to remove UnmarshalYAML to avoid recursion
-	type raw ApplicationOutput
+	// Alias type to remove UnmarshalYAML to avoid getting our "not implemented" error
+	type raw OutputConfig
 	if err := node.Decode((*raw)(o)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -131,10 +134,10 @@ func (o *ApplicationOutput) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (o *ApplicationOutput) Type() string {
-	return ApplicationOutputType
+func (o *OutputConfig) Type() string {
+	return OutputServiceType
 }
 
-func (o *ApplicationOutput) GetCredentialLifetime() bot.CredentialLifetime {
+func (o *OutputConfig) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }

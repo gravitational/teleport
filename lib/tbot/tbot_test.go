@@ -46,6 +46,7 @@ import (
 	"golang.org/x/crypto/ssh/knownhosts"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -67,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -325,7 +327,7 @@ func TestBot(t *testing.T) {
 		Destination:  &destination.Memory{},
 		AllowReissue: true,
 	}
-	appOutput := &config.ApplicationOutput{
+	appOutput := &application.OutputConfig{
 		Destination: &destination.Memory{},
 		AppName:     appName,
 	}
@@ -1243,6 +1245,50 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			require.Len(t, keys, 2)
 		})
 	}
+}
+
+func TestBotDeviceTrust(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	log := logtest.NewLogger()
+
+	// Start a test server with `device.trust.mode="required-for-humans"`.
+	process := testenv.MakeTestServer(t,
+		defaultTestServerOpts(t, log),
+		testenv.WithAuthConfig(func(cfg *servicecfg.AuthConfig) {
+			cfg.Preference.SetDeviceTrust(&types.DeviceTrust{
+				Mode: constants.DeviceTrustModeRequiredForHumans,
+			})
+		}),
+	)
+	rootClient := testenv.MakeDefaultAuthClient(t, process)
+
+	// Run a bot with an identity output.
+	onboarding, _ := makeBot(t, rootClient, "test", "access")
+	botConfig := defaultBotConfig(
+		t, process, onboarding,
+		config.ServiceConfigs{
+			&config.IdentityOutput{
+				Destination: &destination.Memory{},
+			},
+		},
+		defaultBotConfigOpts{
+			useAuthServer: true,
+			insecure:      true,
+		},
+	)
+
+	// If we're able to successfully run the bot, it means we could:
+	//
+	// 	1. Join the cluster
+	// 	2. Request an user certificate to "impersonate" the bot's roles
+	b := New(botConfig, log)
+	require.NoError(t, b.Run(ctx))
+
+	// Run it again to check renewing the bot's internal identity works too.
+	b = New(botConfig, log)
+	require.NoError(t, b.Run(ctx))
 }
 
 // TestBotJoiningURI ensures configured joining URIs work in place of
