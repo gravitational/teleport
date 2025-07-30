@@ -25,22 +25,38 @@ interface KeyState {
 }
 
 /**
+ * Timeout period (ms) after which we assume keys are stuck and auto-release them
+ */
+export const RELEASE_DELAY_MS = 1000;
+
+/**
  * KeyCombo represents a combination of keys that are pressed together to
  * trigger shortcuts. It tracks the keys, their states, and manages timeouts
  * for releasing them.
  */
 class KeyCombo {
+  /**
+   * Set of keys that are part of this combo.
+   */
   keys: Set<string>;
-  timeout?: number;
-  keyStates: Map<string, KeyState>;
+
+  /**
+   * Timeout ID for releasing the keys after a delay.
+   */
+  private timeout?: number;
+
+  /**
+   * Reference to the parent StuckKeys' key states map to track down/up state.
+   */
+  private keyStates: Map<string, KeyState>;
 
   /**
    * Creates a new KeyCombo instance.
    *
-   * @param keys - Array of key names to track as a combination (e.g., ['Meta', 'Shift'])
+   * @param keys - Set of key names to track as a combination e.g., new Set(['Meta', 'Shift'])
    * @param keyStates - Reference to the parent StuckKeys' key states map to track down/up state
    */
-  constructor(keys: string[], keyStates: Map<string, KeyState>) {
+  constructor(keys: Set<string>, keyStates: Map<string, KeyState>) {
     this.keys = new Set(keys);
     this.timeout = undefined;
     this.keyStates = keyStates;
@@ -56,6 +72,8 @@ class KeyCombo {
   /**
    * Releases the keys in the combo by sending keyup events to the TDP client
    * and updating global key state.
+   * 
+   * @param cli - The TDP client to send the keyup events to.
    */
   release(cli: TdpClient): void {
     // For reach key in the key combo
@@ -84,9 +102,22 @@ class KeyCombo {
     }
   }
 
+  handleComboState(combo: KeyCombo, cli: TdpClient) {
+    // Clear the timeout if it exists because key state has changed
+    combo.cancel();
+
+    // If the combo is active, set a timeout to release it
+    if (combo.isActive()) {
+      combo.timeout = window.setTimeout(() => {
+        combo.release(cli);
+      }, RELEASE_DELAY_MS);
+    }
+  }
+
   /**
    * Returns the key codes for a given key.
-   * For example, 'Meta' returns ['MetaLeft', 'MetaRight'].
+   *
+   * @param key - The key to get the codes for.
    */
   private getKeyCode(key: string): string[] {
     switch (key) {
@@ -122,21 +153,10 @@ export class StuckKeys {
    */
   private keyCombos: KeyCombo[] = [];
 
-  /**
-   * Timeout period (ms) after which we assume keys are stuck and auto-release them
-   */
-  public readonly RELEASE_DELAY_MS = 1000;
-
   constructor() {
-    // All of the keys we want to track the state of.
-    ['Meta', 'Shift'].forEach(key => {
-      this.keyStates.set(key, { down: false });
-    });
-
-    // Initialize key combinations to monitor for stuck keys.
-    this.keyCombos.push(new KeyCombo(['Meta', 'Shift'], this.keyStates));
+    this.addKeyCombo(new Set(['Meta', 'Shift']));
   }
-
+  
   /**
    * Process keyboard events and manage potential stuck keys.
    *
@@ -159,23 +179,9 @@ export class StuckKeys {
     // Check all key combinations to see if any are active
     this.keyCombos.forEach(combo => {
       if (combo.keys.has(key)) {
-        this.handleComboState(combo, cli);
+        combo.handleComboState(combo, cli);
       }
     });
-  }
-
-  private handleComboState(combo: KeyCombo, cli: TdpClient) {
-    // Clear the timeout if it exists because key state has changed
-    if (combo.timeout) {
-      combo.cancel();
-    }
-
-    // If the combo is active, set a timeout to release it
-    if (combo.isActive()) {
-      combo.timeout = window.setTimeout(() => {
-        combo.release(cli);
-      }, this.RELEASE_DELAY_MS);
-    }
   }
 
   // Add cancel function to clear timeouts and reset key states
@@ -184,5 +190,34 @@ export class StuckKeys {
       combo.cancel();
     });
     this.keyStates.forEach(state => (state.down = false));
+  }
+
+  /**
+   * Adds a new key combination to monitor.
+   *
+   * @param keys - Set of key names to track as a combination (e.g., ['Meta', 'Shift'])
+   */
+  private addKeyCombo(keys: Set<string>) {
+    if (keys.size === 0) {
+      return;
+    }
+
+    // Check if the combo already exists
+    if (this.keyCombos.some(combo =>
+      Array.from(combo.keys).every(key => keys.has(key))
+    )) {
+      return;
+    }
+
+    // Create the key combo and add it to the list
+    const combo = new KeyCombo(keys, this.keyStates);
+    this.keyCombos.push(combo);
+
+    // Add these keys to the key states map
+    keys.forEach(key => {
+      if (!this.keyStates.has(key)) {
+        this.keyStates.set(key, { down: false });
+      }
+    });
   }
 }

@@ -22,7 +22,7 @@ import {
   TdpClient,
 } from 'shared/libs/tdp';
 
-import { StuckKeys } from './StuckKeys';
+import { StuckKeys, RELEASE_DELAY_MS } from './StuckKeys';
 
 jest.mock('teleport/lib/tdp', () => {
   const originalModule = jest.requireActual('shared/libs/tdp');
@@ -71,7 +71,7 @@ describe('StuckKeys', () => {
 
     expect(mockSendKeyboardInput).not.toHaveBeenCalled();
 
-    jest.advanceTimersByTime(stuckKeys.RELEASE_DELAY_MS);
+    jest.advanceTimersByTime(RELEASE_DELAY_MS);
 
     expect(mockSendKeyboardInput).toHaveBeenCalledTimes(4);
 
@@ -99,7 +99,7 @@ describe('StuckKeys', () => {
       cli: mockTdpClient,
     });
 
-    jest.advanceTimersByTime(stuckKeys.RELEASE_DELAY_MS / 2);
+    jest.advanceTimersByTime(RELEASE_DELAY_MS / 2);
 
     stuckKeys.handleKeyboardEvent({
       e: { key: 'Meta' } as KeyboardEvent,
@@ -107,7 +107,7 @@ describe('StuckKeys', () => {
       cli: mockTdpClient,
     });
 
-    jest.advanceTimersByTime(stuckKeys.RELEASE_DELAY_MS / 2);
+    jest.advanceTimersByTime(RELEASE_DELAY_MS / 2);
 
     expect(mockSendKeyboardInput).not.toHaveBeenCalled();
   });
@@ -125,7 +125,7 @@ describe('StuckKeys', () => {
       cli: mockTdpClient,
     });
 
-    jest.advanceTimersByTime(stuckKeys.RELEASE_DELAY_MS / 2);
+    jest.advanceTimersByTime(RELEASE_DELAY_MS / 2);
 
     stuckKeys.handleKeyboardEvent({
       e: { key: 'Shift' } as KeyboardEvent,
@@ -139,11 +139,11 @@ describe('StuckKeys', () => {
       cli: mockTdpClient,
     });
 
-    jest.advanceTimersByTime(stuckKeys.RELEASE_DELAY_MS / 2);
+    jest.advanceTimersByTime(RELEASE_DELAY_MS / 2);
 
     expect(mockSendKeyboardInput).not.toHaveBeenCalled();
 
-    jest.advanceTimersByTime(stuckKeys.RELEASE_DELAY_MS);
+    jest.advanceTimersByTime(RELEASE_DELAY_MS);
 
     expect(mockSendKeyboardInput).toHaveBeenCalledTimes(4);
   });
@@ -155,7 +155,7 @@ describe('StuckKeys', () => {
       cli: mockTdpClient,
     });
 
-    jest.advanceTimersByTime(stuckKeys.RELEASE_DELAY_MS);
+    jest.advanceTimersByTime(RELEASE_DELAY_MS);
 
     expect(mockSendKeyboardInput).not.toHaveBeenCalled();
   });
@@ -175,7 +175,7 @@ describe('StuckKeys', () => {
 
     stuckKeys.cancel();
 
-    jest.advanceTimersByTime(stuckKeys.RELEASE_DELAY_MS);
+    jest.advanceTimersByTime(RELEASE_DELAY_MS);
 
     expect(mockSendKeyboardInput).not.toHaveBeenCalled();
   });
@@ -193,7 +193,7 @@ describe('StuckKeys', () => {
       cli: mockTdpClient,
     });
 
-    jest.advanceTimersByTime(stuckKeys.RELEASE_DELAY_MS * 2);
+    jest.advanceTimersByTime(RELEASE_DELAY_MS * 2);
 
     expect(mockSendKeyboardInput).not.toHaveBeenCalled();
   });
