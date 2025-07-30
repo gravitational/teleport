@@ -143,12 +143,12 @@ func newCommands() (*commandManager, error) {
 			description: "Use another database.",
 			execFunc: func(r *REPL, args string) (string, bool) {
 				args = strings.TrimSpace(args)
+				if len(args) == 0 {
+					return "USE must be followed by a database name", false
+				}
 				dbName, err := getDatabaseName(r.myConn, args)
 				if err != nil {
 					return err.Error(), false
-				}
-				if len(dbName) == 0 {
-					return "USE must be followed by a database name", false
 				}
 				if err := r.myConn.UseDB(dbName); err != nil {
 					return err.Error(), false
@@ -233,10 +233,6 @@ func getArg(line string) string {
 // To handle quotation, we send the args to the server as a statement and then
 // ask the server what the current database is.
 func getDatabaseName(conn mysql.Executer, args string) (string, error) {
-	if !strings.ContainsAny(args, "'`\"") {
-		return getArg(args), nil
-	}
-
 	result, err := conn.Execute("USE " + args)
 	if err != nil {
 		return "", trace.Wrap(err)
