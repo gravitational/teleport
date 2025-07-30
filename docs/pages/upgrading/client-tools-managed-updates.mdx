@@ -115,7 +115,7 @@ pinning to a specific version in CI/CD, for debugging, or for manual updates.
 During re-execution, child process will inherit all environment variables and flags. To prevent infinite loops
 only version environment variable will be overridden to `TELEPORT_TOOLS_VERSION=off`.
 
-Example of self-managed auto-update by setting the version with environment variable:
+Example of self-managed update by setting the version with environment variable:
 ```bash
 $ TELEPORT_TOOLS_VERSION=18.1.0 tctl version
 Update progress: [▒▒▒▒▒▒▒▒▒▒] (Ctrl-C to cancel update)
