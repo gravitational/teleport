@@ -44,19 +44,29 @@ func TestDelimiter(t *testing.T) {
 			wantDelimiter: ";",
 		},
 		{
+			desc:          "passing two dollars is ok",
+			args:          "$$",
+			wantDelimiter: "$$",
+		},
+		{
+			desc:          "passing two slashes is ok",
+			args:          "//",
+			wantDelimiter: "//",
+		},
+		{
 			desc:            "passing too many delimiter runes is invalid",
 			args:            ";;;;;;",
-			wantErrContains: `DELIMITER ";;;;;;" does not match regex used for validation "^[;$/]{1,3}$`,
+			wantErrContains: `DELIMITER ";;;;;;" does not match regex used for validation "^(;|[/]{2}|[$]{2})$"`,
 		},
 		{
 			desc:            "passing rejected runes is invalid",
 			args:            "x",
-			wantErrContains: `DELIMITER "x" does not match regex used for validation "^[;$/]{1,3}$`,
+			wantErrContains: `DELIMITER "x" does not match regex used for validation "^(;|[/]{2}|[$]{2})$"`,
 		},
 		{
 			desc:            "passing rejected runes is invalid",
 			args:            "\\",
-			wantErrContains: `DELIMITER "\\" does not match regex used for validation "^[;$/]{1,3}$`,
+			wantErrContains: `DELIMITER "\\" does not match regex used for validation "^(;|[/]{2}|[$]{2})$"`,
 		},
 	}
 	for _, test := range tests {
@@ -110,8 +120,8 @@ func TestLexer_advanceByDelimiter(t *testing.T) {
 	require.Equal(t, " SELECT", l.peekString())
 	require.False(t, l.advanceByDelimiter())
 	require.Equal(t, " SELECT", l.peekString())
-	l.setLine("/")
-	l.setDelimiter("/")
+	l.setLine("//")
+	l.setDelimiter("//")
 	require.True(t, l.advanceByDelimiter())
 	require.Empty(t, l.peekString())
 	require.False(t, l.advanceByDelimiter())

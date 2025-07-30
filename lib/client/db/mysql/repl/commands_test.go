@@ -92,7 +92,7 @@ func TestCommands(t *testing.T) {
 			cmdName: "delimiter",
 			args:    "abc",
 			assertCommandReply: func(t require.TestingT, val any, _ ...any) {
-				require.Equal(t, `DELIMITER "abc" does not match regex used for validation "^[;$/]{1,3}$"`, val)
+				require.Equal(t, `DELIMITER "abc" does not match regex used for validation "^(;|[/]{2}|[$]{2})$"`, val)
 			},
 		},
 		{

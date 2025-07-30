@@ -50,7 +50,7 @@ func (l *lexer) delimiter() string {
 }
 
 // validDelimiterRegex only allows somewhat sane choices for delimiters.
-var validDelimiterRegex = regexp.MustCompile(`^[;$/]{1,3}$`)
+var validDelimiterRegex = regexp.MustCompile(`^(;|[/]{2}|[$]{2})$`)
 
 // setDelimiter sets the client-side statement delimiter.
 func (l *lexer) setDelimiter(delimiter string) error {
