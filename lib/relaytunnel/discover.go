@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"slices"
 
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -28,11 +27,9 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/metadata"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	relaytunnelv1alpha "github.com/gravitational/teleport/gen/proto/go/teleport/relaytunnel/v1alpha"
 	relayv1alpha "github.com/gravitational/teleport/gen/proto/go/teleport/relaytunnel/v1alpha"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type unimplementedDiscoveryServiceServer = relayv1alpha.UnimplementedDiscoveryServiceServer
@@ -92,20 +89,6 @@ func discover(ctx context.Context, params DiscoverParams) (*relaytunnelv1alpha.D
 			return cert, nil
 		},
 		RootCAs: pool,
-
-		VerifyConnection: func(cs tls.ConnectionState) error {
-			id, err := tlsca.FromSubject(cs.PeerCertificates[0].Subject, cs.PeerCertificates[0].NotAfter)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			if !slices.Contains(id.Groups, string(types.RoleRelay)) &&
-				!slices.Contains(id.SystemRoles, string(types.RoleRelay)) {
-				return trace.BadParameter("dialed server is not a relay (roles %+q, system roles %+q)", id.Groups, id.SystemRoles)
-			}
-
-			return nil
-		},
 
 		// the [credentials.NewTLS] transport credentials will take care of SNI
 		// and ALPN

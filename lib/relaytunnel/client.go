@@ -310,6 +310,11 @@ func (c *Client) dialRelayGrouped() error {
 		return trace.Wrap(err)
 	}
 
+	serverName, _, err := net.SplitHostPort(c.relayAddr)
+	if err != nil {
+		serverName = c.relayAddr
+	}
+
 	var serverID *tlsca.Identity
 	tlsConfig := &tls.Config{
 		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
@@ -365,7 +370,7 @@ func (c *Client) dialRelayGrouped() error {
 		},
 
 		NextProtos: []string{yamuxTunnelALPN},
-		ServerName: "",
+		ServerName: serverName,
 
 		CipherSuites: c.ciphersuites,
 		MinVersion:   tls.VersionTLS12,

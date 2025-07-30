@@ -350,8 +350,10 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		tc.NextProtos = []string{"h2"}
-		// handled by credentials.NewTLS
+
+		// the [credentials.NewTLS] transport credentials will take care of SNI
+		// and ALPN
+		tc.NextProtos = nil
 		tc.ServerName = ""
 
 		cc, err := grpc.NewClient(relayAddr,

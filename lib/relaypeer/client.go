@@ -98,6 +98,11 @@ func (c ClientConfig) dialRelay(ctx context.Context, dialTarget string, tunnelTy
 		return nil, trace.Wrap(err)
 	}
 
+	serverName, _, err := net.SplitHostPort(peerAddr)
+	if err != nil {
+		serverName = peerAddr
+	}
+
 	tlsConfig := &tls.Config{
 		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
 			return cert, nil
@@ -147,7 +152,7 @@ func (c ClientConfig) dialRelay(ctx context.Context, dialTarget string, tunnelTy
 		},
 
 		NextProtos: []string{simpleALPN},
-		ServerName: "",
+		ServerName: serverName,
 
 		CipherSuites: c.Ciphersuites,
 		MinVersion:   tls.VersionTLS12,
