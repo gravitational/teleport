@@ -6,40 +6,40 @@ This list is updated when new AMI versions are released.
 ### OSS
 
 ```
-# ap-northeast-1 v17.4.8 arm64 OSS: ami-012332e8e24adeff2
-# ap-northeast-1 v17.4.8 x86_64 OSS: ami-0b941926ab35c0bad
-# ap-northeast-2 v17.4.8 arm64 OSS: ami-0d53be6fcdc8b06f9
-# ap-northeast-2 v17.4.8 x86_64 OSS: ami-03ca264ebaf2beff2
-# ap-northeast-3 v17.4.8 arm64 OSS: ami-0737413ff2d5d63d5
-# ap-northeast-3 v17.4.8 x86_64 OSS: ami-0327b03cb4c55c63f
-# ap-south-1 v17.4.8 arm64 OSS: ami-0a45248db7450abc6
-# ap-south-1 v17.4.8 x86_64 OSS: ami-0f132ecbe3464b0f1
-# ap-southeast-1 v17.4.8 arm64 OSS: ami-01540614dd5227ff3
-# ap-southeast-1 v17.4.8 x86_64 OSS: ami-01b9151cc4ca082bf
-# ap-southeast-2 v17.4.8 arm64 OSS: ami-0069a47c454f37eec
-# ap-southeast-2 v17.4.8 x86_64 OSS: ami-0835560fbe5d08ddc
-# ca-central-1 v17.4.8 arm64 OSS: ami-0350414b759e67a4d
-# ca-central-1 v17.4.8 x86_64 OSS: ami-0981c3461fa2078d1
-# eu-central-1 v17.4.8 arm64 OSS: ami-0918d5314dd8bdb74
-# eu-central-1 v17.4.8 x86_64 OSS: ami-022dcdefc511ed7ee
-# eu-north-1 v17.4.8 arm64 OSS: ami-0cdab92b5dbf8cfe8
-# eu-north-1 v17.4.8 x86_64 OSS: ami-0a2a5bae8e501494e
-# eu-west-1 v17.4.8 arm64 OSS: ami-0a8d2e93c618c5f76
-# eu-west-1 v17.4.8 x86_64 OSS: ami-0c794bd74e6cab25a
-# eu-west-2 v17.4.8 arm64 OSS: ami-0e2e95116ca3f3586
-# eu-west-2 v17.4.8 x86_64 OSS: ami-05d7961bd4180b71b
-# eu-west-3 v17.4.8 arm64 OSS: ami-08b75956f02f4f44f
-# eu-west-3 v17.4.8 x86_64 OSS: ami-0cc28a6257d39617d
-# sa-east-1 v17.4.8 arm64 OSS: ami-0afe6a8c324b4a485
-# sa-east-1 v17.4.8 x86_64 OSS: ami-0029e6c9e5fef8f36
-# us-east-1 v17.4.8 arm64 OSS: ami-0a5c1edc9f97a88f6
-# us-east-1 v17.4.8 x86_64 OSS: ami-0031686a78271347c
-# us-east-2 v17.4.8 arm64 OSS: ami-0526a2e60dc3724f3
-# us-east-2 v17.4.8 x86_64 OSS: ami-0f07061a92f3ce673
-# us-west-1 v17.4.8 arm64 OSS: ami-08ffb5fd3b7485bd1
-# us-west-1 v17.4.8 x86_64 OSS: ami-04fb6e5246c5afc8e
-# us-west-2 v17.4.8 arm64 OSS: ami-071faff389f68092e
-# us-west-2 v17.4.8 x86_64 OSS: ami-0b5315d105dafadc1
+# ap-northeast-1 v18.1.1 arm64 OSS: ami-0cd5a9ab534c8c2dd
+# ap-northeast-1 v18.1.1 x86_64 OSS: ami-0a6ebe85c71ff6e55
+# ap-northeast-2 v18.1.1 arm64 OSS: ami-0fc98e2f9d9c5be9d
+# ap-northeast-2 v18.1.1 x86_64 OSS: ami-02ac4628c5d13f9d8
+# ap-northeast-3 v18.1.1 arm64 OSS: ami-0056af42f92f6f2ae
+# ap-northeast-3 v18.1.1 x86_64 OSS: ami-0a672dcb793ba6ada
+# ap-south-1 v18.1.1 arm64 OSS: ami-03656dff1fe2e23cb
+# ap-south-1 v18.1.1 x86_64 OSS: ami-06dbd51c9dd6a3fda
+# ap-southeast-1 v18.1.1 arm64 OSS: ami-099abc083afe0dfa6
+# ap-southeast-1 v18.1.1 x86_64 OSS: ami-0367dc90759de2e91
+# ap-southeast-2 v18.1.1 arm64 OSS: ami-0f503710191c8955a
+# ap-southeast-2 v18.1.1 x86_64 OSS: ami-0fc07a5544de21de0
+# ca-central-1 v18.1.1 arm64 OSS: ami-0bd346ebff785c095
+# ca-central-1 v18.1.1 x86_64 OSS: ami-0725061889fa395d1
+# eu-central-1 v18.1.1 arm64 OSS: ami-0b7644e5fccc5403f
+# eu-central-1 v18.1.1 x86_64 OSS: ami-066e688b0694a9800
+# eu-north-1 v18.1.1 arm64 OSS: ami-0232d46d94c04cad3
+# eu-north-1 v18.1.1 x86_64 OSS: ami-09939a91bfaddda10
+# eu-west-1 v18.1.1 arm64 OSS: ami-0a8f46d5ba1c6c0ee
+# eu-west-1 v18.1.1 x86_64 OSS: ami-0fe6bc7d6cd88ac73
+# eu-west-2 v18.1.1 arm64 OSS: ami-08d6b1fb41cf43f58
+# eu-west-2 v18.1.1 x86_64 OSS: ami-0f0225cb5e52a112b
+# eu-west-3 v18.1.1 arm64 OSS: ami-023d5be5267baf128
+# eu-west-3 v18.1.1 x86_64 OSS: ami-0f7140dafbacae602
+# sa-east-1 v18.1.1 arm64 OSS: ami-0344aaeb2c8109ef4
+# sa-east-1 v18.1.1 x86_64 OSS: ami-00f00aef0a5ae1ee2
+# us-east-1 v18.1.1 arm64 OSS: ami-0f648487423f56e77
+# us-east-1 v18.1.1 x86_64 OSS: ami-0c4a43cc5e0b0069d
+# us-east-2 v18.1.1 arm64 OSS: ami-0b3f43f1cc338c12d
+# us-east-2 v18.1.1 x86_64 OSS: ami-0221f8599337d5e0a
+# us-west-1 v18.1.1 arm64 OSS: ami-0c11439290eeb04c9
+# us-west-1 v18.1.1 x86_64 OSS: ami-03bb3b8beed4bb7d0
+# us-west-2 v18.1.1 arm64 OSS: ami-01fd692a5217be1e2
+# us-west-2 v18.1.1 x86_64 OSS: ami-060bd9590db1152ea
 ```
 
 ### Enterprise
