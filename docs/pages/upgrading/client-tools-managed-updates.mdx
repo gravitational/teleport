@@ -40,6 +40,8 @@ platform, and edition. The edition must be identified by the original client too
 The URL pattern is as follows:
 - `https://cdn.teleport.dev/teleport-{ent-}vX.Y.Z-{linux,darwin,windows}-{amd64,arm64,arm,386}-{fips-}bin.{tar.gz,pkg,zip}`
 - `https://cdn.teleport.dev/teleport-{ent-}vX.Y.Z-{linux,darwin,windows}-{amd64,arm64,arm,386}-{fips-}bin.{tar.gz,pkg,zip}.sha256`
+The base URL of the CDN can be overridden using the `TELEPORT_CDN_BASE_URL` environment variable.
+Allowing to mirror the CDN in a private network or to use a custom build.
 
 **Concurrency**: Tools use a locking mechanism to enable smooth operation during updates.
 Only one process can acquire the lock to update client tools, while other processes wait for the lock to be released.
@@ -101,6 +103,29 @@ will be removed during the next update.
 
 To reduce the need for repeated downloads, you can increase the number of stored versions by
 manually setting the max_tools value to the desired limit.
+
+### Managed updates initiation
+
+Client tools make a request to the proxy discovery endpoint `/v1/webapi/find` during every login
+in order to retrieve the required client tools version and check the update mode for the target cluster.
+
+To enable version checks for `tsh ssh` or `tsh proxy ssh` commands in case when login is not required,
+set the `TELEPORT_TOOLS_CHECK_UPDATE=t` environment variable to initiate this check. For example:
+
+```bash
+$ TELEPORT_TOOLS_CHECK_UPDATE=t tsh ssh user@host
+Update progress: [▒▒▒▒▒▒▒▒▒▒] (Ctrl-C to cancel update)
+user@host ~ #
+```
+
+Managed update local checks are triggered during the execution of any command. If there is an active
+session with a cluster and the cluster advertises a required client tools version,
+both `tsh` and `tctl` will be re-executed using that version. If the version is not already present
+in the tools directory, it will be downloaded, extracted, and executed automatically.
+
+If there is no active session, but a versioned binary exists in the tools directory
+(e.g., `~/.tsh/bin/tsh` or `~/.tsh/bin/tctl`), the corresponding tool will be re-executed with that version
+(for backward compatibility with older versions of managed updates).
 
 ## Configuring client tool automatic updates
 
