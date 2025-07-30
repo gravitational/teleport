@@ -316,6 +316,9 @@ const (
 	// KindRecordingEncryption is the collection of active session recording encryption keys.
 	KindRecordingEncryption = "recording_encryption"
 
+	// KindRotatedKey is a previously rotated session recording encryption key kept for future replay.
+	KindRotatedKey = "rotated_key"
+
 	// MetaNameSessionRecordingConfig is the exact name of the singleton resource for
 	// session recording configuration.
 	MetaNameSessionRecordingConfig = "session-recording-config"

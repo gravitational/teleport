@@ -37,6 +37,7 @@ const (
 // cluster's RecordingEncryption resource.
 type RecordingEncryptionService struct {
 	encryption *generic.ServiceWrapper[*recordingencryptionv1.RecordingEncryption]
+	rotatedKey *generic.ServiceWrapper[*recordingencryptionv1.RotatedKey]
 }
 
 var _ services.RecordingEncryption = (*RecordingEncryptionService)(nil)
@@ -48,6 +49,15 @@ func NewRecordingEncryptionService(b backend.Backend) (*RecordingEncryptionServi
 		Backend:       b,
 		PageLimit:     pageLimit,
 		ResourceKind:  types.KindRecordingEncryption,
+		BackendPrefix: backend.NewKey(recordingEncryptionPrefix),
+		MarshalFunc:   services.MarshalProtoResource[*recordingencryptionv1.RecordingEncryption],
+		UnmarshalFunc: services.UnmarshalProtoResource[*recordingencryptionv1.RecordingEncryption],
+	})
+
+	rotatedKey, err := generic.NewServiceWrapper(generic.ServiceConfig[*recordingencryptionv1.RotatedKey]{
+		Backend:       b,
+		PageLimit:     pageLimit,
+		ResourceKind:  types.KindRotatedKey,
 		BackendPrefix: backend.NewKey(recordingEncryptionPrefix),
 		MarshalFunc:   services.MarshalProtoResource[*recordingencryptionv1.RecordingEncryption],
 		UnmarshalFunc: services.UnmarshalProtoResource[*recordingencryptionv1.RecordingEncryption],
