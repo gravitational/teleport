@@ -66,8 +66,10 @@ func TestUpdate(t *testing.T) {
 
 	// Verify that the installed version is equal to requested one.
 	cmd := exec.CommandContext(ctx, tctlPath, "version")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	out, err := cmd.Output()
-	require.NoError(t, err)
+	require.NoError(t, err, stderr.String())
 
 	matches := pattern.FindStringSubmatch(string(out))
 	require.Len(t, matches, 2)
