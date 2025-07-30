@@ -66,7 +66,8 @@ use foo
 
 use foo;use bar; use foo
 -- this isn't a command, but that should just print an error message and help info.
-\xyz
+\xyz select 1
+\xyz;select 1;
 delimiter $$
 help$$
 \d //

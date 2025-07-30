@@ -176,7 +176,7 @@ Default database changed to "foo"
 
 foo> -- this isn't a command, but that should just print an error message and he
 lp info.
-foo> \xyz
+foo> \xyz select 1
 
 Unknown command.
 delimiter \d   Set statement delimiter. With no argument the delimiter resets to the default. 
@@ -185,6 +185,23 @@ quit      \q   Terminates the session.
 status    \s   Get status information.                                                        
 teleport  \t   Show Teleport interactive shell information, such as execution limitations.    
 use       \u   Use another database.
+
+foo> \xyz;select 1;
+
+Unknown command.
+delimiter \d   Set statement delimiter. With no argument the delimiter resets to the default. 
+help      \h   Show the list of supported commands.                                           
+quit      \q   Terminates the session.                                                        
+status    \s   Get status information.                                                        
+teleport  \t   Show Teleport interactive shell information, such as execution limitations.    
+use       \u   Use another database.
+
+
+1    
+-    
+1    
+
+(1 row in set)
 
 foo> delimiter $$
 foo> help$$

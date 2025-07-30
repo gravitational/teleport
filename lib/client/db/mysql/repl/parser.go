@@ -111,6 +111,9 @@ func (p *parser) tryParseCommand() evaluator {
 	cmd, args, err := p.commands.findCommand(line)
 	switch {
 	case err != nil:
+		if strings.Contains(line, p.lex.delimiter()) {
+			return nil
+		}
 		p.lex.discardRemaining()
 		return errorEvaluator{err: err}
 	case cmd != nil:
