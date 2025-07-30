@@ -4413,9 +4413,9 @@ func (m *EncryptionKeyPair) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_EncryptionKeyPair proto.InternalMessageInfo
 
-// AgeEncryptionKey is a Bech32 encoded age X25519 public key.
+// A public key to be used as a recipient during age encryption of session recordings.
 type AgeEncryptionKey struct {
-	// PublicKey is a Bech32 encoded age X25519 public key.
+	// A PEM encoded public key used for key wrapping during age encryption. Expected to be RSA 4096.
 	PublicKey            []byte   `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

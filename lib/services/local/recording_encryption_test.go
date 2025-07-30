@@ -18,7 +18,6 @@ package local
 
 import (
 	"context"
-	"crypto"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -56,17 +55,12 @@ func TestRecordingEncryption(t *testing.T) {
 	require.Empty(t, created.Spec.ActiveKeys)
 	require.Empty(t, encryption.Spec.ActiveKeys)
 
-	encryption.Spec.ActiveKeys = []*pb.WrappedKey{
+	encryption.Spec.ActiveKeys = []*pb.KeyPair{
 		{
-			RecordingEncryptionPair: &types.EncryptionKeyPair{
+			KeyPair: &types.EncryptionKeyPair{
 				PrivateKey: []byte("recording encryption private"),
 				PublicKey:  []byte("recording encryption public"),
 				Hash:       0,
-			},
-			KeyEncryptionPair: &types.EncryptionKeyPair{
-				PrivateKey: []byte("key encryption private"),
-				PublicKey:  []byte("key encryption public"),
-				Hash:       uint32(crypto.SHA256),
 			},
 		},
 	}
