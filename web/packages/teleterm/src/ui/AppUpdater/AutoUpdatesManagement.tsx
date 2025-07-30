@@ -25,6 +25,7 @@ import { Cog } from 'design/Icon';
 import Link from 'design/Link';
 import { RadioGroup } from 'design/RadioGroup';
 import Text from 'design/Text';
+import { pluralize } from 'shared/utils/text';
 
 import {
   AppUpdateEvent,
@@ -52,29 +53,30 @@ export function AutoUpdatesManagement(props: {
 
   const { unreachableClusters } = status.options;
   const getClusterName = clusterNameGetter(props.clusterGetter);
+  const unreachableClustersText =
+    `Unable to retrieve accepted client versions` +
+    ` from the ${pluralize(unreachableClusters.length, 'cluster')}` +
+    ` ${listFormatter.format(unreachableClusters.map(c => getClusterName(c.clusterUri)))}.`;
   const content =
     status.enabled === true
       ? makeContentForEnabledAutoUpdates(status, getClusterName)
-      : makeContentForDisabledAutoUpdates(status);
-
+      : makeContentForDisabledAutoUpdates(status, unreachableClustersText);
   const hasUnreachableClusters = unreachableClusters.length > 0;
-  const unreachableDetailsText =
-    `Unable to retrieve accepted client versions` +
-    ` from the ${unreachableClusters.length === 1 ? 'cluster' : 'clusters'}` +
-    ` ${listFormatter.format(unreachableClusters.map(c => getClusterName(c.clusterUri)))}.`;
+  const refreshButton = {
+    content: 'Refresh',
+    onClick: props.onCheckForUpdates,
+    disabled: props.updateEventKind === 'download-progress',
+  };
 
   return (
     <>
-      {hasUnreachableClusters && !content.showInlineUnreachableErrors && (
+      {hasUnreachableClusters && !content.isUnreachableError && (
         <Alert
           width="100%"
           mb={0}
           kind="warning"
-          primaryAction={{
-            content: 'Refresh',
-            onClick: props.onCheckForUpdates,
-          }}
-          details={unreachableDetailsText}
+          primaryAction={refreshButton}
+          details={unreachableClustersText}
         >
           Unreachable clusters
         </Alert>
@@ -85,18 +87,8 @@ export function AutoUpdatesManagement(props: {
           mb={0}
           icon={content.kind === 'neutral' ? Cog : undefined}
           kind={content.kind}
-          details={
-            hasUnreachableClusters && content.showInlineUnreachableErrors
-              ? unreachableDetailsText
-              : content.description
-          }
-          primaryAction={
-            hasUnreachableClusters &&
-            content.showInlineUnreachableErrors && {
-              content: 'Refresh',
-              onClick: props.onCheckForUpdates,
-            }
-          }
+          details={content.description}
+          primaryAction={content.isUnreachableError && refreshButton}
         >
           {'title' in content ? content.title : ''}
         </Alert>
@@ -266,7 +258,7 @@ function makeContentForEnabledAutoUpdates(
 ): {
   description: string;
   kind: 'neutral' | 'warning';
-  showInlineUnreachableErrors?: boolean;
+  isUnreachableError?: boolean;
 } {
   switch (status.source) {
     case 'env-var':
@@ -280,27 +272,36 @@ function makeContentForEnabledAutoUpdates(
         description: `Updates are managed by the ${getClusterName(status.options.managingClusterUri)} cluster, which requires client version ${status.version}.`,
       };
     case 'highest-compatible':
-      const managingClusters = status.options.clusters
+      const providingClusters = status.options.clusters
         .filter(c => c.toolsAutoUpdate && c.toolsVersion === status.version)
         .map(c => getClusterName(c.clusterUri));
-      return managingClusters.length === 1
-        ? {
-            kind: 'neutral',
-            description: `Updates are managed by the cluster ${managingClusters.at(0)}, which requires client version ${status.version}.`,
-          }
-        : {
-            kind: 'neutral',
-            description: `Updates are managed by the clusters ${listFormatter.format(managingClusters.map(c => c))}, which require client version ${status.version}.`,
-          };
+      // There's only one cluster.
+      if (status.options.clusters.length === 1) {
+        return {
+          kind: 'neutral',
+          description: `Updates are managed by the cluster ${providingClusters}, which requires client version ${status.version}.`,
+        };
+      }
+
+      return {
+        kind: 'neutral',
+        description:
+          `Updates are managed.` +
+          ` Version ${status.version} from the ${pluralize(providingClusters.length, 'cluster')}` +
+          ` ${listFormatter.format(providingClusters.map(c => c))} was chosen as the highest compatible.`,
+      };
   }
 }
 
-function makeContentForDisabledAutoUpdates(updateSource: AutoUpdatesDisabled): {
+function makeContentForDisabledAutoUpdates(
+  updateSource: AutoUpdatesDisabled,
+  unreachableClustersText: string
+): {
   title?: string;
   description?: ReactNode;
   kind: 'danger' | 'neutral';
-  /** Replace description with "unreachable" error. */
-  showInlineUnreachableErrors?: boolean;
+  /** Determines if the notification shows an unreachable error so it shouldn't be shown separately. */
+  isUnreachableError?: boolean;
 } {
   switch (updateSource.reason) {
     case 'disabled-by-env-var':
@@ -309,11 +310,32 @@ function makeContentForDisabledAutoUpdates(updateSource: AutoUpdatesDisabled): {
         description: 'Updates are disabled by your device settings.',
       };
     case 'no-cluster-with-auto-update':
+      // There's only one cluster and it's unreachable.
+      if (
+        updateSource.options.unreachableClusters.length === 1 &&
+        updateSource.options.clusters.length === 0
+      ) {
+        return {
+          kind: 'danger',
+          title: 'App updates are disabled, cluster is unreachable',
+          isUnreachableError: true,
+          description:
+            updateSource.options.unreachableClusters.at(0).errorMessage,
+        };
+      }
+      // There is no cluster with updates enabled and some clusters cannot be reached.
+      if (updateSource.options.unreachableClusters.length > 1) {
+        return {
+          kind: 'danger',
+          title: 'App updates are disabled',
+          isUnreachableError: true,
+          description: unreachableClustersText,
+        };
+      }
+      // All clusters have updates disabled.
       return {
         kind: 'neutral',
         title: 'App updates are disabled',
-        // If there are unreachable clusters, we don't want to show the enrollment info.
-        showInlineUnreachableErrors: true,
         description: (
           <>
             The cluster{' '}
@@ -325,15 +347,19 @@ function makeContentForDisabledAutoUpdates(updateSource: AutoUpdatesDisabled): {
         ),
       };
     case 'managing-cluster-unable-to-manage':
+      const isManagingClusterUnreachable =
+        updateSource.options.unreachableClusters.some(
+          c => c.clusterUri === updateSource.options.managingClusterUri
+        );
       return {
         kind: 'danger',
         title: 'Chosen cluster cannot provide app updates',
         // If managing cluster cannot provide updates because it's unreachable,
         // the error needs to be shown here, instead of in a separate alert.
-        showInlineUnreachableErrors:
-          updateSource.options.unreachableClusters.some(
-            c => c.clusterUri === updateSource.options.managingClusterUri
-          ),
+        isUnreachableError: isManagingClusterUnreachable,
+        description: isManagingClusterUnreachable
+          ? unreachableClustersText
+          : undefined,
       };
     case 'no-compatible-version':
       return {
