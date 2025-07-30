@@ -45,9 +45,6 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
 
-      - name: Install WASM deps
-        run: make ensure-wasm-deps
-
       - name: Build WASM
         run: pnpm build-wasm
 
