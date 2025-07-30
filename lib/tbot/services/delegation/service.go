@@ -13,8 +13,11 @@ import (
 
 	"github.com/google/uuid"
 	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -25,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
-	"github.com/gravitational/teleport/lib/tbot/ssh"
+	tbotSSH "github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/trace"
 )
 
@@ -157,7 +160,6 @@ func (s *Service) handleApplicationTunnel(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Service) generateUserSSHConfig(ctx context.Context, userJWT string) (string, error) {
-	// TODO: get a user certificate instead of this.
 	id, err := s.identityGenerator.GenerateFacade(ctx,
 		identity.WithLifetime(s.cfg.CredentialLifetime.TTL, s.cfg.CredentialLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
@@ -222,7 +224,7 @@ func (s *Service) generateUserSSHConfig(ctx context.Context, userJWT string) (st
 		return "", trace.Wrap(err, "rendering SSH config")
 	}
 
-	return filepath.Join(dest.Path, ssh.ConfigName), nil
+	return filepath.Join(dest.Path, tbotSSH.ConfigName), nil
 }
 
 func (s *Service) startApplicationTunnel(ctx context.Context, jwt string, applicationName string) (*ephemeralApplicationTunnel, error) {
@@ -231,7 +233,6 @@ func (s *Service) startApplicationTunnel(ctx context.Context, jwt string, applic
 		identity.WithLogger(s.log),
 	}
 
-	// TODO: get a user certificate instead of this.
 	// TODO: add roles
 	id, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
 	if err != nil {
@@ -254,11 +255,9 @@ func (s *Service) startApplicationTunnel(ctx context.Context, jwt string, applic
 		return nil, trace.Wrap(err, "getting route to app")
 	}
 
-	routedID, err := s.identityGenerator.Generate(ctx,
-		append(identityOpts, identity.WithRouteToApp(routeToApp))...,
-	)
+	userID, err := s.getUserIdentity(ctx, client, jwt, []string{"editor", "access"}, &routeToApp)
 	if err != nil {
-		return nil, trace.Wrap(err, "getting routed identity")
+		return nil, trace.Wrap(err, "getting user identity")
 	}
 
 	proxyPong, err := s.proxyPinger.Ping(ctx)
@@ -288,7 +287,7 @@ func (s *Service) startApplicationTunnel(ctx context.Context, jwt string, applic
 		Protocols: []common.Protocol{
 			application.ALPNProtocolForApp(app),
 		},
-		Cert:               *routedID.TLSCert,
+		Cert:               *userID.TLSCert,
 		InsecureSkipVerify: s.insecure,
 		Listener:           lis,
 	})
@@ -328,4 +327,66 @@ func (s *Service) getUserJWT(r *http.Request) (string, error) {
 		return "", trace.Errorf("malformed Authorization header")
 	}
 	return token, nil
+}
+
+func (s *Service) getUserIdentity(
+	ctx context.Context,
+	client *apiclient.Client,
+	jwt string,
+	roles []string,
+	routeToApp *proto.RouteToApp,
+) (*identity.Identity, error) {
+	key, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromAuthPreference(client),
+		cryptosuites.BotImpersonatedIdentity,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "generating keypair")
+	}
+	pubKey, err := keys.MarshalPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err, "marshaling public key")
+	}
+
+	// TODO: roles.
+	userCerts, err := client.GenerateDelegatedCerts(ctx, proto.DelegatedCertsRequest{
+		TLSPublicKey: pubKey,
+		Assertion:    jwt,
+		RouteToApp:   routeToApp,
+		Roles:        roles,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "getting delegated certs")
+	}
+
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, trace.Wrap(err, "marshaling private key")
+	}
+
+	// TODO: Fix this once the backend supports SSH certificates.
+	/*
+		publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
+		if err != nil {
+			return nil, trace.Wrap(err, "marshaling public key")
+		}
+
+		id, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
+			PrivateKeyBytes: privateKeyPEM,
+			PublicKeyBytes:  publicKeyPEM,
+		}, userCerts)
+		if err != nil {
+			return nil, trace.Wrap(err, "reading identity from store")
+		}
+
+		return id, nil
+	*/
+
+	pair, err := keys.X509KeyPair(userCerts.TLS, privateKeyPEM)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing keypair")
+	}
+	return &identity.Identity{
+		TLSCert: &pair,
+	}, nil
 }
