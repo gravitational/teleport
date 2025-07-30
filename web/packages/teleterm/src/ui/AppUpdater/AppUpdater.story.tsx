@@ -133,7 +133,7 @@ const meta: Meta<StoryProps> = {
     clusterFoo: 'Enabled client updates - v18 cluster',
     clusterBar: 'Not exists',
     clusterBarSetToManageUpdates: false,
-    step: 'Update not available',
+    step: 'Update available',
     platform: 'darwin',
     nonTeleportCdn: false,
   },
@@ -360,6 +360,7 @@ export const DisabledBecauseSingleClusterUnreachable: StoryObj<StoryProps> = {
   args: {
     clusterFoo: 'Unreachable',
     clusterBar: 'Not exists',
+    step: 'Update not available',
   },
 };
 export const DisabledBecauseSingleClusterHasNoAutoupdates: StoryObj<StoryProps> =
@@ -367,6 +368,7 @@ export const DisabledBecauseSingleClusterHasNoAutoupdates: StoryObj<StoryProps> 
     args: {
       clusterFoo: 'Disabled client updates - v18 cluster',
       clusterBar: 'Not exists',
+      step: 'Update not available',
     },
   };
 
@@ -376,6 +378,7 @@ export const DisabledBecauseManagingClusterIsUnreachable: StoryObj<StoryProps> =
       clusterFoo: 'Enabled client updates - v17 cluster',
       clusterBar: 'Unreachable',
       clusterBarSetToManageUpdates: true,
+      step: 'Update not available',
     },
   };
 
@@ -385,6 +388,7 @@ export const DisabledBecauseManagingClusterHasNoAutoupdates: StoryObj<StoryProps
       clusterFoo: 'Enabled client updates - v17 cluster',
       clusterBar: 'Disabled client updates - v17 cluster',
       clusterBarSetToManageUpdates: true,
+      step: 'Update not available',
     },
   };
 
@@ -392,6 +396,7 @@ export const DisableBecauseNoClusterManagingUpdates: StoryObj<StoryProps> = {
   args: {
     clusterFoo: 'Disabled client updates - v18 cluster',
     clusterBar: 'Disabled client updates - v17 cluster',
+    step: 'Update not available',
   },
 };
 
@@ -400,5 +405,6 @@ export const DisabledBecauseClustersRequireIncompatibleVersions: StoryObj<StoryP
     args: {
       clusterFoo: 'Enabled client updates - v18 cluster',
       clusterBar: 'Enabled client updates - v16 cluster',
+      step: 'Update not available',
     },
   };
