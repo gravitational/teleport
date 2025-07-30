@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["lib/srv/desktop/rdp/rdpclient", "web/packages/shared/libs/ironrdp"]
+members = ["lib/srv/desktop/rdp/rdpclient", "tool/cargo-bin", "web/packages/shared/libs/ironrdp"]
 
 [workspace.package]
 edition = "2021"
@@ -18,7 +18,12 @@ debug = 1
 codegen-units = 1
 lto = "thin"
 
+[workspace.metadata.bin]
+wasm-bindgen-cli = { version = "0.2.99", bins = ["wasm-bindgen"], locked = true }
+
 [workspace.dependencies]
+wasm-bindgen = "0.2.99" # when updating this version make sure you update version above to match!
+
 # Note: To use a local IronRDP repository as a crate (for example, ironrdp-cliprdr), define the dependency as follows:
 # ironrdp-cliprdr = { path = "/path/to/local/IronRDP/crates/ironrdp-cliprdr" }
 ironrdp-cliprdr = { git = "https://github.com/Devolutions/IronRDP", rev = "dd221bf22401c4635798ec012724cba7e6d503b2" }

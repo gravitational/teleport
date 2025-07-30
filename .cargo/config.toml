@@ -1,0 +1,2 @@
+[alias]
+bin = ["run", "--package", "cargo-bin", "--"]
