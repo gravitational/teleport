@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.recordingencryption.v1;
 
 import "google/protobuf/timestamp.proto";
+import "teleport/recordingencryption/v1/recording_encryption.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1;recordingencryptionv1";
 
@@ -29,6 +30,15 @@ service RecordingEncryptionService {
   rpc UploadPart(UploadPartRequest) returns (UploadPartResponse);
   // CompleteUploadRequest marks a multipart upload as complete.
   rpc CompleteUpload(CompleteUploadRequest) returns (CompleteUploadResponse);
+
+  // RotateKey rotates the key pair used for encrypting session recording data.
+  rpc RotateKey(RotateKeyRequest) returns (RotateKeyResponse);
+  // GetRotationState returns whether or not a rotation is in progress.
+  rpc GetRotationState(GetRotationStateRequest) returns (GetRotationStateResponse);
+  // CompleteRotation moves rotated keys out of the active set.
+  rpc CompleteRotation(CompleteRotationRequest) returns (CompleteRotationResponse);
+  // RollbackRotation removes active keys and reverts rotating keys back to being active.
+  rpc RollbackRotation(RollbackRotationRequest) returns (RollbackRotationResponse);
 }
 
 // The handle to an upload for an encrypted session.
@@ -88,3 +98,35 @@ message CompleteUploadRequest {
 
 // CompleteUploadResponse is the empty return value of a CompleteUpload request.
 message CompleteUploadResponse {}
+
+// The empty body of a RotateKey request.
+message RotateKeyRequest {}
+
+// The empty return value of a RotateKey response.
+message RotateKeyResponse {}
+
+// The empty body of a GetRotationState request.
+message GetRotationStateRequest {}
+
+// A public key fingerprint coupled with its current state.
+message KeyWithState {
+  string fingerprint = 1;
+  v1.KeyState state = 2;
+}
+
+// The empty body of a GetRotationState response.
+message GetRotationStateResponse {
+  repeated KeyWithState keys = 1;
+}
+
+// The empty body of a CompleteRotation request.
+message CompleteRotationRequest {}
+
+// The empty return value of a CompleteRotation response.
+message CompleteRotationResponse {}
+
+// The empty body of a RollbackRotation request.
+message RollbackRotationRequest {}
+
+// The empty return value of a RollbackRotation response.
+message RollbackRotationResponse {}

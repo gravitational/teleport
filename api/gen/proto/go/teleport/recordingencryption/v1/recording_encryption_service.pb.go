@@ -450,11 +450,368 @@ func (*CompleteUploadResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{7}
 }
 
+// The empty body of a RotateKey request.
+type RotateKeyRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RotateKeyRequest) Reset() {
+	*x = RotateKeyRequest{}
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RotateKeyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RotateKeyRequest) ProtoMessage() {}
+
+func (x *RotateKeyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RotateKeyRequest.ProtoReflect.Descriptor instead.
+func (*RotateKeyRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{8}
+}
+
+// The empty return value of a RotateKey response.
+type RotateKeyResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RotateKeyResponse) Reset() {
+	*x = RotateKeyResponse{}
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RotateKeyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RotateKeyResponse) ProtoMessage() {}
+
+func (x *RotateKeyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RotateKeyResponse.ProtoReflect.Descriptor instead.
+func (*RotateKeyResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{9}
+}
+
+// The empty body of a GetRotationState request.
+type GetRotationStateRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRotationStateRequest) Reset() {
+	*x = GetRotationStateRequest{}
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRotationStateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRotationStateRequest) ProtoMessage() {}
+
+func (x *GetRotationStateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRotationStateRequest.ProtoReflect.Descriptor instead.
+func (*GetRotationStateRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{10}
+}
+
+// A public key fingerprint coupled with its current state.
+type KeyWithState struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Fingerprint   string                 `protobuf:"bytes,1,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	State         KeyState               `protobuf:"varint,2,opt,name=state,proto3,enum=teleport.recordingencryption.v1.KeyState" json:"state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *KeyWithState) Reset() {
+	*x = KeyWithState{}
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KeyWithState) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KeyWithState) ProtoMessage() {}
+
+func (x *KeyWithState) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KeyWithState.ProtoReflect.Descriptor instead.
+func (*KeyWithState) Descriptor() ([]byte, []int) {
+	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *KeyWithState) GetFingerprint() string {
+	if x != nil {
+		return x.Fingerprint
+	}
+	return ""
+}
+
+func (x *KeyWithState) GetState() KeyState {
+	if x != nil {
+		return x.State
+	}
+	return KeyState_KEY_STATE_UNSPECIFIED
+}
+
+// The empty body of a GetRotationState response.
+type GetRotationStateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Keys          []*KeyWithState        `protobuf:"bytes,1,rep,name=keys,proto3" json:"keys,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRotationStateResponse) Reset() {
+	*x = GetRotationStateResponse{}
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRotationStateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRotationStateResponse) ProtoMessage() {}
+
+func (x *GetRotationStateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRotationStateResponse.ProtoReflect.Descriptor instead.
+func (*GetRotationStateResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *GetRotationStateResponse) GetKeys() []*KeyWithState {
+	if x != nil {
+		return x.Keys
+	}
+	return nil
+}
+
+// The empty body of a CompleteRotation request.
+type CompleteRotationRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CompleteRotationRequest) Reset() {
+	*x = CompleteRotationRequest{}
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompleteRotationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompleteRotationRequest) ProtoMessage() {}
+
+func (x *CompleteRotationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CompleteRotationRequest.ProtoReflect.Descriptor instead.
+func (*CompleteRotationRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{13}
+}
+
+// The empty return value of a CompleteRotation response.
+type CompleteRotationResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CompleteRotationResponse) Reset() {
+	*x = CompleteRotationResponse{}
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompleteRotationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompleteRotationResponse) ProtoMessage() {}
+
+func (x *CompleteRotationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CompleteRotationResponse.ProtoReflect.Descriptor instead.
+func (*CompleteRotationResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{14}
+}
+
+// The empty body of a RollbackRotation request.
+type RollbackRotationRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RollbackRotationRequest) Reset() {
+	*x = RollbackRotationRequest{}
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RollbackRotationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RollbackRotationRequest) ProtoMessage() {}
+
+func (x *RollbackRotationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RollbackRotationRequest.ProtoReflect.Descriptor instead.
+func (*RollbackRotationRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{15}
+}
+
+// The empty return value of a RollbackRotation response.
+type RollbackRotationResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RollbackRotationResponse) Reset() {
+	*x = RollbackRotationResponse{}
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RollbackRotationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RollbackRotationResponse) ProtoMessage() {}
+
+func (x *RollbackRotationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RollbackRotationResponse.ProtoReflect.Descriptor instead.
+func (*RollbackRotationResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{16}
+}
+
 var File_teleport_recordingencryption_v1_recording_encryption_service_proto protoreflect.FileDescriptor
 
 const file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDesc = "" +
 	"\n" +
-	"Bteleport/recordingencryption/v1/recording_encryption_service.proto\x12\x1fteleport.recordingencryption.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x83\x01\n" +
+	"Bteleport/recordingencryption/v1/recording_encryption_service.proto\x12\x1fteleport.recordingencryption.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a:teleport/recordingencryption/v1/recording_encryption.proto\"\x83\x01\n" +
 	"\x06Upload\x12\x1b\n" +
 	"\tupload_id\x18\x01 \x01(\tR\buploadId\x12\x1d\n" +
 	"\n" +
@@ -479,12 +836,28 @@ const file_teleport_recordingencryption_v1_recording_encryption_service_proto_ra
 	"\x15CompleteUploadRequest\x12?\n" +
 	"\x06upload\x18\x01 \x01(\v2'.teleport.recordingencryption.v1.UploadR\x06upload\x12;\n" +
 	"\x05parts\x18\x02 \x03(\v2%.teleport.recordingencryption.v1.PartR\x05parts\"\x18\n" +
-	"\x16CompleteUploadResponse2\x94\x03\n" +
+	"\x16CompleteUploadResponse\"\x12\n" +
+	"\x10RotateKeyRequest\"\x13\n" +
+	"\x11RotateKeyResponse\"\x19\n" +
+	"\x17GetRotationStateRequest\"q\n" +
+	"\fKeyWithState\x12 \n" +
+	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12?\n" +
+	"\x05state\x18\x02 \x01(\x0e2).teleport.recordingencryption.v1.KeyStateR\x05state\"]\n" +
+	"\x18GetRotationStateResponse\x12A\n" +
+	"\x04keys\x18\x01 \x03(\v2-.teleport.recordingencryption.v1.KeyWithStateR\x04keys\"\x19\n" +
+	"\x17CompleteRotationRequest\"\x1a\n" +
+	"\x18CompleteRotationResponse\"\x19\n" +
+	"\x17RollbackRotationRequest\"\x1a\n" +
+	"\x18RollbackRotationResponse2\xa6\a\n" +
 	"\x1aRecordingEncryptionService\x12{\n" +
 	"\fCreateUpload\x124.teleport.recordingencryption.v1.CreateUploadRequest\x1a5.teleport.recordingencryption.v1.CreateUploadResponse\x12u\n" +
 	"\n" +
 	"UploadPart\x122.teleport.recordingencryption.v1.UploadPartRequest\x1a3.teleport.recordingencryption.v1.UploadPartResponse\x12\x81\x01\n" +
-	"\x0eCompleteUpload\x126.teleport.recordingencryption.v1.CompleteUploadRequest\x1a7.teleport.recordingencryption.v1.CompleteUploadResponseBjZhgithub.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1;recordingencryptionv1b\x06proto3"
+	"\x0eCompleteUpload\x126.teleport.recordingencryption.v1.CompleteUploadRequest\x1a7.teleport.recordingencryption.v1.CompleteUploadResponse\x12r\n" +
+	"\tRotateKey\x121.teleport.recordingencryption.v1.RotateKeyRequest\x1a2.teleport.recordingencryption.v1.RotateKeyResponse\x12\x87\x01\n" +
+	"\x10GetRotationState\x128.teleport.recordingencryption.v1.GetRotationStateRequest\x1a9.teleport.recordingencryption.v1.GetRotationStateResponse\x12\x87\x01\n" +
+	"\x10CompleteRotation\x128.teleport.recordingencryption.v1.CompleteRotationRequest\x1a9.teleport.recordingencryption.v1.CompleteRotationResponse\x12\x87\x01\n" +
+	"\x10RollbackRotation\x128.teleport.recordingencryption.v1.RollbackRotationRequest\x1a9.teleport.recordingencryption.v1.RollbackRotationResponseBjZhgithub.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1;recordingencryptionv1b\x06proto3"
 
 var (
 	file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescOnce sync.Once
@@ -498,36 +871,56 @@ func file_teleport_recordingencryption_v1_recording_encryption_service_proto_raw
 	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescData
 }
 
-var file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_teleport_recordingencryption_v1_recording_encryption_service_proto_goTypes = []any{
-	(*Upload)(nil),                 // 0: teleport.recordingencryption.v1.Upload
-	(*CreateUploadRequest)(nil),    // 1: teleport.recordingencryption.v1.CreateUploadRequest
-	(*CreateUploadResponse)(nil),   // 2: teleport.recordingencryption.v1.CreateUploadResponse
-	(*UploadPartRequest)(nil),      // 3: teleport.recordingencryption.v1.UploadPartRequest
-	(*Part)(nil),                   // 4: teleport.recordingencryption.v1.Part
-	(*UploadPartResponse)(nil),     // 5: teleport.recordingencryption.v1.UploadPartResponse
-	(*CompleteUploadRequest)(nil),  // 6: teleport.recordingencryption.v1.CompleteUploadRequest
-	(*CompleteUploadResponse)(nil), // 7: teleport.recordingencryption.v1.CompleteUploadResponse
-	(*timestamppb.Timestamp)(nil),  // 8: google.protobuf.Timestamp
+	(*Upload)(nil),                   // 0: teleport.recordingencryption.v1.Upload
+	(*CreateUploadRequest)(nil),      // 1: teleport.recordingencryption.v1.CreateUploadRequest
+	(*CreateUploadResponse)(nil),     // 2: teleport.recordingencryption.v1.CreateUploadResponse
+	(*UploadPartRequest)(nil),        // 3: teleport.recordingencryption.v1.UploadPartRequest
+	(*Part)(nil),                     // 4: teleport.recordingencryption.v1.Part
+	(*UploadPartResponse)(nil),       // 5: teleport.recordingencryption.v1.UploadPartResponse
+	(*CompleteUploadRequest)(nil),    // 6: teleport.recordingencryption.v1.CompleteUploadRequest
+	(*CompleteUploadResponse)(nil),   // 7: teleport.recordingencryption.v1.CompleteUploadResponse
+	(*RotateKeyRequest)(nil),         // 8: teleport.recordingencryption.v1.RotateKeyRequest
+	(*RotateKeyResponse)(nil),        // 9: teleport.recordingencryption.v1.RotateKeyResponse
+	(*GetRotationStateRequest)(nil),  // 10: teleport.recordingencryption.v1.GetRotationStateRequest
+	(*KeyWithState)(nil),             // 11: teleport.recordingencryption.v1.KeyWithState
+	(*GetRotationStateResponse)(nil), // 12: teleport.recordingencryption.v1.GetRotationStateResponse
+	(*CompleteRotationRequest)(nil),  // 13: teleport.recordingencryption.v1.CompleteRotationRequest
+	(*CompleteRotationResponse)(nil), // 14: teleport.recordingencryption.v1.CompleteRotationResponse
+	(*RollbackRotationRequest)(nil),  // 15: teleport.recordingencryption.v1.RollbackRotationRequest
+	(*RollbackRotationResponse)(nil), // 16: teleport.recordingencryption.v1.RollbackRotationResponse
+	(*timestamppb.Timestamp)(nil),    // 17: google.protobuf.Timestamp
+	(KeyState)(0),                    // 18: teleport.recordingencryption.v1.KeyState
 }
 var file_teleport_recordingencryption_v1_recording_encryption_service_proto_depIdxs = []int32{
-	8, // 0: teleport.recordingencryption.v1.Upload.initiated_at:type_name -> google.protobuf.Timestamp
-	0, // 1: teleport.recordingencryption.v1.CreateUploadResponse.upload:type_name -> teleport.recordingencryption.v1.Upload
-	0, // 2: teleport.recordingencryption.v1.UploadPartRequest.upload:type_name -> teleport.recordingencryption.v1.Upload
-	4, // 3: teleport.recordingencryption.v1.UploadPartResponse.part:type_name -> teleport.recordingencryption.v1.Part
-	0, // 4: teleport.recordingencryption.v1.CompleteUploadRequest.upload:type_name -> teleport.recordingencryption.v1.Upload
-	4, // 5: teleport.recordingencryption.v1.CompleteUploadRequest.parts:type_name -> teleport.recordingencryption.v1.Part
-	1, // 6: teleport.recordingencryption.v1.RecordingEncryptionService.CreateUpload:input_type -> teleport.recordingencryption.v1.CreateUploadRequest
-	3, // 7: teleport.recordingencryption.v1.RecordingEncryptionService.UploadPart:input_type -> teleport.recordingencryption.v1.UploadPartRequest
-	6, // 8: teleport.recordingencryption.v1.RecordingEncryptionService.CompleteUpload:input_type -> teleport.recordingencryption.v1.CompleteUploadRequest
-	2, // 9: teleport.recordingencryption.v1.RecordingEncryptionService.CreateUpload:output_type -> teleport.recordingencryption.v1.CreateUploadResponse
-	5, // 10: teleport.recordingencryption.v1.RecordingEncryptionService.UploadPart:output_type -> teleport.recordingencryption.v1.UploadPartResponse
-	7, // 11: teleport.recordingencryption.v1.RecordingEncryptionService.CompleteUpload:output_type -> teleport.recordingencryption.v1.CompleteUploadResponse
-	9, // [9:12] is the sub-list for method output_type
-	6, // [6:9] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	17, // 0: teleport.recordingencryption.v1.Upload.initiated_at:type_name -> google.protobuf.Timestamp
+	0,  // 1: teleport.recordingencryption.v1.CreateUploadResponse.upload:type_name -> teleport.recordingencryption.v1.Upload
+	0,  // 2: teleport.recordingencryption.v1.UploadPartRequest.upload:type_name -> teleport.recordingencryption.v1.Upload
+	4,  // 3: teleport.recordingencryption.v1.UploadPartResponse.part:type_name -> teleport.recordingencryption.v1.Part
+	0,  // 4: teleport.recordingencryption.v1.CompleteUploadRequest.upload:type_name -> teleport.recordingencryption.v1.Upload
+	4,  // 5: teleport.recordingencryption.v1.CompleteUploadRequest.parts:type_name -> teleport.recordingencryption.v1.Part
+	18, // 6: teleport.recordingencryption.v1.KeyWithState.state:type_name -> teleport.recordingencryption.v1.KeyState
+	11, // 7: teleport.recordingencryption.v1.GetRotationStateResponse.keys:type_name -> teleport.recordingencryption.v1.KeyWithState
+	1,  // 8: teleport.recordingencryption.v1.RecordingEncryptionService.CreateUpload:input_type -> teleport.recordingencryption.v1.CreateUploadRequest
+	3,  // 9: teleport.recordingencryption.v1.RecordingEncryptionService.UploadPart:input_type -> teleport.recordingencryption.v1.UploadPartRequest
+	6,  // 10: teleport.recordingencryption.v1.RecordingEncryptionService.CompleteUpload:input_type -> teleport.recordingencryption.v1.CompleteUploadRequest
+	8,  // 11: teleport.recordingencryption.v1.RecordingEncryptionService.RotateKey:input_type -> teleport.recordingencryption.v1.RotateKeyRequest
+	10, // 12: teleport.recordingencryption.v1.RecordingEncryptionService.GetRotationState:input_type -> teleport.recordingencryption.v1.GetRotationStateRequest
+	13, // 13: teleport.recordingencryption.v1.RecordingEncryptionService.CompleteRotation:input_type -> teleport.recordingencryption.v1.CompleteRotationRequest
+	15, // 14: teleport.recordingencryption.v1.RecordingEncryptionService.RollbackRotation:input_type -> teleport.recordingencryption.v1.RollbackRotationRequest
+	2,  // 15: teleport.recordingencryption.v1.RecordingEncryptionService.CreateUpload:output_type -> teleport.recordingencryption.v1.CreateUploadResponse
+	5,  // 16: teleport.recordingencryption.v1.RecordingEncryptionService.UploadPart:output_type -> teleport.recordingencryption.v1.UploadPartResponse
+	7,  // 17: teleport.recordingencryption.v1.RecordingEncryptionService.CompleteUpload:output_type -> teleport.recordingencryption.v1.CompleteUploadResponse
+	9,  // 18: teleport.recordingencryption.v1.RecordingEncryptionService.RotateKey:output_type -> teleport.recordingencryption.v1.RotateKeyResponse
+	12, // 19: teleport.recordingencryption.v1.RecordingEncryptionService.GetRotationState:output_type -> teleport.recordingencryption.v1.GetRotationStateResponse
+	14, // 20: teleport.recordingencryption.v1.RecordingEncryptionService.CompleteRotation:output_type -> teleport.recordingencryption.v1.CompleteRotationResponse
+	16, // 21: teleport.recordingencryption.v1.RecordingEncryptionService.RollbackRotation:output_type -> teleport.recordingencryption.v1.RollbackRotationResponse
+	15, // [15:22] is the sub-list for method output_type
+	8,  // [8:15] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_teleport_recordingencryption_v1_recording_encryption_service_proto_init() }
@@ -535,13 +928,14 @@ func file_teleport_recordingencryption_v1_recording_encryption_service_proto_ini
 	if File_teleport_recordingencryption_v1_recording_encryption_service_proto != nil {
 		return
 	}
+	file_teleport_recordingencryption_v1_recording_encryption_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDesc), len(file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
