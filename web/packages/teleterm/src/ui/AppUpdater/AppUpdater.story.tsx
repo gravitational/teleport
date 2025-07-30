@@ -55,13 +55,13 @@ export interface StoryProps {
   envVar: 'Set to "off"' | 'Set to version - v15' | 'Unset';
   platform: Platform;
   clusterFoo:
-    | 'Not exists'
+    | 'Does not exist'
     | 'Unreachable'
     | 'Enabled client updates - v18 cluster'
     | 'Enabled client updates - v17 cluster'
     | 'Disabled client updates - v18 cluster';
   clusterBar:
-    | 'Not exists'
+    | 'Does not exist'
     | 'Unreachable'
     | 'Enabled client updates - v17 cluster'
     | 'Enabled client updates - v16 cluster'
@@ -83,7 +83,7 @@ const meta: Meta<StoryProps> = {
       control: { type: 'select' },
       description: 'State of cluster "foo"',
       options: [
-        'Not exists',
+        'Does not exist',
         'Enabled client updates - v18 cluster',
         'Enabled client updates - v17 cluster',
         'Disabled client updates - v18 cluster',
@@ -94,7 +94,7 @@ const meta: Meta<StoryProps> = {
       description: 'State of cluster "bar"',
       control: { type: 'select' },
       options: [
-        'Not exists',
+        'Does not exist',
         'Enabled client updates - v17 cluster',
         'Enabled client updates - v16 cluster',
         'Disabled client updates - v17 cluster',
@@ -131,7 +131,7 @@ const meta: Meta<StoryProps> = {
   args: {
     envVar: 'Unset',
     clusterFoo: 'Enabled client updates - v18 cluster',
-    clusterBar: 'Not exists',
+    clusterBar: 'Does not exist',
     clusterBarSetToManageUpdates: false,
     step: 'Update available',
     platform: 'darwin',
@@ -161,7 +161,7 @@ async function resolveEvent(storyProps: StoryProps): Promise<AppUpdateEvent> {
       const unreachableClusters: UnreachableCluster[] = [];
 
       switch (storyProps.clusterFoo) {
-        case 'Not exists':
+        case 'Does not exist':
           break;
         case 'Enabled client updates - v18 cluster':
           reachableClusters.push({
@@ -196,7 +196,7 @@ async function resolveEvent(storyProps: StoryProps): Promise<AppUpdateEvent> {
           });
       }
       switch (storyProps.clusterBar) {
-        case 'Not exists':
+        case 'Does not exist':
           break;
         case 'Enabled client updates - v17 cluster':
           reachableClusters.push({
@@ -376,7 +376,7 @@ export const EnabledWithManagingClusterAndSomeUnreachable: StoryObj<StoryProps> 
 export const DisabledBecauseSingleClusterUnreachable: StoryObj<StoryProps> = {
   args: {
     clusterFoo: 'Unreachable',
-    clusterBar: 'Not exists',
+    clusterBar: 'Does not exist',
     step: 'Update not available',
   },
 };
@@ -384,7 +384,7 @@ export const DisabledBecauseSingleClusterHasNoAutoupdates: StoryObj<StoryProps> 
   {
     args: {
       clusterFoo: 'Disabled client updates - v18 cluster',
-      clusterBar: 'Not exists',
+      clusterBar: 'Does not exist',
       step: 'Update not available',
     },
   };

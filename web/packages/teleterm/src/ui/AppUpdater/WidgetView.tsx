@@ -295,9 +295,9 @@ function makeUpdaterContent({
  * This case could mean one of two things:
  * 1. The user is trying to log in to an unreachable cluster, which will already
  * produce an error.
- * 2. There are multiple clusters, and one of them (not the one being logged in)
+ * 2. There are multiple clusters, and one of them (not the one being logged in to)
  * is unreachable. But if the user logs in to the reachable one, they likely
- * don't care about the other, unreachable cluster.
+ * don't care about the unreachable cluster.
  */
 
 function findAutoUpdatesIssuesRequiringAttention(
@@ -312,6 +312,6 @@ function findAutoUpdatesIssuesRequiringAttention(
     status.enabled === false &&
     status.reason === 'managing-cluster-unable-to-manage'
   ) {
-    return `Cluster ${getClusterName(status.options.managingClusterUri)} was chosen to manage updates but is not able to provide them.`;
+    return `The cluster ${getClusterName(status.options.managingClusterUri)} was chosen to manage updates but is not able to provide them.`;
   }
 }

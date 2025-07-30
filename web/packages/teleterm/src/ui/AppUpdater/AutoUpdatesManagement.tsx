@@ -317,7 +317,7 @@ function makeContentForDisabledAutoUpdates(
       ) {
         return {
           kind: 'danger',
-          title: 'App updates are disabled, cluster is unreachable',
+          title: 'App updates are disabled, the cluster is unreachable',
           isUnreachableError: true,
           description:
             updateSource.options.unreachableClusters.at(0).errorMessage,
@@ -353,7 +353,7 @@ function makeContentForDisabledAutoUpdates(
         );
       return {
         kind: 'danger',
-        title: 'Chosen cluster cannot provide app updates',
+        title: 'The chosen cluster cannot provide app updates',
         // If managing cluster cannot provide updates because it's unreachable,
         // the error needs to be shown here, instead of in a separate alert.
         isUnreachableError: isManagingClusterUnreachable,
