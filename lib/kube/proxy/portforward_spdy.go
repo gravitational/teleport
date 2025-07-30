@@ -301,6 +301,7 @@ func (h *portForwardProxy) requestID(stream httpstream.Stream) (string, error) {
 func (h *portForwardProxy) run() {
 	h.logger.DebugContext(h.context, "Waiting for port forward streams")
 	var wg sync.WaitGroup
+	defer wg.Wait()
 	for {
 		select {
 		case <-h.context.Done():
@@ -344,7 +345,6 @@ func (h *portForwardProxy) run() {
 		}
 	}
 
-	wg.Wait()
 }
 
 // portForward handles the port-forwarding for the given stream pair.
