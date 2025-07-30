@@ -3749,6 +3749,7 @@ func (a *ServerWithRoles) generateDelegatedCerts(ctx context.Context, req *proto
 		user:              userState,
 		ttl:               ident.Expires.Sub(a.authServer.GetClock().Now()),
 		tlsPublicKey:      req.TLSPublicKey,
+		sshPublicKey:      req.SSHPublicKey,
 		overrideRoleTTL:   a.hasBuiltinRole(types.RoleAdmin),
 		routeToCluster:    ident.RouteToCluster, // TODO: would probably need to make this settable
 		appSessionID:      appSessionID,
