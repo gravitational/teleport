@@ -162,7 +162,9 @@ function ManagingClusterSelector({
             Use the highest compatible version from your clusters
           </label>
           <>
-            <Text color={disabledClusterSelection ? 'disabled' : undefined}>
+            <Text
+              color={disabledClusterSelection ? 'text.disabled' : undefined}
+            >
               Choose which cluster should manage updates:
             </Text>
             <RadioGroup
