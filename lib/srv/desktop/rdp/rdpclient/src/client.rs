@@ -66,12 +66,12 @@ use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::net::ToSocketAddrs;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 use std::time::Duration;
 use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::mpsc::{channel, error::SendError, Receiver, Sender};
-use tokio::task::JoinError;
+use tokio::task::{self, JoinError};
 // Export this for crate level use.
 use crate::cliprdr::{ClipboardFn, TeleportCliprdrBackend};
 use crate::license::GoLicenseCache;
@@ -103,6 +103,10 @@ pub struct Client {
     pending_resize: Arc<Mutex<PendingResize>>,
 }
 
+/// A global, static tokio runtime for use by `Client`.
+static TOKIO_RT: LazyLock<tokio::runtime::Runtime> =
+    LazyLock::new(|| tokio::runtime::Runtime::new().unwrap());
+
 impl Client {
     /// Connects a new client to the RDP server specified by `params` and starts the session.
     ///
@@ -117,7 +121,7 @@ impl Client {
         cgo_handle: CgoHandle,
         params: ConnectParams,
     ) -> ClientResult<Option<DisconnectDescription>> {
-        global::TOKIO_RT.block_on(async {
+        TOKIO_RT.block_on(async {
             Self::connect(cgo_handle, params)
                 .await?
                 .register()?
@@ -243,7 +247,8 @@ impl Client {
             connection_result.io_channel_id,
             connection_result.user_channel_id,
             connection_result.desktop_size,
-        )?;
+        )
+        .await?;
 
         // Take the stream back out of the framed object for splitting.
         let rdp_stream = rdp_stream.into_inner_no_leftover();
@@ -303,14 +308,14 @@ impl Client {
             .take()
             .ok_or_else(|| ClientError::InternalError("function_receiver failed".to_string()))?;
 
-        let mut read_loop_handle = Client::run_read_loop(
+        let read_loop_handle = Client::run_read_loop(
             self.cgo_handle,
             read_stream,
             self.x224_processor.clone(),
             self.client_handle.clone(),
         );
 
-        let mut write_loop_handle = Client::run_write_loop(
+        let write_loop_handle = Client::run_write_loop(
             self.cgo_handle,
             write_stream,
             function_receiver,
@@ -318,98 +323,88 @@ impl Client {
             self.pending_resize.clone(),
         );
 
-        // Wait for either loop to finish. When one does, abort the other and return the result.
+        // Wait for either loop to finish. When one does, cancel the other and return the result.
         tokio::select! {
-            res = &mut read_loop_handle => {
-                // Read loop finished, abort the other tasks and return the result.
-                write_loop_handle.abort();
-                res?
+            res = read_loop_handle => {
+                res
             },
-            res = &mut write_loop_handle => {
-                // Write loop finished, abort the other tasks and return the result.
-                read_loop_handle.abort();
-                match res {
-                    Ok(Ok(())) => Ok(None),
-                    Ok(Err(client_error)) => Err(client_error),
-                    Err(join_error) => Err(join_error.into()),
-                }
+            res = write_loop_handle => {
+                res.map(|_|None)
             }
         }
     }
 
-    fn run_read_loop(
+    async fn run_read_loop(
         cgo_handle: CgoHandle,
         mut read_stream: RdpReadStream,
         x224_processor: Arc<Mutex<x224::Processor>>,
         write_requester: ClientHandle,
-    ) -> tokio::task::JoinHandle<ClientResult<Option<DisconnectDescription>>> {
-        global::TOKIO_RT.spawn(async move {
-            loop {
-                let (action, mut frame) = read_stream.read_pdu().await?;
-                match action {
-                    // Fast-path PDU, send to the browser for processing / rendering.
-                    ironrdp_pdu::Action::FastPath => {
-                        global::TOKIO_RT
-                            .spawn_blocking(move || unsafe {
-                                let err_code = cgo_handle_fastpath_pdu(
-                                    cgo_handle,
-                                    frame.as_mut_ptr(),
-                                    frame.len() as u32,
-                                );
-                                ClientResult::from(err_code)
-                            })
-                            .await??
-                    }
-                    ironrdp_pdu::Action::X224 => {
-                        // X224 PDU, process it and send any immediate response frames to the write loop
-                        // for writing to the RDP server.
-                        for output in Client::x224_process(x224_processor.clone(), frame).await? {
-                            match output {
-                                ProcessorOutput::ResponseFrame(frame) => {
-                                    // Send response frames to write loop for writing to RDP server.
-                                    write_requester.write_raw_pdu_async(frame).await?;
-                                }
-                                ProcessorOutput::Disconnect(reason) => {
-                                    return Ok(Some(reason));
-                                }
-                                ProcessorOutput::DeactivateAll(mut sequence) => {
-                                    // Execute the Deactivation-Reactivation Sequence:
-                                    // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/dfc234ce-481a-4674-9a5d-2a7bafb14432
-                                    debug!("Received Server Deactivate All PDU, executing Deactivation-Reactivation Sequence");
-                                    let mut buf = WriteBuf::new();
-                                    loop {
-                                        let written = single_sequence_step_read(
-                                            &mut read_stream,
-                                            sequence.as_mut(),
-                                            &mut buf,
-                                            None,
-                                        )
+    ) -> ClientResult<Option<DisconnectDescription>> {
+        loop {
+            let (action, mut frame) = read_stream.read_pdu().await?;
+            match action {
+                // Fast-path PDU, send to the browser for processing / rendering.
+                ironrdp_pdu::Action::FastPath => {
+                    task::spawn_blocking(move || unsafe {
+                        let err_code = cgo_handle_fastpath_pdu(
+                            cgo_handle,
+                            frame.as_mut_ptr(),
+                            frame.len() as u32,
+                        );
+                        ClientResult::from(err_code)
+                    })
+                    .await??
+                }
+                ironrdp_pdu::Action::X224 => {
+                    // X224 PDU, process it and send any immediate response frames to the write loop
+                    // for writing to the RDP server.
+                    for output in Client::x224_process(x224_processor.clone(), frame).await? {
+                        match output {
+                            ProcessorOutput::ResponseFrame(frame) => {
+                                // Send response frames to write loop for writing to RDP server.
+                                write_requester.write_raw_pdu_async(frame).await?;
+                            }
+                            ProcessorOutput::Disconnect(reason) => {
+                                return Ok(Some(reason));
+                            }
+                            ProcessorOutput::DeactivateAll(mut sequence) => {
+                                // Execute the Deactivation-Reactivation Sequence:
+                                // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/dfc234ce-481a-4674-9a5d-2a7bafb14432
+                                debug!("Received Server Deactivate All PDU, executing Deactivation-Reactivation Sequence");
+                                let mut buf = WriteBuf::new();
+                                loop {
+                                    let written = single_sequence_step_read(
+                                        &mut read_stream,
+                                        sequence.as_mut(),
+                                        &mut buf,
+                                        None,
+                                    )
+                                    .await?;
+
+                                    if written.size().is_some() {
+                                        write_requester
+                                            .write_raw_pdu_async(buf.filled().to_vec())
                                             .await?;
+                                    }
 
-                                        if written.size().is_some() {
-                                            write_requester
-                                                .write_raw_pdu_async(buf.filled().to_vec())
-                                                .await?;
-                                        }
-
-                                        if let ConnectionActivationState::Finalized {
+                                    if let ConnectionActivationState::Finalized {
+                                        io_channel_id,
+                                        user_channel_id,
+                                        desktop_size,
+                                        ..
+                                    } = sequence.state
+                                    {
+                                        // Upon completing the activation sequence, register the io/user channels
+                                        // and desktop size with the client, just like we do upon receiving the
+                                        // connection result in [`Self::connect`].
+                                        Self::send_connection_activated(
+                                            cgo_handle,
                                             io_channel_id,
                                             user_channel_id,
                                             desktop_size,
-                                            ..
-                                        } = sequence.state
-                                        {
-                                            // Upon completing the activation sequence, register the io/user channels
-                                            // and desktop size with the client, just like we do upon receiving the
-                                            // connection result in [`Self::connect`].
-                                            Self::send_connection_activated(
-                                                cgo_handle,
-                                                io_channel_id,
-                                                user_channel_id,
-                                                desktop_size,
-                                            )?;
-                                            break;
-                                        }
+                                        )
+                                        .await?;
+                                        break;
                                     }
                                 }
                             }
@@ -417,107 +412,87 @@ impl Client {
                     }
                 }
             }
-        })
+        }
     }
 
-    fn run_write_loop(
+    async fn run_write_loop(
         cgo_handle: CgoHandle,
         mut write_stream: RdpWriteStream,
         mut write_receiver: FunctionReceiver,
         x224_processor: Arc<Mutex<x224::Processor>>,
         pending_resize: Arc<Mutex<PendingResize>>,
-    ) -> tokio::task::JoinHandle<ClientResult<()>> {
-        global::TOKIO_RT.spawn(async move {
-            loop {
-                match write_receiver.recv().await {
-                    Some(write_request) => match write_request {
-                        ClientFunction::WriteRdpKey(args) => {
-                            Client::write_rdp_key(&mut write_stream, args).await?;
-                        }
-                        ClientFunction::WriteRdpPointer(args) => {
-                            Client::write_rdp_pointer(&mut write_stream, args).await?;
-                        }
-                        ClientFunction::WriteRdpSyncKeys(args) => {
-                            Client::write_rdp_sync_keys(&mut write_stream, args).await?;
-                        }
-                        ClientFunction::WriteRawPdu(args) => {
-                            Client::write_raw_pdu(&mut write_stream, args).await?;
-                        }
-                        ClientFunction::WriteRdpdr(args) => {
-                            Client::write_rdpdr(&mut write_stream, x224_processor.clone(), args)
-                                .await?;
-                        }
-                        ClientFunction::WriteScreenResize(width, height) => {
-                            Client::handle_screen_resize(
-                                width,
-                                height,
-                                x224_processor.clone(),
-                                &mut write_stream,
-                                pending_resize.clone(),
-                            )
-                            .await?;
-                        }
-                        ClientFunction::HandleTdpSdAnnounce(sda) => {
-                            Client::handle_tdp_sd_announce(
-                                &mut write_stream,
-                                x224_processor.clone(),
-                                sda,
-                            )
-                            .await?;
-                        }
-                        ClientFunction::HandleTdpSdInfoResponse(res) => {
-                            Client::handle_tdp_sd_info_response(x224_processor.clone(), res)
-                                .await?;
-                        }
-                        ClientFunction::HandleTdpSdCreateResponse(res) => {
-                            Client::handle_tdp_sd_create_response(x224_processor.clone(), res)
-                                .await?;
-                        }
-                        ClientFunction::HandleTdpSdDeleteResponse(res) => {
-                            Client::handle_tdp_sd_delete_response(x224_processor.clone(), res)
-                                .await?;
-                        }
-                        ClientFunction::HandleTdpSdListResponse(res) => {
-                            Client::handle_tdp_sd_list_response(x224_processor.clone(), res)
-                                .await?;
-                        }
-                        ClientFunction::HandleTdpSdReadResponse(res) => {
-                            Client::handle_tdp_sd_read_response(x224_processor.clone(), res)
-                                .await?;
-                        }
-                        ClientFunction::HandleTdpSdWriteResponse(res) => {
-                            Client::handle_tdp_sd_write_response(x224_processor.clone(), res)
-                                .await?;
-                        }
-                        ClientFunction::HandleTdpSdMoveResponse(res) => {
-                            Client::handle_tdp_sd_move_response(x224_processor.clone(), res)
-                                .await?;
-                        }
-                        ClientFunction::HandleTdpSdTruncateResponse(res) => {
-                            Client::handle_tdp_sd_truncate_response(x224_processor.clone(), res)
-                                .await?;
-                        }
-                        ClientFunction::WriteCliprdr(f) => {
-                            Client::write_cliprdr(x224_processor.clone(), &mut write_stream, f)
-                                .await?;
-                        }
-                        ClientFunction::HandleRemoteCopy(data) => {
-                            Client::handle_remote_copy(cgo_handle, data).await?;
-                        }
-                        ClientFunction::UpdateClipboard(data) => {
-                            Client::update_clipboard(x224_processor.clone(), data).await?;
-                        }
-                        ClientFunction::Stop => {
-                            // Stop this write loop. The read loop will then be stopped by the caller.
-                            return Ok(());
-                        }
-                    },
-                    None => {
-                        return Ok(());
-                    }
+    ) -> ClientResult<()> {
+        while let Some(write_request) = write_receiver.recv().await {
+            match write_request {
+                ClientFunction::WriteRdpKey(args) => {
+                    Client::write_rdp_key(&mut write_stream, args).await?;
+                }
+                ClientFunction::WriteRdpPointer(args) => {
+                    Client::write_rdp_pointer(&mut write_stream, args).await?;
+                }
+                ClientFunction::WriteRdpSyncKeys(args) => {
+                    Client::write_rdp_sync_keys(&mut write_stream, args).await?;
+                }
+                ClientFunction::WriteRawPdu(args) => {
+                    Client::write_raw_pdu(&mut write_stream, args).await?;
+                }
+                ClientFunction::WriteRdpdr(args) => {
+                    Client::write_rdpdr(&mut write_stream, x224_processor.clone(), args).await?;
+                }
+                ClientFunction::WriteScreenResize(width, height) => {
+                    Client::handle_screen_resize(
+                        width,
+                        height,
+                        x224_processor.clone(),
+                        &mut write_stream,
+                        pending_resize.clone(),
+                    )
+                    .await?;
+                }
+                ClientFunction::HandleTdpSdAnnounce(sda) => {
+                    Client::handle_tdp_sd_announce(&mut write_stream, x224_processor.clone(), sda)
+                        .await?;
+                }
+                ClientFunction::HandleTdpSdInfoResponse(res) => {
+                    Client::handle_tdp_sd_info_response(x224_processor.clone(), res).await?;
+                }
+                ClientFunction::HandleTdpSdCreateResponse(res) => {
+                    Client::handle_tdp_sd_create_response(x224_processor.clone(), res).await?;
+                }
+                ClientFunction::HandleTdpSdDeleteResponse(res) => {
+                    Client::handle_tdp_sd_delete_response(x224_processor.clone(), res).await?;
+                }
+                ClientFunction::HandleTdpSdListResponse(res) => {
+                    Client::handle_tdp_sd_list_response(x224_processor.clone(), res).await?;
+                }
+                ClientFunction::HandleTdpSdReadResponse(res) => {
+                    Client::handle_tdp_sd_read_response(x224_processor.clone(), res).await?;
+                }
+                ClientFunction::HandleTdpSdWriteResponse(res) => {
+                    Client::handle_tdp_sd_write_response(x224_processor.clone(), res).await?;
+                }
+                ClientFunction::HandleTdpSdMoveResponse(res) => {
+                    Client::handle_tdp_sd_move_response(x224_processor.clone(), res).await?;
+                }
+                ClientFunction::HandleTdpSdTruncateResponse(res) => {
+                    Client::handle_tdp_sd_truncate_response(x224_processor.clone(), res).await?;
+                }
+                ClientFunction::WriteCliprdr(f) => {
+                    Client::write_cliprdr(x224_processor.clone(), &mut write_stream, f).await?;
+                }
+                ClientFunction::HandleRemoteCopy(data) => {
+                    Client::handle_remote_copy(cgo_handle, data).await?;
+                }
+                ClientFunction::UpdateClipboard(data) => {
+                    Client::update_clipboard(x224_processor.clone(), data).await?;
+                }
+                ClientFunction::Stop => {
+                    // Stop this write loop. The read loop will then be stopped by the caller.
+                    return Ok(());
                 }
             }
-        })
+        }
+        Ok(())
     }
 
     fn on_display_ctl_capabilities_received(
@@ -549,13 +524,13 @@ impl Client {
         Ok(vec![])
     }
 
-    fn send_connection_activated(
+    async fn send_connection_activated(
         cgo_handle: CgoHandle,
         io_channel_id: u16,
         user_channel_id: u16,
         desktop_size: DesktopSize,
     ) -> ClientResult<()> {
-        unsafe {
+        task::spawn_blocking(move || unsafe {
             ClientResult::from(cgo_handle_rdp_connection_activated(
                 cgo_handle,
                 io_channel_id,
@@ -563,29 +538,28 @@ impl Client {
                 desktop_size.width,
                 desktop_size.height,
             ))
-        }
+        })
+        .await?
     }
 
     async fn update_clipboard(
         x224_processor: Arc<Mutex<x224::Processor>>,
         data: String,
     ) -> ClientResult<()> {
-        global::TOKIO_RT
-            .spawn_blocking(move || {
-                let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let cliprdr = Self::cliprdr_backend(&mut x224_processor)?;
-                cliprdr.set_clipboard_data(data.clone());
-                Ok(())
-            })
-            .await?
+        task::spawn_blocking(move || {
+            let mut x224_processor = Self::x224_lock(&x224_processor)?;
+            let cliprdr = Self::cliprdr_backend(&mut x224_processor)?;
+            cliprdr.set_clipboard_data(data.clone());
+            Ok(())
+        })
+        .await?
     }
 
     async fn handle_remote_copy(cgo_handle: CgoHandle, mut data: Vec<u8>) -> ClientResult<()> {
-        let code = global::TOKIO_RT
-            .spawn_blocking(move || unsafe {
-                cgo_handle_remote_copy(cgo_handle, data.as_mut_ptr(), data.len() as u32)
-            })
-            .await?;
+        let code = task::spawn_blocking(move || unsafe {
+            cgo_handle_remote_copy(cgo_handle, data.as_mut_ptr(), data.len() as u32)
+        })
+        .await?;
         ClientResult::from(code)
     }
 
@@ -595,8 +569,8 @@ impl Client {
         fun: Box<dyn ClipboardFn>,
     ) -> ClientResult<()> {
         let processor = x224_processor.clone();
-        let messages: ClientResult<CliprdrSvcMessages<ironrdp_cliprdr::Client>> = global::TOKIO_RT
-            .spawn_blocking(move || {
+        let messages: ClientResult<CliprdrSvcMessages<ironrdp_cliprdr::Client>> =
+            task::spawn_blocking(move || {
                 let mut x224_processor = Self::x224_lock(&processor)?;
                 let cliprdr = Self::get_svc_processor::<CliprdrClient>(&mut x224_processor)?;
                 Ok(fun.call(cliprdr)?)
@@ -782,28 +756,27 @@ impl Client {
         height: u32,
     ) -> ClientResult<()> {
         let cloned = x224_processor.clone();
-        let messages = global::TOKIO_RT
-            .spawn_blocking(move || {
-                let x224_processor = Self::x224_lock(&cloned)?;
-                let dvc = Self::get_dvc::<DisplayControlClient>(&x224_processor)?;
-                let channel_id = dvc.channel_id().ok_or(ClientError::InternalError(
-                    "DisplayControlClient channel_id not found".to_string(),
+        let messages = task::spawn_blocking(move || {
+            let x224_processor = Self::x224_lock(&cloned)?;
+            let dvc = Self::get_dvc::<DisplayControlClient>(&x224_processor)?;
+            let channel_id = dvc.channel_id().ok_or(ClientError::InternalError(
+                "DisplayControlClient channel_id not found".to_string(),
+            ))?;
+            let disp_ctl_cli = dvc
+                .channel_processor_downcast_ref::<DisplayControlClient>()
+                .ok_or(ClientError::InternalError(
+                    "DisplayControlClient not found".to_string(),
                 ))?;
-                let disp_ctl_cli = dvc
-                    .channel_processor_downcast_ref::<DisplayControlClient>()
-                    .ok_or(ClientError::InternalError(
-                        "DisplayControlClient not found".to_string(),
-                    ))?;
 
-                Ok::<_, ClientError>(disp_ctl_cli.encode_single_primary_monitor(
-                    channel_id,
-                    width,
-                    height,
-                    None,
-                    Some((width, height)),
-                ))
-            })
-            .await???;
+            Ok::<_, ClientError>(disp_ctl_cli.encode_single_primary_monitor(
+                channel_id,
+                width,
+                height,
+                None,
+                Some((width, height)),
+            ))
+        })
+        .await???;
 
         let encoded = Client::x224_process_svc_messages(
             x224_processor,
@@ -836,134 +809,125 @@ impl Client {
         x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryInfoResponse,
     ) -> ClientResult<()> {
-        global::TOKIO_RT
-            .spawn_blocking(move || {
-                debug!("received tdp: {:?}", res);
-                let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr: &mut TeleportRdpdrBackend = Self::rdpdr_backend(&mut x224_processor)?;
-                rdpdr.handle_tdp_sd_info_response(res)?;
-                Ok(())
-            })
-            .await?
+        task::spawn_blocking(move || {
+            debug!("received tdp: {:?}", res);
+            let mut x224_processor = Self::x224_lock(&x224_processor)?;
+            let rdpdr: &mut TeleportRdpdrBackend = Self::rdpdr_backend(&mut x224_processor)?;
+            rdpdr.handle_tdp_sd_info_response(res)?;
+            Ok(())
+        })
+        .await?
     }
 
     async fn handle_tdp_sd_create_response(
         x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryCreateResponse,
     ) -> ClientResult<()> {
-        global::TOKIO_RT
-            .spawn_blocking(move || {
-                debug!("received tdp: {:?}", res);
-                let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
-                rdpdr.handle_tdp_sd_create_response(res)?;
-                Ok(())
-            })
-            .await?
+        task::spawn_blocking(move || {
+            debug!("received tdp: {:?}", res);
+            let mut x224_processor = Self::x224_lock(&x224_processor)?;
+            let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
+            rdpdr.handle_tdp_sd_create_response(res)?;
+            Ok(())
+        })
+        .await?
     }
 
     async fn handle_tdp_sd_delete_response(
         x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryDeleteResponse,
     ) -> ClientResult<()> {
-        global::TOKIO_RT
-            .spawn_blocking(move || {
-                debug!("received tdp: {:?}", res);
-                let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
-                rdpdr.handle_tdp_sd_delete_response(res)?;
-                Ok(())
-            })
-            .await?
+        task::spawn_blocking(move || {
+            debug!("received tdp: {:?}", res);
+            let mut x224_processor = Self::x224_lock(&x224_processor)?;
+            let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
+            rdpdr.handle_tdp_sd_delete_response(res)?;
+            Ok(())
+        })
+        .await?
     }
 
     async fn handle_tdp_sd_list_response(
         x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryListResponse,
     ) -> ClientResult<()> {
-        global::TOKIO_RT
-            .spawn_blocking(move || {
-                debug!("received tdp: {:?}", res);
-                let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr: &mut TeleportRdpdrBackend = Self::rdpdr_backend(&mut x224_processor)?;
-                rdpdr.handle_tdp_sd_list_response(res)?;
-                Ok(())
-            })
-            .await?
+        task::spawn_blocking(move || {
+            debug!("received tdp: {:?}", res);
+            let mut x224_processor = Self::x224_lock(&x224_processor)?;
+            let rdpdr: &mut TeleportRdpdrBackend = Self::rdpdr_backend(&mut x224_processor)?;
+            rdpdr.handle_tdp_sd_list_response(res)?;
+            Ok(())
+        })
+        .await?
     }
 
     async fn handle_tdp_sd_read_response(
         x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryReadResponse,
     ) -> ClientResult<()> {
-        global::TOKIO_RT
-            .spawn_blocking(move || {
-                debug!("received tdp: {:?}", res);
-                let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
-                rdpdr.handle_tdp_sd_read_response(res)?;
-                Ok(())
-            })
-            .await?
+        task::spawn_blocking(move || {
+            debug!("received tdp: {:?}", res);
+            let mut x224_processor = Self::x224_lock(&x224_processor)?;
+            let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
+            rdpdr.handle_tdp_sd_read_response(res)?;
+            Ok(())
+        })
+        .await?
     }
 
     async fn handle_tdp_sd_write_response(
         x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryWriteResponse,
     ) -> ClientResult<()> {
-        global::TOKIO_RT
-            .spawn_blocking(move || {
-                debug!("received tdp: {:?}", res);
-                let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
-                rdpdr.handle_tdp_sd_write_response(res)?;
-                Ok(())
-            })
-            .await?
+        task::spawn_blocking(move || {
+            debug!("received tdp: {:?}", res);
+            let mut x224_processor = Self::x224_lock(&x224_processor)?;
+            let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
+            rdpdr.handle_tdp_sd_write_response(res)?;
+            Ok(())
+        })
+        .await?
     }
 
     async fn handle_tdp_sd_move_response(
         x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryMoveResponse,
     ) -> ClientResult<()> {
-        global::TOKIO_RT
-            .spawn_blocking(move || {
-                debug!("received tdp: {:?}", res);
-                let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr: &mut TeleportRdpdrBackend = Self::rdpdr_backend(&mut x224_processor)?;
-                rdpdr.handle_tdp_sd_move_response(res)?;
-                Ok(())
-            })
-            .await?
+        task::spawn_blocking(move || {
+            debug!("received tdp: {:?}", res);
+            let mut x224_processor = Self::x224_lock(&x224_processor)?;
+            let rdpdr: &mut TeleportRdpdrBackend = Self::rdpdr_backend(&mut x224_processor)?;
+            rdpdr.handle_tdp_sd_move_response(res)?;
+            Ok(())
+        })
+        .await?
     }
 
     async fn handle_tdp_sd_truncate_response(
         x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryTruncateResponse,
     ) -> ClientResult<()> {
-        global::TOKIO_RT
-            .spawn_blocking(move || {
-                debug!("received tdp: {:?}", res);
-                let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
-                rdpdr.handle_tdp_sd_truncate_response(res)?;
-                Ok(())
-            })
-            .await?
+        task::spawn_blocking(move || {
+            debug!("received tdp: {:?}", res);
+            let mut x224_processor = Self::x224_lock(&x224_processor)?;
+            let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
+            rdpdr.handle_tdp_sd_truncate_response(res)?;
+            Ok(())
+        })
+        .await?
     }
 
     async fn add_drive(
         x224_processor: Arc<Mutex<x224::Processor>>,
         sda: tdp::SharedDirectoryAnnounce,
     ) -> ClientResult<ClientDeviceListAnnounce> {
-        global::TOKIO_RT
-            .spawn_blocking(move || {
-                let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr = Self::get_svc_processor_mut::<Rdpdr>(&mut x224_processor)?;
-                let pdu = rdpdr.add_drive(sda.directory_id, sda.name);
-                Ok(pdu)
-            })
-            .await?
+        task::spawn_blocking(move || {
+            let mut x224_processor = Self::x224_lock(&x224_processor)?;
+            let rdpdr = Self::get_svc_processor_mut::<Rdpdr>(&mut x224_processor)?;
+            let pdu = rdpdr.add_drive(sda.directory_id, sda.name);
+            Ok(pdu)
+        })
+        .await?
     }
 
     /// Processes an x224 frame on a blocking thread.
@@ -976,8 +940,7 @@ impl Client {
         x224_processor: Arc<Mutex<x224::Processor>>,
         frame: BytesMut,
     ) -> SessionResult<Vec<ProcessorOutput>> {
-        global::TOKIO_RT
-            .spawn_blocking(move || Self::x224_lock(&x224_processor)?.process(&frame))
+        task::spawn_blocking(move || Self::x224_lock(&x224_processor)?.process(&frame))
             .await
             .map_err(|err| reason_err!(function!(), "JoinError: {:?}", err))?
     }
@@ -992,12 +955,11 @@ impl Client {
         x224_processor: Arc<Mutex<x224::Processor>>,
         messages: SvcProcessorMessages<C>,
     ) -> SessionResult<Vec<u8>> {
-        global::TOKIO_RT
-            .spawn_blocking(move || {
-                Self::x224_lock(&x224_processor)?.process_svc_processor_messages(messages)
-            })
-            .await
-            .map_err(|err| reason_err!(function!(), "JoinError: {:?}", err))?
+        task::spawn_blocking(move || {
+            Self::x224_lock(&x224_processor)?.process_svc_processor_messages(messages)
+        })
+        .await
+        .map_err(|err| reason_err!(function!(), "JoinError: {:?}", err))?
     }
 
     fn x224_lock(
@@ -1433,7 +1395,7 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
         keyboard_type: ironrdp_pdu::gcc::KeyboardType::IbmEnhanced,
         keyboard_subtype: 0,
         keyboard_functional_keys_count: 12,
-        keyboard_layout: 0,
+        keyboard_layout: params.keyboard_layout,
         ime_file_name: "".to_string(),
         bitmap: Some(ironrdp_connector::BitmapConfig {
             lossy_compression: true,
@@ -1482,6 +1444,7 @@ pub struct ConnectParams {
     pub ad: bool,
     pub nla: bool,
     pub client_id: [u32; 4],
+    pub keyboard_layout: u32,
 }
 
 #[derive(Debug)]

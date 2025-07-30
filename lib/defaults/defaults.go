@@ -166,10 +166,14 @@ const (
 
 	// MaxRenewableCertTTL is the maximum TTL that a certificate renewal bot
 	// can request for a renewable user certificate.
-	MaxRenewableCertTTL = 24 * time.Hour
+	MaxRenewableCertTTL = 7 * 24 * time.Hour
 
 	// DefaultBotJoinTTL is the default TTL for bot join tokens.
 	DefaultBotJoinTTL = 1 * time.Hour
+
+	// DefaultBotMaxSessionTTL is the default max_session_ttl on generated bot
+	// roles, unless overridden during bot creation.
+	DefaultBotMaxSessionTTL = 12 * time.Hour
 
 	// RecoveryStartTokenTTL is a default expiry time for a recovery start token.
 	RecoveryStartTokenTTL = 3 * time.Hour
@@ -883,7 +887,7 @@ var DefaultFormats = []string{teleport.Text, teleport.JSON, teleport.YAML}
 
 // FormatFlagDescription creates the description for the --format flag.
 func FormatFlagDescription(formats ...string) string {
-	return fmt.Sprintf("Format output (%s)", strings.Join(formats, ", "))
+	return fmt.Sprintf("Format output (%s).", strings.Join(formats, ", "))
 }
 
 func SearchSessionRange(clock clockwork.Clock, fromUTC, toUTC, recordingsSince string) (from time.Time, to time.Time, err error) {

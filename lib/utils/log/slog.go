@@ -21,8 +21,10 @@ package log
 import (
 	"context"
 	"fmt"
+	"iter"
 	"log/slog"
 	"reflect"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -66,17 +68,6 @@ var SupportedLevelsText = []string{
 	slog.LevelWarn.String(),
 	slog.LevelError.String(),
 }
-
-// DiscardHandler is a [slog.Handler] that discards all messages. It
-// is more efficient than a [slog.Handler] which outputs to [io.Discard] since
-// it performs zero formatting.
-// TODO(tross): Use slog.DiscardHandler once upgraded to Go 1.24.
-type DiscardHandler struct{}
-
-func (dh DiscardHandler) Enabled(context.Context, slog.Level) bool  { return false }
-func (dh DiscardHandler) Handle(context.Context, slog.Record) error { return nil }
-func (dh DiscardHandler) WithAttrs(attrs []slog.Attr) slog.Handler  { return dh }
-func (dh DiscardHandler) WithGroup(name string) slog.Handler        { return dh }
 
 func addTracingContextToRecord(ctx context.Context, r *slog.Record) {
 	const (
@@ -200,4 +191,20 @@ func (a typeAttr) LogValue() slog.Value {
 		return slog.StringValue(t.String())
 	}
 	return slog.StringValue("nil")
+}
+
+type iterAttr[V any] struct {
+	iter iter.Seq[V]
+}
+
+// IterAttr creates a [slog.LogValuer] that will defer the collection of an
+// iter.Seq.
+func IterAttr[V any](iter iter.Seq[V]) slog.LogValuer {
+	return iterAttr[V]{
+		iter: iter,
+	}
+}
+
+func (a iterAttr[V]) LogValue() slog.Value {
+	return slog.AnyValue(slices.Collect[V](a.iter))
 }

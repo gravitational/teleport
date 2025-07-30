@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { SetStateAction } from 'react';
+import React, { SetStateAction, type JSX } from 'react';
 import styled from 'styled-components';
 
 import {

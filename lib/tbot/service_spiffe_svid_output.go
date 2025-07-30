@@ -32,13 +32,16 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
@@ -49,23 +52,51 @@ const (
 	pemCertificate = "CERTIFICATE"
 )
 
+func SPIFFESVIDOutputServiceBuilder(
+	botCfg *config.BotConfig,
+	cfg *config.SPIFFESVIDOutput,
+	trustBundleCache TrustBundleGetter,
+) bot.ServiceBuilder {
+	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+		svc := &SPIFFESVIDOutputService{
+			botAuthClient:     deps.Client,
+			botCfg:            botCfg,
+			cfg:               cfg,
+			getBotIdentity:    deps.BotIdentity,
+			identityGenerator: deps.IdentityGenerator,
+			clientBuilder:     deps.ClientBuilder,
+		}
+		svc.log = deps.Logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
+		)
+		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
+		return svc, nil
+	}
+}
+
 // SPIFFESVIDOutputService is a service that generates and writes X509 SPIFFE
 // SVIDs to a destination. It produces an output compatible with the
 // `spiffe-helper` tool.
 type SPIFFESVIDOutputService struct {
-	botAuthClient  *authclient.Client
+	botAuthClient  *apiclient.Client
 	botCfg         *config.BotConfig
 	cfg            *config.SPIFFESVIDOutput
 	getBotIdentity getBotIdentityFn
 	log            *slog.Logger
-	resolver       reversetunnelclient.Resolver
+	statusReporter readyz.Reporter
 	// trustBundleCache is the cache of trust bundles. It only needs to be
 	// provided when running in daemon mode.
-	trustBundleCache *workloadidentity.TrustBundleCache
+	trustBundleCache  TrustBundleGetter
+	identityGenerator *identity.Generator
+	clientBuilder     *client.Builder
 }
 
 func (s *SPIFFESVIDOutputService) String() string {
-	return fmt.Sprintf("spiffe-svid-output (%s)", s.cfg.Destination.String())
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("spiffe-svid-output (%s)", s.cfg.Destination.String()),
+	)
 }
 
 func (s *SPIFFESVIDOutputService) OneShot(ctx context.Context) error {
@@ -94,6 +125,10 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 		return trace.Wrap(err, "getting trust bundle set")
 	}
 
+	if s.statusReporter == nil {
+		s.statusReporter = readyz.NoopReporter()
+	}
+
 	jitter := retryutils.DefaultJitter
 	var res *machineidv1pb.SignX509SVIDsResponse
 	var privateKey crypto.Signer
@@ -104,10 +139,8 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 	for {
 		var retryAfter <-chan time.Time
 		if failures > 0 {
-			backoffTime := time.Second * time.Duration(math.Pow(2, float64(failures-1)))
-			if backoffTime > time.Minute {
-				backoffTime = time.Minute
-			}
+			s.statusReporter.Report(readyz.Unhealthy)
+			backoffTime := min(time.Second*time.Duration(math.Pow(2, float64(failures-1))), time.Minute)
 			backoffTime = jitter(backoffTime)
 			s.log.WarnContext(
 				ctx,
@@ -156,6 +189,7 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 			failures++
 			continue
 		}
+		s.statusReporter.Report(readyz.Healthy)
 		failures = 0
 	}
 }
@@ -174,30 +208,18 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 	)
 	defer span.End()
 
-	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
-	if err != nil {
-		return nil, nil, nil, trace.Wrap(err, "fetching roles")
-	}
-
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
-	id, err := generateIdentity(
-		ctx,
-		s.botAuthClient,
-		s.getBotIdentity(),
-		roles,
-		effectiveLifetime.TTL,
-		nil,
+	id, err := s.identityGenerator.GenerateFacade(ctx,
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
 	)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err, "generating identity")
 	}
 
-	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
-
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
-	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
-	impersonatedClient, err := clientForFacade(ctx, s.log, s.botCfg, facade, s.resolver)
+	impersonatedClient, err := s.clientBuilder.Build(ctx, id)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
@@ -311,7 +333,7 @@ func (s *SPIFFESVIDOutputService) render(
 
 func generateJWTSVIDs(
 	ctx context.Context,
-	clt *authclient.Client,
+	clt *apiclient.Client,
 	svid config.SVIDRequest,
 	reqs []config.JWTSVID,
 	ttl time.Duration,
@@ -363,7 +385,7 @@ func generateJWTSVIDs(
 // call.
 func generateSVID(
 	ctx context.Context,
-	clt *authclient.Client,
+	clt *apiclient.Client,
 	reqs []config.SVIDRequest,
 	ttl time.Duration,
 ) (*machineidv1pb.SignX509SVIDsResponse, crypto.Signer, error) {

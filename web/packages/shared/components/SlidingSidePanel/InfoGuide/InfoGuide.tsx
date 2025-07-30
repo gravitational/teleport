@@ -33,42 +33,57 @@ import {
  * Meant to be used with SlidingSidePanel.tsx.
  */
 export const InfoGuideContainer: React.FC<
-  PropsWithChildren<{ onClose(): void; title: string }>
+  PropsWithChildren<{ onClose(): void; title: React.ReactNode }>
 > = ({ onClose, title, children }) => (
-  <Box css={{ height: '100%', overflow: 'auto' }}>
-    <InfoGuideHeader title={title} onClose={onClose} />
-    <Box px={3} pb={3}>
-      {children}
-    </Box>
-  </Box>
+  <>
+    {children && (
+      <Box css={{ height: '100%', overflow: 'auto' }}>
+        <InfoGuideHeader title={title} onClose={onClose} />
+        <Box px={3} pb={3}>
+          {children}
+        </Box>
+      </Box>
+    )}
+  </>
 );
 
 const InfoGuideHeader = ({
   onClose,
-  title = 'Page Info',
+  title: customTitle,
 }: {
   onClose(): void;
-  title?: string;
-}) => (
-  <Flex
-    gap={2}
-    alignItems="center"
-    justifyContent="space-between"
-    px={3}
-    py={2}
-    css={`
-      position: sticky;
-      top: 0;
-      background: ${p => p.theme.colors.levels.surface};
-      border-bottom: 1px solid ${p => p.theme.colors.spotBackground[1]};
-    `}
-  >
-    <Text bold>{title}</Text>
-    <ButtonIcon onClick={onClose} data-testid="info-guide-btn-close">
-      <Cross size="small" />
-    </ButtonIcon>
-  </Flex>
-);
+  title?: React.ReactNode;
+}) => {
+  let title: React.ReactNode = <Text bold>Page Info</Text>;
+  if (customTitle) {
+    if (typeof customTitle === 'string') {
+      title = <Text bold>{customTitle}</Text>;
+    } else {
+      title = customTitle;
+    }
+  }
+  return (
+    <Flex
+      gap={2}
+      alignItems="center"
+      justifyContent="space-between"
+      px={3}
+      py={2}
+      css={`
+        position: sticky;
+        top: 0;
+        background: ${p => p.theme.colors.levels.surface};
+        border-bottom: 1px solid ${p => p.theme.colors.spotBackground[1]};
+        z-index: 1;
+      `}
+    >
+      <Text bold>{title}</Text>
+      <ButtonIcon onClick={onClose} data-testid="info-guide-btn-close">
+        <Cross size="small" />
+      </ButtonIcon>
+    </Flex>
+  );
+};
 
 const FilledButtonIcon = styled(Button)`
   width: 32px;

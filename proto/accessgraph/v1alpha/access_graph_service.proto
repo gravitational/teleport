@@ -24,10 +24,15 @@ import "accessgraph/v1alpha/aws.proto";
 import "accessgraph/v1alpha/azure.proto";
 import "accessgraph/v1alpha/entra.proto";
 import "accessgraph/v1alpha/events.proto";
+import "accessgraph/v1alpha/github.proto";
 import "accessgraph/v1alpha/gitlab.proto";
 import "accessgraph/v1alpha/graph.proto";
 import "accessgraph/v1alpha/netiq.proto";
+import "accessgraph/v1alpha/okta.proto";
 import "accessgraph/v1alpha/resources.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "teleport/auditlog/v1/auditlog.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
 
@@ -62,6 +67,42 @@ service AccessGraphService {
   // instead of a single response.
   rpc EventsStreamV2(stream EventsStreamV2Request) returns (stream EventsStreamV2Response);
 
+  // AuditLogStream establishes a persistent bidirectional stream for exporting
+  // audit log events from a client (teleport) to a server (access-graph).
+  //
+  // This stream facilitates:
+  // - Initial configuration exchange and validation.
+  // - Streaming batches of audit log events from client to server.
+  // - Reliable export resumption via client-provided resume state updates.
+  // - Server providing the initial resume state to the client upon connection.
+  // - Client requests for server-side bulk export state cleanup.
+  //
+  // Basic Interaction Flow:
+  // 1. Client connects and sends an initial `AuditLogStreamRequest` with `config`.
+  // 2. Server sends first response with an initial `AuditLogStreamResponse`, confirming the
+  //    effective configuration.
+  // 3. Server sends second response providing the starting `resume_state` (possibly empty).
+  // 4. Client sends subsequent `AuditLogStreamRequest` messages containing either
+  //    `events` (with resume state updates) or `bulk_sync` commands.
+  rpc AuditLogStream(stream AuditLogStreamRequest) returns (stream AuditLogStreamResponse);
+
+  // AWSCloudTrailStream establishes a persistent bidirectional stream for exporting
+  // audit log events from a client (teleport) to a server (access-graph).
+  //
+  // This stream facilitates:
+  // - Initial configuration exchange and validation.
+  // - Streaming batches of audit log events from client to server.
+  // - Reliable export resumption via client-provided resume state updates.
+  // - Server providing the initial resume state to the client upon connection.
+  //
+  // Basic Interaction Flow:
+  // 1. Client connects and sends an initial `AWSCloudTrailStreamRequest` with `config`.
+  // 2. Server sends first response with an initial `AWSCloudTrailStreamResponse`, confirming the
+  //    effective configuration.
+  // 3. Server sends second response providing the starting `resume_state` (possilby empty).
+  // 4. Client sends subsequent `AWSCloudTrailStreamRequest` messages.
+  rpc AWSCloudTrailStream(stream AWSCloudTrailStreamRequest) returns (stream AWSCloudTrailStreamResponse);
+
   // Register submits a new tenant representing this Teleport cluster to the TAG service,
   // identified by its HostCA certificate.
   // The method is idempotent: it succeeds if the tenant has already registered and has the specific CA associated.
@@ -77,6 +118,7 @@ service AccessGraphService {
   // 2.a. If rotation succeeds, authenticate via the new authority B and call ReplaceCAs([B]) -- delete the previous CA
   // 2.b. If rotation is rolled back, authenticate via the old authority A and call ReplaceCAs([A]) -- delete the candidate CA
   rpc ReplaceCAs(ReplaceCAsRequest) returns (ReplaceCAsResponse);
+
   // AWSEventsStream is a stream of commands to the AWS importer.
   // Teleport Discovery Service creates a stream to the access graph service
   // and pushes all AWS resources and following events to it.
@@ -94,6 +136,59 @@ service AccessGraphService {
 
   // NetIQEventsStream is a stream of commands to the NetIQ importer.
   rpc NetIQEventsStream(stream NetIQEventsStreamRequest) returns (stream NetIQEventsStreamResponse);
+
+  // GitHubAuditLogStream establishes a persistent bidirectional stream for exporting
+  // audit log events from a client (teleport) to a server (access-graph).
+  //
+  // This stream facilitates:
+  // - Initial configuration exchange and validation.
+  // - Streaming batches of audit log events from client to server.
+  // - Reliable export resumption via client-provided resume state updates.
+  // - Server providing the initial resume state to the client upon connection.
+  //
+  // Basic Interaction Flow:
+  // 1. Client connects and sends an initial `GitHubAuditLogStreamRequest` with `config`.
+  // 2. Server sends first response with an initial `GitHubAuditLogStreamResponse`, confirming the
+  //    effective configuration.
+  // 3. Server sends second response providing the starting `resume_state` (possibly empty).
+  // 4. Client sends subsequent `GitHubAuditLogStreamRequest` messages.
+  rpc GitHubAuditLogStream(stream GitHubAuditLogStreamRequest) returns (stream GitHubAuditLogStreamResponse);
+
+  // GitHubEventsStream establishes a client-to-server stream for continuously
+  // syncing GitHub resource states (ex.: repositories, user roles, API tokens)
+  // with the AccessGraphService.
+  //
+  // This stream allows a client (ex.: a Teleport GitHub connector) to send:
+  // - `upsert` operations: To add new or update existing GitHub resources in the graph.
+  // - `delete` operations: To remove GitHub resources from the graph.
+  // - `sync` operations: To signal events like the completion of an initial full synchronization.
+  // The server sends a stream of (empty) `GitHubEventsStreamResponse` messages, to acknowledge
+  // received operations and maintain stream health.
+  rpc GitHubEventsStream(stream GitHubEventsStreamRequest) returns (stream GitHubEventsStreamResponse);
+
+  // OktaAuditLogStream establishes a persistent bidirectional stream for
+  // exporting Okta audit log events from a client (ex.: a Teleport Okta connector)
+  // to the AccessGraphService.
+  //
+  // This stream facilitates:
+  // - Initial configuration exchange (ex.: setting a start date via `OktaConfigV1`).
+  // - Streaming batches of Okta audit log events (as `OktaEventV1` messages) from
+  //   the client to the server.
+  // - Reliable export resumption using a cursor mechanism (`OktaAuditLogV1Cursor`),
+  //   allowing the client to continue from where it left off after an interruption.
+  rpc OktaAuditLogStream(stream OktaAuditLogStreamRequest) returns (stream OktaAuditLogStreamResponse);
+
+  // OktaEventsStream establishes a client-to-server stream for continuously
+  // syncing Okta resource states (ex.: users, groups, applications, API tokens)
+  // with the AccessGraphService.
+  //
+  // This stream allows a client (ex.: a Teleport Okta connector) to send:
+  // - `upsert` operations: To add new or update existing Okta resources in the graph.
+  // - `delete` operations: To remove Okta resources from the graph.
+  // - `sync` operations: To signal events like the completion of an initial full synchronization.
+  // The server sends a stream of (empty) `OktaEventsStreamResponse` messages,
+  // typically to acknowledge received operations and maintain stream health.
+  rpc OktaEventsStream(stream OktaEventsStreamRequest) returns (stream OktaEventsStreamResponse);
 }
 
 // QueryRequest is a request to query the access graph.
@@ -196,6 +291,142 @@ message AuditEvent {
     // access_path_changed is an event that should be logged when the access path changes.
     AccessPathChanged access_path_changed = 1;
   }
+}
+
+// AuditLogStreamRequest is sent from the client to the server over the
+// bi-directional AuditLogStream. It encapsulates distinct client actions for
+// configuring the export stream, sending batches of audit log events, and
+// managing the persistent resume state maintained by the server.
+//
+// The message uses a `oneof` payload to represent one of three distinct actions:
+//
+// 1. Configuration (`config`): First message on (re)connect. Client proposes
+//    `AuditLogConfig`. Server validates against its persisted state for the client
+//    identity. Initial server response confirms the effective config (which may
+//    be the proposed, an inferred default, or the existing persisted one).
+//    Irreconcilable conflicts (ex.: invalid start date) typically result in the
+//    server logging an error, using the persisted config, and signaling this outcome.
+//
+// 2. Event Batch (`events`): Sends a batch of audit logs (`AuditLogEvents`) in an
+//    unstructured format. Each batch must also include the corresponding
+//    `resume_state` information ('search' or 'bulk' type) reflecting the client's
+//    processing progress for that specific event source type up to the included events.
+//    This allows the server to persistently track the client's progress.
+//
+// 3. Bulk State Synchronization (`bulk_sync`): Sends `BulkResumeStateSync` command,
+//    separate from event batches, to request that the server prune state for past
+//    dates that are fully completed.
+//
+// Behavior and Constraints:
+// - Direction: Client -> Server only.
+// - Initial Message: First message on stream MUST be `config`.
+// - Stream State Consistency: `resume_state` with `events` corresponds to
+//   'search' or 'bulk' tracking mode. While primarily one mode operates,
+//   upgrades 'search' -> 'bulk' may be possible; downgrading 'bulk' -> 'search'
+//   is not permitted per client identity.
+// - State Management:
+//   - `events` includes `resume_state` for persistent progress tracking.
+//   - `bulk_sync` allows purging state for old, completed bulk export dates.
+message AuditLogStreamRequest {
+  oneof action {
+    AuditLogConfig config = 1; // Export configuration, e.g. start date. // Config negatiation phase
+    AuditLogEvents events = 2; // Batch of audit log events and resume state.
+    BulkResumeStateSync bulk_sync = 3; // Command to prune server-side bulk export state.
+  }
+}
+
+// AuditLogConfig is the configuration for exporting audit logs.
+message AuditLogConfig {
+  google.protobuf.Timestamp start_date = 1; // Start date for exporting audit logs.
+  // teleport_cluster is the teleport cluster name this audit log config refers to.
+  string teleport_cluster = 2;
+}
+
+// AuditLogEvents bundles a batch of unstructured audit log events with the
+// appropriate resume state information for the type of events being sent
+// ('search' or 'bulk'). This allows the server to persist the client's
+// progress.
+message AuditLogEvents {
+  repeated teleport.auditlog.v1.EventUnstructured events = 1; // Batch of audit log events.
+  oneof resume_state {
+    SearchResumeState search_resume_state = 2; // Complete resume state when sending 'search' events.
+    BulkResumeStateUpdate bulk_resume_state_update = 3; // Incremental resume state update when sending 'bulk' events.
+  }
+}
+
+// SearchResumeState represents the complete, self-contained state required by a
+// client to resume exporting 'search' type audit events.
+//
+// This state is:
+// - Sent by the client *with each batch* of 'search' events
+//   (`AuditLogRequest`).
+// - Sent by the server *to the client* on stream initiation
+//   (`AuditLogResponse`) if the client should resume in 'search' mode.
+message SearchResumeState {
+  // start_key is a key used as cursor indicating where the *next* search for
+  // events should begin.
+  string start_key = 1;
+  // last_event_id is the ID of the most recent event processed for this
+  // specific `start_key` as of the last fetch. It is empty if this `start_key`
+  // has not yet been used for a search.
+  string last_event_id = 2;
+  // last_event_time is the timestamp of the last event successfully processed,
+  // it corresponds to last_event_id if not empty. The clients can leave
+  // last_event_time empty in requests as the server infers it from the last
+  // event in the batch. last_event_time MUST be set by the server in the
+  // initial `AuditLogResponse`.
+  google.protobuf.Timestamp last_event_time = 3;
+}
+
+// BulkResumeStateUpdate provides an incremental update to the server about the
+// client's progress within a specific chunk of a bulk export for a given date.
+// It is sent by the client along with batches of 'bulk' type events. A single
+// batch of bulk events is assumed to be sequential and belong to one chunk.
+message BulkResumeStateUpdate {
+  google.protobuf.Timestamp date = 1; // UTC date of chunk, normalized to 00:00:00.
+  string chunk = 2; // Chunk identifier within the date.
+  string cursor = 3; // Position *after* the last event processed in this chunk.
+  bool completed = 4; // True if this chunk is now fully completed.
+}
+
+// BulkResumeStateSync is a request sent by the client to the server,
+// independently of sending log events, to manage the overall state of bulk
+// exports. It informs the server which export dates are still considered
+// active by the client, allowing the server to prune the state for all chunks
+// for dates that are no longer active and are older than the most recent
+// active date.
+message BulkResumeStateSync {
+  repeated google.protobuf.Timestamp active_dates = 1; // UTC date normalized to 00:00:00.
+}
+
+// AuditLogStreamResponse is sent from the server to the client over the
+// AuditLogStream. It conveys state information during the export process.
+// NOTE: During stream initiation, the server MUST send two responses sequentially:
+// 1. The effective `AuditLogConfig`.
+// 2. The starting resume state (`SearchResumeState`, `BulkResumeState`, or Empty` if none).
+message AuditLogStreamResponse {
+  oneof state {
+    AuditLogConfig audit_log_config = 1; // Effective, negotiated configuration.
+    google.protobuf.Empty no_resume_state = 2; // No resume state available.
+    SearchResumeState search_resume_state = 3; // Complete resume state for 'search' mode.
+    BulkResumeState bulk_resume_state = 4; // Complete resume state for 'bulk' mode.
+  }
+}
+
+// BulkResumeState is the complete, standalone state for bulk exports across
+// various dates. It is sent by the server to the client
+// (within `AuditLogResponse`) to allow the client to resume bulk exporting
+// accurately.
+message BulkResumeState {
+  repeated BulkResumeDate dates = 2; // List of resume states, one for each relevant date.
+}
+
+// BulkResumeDate details the bulk export resume state for a *single* specific
+// date.
+message BulkResumeDate {
+  google.protobuf.Timestamp date = 1; // UTC date normalized to 00:00:00.
+  repeated string completed_chunks = 2; // Fully exported chunks for this date; skip on resume.
+  map<string, string> chunk_cursors = 3; // Cursors for resuming incomplete chunks (chunk_id -> cursor).
 }
 
 // RegisterRequest is the request for Register.
@@ -312,3 +543,138 @@ message NetIQSyncOperation {}
 
 // NetIQEventsStreamResponse is a response from NetIQEventsStream
 message NetIQEventsStreamResponse {}
+
+// AWSCloudTrailStreamRequest is sent from the client to the server over the
+// bi-directional AWSCloudTrailStream. It encapsulates distinct client actions for
+// configuring the export AWS stream, sending batches of cloud trail events, and
+// managing the persistent resume state maintained by the server.
+//
+// The message uses a `oneof` payload to represent one of three distinct actions:
+//  - Config for Synchronization
+//  - Events in bulk as raw data
+//  - Events from files as gzipped data
+//
+// Behavior and Constraints:
+// - Direction: Client -> Server only.
+// - Initial Message: First message on stream MUST be `config`.
+// - State Management:
+//   - `events` includes `resume_state` for persistent progress tracking.
+message AWSCloudTrailStreamRequest {
+  oneof action {
+    AWSCloudTrailConfig config = 1; // Export configuration, e.g. start date. // Config negatiation phase
+    AWSCloudTrailEventsFile events_file = 2;
+  }
+}
+
+// AWSCloudTrailEventsFile holds the cloudtrail file.
+message AWSCloudTrailEventsFile {
+  // Gzipped json encoded s3 payload.
+  bytes payload = 1;
+  // The AWS account id of the account where the log is originated from.
+  string aws_account_id = 2;
+}
+
+// AWSCloudTrailConfig is the configuration for exporting AWS audit logs.
+message AWSCloudTrailConfig {}
+
+// AWSCloudTrailStreamResponse is sent from the server to the client over the
+// AWSCloudTrailStream. It conveys state information during the export process.
+// NOTE: During stream initiation, the server MUST send two responses sequentially:
+// 1. The effective `AWSCloudTrailConfig`.
+// 2. The starting resume state `AWSCloudTrailResumeState`.
+message AWSCloudTrailStreamResponse {
+  oneof state {
+    AWSCloudTrailConfig cloud_trail_config = 1; // Effective, negotiated configuration.
+    AWSCloudTrailResumeState resume_state = 2; // Complete resume state.
+  }
+}
+
+// AWSCloudTrailResumeState is currently a placeholder to align with AuditLog
+// and GitHub RPCs, and to allow for later resume state implementation.
+message AWSCloudTrailResumeState {}
+
+// AWSCloudTrailEventResource identifies the AWS resource by name and type.
+message AWSCloudTrailEventResource {
+  // The name of the resource referenced by the event returned. These are user-created
+  // names whose values will depend on the environment. For example, the resource
+  // name might be "auto-scaling-test-group" for an Auto Scaling Group or "i-1234567"
+  // for an EC2 Instance.
+  string name = 1;
+
+  // The type of a resource referenced by the event returned. When the resource
+  // type cannot be determined, null is returned. Some examples of resource types
+  // are: Instance for EC2, Trail for CloudTrail, DBInstance for Amazon RDS, and
+  // AccessKey for IAM. To learn more about how to look up and filter events by
+  // the resource types supported for a service, see Filtering CloudTrail Events
+  // (https://docs.aws.amazon.com/awscloudtrail/latest/userguide/view-cloudtrail-events-console.html#filtering-cloudtrail-events).
+  string type = 2;
+}
+
+// GitHubAuditLogStreamRequest represents a client message in the GitHubAuditLogStream,
+// containing either initial configuration or a batch of GitHub audit log events.
+message GitHubAuditLogStreamRequest {
+  oneof operation {
+    GitHubConfigV1 config = 1; // Config for GitHub connector.
+    GitHubAuditLogV1 audit_log = 2; // Audit log events.
+  }
+}
+
+// GitHubAuditLogStreamResponse is sent from the server to the client over the
+// GitHubAuditLogStream. It conveys state information during the export process.
+// NOTE: During stream initiation, the server MUST send two responses sequentially:
+// 1. The effective `GitHubConfigV1`.
+// 2. The starting resume state `GitHubAuditLogV1Cursor`.
+message GitHubAuditLogStreamResponse {
+  oneof state {
+    GitHubConfigV1 github_config = 1; // Effective, negotiated configuration.
+    GitHubAuditLogV1Cursor audit_log_resume_state = 2; // Resume state to continue previous export.
+  }
+}
+
+// GitHubEventsStreamRequest is a client message for the GitHubEventsStream,
+// specifying an upsert, delete, or sync operation for GitHub resource states
+// (ex.: repositories, user roles, tokens).
+message GitHubEventsStreamRequest {
+  // operation contains the desired operation
+  oneof operation {
+    GithubResourceList upsert = 1;
+    GithubResourceList delete = 2;
+    GithubSync sync = 3;
+  }
+}
+
+// GitHubEventsStreamResponse is an empty server message in the GitHubEventsStream,
+// serving as an acknowledgment and allowing for future addition of response data.
+message GitHubEventsStreamResponse {}
+
+// OktaAuditLogStreamRequest represents a client message in the OktaAuditLogStream,
+// containing either initial configuration or a batch of Okta audit log events.
+message OktaAuditLogStreamRequest {
+  oneof operation {
+    OktaConfigV1 config = 1; // config for Okta connector.
+    OktaAuditLogV1 audit_log = 2; // actual audit log event data.
+  }
+}
+
+// OktaAuditLogStreamResponse represents a server message in the OktaAuditLogStream,
+// providing either the effective export configuration or an Okta audit log resume cursor.
+message OktaAuditLogStreamResponse {
+  oneof state {
+    OktaConfigV1 config = 1; // Effective, negotiated configuration.
+    OktaAuditLogV1Cursor audit_log_resume_state = 2; // Audit log resume cursor
+  }
+}
+
+// OktaEventsStreamRequest is a client message for the OktaEventsStream,
+// specifying an upsert, delete, or sync operation for Okta resource states (ex.: users, groups, roles).
+message OktaEventsStreamRequest {
+  oneof operation {
+    OktaResourceList upsert = 1;
+    OktaResourceList delete = 2;
+    OktaSync sync = 3;
+  }
+}
+
+// OktaEventsStreamResponse is an empty server message in the GitHubEventsStream,
+// serving as an acknowledgment and allowing for future addition of response data.
+message OktaEventsStreamResponse {}

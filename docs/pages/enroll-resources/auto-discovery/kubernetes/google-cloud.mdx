@@ -1,6 +1,9 @@
 ---
 title: Teleport GKE Auto-Discovery
 description: How to configure auto-discovery of Google Kubernetes Engine clusters in Teleport.
+labels:
+ - how-to
+ - zero-trust
 ---
 
 The Teleport Discovery Service can automatically register your Google Kubernetes
@@ -12,7 +15,7 @@ each creation.
 In this guide, we will show you how to get started with Teleport Kubernetes
 Discovery for GKE.
 
-## Overview
+## How it works
 
 (!docs/pages/includes/discovery/step-description.mdx serviceName="Kubernetes" resourceDesc="cluster" resourceKind="kube_cluster" !)
 
@@ -79,6 +82,7 @@ title: GKE Cluster Access Manager
 description: "Manage access to GKE clusters"
 stage: GA
 includedPermissions:
+- container.clusters.connect
 - container.clusters.get
 - container.clusters.impersonate
 - container.pods.get
@@ -333,13 +337,13 @@ teleport:
     method: token
   proxy_server: "teleport.example.com:443"
 auth_service:
-  enabled: off
+  enabled: false
 proxy_service:
-  enabled: off
+  enabled: false
 ssh_service:
-  enabled: off
+  enabled: false
 discovery_service:
-  enabled: "yes"
+  enabled: true
   discovery_group: "gke-myproject"
   gcp:
     - types: ["gke"]
@@ -348,7 +352,7 @@ discovery_service:
       tags:
         "*" : "*"
 kubernetes_service:
-  enabled: "yes"
+  enabled: true
   resources:
   - labels:
       "*": "*"
@@ -367,15 +371,15 @@ teleport:
   join_params:
     token_name: "/tmp/token"
     method: token
-  proxy_server: <Var name="teleport.example.com" />:443    
+  proxy_server: <Var name="teleport.example.com" />:443
 auth_service:
-  enabled: off
+  enabled: false
 proxy_service:
-  enabled: off
+  enabled: false
 ssh_service:
-  enabled: off
+  enabled: false
 kubernetes_service:
-  enabled: "yes"
+  enabled: true
   resources:
   - labels:
       "*": "*"
@@ -389,15 +393,15 @@ teleport:
   join_params:
     token_name: "/tmp/token"
     method: token
-  proxy_server: <Var name="teleport.example.com" />:443    
+  proxy_server: <Var name="teleport.example.com" />:443
 auth_service:
-  enabled: off
+  enabled: false
 proxy_service:
-  enabled: off
+  enabled: false
 ssh_service:
-  enabled: off
+  enabled: false
 discovery_service:
-  enabled: "yes"
+  enabled: true
   discovery_group: "gke-myproject"
   gcp:
     - types: ["gke"]
@@ -435,7 +439,7 @@ clusters in project `myproj-prod` running in `us-east2`, but *not* clusters in
 
 ```yaml
 discovery_service:
-  enabled: "yes"
+  enabled: true
   discovery_group: "gke-myproject"
   gcp:
     - types: ["gke"]

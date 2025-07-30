@@ -27,7 +27,7 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/lib/automaticupgrades/maintenance"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
@@ -121,10 +121,7 @@ type Channel struct {
 	versionGetter version.Getter
 	// criticalTrigger gets the criticality of the channel. It is populated by CheckAndSetDefaults.
 	criticalTrigger maintenance.Trigger
-	// teleportMajor stores the current teleport major for comparison.
-	// This field is initialized during CheckAndSetDefaults.
-	teleportMajor int64
-	// mutex protects versionGetter, criticalTrigger, and teleportMajor
+	// mutex protects versionGetter and criticalTrigger
 	mutex sync.Mutex
 }
 
@@ -155,8 +152,6 @@ func (c *Channel) CheckAndSetDefaults() error {
 		return trace.BadParameter("either ForwardURL or StaticVersion must be set")
 	}
 
-	c.teleportMajor = teleport.SemVersion.Major
-
 	return nil
 }
 
@@ -177,11 +172,8 @@ func (c *Channel) GetVersion(ctx context.Context) (*semver.Version, error) {
 
 	// The target version is officially incompatible with our version,
 	// we prefer returning our version rather than having a broken client
-	if targetVersion.Major > c.teleportMajor {
-		targetVersion, err = version.EnsureSemver(teleport.Version)
-		if err != nil {
-			return nil, trace.Wrap(err, "ensuring current teleport version is semver-compatible")
-		}
+	if targetVersion.Major > api.VersionMajor {
+		targetVersion = api.SemVer()
 	}
 
 	return targetVersion, nil
@@ -204,7 +196,7 @@ var newDefaultChannel = sync.OnceValues[*Channel, error](
 			}
 		} else {
 			channel = &Channel{
-				StaticVersion: teleport.Version,
+				StaticVersion: api.Version,
 			}
 		}
 		if err := channel.CheckAndSetDefaults(); err != nil {

@@ -103,57 +103,48 @@ func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesReque
 		startKey = backend.NewKey(rolesPrefix, req.StartKey, paramsPrefix)
 	}
 
-	endKey := backend.RangeEnd(backend.ExactKey(rolesPrefix))
-
-	var roles []*types.RoleV6
-	if err := backend.IterateRange(ctx, s.Backend, startKey, endKey, limit+1, func(items []backend.Item) (stop bool, err error) {
-		for _, item := range items {
-			if len(roles) > limit {
-				return true, nil
-			}
-
-			if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
-				// Item represents a different resource type in the
-				// same namespace.
-				continue
-			}
-
-			role, err := services.UnmarshalRoleV6(
-				item.Value,
-				services.WithExpires(item.Expires),
-				services.WithRevision(item.Revision),
-			)
-			if err != nil {
-				s.logger.WarnContext(ctx, "Failed to unmarshal role",
-					"key", item.Key,
-					"error", err,
-				)
-				continue
-			}
-
-			// if a filter was provided, skip roles that fail to match.
-			if req.Filter != nil && !req.Filter.Match(role) {
-				continue
-			}
-
-			roles = append(roles, role)
+	var resp proto.ListRolesResponse
+	for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
+		StartKey: startKey,
+		EndKey:   backend.RangeEnd(backend.ExactKey(rolesPrefix)),
+	}) {
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
-		return len(roles) > limit, nil
-	}); err != nil {
-		return nil, trace.Wrap(err)
+		if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
+			// Item represents a different resource type in the
+			// same namespace.
+			continue
+		}
+
+		role, err := services.UnmarshalRoleV6(
+			item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to unmarshal role",
+				"key", item.Key,
+				"error", err,
+			)
+			continue
+		}
+
+		// if a filter was provided, skip roles that fail to match.
+		if req.Filter != nil && !req.Filter.Match(role) {
+			continue
+		}
+
+		if len(resp.Roles) >= limit {
+			resp.NextKey = role.GetName()
+			return &resp, nil
+		}
+
+		resp.Roles = append(resp.Roles, role)
 	}
 
-	var nextKey string
-	if len(roles) > limit {
-		nextKey = roles[limit].GetName()
-		roles = roles[:limit]
-	}
-
-	return &proto.ListRolesResponse{
-		Roles:   roles,
-		NextKey: nextKey,
-	}, nil
+	return &resp, nil
 }
 
 // CreateRole creates a new role.

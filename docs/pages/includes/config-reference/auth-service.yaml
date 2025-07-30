@@ -109,8 +109,8 @@ teleport:
 
 # This section configures the 'auth service':
 auth_service:
-  # Turns 'auth' role on. Default is 'yes'
-  enabled: yes
+  # Turns 'auth' role on. Default is true
+  enabled: true
 
   # cluster_name is the name used to initiate a new cluster.
   # A cluster name is used as part of a signature in certificates
@@ -258,6 +258,9 @@ auth_service:
       # - 'required' - enables device authentication and device-aware audit.
       #   Additionally, it requires a trusted device for all SSH, Database
       #   and Kubernetes connections.
+      # - 'required-for-humans' - enables device authentication and device-aware
+      #   audit. Additionally, it requires a trusted device for all SSH, Database
+      #   and Kubernetes connections, for human users only (bots are exempt).
       mode: optional # always "off" for Teleport Community Edition
 
     # Determines the default time to live for user certificates

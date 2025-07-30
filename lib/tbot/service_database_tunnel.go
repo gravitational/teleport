@@ -27,50 +27,57 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-var _ alpnproxy.LocalProxyMiddleware = (*alpnProxyMiddleware)(nil)
-
-type alpnProxyMiddleware struct {
-	onNewConnection func(ctx context.Context, lp *alpnproxy.LocalProxy) error
-	onStart         func(ctx context.Context, lp *alpnproxy.LocalProxy) error
-}
-
-func (a alpnProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy) error {
-	if a.onNewConnection != nil {
-		return a.onNewConnection(ctx, lp)
+func DatabaseTunnelServiceBuilder(botCfg *config.BotConfig, cfg *config.DatabaseTunnelService) bot.ServiceBuilder {
+	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+		svc := &DatabaseTunnelService{
+			botCfg:             botCfg,
+			cfg:                cfg,
+			proxyPinger:        deps.ProxyPinger,
+			botClient:          deps.Client,
+			getBotIdentity:     deps.BotIdentity,
+			botIdentityReadyCh: deps.BotIdentityReadyCh,
+			identityGenerator:  deps.IdentityGenerator,
+			clientBuilder:      deps.ClientBuilder,
+		}
+		svc.log = deps.Logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
+		)
+		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
+		return svc, nil
 	}
-	return nil
-}
-
-func (a alpnProxyMiddleware) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) error {
-	if a.onStart != nil {
-		return a.onStart(ctx, lp)
-	}
-	return nil
 }
 
 // DatabaseTunnelService is a service that listens on a local port and forwards
 // connections to a remote database service. It is an authenticating tunnel and
 // will automatically issue and renew certificates as needed.
 type DatabaseTunnelService struct {
-	botCfg         *config.BotConfig
-	cfg            *config.DatabaseTunnelService
-	proxyPingCache *proxyPingCache
-	log            *slog.Logger
-	resolver       reversetunnelclient.Resolver
-	botClient      *authclient.Client
-	getBotIdentity getBotIdentityFn
+	botCfg             *config.BotConfig
+	cfg                *config.DatabaseTunnelService
+	proxyPinger        connection.ProxyPinger
+	log                *slog.Logger
+	botClient          *apiclient.Client
+	getBotIdentity     getBotIdentityFn
+	botIdentityReadyCh <-chan struct{}
+	statusReporter     readyz.Reporter
+	identityGenerator  *identity.Generator
+	clientBuilder      *client.Builder
 }
 
 // buildLocalProxyConfig initializes the service, fetching any initial information and setting
@@ -79,22 +86,24 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 	ctx, span := tracer.Start(ctx, "DatabaseTunnelService/buildLocalProxyConfig")
 	defer span.End()
 
-	// Determine the roles to use for the impersonated db access user. We fall
-	// back to all the roles the bot has if none are configured.
-	roles := s.cfg.Roles
-	if len(roles) == 0 {
-		roles, err = fetchDefaultRoles(ctx, s.botClient, s.getBotIdentity())
-		if err != nil {
-			return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "fetching default roles")
+	if s.botIdentityReadyCh != nil {
+		select {
+		case <-s.botIdentityReadyCh:
+		default:
+			s.log.InfoContext(ctx, "Waiting for internal bot identity to be renewed before running")
+			select {
+			case <-s.botIdentityReadyCh:
+			case <-ctx.Done():
+				return alpnproxy.LocalProxyConfig{}, ctx.Err()
+			}
 		}
-		s.log.DebugContext(ctx, "No roles configured, using all roles available.", "roles", roles)
 	}
 
-	proxyPing, err := s.proxyPingCache.ping(ctx)
+	proxyPing, err := s.proxyPinger.Ping(ctx)
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "pinging proxy")
 	}
-	proxyAddr, err := proxyPing.proxyWebAddr()
+	proxyAddr, err := proxyPing.ProxyWebAddr()
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "determining proxy web address")
 	}
@@ -105,7 +114,7 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 	// of the service and this reduces the time needed to issue a new
 	// certificate.
 	s.log.DebugContext(ctx, "Determining route to database.")
-	routeToDatabase, err := s.getRouteToDatabaseWithImpersonation(ctx, roles)
+	routeToDatabase, err := s.getRouteToDatabaseWithImpersonation(ctx)
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err)
 	}
@@ -119,14 +128,14 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 	)
 
 	s.log.DebugContext(ctx, "Issuing initial certificate for local proxy.")
-	dbCert, err := s.issueCert(ctx, routeToDatabase, roles)
+	dbCert, err := s.issueCert(ctx, routeToDatabase)
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err)
 	}
 	s.log.DebugContext(ctx, "Issued initial certificate for local proxy.")
 
-	middleware := alpnProxyMiddleware{
-		onNewConnection: func(ctx context.Context, lp *alpnproxy.LocalProxy) error {
+	middleware := internal.ALPNProxyMiddleware{
+		OnNewConnectionFunc: func(ctx context.Context, lp *alpnproxy.LocalProxy) error {
 			ctx, span := tracer.Start(ctx, "DatabaseTunnelService/OnNewConnection")
 			defer span.End()
 
@@ -138,7 +147,7 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 				Username:    routeToDatabase.Username,
 			}); err != nil {
 				s.log.InfoContext(ctx, "Certificate for tunnel needs reissuing.", "reason", err.Error())
-				cert, err := s.issueCert(ctx, routeToDatabase, roles)
+				cert, err := s.issueCert(ctx, routeToDatabase)
 				if err != nil {
 					return trace.Wrap(err, "issuing cert")
 				}
@@ -162,7 +171,7 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 		Cert:               *dbCert,
 		InsecureSkipVerify: s.botCfg.Insecure,
 	}
-	if client.IsALPNConnUpgradeRequired(
+	if apiclient.IsALPNConnUpgradeRequired(
 		ctx,
 		proxyAddr,
 		s.botCfg.Insecure,
@@ -221,10 +230,13 @@ func (s *DatabaseTunnelService) Run(ctx context.Context) error {
 	}()
 	s.log.InfoContext(ctx, "Listening for connections.", "address", l.Addr().String())
 
+	s.statusReporter.Report(readyz.Healthy)
+
 	select {
 	case <-ctx.Done():
 		return nil
 	case err := <-errCh:
+		s.statusReporter.ReportReason(readyz.Unhealthy, err.Error())
 		return trace.Wrap(err, "local proxy failed")
 	}
 }
@@ -232,29 +244,21 @@ func (s *DatabaseTunnelService) Run(ctx context.Context) error {
 // getRouteToDatabaseWithImpersonation fetches the route to the database with
 // impersonation of roles. This ensures that the user's selected roles actually
 // grant access to the database.
-func (s *DatabaseTunnelService) getRouteToDatabaseWithImpersonation(ctx context.Context, roles []string) (proto.RouteToDatabase, error) {
+func (s *DatabaseTunnelService) getRouteToDatabaseWithImpersonation(ctx context.Context) (proto.RouteToDatabase, error) {
 	ctx, span := tracer.Start(ctx, "DatabaseTunnelService/getRouteToDatabaseWithImpersonation")
 	defer span.End()
 
-	impersonatedIdentity, err := generateIdentity(
-		ctx,
-		s.botClient,
-		s.getBotIdentity(),
-		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
-		nil,
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
+	impersonatedIdentity, err := s.identityGenerator.GenerateFacade(ctx,
+		identity.WithRoles(s.cfg.Roles),
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
 	)
 	if err != nil {
 		return proto.RouteToDatabase{}, trace.Wrap(err)
 	}
 
-	impersonatedClient, err := clientForFacade(
-		ctx,
-		s.log,
-		s.botCfg,
-		identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, impersonatedIdentity),
-		s.resolver,
-	)
+	impersonatedClient, err := s.clientBuilder.Build(ctx, impersonatedIdentity)
 	if err != nil {
 		return proto.RouteToDatabase{}, trace.Wrap(err)
 	}
@@ -270,21 +274,18 @@ func (s *DatabaseTunnelService) getRouteToDatabaseWithImpersonation(ctx context.
 func (s *DatabaseTunnelService) issueCert(
 	ctx context.Context,
 	route proto.RouteToDatabase,
-	roles []string,
 ) (*tls.Certificate, error) {
 	ctx, span := tracer.Start(ctx, "DatabaseTunnelService/issueCert")
 	defer span.End()
 
 	s.log.DebugContext(ctx, "Requesting issuance of certificate for tunnel proxy.")
-	ident, err := generateIdentity(
-		ctx,
-		s.botClient,
-		s.getBotIdentity(),
-		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
-		func(req *proto.UserCertsRequest) {
-			req.RouteToDatabase = route
-		})
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
+	ident, err := s.identityGenerator.Generate(ctx,
+		identity.WithRoles(s.cfg.Roles),
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
+		identity.WithRouteToDatabase(route),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -296,5 +297,8 @@ func (s *DatabaseTunnelService) issueCert(
 // String returns a human-readable string that can uniquely identify the
 // service.
 func (s *DatabaseTunnelService) String() string {
-	return fmt.Sprintf("%s:%s:%s", config.DatabaseTunnelServiceType, s.cfg.Listen, s.cfg.Service)
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("%s:%s:%s", config.DatabaseTunnelServiceType, s.cfg.Listen, s.cfg.Service),
+	)
 }

@@ -132,6 +132,16 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"ldap_service_account_name": {
+							Description: "LDAPServiceAccountName is the name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"ldap_service_account_sid": {
+							Description: "LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
 						"spn": {
 							Description: "SPN is the service principal name for the database.",
 							Optional:    true,
@@ -187,7 +197,7 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
-							Description: "DocumentDB contains AWS DocumentDB specific metadata.",
+							Description: "DocumentDB contains Amazon DocumentDB-specific metadata.",
 							Optional:    true,
 						},
 						"elasticache": {
@@ -213,7 +223,7 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
 							}),
-							Description: "ElastiCache contains AWS ElastiCache Redis specific metadata.",
+							Description: "ElastiCache contains Amazon ElastiCache Redis-specific metadata.",
 							Optional:    true,
 						},
 						"external_id": {
@@ -362,7 +372,7 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
-							Description: "RedshiftServerless contains AWS Redshift Serverless specific metadata.",
+							Description: "RedshiftServerless contains Amazon Redshift Serverless-specific metadata.",
 							Optional:    true,
 						},
 						"region": {
@@ -691,6 +701,16 @@ func GenSchemaServerV2(ctx context.Context) (github_com_hashicorp_terraform_plug
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
+				"relay_group": {
+					Description: "the name of the Relay group that the server is connected to",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"relay_ids": {
+					Description: "the list of Relay host IDs that the server is connected to",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
 				"rotation": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"current_id": {
@@ -844,11 +864,29 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"aws": {
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"external_id": {
-						Description: "ExternalID is the AWS External ID used when assuming roles in this app.",
-						Optional:    true,
-						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-					}}),
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"external_id": {
+							Description: "ExternalID is the AWS External ID used when assuming roles in this app.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"roles_anywhere_profile": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"accept_role_session_name": {
+									Description: "Whether this Roles Anywhere Profile accepts a custom role session name. When not supported, the AWS Session Name will be the X.509 certificate's serial number. When supported, the AWS Session Name will be the identity's username. This values comes from: https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ProfileDetail.html / acceptRoleSessionName",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+								"profile_arn": {
+									Description: "ProfileARN is the AWS IAM Roles Anywhere Profile ARN that originated this Teleport App.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "RolesAnywhereProfile contains the IAM Roles Anywhere fields associated with this Application. These fields are set when performing the synchronization of AWS IAM Roles Anywhere Profiles into Teleport Apps.",
+							Optional:    true,
+						},
+					}),
 					Description: "AWS contains additional options for AWS applications.",
 					Optional:    true,
 				},
@@ -955,6 +993,27 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 					Description: "Integration is the integration name that must be used to access this Application. Only applicable to AWS App Access. If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"mcp": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"args": {
+							Description: "Args to execute with the command.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"command": {
+							Description: "Command to launch stdio-based MCP servers.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"run_as_host_user": {
+							Description: "RunAsHostUser is the host user account under which the command will be executed. Required for stdio-based MCP servers.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "MCP contains MCP server related configurations.",
+					Optional:    true,
 				},
 				"public_addr": {
 					Description: "PublicAddr is the public address the application is accessible at.",
@@ -1161,6 +1220,63 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 					Description: "Azure allows the configuration of options specific to the \"azure\" join method.",
 					Optional:    true,
 				},
+				"azure_devops": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"definition_id": {
+									Description: "The ID of the AZDO pipeline definition. Example: `1` Mapped from the `def_id` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"pipeline_name": {
+									Description: "The name of the AZDO pipeline. Example: `my-pipeline`. Mapped out of the `sub` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"project_id": {
+									Description: "The ID of the AZDO pipeline. Example: `271ef6f7-0000-0000-0000-4b54d9129990` Mapped from the `prj_id` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"project_name": {
+									Description: "The name of the AZDO project. Example: `my-project`. Mapped out of the `sub` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"repository_ref": {
+									Description: "The reference of the repository the pipeline is using. Example: `refs/heads/main`. Mapped from the `rpo_ref` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"repository_uri": {
+									Description: "The URI of the repository the pipeline is using. Example: `https://github.com/gravitational/teleport.git`. Mapped from the `rpo_uri` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"repository_version": {
+									Description: "The individual commit of the repository the pipeline is using. Example: `e6b9eb29a288b27a3a82cc19c48b9d94b80aff36`. Mapped from the `rpo_ver` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"sub": {
+									Description: "Sub also known as Subject is a string that roughly uniquely identifies the workload. Example: `p://my-organization/my-project/my-pipeline` Mapped from the `sub` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token. At least one allow rule must be specified.",
+							Optional:    true,
+						},
+						"organization_id": {
+							Description: "OrganizationID specifies the UUID of the Azure DevOps organization that this join token will grant access to. This is used to identify the correct issuer verification of the ID token. This is a required field.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "AzureDevops allows the configuration of options specific to the \"azure_devops\" join method.",
+					Optional:    true,
+				},
 				"bitbucket": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"allow": {
@@ -1207,6 +1323,54 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 					Description: "BotName is the name of the bot this token grants access to, if any",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"bound_keypair": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"onboarding": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"initial_public_key": {
+									Description: "InitialPublicKey is used to preregister a public key generated by `tbot keypair create`. When set, no initial join secret is generated or made available for use, and clients must have the associated private key available to join. If set, `initial_join_secret` and `must_register_before` are ignored. This value is written in SSH authorized_keys format.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"must_register_before": {
+									Description: "MustRegisterBefore is an optional time before which registration via initial join secret must be performed. Attempts to register using an initial join secret after this timestamp will not be allowed. This may be modified after creation if necessary to allow the initial registration to take place. This value is ignored if `initial_public_key` is set.",
+									Optional:    true,
+									Type:        UseRFC3339Time(),
+								},
+								"registration_secret": {
+									Description: "RegistrationSecret is a secret joining clients may use to register their public key on first join, which may be used instead of preregistering a public key with `initial_public_key`. If `initial_public_key` is set, this value is ignored. Otherwise, if set, this value will be used to populate `.status.bound_keypair.registration_secret`. If unset and no `initial_public_key` is provided, a random secure value will be generated server-side to populate the status field.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "Onboarding contains parameters related to initial onboarding and keypair registration.",
+							Optional:    true,
+						},
+						"recovery": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"limit": {
+									Description: "Limit is the maximum number of allowed recovery attempts. This value may be raised or lowered after creation to allow additional recovery attempts should the initial limit be exhausted. If `mode` is set to `standard`, recovery attempts will only be allowed if `.status.bound_keypair.recovery_count` is less than this limit. This limit is not enforced if `mode` is set to `relaxed` or `insecure`. This value must be at least 1 to allow for the initial join during onboarding, which counts as a recovery.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+								},
+								"mode": {
+									Description: "Mode sets the recovery rule enforcement mode. It may be one of these values: - standard (or unset): all configured rules enforced. The recovery limit and client join state are required and verified. This is the most secure recovery mode. - relaxed: recovery limit is not enforced, but client join state is still required. This effectively allows unlimited recovery attempts, but client join state still helps mitigate stolen credentials. - insecure: neither the recovery limit nor client join state are enforced. This allows any client with the private key to join freely. This is less secure, but can be useful in certain situations, like in otherwise unsupported CI/CD providers. This mode should be used with care, and RBAC rules should be configured to heavily restrict which resources this identity can access.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "Recovery contains parameters related to recovery after identity expiration.",
+							Optional:    true,
+						},
+						"rotate_after": {
+							Description: "RotateAfter is an optional timestamp that forces clients to perform a keypair rotation on the next join or recovery attempt after the given date. If `LastRotatedAt` is unset or before this timestamp, a rotation will be requested. It is recommended to set this value to the current timestamp if a rotation should be triggered on the next join attempt.",
+							Optional:    true,
+							Type:        UseRFC3339Time(),
+						},
+					}),
+					Description: "BoundKeypair allows the configuration of options specific to the \"bound_keypair\" join method.",
+					Optional:    true,
 				},
 				"circleci": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -1496,7 +1660,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 						"allow": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"caller_id": {
-									Description: "CallerID is the ID of the caller, ie. the stack or module that generated the run.",
+									Description: "CallerID is the ID of the caller, ie. the stack or module that generated the run.  This field supports \"glob-style\" matching when enable_glob_matching is true: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -1511,13 +1675,18 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"space_id": {
-									Description: "SpaceID is the ID of the space in which the run that owns the token was executed.",
+									Description: "SpaceID is the ID of the space in which the run that owns the token was executed.  This field supports \"glob-style\" matching when enable_glob_matching is true: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
 							Description: "Allow is a list of Rules, nodes using this token must match one allow rule to use this token.",
 							Optional:    true,
+						},
+						"enable_glob_matching": {
+							Description: "EnableGlobMatching enables glob-style matching for the space_id and caller_id fields in the rules.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
 						"hostname": {
 							Description: "Hostname is the hostname of the Spacelift tenant that tokens will originate from. E.g `example.app.spacelift.io`",
@@ -1628,6 +1797,46 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 			}),
 			Description: "Spec is a provisioning token V2 spec",
 			Required:    true,
+		},
+		"status": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"bound_keypair": {
+				Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					"bound_bot_instance_id": {
+						Description: "BoundBotInstanceID is the ID of the currently associated bot instance. A new bot instance is issued on each join; the new bot instance will have a `previous_bot_instance` set to this value, if any.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					},
+					"bound_public_key": {
+						Description: "BoundPublicKey contains the currently bound public key. If `.spec.bound_keypair.onboarding.initial_public_key` is set, that value will be copied here on creation, otherwise it will be populated as part of public key registration process. This value will be updated over time if keypair rotation takes place, and will always reflect the currently trusted public key. This value is written in SSH authorized_keys format.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					},
+					"last_recovered_at": {
+						Description: "LastRecoveredAt contains a timestamp of the last successful recovery attempt. Note that normal renewals with valid client certificates do not count as a recovery attempt, however the initial join during onboarding does. This corresponds with the last time `bound_bot_instance_id` was updated.",
+						Optional:    true,
+						Type:        UseRFC3339Time(),
+					},
+					"last_rotated_at": {
+						Description: "LastRotatedAt contains a timestamp of the last time the keypair was rotated, if any. This is not set at initial join.",
+						Optional:    true,
+						Type:        UseRFC3339Time(),
+					},
+					"recovery_count": {
+						Description: "RecoveryCount is a count of the total number of recoveries performed using this token. It is incremented for every successful join or rejoin. Recovery is only allowed if this value is less than `.spec.bound_keypair.recovery.limit`, or if the recovery mode is `relaxed` or `insecure`.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+					},
+					"registration_secret": {
+						Description: "RegistrationSecret contains a secret value that may be used for public key registration during the initial join process if no public key is preregistered. If `.spec.bound_keypair.onboarding.initial_public_key` is set, this field will remain empty. Otherwise, if `.spec.bound_keypair.onboarding.registration_secret` is set, that value will be copied here. If that field is unset, a value will be randomly generated.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					},
+				}),
+				Description: "BoundKeypair contains status information related to bound_keypair type tokens.",
+				Optional:    true,
+			}}),
+			Description: "Status is extended status information, depending on token type. It is not user writable.",
+			Optional:    true,
 		},
 		"sub_kind": {
 			Description: "SubKind is an optional resource sub kind, used in some resources",
@@ -1747,7 +1956,7 @@ func GenSchemaClusterNetworkingConfigV2(ctx context.Context) (github_com_hashico
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 				},
 				"session_control_timeout": {
-					Description: "SessionControlTimeout is the session control lease expiry and defines the upper limit of how long a node may be out of contact with the auth server before it begins terminating controlled sessions.",
+					Description: "SessionControlTimeout is the session control lease expiry and defines the upper limit of how long a node may be out of contact with the Auth Service before it begins terminating controlled sessions.",
 					Optional:    true,
 					Type:        DurationType{},
 				},
@@ -1860,6 +2069,15 @@ func GenSchemaSessionRecordingConfigV2(ctx context.Context) (github_com_hashicor
 		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"encryption": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": {
+						Description: "Enabled controls whether or not session recordings should be encrypted.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+					}}),
+					Description: "Encryption configures if and how session recordings should be encrypted.",
+					Optional:    true,
+				},
 				"mode": {
 					Computed:      true,
 					Description:   "Mode controls where (or if) the session is recorded.",
@@ -1873,6 +2091,19 @@ func GenSchemaSessionRecordingConfigV2(ctx context.Context) (github_com_hashicor
 				}),
 			}),
 			Description: "Spec is a SessionRecordingConfig specification",
+			Optional:    true,
+		},
+		"status": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"encryption_keys": {
+				Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"public_key": {
+					Description: "PublicKey is a Bech32 encoded age X25519 public key.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				}}),
+				Description: "EncryptionKeys contain the currently active age encryption keys used for encrypted session recording.",
+				Optional:    true,
+			}}),
+			Description: "Status is the SessionRecordingConfig status containing active encryption keys",
 			Optional:    true,
 		},
 		"sub_kind": {
@@ -1986,7 +2217,7 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"mode": {
-							Description: "Mode of verification for trusted devices.  The following modes are supported:  - \"off\": disables both device authentication and authorization. - \"optional\": allows both device authentication and authorization, but doesn't enforce the presence of device extensions for sensitive endpoints. - \"required\": enforces the presence of device extensions for sensitive endpoints.  Mode is always \"off\" for OSS. Defaults to \"optional\" for Enterprise.",
+							Description: "Mode of verification for trusted devices.  The following modes are supported:  - \"off\": disables both device authentication and authorization. - \"optional\": allows both device authentication and authorization, but doesn't enforce the presence of device extensions for sensitive endpoints. - \"required\": enforces the presence of device extensions for sensitive endpoints. - \"required-for-humans\": enforces the presence of device extensions for sensitive endpoints, for human users only (bots are exempt).  Mode is always \"off\" for OSS. Defaults to \"optional\" for Enterprise.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -2002,6 +2233,11 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 				}),
 				"hardware_key": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"pin_cache_ttl": {
+							Description: "PinCacheTTL is the amount of time in nanoseconds that Teleport clients will cache the user's PIV PIN when hardware key PIN policy is enabled.",
+							Optional:    true,
+							Type:        DurationType{},
+						},
 						"piv_slot": {
 							Description: "PIVSlot is a PIV slot that Teleport clients should use instead of the default based on private key policy. For example, \"9a\" or \"9e\".",
 							Optional:    true,
@@ -2424,6 +2660,11 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"kubernetes_resources": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"api_group": {
+									Description: "APIGroup specifies the Kubernetes API group of the Kubernetes resource. It supports wildcards.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
 								"kind": {
 									Description: "Kind specifies the Kubernetes Resource type.",
 									Optional:    true,
@@ -2462,6 +2703,15 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
+						"mcp": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"tools": {
+								Description: "Tools defines the list of tools allowed or denied for this role. Each entry can be a literal string, a glob pattern (e.g. \"prefix_*\"), or a regular expression (must start with '^' and end with '$'). If the list is empty, no tools are allowed.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							}}),
+							Description: "MCPPermissions defines MCP servers related permissions.",
+							Optional:    true,
+						},
 						"node_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Description: "NodeLabels is a map of node labels (used to dynamically grant access to nodes).",
 							Optional:    true,
@@ -2499,11 +2749,18 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 									Optional:    true,
 								},
 								"kubernetes_resources": {
-									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"kind": {
-										Description: "kind specifies the Kubernetes Resource type.",
-										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-									}}),
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"api_group": {
+											Description: "APIGroup specifies the Kubernetes Resource API group.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"kind": {
+											Description: "kind specifies the Kubernetes Resource type.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
 									Description: "kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind \"kube_cluster\" or any of its subresources like \"namespaces\". This field can be defined such that it prevents a user from requesting \"kube_cluster\" and enforce requesting any of its subresources.",
 									Optional:    true,
 								},
@@ -2913,6 +3170,11 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"kubernetes_resources": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"api_group": {
+									Description: "APIGroup specifies the Kubernetes API group of the Kubernetes resource. It supports wildcards.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
 								"kind": {
 									Description: "Kind specifies the Kubernetes Resource type.",
 									Optional:    true,
@@ -2946,6 +3208,15 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Description: "Logins is a list of *nix system logins.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"mcp": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"tools": {
+								Description: "Tools defines the list of tools allowed or denied for this role. Each entry can be a literal string, a glob pattern (e.g. \"prefix_*\"), or a regular expression (must start with '^' and end with '$'). If the list is empty, no tools are allowed.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							}}),
+							Description: "MCPPermissions defines MCP servers related permissions.",
+							Optional:    true,
 						},
 						"node_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Description: "NodeLabels is a map of node labels (used to dynamically grant access to nodes).",
@@ -2984,11 +3255,18 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 									Optional:    true,
 								},
 								"kubernetes_resources": {
-									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"kind": {
-										Description: "kind specifies the Kubernetes Resource type.",
-										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-									}}),
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"api_group": {
+											Description: "APIGroup specifies the Kubernetes Resource API group.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"kind": {
+											Description: "kind specifies the Kubernetes Resource type.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
 									Description: "kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind \"kube_cluster\" or any of its subresources like \"namespaces\". This field can be defined such that it prevents a user from requesting \"kube_cluster\" and enforce requesting any of its subresources.",
 									Optional:    true,
 								},
@@ -3822,6 +4100,11 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 					Description: "MFASettings contains settings to enable SSO MFA checks through this auth connector.",
 					Optional:    true,
 				},
+				"pkce_mode": {
+					Description: "PKCEMode represents the configuration state for PKCE (Proof Key for Code Exchange). It can be \"enabled\" or \"disabled\"",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
 				"prompt": {
 					Description: "Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.",
 					Optional:    true,
@@ -3838,6 +4121,11 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 				}),
 				"scope": {
 					Description: "Scope specifies additional scopes set by provider.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"user_matchers": {
+					Description: "UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should match for identifier-first login.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
@@ -4073,6 +4361,11 @@ func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terrafo
 					Description: "MFASettings contains settings to enable SSO MFA checks through this auth connector.",
 					Optional:    true,
 				},
+				"preferred_request_binding": {
+					Description: "PreferredRequestBinding is a preferred SAML request binding method. Value must be either \"http-post\" or \"http-redirect\". In general, the SAML identity provider lists request binding methods it supports. And the SAML service provider uses one of the IdP supported request binding method that it prefers. But we never honored request binding value provided by the IdP and always used http-redirect binding as a default. Setting up PreferredRequestBinding value lets us preserve existing auth connector behavior and only use http-post binding if it is explicitly configured.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
 				"provider": {
 					Description: "Provider is the external identity provider.",
 					Optional:    true,
@@ -4119,6 +4412,11 @@ func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terrafo
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"user_matchers": {
+					Description: "UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should match for identifier-first login.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
 			}),
 			Description: "Spec is an SAML connector specification.",
@@ -4296,6 +4594,11 @@ func GenSchemaGithubConnectorV3(ctx context.Context) (github_com_hashicorp_terra
 					}),
 					Description: "TeamsToRoles maps Github team memberships onto allowed roles.",
 					Optional:    true,
+				},
+				"user_matchers": {
+					Description: "UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should match for identifier-first login.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
 			}),
 			Description: "Spec is an Github connector specification.",
@@ -6339,6 +6642,40 @@ func CopyDatabaseV3FromTerraform(_ context.Context, tf github_com_hashicorp_terr
 													t = string(v.Value)
 												}
 												obj.KDCHostName = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["ldap_service_account_name"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountName"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.LDAPServiceAccountName = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["ldap_service_account_sid"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountSID"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountSID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.LDAPServiceAccountSID = t
 											}
 										}
 									}
@@ -8725,6 +9062,50 @@ func CopyDatabaseV3ToTerraform(ctx context.Context, obj *github_com_gravitationa
 											tf.Attrs["kdc_host_name"] = v
 										}
 									}
+									{
+										t, ok := tf.AttrTypes["ldap_service_account_name"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountName"})
+										} else {
+											v, ok := tf.Attrs["ldap_service_account_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.AD.LDAPServiceAccountName", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.LDAPServiceAccountName) == ""
+											}
+											v.Value = string(obj.LDAPServiceAccountName)
+											v.Unknown = false
+											tf.Attrs["ldap_service_account_name"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["ldap_service_account_sid"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountSID"})
+										} else {
+											v, ok := tf.Attrs["ldap_service_account_sid"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.AD.LDAPServiceAccountSID", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountSID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.LDAPServiceAccountSID) == ""
+											}
+											v.Value = string(obj.LDAPServiceAccountSID)
+											v.Unknown = false
+											tf.Attrs["ldap_service_account_sid"] = v
+										}
+									}
 								}
 								v.Unknown = false
 								tf.Attrs["ad"] = v
@@ -9696,6 +10077,50 @@ func CopyServerV2FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 												}
 												obj.Integration = t
 											}
+										}
+									}
+								}
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["relay_group"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ServerV2.Spec.relay_group"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ServerV2.Spec.relay_group", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+							} else {
+								var t string
+								if !v.Null && !v.Unknown {
+									t = string(v.Value)
+								}
+								obj.RelayGroup = t
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["relay_ids"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ServerV2.Spec.relay_ids"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ServerV2.Spec.relay_ids", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+							} else {
+								obj.RelayIds = make([]string, len(v.Elems))
+								if !v.Null && !v.Unknown {
+									for k, a := range v.Elems {
+										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+										if !ok {
+											diags.Append(attrReadConversionFailureDiag{"ServerV2.Spec.relay_ids", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+										} else {
+											var t string
+											if !v.Null && !v.Unknown {
+												t = string(v.Value)
+											}
+											obj.RelayIds[k] = t
 										}
 									}
 								}
@@ -10770,6 +11195,81 @@ func CopyServerV2ToTerraform(ctx context.Context, obj *github_com_gravitational_
 							}
 						}
 					}
+					{
+						t, ok := tf.AttrTypes["relay_group"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"ServerV2.Spec.relay_group"})
+						} else {
+							v, ok := tf.Attrs["relay_group"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"ServerV2.Spec.relay_group", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"ServerV2.Spec.relay_group", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
+								v.Null = string(obj.RelayGroup) == ""
+							}
+							v.Value = string(obj.RelayGroup)
+							v.Unknown = false
+							tf.Attrs["relay_group"] = v
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["relay_ids"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"ServerV2.Spec.relay_ids"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"ServerV2.Spec.relay_ids", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+							} else {
+								c, ok := tf.Attrs["relay_ids"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+								if !ok {
+									c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+										ElemType: o.ElemType,
+										Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.RelayIds)),
+										Null:     true,
+									}
+								} else {
+									if c.Elems == nil {
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.RelayIds))
+									}
+								}
+								if obj.RelayIds != nil {
+									t := o.ElemType
+									if len(obj.RelayIds) != len(c.Elems) {
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.RelayIds))
+									}
+									for k, a := range obj.RelayIds {
+										v, ok := tf.Attrs["relay_ids"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										if !ok {
+											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+											if err != nil {
+												diags.Append(attrWriteGeneralError{"ServerV2.Spec.relay_ids", err})
+											}
+											v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"ServerV2.Spec.relay_ids", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
+											v.Null = string(a) == ""
+										}
+										v.Value = string(a)
+										v.Unknown = false
+										c.Elems[k] = v
+									}
+									if len(obj.RelayIds) > 0 {
+										c.Null = false
+									}
+								}
+								c.Unknown = false
+								tf.Attrs["relay_ids"] = c
+							}
+						}
+					}
 				}
 				v.Unknown = false
 				tf.Attrs["spec"] = v
@@ -11272,6 +11772,58 @@ func CopyAppV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["roles_anywhere_profile"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.AWS.RolesAnywhereProfile"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.AWS.RolesAnywhereProfile", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.RolesAnywhereProfile = nil
+												if !v.Null && !v.Unknown {
+													tf := v
+													obj.RolesAnywhereProfile = &github_com_gravitational_teleport_api_types.AppAWSRolesAnywhereProfile{}
+													obj := obj.RolesAnywhereProfile
+													{
+														a, ok := tf.Attrs["profile_arn"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"AppV3.Spec.AWS.RolesAnywhereProfile.ProfileARN"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.AWS.RolesAnywhereProfile.ProfileARN", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.ProfileARN = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["accept_role_session_name"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"AppV3.Spec.AWS.RolesAnywhereProfile.AcceptRoleSessionName"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.AWS.RolesAnywhereProfile.AcceptRoleSessionName", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+															} else {
+																var t bool
+																if !v.Null && !v.Unknown {
+																	t = bool(v.Value)
+																}
+																obj.AcceptRoleSessionName = t
+															}
+														}
+													}
+												}
+											}
+										}
+									}
 								}
 							}
 						}
@@ -11716,6 +12268,85 @@ func CopyAppV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform
 									t = bool(v.Value)
 								}
 								obj.UseAnyProxyPublicAddr = t
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["mcp"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.MCP = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.MCP = &github_com_gravitational_teleport_api_types.MCP{}
+									obj := obj.MCP
+									{
+										a, ok := tf.Attrs["command"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.command"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.command", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.Command = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["args"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.args"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.args", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.Args = make([]string, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.args", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+														} else {
+															var t string
+															if !v.Null && !v.Unknown {
+																t = string(v.Value)
+															}
+															obj.Args[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["run_as_host_user"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.run_as_host_user"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.run_as_host_user", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.RunAsHostUser = t
+											}
+										}
+									}
+								}
 							}
 						}
 					}
@@ -12492,6 +13123,82 @@ func CopyAppV3ToTerraform(ctx context.Context, obj *github_com_gravitational_tel
 											tf.Attrs["external_id"] = v
 										}
 									}
+									{
+										a, ok := tf.AttrTypes["roles_anywhere_profile"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.AWS.RolesAnywhereProfile"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.AWS.RolesAnywhereProfile", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["roles_anywhere_profile"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+												if !ok {
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
+												}
+												if obj.RolesAnywhereProfile == nil {
+													v.Null = true
+												} else {
+													obj := obj.RolesAnywhereProfile
+													tf := &v
+													{
+														t, ok := tf.AttrTypes["profile_arn"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"AppV3.Spec.AWS.RolesAnywhereProfile.ProfileARN"})
+														} else {
+															v, ok := tf.Attrs["profile_arn"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"AppV3.Spec.AWS.RolesAnywhereProfile.ProfileARN", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.AWS.RolesAnywhereProfile.ProfileARN", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.ProfileARN) == ""
+															}
+															v.Value = string(obj.ProfileARN)
+															v.Unknown = false
+															tf.Attrs["profile_arn"] = v
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["accept_role_session_name"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"AppV3.Spec.AWS.RolesAnywhereProfile.AcceptRoleSessionName"})
+														} else {
+															v, ok := tf.Attrs["accept_role_session_name"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"AppV3.Spec.AWS.RolesAnywhereProfile.AcceptRoleSessionName", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.AWS.RolesAnywhereProfile.AcceptRoleSessionName", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																}
+																v.Null = bool(obj.AcceptRoleSessionName) == false
+															}
+															v.Value = bool(obj.AcceptRoleSessionName)
+															v.Unknown = false
+															tf.Attrs["accept_role_session_name"] = v
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["roles_anywhere_profile"] = v
+											}
+										}
+									}
 								}
 								v.Unknown = false
 								tf.Attrs["aws"] = v
@@ -13236,6 +13943,135 @@ func CopyAppV3ToTerraform(ctx context.Context, obj *github_com_gravitational_tel
 							v.Value = bool(obj.UseAnyProxyPublicAddr)
 							v.Unknown = false
 							tf.Attrs["use_any_proxy_public_addr"] = v
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["mcp"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["mcp"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.MCP == nil {
+									v.Null = true
+								} else {
+									obj := obj.MCP
+									tf := &v
+									{
+										t, ok := tf.AttrTypes["command"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP.command"})
+										} else {
+											v, ok := tf.Attrs["command"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AppV3.Spec.MCP.command", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.command", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.Command) == ""
+											}
+											v.Value = string(obj.Command)
+											v.Unknown = false
+											tf.Attrs["command"] = v
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["args"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP.args"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.args", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["args"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Args)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Args))
+													}
+												}
+												if obj.Args != nil {
+													t := o.ElemType
+													if len(obj.Args) != len(c.Elems) {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Args))
+													}
+													for k, a := range obj.Args {
+														v, ok := tf.Attrs["args"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+															if err != nil {
+																diags.Append(attrWriteGeneralError{"AppV3.Spec.MCP.args", err})
+															}
+															v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.args", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															}
+															v.Null = string(a) == ""
+														}
+														v.Value = string(a)
+														v.Unknown = false
+														c.Elems[k] = v
+													}
+													if len(obj.Args) > 0 {
+														c.Null = false
+													}
+												}
+												c.Unknown = false
+												tf.Attrs["args"] = c
+											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["run_as_host_user"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP.run_as_host_user"})
+										} else {
+											v, ok := tf.Attrs["run_as_host_user"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AppV3.Spec.MCP.run_as_host_user", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.run_as_host_user", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.RunAsHostUser) == ""
+											}
+											v.Value = string(obj.RunAsHostUser)
+											v.Unknown = false
+											tf.Attrs["run_as_host_user"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["mcp"] = v
+							}
 						}
 					}
 				}
@@ -14771,6 +15607,23 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["enable_glob_matching"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Spacelift.EnableGlobMatching"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Spacelift.EnableGlobMatching", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+											} else {
+												var t bool
+												if !v.Null && !v.Unknown {
+													t = bool(v.Value)
+												}
+												obj.EnableGlobMatching = t
+											}
+										}
+									}
 								}
 							}
 						}
@@ -15360,6 +16213,504 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 														}
 													}
 												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["bound_keypair"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.BoundKeypair = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.BoundKeypair = &github_com_gravitational_teleport_api_types.ProvisionTokenSpecV2BoundKeypair{}
+									obj := obj.BoundKeypair
+									{
+										a, ok := tf.Attrs["onboarding"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.Onboarding = nil
+												if !v.Null && !v.Unknown {
+													tf := v
+													obj.Onboarding = &github_com_gravitational_teleport_api_types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{}
+													obj := obj.Onboarding
+													{
+														a, ok := tf.Attrs["initial_public_key"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.InitialPublicKey"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.InitialPublicKey", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.InitialPublicKey = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["registration_secret"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.RegistrationSecret"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.RegistrationSecret", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.RegistrationSecret = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["must_register_before"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.MustRegisterBefore"})
+														} else {
+															v, ok := a.(TimeValue)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.MustRegisterBefore", "TimeValue"})
+															} else {
+																var t *time.Time
+																if !v.Null && !v.Unknown {
+																	c := time.Time(v.Value)
+																	t = &c
+																}
+																obj.MustRegisterBefore = t
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["recovery"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Recovery"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Recovery", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.Recovery = nil
+												if !v.Null && !v.Unknown {
+													tf := v
+													obj.Recovery = &github_com_gravitational_teleport_api_types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{}
+													obj := obj.Recovery
+													{
+														a, ok := tf.Attrs["limit"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Recovery.Limit"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Recovery.Limit", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+															} else {
+																var t uint32
+																if !v.Null && !v.Unknown {
+																	t = uint32(v.Value)
+																}
+																obj.Limit = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["mode"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Recovery.Mode"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Recovery.Mode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.Mode = t
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["rotate_after"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.RotateAfter"})
+										} else {
+											v, ok := a.(TimeValue)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.RotateAfter", "TimeValue"})
+											} else {
+												var t *time.Time
+												if !v.Null && !v.Unknown {
+													c := time.Time(v.Value)
+													t = &c
+												}
+												obj.RotateAfter = t
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["azure_devops"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.AzureDevops"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.AzureDevops", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.AzureDevops = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.AzureDevops = &github_com_gravitational_teleport_api_types.ProvisionTokenSpecV2AzureDevops{}
+									obj := obj.AzureDevops
+									{
+										a, ok := tf.Attrs["allow"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.Allow = make([]*github_com_gravitational_teleport_api_types.ProvisionTokenSpecV2AzureDevops_Rule, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+														} else {
+															var t *github_com_gravitational_teleport_api_types.ProvisionTokenSpecV2AzureDevops_Rule
+															if !v.Null && !v.Unknown {
+																tf := v
+																t = &github_com_gravitational_teleport_api_types.ProvisionTokenSpecV2AzureDevops_Rule{}
+																obj := t
+																{
+																	a, ok := tf.Attrs["sub"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.Sub"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.Sub", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.Sub = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["project_name"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.ProjectName"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.ProjectName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.ProjectName = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["pipeline_name"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.PipelineName"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.PipelineName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.PipelineName = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["project_id"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.ProjectID"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.ProjectID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.ProjectID = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["definition_id"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.DefinitionID"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.DefinitionID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.DefinitionID = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["repository_uri"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.RepositoryURI"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.RepositoryURI", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.RepositoryURI = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["repository_version"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.RepositoryVersion"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.RepositoryVersion", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.RepositoryVersion = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["repository_ref"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.RepositoryRef"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.RepositoryRef", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.RepositoryRef = t
+																		}
+																	}
+																}
+															}
+															obj.Allow[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["organization_id"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.AzureDevops.OrganizationID"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.AzureDevops.OrganizationID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.OrganizationID = t
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	{
+		a, ok := tf.Attrs["status"]
+		if !ok {
+			diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Status"})
+		} else {
+			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+			if !ok {
+				diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Status", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+			} else {
+				obj.Status = nil
+				if !v.Null && !v.Unknown {
+					tf := v
+					obj.Status = &github_com_gravitational_teleport_api_types.ProvisionTokenStatusV2{}
+					obj := obj.Status
+					{
+						a, ok := tf.Attrs["bound_keypair"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Status.BoundKeypair"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.BoundKeypair = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.BoundKeypair = &github_com_gravitational_teleport_api_types.ProvisionTokenStatusV2BoundKeypair{}
+									obj := obj.BoundKeypair
+									{
+										a, ok := tf.Attrs["registration_secret"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.RegistrationSecret"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.RegistrationSecret", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.RegistrationSecret = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["bound_public_key"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.BoundPublicKey"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.BoundPublicKey", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.BoundPublicKey = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["bound_bot_instance_id"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.BoundBotInstanceID"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.BoundBotInstanceID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.BoundBotInstanceID = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["recovery_count"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.RecoveryCount"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.RecoveryCount", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+											} else {
+												var t uint32
+												if !v.Null && !v.Unknown {
+													t = uint32(v.Value)
+												}
+												obj.RecoveryCount = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["last_recovered_at"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.LastRecoveredAt"})
+										} else {
+											v, ok := a.(TimeValue)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.LastRecoveredAt", "TimeValue"})
+											} else {
+												var t *time.Time
+												if !v.Null && !v.Unknown {
+													c := time.Time(v.Value)
+													t = &c
+												}
+												obj.LastRecoveredAt = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["last_rotated_at"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.LastRotatedAt"})
+										} else {
+											v, ok := a.(TimeValue)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.LastRotatedAt", "TimeValue"})
+											} else {
+												var t *time.Time
+												if !v.Null && !v.Unknown {
+													c := time.Time(v.Value)
+													t = &c
+												}
+												obj.LastRotatedAt = t
 											}
 										}
 									}
@@ -17725,6 +19076,28 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 											tf.Attrs["hostname"] = v
 										}
 									}
+									{
+										t, ok := tf.AttrTypes["enable_glob_matching"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Spacelift.EnableGlobMatching"})
+										} else {
+											v, ok := tf.Attrs["enable_glob_matching"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.Spacelift.EnableGlobMatching", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Spacelift.EnableGlobMatching", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+												}
+												v.Null = bool(obj.EnableGlobMatching) == false
+											}
+											v.Value = bool(obj.EnableGlobMatching)
+											v.Unknown = false
+											tf.Attrs["enable_glob_matching"] = v
+										}
+									}
 								}
 								v.Unknown = false
 								tf.Attrs["spacelift"] = v
@@ -18668,9 +20041,741 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 							}
 						}
 					}
+					{
+						a, ok := tf.AttrTypes["bound_keypair"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["bound_keypair"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.BoundKeypair == nil {
+									v.Null = true
+								} else {
+									obj := obj.BoundKeypair
+									tf := &v
+									{
+										a, ok := tf.AttrTypes["onboarding"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["onboarding"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+												if !ok {
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
+												}
+												if obj.Onboarding == nil {
+													v.Null = true
+												} else {
+													obj := obj.Onboarding
+													tf := &v
+													{
+														t, ok := tf.AttrTypes["initial_public_key"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.InitialPublicKey"})
+														} else {
+															v, ok := tf.Attrs["initial_public_key"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.InitialPublicKey", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.InitialPublicKey", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.InitialPublicKey) == ""
+															}
+															v.Value = string(obj.InitialPublicKey)
+															v.Unknown = false
+															tf.Attrs["initial_public_key"] = v
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["registration_secret"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.RegistrationSecret"})
+														} else {
+															v, ok := tf.Attrs["registration_secret"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.RegistrationSecret", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.RegistrationSecret", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.RegistrationSecret) == ""
+															}
+															v.Value = string(obj.RegistrationSecret)
+															v.Unknown = false
+															tf.Attrs["registration_secret"] = v
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["must_register_before"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.MustRegisterBefore"})
+														} else {
+															v, ok := tf.Attrs["must_register_before"].(TimeValue)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.MustRegisterBefore", err})
+																}
+																v, ok = i.(TimeValue)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.MustRegisterBefore", "TimeValue"})
+																}
+																v.Null = false
+															}
+															if obj.MustRegisterBefore == nil {
+																v.Null = true
+															} else {
+																v.Null = false
+																v.Value = time.Time(*obj.MustRegisterBefore)
+															}
+															v.Unknown = false
+															tf.Attrs["must_register_before"] = v
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["onboarding"] = v
+											}
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["recovery"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Recovery"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Recovery", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["recovery"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+												if !ok {
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
+												}
+												if obj.Recovery == nil {
+													v.Null = true
+												} else {
+													obj := obj.Recovery
+													tf := &v
+													{
+														t, ok := tf.AttrTypes["limit"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Recovery.Limit"})
+														} else {
+															v, ok := tf.Attrs["limit"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.BoundKeypair.Recovery.Limit", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Recovery.Limit", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+																}
+																v.Null = int64(obj.Limit) == 0
+															}
+															v.Value = int64(obj.Limit)
+															v.Unknown = false
+															tf.Attrs["limit"] = v
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["mode"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Recovery.Mode"})
+														} else {
+															v, ok := tf.Attrs["mode"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.BoundKeypair.Recovery.Mode", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Recovery.Mode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.Mode) == ""
+															}
+															v.Value = string(obj.Mode)
+															v.Unknown = false
+															tf.Attrs["mode"] = v
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["recovery"] = v
+											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["rotate_after"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.RotateAfter"})
+										} else {
+											v, ok := tf.Attrs["rotate_after"].(TimeValue)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.BoundKeypair.RotateAfter", err})
+												}
+												v, ok = i.(TimeValue)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.RotateAfter", "TimeValue"})
+												}
+												v.Null = false
+											}
+											if obj.RotateAfter == nil {
+												v.Null = true
+											} else {
+												v.Null = false
+												v.Value = time.Time(*obj.RotateAfter)
+											}
+											v.Unknown = false
+											tf.Attrs["rotate_after"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["bound_keypair"] = v
+							}
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["azure_devops"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.AzureDevops"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.AzureDevops", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["azure_devops"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.AzureDevops == nil {
+									v.Null = true
+								} else {
+									obj := obj.AzureDevops
+									tf := &v
+									{
+										a, ok := tf.AttrTypes["allow"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["allow"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
+													}
+												}
+												if obj.Allow != nil {
+													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+													if len(obj.Allow) != len(c.Elems) {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
+													}
+													for k, a := range obj.Allow {
+														v, ok := tf.Attrs["allow"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																AttrTypes: o.AttrTypes,
+																Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+															}
+														} else {
+															if v.Attrs == nil {
+																v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+															}
+														}
+														if a == nil {
+															v.Null = true
+														} else {
+															obj := a
+															tf := &v
+															{
+																t, ok := tf.AttrTypes["sub"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.Sub"})
+																} else {
+																	v, ok := tf.Attrs["sub"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.AzureDevops.Allow.Sub", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.Sub", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.Sub) == ""
+																	}
+																	v.Value = string(obj.Sub)
+																	v.Unknown = false
+																	tf.Attrs["sub"] = v
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["project_name"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.ProjectName"})
+																} else {
+																	v, ok := tf.Attrs["project_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.AzureDevops.Allow.ProjectName", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.ProjectName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.ProjectName) == ""
+																	}
+																	v.Value = string(obj.ProjectName)
+																	v.Unknown = false
+																	tf.Attrs["project_name"] = v
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["pipeline_name"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.PipelineName"})
+																} else {
+																	v, ok := tf.Attrs["pipeline_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.AzureDevops.Allow.PipelineName", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.PipelineName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.PipelineName) == ""
+																	}
+																	v.Value = string(obj.PipelineName)
+																	v.Unknown = false
+																	tf.Attrs["pipeline_name"] = v
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["project_id"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.ProjectID"})
+																} else {
+																	v, ok := tf.Attrs["project_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.AzureDevops.Allow.ProjectID", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.ProjectID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.ProjectID) == ""
+																	}
+																	v.Value = string(obj.ProjectID)
+																	v.Unknown = false
+																	tf.Attrs["project_id"] = v
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["definition_id"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.DefinitionID"})
+																} else {
+																	v, ok := tf.Attrs["definition_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.AzureDevops.Allow.DefinitionID", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.DefinitionID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.DefinitionID) == ""
+																	}
+																	v.Value = string(obj.DefinitionID)
+																	v.Unknown = false
+																	tf.Attrs["definition_id"] = v
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["repository_uri"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.RepositoryURI"})
+																} else {
+																	v, ok := tf.Attrs["repository_uri"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.AzureDevops.Allow.RepositoryURI", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.RepositoryURI", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.RepositoryURI) == ""
+																	}
+																	v.Value = string(obj.RepositoryURI)
+																	v.Unknown = false
+																	tf.Attrs["repository_uri"] = v
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["repository_version"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.RepositoryVersion"})
+																} else {
+																	v, ok := tf.Attrs["repository_version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.AzureDevops.Allow.RepositoryVersion", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.RepositoryVersion", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.RepositoryVersion) == ""
+																	}
+																	v.Value = string(obj.RepositoryVersion)
+																	v.Unknown = false
+																	tf.Attrs["repository_version"] = v
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["repository_ref"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.RepositoryRef"})
+																} else {
+																	v, ok := tf.Attrs["repository_ref"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.AzureDevops.Allow.RepositoryRef", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.AzureDevops.Allow.RepositoryRef", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.RepositoryRef) == ""
+																	}
+																	v.Value = string(obj.RepositoryRef)
+																	v.Unknown = false
+																	tf.Attrs["repository_ref"] = v
+																}
+															}
+														}
+														v.Unknown = false
+														c.Elems[k] = v
+													}
+													if len(obj.Allow) > 0 {
+														c.Null = false
+													}
+												}
+												c.Unknown = false
+												tf.Attrs["allow"] = c
+											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["organization_id"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.AzureDevops.OrganizationID"})
+										} else {
+											v, ok := tf.Attrs["organization_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.AzureDevops.OrganizationID", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.AzureDevops.OrganizationID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.OrganizationID) == ""
+											}
+											v.Value = string(obj.OrganizationID)
+											v.Unknown = false
+											tf.Attrs["organization_id"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["azure_devops"] = v
+							}
+						}
+					}
 				}
 				v.Unknown = false
 				tf.Attrs["spec"] = v
+			}
+		}
+	}
+	{
+		a, ok := tf.AttrTypes["status"]
+		if !ok {
+			diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Status"})
+		} else {
+			o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+			if !ok {
+				diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Status", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+			} else {
+				v, ok := tf.Attrs["status"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+				if !ok {
+					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+						AttrTypes: o.AttrTypes,
+						Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+					}
+				} else {
+					if v.Attrs == nil {
+						v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+					}
+				}
+				if obj.Status == nil {
+					v.Null = true
+				} else {
+					obj := obj.Status
+					tf := &v
+					{
+						a, ok := tf.AttrTypes["bound_keypair"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Status.BoundKeypair"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["bound_keypair"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.BoundKeypair == nil {
+									v.Null = true
+								} else {
+									obj := obj.BoundKeypair
+									tf := &v
+									{
+										t, ok := tf.AttrTypes["registration_secret"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.RegistrationSecret"})
+										} else {
+											v, ok := tf.Attrs["registration_secret"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Status.BoundKeypair.RegistrationSecret", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.RegistrationSecret", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.RegistrationSecret) == ""
+											}
+											v.Value = string(obj.RegistrationSecret)
+											v.Unknown = false
+											tf.Attrs["registration_secret"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["bound_public_key"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.BoundPublicKey"})
+										} else {
+											v, ok := tf.Attrs["bound_public_key"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Status.BoundKeypair.BoundPublicKey", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.BoundPublicKey", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.BoundPublicKey) == ""
+											}
+											v.Value = string(obj.BoundPublicKey)
+											v.Unknown = false
+											tf.Attrs["bound_public_key"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["bound_bot_instance_id"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.BoundBotInstanceID"})
+										} else {
+											v, ok := tf.Attrs["bound_bot_instance_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Status.BoundKeypair.BoundBotInstanceID", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.BoundBotInstanceID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.BoundBotInstanceID) == ""
+											}
+											v.Value = string(obj.BoundBotInstanceID)
+											v.Unknown = false
+											tf.Attrs["bound_bot_instance_id"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["recovery_count"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.RecoveryCount"})
+										} else {
+											v, ok := tf.Attrs["recovery_count"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Status.BoundKeypair.RecoveryCount", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.RecoveryCount", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+												}
+												v.Null = int64(obj.RecoveryCount) == 0
+											}
+											v.Value = int64(obj.RecoveryCount)
+											v.Unknown = false
+											tf.Attrs["recovery_count"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["last_recovered_at"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.LastRecoveredAt"})
+										} else {
+											v, ok := tf.Attrs["last_recovered_at"].(TimeValue)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Status.BoundKeypair.LastRecoveredAt", err})
+												}
+												v, ok = i.(TimeValue)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.LastRecoveredAt", "TimeValue"})
+												}
+												v.Null = false
+											}
+											if obj.LastRecoveredAt == nil {
+												v.Null = true
+											} else {
+												v.Null = false
+												v.Value = time.Time(*obj.LastRecoveredAt)
+											}
+											v.Unknown = false
+											tf.Attrs["last_recovered_at"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["last_rotated_at"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.LastRotatedAt"})
+										} else {
+											v, ok := tf.Attrs["last_rotated_at"].(TimeValue)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Status.BoundKeypair.LastRotatedAt", err})
+												}
+												v, ok = i.(TimeValue)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.LastRotatedAt", "TimeValue"})
+												}
+												v.Null = false
+											}
+											if obj.LastRotatedAt == nil {
+												v.Null = true
+											} else {
+												v.Null = false
+												v.Value = time.Time(*obj.LastRotatedAt)
+											}
+											v.Unknown = false
+											tf.Attrs["last_rotated_at"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["bound_keypair"] = v
+							}
+						}
+					}
+				}
+				v.Unknown = false
+				tf.Attrs["status"] = v
 			}
 		}
 	}
@@ -20032,6 +22137,105 @@ func CopySessionRecordingConfigV2FromTerraform(_ context.Context, tf github_com_
 						}
 						CopyFromBoolOption(diags, a, &obj.ProxyChecksHostKeys)
 					}
+					{
+						a, ok := tf.Attrs["encryption"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"SessionRecordingConfigV2.Spec.encryption"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"SessionRecordingConfigV2.Spec.encryption", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.Encryption = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.Encryption = &github_com_gravitational_teleport_api_types.SessionRecordingEncryptionConfig{}
+									obj := obj.Encryption
+									{
+										a, ok := tf.Attrs["enabled"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"SessionRecordingConfigV2.Spec.encryption.enabled"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"SessionRecordingConfigV2.Spec.encryption.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+											} else {
+												var t bool
+												if !v.Null && !v.Unknown {
+													t = bool(v.Value)
+												}
+												obj.Enabled = t
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	{
+		a, ok := tf.Attrs["status"]
+		if !ok {
+			diags.Append(attrReadMissingDiag{"SessionRecordingConfigV2.Status"})
+		} else {
+			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+			if !ok {
+				diags.Append(attrReadConversionFailureDiag{"SessionRecordingConfigV2.Status", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+			} else {
+				obj.Status = nil
+				if !v.Null && !v.Unknown {
+					tf := v
+					obj.Status = &github_com_gravitational_teleport_api_types.SessionRecordingConfigStatus{}
+					obj := obj.Status
+					{
+						a, ok := tf.Attrs["encryption_keys"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"SessionRecordingConfigV2.Status.encryption_keys"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"SessionRecordingConfigV2.Status.encryption_keys", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+							} else {
+								obj.EncryptionKeys = make([]*github_com_gravitational_teleport_api_types.AgeEncryptionKey, len(v.Elems))
+								if !v.Null && !v.Unknown {
+									for k, a := range v.Elems {
+										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										if !ok {
+											diags.Append(attrReadConversionFailureDiag{"SessionRecordingConfigV2.Status.encryption_keys", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+										} else {
+											var t *github_com_gravitational_teleport_api_types.AgeEncryptionKey
+											if !v.Null && !v.Unknown {
+												tf := v
+												t = &github_com_gravitational_teleport_api_types.AgeEncryptionKey{}
+												obj := t
+												{
+													a, ok := tf.Attrs["public_key"]
+													if !ok {
+														diags.Append(attrReadMissingDiag{"SessionRecordingConfigV2.Status.encryption_keys.public_key"})
+													} else {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"SessionRecordingConfigV2.Status.encryption_keys.public_key", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														} else {
+															var t []byte
+															if !v.Null && !v.Unknown {
+																t = []byte(v.Value)
+															}
+															obj.PublicKey = t
+														}
+													}
+												}
+											}
+											obj.EncryptionKeys[k] = t
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -20341,9 +22545,175 @@ func CopySessionRecordingConfigV2ToTerraform(ctx context.Context, obj *github_co
 							tf.Attrs["proxy_checks_host_keys"] = v
 						}
 					}
+					{
+						a, ok := tf.AttrTypes["encryption"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"SessionRecordingConfigV2.Spec.encryption"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"SessionRecordingConfigV2.Spec.encryption", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["encryption"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.Encryption == nil {
+									v.Null = true
+								} else {
+									obj := obj.Encryption
+									tf := &v
+									{
+										t, ok := tf.AttrTypes["enabled"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"SessionRecordingConfigV2.Spec.encryption.enabled"})
+										} else {
+											v, ok := tf.Attrs["enabled"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"SessionRecordingConfigV2.Spec.encryption.enabled", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"SessionRecordingConfigV2.Spec.encryption.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+												}
+												v.Null = bool(obj.Enabled) == false
+											}
+											v.Value = bool(obj.Enabled)
+											v.Unknown = false
+											tf.Attrs["enabled"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["encryption"] = v
+							}
+						}
+					}
 				}
 				v.Unknown = false
 				tf.Attrs["spec"] = v
+			}
+		}
+	}
+	{
+		a, ok := tf.AttrTypes["status"]
+		if !ok {
+			diags.Append(attrWriteMissingDiag{"SessionRecordingConfigV2.Status"})
+		} else {
+			o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+			if !ok {
+				diags.Append(attrWriteConversionFailureDiag{"SessionRecordingConfigV2.Status", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+			} else {
+				v, ok := tf.Attrs["status"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+				if !ok {
+					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+						AttrTypes: o.AttrTypes,
+						Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+					}
+				} else {
+					if v.Attrs == nil {
+						v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+					}
+				}
+				if obj.Status == nil {
+					v.Null = true
+				} else {
+					obj := obj.Status
+					tf := &v
+					{
+						a, ok := tf.AttrTypes["encryption_keys"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"SessionRecordingConfigV2.Status.encryption_keys"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"SessionRecordingConfigV2.Status.encryption_keys", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+							} else {
+								c, ok := tf.Attrs["encryption_keys"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+								if !ok {
+									c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+										ElemType: o.ElemType,
+										Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.EncryptionKeys)),
+										Null:     true,
+									}
+								} else {
+									if c.Elems == nil {
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.EncryptionKeys))
+									}
+								}
+								if obj.EncryptionKeys != nil {
+									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+									if len(obj.EncryptionKeys) != len(c.Elems) {
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.EncryptionKeys))
+									}
+									for k, a := range obj.EncryptionKeys {
+										v, ok := tf.Attrs["encryption_keys"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										if !ok {
+											v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+												AttrTypes: o.AttrTypes,
+												Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+											}
+										} else {
+											if v.Attrs == nil {
+												v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+											}
+										}
+										if a == nil {
+											v.Null = true
+										} else {
+											obj := a
+											tf := &v
+											{
+												t, ok := tf.AttrTypes["public_key"]
+												if !ok {
+													diags.Append(attrWriteMissingDiag{"SessionRecordingConfigV2.Status.encryption_keys.public_key"})
+												} else {
+													v, ok := tf.Attrs["public_key"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+													if !ok {
+														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+														if err != nil {
+															diags.Append(attrWriteGeneralError{"SessionRecordingConfigV2.Status.encryption_keys.public_key", err})
+														}
+														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrWriteConversionFailureDiag{"SessionRecordingConfigV2.Status.encryption_keys.public_key", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
+														v.Null = string(obj.PublicKey) == ""
+													}
+													v.Value = string(obj.PublicKey)
+													v.Unknown = false
+													tf.Attrs["public_key"] = v
+												}
+											}
+										}
+										v.Unknown = false
+										c.Elems[k] = v
+									}
+									if len(obj.EncryptionKeys) > 0 {
+										c.Null = false
+									}
+								}
+								c.Unknown = false
+								tf.Attrs["encryption_keys"] = c
+							}
+						}
+					}
+				}
+				v.Unknown = false
+				tf.Attrs["status"] = v
 			}
 		}
 	}
@@ -21092,6 +23462,23 @@ func CopyAuthPreferenceV2FromTerraform(_ context.Context, tf github_com_hashicor
 														}
 													}
 												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["pin_cache_ttl"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AuthPreferenceV2.Spec.HardwareKey.PinCacheTTL"})
+										} else {
+											v, ok := a.(DurationValue)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AuthPreferenceV2.Spec.HardwareKey.PinCacheTTL", "DurationValue"})
+											} else {
+												var t github_com_gravitational_teleport_api_types.Duration
+												if !v.Null && !v.Unknown {
+													t = github_com_gravitational_teleport_api_types.Duration(v.Value)
+												}
+												obj.PinCacheTTL = t
 											}
 										}
 									}
@@ -22378,6 +24765,28 @@ func CopyAuthPreferenceV2ToTerraform(ctx context.Context, obj *github_com_gravit
 												v.Unknown = false
 												tf.Attrs["serial_number_validation"] = v
 											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["pin_cache_ttl"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.HardwareKey.PinCacheTTL"})
+										} else {
+											v, ok := tf.Attrs["pin_cache_ttl"].(DurationValue)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AuthPreferenceV2.Spec.HardwareKey.PinCacheTTL", err})
+												}
+												v, ok = i.(DurationValue)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AuthPreferenceV2.Spec.HardwareKey.PinCacheTTL", "DurationValue"})
+												}
+												v.Null = false
+											}
+											v.Value = time.Duration(obj.PinCacheTTL)
+											v.Unknown = false
+											tf.Attrs["pin_cache_ttl"] = v
 										}
 									}
 								}
@@ -23989,6 +26398,23 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 																						}
 																					}
 																				}
+																				{
+																					a, ok := tf.Attrs["api_group"]
+																					if !ok {
+																						diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.Request.kubernetes_resources.APIGroup"})
+																					} else {
+																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.Request.kubernetes_resources.APIGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						} else {
+																							var t string
+																							if !v.Null && !v.Unknown {
+																								t = string(v.Value)
+																							}
+																							obj.APIGroup = t
+																						}
+																					}
+																				}
 																			}
 																			obj.KubernetesResources[k] = t
 																		}
@@ -24930,6 +27356,23 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 																		}
 																	}
 																}
+																{
+																	a, ok := tf.Attrs["api_group"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.KubernetesResources.APIGroup"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.KubernetesResources.APIGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.APIGroup = t
+																		}
+																	}
+																}
 															}
 															obj.KubernetesResources[k] = t
 														}
@@ -25469,6 +27912,51 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 													t = string(v.Value)
 												}
 												obj.WorkloadIdentityLabelsExpression = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["mcp"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.MCP"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.MCP", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.MCP = nil
+												if !v.Null && !v.Unknown {
+													tf := v
+													obj.MCP = &github_com_gravitational_teleport_api_types.MCPPermissions{}
+													obj := obj.MCP
+													{
+														a, ok := tf.Attrs["tools"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.MCP.tools"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.MCP.tools", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+															} else {
+																obj.Tools = make([]string, len(v.Elems))
+																if !v.Null && !v.Unknown {
+																	for k, a := range v.Elems {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.MCP.tools", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.Tools[k] = t
+																		}
+																	}
+																}
+															}
+														}
+													}
+												}
 											}
 										}
 									}
@@ -26014,6 +28502,23 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 																								t = string(v.Value)
 																							}
 																							obj.Kind = t
+																						}
+																					}
+																				}
+																				{
+																					a, ok := tf.Attrs["api_group"]
+																					if !ok {
+																						diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.Request.kubernetes_resources.APIGroup"})
+																					} else {
+																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.Request.kubernetes_resources.APIGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						} else {
+																							var t string
+																							if !v.Null && !v.Unknown {
+																								t = string(v.Value)
+																							}
+																							obj.APIGroup = t
 																						}
 																					}
 																				}
@@ -26958,6 +29463,23 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 																		}
 																	}
 																}
+																{
+																	a, ok := tf.Attrs["api_group"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.KubernetesResources.APIGroup"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.KubernetesResources.APIGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.APIGroup = t
+																		}
+																	}
+																}
 															}
 															obj.KubernetesResources[k] = t
 														}
@@ -27497,6 +30019,51 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 													t = string(v.Value)
 												}
 												obj.WorkloadIdentityLabelsExpression = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["mcp"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.MCP"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.MCP", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.MCP = nil
+												if !v.Null && !v.Unknown {
+													tf := v
+													obj.MCP = &github_com_gravitational_teleport_api_types.MCPPermissions{}
+													obj := obj.MCP
+													{
+														a, ok := tf.Attrs["tools"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.MCP.tools"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.MCP.tools", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+															} else {
+																obj.Tools = make([]string, len(v.Elems))
+																if !v.Null && !v.Unknown {
+																	for k, a := range v.Elems {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.MCP.tools", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.Tools[k] = t
+																		}
+																	}
+																}
+															}
+														}
+													}
+												}
 											}
 										}
 									}
@@ -29740,6 +32307,28 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 																					tf.Attrs["kind"] = v
 																				}
 																			}
+																			{
+																				t, ok := tf.AttrTypes["api_group"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.Request.kubernetes_resources.APIGroup"})
+																				} else {
+																					v, ok := tf.Attrs["api_group"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																					if !ok {
+																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																						if err != nil {
+																							diags.Append(attrWriteGeneralError{"RoleV6.Spec.Allow.Request.kubernetes_resources.APIGroup", err})
+																						}
+																						v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.Request.kubernetes_resources.APIGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						}
+																						v.Null = string(obj.APIGroup) == ""
+																					}
+																					v.Value = string(obj.APIGroup)
+																					v.Unknown = false
+																					tf.Attrs["api_group"] = v
+																				}
+																			}
 																		}
 																		v.Unknown = false
 																		c.Elems[k] = v
@@ -31408,6 +33997,28 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 																	}
 																}
 															}
+															{
+																t, ok := tf.AttrTypes["api_group"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.KubernetesResources.APIGroup"})
+																} else {
+																	v, ok := tf.Attrs["api_group"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"RoleV6.Spec.Allow.KubernetesResources.APIGroup", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.KubernetesResources.APIGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.APIGroup) == ""
+																	}
+																	v.Value = string(obj.APIGroup)
+																	v.Unknown = false
+																	tf.Attrs["api_group"] = v
+																}
+															}
 														}
 														v.Unknown = false
 														c.Elems[k] = v
@@ -32316,6 +34927,91 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 											v.Value = string(obj.WorkloadIdentityLabelsExpression)
 											v.Unknown = false
 											tf.Attrs["workload_identity_labels_expression"] = v
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["mcp"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.MCP"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.MCP", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["mcp"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+												if !ok {
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
+												}
+												if obj.MCP == nil {
+													v.Null = true
+												} else {
+													obj := obj.MCP
+													tf := &v
+													{
+														a, ok := tf.AttrTypes["tools"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.MCP.tools"})
+														} else {
+															o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.MCP.tools", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+															} else {
+																c, ok := tf.Attrs["tools"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+																if !ok {
+																	c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+																		ElemType: o.ElemType,
+																		Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Tools)),
+																		Null:     true,
+																	}
+																} else {
+																	if c.Elems == nil {
+																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Tools))
+																	}
+																}
+																if obj.Tools != nil {
+																	t := o.ElemType
+																	if len(obj.Tools) != len(c.Elems) {
+																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Tools))
+																	}
+																	for k, a := range obj.Tools {
+																		v, ok := tf.Attrs["tools"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																			if err != nil {
+																				diags.Append(attrWriteGeneralError{"RoleV6.Spec.Allow.MCP.tools", err})
+																			}
+																			v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																			if !ok {
+																				diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.MCP.tools", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			}
+																			v.Null = string(a) == ""
+																		}
+																		v.Value = string(a)
+																		v.Unknown = false
+																		c.Elems[k] = v
+																	}
+																	if len(obj.Tools) > 0 {
+																		c.Null = false
+																	}
+																}
+																c.Unknown = false
+																tf.Attrs["tools"] = c
+															}
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["mcp"] = v
+											}
 										}
 									}
 								}
@@ -33276,6 +35972,28 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 																					v.Value = string(obj.Kind)
 																					v.Unknown = false
 																					tf.Attrs["kind"] = v
+																				}
+																			}
+																			{
+																				t, ok := tf.AttrTypes["api_group"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.Request.kubernetes_resources.APIGroup"})
+																				} else {
+																					v, ok := tf.Attrs["api_group"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																					if !ok {
+																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																						if err != nil {
+																							diags.Append(attrWriteGeneralError{"RoleV6.Spec.Deny.Request.kubernetes_resources.APIGroup", err})
+																						}
+																						v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Deny.Request.kubernetes_resources.APIGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						}
+																						v.Null = string(obj.APIGroup) == ""
+																					}
+																					v.Value = string(obj.APIGroup)
+																					v.Unknown = false
+																					tf.Attrs["api_group"] = v
 																				}
 																			}
 																		}
@@ -34946,6 +37664,28 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 																	}
 																}
 															}
+															{
+																t, ok := tf.AttrTypes["api_group"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.KubernetesResources.APIGroup"})
+																} else {
+																	v, ok := tf.Attrs["api_group"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"RoleV6.Spec.Deny.KubernetesResources.APIGroup", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Deny.KubernetesResources.APIGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.APIGroup) == ""
+																	}
+																	v.Value = string(obj.APIGroup)
+																	v.Unknown = false
+																	tf.Attrs["api_group"] = v
+																}
+															}
 														}
 														v.Unknown = false
 														c.Elems[k] = v
@@ -35854,6 +38594,91 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 											v.Value = string(obj.WorkloadIdentityLabelsExpression)
 											v.Unknown = false
 											tf.Attrs["workload_identity_labels_expression"] = v
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["mcp"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.MCP"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Deny.MCP", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["mcp"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+												if !ok {
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
+												}
+												if obj.MCP == nil {
+													v.Null = true
+												} else {
+													obj := obj.MCP
+													tf := &v
+													{
+														a, ok := tf.AttrTypes["tools"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.MCP.tools"})
+														} else {
+															o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Deny.MCP.tools", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+															} else {
+																c, ok := tf.Attrs["tools"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+																if !ok {
+																	c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+																		ElemType: o.ElemType,
+																		Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Tools)),
+																		Null:     true,
+																	}
+																} else {
+																	if c.Elems == nil {
+																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Tools))
+																	}
+																}
+																if obj.Tools != nil {
+																	t := o.ElemType
+																	if len(obj.Tools) != len(c.Elems) {
+																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Tools))
+																	}
+																	for k, a := range obj.Tools {
+																		v, ok := tf.Attrs["tools"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																			if err != nil {
+																				diags.Append(attrWriteGeneralError{"RoleV6.Spec.Deny.MCP.tools", err})
+																			}
+																			v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																			if !ok {
+																				diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Deny.MCP.tools", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			}
+																			v.Null = string(a) == ""
+																		}
+																		v.Value = string(a)
+																		v.Unknown = false
+																		c.Elems[k] = v
+																	}
+																	if len(obj.Tools) > 0 {
+																		c.Null = false
+																	}
+																}
+																c.Unknown = false
+																tf.Attrs["tools"] = c
+															}
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["mcp"] = v
+											}
 										}
 									}
 								}
@@ -38136,6 +40961,50 @@ func CopyOIDCConnectorV3FromTerraform(_ context.Context, tf github_com_hashicorp
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["pkce_mode"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"OIDCConnectorV3.Spec.PKCEMode"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.PKCEMode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+							} else {
+								var t string
+								if !v.Null && !v.Unknown {
+									t = string(v.Value)
+								}
+								obj.PKCEMode = t
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["user_matchers"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"OIDCConnectorV3.Spec.UserMatchers"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.UserMatchers", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+							} else {
+								obj.UserMatchers = make([]string, len(v.Elems))
+								if !v.Null && !v.Unknown {
+									for k, a := range v.Elems {
+										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+										if !ok {
+											diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.UserMatchers", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+										} else {
+											var t string
+											if !v.Null && !v.Unknown {
+												t = string(v.Value)
+											}
+											obj.UserMatchers[k] = t
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -39243,6 +42112,81 @@ func CopyOIDCConnectorV3ToTerraform(ctx context.Context, obj *github_com_gravita
 							}
 						}
 					}
+					{
+						t, ok := tf.AttrTypes["pkce_mode"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Spec.PKCEMode"})
+						} else {
+							v, ok := tf.Attrs["pkce_mode"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"OIDCConnectorV3.Spec.PKCEMode", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.PKCEMode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
+								v.Null = string(obj.PKCEMode) == ""
+							}
+							v.Value = string(obj.PKCEMode)
+							v.Unknown = false
+							tf.Attrs["pkce_mode"] = v
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["user_matchers"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Spec.UserMatchers"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.UserMatchers", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+							} else {
+								c, ok := tf.Attrs["user_matchers"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+								if !ok {
+									c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+										ElemType: o.ElemType,
+										Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.UserMatchers)),
+										Null:     true,
+									}
+								} else {
+									if c.Elems == nil {
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.UserMatchers))
+									}
+								}
+								if obj.UserMatchers != nil {
+									t := o.ElemType
+									if len(obj.UserMatchers) != len(c.Elems) {
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.UserMatchers))
+									}
+									for k, a := range obj.UserMatchers {
+										v, ok := tf.Attrs["user_matchers"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										if !ok {
+											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+											if err != nil {
+												diags.Append(attrWriteGeneralError{"OIDCConnectorV3.Spec.UserMatchers", err})
+											}
+											v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.UserMatchers", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
+											v.Null = string(a) == ""
+										}
+										v.Value = string(a)
+										v.Unknown = false
+										c.Elems[k] = v
+									}
+									if len(obj.UserMatchers) > 0 {
+										c.Null = false
+									}
+								}
+								c.Unknown = false
+								tf.Attrs["user_matchers"] = c
+							}
+						}
+					}
 				}
 				v.Unknown = false
 				tf.Attrs["spec"] = v
@@ -40069,6 +43013,50 @@ func CopySAMLConnectorV2FromTerraform(_ context.Context, tf github_com_hashicorp
 									t = github_com_gravitational_teleport_api_types.SAMLForceAuthn(v.Value)
 								}
 								obj.ForceAuthn = t
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["preferred_request_binding"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.PreferredRequestBinding"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.PreferredRequestBinding", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+							} else {
+								var t string
+								if !v.Null && !v.Unknown {
+									t = string(v.Value)
+								}
+								obj.PreferredRequestBinding = t
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["user_matchers"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.UserMatchers"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.UserMatchers", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+							} else {
+								obj.UserMatchers = make([]string, len(v.Elems))
+								if !v.Null && !v.Unknown {
+									for k, a := range v.Elems {
+										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+										if !ok {
+											diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.UserMatchers", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+										} else {
+											var t string
+											if !v.Null && !v.Unknown {
+												t = string(v.Value)
+											}
+											obj.UserMatchers[k] = t
+										}
+									}
+								}
 							}
 						}
 					}
@@ -41287,6 +44275,81 @@ func CopySAMLConnectorV2ToTerraform(ctx context.Context, obj *github_com_gravita
 							tf.Attrs["force_authn"] = v
 						}
 					}
+					{
+						t, ok := tf.AttrTypes["preferred_request_binding"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.PreferredRequestBinding"})
+						} else {
+							v, ok := tf.Attrs["preferred_request_binding"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"SAMLConnectorV2.Spec.PreferredRequestBinding", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.PreferredRequestBinding", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
+								v.Null = string(obj.PreferredRequestBinding) == ""
+							}
+							v.Value = string(obj.PreferredRequestBinding)
+							v.Unknown = false
+							tf.Attrs["preferred_request_binding"] = v
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["user_matchers"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.UserMatchers"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.UserMatchers", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+							} else {
+								c, ok := tf.Attrs["user_matchers"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+								if !ok {
+									c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+										ElemType: o.ElemType,
+										Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.UserMatchers)),
+										Null:     true,
+									}
+								} else {
+									if c.Elems == nil {
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.UserMatchers))
+									}
+								}
+								if obj.UserMatchers != nil {
+									t := o.ElemType
+									if len(obj.UserMatchers) != len(c.Elems) {
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.UserMatchers))
+									}
+									for k, a := range obj.UserMatchers {
+										v, ok := tf.Attrs["user_matchers"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										if !ok {
+											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+											if err != nil {
+												diags.Append(attrWriteGeneralError{"SAMLConnectorV2.Spec.UserMatchers", err})
+											}
+											v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.UserMatchers", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
+											v.Null = string(a) == ""
+										}
+										v.Value = string(a)
+										v.Unknown = false
+										c.Elems[k] = v
+									}
+									if len(obj.UserMatchers) > 0 {
+										c.Null = false
+									}
+								}
+								c.Unknown = false
+								tf.Attrs["user_matchers"] = c
+							}
+						}
+					}
 				}
 				v.Unknown = false
 				tf.Attrs["spec"] = v
@@ -41893,6 +44956,33 @@ func CopyGithubConnectorV3FromTerraform(_ context.Context, tf github_com_hashico
 													}
 												}
 											}
+										}
+									}
+								}
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["user_matchers"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"GithubConnectorV3.Spec.UserMatchers"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"GithubConnectorV3.Spec.UserMatchers", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+							} else {
+								obj.UserMatchers = make([]string, len(v.Elems))
+								if !v.Null && !v.Unknown {
+									for k, a := range v.Elems {
+										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+										if !ok {
+											diags.Append(attrReadConversionFailureDiag{"GithubConnectorV3.Spec.UserMatchers", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+										} else {
+											var t string
+											if !v.Null && !v.Unknown {
+												t = string(v.Value)
+											}
+											obj.UserMatchers[k] = t
 										}
 									}
 								}
@@ -42878,6 +45968,59 @@ func CopyGithubConnectorV3ToTerraform(ctx context.Context, obj *github_com_gravi
 								}
 								v.Unknown = false
 								tf.Attrs["client_redirect_settings"] = v
+							}
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["user_matchers"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"GithubConnectorV3.Spec.UserMatchers"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"GithubConnectorV3.Spec.UserMatchers", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+							} else {
+								c, ok := tf.Attrs["user_matchers"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+								if !ok {
+									c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+										ElemType: o.ElemType,
+										Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.UserMatchers)),
+										Null:     true,
+									}
+								} else {
+									if c.Elems == nil {
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.UserMatchers))
+									}
+								}
+								if obj.UserMatchers != nil {
+									t := o.ElemType
+									if len(obj.UserMatchers) != len(c.Elems) {
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.UserMatchers))
+									}
+									for k, a := range obj.UserMatchers {
+										v, ok := tf.Attrs["user_matchers"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										if !ok {
+											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+											if err != nil {
+												diags.Append(attrWriteGeneralError{"GithubConnectorV3.Spec.UserMatchers", err})
+											}
+											v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"GithubConnectorV3.Spec.UserMatchers", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
+											v.Null = string(a) == ""
+										}
+										v.Value = string(a)
+										v.Unknown = false
+										c.Elems[k] = v
+									}
+									if len(obj.UserMatchers) > 0 {
+										c.Null = false
+									}
+								}
+								c.Unknown = false
+								tf.Attrs["user_matchers"] = c
 							}
 						}
 					}

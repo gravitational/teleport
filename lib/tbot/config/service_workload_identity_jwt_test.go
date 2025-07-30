@@ -20,23 +20,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 )
 
 func TestWorkloadIdentityJWTService_YAML(t *testing.T) {
 	t.Parallel()
 
-	dest := &DestinationMemory{}
+	dest := &destination.Memory{}
 	tests := []testYAMLCase[WorkloadIdentityJWTService]{
 		{
 			name: "full",
 			in: WorkloadIdentityJWTService{
 				Destination: dest,
-				Selector: WorkloadIdentitySelector{
+				Selector: bot.WorkloadIdentitySelector{
 					Name: "my-workload-identity",
 				},
 				Audiences: []string{"audience1", "audience2"},
-				CredentialLifetime: CredentialLifetime{
+				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             time.Minute,
 					RenewalInterval: 30 * time.Second,
 				},
@@ -54,10 +56,10 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 			name: "valid",
 			in: func() *WorkloadIdentityJWTService {
 				return &WorkloadIdentityJWTService{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -70,12 +72,12 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 			name: "valid with labels",
 			in: func() *WorkloadIdentityJWTService {
 				return &WorkloadIdentityJWTService{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Labels: map[string][]string{
 							"key": {"value"},
 						},
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -88,10 +90,10 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 			name: "missing audience",
 			in: func() *WorkloadIdentityJWTService {
 				return &WorkloadIdentityJWTService{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -104,8 +106,8 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 			name: "missing selectors",
 			in: func() *WorkloadIdentityJWTService {
 				return &WorkloadIdentityJWTService{
-					Selector: WorkloadIdentitySelector{},
-					Destination: &DestinationDirectory{
+					Selector: bot.WorkloadIdentitySelector{},
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -119,13 +121,13 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 			name: "too many selectors",
 			in: func() *WorkloadIdentityJWTService {
 				return &WorkloadIdentityJWTService{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 						Labels: map[string][]string{
 							"key": {"value"},
 						},
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -140,7 +142,7 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 			in: func() *WorkloadIdentityJWTService {
 				return &WorkloadIdentityJWTService{
 					Destination: nil,
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
 					Audiences: []string{"audience1", "audience2"},

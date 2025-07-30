@@ -145,8 +145,11 @@ func (amrh *RuleHandler) RecipientsFromAccessMonitoringRules(ctx context.Context
 	log := logger.Get(ctx)
 	recipientSet := common.NewRecipientSet()
 
+	traits := amrh.getUserTraits(ctx, req.GetUser())
+	env := getAccessRequestExpressionEnv(req, traits)
+
 	for _, rule := range amrh.getAccessMonitoringRules() {
-		match, err := accessmonitoring.EvaluateCondition(rule.Spec.Condition, getAccessRequestExpressionEnv(req))
+		match, err := accessmonitoring.EvaluateCondition(rule.Spec.Condition, env)
 		if err != nil {
 			log.WarnContext(ctx, "Failed to parse access monitoring notification rule",
 				"error", err,
@@ -156,7 +159,7 @@ func (amrh *RuleHandler) RecipientsFromAccessMonitoringRules(ctx context.Context
 		if !match {
 			continue
 		}
-		for _, recipient := range rule.Spec.Notification.Recipients {
+		for _, recipient := range rule.GetSpec().GetNotification().GetRecipients() {
 			rec, err := amrh.fetchRecipientCallback(ctx, recipient)
 			if err != nil {
 				log.WarnContext(ctx, "Failed to fetch plugin recipients based on Access monitoring rule recipients", "error", err)
@@ -172,8 +175,12 @@ func (amrh *RuleHandler) RecipientsFromAccessMonitoringRules(ctx context.Context
 func (amrh *RuleHandler) RawRecipientsFromAccessMonitoringRules(ctx context.Context, req types.AccessRequest) []string {
 	log := logger.Get(ctx)
 	recipientSet := stringset.New()
+
+	traits := amrh.getUserTraits(ctx, req.GetUser())
+	env := getAccessRequestExpressionEnv(req, traits)
+
 	for _, rule := range amrh.getAccessMonitoringRules() {
-		match, err := accessmonitoring.EvaluateCondition(rule.Spec.Condition, getAccessRequestExpressionEnv(req))
+		match, err := accessmonitoring.EvaluateCondition(rule.Spec.Condition, env)
 		if err != nil {
 			log.WarnContext(ctx, "Failed to parse access monitoring notification rule",
 				"error", err,
@@ -183,11 +190,25 @@ func (amrh *RuleHandler) RawRecipientsFromAccessMonitoringRules(ctx context.Cont
 		if !match {
 			continue
 		}
-		for _, recipient := range rule.Spec.Notification.Recipients {
+		for _, recipient := range rule.GetSpec().GetNotification().GetRecipients() {
 			recipientSet.Add(recipient)
 		}
 	}
 	return recipientSet.ToSlice()
+}
+
+func (amrh *RuleHandler) getUserTraits(ctx context.Context, userName string) map[string][]string {
+	log := logger.Get(ctx)
+	const withSecretsFalse = false
+	user, err := amrh.apiClient.GetUser(ctx, userName, withSecretsFalse)
+	if trace.IsAccessDenied(err) {
+		log.WarnContext(ctx, "Missing permissions to read user.traits, please add user.read to the associated role", "error", err)
+		return nil
+	} else if err != nil {
+		log.WarnContext(ctx, "Failed to read user.traits", "error", err)
+		return nil
+	}
+	return user.GetTraits()
 }
 
 func (amrh *RuleHandler) getAllAccessMonitoringRules(ctx context.Context) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {
@@ -230,7 +251,7 @@ func (amrh *RuleHandler) getAccessMonitoringRules() map[string]*accessmonitoring
 }
 
 func (amrh *RuleHandler) ruleApplies(amr *accessmonitoringrulesv1.AccessMonitoringRule) bool {
-	if amr.Spec.Notification.Name != amrh.pluginName {
+	if amr.GetSpec().GetNotification().GetName() != amrh.pluginName {
 		return false
 	}
 	return slices.ContainsFunc(amr.Spec.Subjects, func(subject string) bool {
@@ -239,7 +260,7 @@ func (amrh *RuleHandler) ruleApplies(amr *accessmonitoringrulesv1.AccessMonitori
 }
 
 // getAccessRequestExpressionEnv returns the expression env of the access request.
-func getAccessRequestExpressionEnv(req types.AccessRequest) accessmonitoring.AccessRequestExpressionEnv {
+func getAccessRequestExpressionEnv(req types.AccessRequest, traits map[string][]string) accessmonitoring.AccessRequestExpressionEnv {
 	return accessmonitoring.AccessRequestExpressionEnv{
 		Roles:              req.GetRoles(),
 		SuggestedReviewers: req.GetSuggestedReviewers(),
@@ -248,5 +269,6 @@ func getAccessRequestExpressionEnv(req types.AccessRequest) accessmonitoring.Acc
 		RequestReason:      req.GetRequestReason(),
 		CreationTime:       req.GetCreationTime(),
 		Expiry:             req.Expiry(),
+		UserTraits:         traits,
 	}
 }

@@ -17,8 +17,11 @@ package hardwarekey
 import (
 	"context"
 	"crypto"
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"io"
 	"sync"
 	"time"
@@ -48,6 +51,9 @@ type MockHardwareKeyService struct {
 
 	fakeHardwarePrivateKeys    map[hardwareKeySlot]*fakeHardwarePrivateKey
 	fakeHardwarePrivateKeysMux sync.Mutex
+
+	// mock a PIV slot with a key but no teleport metadata cert.
+	unknownAgentKey map[hardwareKeySlot]bool
 }
 
 // NewMockHardwareKeyService returns a [mockHardwareKeyService] for use in tests.
@@ -57,6 +63,7 @@ func NewMockHardwareKeyService(prompt Prompt) *MockHardwareKeyService {
 		prompt:                  prompt,
 		mockTouch:               make(chan struct{}),
 		fakeHardwarePrivateKeys: map[hardwareKeySlot]*fakeHardwarePrivateKey{},
+		unknownAgentKey:         map[hardwareKeySlot]bool{},
 	}
 }
 
@@ -90,7 +97,20 @@ func (s *MockHardwareKeyService) NewPrivateKey(ctx context.Context, config Priva
 		return nil, trace.Wrap(err)
 	}
 
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	var priv crypto.Signer
+	switch config.Algorithm {
+	// Use ECDSA key by default.
+	case SignatureAlgorithmEC256, 0:
+		priv, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	case SignatureAlgorithmEd25519:
+		_, priv, err = ed25519.GenerateKey(rand.Reader)
+	case SignatureAlgorithmRSA2048:
+		//nolint:forbidigo // Allow /api to generate RSA key without importing Teleport.
+		priv, err = rsa.GenerateKey(rand.Reader, 2048)
+	default:
+		return nil, trace.BadParameter("unknown algorithm option %v", config.Algorithm)
+	}
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -98,12 +118,13 @@ func (s *MockHardwareKeyService) NewPrivateKey(ctx context.Context, config Priva
 	ref := &PrivateKeyRef{
 		SerialNumber: serialNumber,
 		SlotKey:      slotKey,
-		PublicKey:    pub,
+		PublicKey:    priv.Public(),
 		Policy:       config.Policy,
 		// Since this is only used in tests, we will ignore the attestation statement in the end.
 		// We just need it to be non-nil so that it goes through the test modules implementation
 		// of Attest
 		AttestationStatement: &AttestationStatement{},
+		PINCacheTTL:          config.PINCacheTTL,
 	}
 
 	if err := ref.Validate(); err != nil {
@@ -124,12 +145,18 @@ func (s *MockHardwareKeyService) Sign(ctx context.Context, ref *PrivateKeyRef, k
 	s.fakeHardwarePrivateKeysMux.Lock()
 	defer s.fakeHardwarePrivateKeysMux.Unlock()
 
-	priv, ok := s.fakeHardwarePrivateKeys[hardwareKeySlot{
+	slot := hardwareKeySlot{
 		serialNumber: serialNumber,
 		slot:         ref.SlotKey,
-	}]
+	}
+
+	if keyInfo.AgentKeyInfo.UnknownAgentKey && s.unknownAgentKey[slot] {
+		return nil, trace.BadParameter("unknown agent key")
+	}
+
+	priv, ok := s.fakeHardwarePrivateKeys[slot]
 	if !ok {
-		return nil, trace.NotFound("key not found in slot %d", ref.SlotKey)
+		return nil, trace.NotFound("key not found in slot 0x%x", ref.SlotKey)
 	}
 
 	if err := s.tryPrompt(ctx, ref.Policy, keyInfo); err != nil {
@@ -176,6 +203,13 @@ func (s *MockHardwareKeyService) SetPrompt(prompt Prompt) {
 	s.prompt = prompt
 }
 
+func (s *MockHardwareKeyService) AddUnknownAgentKey(ref *PrivateKeyRef) {
+	s.unknownAgentKey[hardwareKeySlot{
+		serialNumber: ref.SerialNumber,
+		slot:         ref.SlotKey,
+	}] = true
+}
+
 // TODO(Joerger): DELETE IN v19.0.0
 func (s *MockHardwareKeyService) GetFullKeyRef(serialNumber uint32, slotKey PIVSlotKey) (*PrivateKeyRef, error) {
 	s.fakeHardwarePrivateKeysMux.Lock()
@@ -186,7 +220,7 @@ func (s *MockHardwareKeyService) GetFullKeyRef(serialNumber uint32, slotKey PIVS
 		slot:         slotKey,
 	}]
 	if !ok {
-		return nil, trace.NotFound("key not found in slot %d", slotKey)
+		return nil, trace.NotFound("key not found in slot 0x%x", slotKey)
 	}
 
 	return priv.ref, nil
@@ -194,4 +228,10 @@ func (s *MockHardwareKeyService) GetFullKeyRef(serialNumber uint32, slotKey PIVS
 
 func (s *MockHardwareKeyService) MockTouch() {
 	s.mockTouch <- struct{}{}
+}
+
+func (s *MockHardwareKeyService) Reset() {
+	s.fakeHardwarePrivateKeysMux.Lock()
+	defer s.fakeHardwarePrivateKeysMux.Unlock()
+	s.fakeHardwarePrivateKeys = map[hardwareKeySlot]*fakeHardwarePrivateKey{}
 }

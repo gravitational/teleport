@@ -251,7 +251,7 @@ func main() {
 	case insecureNoVerify:
 		ctrl.Log.Info("INSECURE: Image validation disabled")
 		imageValidators = append(imageValidators, img.NewInsecureValidator("insecure always verified", kc))
-	case kubeversionupdater.SemVersion != nil && kubeversionupdater.SemVersion.PreRelease != "":
+	case kubeversionupdater.Version().PreRelease != "":
 		ctrl.Log.Info("This is a pre-release updater version, the key used to sign dev and pre-release builds of Teleport will be trusted.")
 		validator, err := img.NewCosignSingleKeyValidator(teleportStageOCIPubKey, "staging cosign signature validator", kc)
 		if err != nil {
@@ -314,7 +314,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctrl.Log.Info("starting the updater", "version", kubeversionupdater.Version)
+	ctrl.Log.Info("starting the updater", "version", kubeversionupdater.Version().String())
 
 	if err := mgr.Start(ctx); err != nil {
 		ctrl.Log.Error(err, "failed to start manager, exiting")

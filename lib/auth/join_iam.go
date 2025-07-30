@@ -329,7 +329,7 @@ type iamRegisterConfig struct {
 
 func defaultIAMRegisterConfig(fips bool) *iamRegisterConfig {
 	return &iamRegisterConfig{
-		authVersion: teleport.SemVersion,
+		authVersion: teleport.SemVer(),
 		fips:        fips,
 	}
 }
@@ -407,7 +407,7 @@ func (a *Server) RegisterUsingIAMMethodWithOpts(
 	}
 
 	if req.RegisterUsingTokenRequest.Role == types.RoleBot {
-		certs, err := a.generateCertsBot(
+		certs, _, err := a.generateCertsBot(
 			ctx,
 			provisionToken,
 			req.RegisterUsingTokenRequest,

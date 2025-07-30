@@ -965,10 +965,13 @@ func (x *PromptMFAResponse) GetTotpCode() string {
 
 // Request for PromptHardwareKeyPIN.
 type PromptHardwareKeyPINRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	RootClusterUri string                 `protobuf:"bytes,1,opt,name=root_cluster_uri,json=rootClusterUri,proto3" json:"root_cluster_uri,omitempty"`
-	// Specifies if a PIN is optional, allowing the user to set it up if left empty.
-	PinOptional   bool `protobuf:"varint,2,opt,name=pin_optional,json=pinOptional,proto3" json:"pin_optional,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// PinOptional specified if a PIN is optional, allowing the user to set it up if left empty.
+	PinOptional bool `protobuf:"varint,2,opt,name=pin_optional,json=pinOptional,proto3" json:"pin_optional,omitempty"`
+	// ProxyHostname is the proxy hostname of the client key.
+	ProxyHostname string `protobuf:"bytes,3,opt,name=proxy_hostname,json=proxyHostname,proto3" json:"proxy_hostname,omitempty"`
+	// Command is an optional command string to provide context for the prompt.
+	Command       string `protobuf:"bytes,4,opt,name=command,proto3" json:"command,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1003,18 +1006,25 @@ func (*PromptHardwareKeyPINRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{15}
 }
 
-func (x *PromptHardwareKeyPINRequest) GetRootClusterUri() string {
-	if x != nil {
-		return x.RootClusterUri
-	}
-	return ""
-}
-
 func (x *PromptHardwareKeyPINRequest) GetPinOptional() bool {
 	if x != nil {
 		return x.PinOptional
 	}
 	return false
+}
+
+func (x *PromptHardwareKeyPINRequest) GetProxyHostname() string {
+	if x != nil {
+		return x.ProxyHostname
+	}
+	return ""
+}
+
+func (x *PromptHardwareKeyPINRequest) GetCommand() string {
+	if x != nil {
+		return x.Command
+	}
+	return ""
 }
 
 // Response for PromptHardwareKeyPIN.
@@ -1065,10 +1075,13 @@ func (x *PromptHardwareKeyPINResponse) GetPin() string {
 
 // Request for PromptHardwareKeyTouchRequest.
 type PromptHardwareKeyTouchRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	RootClusterUri string                 `protobuf:"bytes,1,opt,name=root_cluster_uri,json=rootClusterUri,proto3" json:"root_cluster_uri,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// ProxyHostname is the proxy hostname of the client key.
+	ProxyHostname string `protobuf:"bytes,2,opt,name=proxy_hostname,json=proxyHostname,proto3" json:"proxy_hostname,omitempty"`
+	// Command is an optional command string to provide context for the prompt.
+	Command       string `protobuf:"bytes,3,opt,name=command,proto3" json:"command,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *PromptHardwareKeyTouchRequest) Reset() {
@@ -1101,9 +1114,16 @@ func (*PromptHardwareKeyTouchRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{17}
 }
 
-func (x *PromptHardwareKeyTouchRequest) GetRootClusterUri() string {
+func (x *PromptHardwareKeyTouchRequest) GetProxyHostname() string {
 	if x != nil {
-		return x.RootClusterUri
+		return x.ProxyHostname
+	}
+	return ""
+}
+
+func (x *PromptHardwareKeyTouchRequest) GetCommand() string {
+	if x != nil {
+		return x.Command
 	}
 	return ""
 }
@@ -1147,10 +1167,11 @@ func (*PromptHardwareKeyTouchResponse) Descriptor() ([]byte, []int) {
 
 // Response for PromptHardwareKeyPINChange.
 type PromptHardwareKeyPINChangeRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	RootClusterUri string                 `protobuf:"bytes,1,opt,name=root_cluster_uri,json=rootClusterUri,proto3" json:"root_cluster_uri,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// ProxyHostname is the proxy hostname of the client key.
+	ProxyHostname string `protobuf:"bytes,2,opt,name=proxy_hostname,json=proxyHostname,proto3" json:"proxy_hostname,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *PromptHardwareKeyPINChangeRequest) Reset() {
@@ -1183,9 +1204,9 @@ func (*PromptHardwareKeyPINChangeRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{19}
 }
 
-func (x *PromptHardwareKeyPINChangeRequest) GetRootClusterUri() string {
+func (x *PromptHardwareKeyPINChangeRequest) GetProxyHostname() string {
 	if x != nil {
-		return x.RootClusterUri
+		return x.ProxyHostname
 	}
 	return ""
 }
@@ -1257,10 +1278,11 @@ func (x *PromptHardwareKeyPINChangeResponse) GetPukChanged() bool {
 
 // Request for ConfirmHardwareKeySlotOverwrite.
 type ConfirmHardwareKeySlotOverwriteRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	RootClusterUri string                 `protobuf:"bytes,1,opt,name=root_cluster_uri,json=rootClusterUri,proto3" json:"root_cluster_uri,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Message to display in the prompt.
-	Message       string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	// ProxyHostname is the proxy hostname of the client key.
+	ProxyHostname string `protobuf:"bytes,3,opt,name=proxy_hostname,json=proxyHostname,proto3" json:"proxy_hostname,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1295,16 +1317,16 @@ func (*ConfirmHardwareKeySlotOverwriteRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{21}
 }
 
-func (x *ConfirmHardwareKeySlotOverwriteRequest) GetRootClusterUri() string {
+func (x *ConfirmHardwareKeySlotOverwriteRequest) GetMessage() string {
 	if x != nil {
-		return x.RootClusterUri
+		return x.Message
 	}
 	return ""
 }
 
-func (x *ConfirmHardwareKeySlotOverwriteRequest) GetMessage() string {
+func (x *ConfirmHardwareKeySlotOverwriteRequest) GetProxyHostname() string {
 	if x != nil {
-		return x.Message
+		return x.ProxyHostname
 	}
 	return ""
 }
@@ -1630,25 +1652,27 @@ const file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc = "" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12!\n" +
 	"\fredirect_url\x18\x04 \x01(\tR\vredirectUrl\"0\n" +
 	"\x11PromptMFAResponse\x12\x1b\n" +
-	"\ttotp_code\x18\x01 \x01(\tR\btotpCode\"j\n" +
-	"\x1bPromptHardwareKeyPINRequest\x12(\n" +
-	"\x10root_cluster_uri\x18\x01 \x01(\tR\x0erootClusterUri\x12!\n" +
-	"\fpin_optional\x18\x02 \x01(\bR\vpinOptional\"0\n" +
+	"\ttotp_code\x18\x01 \x01(\tR\btotpCode\"\x99\x01\n" +
+	"\x1bPromptHardwareKeyPINRequest\x12!\n" +
+	"\fpin_optional\x18\x02 \x01(\bR\vpinOptional\x12%\n" +
+	"\x0eproxy_hostname\x18\x03 \x01(\tR\rproxyHostname\x12\x18\n" +
+	"\acommand\x18\x04 \x01(\tR\acommandJ\x04\b\x01\x10\x02R\x10root_cluster_uri\"0\n" +
 	"\x1cPromptHardwareKeyPINResponse\x12\x10\n" +
-	"\x03pin\x18\x01 \x01(\tR\x03pin\"I\n" +
-	"\x1dPromptHardwareKeyTouchRequest\x12(\n" +
-	"\x10root_cluster_uri\x18\x01 \x01(\tR\x0erootClusterUri\" \n" +
-	"\x1ePromptHardwareKeyTouchResponse\"M\n" +
-	"!PromptHardwareKeyPINChangeRequest\x12(\n" +
-	"\x10root_cluster_uri\x18\x01 \x01(\tR\x0erootClusterUri\"i\n" +
+	"\x03pin\x18\x01 \x01(\tR\x03pin\"x\n" +
+	"\x1dPromptHardwareKeyTouchRequest\x12%\n" +
+	"\x0eproxy_hostname\x18\x02 \x01(\tR\rproxyHostname\x12\x18\n" +
+	"\acommand\x18\x03 \x01(\tR\acommandJ\x04\b\x01\x10\x02R\x10root_cluster_uri\" \n" +
+	"\x1ePromptHardwareKeyTouchResponse\"b\n" +
+	"!PromptHardwareKeyPINChangeRequest\x12%\n" +
+	"\x0eproxy_hostname\x18\x02 \x01(\tR\rproxyHostnameJ\x04\b\x01\x10\x02R\x10root_cluster_uri\"i\n" +
 	"\"PromptHardwareKeyPINChangeResponse\x12\x10\n" +
 	"\x03pin\x18\x01 \x01(\tR\x03pin\x12\x10\n" +
 	"\x03puk\x18\x02 \x01(\tR\x03puk\x12\x1f\n" +
 	"\vpuk_changed\x18\x03 \x01(\bR\n" +
-	"pukChanged\"l\n" +
-	"&ConfirmHardwareKeySlotOverwriteRequest\x12(\n" +
-	"\x10root_cluster_uri\x18\x01 \x01(\tR\x0erootClusterUri\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"G\n" +
+	"pukChanged\"\x81\x01\n" +
+	"&ConfirmHardwareKeySlotOverwriteRequest\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x12%\n" +
+	"\x0eproxy_hostname\x18\x03 \x01(\tR\rproxyHostnameJ\x04\b\x01\x10\x02R\x10root_cluster_uri\"G\n" +
 	"'ConfirmHardwareKeySlotOverwriteResponse\x12\x1c\n" +
 	"\tconfirmed\x18\x01 \x01(\bR\tconfirmed\"\"\n" +
 	" GetUsageReportingSettingsRequest\"\x8f\x01\n" +

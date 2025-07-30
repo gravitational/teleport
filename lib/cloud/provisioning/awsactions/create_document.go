@@ -31,8 +31,8 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 )
 
 // DocumentCreator can create an AWS SSM document.

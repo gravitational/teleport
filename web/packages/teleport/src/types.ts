@@ -58,6 +58,7 @@ export enum NavTitle {
   // Access Management
   Users = 'Users',
   Bots = 'Bots',
+  BotInstances = 'Bot Instances',
   Roles = 'Roles',
   JoinTokens = 'Join Tokens',
   AuthConnectors = 'Auth Connectors',
@@ -83,6 +84,8 @@ export enum NavTitle {
   // Access Graph
   AccessGraphDashboard = 'Dashboard',
   AccessGraphBrowse = 'Browse',
+  AccessGraphAlerts = 'Alerts',
+  AccessGraphInvestigate = 'Investigate',
   AccessGraphCrownJewels = 'Crown Jewels',
   AccessGraphGraphExplorer = 'Graph Explorer',
   AccessGraphSQLEditor = 'SQL Editor',
@@ -195,12 +198,15 @@ export interface FeatureFlags {
   deviceTrust: boolean;
   locks: boolean;
   newLocks: boolean;
-  tokens: boolean;
+  createTokens: boolean;
+  listTokens: boolean;
   accessMonitoring: boolean;
   accessGraph: boolean;
   accessGraphIntegrations: boolean;
   externalAuditStorage: boolean;
   listBots: boolean;
+  readBots: boolean;
+  listBotInstances: boolean;
   addBots: boolean;
   editBots: boolean;
   removeBots: boolean;
@@ -230,4 +236,10 @@ export type WebsocketStatus = {
   type: string;
   status: string;
   message?: string;
+};
+
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonArray = JsonPrimitive[];
+export type JsonObject = {
+  [key: string]: JsonPrimitive | JsonArray | JsonObject;
 };

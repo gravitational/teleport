@@ -30,6 +30,9 @@ export async function adaptWebSocketToTdpTransport(
   socket: WebSocket,
   signal: AbortSignal
 ): Promise<TdpTransport> {
+  if (signal.aborted) {
+    throw new DOMException('Websocket was aborted.', 'AbortError');
+  }
   // WebsocketCloseCode.NORMAL
   signal.addEventListener('abort', () => socket.close(1000));
   socket.binaryType = 'arraybuffer';
@@ -92,7 +95,11 @@ async function waitToOpen(socket: WebSocket): Promise<void> {
 
     const handleError = (event: Event) => {
       cleanup();
-      reject(event);
+      reject(
+        new Error(
+          `WebSocket error (type=${event.type}, readyState=${socket.readyState})`
+        )
+      );
     };
 
     function cleanup() {

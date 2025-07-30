@@ -51,17 +51,58 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 	"github.com/gravitational/teleport/lib/uds"
 )
+
+func SPIFFEWorkloadAPIServiceBuilder(
+	botCfg *config.BotConfig,
+	cfg *config.SPIFFEWorkloadAPIService,
+	trustBundleCache TrustBundleGetter,
+) bot.ServiceBuilder {
+	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+		clientCredential := &config.UnstableClientCredentialOutput{}
+		svcIdentity := &ClientCredentialOutputService{
+			botAuthClient:      deps.Client,
+			botIdentityReadyCh: deps.BotIdentityReadyCh,
+			botCfg:             botCfg,
+			cfg:                clientCredential,
+			reloadCh:           deps.ReloadCh,
+			identityGenerator:  deps.IdentityGenerator,
+		}
+		svcIdentity.log = deps.Logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, "svc", svcIdentity.String()),
+		)
+		svc := &SPIFFEWorkloadAPIService{
+			svcIdentity:      clientCredential,
+			botCfg:           botCfg,
+			cfg:              cfg,
+			trustBundleCache: trustBundleCache,
+			clientBuilder:    deps.ClientBuilder,
+		}
+		svc.log = deps.Logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
+		)
+		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
+		return bot.NewServicePair(svc, svcIdentity), nil
+	}
+}
+
+type TrustBundleGetter interface {
+	GetBundleSet(ctx context.Context) (*workloadidentity.BundleSet, error)
+}
 
 // SPIFFEWorkloadAPIService implements a gRPC server that fulfills the SPIFFE
 // Workload API specification. It provides X509 SVIDs and trust bundles to
@@ -79,11 +120,12 @@ type SPIFFEWorkloadAPIService struct {
 	botCfg           *config.BotConfig
 	cfg              *config.SPIFFEWorkloadAPIService
 	log              *slog.Logger
-	resolver         reversetunnelclient.Resolver
-	trustBundleCache *workloadidentity.TrustBundleCache
+	statusReporter   readyz.Reporter
+	trustBundleCache TrustBundleGetter
+	clientBuilder    *client.Builder
 
 	// client holds the impersonated client for the service
-	client           *authclient.Client
+	client           *apiclient.Client
 	attestor         *workloadattest.Attestor
 	localTrustDomain spiffeid.TrustDomain
 }
@@ -107,9 +149,7 @@ func (s *SPIFFEWorkloadAPIService) setup(ctx context.Context) (err error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	client, err := clientForFacade(
-		ctx, s.log, s.botCfg, facade, s.resolver,
-	)
+	client, err := s.clientBuilder.Build(ctx, facade)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -131,6 +171,10 @@ func (s *SPIFFEWorkloadAPIService) setup(ctx context.Context) (err error) {
 	s.attestor, err = workloadattest.NewAttestor(s.log, s.cfg.Attestors)
 	if err != nil {
 		return trace.Wrap(err, "setting up workload attestation")
+	}
+
+	if s.statusReporter == nil {
+		s.statusReporter = readyz.NoopReporter()
 	}
 
 	return nil
@@ -283,7 +327,12 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 		return nil
 	})
 
-	return trace.Wrap(eg.Wait())
+	s.statusReporter.Report(readyz.Healthy)
+	if err := eg.Wait(); err != nil {
+		s.statusReporter.ReportReason(readyz.Unhealthy, err.Error())
+		return trace.Wrap(eg.Wait())
+	}
+	return nil
 }
 
 // serialString returns a human-readable colon-separated string of the serial
@@ -387,7 +436,7 @@ func filterSVIDRequests(
 	ctx context.Context,
 	log *slog.Logger,
 	svidRequests []config.SVIDRequestWithRules,
-	att *workloadidentityv1pb.WorkloadAttrs,
+	att *attrs.WorkloadAttrs,
 ) []config.SVIDRequest {
 	var filtered []config.SVIDRequest
 	for _, req := range svidRequests {
@@ -513,7 +562,7 @@ func filterSVIDRequests(
 
 func (s *SPIFFEWorkloadAPIService) authenticateClient(
 	ctx context.Context,
-) (*slog.Logger, *workloadidentityv1pb.WorkloadAttrs, error) {
+) (*slog.Logger, *attrs.WorkloadAttrs, error) {
 	p, ok := peer.FromContext(ctx)
 	if !ok {
 		return nil, nil, trace.BadParameter("peer not found in context")
@@ -557,9 +606,7 @@ func (s *SPIFFEWorkloadAPIService) authenticateClient(
 		)
 		return log, nil, nil
 	}
-	log = log.With(
-		"workload", att,
-	)
+	log = log.With("workload", att)
 
 	return log, att, nil
 }
@@ -595,6 +642,7 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 	//   reconnect with another call to the FetchX509SVID RPC after a backoff.
 	if len(svidReqs) == 0 {
 		log.ErrorContext(ctx, "Workload did not pass attestation for any SVIDs")
+		s.attestor.Failed(ctx, creds)
 		return status.Error(
 			codes.PermissionDenied,
 			"workload did not pass attestation for any SVIDs",
@@ -721,6 +769,7 @@ func (s *SPIFFEWorkloadAPIService) FetchJWTSVID(
 	// > server SHOULD respond with the "PermissionDenied" gRPC status code.
 	if len(svidReqs) == 0 {
 		log.ErrorContext(ctx, "Workload did not pass attestation for any SVIDs")
+		s.attestor.Failed(ctx, creds)
 		return nil, status.Error(
 			codes.PermissionDenied,
 			"workload did not pass attestation for any SVIDs",
@@ -893,5 +942,8 @@ func (s *SPIFFEWorkloadAPIService) ValidateJWTSVID(
 // String returns a human-readable string that can uniquely identify the
 // service.
 func (s *SPIFFEWorkloadAPIService) String() string {
-	return fmt.Sprintf("%s:%s", config.SPIFFEWorkloadAPIServiceType, s.cfg.Listen)
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("%s:%s", config.SPIFFEWorkloadAPIServiceType, s.cfg.Listen),
+	)
 }

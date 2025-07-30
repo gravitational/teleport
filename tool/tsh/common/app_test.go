@@ -247,11 +247,15 @@ func TestAppCommands(t *testing.T) {
 								clientCert, err := tls.LoadX509KeyPair(info.Cert, info.Key)
 								require.NoError(t, err)
 
-								resp, err := testDummyAppConn(fmt.Sprintf("https://%v", rootProxyAddr.Addr), clientCert)
-								require.NoError(t, err)
-								resp.Body.Close()
-								assert.Equal(t, http.StatusOK, resp.StatusCode)
-								assert.Equal(t, app.name, resp.Header.Get("Server"))
+								// Wrap with eventually in case the app has not made it into the
+								// proxy cache yet, this was a previous source of test flakes.
+								require.EventuallyWithT(t, func(t *assert.CollectT) {
+									resp, err := testDummyAppConn(fmt.Sprintf("https://%v", rootProxyAddr.Addr), clientCert)
+									require.NoError(t, err)
+									resp.Body.Close()
+									assert.Equal(t, http.StatusOK, resp.StatusCode)
+									assert.Equal(t, app.name, resp.Header.Get("Server"))
+								}, 5*time.Second, 50*time.Millisecond)
 
 								// Verify that the app.session.start event was emitted.
 								if app.cluster == "root" {

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 )
@@ -91,9 +92,6 @@ type Presence interface {
 	// DeleteAuthServer deletes auth server by name
 	DeleteAuthServer(name string) error
 
-	// DeleteAllAuthServers deletes all auth servers
-	DeleteAllAuthServers() error
-
 	// UpsertProxy registers proxy server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
 	UpsertProxy(ctx context.Context, server types.Server) error
@@ -115,9 +113,6 @@ type Presence interface {
 
 	// DeleteReverseTunnel deletes reverse tunnel by its domain name
 	DeleteReverseTunnel(ctx context.Context, domainName string) error
-
-	// DeleteAllReverseTunnels deletes all reverse tunnels
-	DeleteAllReverseTunnels(ctx context.Context) error
 
 	// ListReverseTunnels returns a page of ReverseTunnels.
 	ListReverseTunnels(ctx context.Context, pageSize int, pageToken string) ([]types.ReverseTunnel, string, error)
@@ -181,6 +176,13 @@ type Presence interface {
 	// DeleteAllWindowsDesktopServices removes all Windows desktop services.
 	DeleteAllWindowsDesktopServices(context.Context) error
 
+	// GetRelayServer returns the relay server heartbeat with a given name.
+	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
+	// ListRelayServers returns a paginated list of relay server heartbeats.
+	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error)
+	// DeleteRelayServer deletes a relay server heartbeat by name.
+	DeleteRelayServer(ctx context.Context, name string) error
+
 	// ListResources returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
@@ -193,4 +195,7 @@ type PresenceInternal interface {
 	UpsertHostUserInteractionTime(ctx context.Context, name string, loginTime time.Time) error
 	GetHostUserInteractionTime(ctx context.Context, name string) (time.Time, error)
 	UpdateNode(ctx context.Context, server types.Server) (types.Server, error)
+
+	// UpsertRelayServer creates or updates a relay server heartbeat, unconditionally.
+	UpsertRelayServer(ctx context.Context, relayServer *presencev1.RelayServer) (*presencev1.RelayServer, error)
 }

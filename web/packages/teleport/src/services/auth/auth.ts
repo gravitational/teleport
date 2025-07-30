@@ -266,6 +266,7 @@ const auth = {
           challenge_scope: req.scope,
           challenge_allow_reuse: req.allowReuse,
           user_verification_requirement: req.userVerificationRequirement,
+          proxy_address: cfg.baseUrl,
         },
         abortSignal
       )
@@ -408,10 +409,11 @@ const auth = {
 };
 
 function checkMfaRequired(
+  clusterId: string,
   params: IsMfaRequiredRequest,
-  abortSignal?
+  abortSignal?: AbortSignal
 ): Promise<IsMfaRequiredResponse> {
-  return api.post(cfg.getMfaRequiredUrl(), params, abortSignal);
+  return api.post(cfg.getMfaRequiredUrl(clusterId), params, abortSignal);
 }
 
 function base64EncodeUnicode(str: string) {

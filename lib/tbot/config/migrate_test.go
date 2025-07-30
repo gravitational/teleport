@@ -26,7 +26,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
 )
 
 func TestMigrate(t *testing.T) {
@@ -110,12 +114,12 @@ destinations:
 				AuthServer: "example.teleport.sh:443",
 				Oneshot:    true,
 				Debug:      true,
-				CredentialLifetime: CredentialLifetime{
+				CredentialLifetime: bot.CredentialLifetime{
 					RenewalInterval: time.Minute * 10,
 					TTL:             time.Minute * 30,
 				},
 				DiagAddr: "127.0.0.1:621",
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodToken,
 					TokenValue: "my-token",
 					CAPins: []string{
@@ -123,7 +127,7 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/path/storage",
 						ACLs:     botfs.ACLRequired,
 						Symlinks: botfs.SymlinksSecure,
@@ -131,48 +135,48 @@ destinations:
 				},
 				Services: ServiceConfigs{
 					&IdentityOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/path/destination",
 						},
 						Roles: []string{"foo"},
 					},
-					&ApplicationOutput{
-						Destination:           &DestinationMemory{},
+					&application.OutputConfig{
+						Destination:           &destination.Memory{},
 						AppName:               "my-app",
 						SpecificTLSExtensions: true,
 					},
-					&ApplicationOutput{
-						Destination: &DestinationMemory{},
+					&application.OutputConfig{
+						Destination: &destination.Memory{},
 						AppName:     "my-app",
 					},
 					&KubernetesOutput{
-						Destination:       &DestinationMemory{},
+						Destination:       &destination.Memory{},
 						KubernetesCluster: "my-kubernetes-cluster",
 					},
 					&DatabaseOutput{
-						Destination: &DestinationMemory{},
+						Destination: &destination.Memory{},
 						Service:     "my-db-service",
 						Database:    "the-db",
 						Username:    "alice",
 						Format:      UnspecifiedDatabaseFormat,
 					},
 					&DatabaseOutput{
-						Destination: &DestinationMemory{},
+						Destination: &destination.Memory{},
 						Service:     "my-db-service",
 						Format:      MongoDatabaseFormat,
 					},
 					&DatabaseOutput{
-						Destination: &DestinationMemory{},
+						Destination: &destination.Memory{},
 						Service:     "my-db-service",
 						Format:      TLSDatabaseFormat,
 					},
 					&DatabaseOutput{
-						Destination: &DestinationMemory{},
+						Destination: &destination.Memory{},
 						Service:     "my-db-service",
 						Format:      CockroachDatabaseFormat,
 					},
 					&SSHHostOutput{
-						Destination: &DestinationMemory{},
+						Destination: &destination.Memory{},
 						Roles:       []string{"foo"},
 						Principals:  []string{"example.com", "second.example.com"},
 					},
@@ -202,16 +206,16 @@ destinations:
 				AuthServer: "example.teleport.sh:443",
 				Oneshot:    true,
 				Debug:      true,
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodGitHub,
 					TokenValue: "my-token",
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationMemory{},
+					Destination: &destination.Memory{},
 				},
 				Services: ServiceConfigs{
 					&IdentityOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path:     "/path/example",
 							Symlinks: "try-secure",
 						},
@@ -243,16 +247,16 @@ destinations:
 				AuthServer: "example.teleport.sh:443",
 				Oneshot:    true,
 				Debug:      true,
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodGitHub,
 					TokenValue: "my-token",
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationMemory{},
+					Destination: &destination.Memory{},
 				},
 				Services: ServiceConfigs{
 					&KubernetesOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path:     "/path/example",
 							Symlinks: "try-secure",
 						},
@@ -285,16 +289,16 @@ destinations:
 				AuthServer: "example.teleport.sh:443",
 				Oneshot:    true,
 				Debug:      true,
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodGitHub,
 					TokenValue: "my-token",
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationMemory{},
+					Destination: &destination.Memory{},
 				},
 				Services: ServiceConfigs{
-					&ApplicationOutput{
-						Destination: &DestinationDirectory{
+					&application.OutputConfig{
+						Destination: &destination.Directory{
 							Path:     "/path/example",
 							Symlinks: "try-secure",
 						},
@@ -322,7 +326,7 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "auth.example.com:3025",
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodToken,
 					TokenValue: "00000000000000000000000000000000",
 					CAPins: []string{
@@ -330,13 +334,13 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/bot",
 					},
 				},
 				Services: ServiceConfigs{
 					&IdentityOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
 					},
@@ -365,7 +369,7 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "teleport.example.com:443",
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodToken,
 					TokenValue: "abcd123-insecure-do-not-use-this",
 					CAPins: []string{
@@ -373,13 +377,13 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/bot",
 					},
 				},
 				Services: ServiceConfigs{
 					&DatabaseOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
 						Service:  "example-server",
@@ -415,7 +419,7 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "teleport.example.com:443",
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodToken,
 					TokenValue: "abcd123-insecure-do-not-use-this",
 					CAPins: []string{
@@ -423,13 +427,13 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/bot",
 					},
 				},
 				Services: ServiceConfigs{
 					&DatabaseOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
 						Format:   MongoDatabaseFormat,
@@ -465,7 +469,7 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "teleport.example.com:443",
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodToken,
 					TokenValue: "abcd123-insecure-do-not-use-this",
 					CAPins: []string{
@@ -473,13 +477,13 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/bot",
 					},
 				},
 				Services: ServiceConfigs{
 					&DatabaseOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
 						Format:   CockroachDatabaseFormat,
@@ -515,7 +519,7 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "teleport.example.com:443",
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodToken,
 					TokenValue: "abcd123-insecure-do-not-use-this",
 					CAPins: []string{
@@ -523,13 +527,13 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/bot",
 					},
 				},
 				Services: ServiceConfigs{
 					&DatabaseOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
 						Format:   TLSDatabaseFormat,
@@ -569,19 +573,19 @@ oneshot: false
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "example.teleport.sh:443",
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodToken,
 					TokenValue: "1234abcd5678efgh9",
 					CAPins: []string{
 						"sha256:1234abcd5678efgh910ijklmnop",
 					},
 				},
-				CredentialLifetime: CredentialLifetime{
+				CredentialLifetime: bot.CredentialLifetime{
 					RenewalInterval: DefaultRenewInterval,
 					TTL:             DefaultCertificateTTL,
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/var/lib/teleport/bot",
 						Symlinks: "secure",
 						ACLs:     "try",
@@ -589,7 +593,7 @@ oneshot: false
 				},
 				Services: ServiceConfigs{
 					&SSHHostOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
 						Principals: []string{"nodename.my.domain.com"},
@@ -615,7 +619,7 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "teleport.example.com:443",
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodToken,
 					TokenValue: "abcd123-insecure-do-not-use-this",
 					CAPins: []string{
@@ -623,13 +627,13 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/bot",
 					},
 				},
 				Services: ServiceConfigs{
-					&ApplicationOutput{
-						Destination: &DestinationDirectory{
+					&application.OutputConfig{
+						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
 						AppName: "grafana-example",
@@ -658,7 +662,7 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "teleport.example.com:443",
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodToken,
 					TokenValue: "abcd123-insecure-do-not-use-this",
 					CAPins: []string{
@@ -666,13 +670,13 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/bot",
 					},
 				},
 				Services: ServiceConfigs{
-					&ApplicationOutput{
-						Destination: &DestinationDirectory{
+					&application.OutputConfig{
+						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
 						AppName:               "grafana-example",
@@ -699,7 +703,7 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "teleport.example.com:443",
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodToken,
 					TokenValue: "abcd123-insecure-do-not-use-this",
 					CAPins: []string{
@@ -707,13 +711,13 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/bot",
 					},
 				},
 				Services: ServiceConfigs{
 					&KubernetesOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
 						KubernetesCluster: "example-k8s-cluster",
@@ -733,7 +737,7 @@ onboarding:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "teleport.example.com:443",
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodToken,
 					TokenValue: "abcd123-insecure-do-not-use-this",
 				},
@@ -769,12 +773,12 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "teleport.example.com:443",
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodIAM,
 					TokenValue: "iam-token-kube",
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/var/lib/teleport/bot",
 						Symlinks: botfs.SymlinksInsecure,
 						ACLs:     botfs.ACLOff,
@@ -783,14 +787,14 @@ destinations:
 				Debug: true,
 				Services: ServiceConfigs{
 					&IdentityOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path:     "/opt/machine-id",
 							Symlinks: botfs.SymlinksInsecure,
 							ACLs:     botfs.ACLOff,
 						},
 					},
 					&KubernetesOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path:     "/opt/machine-id/tools",
 							Symlinks: botfs.SymlinksInsecure,
 							ACLs:     botfs.ACLOff,
@@ -816,14 +820,14 @@ destinations:
 			wantOutput: &BotConfig{
 				Version: V2,
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/var/tmp/teleport/bot",
 						Symlinks: botfs.SymlinksInsecure,
 					},
 				},
 				Services: ServiceConfigs{
 					&IdentityOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path:     "/var/tmp/machine-id",
 							Symlinks: botfs.SymlinksInsecure,
 						},
@@ -852,17 +856,17 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "teleportvm.example.com:443",
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					TokenValue: "redacted",
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/bot",
 					},
 				},
 				Services: ServiceConfigs{
 					&DatabaseOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
 						Roles:    []string{"access"},
@@ -891,7 +895,7 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "redacted.teleport.sh:443",
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					TokenValue: "redacted-scanner-token",
 					JoinMethod: types.JoinMethodIAM,
 					CAPins: []string{
@@ -899,13 +903,13 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/bot",
 					},
 				},
 				Services: ServiceConfigs{
 					&KubernetesOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
 						KubernetesCluster: "devops",
@@ -949,7 +953,7 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "redacted.teleport.sh:443",
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					TokenValue: "redacted-argocd-token",
 					JoinMethod: types.JoinMethodIAM,
 					CAPins: []string{
@@ -957,41 +961,41 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/bot",
 					},
 				},
 				Services: ServiceConfigs{
 					&KubernetesOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/mount/redacted-prod-global",
 							ACLs: botfs.ACLOff,
 						},
 						KubernetesCluster: "redacted-prod-global",
 					},
 					&KubernetesOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/mount/redacted-prod-au",
 							ACLs: botfs.ACLOff,
 						},
 						KubernetesCluster: "redacted-prod-au",
 					},
 					&KubernetesOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/mount/redacted-prod-eu2",
 							ACLs: botfs.ACLOff,
 						},
 						KubernetesCluster: "redacted-prod-eu2",
 					},
 					&KubernetesOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/mount/redacted-prod-ca",
 							ACLs: botfs.ACLOff,
 						},
 						KubernetesCluster: "redacted-prod-ca",
 					},
 					&KubernetesOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/mount/redacted-prod-us",
 							ACLs: botfs.ACLOff,
 						},
@@ -1032,32 +1036,32 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "redacted.teleport.sh:443",
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					TokenValue: "redacted",
 					JoinMethod: types.JoinMethodToken,
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/tbot",
 					},
 				},
 				Services: ServiceConfigs{
 					&IdentityOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/path/to/role1_creds",
 							ACLs: botfs.ACLRequired,
 						},
 						Roles: []string{"role1"},
 					},
 					&IdentityOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/path/to/role2_creds",
 							ACLs: botfs.ACLRequired,
 						},
 						Roles: []string{"role2"},
 					},
 					&IdentityOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/path/to/roleN_creds",
 							ACLs: botfs.ACLRequired,
 						},

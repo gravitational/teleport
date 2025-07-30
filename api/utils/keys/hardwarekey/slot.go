@@ -19,6 +19,8 @@ import (
 	"strconv"
 
 	"github.com/gravitational/trace"
+
+	hardwarekeyagentv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/hardwarekeyagent/v1"
 )
 
 // PIVSlotKey is the key reference for a specific PIV slot.
@@ -27,23 +29,37 @@ import (
 type PIVSlotKey uint32
 
 const (
-	pivSlotKeyBasic       PIVSlotKey = 0x9a
-	pivSlotKeyTouch       PIVSlotKey = 0x9c
-	pivSlotKeyTouchAndPIN PIVSlotKey = 0x9d
-	pivSlotKeyPIN         PIVSlotKey = 0x9e
+	pivSlot9A PIVSlotKey = 0x9a
+	pivSlot9C PIVSlotKey = 0x9c
+	pivSlot9D PIVSlotKey = 0x9d
+	pivSlot9E PIVSlotKey = 0x9e
 )
 
+// Validate the slot key value.
+func (k PIVSlotKey) Validate() error {
+	switch k {
+	case pivSlot9A, pivSlot9C, pivSlot9D, pivSlot9E:
+		return nil
+	default:
+		return trace.BadParameter("invalid PIV slot key 0x%x", k)
+	}
+}
+
 // GetDefaultSlotKey gets the default PIV slot key for the given [policy].
+//   - 9A for PromptPolicyNone
+//   - 9C for PromptPolicyTouch
+//   - 9D for PromptPolicyTouchAndPIN
+//   - 9E for PromptPolicyPIN
 func GetDefaultSlotKey(policy PromptPolicy) (PIVSlotKey, error) {
 	switch policy {
 	case PromptPolicyNone:
-		return pivSlotKeyBasic, nil
+		return pivSlot9A, nil
 	case PromptPolicyTouch:
-		return pivSlotKeyTouch, nil
+		return pivSlot9C, nil
 	case PromptPolicyPIN:
-		return pivSlotKeyPIN, nil
+		return pivSlot9E, nil
 	case PromptPolicyTouchAndPIN:
-		return pivSlotKeyTouchAndPIN, nil
+		return pivSlot9D, nil
 	default:
 		return 0, trace.BadParameter("unexpected prompt policy %v", policy)
 	}
@@ -60,15 +76,54 @@ func (s PIVSlotKeyString) Validate() error {
 
 // Parse [s] into a [PIVSlotKey].
 func (s PIVSlotKeyString) Parse() (PIVSlotKey, error) {
-	slotKey, err := strconv.ParseUint(string(s), 16, 32)
+	slotKeyUint, err := strconv.ParseUint(string(s), 16, 32)
 	if err != nil {
 		return 0, trace.Wrap(err, "failed to parse %q as a uint", s)
 	}
 
-	switch p := PIVSlotKey(slotKey); p {
-	case pivSlotKeyBasic, pivSlotKeyTouch, pivSlotKeyTouchAndPIN, pivSlotKeyPIN:
-		return p, nil
+	slotKey := PIVSlotKey(slotKeyUint)
+	if err := slotKey.Validate(); err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return slotKey, nil
+}
+
+// PIVSlotKeyFromProto convert the piv slot key from proto.
+func PIVSlotKeyFromProto(pivSlot hardwarekeyagentv1.PIVSlotKey) (PIVSlotKey, error) {
+	var slotKey PIVSlotKey
+	switch pivSlot {
+	case hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9A:
+		slotKey = pivSlot9A
+	case hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9C:
+		slotKey = pivSlot9C
+	case hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9D:
+		slotKey = pivSlot9D
+	case hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9E:
+		slotKey = pivSlot9E
 	default:
-		return 0, trace.BadParameter("invalid PIV slot %q", s)
+		return 0, trace.BadParameter("unknown piv slot key for proto enum %d", pivSlot)
+	}
+
+	if err := slotKey.Validate(); err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return slotKey, nil
+}
+
+// PIVSlotKeyFromProto convert the piv slot key to proto.
+func PIVSlotKeyToProto(slotKey PIVSlotKey) (hardwarekeyagentv1.PIVSlotKey, error) {
+	switch slotKey {
+	case pivSlot9A:
+		return hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9A, nil
+	case pivSlot9C:
+		return hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9C, nil
+	case pivSlot9D:
+		return hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9D, nil
+	case pivSlot9E:
+		return hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9E, nil
+	default:
+		return 0, trace.BadParameter("unknown proto enum for piv slot key %d", slotKey)
 	}
 }

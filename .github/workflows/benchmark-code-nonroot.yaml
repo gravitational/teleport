@@ -43,7 +43,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport17
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
       env:
         TELEPORT_XAUTH_TEST: yes
         WEBASSETS_SKIP_BUILD: 1

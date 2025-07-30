@@ -139,6 +139,8 @@ type AuthPreference interface {
 	// GetHardwareKeySerialNumberValidation returns the cluster's hardware key
 	// serial number validation settings.
 	GetHardwareKeySerialNumberValidation() (*HardwareKeySerialNumberValidation, error)
+	// GetPIVPINCacheTTL returns the configured piv pin cache duration for the cluster.
+	GetPIVPINCacheTTL() time.Duration
 
 	// GetDisconnectExpiredCert returns disconnect expired certificate setting
 	GetDisconnectExpiredCert() bool
@@ -508,6 +510,14 @@ func (c *AuthPreferenceV2) GetHardwareKeySerialNumberValidation() (*HardwareKeyS
 	return c.Spec.HardwareKey.SerialNumberValidation, nil
 }
 
+// GetPIVPINCacheTTL returns the configured piv pin cache duration for the cluster.
+func (c *AuthPreferenceV2) GetPIVPINCacheTTL() time.Duration {
+	if c.Spec.HardwareKey == nil {
+		return 0
+	}
+	return time.Duration(c.Spec.HardwareKey.PinCacheTTL)
+}
+
 // GetDisconnectExpiredCert returns disconnect expired certificate setting
 func (c *AuthPreferenceV2) GetDisconnectExpiredCert() bool {
 	return c.Spec.DisconnectExpiredCert.Value
@@ -827,7 +837,8 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		case "": // OK, "default" mode. Varies depending on OSS or Enterprise.
 		case constants.DeviceTrustModeOff,
 			constants.DeviceTrustModeOptional,
-			constants.DeviceTrustModeRequired: // OK.
+			constants.DeviceTrustModeRequired,
+			constants.DeviceTrustModeRequiredForHumans: // OK.
 		default:
 			return trace.BadParameter("device trust mode %q not supported", dt.Mode)
 		}
@@ -865,6 +876,10 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	// Make sure the Okta field is populated.
 	if c.Spec.Okta == nil {
 		c.Spec.Okta = &OktaOptions{}
+	}
+
+	if c.GetPIVPINCacheTTL() > constants.MaxPIVPINCacheTTL {
+		return trace.BadParameter("piv_pin_cache_ttl cannot be larger than %s", constants.MaxPIVPINCacheTTL)
 	}
 
 	return nil

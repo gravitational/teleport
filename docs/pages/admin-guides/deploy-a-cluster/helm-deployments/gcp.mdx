@@ -1,6 +1,9 @@
 ---
 title: Running an HA Teleport cluster using GCP, GKE, and Helm
 description: Install and configure an HA Teleport cluster using a Google Cloud GKE cluster.
+labels:
+ - how-to
+ - platform-wide
 ---
 
 In this guide, we'll go through how to set up a High Availability Teleport cluster with multiple replicas in Kubernetes
@@ -12,6 +15,24 @@ guide](../../../enroll-resources/kubernetes-access/getting-started.mdx) to conne
 cluster to Teleport.
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
+
+## How it works
+
+The `teleport-cluster` Helm chart deploys the Teleport Auth Service and Teleport
+Proxy Service on your Google Kubernetes Engine cluster. The chart requires the
+following resources, which we show you how to create in this guide:
+
+- **IAM permissions for the Teleport Auth Service**. The Auth Service requires
+  permissions to manage resources on its backend. 
+- **cert-manager** for obtaining and renewing TLS credentials that the Proxy
+  Service uses to run its HTTPS server.
+- **IAM permissions for cert-manager**. In the setup we show in this guide,
+  `cert-manager` modifies DNS records to demonstrate domain ownership and
+  receive TLS credentials from Let's Encrypt. To do so, the Proxy Service
+  completes the [ACME DNS-01
+  challenge](https://letsencrypt.org/docs/challenge-types/#dns-01-challenge).
+- **Teleport Auth Service backend components:** A Google Cloud Storage bucket and
+  Firestore database.
 
 ## Prerequisites
 

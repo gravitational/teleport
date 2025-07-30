@@ -158,6 +158,7 @@ export const MetadataSection = memo(
               Labels
             </Text>
             <LabelsInput
+              atLeastOneRow
               disableBtns={isProcessing}
               labels={value.labels}
               setLabels={labels => handleChange({ ...value, labels })}

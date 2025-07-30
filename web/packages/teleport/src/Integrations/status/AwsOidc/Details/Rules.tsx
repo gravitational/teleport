@@ -65,7 +65,7 @@ export function Rules() {
         },
         {
           key: 'labelMatcher',
-          headerText: getResourceTerm(resourceKind),
+          headerText: 'Labels',
           render: ({ labelMatcher }) => (
             <LabelCell data={labelMatcher.map(l => `${l.name}:${l.value}`)} />
           ),
@@ -95,13 +95,4 @@ export function Rules() {
       }}
     />
   );
-}
-
-function getResourceTerm(resource: AwsResource): string {
-  switch (resource) {
-    case AwsResource.rds:
-      return 'Tags';
-    default:
-      return 'Labels';
-  }
 }

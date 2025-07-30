@@ -52,7 +52,7 @@ export type Cfg = typeof cfg;
 const cfg = {
   /** @deprecated Use cfg.edition instead. */
   isEnterprise: false,
-  edition: 'oss',
+  edition: 'oss', // oss, community, ent
   isCloud: false,
   automaticUpgrades: false,
   // TODO (avatus) this is a temporary escape hatch. Delete in v18
@@ -95,7 +95,7 @@ const cfg = {
   // isPolicyEnabled refers to the Teleport Policy product
   isPolicyEnabled: false,
 
-  configDir: '$HOME/.config',
+  configDir: '$HOME/.config/teleport',
 
   baseUrl: window.location.origin,
 
@@ -138,6 +138,7 @@ const cfg = {
     preferredLocalMfa: '' as PreferredMfaType,
     // motd is the message of the day, displayed to users before login.
     motd: '',
+    identifierFirstLoginEnabled: false,
   },
 
   proxyCluster: 'localhost',
@@ -160,6 +161,8 @@ const cfg = {
     account: '/web/account',
     accountPassword: '/web/account/password',
     accountMfaDevices: '/web/account/twofactor',
+    accountSecurity: '/web/account/security',
+    accountPreferences: '/web/account/preferences',
     roles: '/web/roles',
     joinTokens: '/web/tokens',
     deviceTrust: `/web/devices`,
@@ -181,6 +184,9 @@ const cfg = {
     desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
     users: '/web/users',
     bots: '/web/bots',
+    bot: '/web/bot/:botName',
+    botInstances: '/web/bots/instances',
+    botInstance: '/web/bot/:botName/instance/:instanceId',
     botsNew: '/web/bots/new/:type?',
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
@@ -264,7 +270,7 @@ const cfg = {
     passwordTokenPath: '/v1/webapi/users/password/token/:tokenId?',
     changeUserPasswordPath: '/v1/webapi/users/password',
     unifiedResourcesPath:
-      '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?&pinnedOnly=:pinnedOnly?&includedResourceMode=:includedResourceMode?',
+      '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?&pinnedOnly=:pinnedOnly?&includedResourceMode=:includedResourceMode?&status=:status?',
     nodesPath:
       '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     nodesPathNoParams: '/v1/webapi/sites/:clusterId/nodes',
@@ -280,7 +286,7 @@ const cfg = {
     databasesPath: `/v1/webapi/sites/:clusterId/databases?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
 
     databaseServer: {
-      list: `/v1/webapi/sites/:clusterId/databaseservers?&limit=:limit?&startKey=:startKey?&query=:query?`,
+      list: `/v1/webapi/sites/:clusterId/databaseservers?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?`,
     },
 
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
@@ -309,9 +315,15 @@ const cfg = {
     userWithUsernamePath: '/v1/webapi/users/:username',
     createPrivilegeTokenPath: '/v1/webapi/users/privilege/token',
 
-    listRolesPath:
-      '/v1/webapi/roles?startKey=:startKey?&search=:search?&limit=:limit?',
-    rolePath: '/v1/webapi/roles/:name?',
+    role: {
+      create: '/v1/webapi/roles',
+      get: '/v1/webapi/roles/:name',
+      delete: '/v1/webapi/roles/:name',
+      update: '/v1/webapi/roles/:name',
+      list: '/v1/webapi/roles?startKey=:startKey?&search=:search?&limit=:limit?',
+      listWithoutQueryParam: '/v1/webapi/roles',
+    },
+
     presetRolesPath: '/v1/webapi/presetroles',
     githubConnectorsPath: '/v1/webapi/github/:name?',
     githubConnectorPath: '/v1/webapi/github/connector/:name',
@@ -324,7 +336,14 @@ const cfg = {
       createV2: '/v2/webapi/token',
     },
     joinTokenYamlPath: '/v1/webapi/tokens/yaml',
-    joinTokensPath: '/v1/webapi/tokens',
+
+    joinToken: {
+      create: '/v1/webapi/tokens',
+      update: '/v1/webapi/tokens',
+      list: '/v1/webapi/tokens',
+      listV2: '/v2/webapi/tokens',
+    },
+
     dbScriptPath: '/scripts/:token/install-database.sh',
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
@@ -334,7 +353,6 @@ const cfg = {
     mfaRequired: '/v1/webapi/sites/:clusterId/mfa/required',
     mfaLoginBegin: '/v1/webapi/mfa/login/begin', // creates authnenticate challenge with user and password
     mfaLoginFinish: '/v1/webapi/mfa/login/finishsession', // creates a web session
-    mfaChangePasswordBegin: '/v1/webapi/mfa/authenticatechallenge/password',
 
     headlessSsoPath: `/v1/webapi/headless/:requestId`,
 
@@ -446,8 +464,20 @@ const cfg = {
 
     accessGraphFeatures: '/v1/enterprise/accessgraph/static/features.json',
 
-    botsPath: '/v1/webapi/sites/:clusterId/machine-id/bot/:name?',
     botsTokenPath: '/v1/webapi/sites/:clusterId/machine-id/token',
+    bot: {
+      read: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName',
+      list: '/v1/webapi/sites/:clusterId/machine-id/bot',
+      create: '/v1/webapi/sites/:clusterId/machine-id/bot',
+      update: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName',
+      updateV2: '/v2/webapi/sites/:clusterId/machine-id/bot/:botName',
+      delete: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName',
+    },
+
+    botInstance: {
+      read: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName/bot-instance/:instanceId',
+      list: '/v1/webapi/sites/:clusterId/machine-id/bot-instance',
+    },
 
     gcpWorkforceConfigurePath:
       '/v1/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
@@ -462,6 +492,8 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/plugins/:plugin/files/msteams_app.zip',
 
     defaultConnectorPath: '/v1/webapi/authconnector/default',
+
+    authConnectorsPath: '/v1/webapi/authconnectors',
 
     yaml: {
       parse: '/v1/webapi/yaml/parse/:kind',
@@ -668,8 +700,20 @@ const cfg = {
     return cfg.routes.joinTokens;
   },
 
-  getJoinTokensUrl() {
-    return cfg.api.joinTokensPath;
+  getJoinTokenUrl(req: { action: 'list' | 'listV2' | 'create' | 'update' }) {
+    switch (req.action) {
+      case 'create':
+        return generatePath(cfg.api.joinToken.create);
+      case 'update':
+        return generatePath(cfg.api.joinToken.update);
+      case 'list':
+        return generatePath(cfg.api.joinToken.list);
+      case 'listV2':
+        return generatePath(cfg.api.joinToken.listV2);
+      default:
+        req.action satisfies never;
+        return '';
+    }
   },
 
   getJoinTokenYamlUrl() {
@@ -714,6 +758,18 @@ const cfg = {
 
   getBotsRoute() {
     return generatePath(cfg.routes.bots);
+  },
+
+  getBotDetailsRoute(name: string) {
+    return generatePath(cfg.routes.bot, { name });
+  },
+
+  getBotInstancesRoute() {
+    return generatePath(cfg.routes.botInstances);
+  },
+
+  getBotInstanceDetailsRoute(params: { botName: string; instanceId: string }) {
+    return generatePath(cfg.routes.botInstance, params);
   },
 
   getBotsNewRoute(type?: string) {
@@ -823,8 +879,7 @@ const cfg = {
     return generatePath(cfg.api.connectionDiagnostic, { clusterId });
   },
 
-  getMfaRequiredUrl() {
-    const clusterId = cfg.proxyCluster;
+  getMfaRequiredUrl(clusterId: string) {
     return generatePath(cfg.api.mfaRequired, { clusterId });
   },
 
@@ -1050,16 +1105,32 @@ const cfg = {
     return generatePath(cfg.api.trustedClustersPath, { name });
   },
 
-  getListRolesUrl(params?: UrlListRolesParams) {
-    return generatePath(cfg.api.listRolesPath, {
-      search: params?.search || undefined,
-      startKey: params?.startKey || undefined,
-      limit: params?.limit || undefined,
-    });
-  },
-
-  getRoleUrl(name?: string) {
-    return generatePath(cfg.api.rolePath, { name });
+  getRoleUrl(
+    req:
+      | {
+          action: 'get' | 'delete' | 'update';
+          name: string;
+        }
+      | { action: 'list'; params?: UrlListRolesParams }
+  ) {
+    const action = req.action;
+    switch (action) {
+      case 'get':
+        return generatePath(cfg.api.role.get, { name: req.name });
+      case 'delete':
+        return generatePath(cfg.api.role.delete, { name: req.name });
+      case 'update':
+        return generatePath(cfg.api.role.update, { name: req.name });
+      case 'list':
+        const params = req.params;
+        return generatePath(cfg.api.role.list, {
+          search: params?.search || undefined,
+          startKey: params?.startKey || undefined,
+          limit: params?.limit || undefined,
+        });
+      default:
+        action satisfies never;
+    }
   },
 
   getDiscoveryConfigUrl(clusterId: string) {
@@ -1386,14 +1457,76 @@ const cfg = {
     return generatePath(cfg.api.botsTokenPath, { clusterId });
   },
 
-  getBotsUrl() {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.botsPath, { clusterId });
+  getBotUrl(
+    req: (
+      | { action: 'list' | 'create' }
+      | { action: 'read' | 'update' | 'update-v2' | 'delete'; botName: string }
+    ) & { clusterId?: string }
+  ) {
+    const { clusterId = cfg.proxyCluster } = req;
+    switch (req.action) {
+      case 'list':
+        return generatePath(cfg.api.bot.list, {
+          clusterId,
+        });
+      case 'read':
+        return generatePath(cfg.api.bot.read, {
+          clusterId,
+          botName: req.botName,
+        });
+      case 'create':
+        return generatePath(cfg.api.bot.create, {
+          clusterId,
+        });
+      case 'update':
+        return generatePath(cfg.api.bot.update, {
+          clusterId,
+          botName: req.botName,
+        });
+      case 'update-v2':
+        return generatePath(cfg.api.bot.updateV2, {
+          clusterId,
+          botName: req.botName,
+        });
+      case 'delete':
+        return generatePath(cfg.api.bot.delete, {
+          clusterId,
+          botName: req.botName,
+        });
+      default:
+        req satisfies never;
+        return '';
+    }
   },
 
-  getBotUrlWithName(name: string) {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.botsPath, { clusterId, name });
+  getBotInstanceUrl(
+    req: (
+      | {
+          action: 'list';
+        }
+      | {
+          action: 'read';
+          botName: string;
+          instanceId: string;
+        }
+    ) & { clusterId?: string }
+  ) {
+    const { clusterId = cfg.proxyCluster } = req;
+    switch (req.action) {
+      case 'list':
+        return generatePath(cfg.api.botInstance.list, {
+          clusterId,
+        });
+      case 'read':
+        return generatePath(cfg.api.botInstance.read, {
+          clusterId,
+          botName: req.botName,
+          instanceId: req.instanceId,
+        });
+      default:
+        req satisfies never;
+        return '';
+    }
   },
 
   getGcpWorkforceConfigScriptUrl(p: UrlGcpWorkforceConfigParam) {

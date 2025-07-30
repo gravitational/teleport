@@ -21,8 +21,11 @@ package services
 import (
 	"context"
 	"fmt"
+	"iter"
+	"net"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -39,12 +42,16 @@ import (
 type AppGetter interface {
 	// GetApps returns all application resources.
 	GetApps(context.Context) ([]types.Application, error)
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+	// Apps returns application resources within the range [start, end).
+	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 }
 
-// Apps defines an interface for managing application resources.
-type Apps interface {
+// Applications defines an interface for managing application resources.
+type Applications interface {
 	// AppGetter provides methods for fetching application resources.
 	AppGetter
 	// CreateApp creates a new application resource.
@@ -213,7 +220,7 @@ func GetServiceFQDN(service corev1.Service) string {
 func buildAppURI(protocol, serviceFQDN, path string, port int32) string {
 	return (&url.URL{
 		Scheme: protocol,
-		Host:   fmt.Sprintf("%s:%d", serviceFQDN, port),
+		Host:   net.JoinHostPort(serviceFQDN, strconv.Itoa(int(port))),
 		Path:   path,
 	}).String()
 }

@@ -32,6 +32,8 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+
+	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 )
 
 type onInstallSystemdCmdFunc func(
@@ -118,7 +120,9 @@ func onInstallSystemdCmd(
 	}
 
 	tbotPath, err := getExecutablePath()
-	if err != nil {
+	if errors.Is(err, autoupdate.ErrUnstableExecutable) {
+		log.WarnContext(ctx, "Systemd template will be rendered with an unstable path to the tbot executable. Please adjust the service to use a stable path instead.")
+	} else if err != nil {
 		return trace.Wrap(err, "determining path to current executable")
 	}
 

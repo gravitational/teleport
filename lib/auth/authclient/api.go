@@ -21,6 +21,7 @@ package authclient
 import (
 	"context"
 	"io"
+	"iter"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -32,9 +33,11 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -230,6 +233,12 @@ type ReadProxyAccessPoint interface {
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
 
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+
+	// Apps returns application resources within the range [start, end).
+	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
+
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 
@@ -292,9 +301,6 @@ type ReadProxyAccessPoint interface {
 	// ListSAMLIdPServiceProviders returns a paginated list of all SAML IdP service provider resources.
 	ListSAMLIdPServiceProviders(context.Context, int, string) ([]types.SAMLIdPServiceProvider, string, error)
 
-	// GetSAMLIdPSession gets a SAML IdP session.
-	GetSAMLIdPSession(context.Context, types.GetSAMLIdPSessionRequest) (types.WebSession, error)
-
 	// ListUserGroups returns a paginated list of user group resources.
 	ListUserGroups(ctx context.Context, pageSize int, nextKey string) ([]types.UserGroup, string, error)
 
@@ -312,6 +318,11 @@ type ReadProxyAccessPoint interface {
 
 	// GitServerReadOnlyClient returns the read-only client for Git servers.
 	GitServerReadOnlyClient() gitserver.ReadOnlyClient
+
+	// GetRelayServer returns the relay server heartbeat with a given name.
+	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
+	// ListRelayServers returns a paginated list of relay server heartbeats.
+	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error)
 }
 
 // SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
@@ -402,6 +413,12 @@ type ReadRemoteProxyAccessPoint interface {
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
+
+	// GetWindowsDesktops returns windows desktop hosts.
+	GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
+
+	// GetWindowsDesktopService returns a registered windows desktop service by name.
+	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 }
 
 // RemoteProxyAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -530,6 +547,12 @@ type ReadAppsAccessPoint interface {
 
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
+
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+
+	// Apps returns application resources within the range [start, end).
+	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
 
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
@@ -707,6 +730,13 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetApps returns all application resources.
 	GetApps(context.Context) ([]types.Application, error)
+
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+
+	// Apps returns application resources within the range [start, end).
+	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
+
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 
@@ -993,6 +1023,12 @@ type Cache interface {
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
 
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+
+	// Apps returns application resources within the range [start, end).
+	Apps(ctx context.Context, startKey, endKey string) iter.Seq2[types.Application, error]
+
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 
@@ -1007,9 +1043,6 @@ type Cache interface {
 
 	// GetSnowflakeSession gets a Snowflake web session.
 	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
-
-	// GetSAMLIdPSession gets a SAML IdP session.
-	GetSAMLIdPSession(context.Context, types.GetSAMLIdPSessionRequest) (types.WebSession, error)
 
 	// GetWebSession gets a web session for the given request
 	GetWebSession(context.Context, types.GetWebSessionRequest) (types.WebSession, error)
@@ -1182,6 +1215,12 @@ type Cache interface {
 	// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
 	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
 
+	// GetAutoUpdateAgentReport gets the AutoUpdateAgentRollout from the backend.
+	GetAutoUpdateAgentReport(ctx context.Context, name string) (*autoupdate.AutoUpdateAgentReport, error)
+
+	// ListAutoUpdateAgentReports lists all AutoUpdateAgentReports from the backend.
+	ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdate.AutoUpdateAgentReport, string, error)
+
 	// GetAccessGraphSettings returns the access graph settings.
 	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
 
@@ -1207,9 +1246,11 @@ type Cache interface {
 
 	// GetAccountAssignment fetches specific IdentityCenter Account Assignment
 	GetAccountAssignment(context.Context, services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error)
+	GetIdentityCenterAccountAssignment(context.Context, string) (*identitycenterv1.AccountAssignment, error)
 
 	// ListAccountAssignments fetches a paginated list of IdentityCenter Account Assignments
 	ListAccountAssignments(context.Context, int, *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error)
+	ListIdentityCenterAccountAssignments(context.Context, int, string) ([]*identitycenterv1.AccountAssignment, string, error)
 
 	// GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
 	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)
@@ -1220,6 +1261,20 @@ type Cache interface {
 	// HealthCheckConfigReader defines methods for fetching health checkc config
 	// resources.
 	services.HealthCheckConfigReader
+
+	// GetRelayServer returns the relay server heartbeat with a given name.
+	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
+	// ListRelayServers returns a paginated list of relay server heartbeats.
+	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error)
+
+	// GetBotInstance returns the specified BotInstance resource.
+	GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error)
+
+	// ListBotInstances returns a page of BotInstance resources.
+	ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string, sort *types.SortBy) ([]*machineidv1.BotInstance, string, error)
+
+	// ListProvisionTokens returns a paginated list of provision tokens.
+	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
 }
 
 type NodeWrapper struct {

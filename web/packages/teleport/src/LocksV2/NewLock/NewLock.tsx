@@ -171,7 +171,7 @@ export function NewLockView(props: Props) {
   }
 
   const numAddedResources = getNumSelectedResources(selectedResources);
-  const transitionRef = useRef<HTMLDivElement>();
+  const transitionRef = useRef<HTMLDivElement>(null);
 
   return (
     <FeatureBox>

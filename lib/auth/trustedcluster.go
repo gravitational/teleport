@@ -21,6 +21,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -609,13 +610,16 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *au
 	}
 	if len(tokenLabels) != 0 {
 		meta := remoteCluster.GetMetadata()
-		meta.Labels = utils.CopyStringsMap(tokenLabels)
+		meta.Labels = maps.Clone(tokenLabels)
 		remoteCluster.SetMetadata(meta)
 	}
 	remoteCluster.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 
 	_, err = a.CreateRemoteClusterInternal(ctx, remoteCluster, []types.CertAuthority{remoteCA})
-	if err != nil && !trace.IsAlreadyExists(err) {
+	if err != nil {
+		if trace.IsAlreadyExists(err) {
+			return nil, trace.AlreadyExists("leaf cluster %q or a cert authority with the same name is already registered with this root cluster, if you are attempting to re-join try removing the existing "+types.KindRemoteCluster+" resource from the root cluster first", remoteClusterName)
+		}
 		return nil, trace.Wrap(err)
 	}
 

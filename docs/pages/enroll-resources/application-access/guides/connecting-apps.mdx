@@ -1,6 +1,9 @@
 ---
 title: Web Application Access
 description: In this getting started guide, learn how to connect an application to your Teleport cluster by running the Teleport Application Service.
+labels:
+ - how-to
+ - zero-trust
 ---
 
 This guide shows you how to enroll a web application with your Teleport cluster
@@ -73,11 +76,11 @@ Application Service:
        method: token
      proxy_server: "teleport.example.com:443"
    auth_service:
-     enabled: off
+     enabled: false
    proxy_service:
-     enabled: off
+     enabled: false
    ssh_service:
-     enabled: off
+     enabled: false
    app_service:
      enabled: true
      apps:
@@ -167,7 +170,7 @@ It can be turned on using `debug_app: true`.
 
 ```yaml
 app_service:
-   enabled: yes
+   enabled: true
    debug_app: true
 ```
 

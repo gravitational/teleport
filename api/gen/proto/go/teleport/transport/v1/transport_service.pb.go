@@ -576,6 +576,163 @@ func (x *ClusterDetails) GetFipsEnabled() bool {
 	return false
 }
 
+// Request message for a proxied Windows desktop session.
+type ProxyWindowsDesktopSessionRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A chunk of data from the connection. Must be empty in the first message and nonempty in subsequent messages.
+	Data []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	// Target cluster and desktop. Must be set in the first message and unset in subsequent messages.
+	DialTarget    *TargetWindowsDesktop `protobuf:"bytes,2,opt,name=dial_target,json=dialTarget,proto3" json:"dial_target,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProxyWindowsDesktopSessionRequest) Reset() {
+	*x = ProxyWindowsDesktopSessionRequest{}
+	mi := &file_teleport_transport_v1_transport_service_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProxyWindowsDesktopSessionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProxyWindowsDesktopSessionRequest) ProtoMessage() {}
+
+func (x *ProxyWindowsDesktopSessionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_transport_v1_transport_service_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProxyWindowsDesktopSessionRequest.ProtoReflect.Descriptor instead.
+func (*ProxyWindowsDesktopSessionRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_transport_v1_transport_service_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ProxyWindowsDesktopSessionRequest) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+func (x *ProxyWindowsDesktopSessionRequest) GetDialTarget() *TargetWindowsDesktop {
+	if x != nil {
+		return x.DialTarget
+	}
+	return nil
+}
+
+// Response message for a proxied Windows desktop session.
+type ProxyWindowsDesktopSessionResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A chunk of data from the connection. Can be empty (for example, to send a message
+	// signaling a successful connection even if there's no data available in the connection).
+	Data          []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProxyWindowsDesktopSessionResponse) Reset() {
+	*x = ProxyWindowsDesktopSessionResponse{}
+	mi := &file_teleport_transport_v1_transport_service_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProxyWindowsDesktopSessionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProxyWindowsDesktopSessionResponse) ProtoMessage() {}
+
+func (x *ProxyWindowsDesktopSessionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_transport_v1_transport_service_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProxyWindowsDesktopSessionResponse.ProtoReflect.Descriptor instead.
+func (*ProxyWindowsDesktopSessionResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_transport_v1_transport_service_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ProxyWindowsDesktopSessionResponse) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+// Identifies the destination desktop within a specific cluster.
+type TargetWindowsDesktop struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Name of the desktop to connect to.
+	DesktopName string `protobuf:"bytes,1,opt,name=desktop_name,json=desktopName,proto3" json:"desktop_name,omitempty"`
+	// Name of the cluster the desktop belongs to.
+	Cluster       string `protobuf:"bytes,2,opt,name=cluster,proto3" json:"cluster,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TargetWindowsDesktop) Reset() {
+	*x = TargetWindowsDesktop{}
+	mi := &file_teleport_transport_v1_transport_service_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TargetWindowsDesktop) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TargetWindowsDesktop) ProtoMessage() {}
+
+func (x *TargetWindowsDesktop) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_transport_v1_transport_service_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TargetWindowsDesktop.ProtoReflect.Descriptor instead.
+func (*TargetWindowsDesktop) Descriptor() ([]byte, []int) {
+	return file_teleport_transport_v1_transport_service_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *TargetWindowsDesktop) GetDesktopName() string {
+	if x != nil {
+		return x.DesktopName
+	}
+	return ""
+}
+
+func (x *TargetWindowsDesktop) GetCluster() string {
+	if x != nil {
+		return x.Cluster
+	}
+	return ""
+}
+
 var File_teleport_transport_v1_transport_service_proto protoreflect.FileDescriptor
 
 const file_teleport_transport_v1_transport_service_proto_rawDesc = "" +
@@ -607,11 +764,21 @@ const file_teleport_transport_v1_transport_service_proto_rawDesc = "" +
 	"\x19GetClusterDetailsResponse\x12?\n" +
 	"\adetails\x18\x01 \x01(\v2%.teleport.transport.v1.ClusterDetailsR\adetails\"3\n" +
 	"\x0eClusterDetails\x12!\n" +
-	"\ffips_enabled\x18\x01 \x01(\bR\vfipsEnabled2\xd8\x02\n" +
+	"\ffips_enabled\x18\x01 \x01(\bR\vfipsEnabled\"\x85\x01\n" +
+	"!ProxyWindowsDesktopSessionRequest\x12\x12\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\x12L\n" +
+	"\vdial_target\x18\x02 \x01(\v2+.teleport.transport.v1.TargetWindowsDesktopR\n" +
+	"dialTarget\"8\n" +
+	"\"ProxyWindowsDesktopSessionResponse\x12\x12\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\"S\n" +
+	"\x14TargetWindowsDesktop\x12!\n" +
+	"\fdesktop_name\x18\x01 \x01(\tR\vdesktopName\x12\x18\n" +
+	"\acluster\x18\x02 \x01(\tR\acluster2\xf0\x03\n" +
 	"\x10TransportService\x12v\n" +
 	"\x11GetClusterDetails\x12/.teleport.transport.v1.GetClusterDetailsRequest\x1a0.teleport.transport.v1.GetClusterDetailsResponse\x12_\n" +
 	"\bProxySSH\x12&.teleport.transport.v1.ProxySSHRequest\x1a'.teleport.transport.v1.ProxySSHResponse(\x010\x01\x12k\n" +
-	"\fProxyCluster\x12*.teleport.transport.v1.ProxyClusterRequest\x1a+.teleport.transport.v1.ProxyClusterResponse(\x010\x01BVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1;transportv1b\x06proto3"
+	"\fProxyCluster\x12*.teleport.transport.v1.ProxyClusterRequest\x1a+.teleport.transport.v1.ProxyClusterResponse(\x010\x01\x12\x95\x01\n" +
+	"\x1aProxyWindowsDesktopSession\x128.teleport.transport.v1.ProxyWindowsDesktopSessionRequest\x1a9.teleport.transport.v1.ProxyWindowsDesktopSessionResponse(\x010\x01BVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1;transportv1b\x06proto3"
 
 var (
 	file_teleport_transport_v1_transport_service_proto_rawDescOnce sync.Once
@@ -625,17 +792,20 @@ func file_teleport_transport_v1_transport_service_proto_rawDescGZIP() []byte {
 	return file_teleport_transport_v1_transport_service_proto_rawDescData
 }
 
-var file_teleport_transport_v1_transport_service_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_teleport_transport_v1_transport_service_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_teleport_transport_v1_transport_service_proto_goTypes = []any{
-	(*ProxySSHRequest)(nil),           // 0: teleport.transport.v1.ProxySSHRequest
-	(*ProxySSHResponse)(nil),          // 1: teleport.transport.v1.ProxySSHResponse
-	(*ProxyClusterRequest)(nil),       // 2: teleport.transport.v1.ProxyClusterRequest
-	(*ProxyClusterResponse)(nil),      // 3: teleport.transport.v1.ProxyClusterResponse
-	(*Frame)(nil),                     // 4: teleport.transport.v1.Frame
-	(*TargetHost)(nil),                // 5: teleport.transport.v1.TargetHost
-	(*GetClusterDetailsRequest)(nil),  // 6: teleport.transport.v1.GetClusterDetailsRequest
-	(*GetClusterDetailsResponse)(nil), // 7: teleport.transport.v1.GetClusterDetailsResponse
-	(*ClusterDetails)(nil),            // 8: teleport.transport.v1.ClusterDetails
+	(*ProxySSHRequest)(nil),                    // 0: teleport.transport.v1.ProxySSHRequest
+	(*ProxySSHResponse)(nil),                   // 1: teleport.transport.v1.ProxySSHResponse
+	(*ProxyClusterRequest)(nil),                // 2: teleport.transport.v1.ProxyClusterRequest
+	(*ProxyClusterResponse)(nil),               // 3: teleport.transport.v1.ProxyClusterResponse
+	(*Frame)(nil),                              // 4: teleport.transport.v1.Frame
+	(*TargetHost)(nil),                         // 5: teleport.transport.v1.TargetHost
+	(*GetClusterDetailsRequest)(nil),           // 6: teleport.transport.v1.GetClusterDetailsRequest
+	(*GetClusterDetailsResponse)(nil),          // 7: teleport.transport.v1.GetClusterDetailsResponse
+	(*ClusterDetails)(nil),                     // 8: teleport.transport.v1.ClusterDetails
+	(*ProxyWindowsDesktopSessionRequest)(nil),  // 9: teleport.transport.v1.ProxyWindowsDesktopSessionRequest
+	(*ProxyWindowsDesktopSessionResponse)(nil), // 10: teleport.transport.v1.ProxyWindowsDesktopSessionResponse
+	(*TargetWindowsDesktop)(nil),               // 11: teleport.transport.v1.TargetWindowsDesktop
 }
 var file_teleport_transport_v1_transport_service_proto_depIdxs = []int32{
 	5,  // 0: teleport.transport.v1.ProxySSHRequest.dial_target:type_name -> teleport.transport.v1.TargetHost
@@ -647,17 +817,20 @@ var file_teleport_transport_v1_transport_service_proto_depIdxs = []int32{
 	4,  // 6: teleport.transport.v1.ProxyClusterRequest.frame:type_name -> teleport.transport.v1.Frame
 	4,  // 7: teleport.transport.v1.ProxyClusterResponse.frame:type_name -> teleport.transport.v1.Frame
 	8,  // 8: teleport.transport.v1.GetClusterDetailsResponse.details:type_name -> teleport.transport.v1.ClusterDetails
-	6,  // 9: teleport.transport.v1.TransportService.GetClusterDetails:input_type -> teleport.transport.v1.GetClusterDetailsRequest
-	0,  // 10: teleport.transport.v1.TransportService.ProxySSH:input_type -> teleport.transport.v1.ProxySSHRequest
-	2,  // 11: teleport.transport.v1.TransportService.ProxyCluster:input_type -> teleport.transport.v1.ProxyClusterRequest
-	7,  // 12: teleport.transport.v1.TransportService.GetClusterDetails:output_type -> teleport.transport.v1.GetClusterDetailsResponse
-	1,  // 13: teleport.transport.v1.TransportService.ProxySSH:output_type -> teleport.transport.v1.ProxySSHResponse
-	3,  // 14: teleport.transport.v1.TransportService.ProxyCluster:output_type -> teleport.transport.v1.ProxyClusterResponse
-	12, // [12:15] is the sub-list for method output_type
-	9,  // [9:12] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	11, // 9: teleport.transport.v1.ProxyWindowsDesktopSessionRequest.dial_target:type_name -> teleport.transport.v1.TargetWindowsDesktop
+	6,  // 10: teleport.transport.v1.TransportService.GetClusterDetails:input_type -> teleport.transport.v1.GetClusterDetailsRequest
+	0,  // 11: teleport.transport.v1.TransportService.ProxySSH:input_type -> teleport.transport.v1.ProxySSHRequest
+	2,  // 12: teleport.transport.v1.TransportService.ProxyCluster:input_type -> teleport.transport.v1.ProxyClusterRequest
+	9,  // 13: teleport.transport.v1.TransportService.ProxyWindowsDesktopSession:input_type -> teleport.transport.v1.ProxyWindowsDesktopSessionRequest
+	7,  // 14: teleport.transport.v1.TransportService.GetClusterDetails:output_type -> teleport.transport.v1.GetClusterDetailsResponse
+	1,  // 15: teleport.transport.v1.TransportService.ProxySSH:output_type -> teleport.transport.v1.ProxySSHResponse
+	3,  // 16: teleport.transport.v1.TransportService.ProxyCluster:output_type -> teleport.transport.v1.ProxyClusterResponse
+	10, // 17: teleport.transport.v1.TransportService.ProxyWindowsDesktopSession:output_type -> teleport.transport.v1.ProxyWindowsDesktopSessionResponse
+	14, // [14:18] is the sub-list for method output_type
+	10, // [10:14] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_teleport_transport_v1_transport_service_proto_init() }
@@ -679,7 +852,7 @@ func file_teleport_transport_v1_transport_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_transport_v1_transport_service_proto_rawDesc), len(file_teleport_transport_v1_transport_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

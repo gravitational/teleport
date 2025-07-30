@@ -20,23 +20,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 )
 
 func TestWorkloadIdentityX509Service_YAML(t *testing.T) {
 	t.Parallel()
 
-	dest := &DestinationMemory{}
+	dest := &destination.Memory{}
 	tests := []testYAMLCase[WorkloadIdentityX509Service]{
 		{
 			name: "full",
 			in: WorkloadIdentityX509Service{
 				Destination: dest,
-				Selector: WorkloadIdentitySelector{
+				Selector: bot.WorkloadIdentitySelector{
 					Name: "my-workload-identity",
 				},
 				IncludeFederatedTrustBundles: true,
-				CredentialLifetime: CredentialLifetime{
+				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
 				},
@@ -46,7 +48,7 @@ func TestWorkloadIdentityX509Service_YAML(t *testing.T) {
 			name: "minimal",
 			in: WorkloadIdentityX509Service{
 				Destination: dest,
-				Selector: WorkloadIdentitySelector{
+				Selector: bot.WorkloadIdentitySelector{
 					Name: "my-workload-identity",
 				},
 			},
@@ -63,10 +65,10 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 			name: "valid",
 			in: func() *WorkloadIdentityX509Service {
 				return &WorkloadIdentityX509Service{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -78,12 +80,12 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 			name: "valid with labels",
 			in: func() *WorkloadIdentityX509Service {
 				return &WorkloadIdentityX509Service{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Labels: map[string][]string{
 							"key": {"value"},
 						},
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -95,8 +97,8 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 			name: "missing selectors",
 			in: func() *WorkloadIdentityX509Service {
 				return &WorkloadIdentityX509Service{
-					Selector: WorkloadIdentitySelector{},
-					Destination: &DestinationDirectory{
+					Selector: bot.WorkloadIdentitySelector{},
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -109,13 +111,13 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 			name: "too many selectors",
 			in: func() *WorkloadIdentityX509Service {
 				return &WorkloadIdentityX509Service{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 						Labels: map[string][]string{
 							"key": {"value"},
 						},
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,

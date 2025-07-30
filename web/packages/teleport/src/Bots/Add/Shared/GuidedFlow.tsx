@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import { useState, type JSX } from 'react';
 
 import { H1, Text } from 'design';
 import Flex from 'design/Flex';

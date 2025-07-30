@@ -21,6 +21,7 @@ import React, {
   forwardRef,
   PropsWithChildren,
   ReactNode,
+  type JSX,
 } from 'react';
 import { NavLink } from 'react-router-dom';
 import styled, { css, useTheme } from 'styled-components';
@@ -30,6 +31,7 @@ import { ArrowLineLeft, ArrowSquareIn } from 'design/Icon';
 import { Theme } from 'design/theme';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 
+import { PoweredByTeleportLogo } from 'teleport/components/PoweredByTeleportLogo';
 import { SlidingSidePanel } from 'teleport/components/SlidingSidePanel';
 import cfg from 'teleport/config';
 
@@ -46,6 +48,7 @@ type SharedSectionProps = {
   $active: boolean;
   isExpanded: boolean;
   onExpandSection?: () => void;
+  showPoweredByLogo?: boolean;
 };
 
 /**
@@ -63,6 +66,7 @@ export function DefaultSection({
   currentPageSection,
   currentView,
   onExpandSection,
+  showPoweredByLogo,
 }: SharedSectionProps & {
   currentView?: NavigationSubsection;
   onNavigationItemClick?: () => void;
@@ -138,8 +142,10 @@ export function DefaultSection({
                 </SubsectionItem>
               ))}
           </Box>
-          {cfg.edition === 'oss' && <AGPLFooter />}
-          {cfg.edition === 'community' && <CommunityFooter />}
+          <SectionFooter
+            showPoweredByLogo={showPoweredByLogo}
+            edition={cfg.edition}
+          />
         </Flex>
       </RightPanel>
     </>
@@ -516,6 +522,22 @@ function LicenseFooter({
       </Flex>
       <SubText>{subText}</SubText>
     </StyledFooterBox>
+  );
+}
+
+export function SectionFooter({
+  showPoweredByLogo = false,
+  edition,
+}: {
+  showPoweredByLogo: boolean;
+  edition: string;
+}) {
+  return (
+    <>
+      {showPoweredByLogo && <PoweredByTeleportLogo />}
+      {edition === 'oss' && !showPoweredByLogo && <AGPLFooter />}
+      {edition === 'community' && !showPoweredByLogo && <CommunityFooter />}
+    </>
   );
 }
 

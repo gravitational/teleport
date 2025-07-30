@@ -44,7 +44,7 @@ import (
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestServeConfigureError(t *testing.T) {
@@ -113,7 +113,7 @@ func TestMTLSClientCAs(t *testing.T) {
 	userCert := genCert(t, "user")
 	srv := &TLSServer{
 		TLSServerConfig: TLSServerConfig{
-			Log: utils.NewSlogLoggerForTests(),
+			Log: logtest.NewLogger(),
 			ForwarderConfig: ForwarderConfig{
 				ClusterName: mainClusterName,
 			},
@@ -122,9 +122,10 @@ func TestMTLSClientCAs(t *testing.T) {
 				ClientAuth:   tls.RequireAndVerifyClientCert,
 				Certificates: []tls.Certificate{hostCert},
 			},
-			GetRotation: func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+			GetRotation:          func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+			ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
 		},
-		log: utils.NewSlogLoggerForTests(),
+		log: logtest.NewLogger(),
 	}
 
 	lis, err := net.Listen("tcp", "localhost:0")
@@ -181,7 +182,7 @@ func TestMTLSClientCAs(t *testing.T) {
 	// 100 additional CAs registered, all CAs should be sent to the client in
 	// the handshake.
 	t.Run("100 CAs", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			addCA(t, fmt.Sprintf("cluster-%d", i))
 		}
 		testDial(t, 101)
@@ -206,7 +207,7 @@ func TestGetServerInfo(t *testing.T) {
 
 	srv := &TLSServer{
 		TLSServerConfig: TLSServerConfig{
-			Log: utils.NewSlogLoggerForTests(),
+			Log: logtest.NewLogger(),
 			ForwarderConfig: ForwarderConfig{
 				Clock:       clockwork.NewFakeClock(),
 				ClusterName: "kube-cluster",

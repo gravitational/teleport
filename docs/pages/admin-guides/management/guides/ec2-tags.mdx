@@ -2,6 +2,9 @@
 title: EC2 Tags as Teleport Node Labels
 description: How to set up Teleport Node labels based on EC2 tags
 h1: Sync EC2 Tags and Teleport Node Labels
+labels:
+ - how-to
+ - zero-trust
 ---
 
 When running on an AWS EC2 instance, Teleport will automatically detect and import EC2 tags as
@@ -28,7 +31,7 @@ fakehost.example.com 127.0.0.1:3022 env=example,hostname=ip-172-31-53-70,aws/Nam
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 - One Teleport Agent running on an Amazon EC2 instance. See
-  [our guides](../../../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx) for how to set up Teleport Agents.
+  [our guides](../../../enroll-resources/agents/agents.mdx) for how to set up Teleport Agents.
 
 ## Enable tags in instance metadata
 

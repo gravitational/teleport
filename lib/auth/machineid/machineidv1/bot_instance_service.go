@@ -48,10 +48,20 @@ const (
 	ExpiryMargin = time.Minute * 5
 )
 
+// BotInstancesCache is the subset of the cached resources that the Service queries.
+type BotInstancesCache interface {
+	// GetBotInstance returns the specified BotInstance resource.
+	GetBotInstance(ctx context.Context, botName, instanceID string) (*pb.BotInstance, error)
+
+	// ListBotInstances returns a page of BotInstance resources.
+	ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string, sort *types.SortBy) ([]*pb.BotInstance, string, error)
+}
+
 // BotInstanceServiceConfig holds configuration options for the BotInstance gRPC
 // service.
 type BotInstanceServiceConfig struct {
 	Authorizer authz.Authorizer
+	Cache      BotInstancesCache
 	Backend    services.BotInstance
 	Logger     *slog.Logger
 	Clock      clockwork.Clock
@@ -64,6 +74,8 @@ func NewBotInstanceService(cfg BotInstanceServiceConfig) (*BotInstanceService, e
 		return nil, trace.BadParameter("backend service is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
+	case cfg.Cache == nil:
+		return nil, trace.BadParameter("cache service is required")
 	}
 
 	if cfg.Logger == nil {
@@ -76,6 +88,7 @@ func NewBotInstanceService(cfg BotInstanceServiceConfig) (*BotInstanceService, e
 	return &BotInstanceService{
 		logger:     cfg.Logger,
 		authorizer: cfg.Authorizer,
+		cache:      cfg.Cache,
 		backend:    cfg.Backend,
 		clock:      cfg.Clock,
 	}, nil
@@ -87,6 +100,7 @@ type BotInstanceService struct {
 
 	backend    services.BotInstance
 	authorizer authz.Authorizer
+	cache      BotInstancesCache
 	logger     *slog.Logger
 	clock      clockwork.Clock
 }
@@ -124,7 +138,7 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *pb.GetBotI
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := b.backend.GetBotInstance(ctx, req.BotName, req.InstanceId)
+	res, err := b.cache.GetBotInstance(ctx, req.BotName, req.InstanceId)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -143,7 +157,7 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, req *pb.ListB
 		return nil, trace.Wrap(err)
 	}
 
-	res, nextToken, err := b.backend.ListBotInstances(ctx, req.FilterBotName, int(req.PageSize), req.PageToken)
+	res, nextToken, err := b.cache.ListBotInstances(ctx, req.FilterBotName, int(req.PageSize), req.PageToken, req.FilterSearchTerm, req.Sort)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

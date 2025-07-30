@@ -43,7 +43,7 @@ export function UserJobRole(props: {
   onSend(jobRole: string): void;
   hidden?: boolean;
 }) {
-  const inputRef = useRef<HTMLInputElement>();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [jobRole, setJobRole] = useState<string | null>(null);
   const [otherJobRole, setOtherJobRole] = useState('');
 

@@ -174,8 +174,11 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 		{name: "RoleV6"},
 		// Role V6 and V7 have their own Kubernetes kind
 		{name: "RoleV6", opts: []resourceSchemaOption{withVersionInKindOverride()}},
-		// Role V7 is using the RoleV6 message
+		// Role V7 and V8 is using the RoleV6 message
 		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V7), withVersionInKindOverride()}},
+		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V8), withVersionInKindOverride()}},
+		{name: "AppV3", opts: []resourceSchemaOption{withVersionOverride(types.V3), withVersionInKindOverride()}},
+		{name: "DatabaseV3", opts: []resourceSchemaOption{withVersionOverride(types.V3), withVersionInKindOverride()}},
 		{name: "SAMLConnectorV2"},
 		{name: "OIDCConnectorV3"},
 		{name: "GithubConnectorV3"},
@@ -222,6 +225,21 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 				withVersionInKindOverride(),
 			},
 		},
+		{
+			name: "AutoUpdateConfig",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withVersionInKindOverride(),
+				withNameOverride("AutoupdateConfig"),
+			},
+		},
+		{
+			name: "AutoUpdateVersion",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withVersionInKindOverride(),
+				withNameOverride("AutoupdateVersion"),
+			}},
 	}
 
 	for _, resource := range resources {

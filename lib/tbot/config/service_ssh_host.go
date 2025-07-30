@@ -25,6 +25,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
 const SSHHostOutputType = "ssh_host"
@@ -49,8 +51,10 @@ var (
 // SSHHostOutput generates a host certificate signed by the Teleport CA. This
 // can be used to allow OpenSSH server to be trusted by Teleport SSH clients.
 type SSHHostOutput struct {
+	// Name of the service for logs and the /readyz endpoint.
+	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
-	Destination bot.Destination `yaml:"destination"`
+	Destination destination.Destination `yaml:"destination"`
 	// Roles is the list of roles to request for the generated credentials.
 	// If empty, it defaults to all the bot's roles.
 	Roles []string `yaml:"roles,omitempty"`
@@ -60,14 +64,19 @@ type SSHHostOutput struct {
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
+	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
+}
+
+// GetName returns the user-given name of the service, used for validation purposes.
+func (o *SSHHostOutput) GetName() string {
+	return o.Name
 }
 
 func (o *SSHHostOutput) Init(ctx context.Context) error {
 	return trace.Wrap(o.Destination.Init(ctx, []string{}))
 }
 
-func (o *SSHHostOutput) GetDestination() bot.Destination {
+func (o *SSHHostOutput) GetDestination() destination.Destination {
 	return o.Destination
 }
 
@@ -82,8 +91,8 @@ func (o *SSHHostOutput) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (o *SSHHostOutput) Describe() []FileDescription {
-	return []FileDescription{
+func (o *SSHHostOutput) Describe() []bot.FileDescription {
+	return []bot.FileDescription{
 		{
 			Name: SSHHostCertPath,
 		},
@@ -96,9 +105,9 @@ func (o *SSHHostOutput) Describe() []FileDescription {
 	}
 }
 
-func (o *SSHHostOutput) MarshalYAML() (interface{}, error) {
+func (o *SSHHostOutput) MarshalYAML() (any, error) {
 	type raw SSHHostOutput
-	return withTypeHeader((*raw)(o), SSHHostOutputType)
+	return encoding.WithTypeHeader((*raw)(o), SSHHostOutputType)
 }
 
 func (o *SSHHostOutput) UnmarshalYAML(node *yaml.Node) error {
@@ -119,6 +128,6 @@ func (o *SSHHostOutput) Type() string {
 	return SSHHostOutputType
 }
 
-func (o *SSHHostOutput) GetCredentialLifetime() CredentialLifetime {
+func (o *SSHHostOutput) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }

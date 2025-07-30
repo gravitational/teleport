@@ -32,6 +32,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/gravitational/teleport/api/utils/keys/piv"
+	"github.com/gravitational/teleport/lib/client"
+	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver"
 	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -51,11 +54,17 @@ func Serve(ctx context.Context, cfg Config) error {
 
 	clock := clockwork.NewRealClock()
 
+	// Prepare tshdEventsClient with lazy loading.
+	tshdEventsClient := daemon.NewTshdEventsClient(grpcCredentials.tshdEvents)
+
+	// Always use the direct YubiKey PIV service since Connect provides the best UX.
+	hwks := piv.NewYubiKeyService(tshdEventsClient.NewHardwareKeyPrompt())
+
 	storage, err := clusters.NewStorage(clusters.Config{
-		Dir:                cfg.HomeDir,
 		Clock:              clock,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
 		AddKeysToAgent:     cfg.AddKeysToAgent,
+		ClientStore:        client.NewFSClientStore(cfg.HomeDir, client.WithHardwareKeyService(hwks)),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -64,20 +73,16 @@ func Serve(ctx context.Context, cfg Config) error {
 	clusterIDCache := &clusteridcache.Cache{}
 
 	daemonService, err := daemon.New(daemon.Config{
-		Storage:                         storage,
-		CreateTshdEventsClientCredsFunc: grpcCredentials.tshdEvents,
-		PrehogAddr:                      cfg.PrehogAddr,
-		KubeconfigsDir:                  cfg.KubeconfigsDir,
-		AgentsDir:                       cfg.AgentsDir,
-		ClusterIDCache:                  clusterIDCache,
+		Storage:          storage,
+		PrehogAddr:       cfg.PrehogAddr,
+		KubeconfigsDir:   cfg.KubeconfigsDir,
+		AgentsDir:        cfg.AgentsDir,
+		ClusterIDCache:   clusterIDCache,
+		TshdEventsClient: tshdEventsClient,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// TODO(gzdunek): Move tshdEventsClient out of daemonService so that we can
-	// construct the prompt before creating Storage.
-	storage.CustomHardwareKeyPrompt = daemonService.NewHardwareKeyPrompt()
 
 	apiServer, err := apiserver.New(apiserver.Config{
 		HostAddr:           cfg.Addr,
@@ -99,6 +104,20 @@ func Serve(ctx context.Context, cfg Config) error {
 		serverAPIWait <- err
 	}()
 
+	var hardwareKeyAgentServer *libhwk.Server
+	if cfg.HardwareKeyAgent {
+		hardwareKeyAgentServer, err = libhwk.NewAgentServer(ctx, hwks, libhwk.DefaultAgentDir(), storage.ClientStore.KnownHardwareKey)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to create the hardware key agent server", "err", err)
+		} else {
+			go func() {
+				if err := hardwareKeyAgentServer.Serve(ctx); err != nil {
+					slog.WarnContext(ctx, "hardware key agent server error", "err", err)
+				}
+			}()
+		}
+	}
+
 	// Wait for shutdown signals
 	go func() {
 		shutdownSignals := []os.Signal{os.Interrupt, syscall.SIGTERM}
@@ -114,6 +133,10 @@ func Serve(ctx context.Context, cfg Config) error {
 
 		daemonService.Stop()
 		apiServer.Stop()
+
+		if hardwareKeyAgentServer != nil {
+			hardwareKeyAgentServer.Stop()
+		}
 	}()
 
 	errAPI := <-serverAPIWait

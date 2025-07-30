@@ -125,9 +125,26 @@ func getVersionFromRollout(
 	case autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:
 		return version.EnsureSemver(rollout.GetSpec().GetTargetVersion())
+	case autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY:
+		if updaterIsCanary(group, updaterUUID) {
+			return version.EnsureSemver(rollout.GetSpec().GetTargetVersion())
+		}
+		return version.EnsureSemver(rollout.GetSpec().GetStartVersion())
 	default:
 		return nil, trace.NotImplemented("unsupported group state %q", group.GetState())
 	}
+}
+
+func updaterIsCanary(group *autoupdatepb.AutoUpdateAgentRolloutStatusGroup, updaterUUID string) bool {
+	if updaterUUID == "" {
+		return false
+	}
+	for _, canary := range group.GetCanaries() {
+		if canary.UpdaterId == updaterUUID {
+			return true
+		}
+	}
+	return false
 }
 
 // getTriggerFromRollout returns the version we should serve to the agent based
@@ -166,6 +183,8 @@ func getTriggerFromRollout(rollout *autoupdatepb.AutoUpdateAgentRollout, groupNa
 		return true, nil
 	case autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:
 		return rollout.GetSpec().GetStrategy() == autoupdate.AgentsStrategyHaltOnError, nil
+	case autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY:
+		return updaterIsCanary(group, updaterUUID), nil
 	default:
 		return false, trace.NotImplemented("Unsupported group state %q", group.GetState())
 	}
@@ -205,17 +224,24 @@ func getVersionFromChannel(ctx context.Context, channels automaticupgrades.Chann
 
 // getTriggerFromWindowThenChannel gets the target version from the RFD109 maintenance window and channels.
 func (h *Handler) getTriggerFromWindowThenChannel(ctx context.Context, groupName string) (bool, error) {
-	// Caching the CMC for 10 seconds because this resource is cached neither by the auth nor the proxy.
+	// Caching the CMC for 60 seconds because this resource is cached neither by the auth nor the proxy.
 	// And this function can be accessed via unauthenticated endpoints.
 	cmc, err := utils.FnCacheGet(ctx, h.clusterMaintenanceConfigCache, "cmc", func(ctx context.Context) (types.ClusterMaintenanceConfig, error) {
 		return h.cfg.ProxyClient.GetClusterMaintenanceConfig(ctx)
 	})
 
-	// If we have a CMC, we check if the window is active, else we just check if the update is critical.
-	if err == nil && cmc.WithinUpgradeWindow(h.clock.Now()) {
-		return true, nil
+	// If there's no CMC or we failed to get it, we fallback directly to the channel
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			h.logger.WarnContext(ctx, "Failed to get cluster maintenance config", "error", err)
+		}
+		return getTriggerFromChannel(ctx, h.cfg.AutomaticUpgradesChannels, groupName)
 	}
 
+	// If we have a CMC, we check if the window is active, else we just check if the update is critical.
+	if cmc.WithinUpgradeWindow(h.clock.Now()) {
+		return true, nil
+	}
 	return getTriggerFromChannel(ctx, h.cfg.AutomaticUpgradesChannels, groupName)
 }
 

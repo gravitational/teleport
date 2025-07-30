@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { type JSX } from 'react';
 import { matchPath, useHistory } from 'react-router';
 import { Link } from 'react-router-dom';
 import styled, { useTheme } from 'styled-components';
@@ -33,7 +33,11 @@ import { zIndexMap } from 'teleport/Navigation/zIndexMap';
 import { Notifications } from 'teleport/Notifications';
 import useTeleport from 'teleport/useTeleport';
 
-export function TopBar({ CustomLogo }: TopBarProps) {
+export function TopBar({
+  CustomLogo,
+}: {
+  CustomLogo?: () => React.ReactElement;
+}) {
   const ctx = useTeleport();
   const history = useHistory();
   const features = useFeatures();
@@ -85,25 +89,16 @@ export const TopBarContainer = styled(TopNav)`
   }
 `;
 
-const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
+const TeleportLogo = ({
+  CustomLogo,
+}: {
+  CustomLogo?: () => React.ReactElement;
+}) => {
   const theme = useTheme();
   const src = logos[cfg.edition][theme.type];
 
   return (
-    <HoverTooltip
-      placement="bottom"
-      tipContent="Teleport Resources Home"
-      css={`
-        height: 100%;
-        margin-right: 0px;
-        @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
-          margin-right: 76px;
-        }
-        @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
-          margin-right: 67px;
-        }
-      `}
-    >
+    <HoverTooltip placement="bottom" tipContent="Teleport Resources Home">
       <Link
         css={`
           cursor: pointer;
@@ -114,6 +109,14 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
               p.theme.colors.interactive.tonal.primary[0]};
           }
           align-items: center;
+          height: 100%;
+          margin-right: 0px;
+          @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
+            margin-right: 76px;
+          }
+          @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
+            margin-right: 67px;
+          }
         `}
         to={cfg.routes.root}
       >
@@ -151,9 +154,4 @@ export type NavigationItem = {
   title: string;
   path: string;
   Icon: JSX.Element;
-};
-
-export type TopBarProps = {
-  CustomLogo?: () => React.ReactElement;
-  showPoweredByLogo?: boolean;
 };

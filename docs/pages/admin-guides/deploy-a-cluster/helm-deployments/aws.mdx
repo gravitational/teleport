@@ -1,6 +1,9 @@
 ---
 title: Running an HA Teleport cluster using AWS, EKS, and Helm
 description: Install and configure an HA Teleport cluster using an AWS EKS cluster
+labels:
+ - how-to
+ - platform-wide
 ---
 
 In this guide, we'll use Teleport Helm charts to set up a high-availability Teleport cluster that runs on AWS EKS.
@@ -13,6 +16,22 @@ cluster to Teleport.
 </Admonition>
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
+
+## How it works
+
+The `teleport-cluster` Helm chart deploys the Teleport Auth Service and Teleport
+Proxy Service on your Amazon Elastic Kubernetes Service cluster. The chart
+requires the following resources, which we show you how to create in this guide:
+
+- **IAM permissions for the Teleport Auth Service**. The Auth Service requires
+  permissions to manage resources on its backend. 
+- **A system to provision TLS credentials** that the Proxy Service uses to run
+  its HTTPS server. In this guide, we show you how to do this with
+  `cert-manager`, AWS Certificate Manager, and your own TLS credentials.
+  Depending on the method you choose, you may also need to create IAM
+  permissions to allow the provisioning system to interact with AWS APIs.
+- **Amazon S3 bucket and DynamoDB database** for the Teleport Auth Service
+  backend.
 
 ## Prerequisites
 

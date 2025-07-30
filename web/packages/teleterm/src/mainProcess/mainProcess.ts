@@ -33,6 +33,8 @@ import {
   shell,
 } from 'electron';
 
+import { AbortError } from 'shared/utils/error';
+
 import Logger from 'teleterm/logger';
 import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
 import {
@@ -46,6 +48,7 @@ import {
   TSH_AUTOUPDATE_ENV_VAR,
   TSH_AUTOUPDATE_OFF,
 } from 'teleterm/node/tshAutoupdate';
+import { AppUpdater, AppUpdaterStorage } from 'teleterm/services/appUpdater';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
 import * as grpcCreds from 'teleterm/services/grpcCredentials';
 import {
@@ -53,7 +56,12 @@ import {
   KeepLastChunks,
   LoggerColor,
 } from 'teleterm/services/logger';
-import { createTshdClient, TshdClient } from 'teleterm/services/tshd';
+import {
+  AutoUpdateClient,
+  createAutoUpdateClient,
+  createTshdClient,
+  TshdClient,
+} from 'teleterm/services/tshd';
 import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
 import { staticConfig } from 'teleterm/staticConfig';
 import { FileStorage, RuntimeSettings } from 'teleterm/types';
@@ -109,6 +117,11 @@ export default class MainProcess {
     )
   );
   private readonly agentRunner: AgentRunner;
+  private tshdClients: Promise<{
+    terminalService: TshdClient;
+    autoUpdateService: AutoUpdateClient;
+  }>;
+  private readonly appUpdater: AppUpdater;
 
   private constructor(opts: Options) {
     this.settings = opts.settings;
@@ -132,8 +145,33 @@ export default class MainProcess {
         );
       }
     );
+
+    const getClusterVersions = async () => {
+      const { autoUpdateService } = await this.getTshdClients();
+      const { response } = await autoUpdateService.getClusterVersions({});
+      return response;
+    };
+    const getDownloadBaseUrl = async () => {
+      const { autoUpdateService } = await this.getTshdClients();
+      const {
+        response: { baseUrl },
+      } = await autoUpdateService.getDownloadBaseUrl({});
+      return baseUrl;
+    };
+    this.appUpdater = new AppUpdater(
+      makeAppUpdaterStorage(this.appStateFileStorage),
+      getClusterVersions,
+      getDownloadBaseUrl
+    );
   }
 
+  /**
+   * create starts necessary child processes such as tsh daemon and the shared process. It also sets
+   * up IPC handlers and resolves the network addresses under which the child processes set up gRPC
+   * servers.
+   *
+   * create might throw an error if spawning a child process fails, see initTshd for more details.
+   */
   static create(opts: Options) {
     const instance = new MainProcess(opts);
     instance.init();
@@ -142,6 +180,7 @@ export default class MainProcess {
 
   async dispose(): Promise<void> {
     this.windowsManager.dispose();
+    this.appUpdater.dispose();
     await Promise.all([
       // sending usage events on tshd shutdown has 10-seconds timeout
       terminateWithTimeout(this.tshdProcess, 10_000, () => {
@@ -159,29 +198,42 @@ export default class MainProcess {
   private init() {
     this.updateAboutPanelIfNeeded();
     this.setAppMenu();
-    try {
-      this.initTshd();
-      this.initSharedProcess();
-      this.initResolvingChildProcessAddresses();
-      this.initIpc();
-    } catch (err) {
-      this.logger.error('Failed to start main process: ', err.message);
-      app.exit(1);
-    }
+    this.initTshd();
+    this.initSharedProcess();
+    this.initResolvingChildProcessAddresses();
+    this.initIpc();
   }
 
-  async initTshdClient(): Promise<TshdClient> {
-    const { tsh: tshdAddress } = await this.resolvedChildProcessAddresses;
-    return setUpTshdClient({
-      runtimeSettings: this.settings,
-      tshdAddress,
-    });
+  async getTshdClients(): Promise<{
+    terminalService: TshdClient;
+    autoUpdateService: AutoUpdateClient;
+  }> {
+    if (!this.tshdClients) {
+      this.tshdClients = this.resolvedChildProcessAddresses.then(
+        ({ tsh: tshdAddress }) =>
+          setUpTshdClients({
+            runtimeSettings: this.settings,
+            tshdAddress,
+          })
+      );
+    }
+
+    return this.tshdClients;
   }
 
   private initTshd() {
     const { binaryPath, homeDir } = this.settings.tshd;
     this.logger.info(`Starting tsh daemon from ${binaryPath}`);
 
+    // spawn might either fail immediately by throwing an error or cause the error event to be emitted
+    // on the process value returned by spawn.
+    //
+    // Some spawn failures result in an error being thrown immediately such as EPERM on Windows [1].
+    // This might be related to the fact that in Node.js, an error event causes an error to be
+    // thrown if there are no listeners for the error event itself [2].
+    //
+    // [1] https://stackoverflow.com/a/42262771
+    // [2] https://nodejs.org/docs/latest-v22.x/api/errors.html#error-propagation-and-interception
     this.tshdProcess = spawn(
       binaryPath,
       ['daemon', 'start', ...this.getTshdFlags()],
@@ -229,6 +281,9 @@ export default class MainProcess {
       `--add-keys-to-agent=${this.configService.get('sshAgent.addKeysToAgent').value}`,
     ];
 
+    if (this.configService.get('hardwareKeyAgent.enabled').value) {
+      flags.unshift('--hardware-key-agent');
+    }
     if (settings.insecure) {
       flags.unshift('--insecure');
     }
@@ -559,6 +614,31 @@ export default class MainProcess {
       }
     );
 
+    ipcMain.handle(
+      MainProcessIpc.SelectDirectoryForDesktopSession,
+      async (_, args: { desktopUri: string; login: string }) => {
+        const value = await dialog.showOpenDialog({
+          properties: ['openDirectory'],
+        });
+        if (value.canceled) {
+          throw new AbortError();
+        }
+        if (value.filePaths.length !== 1) {
+          throw new Error('No directory selected.');
+        }
+
+        const [dirPath] = value.filePaths;
+        const { terminalService } = await this.getTshdClients();
+        await terminalService.setSharedDirectoryForDesktopSession({
+          desktopUri: args.desktopUri,
+          login: args.login,
+          path: dirPath,
+        });
+
+        return path.basename(dirPath);
+      }
+    );
+
     subscribeToTerminalContextMenuEvent(this.configService);
     subscribeToTabContextMenuEvent(
       this.settings.availableShells,
@@ -718,22 +798,28 @@ function sharePromise<T>(promiseFn: () => Promise<T>): () => Promise<T> {
 }
 
 /**
- * Sets up the gRPC client for tsh daemon used in the main process.
+ * Sets up the gRPC clients for tsh daemon used in the main process.
  */
-async function setUpTshdClient({
+async function setUpTshdClients({
   runtimeSettings,
   tshdAddress,
 }: {
   runtimeSettings: RuntimeSettings;
   tshdAddress: string;
-}): Promise<TshdClient> {
+}): Promise<{
+  terminalService: TshdClient;
+  autoUpdateService: AutoUpdateClient;
+}> {
   const creds = await createGrpcCredentials(runtimeSettings);
   const transport = new GrpcTransport({
     host: tshdAddress,
     channelCredentials: creds,
     interceptors: [loggingInterceptor(new Logger('tshd'))],
   });
-  return createTshdClient(transport);
+  return {
+    terminalService: createTshdClient(transport),
+    autoUpdateService: createAutoUpdateClient(transport),
+  };
 }
 
 async function createGrpcCredentials(
@@ -793,5 +879,19 @@ function rewrapResolveError(
       `Could not communicate with ${processName}.\n\n` +
         `Last logs from ${logPath}:\n${lastLogs}`
     );
+  };
+}
+
+const APP_UPDATER_STATE_KEY = 'appUpdater';
+function makeAppUpdaterStorage(fs: FileStorage): AppUpdaterStorage {
+  return {
+    get: () => {
+      const state = fs.get(APP_UPDATER_STATE_KEY) as object;
+      return { managingClusterUri: '', ...state };
+    },
+    put: value => {
+      const state = fs.get(APP_UPDATER_STATE_KEY) as object;
+      fs.put(APP_UPDATER_STATE_KEY, { ...state, ...value });
+    },
   };
 }

@@ -52,8 +52,8 @@ type Store struct {
 
 // StoreConfig contains shared config options for Store.
 type StoreConfig struct {
-	log          *slog.Logger
-	hwKeyService hardwarekey.Service
+	log                *slog.Logger
+	HardwareKeyService hardwarekey.Service
 }
 
 // StoreConfigOpt applies configuration options.
@@ -62,7 +62,7 @@ type StoreConfigOpt func(o *StoreConfig)
 // WithHardwareKeyService sets the hardware key service.
 func WithHardwareKeyService(hwKeyService hardwarekey.Service) StoreConfigOpt {
 	return func(o *StoreConfig) {
-		o.hwKeyService = hwKeyService
+		o.HardwareKeyService = hwKeyService
 	}
 }
 
@@ -115,7 +115,36 @@ func newClientStore(ks KeyStore, tcs TrustedCertsStore, ps ProfileStore, opts ..
 
 // NewHardwarePrivateKey create a new hardware private key with the given configuration in this client store.
 func (s *Store) NewHardwarePrivateKey(ctx context.Context, config hardwarekey.PrivateKeyConfig) (*keys.PrivateKey, error) {
-	return keys.NewHardwarePrivateKey(ctx, s.hwKeyService, config)
+	return keys.NewHardwarePrivateKey(ctx, s.HardwareKeyService, config)
+}
+
+// KnownHardwareKey returns whether the given hardware key ref and info corresponds to a hardware key known
+// to this client store.
+func (s *Store) KnownHardwareKey(ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo) (bool, error) {
+	keyRing, err := s.GetKeyRing(KeyRingIndex{
+		ProxyHost:   keyInfo.ProxyHost,
+		Username:    keyInfo.Username,
+		ClusterName: keyInfo.ClusterName,
+	})
+	if trace.IsNotFound(err) {
+		return false, nil
+	} else if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	// There is a known key matching the key info from the agent client, now check
+	// if it is the same key, with the same hardware key reference.
+	hwSigner, ok := keyRing.TLSPrivateKey.Signer.(*hardwarekey.Signer)
+	if !ok {
+		return false, nil
+	}
+
+	// We only need to compare the serial number and slot key. Other values, like the
+	// public key and prompt policy, will be validated against the hardware key directly
+	// when needed.
+	sameKeyRef := hwSigner.Ref.SerialNumber == ref.SerialNumber && hwSigner.Ref.SlotKey == ref.SlotKey
+
+	return sameKeyRef, nil
 }
 
 // AddKeyRing adds the given key ring to the key store. The key's trusted certificates are
@@ -162,7 +191,7 @@ func IsNoCredentialsError(err error) bool {
 // certs store. If the key ring is not found or is missing data (certificates, etc.),
 // then an ErrNoCredentials error is returned.
 func (s *Store) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing, error) {
-	keyRing, err := s.KeyStore.GetKeyRing(idx, s.hwKeyService, opts...)
+	keyRing, err := s.KeyStore.GetKeyRing(idx, s.HardwareKeyService, opts...)
 	if trace.IsNotFound(err) {
 		return nil, newNoCredentialsError(err)
 	} else if err != nil {
@@ -274,6 +303,7 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 		SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
 		SSOHost:                 profile.SSOHost,
 		IsVirtual:               !onDisk,
+		TLSRoutingEnabled:       profile.TLSRoutingEnabled,
 	})
 }
 

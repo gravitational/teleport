@@ -1,7 +1,11 @@
 ---
 title: Database Access with MongoDB Atlas
+sidebar_label: MongoDB Atlas
 description: How to configure Teleport database access with MongoDB Atlas.
 videoBanner: mu_ZKTjnFJ8
+labels:
+ - how-to
+ - zero-trust
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="MongoDB Atlas" dbConfigure="with either mutual TLS or AWS IAM authentication"!)
@@ -85,12 +89,12 @@ teleport:
   proxy_server: <Var name="example.teleport.sh:443" />
 
 # disable services that are on by default
-ssh_service: { enabled: no }
-proxy_service: { enabled: no }
-auth_service: { enabled: no }
+ssh_service: { enabled: false }
+proxy_service: { enabled: false }
+auth_service: { enabled: false }
 
 db_service:
-  enabled: "yes"
+  enabled: true
   databases:
   - name: "mongodb-atlas"
     protocol: "mongodb"

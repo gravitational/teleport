@@ -27,26 +27,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 	"unsafe"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/darwinbundle"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, "vnet:daemon")
+var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.Component("vnet", "daemon"))
 
 // RegisterAndCall attempts to register the daemon as a login item, waits for the user to enable it
 // and then starts it by sending a message through XPC.
 func RegisterAndCall(ctx context.Context, config Config) error {
-	bundlePath, err := bundlePath()
+	bundlePath, err := darwinbundle.Path()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -176,7 +173,7 @@ func waitForEnablement(ctx context.Context, bundlePath string) error {
 
 // DaemonStatus returns the status of the background item responsible for launching the daemon.
 func DaemonStatus() (ServiceStatus, error) {
-	bundlePath, err := bundlePath()
+	bundlePath, err := darwinbundle.Path()
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -218,37 +215,6 @@ func (s ServiceStatus) String() string {
 	default:
 		return strconv.Itoa(int(s))
 	}
-}
-
-// bundlePath returns a path to the bundle that the current executable comes from.
-// If the current executable is a symlink, it resolves the symlink. This is to address a scenario
-// where tsh is installed from tsh.pkg and symlinked to /usr/local/bin/tsh, in which case the
-// mainBundle function from NSBundle incorrectly points to /usr/local/bin as the bundle path.
-// https://developer.apple.com/documentation/foundation/nsbundle/1410786-mainbundle
-//
-// Returns an error if the dir of the current executable doesn't end with "/Contents/MacOS", likely
-// because the executable is not in an app bundle.
-func bundlePath() (string, error) {
-	exe, err := os.Executable()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	absExe, err := utils.NormalizePath(exe, true /* evaluateSymlinks */)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	dir := filepath.Dir(absExe)
-
-	const appBundleSuffix = "/Contents/MacOS"
-	if !strings.HasSuffix(dir, appBundleSuffix) {
-		exeName := filepath.Base(exe)
-		log.DebugContext(context.Background(), "Current executable is likely outside of app bundle", "exe", absExe)
-		return "", trace.NotFound("%s is not in an app bundle", exeName)
-	}
-
-	return strings.TrimSuffix(dir, appBundleSuffix), nil
 }
 
 func startByCalling(ctx context.Context, bundlePath string, config Config) error {

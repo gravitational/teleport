@@ -19,11 +19,11 @@
 package proxy
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"path/filepath"
 	"testing"
@@ -35,10 +35,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
-	"github.com/gravitational/teleport/lib/automaticupgrades/basichttp"
 	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func createProxyWithChannels(t *testing.T, channels automaticupgrades.Channels) string {
@@ -49,7 +48,7 @@ func createProxyWithChannels(t *testing.T, channels automaticupgrades.Channels) 
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	}
 	cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)
@@ -75,10 +74,43 @@ func createProxyWithChannels(t *testing.T, channels automaticupgrades.Channels) 
 	return cfg.Listeners.Web
 }
 
+// ServerMock is a HTTP server whose response can be controlled from the tests.
+// This is used to mock external dependencies like s3 buckets or a remote HTTP server.
+type ServerMock struct {
+	Srv *httptest.Server
+
+	t        *testing.T
+	code     int
+	response string
+	path     string
+}
+
+// SetResponse sets the ServerMock's response.
+func (m *ServerMock) SetResponse(t *testing.T, code int, response string) {
+	m.t = t
+	m.code = code
+	m.response = response
+}
+
+// ServeHTTP implements the http.Handler interface.
+func (m *ServerMock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	require.Equal(m.t, m.path, r.URL.Path)
+	w.WriteHeader(m.code)
+	_, err := io.WriteString(w, m.response)
+	require.NoError(m.t, err)
+}
+
+// NewServerMock builds a [ServerMock] that only
+// responds to requests for the given path.
+func NewServerMock(path string) *ServerMock {
+	mock := ServerMock{path: path}
+	mock.Srv = httptest.NewServer(http.HandlerFunc(mock.ServeHTTP))
+	return &mock
+}
+
 func TestVersionServer(t *testing.T) {
 	// Test setup
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	testVersion := "v12.2.6"
 	testVersionMajorTooHigh := "v99.1.3"
@@ -91,11 +123,11 @@ func TestVersionServer(t *testing.T) {
 	forwardNoVersionChannel := "forward/none"
 	forwardPath := "/version-server/"
 
-	upstreamServer := basichttp.NewServerMock(forwardPath + constants.VersionPath)
+	upstreamServer := NewServerMock(forwardPath + constants.VersionPath)
 	upstreamServer.SetResponse(t, http.StatusOK, testVersion)
-	upstreamHighServer := basichttp.NewServerMock(forwardPath + constants.VersionPath)
+	upstreamHighServer := NewServerMock(forwardPath + constants.VersionPath)
 	upstreamHighServer.SetResponse(t, http.StatusOK, testVersionMajorTooHigh)
-	upstreamNoVersionServer := basichttp.NewServerMock(forwardPath + constants.VersionPath)
+	upstreamNoVersionServer := NewServerMock(forwardPath + constants.VersionPath)
 	upstreamNoVersionServer.SetResponse(t, http.StatusOK, constants.NoVersion)
 
 	channels := automaticupgrades.Channels{
@@ -164,7 +196,6 @@ func TestVersionServer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			channelUrl, err := url.Parse(
 				fmt.Sprintf("https://%s/v1/webapi/automaticupgrades/channel/%s/version", proxyAddr, tt.channel),
@@ -187,8 +218,7 @@ func TestVersionServer(t *testing.T) {
 }
 func TestDefaultVersionServer(t *testing.T) {
 	// Test setup
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	channels := automaticupgrades.Channels{}
 
@@ -217,7 +247,6 @@ func TestDefaultVersionServer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			channelUrl, err := url.Parse(
 				fmt.Sprintf("https://%s/v1/webapi/automaticupgrades/channel/%s/version", proxyAddr, tt.channel),

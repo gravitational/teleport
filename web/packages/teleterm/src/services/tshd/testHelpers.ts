@@ -48,7 +48,7 @@ export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
 export const databaseUri = `${rootClusterUri}/dbs/foo`;
 export const kubeUri = `${rootClusterUri}/kubes/foo`;
 export const appUri = `${rootClusterUri}/apps/foo`;
-export const windowsDesktopUri = `${rootClusterUri}/windowsDesktops/foo`;
+export const windowsDesktopUri = `${rootClusterUri}/windows_desktops/foo`;
 
 export const makeDatabase = (
   props: Partial<tsh.Database> = {}
@@ -135,7 +135,7 @@ export const makeLeafCluster = (
   ...props,
 });
 
-export const makeAcl = (props: Partial<ACL> = {}) => ({
+export const makeAcl = (props: Partial<ACL> = {}): ACL => ({
   recordedSessions: {
     list: true,
     read: true,
@@ -241,6 +241,8 @@ export const makeAcl = (props: Partial<ACL> = {}) => ({
     use: true,
   },
   reviewRequests: true,
+  directorySharingEnabled: true,
+  clipboardSharingEnabled: true,
   ...props,
 });
 
@@ -364,6 +366,8 @@ export const makeAccessRequest = (
   maxDuration: { seconds: 1729026573n, nanos: 0 },
   requestTtl: { seconds: 1729026573n, nanos: 0 },
   sessionTtl: { seconds: 1729026573n, nanos: 0 },
+  reasonMode: 'optional',
+  reasonPrompts: [],
   ...props,
 });
 

@@ -236,7 +236,7 @@ describe('useMfa', () => {
     expect(await resp).toEqual(mockResponse);
   });
 
-  test('reset mfa attempt', async () => {
+  test('cancel mfa attempt', async () => {
     jest.spyOn(auth, 'getMfaChallenge').mockResolvedValue(mockChallenge);
     const { result: mfa } = renderHook(() =>
       useMfa({
@@ -263,5 +263,34 @@ describe('useMfa', () => {
     expect(
       mfa.current.attempt.status === 'error' && mfa.current.attempt.error
     ).toEqual(new MfaCanceledError());
+  });
+
+  test('reset mfa state', async () => {
+    jest.spyOn(auth, 'getMfaChallenge').mockResolvedValue(mockChallenge);
+    const { result: mfa } = renderHook(() =>
+      useMfa({
+        req: mockChallengeReq,
+      })
+    );
+
+    let resp: Promise<MfaChallengeResponse>;
+    await act(async () => {
+      resp = mfa.current.getChallengeResponse();
+    });
+
+    // Before calling mfa.current.cancelAttempt(), we need to write code that handles rejection of
+    // resp. Otherwise, the test is going to fail because of unhandled promise rejection.
+    // eslint-disable-next-line jest/valid-expect
+    const expectedRespRejection = expect(resp).rejects.toEqual(
+      new MfaCanceledError()
+    );
+
+    await act(async () => mfa.current.cancelAttempt());
+    await expectedRespRejection;
+    expect(mfa.current.attempt.status).toEqual('error');
+
+    act(() => mfa.current.reset());
+    expect(mfa.current.challenge).toEqual(null);
+    expect(mfa.current.attempt.status).toEqual('');
   });
 });

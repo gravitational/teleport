@@ -27,7 +27,6 @@ import { TerminalSearch } from 'shared/components/TerminalSearch';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
-import { isDocumentTshNodeWithServerId } from 'teleterm/ui/services/workspacesService';
 import type * as types from 'teleterm/ui/services/workspacesService';
 
 import { Reconnect } from './Reconnect';
@@ -85,43 +84,42 @@ export function DocumentTerminal(props: {
 
   const docConnected =
     doc.kind === 'doc.terminal_tsh_node' && doc.status === 'connected';
-  const $fileTransfer = doc.kind === 'doc.terminal_tsh_node' &&
-    isDocumentTshNodeWithServerId(doc) && (
-      <FileTransfer
-        beforeClose={() =>
-          // TODO (gzdunek): replace with a native dialog
-          window.confirm('Are you sure you want to cancel file transfers?')
-        }
-        transferHandlers={{
-          getDownloader: async (sourcePath, abortController) => {
-            const fileDialog =
-              await ctx.mainProcessClient.showFileSaveDialog(sourcePath);
-            if (fileDialog.canceled) {
-              return;
-            }
-            return download(
-              {
-                serverUri: doc.serverUri,
-                login: doc.login,
-                source: sourcePath,
-                destination: fileDialog.filePath,
-              },
-              abortController
-            );
-          },
-          getUploader: async (destinationPath, file, abortController) =>
-            upload(
-              {
-                serverUri: doc.serverUri,
-                login: doc.login,
-                source: ctx.getPathForFile(file),
-                destination: destinationPath,
-              },
-              abortController
-            ),
-        }}
-      />
-    );
+  const $fileTransfer = doc.kind === 'doc.terminal_tsh_node' && (
+    <FileTransfer
+      beforeClose={() =>
+        // TODO (gzdunek): replace with a native dialog
+        window.confirm('Are you sure you want to cancel file transfers?')
+      }
+      transferHandlers={{
+        getDownloader: async (sourcePath, abortController) => {
+          const fileDialog =
+            await ctx.mainProcessClient.showFileSaveDialog(sourcePath);
+          if (fileDialog.canceled) {
+            return;
+          }
+          return download(
+            {
+              serverUri: doc.serverUri,
+              login: doc.login,
+              source: sourcePath,
+              destination: fileDialog.filePath,
+            },
+            abortController
+          );
+        },
+        getUploader: async (destinationPath, file, abortController) =>
+          upload(
+            {
+              serverUri: doc.serverUri,
+              login: doc.login,
+              source: ctx.getPathForFile(file),
+              destination: destinationPath,
+            },
+            abortController
+          ),
+      }}
+    />
+  );
 
   return (
     <Document

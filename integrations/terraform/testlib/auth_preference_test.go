@@ -24,6 +24,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/stretchr/testify/require"
 
+	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -82,7 +83,7 @@ func (s *TerraformSuiteOSS) TestImportAuthPreference() {
 	authPreferencesBefore, err := s.client.GetAuthPreference(ctx)
 	require.NoError(s.T(), err)
 
-	err = s.client.SetAuthPreference(ctx, authPreference)
+	_, err = s.client.ClusterConfigClient().UpsertAuthPreference(ctx, &clusterconfigv1.UpsertAuthPreferenceRequest{AuthPreference: authPreference})
 	require.NoError(s.T(), err)
 
 	require.Eventually(s.T(), func() bool {

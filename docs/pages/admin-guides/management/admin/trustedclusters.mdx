@@ -1,6 +1,9 @@
 ---
 title: Configure Trusted Clusters
 description: Explains how you can configure a trust relationship and manage access between two Teleport clusters.
+labels:
+ - how-to
+ - zero-trust
 ---
 
 <Admonition type="note">
@@ -29,21 +32,6 @@ instance running on the root cluster.
    leaf Proxy Services to connect to sensitive or unauthorized resources, so be sure to use a
    firewall to ensure leaf Proxy services are only allowed to connect to the appropriate resources.  
 </Admonition>
-
-## Who uses trusted clusters?
-
-Most organizations don't need to configure trusted clusters. In most cases, you can add 
-multiple Teleport Proxy Service instances to enroll and manage thousands of resources 
-without creating a new cluster.
-
-However, there are a few specific scenarios where trusted clusters can be particularly useful.
-For example, if you have a large and widely-distributed infrastructure or must provide access
-to resources for external agencies, contractors, or clients, you might benefit from setting up 
-a trusted cluster. The most common use cases for trusted clusters include:
-
-- Managed service providers (MSP) remotely managing the infrastructure of their clients.
-- Device manufacturers remotely maintaining computing appliances deployed on premises.
-- Large cloud software vendors managing multiple data centers using a common proxy.
 
 ## How it works
 
@@ -95,6 +83,21 @@ on the leaf cluster and service running on the root cluster:
 Note that trusted clusters only work in one direction. 
 Users from the leaf cluster can't see or connect to resources in the root cluster.
 
+## Who uses trusted clusters?
+
+Most organizations don't need to configure trusted clusters. In most cases, you can add 
+multiple Teleport Proxy Service instances to enroll and manage thousands of resources 
+without creating a new cluster.
+
+However, there are a few specific scenarios where trusted clusters can be particularly useful.
+For example, if you have a large and widely-distributed infrastructure or must provide access
+to resources for external agencies, contractors, or clients, you might benefit from setting up 
+a trusted cluster. The most common use cases for trusted clusters include:
+
+- Managed service providers (MSP) remotely managing the infrastructure of their clients.
+- Device manufacturers remotely maintaining computing appliances deployed on premises.
+- Large cloud software vendors managing multiple data centers using a common proxy.
+
 ## Role relationships in a trusted cluster
 
 Leaf clusters are autonomous in that they have their own state, roles, and local users. This autonomy 
@@ -110,7 +113,7 @@ configured with a single sign-on identity provider that authenticates her identi
 Based on the information from the identity provider, the root cluster assigns Alice the `full-access` role
 and issues her a certificate. The mapping of single sign-on properties to Teleport roles is configured when
 you add an authentication connector to the Teleport cluster. To learn more about configuring single sign-on
-through an external identity provider, see [Configure Single Sign-on](../../access-controls/sso/sso.mdx).
+through an external identity provider, see [Configure Single Sign-on](../../../zero-trust-access/sso/sso.mdx).
 
 Alice receives the certificate that specifies the roles assigned to her in the root cluster. This metadata
 about her roles is contained in the certificate extensions and is protected by the signature of the root 
@@ -144,12 +147,14 @@ to learn how to:
 
 To complete the steps in this guide, verify your environment meets the following requirements:
 
+- [Proxy peering](../../../admin-guides/management/operations/proxy-peering.mdx) must be disabled. Proxy Peering and Trusted Clusters are not compatible.
+
 - Access to **two** Teleport cluster instances.
 
   The two clusters should be at the same version or, at most, the leaf cluster can be one major version 
   behind the root cluster version.
 
-- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=).
+- The `tctl` admin tool and `tsh` client tool.
   
   You can verify the tools you have installed by running the following commands:
 
@@ -161,11 +166,11 @@ To complete the steps in this guide, verify your environment meets the following
   # Teleport v(=teleport.version=) go(=teleport.golang=)
   ```
 
-  For more information about installing Teleport, see [Installation](../../../installation.mdx).
+  For more information about installing Teleport, see [Installation](../../../installation/installation.mdx).
 
 - A Teleport SSH server that is joined to the cluster you plan to use as the **leaf cluster**.
   For information about how to enroll a resource in your cluster, see 
-  [Join Services to your Cluster](../../../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx).
+  [Join Services to your Cluster](../../../enroll-resources/agents/agents.mdx).
 
 (!docs/pages/includes/permission-warning.mdx!)
 

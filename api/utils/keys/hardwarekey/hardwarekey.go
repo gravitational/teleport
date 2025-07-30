@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"io"
+	"time"
 
 	"github.com/gravitational/trace"
 )
@@ -124,6 +125,8 @@ type PrivateKeyRef struct {
 	// AttestationStatement contains the hardware private key's attestation statement, which is
 	// to attest the touch and pin requirements for this hardware private key during login.
 	AttestationStatement *AttestationStatement `json:"attestation_statement"`
+	// PINCacheTTL is how long hardware key prompts should cache the PIN for this key, if at all.
+	PINCacheTTL time.Duration `json:"pin_cache_ttl"`
 }
 
 // encode encodes a [PrivateKeyRef] to JSON.
@@ -234,8 +237,13 @@ type PrivateKeyConfig struct {
 	//   - touch & pin   -> 9d
 	//   - touch & !pin  -> 9e
 	CustomSlot PIVSlotKeyString
+	// Algorithm is the key algorithm to use. Defaults to [AlgorithmEC256].
+	// [AlgorithmEd25519] is not supported by all hardware keys.
+	Algorithm SignatureAlgorithm
 	// ContextualKeyInfo contains additional info to associate with the key.
 	ContextualKeyInfo ContextualKeyInfo
+	// PINCacheTTL is an option to enable PIN caching for this key with the specified TTL.
+	PINCacheTTL time.Duration
 }
 
 // ContextualKeyInfo contains contextual information associated with a hardware [PrivateKey].
@@ -246,4 +254,29 @@ type ContextualKeyInfo struct {
 	Username string
 	// ClusterName is a Teleport cluster name that the key is associated with.
 	ClusterName string
+	// AgentKeyInfo contains info associated with an hardware key agent signature request.
+	AgentKeyInfo AgentKeyInfo
 }
+
+// AgentKeyInfo contains info associated with an hardware key agent signature request.
+type AgentKeyInfo struct {
+	// UnknownAgentKey indicates whether this hardware private key is known to the hardware key agent
+	// process, usually based on whether a matching key is found in the process's client key store.
+	//
+	// For unknown agent keys, the hardware key service will check that the certificate in the same
+	// slot as the key matches a Teleport client metadata certificate in order to ensure the agent
+	// doesn't provide access to non teleport client PIV keys.
+	UnknownAgentKey bool
+	// Command is the command reported by the agent client which this agent key is being utilized to
+	// complete, e.g. `tsh ssh server01`.
+	Command string
+}
+
+// SignatureAlgorithm is a signature key algorithm option.
+type SignatureAlgorithm int
+
+const (
+	SignatureAlgorithmEC256 SignatureAlgorithm = iota + 1
+	SignatureAlgorithmEd25519
+	SignatureAlgorithmRSA2048
+)

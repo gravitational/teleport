@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { type JSX } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import { Box, Flex, rotate360 } from 'design';

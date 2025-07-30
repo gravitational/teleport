@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -206,12 +207,27 @@ func FormatMultiValueLabels(labels map[string][]string, verbose bool) string {
 func FormatResourceName(r types.ResourceWithLabels, verbose bool) string {
 	if !verbose {
 		// return the (shorter) discovered name in non-verbose mode.
-		discoveredName, ok := r.GetAllLabels()[types.DiscoveredNameLabel]
+		discoveredName, ok := GetDiscoveredResourceName(r)
 		if ok && discoveredName != "" {
 			return discoveredName
 		}
 	}
 	return r.GetName()
+}
+
+// GetDiscoveredResourceName returns the resource original name discovered in
+// the cloud by the Teleport Discovery Service.
+func GetDiscoveredResourceName(r types.ResourceWithLabels) (discoveredName string, ok bool) {
+	discoveredName, ok = r.GetAllLabels()[types.DiscoveredNameLabel]
+	return
+}
+
+// SetDiscoveredResourceName sets the original name discovered in the cloud by
+// the Teleport Discovery Service.
+func SetDiscoveredResourceName(r types.ResourceWithLabels, discoveredName string) {
+	labels := r.GetStaticLabels()
+	labels[types.DiscoveredNameLabel] = discoveredName
+	r.SetStaticLabels(labels)
 }
 
 // FormatDefault formats a zero value with its default, or if the value is not
@@ -222,4 +238,36 @@ func FormatDefault[T comparable](val, defaultVal T) string {
 		return fmt.Sprintf("%v (default)", defaultVal)
 	}
 	return fmt.Sprintf("%v", val)
+}
+
+// FormatAllowedEntities returns a human-readable string describing the allowed
+// entities, optionally including a list of denied entities as exceptions.
+func FormatAllowedEntities(allowed []string, denied []string) string {
+	if len(allowed) == 0 {
+		return "(none)"
+	}
+	if len(denied) == 0 {
+		return fmt.Sprintf("%v", allowed)
+	}
+	return fmt.Sprintf("%v, except: %v", allowed, denied)
+}
+
+// PrintJSONIndent prints provided value in JSON with default indentation.
+func PrintJSONIndent(w io.Writer, v any) error {
+	out, err := utils.FastMarshalIndent(v, "", "  ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = fmt.Fprintln(w, string(out))
+	return trace.Wrap(err)
+}
+
+// PrintYAML prints provided value in YAML.
+func PrintYAML(w io.Writer, v any) error {
+	out, err := yaml.Marshal(v)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = fmt.Fprintln(w, string(out))
+	return trace.Wrap(err)
 }

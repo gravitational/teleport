@@ -98,7 +98,7 @@ func NewServer(resolver Resolver, upstreamNameserverSource UpstreamNameserverSou
 				return &buf
 			},
 		},
-		slog: slog.With(teleport.ComponentKey, "VNet.DNS"),
+		slog: slog.With(teleport.ComponentKey, teleport.Component("vnet", "dns")),
 	}, nil
 }
 

@@ -1,6 +1,9 @@
 ---
 title: Automatically Register Resources with Teleport
 description: Learn how to use the Teleport API to start agents automatically when you add resources to your infrastructure.
+labels:
+ - how-to
+ - zero-trust
 ---
 
 You can use Teleport's API to automatically register resources in your
@@ -16,6 +19,8 @@ to write your own workflow.
 In this guide, we will demonstrate some libraries you can use to automatically
 register resources with Teleport. We will use an example you can run locally on
 your workstation.
+
+## How it works
 
 Automatic registration consists of the following steps:
 
@@ -973,5 +978,5 @@ In this example, we used the `tctl auth sign` command to fetch credentials for
 the program you wrote. For production usage, we recommend provisioning
 short-lived credentials via Machine ID, which reduces the risk of these
 credentials becoming stolen. View our [Machine ID
-documentation](../../enroll-resources/machine-id/introduction.mdx) to learn more.
+documentation](../../machine-workload-identity/machine-id/introduction.mdx) to learn more.
 

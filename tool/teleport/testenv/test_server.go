@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/hostid"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
@@ -155,7 +156,7 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 
 	cfg.Hostname = "server01"
 	cfg.DataDir = t.TempDir()
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Logger = logtest.NewLogger()
 	authAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerAuth, &cfg.FileDescriptors)}
 	cfg.SetToken(StaticToken)
 	cfg.SetAuthServerAddress(authAddr)
@@ -258,6 +259,9 @@ func waitForServices(t *testing.T, auth *service.TeleportProcess, cfg *servicecf
 	}
 	if cfg.Auth.Enabled {
 		serviceReadyEvents = append(serviceReadyEvents, service.AuthTLSReady)
+	}
+	if cfg.Kube.Enabled {
+		serviceReadyEvents = append(serviceReadyEvents, service.KubernetesReady)
 	}
 	waitForEvents(t, auth, serviceReadyEvents...)
 
@@ -549,7 +553,7 @@ func (p *cliModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
+func (p *cliModules) AttestHardwareKey(_ context.Context, _ any, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	return nil, trace.NotFound("no attestation data for the given key")
 }
 

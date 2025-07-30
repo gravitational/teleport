@@ -19,9 +19,11 @@ package workloadidentityv1
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -66,14 +68,14 @@ func Test_decide(t *testing.T) {
 			},
 			attrs:     standardAttrs,
 			wantIssue: false,
-			assertReason: func(t require.TestingT, err error, i ...interface{}) {
+			assertReason: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "templating spec.spiffe.x509.dns_sans[0] resulted in an invalid DNS name")
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d := decide(context.Background(), tt.wid, tt.attrs)
+			d := decide(context.Background(), tt.wid, tt.attrs, OSSSigstorePolicyEvaluator{})
 			require.Equal(t, tt.wantIssue, d.shouldIssue)
 			tt.assertReason(t, d.reason)
 		})
@@ -93,7 +95,7 @@ func Test_evaluateRules(t *testing.T) {
 		},
 	}
 
-	var noMatchRule require.ErrorAssertionFunc = func(t require.TestingT, err error, i ...interface{}) {
+	var noMatchRule require.ErrorAssertionFunc = func(t require.TestingT, err error, i ...any) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "no matching rule found")
 	}
@@ -400,11 +402,89 @@ func Test_evaluateRules(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := evaluateRules(tt.wid, tt.attrs)
+			err := evaluateRules(context.Background(), tt.wid, tt.attrs,
+				OSSSigstorePolicyEvaluator{}, make(map[string]error))
 			tt.requireErr(t, err)
 		})
 	}
 }
+
+func Test_decision_sigstore(t *testing.T) {
+	identity := &workloadidentityv1pb.WorkloadIdentity{
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Rules: &workloadidentityv1pb.WorkloadIdentityRules{
+				Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
+					{Expression: `sigstore.policy_satisfied("foo") && sigstore.policy_satisfied("bar")`},
+				},
+			},
+			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{},
+		},
+	}
+	attrs := &workloadidentityv1pb.Attrs{}
+
+	t.Run("success", func(t *testing.T) {
+		evaluator := newMockSigstorePolicyEvaluator(t)
+
+		for policy, result := range map[string]error{
+			"foo": nil,
+			"bar": nil,
+		} {
+			evaluator.On("Evaluate", mock.Anything, []string{policy}, attrs).
+				Return(map[string]error{policy: result}, nil)
+		}
+
+		decision := decide(
+			context.Background(),
+			identity,
+			attrs,
+			evaluator,
+		)
+		require.True(t, decision.shouldIssue)
+		require.NoError(t, decision.reason)
+	})
+
+	t.Run("failure", func(t *testing.T) {
+		evaluator := newMockSigstorePolicyEvaluator(t)
+
+		results := map[string]error{
+			"foo": nil,
+			"bar": errors.New("missing artifact signature"),
+		}
+		for policy, result := range results {
+			evaluator.On("Evaluate", mock.Anything, []string{policy}, attrs).
+				Return(map[string]error{policy: result}, nil)
+		}
+
+		decision := decide(
+			context.Background(),
+			identity,
+			attrs,
+			evaluator,
+		)
+		require.False(t, decision.shouldIssue)
+		require.Equal(t, results, decision.sigstorePolicyResults)
+	})
+}
+
+func newMockSigstorePolicyEvaluator(t *testing.T) *mockSigstorePolicyEvaluator {
+	t.Helper()
+
+	eval := new(mockSigstorePolicyEvaluator)
+	t.Cleanup(func() { _ = eval.AssertExpectations(t) })
+
+	return eval
+}
+
+type mockSigstorePolicyEvaluator struct {
+	mock.Mock
+}
+
+func (m *mockSigstorePolicyEvaluator) Evaluate(ctx context.Context, policyNames []string, attrs *workloadidentityv1pb.Attrs) (map[string]error, error) {
+	result := m.Called(ctx, policyNames, attrs)
+	return result.Get(0).(map[string]error), result.Error(1)
+}
+
+var _ SigstorePolicyEvaluator = (*mockSigstorePolicyEvaluator)(nil)
 
 func TestTemplateExtraClaims_Success(t *testing.T) {
 	const inputJSON = `

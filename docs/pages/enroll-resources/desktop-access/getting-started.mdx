@@ -2,6 +2,9 @@
 title: Configure access for local Windows users
 description: Use Teleport to configure passwordless access for local Windows users.
 videoBanner: 9DyKQbg4ORc
+labels:
+ - how-to
+ - zero-trust
 ---
 
 This guide demonstrates how to configure Teleport to provide secure, passwordless access
@@ -48,9 +51,9 @@ To prepare a Windows computer:
    $ curl.exe -fo teleport.cer https://<Var name="teleport.example.com"/>/webapi/auth/export?type=windows
    ```
 
-   If you are using Teleport's support for HSM-backed keys, then your Teleport cluster
-   has multiple user CAs (one for each Auth Service instance). You can download a bundle
-   containing all CAs by appending `&format=zip` to the URL.
+   If your Teleport cluster uses HSM or AWS KMS-backed keys, there will be multiple 
+   user CAs (one for each Auth Service instance). You can download a bundle containing
+   all CAs by appending `&format=zip` to the URL.
 
 3. Download the Teleport Windows Auth setup program:
 
@@ -134,7 +137,7 @@ Windows Desktop Service by running the following command:
    ```
 
    If Teleport isn't installed on the Linux server, follow the appropriate [Installation
-instructions](../../installation.mdx#linux) for your environment.
+instructions](../../installation/linux.mdx) for your environment.
 
 1. Configure the `/etc/teleport.yaml` file on the Linux server with settings similar to the
 following for the Windows Desktop Service:
@@ -147,18 +150,18 @@ following for the Windows Desktop Service:
      proxy_server: <Var name="teleport.example.com" />:443
      auth_token: "/tmp/token"
    windows_desktop_service:
-     enabled: yes
+     enabled: true
      static_hosts:
      - name: host1
        ad: false
        addr: 192.0.2.156
 
    auth_service:
-     enabled: no
+     enabled: false
    proxy_service:
-     enabled: no
+     enabled: false
    ssh_service:
-     enabled: no
+     enabled: false
    ```
 
    In this file:
@@ -186,7 +189,7 @@ following for the Windows Desktop Service:
      proxy_server: teleport.example.com:443
      auth_token: /tmp/token
    windows_desktop_service:
-     enabled: yes
+     enabled: true
      static_hosts:
      - name: host1
        ad: false
@@ -205,7 +208,7 @@ following for the Windows Desktop Service:
      nodename: <Var name="windows.teleport.example.com" />
      proxy_server: teleport-proxy.example.com:443
    windows_desktop_service:
-     enabled: yes
+     enabled: true
      static_hosts:
       - name: host1
         ad: false
@@ -271,6 +274,7 @@ Now that you have configured a Linux server to run the Windows Desktop Service a
 created a role to allow a Teleport user to connect to Microsoft Windows with a local
 Windows login, you can use the Teleport user assigned the `windows-desktop-admins` role
 to connect to Windows desktops from the Teleport Web UI.
+Alternatively, you can connect using Teleport Connect.
 
 To connect to a Windows desktop:
 

@@ -46,6 +46,12 @@ extern const int VNEMissingCodeSigningIdentifiersError;
 - (void)startVnet:(VNEConfig *)vnetConfig completion:(void (^)(NSError *error))completion;
 @end
 
+// DaemonLabel returns the label for the VNet daemon from the bundle under the given path.
+// The caller is expected to free the returned pointer.
+//
+// An empty string most likely means that there's no bundle under the current path.
+const char *DaemonLabel(const char *bundlePath);
+
 // Returns the label for the daemon by getting the identifier of the bundle
 // this executable is shipped in and appending ".vnetd" to it.
 //
@@ -53,7 +59,7 @@ extern const int VNEMissingCodeSigningIdentifiersError;
 //
 // The filename and the value of the Label key in the plist file and the Mach
 // service of of the daemon must match the string returned from this function.
-NSString *DaemonLabel(NSString *bundlePath);
+NSString *VNEDaemonLabel(NSString *bundlePath);
 
 // VNECopyNSString duplicates an NSString into an UTF-8 encoded C string.
 // The caller is expected to free the returned pointer.

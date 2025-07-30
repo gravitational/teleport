@@ -342,8 +342,8 @@ func (c *aksClient) getAzureADCredentials(ctx context.Context, cluster ClusterCr
 
 	// calls the ListClusterAdminCrdentials endpoint to return the admin static credentials.
 	adminCfg, err := c.getAdminCredentials(ctx, cluster.ResourceGroup, cluster.ResourceName)
-	switch {
-	case err == nil:
+	switch err {
+	case nil:
 		// given the admin credentials, the agent will try to create the ClusterRole and
 		// ClusterRoleBinding objects in the AKS cluster.
 		if adminCredentialsErr = c.grantAccessWithAdminCredentials(ctx, adminCfg, groupID); adminCredentialsErr == nil {

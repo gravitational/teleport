@@ -1,6 +1,9 @@
 ---
 title: Teleport EKS Auto-Discovery
 description: How to configure auto-discovery of AWS EKS clusters in Teleport.
+labels:
+ - how-to
+ - zero-trust
 ---
 
 EKS Auto-Discovery can automatically
@@ -299,13 +302,13 @@ teleport:
     method: token
   proxy_server: "teleport.example.com:443"
 auth_service:
-  enabled: off
+  enabled: false
 proxy_service:
-  enabled: off
+  enabled: false
 ssh_service:
-  enabled: off
+  enabled: false
 discovery_service:
-  enabled: "yes"
+  enabled: true
   discovery_group: "aws-prod"
   aws:
    - types: ["eks"]
@@ -313,7 +316,7 @@ discovery_service:
      tags:
        "env": "prod" # Match EKS cluster tags where tag:env=prod
 kubernetes_service:
-  enabled: "yes"
+  enabled: true
   resources:
   - labels:
       "env": "prod" # Match Kubernetes Cluster labels specified earlier

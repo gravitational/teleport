@@ -44,6 +44,10 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tbot"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
@@ -301,22 +305,23 @@ func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr util
 	credential := &config.UnstableClientCredentialOutput{}
 	cfg := &config.BotConfig{
 		Version: "",
-		Onboarding: config.OnboardingConfig{
+		Onboarding: onboarding.Config{
 			TokenValue: token,
 			JoinMethod: types.JoinMethodToken,
 		},
-		Storage:            &config.StorageConfig{Destination: &config.DestinationMemory{}},
+		Storage:            &config.StorageConfig{Destination: &destination.Memory{}},
 		Services:           config.ServiceConfigs{credential},
-		CredentialLifetime: config.CredentialLifetime{TTL: c.botTTL},
+		CredentialLifetime: bot.CredentialLifetime{TTL: c.botTTL},
 		Oneshot:            true,
 		// If --insecure is passed, the bot will trust the certificate on first use.
 		// This does not truly disable TLS validation, only trusts the certificate on first connection.
 		Insecure: clt.Config().InsecureSkipVerify,
 	}
 
-	// When invoked only with auth address, tbot will try both joining as an auth and as a proxy.
+	// When setting AuthServerAddressMode to ProxyAllowed, tbot will try both joining as an auth and as a proxy.
 	// This allows us to not care about how the user connects to Teleport (auth vs proxy joining).
 	cfg.AuthServer = addr.String()
+	cfg.AuthServerAddressMode = connection.AllowProxyAsAuthServer
 
 	// Insecure joining is not compatible with CA pinning
 	if !cfg.Insecure {

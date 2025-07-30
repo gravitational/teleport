@@ -26,10 +26,11 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
 )
 
 // WorkloadIdentityLogValue returns a slog.Value for a given
@@ -80,9 +81,9 @@ func IssueX509WorkloadIdentity(
 	ctx context.Context,
 	log *slog.Logger,
 	clt authClient,
-	workloadIdentity config.WorkloadIdentitySelector,
+	workloadIdentity bot.WorkloadIdentitySelector,
 	ttl time.Duration,
-	attest *workloadidentityv1pb.WorkloadAttrs,
+	attest *attrs.WorkloadAttrs,
 ) ([]*workloadidentityv1pb.Credential, crypto.Signer, error) {
 	ctx, span := tracer.Start(
 		ctx,
@@ -119,7 +120,7 @@ func IssueX509WorkloadIdentity(
 					},
 				},
 				RequestedTtl:  durationpb.New(ttl),
-				WorkloadAttrs: attest,
+				WorkloadAttrs: attest.GetAttrs(),
 			},
 		)
 		if err != nil {
@@ -148,7 +149,7 @@ func IssueX509WorkloadIdentity(
 					},
 				},
 				RequestedTtl:  durationpb.New(ttl),
-				WorkloadAttrs: attest,
+				WorkloadAttrs: attest.GetAttrs(),
 			},
 		)
 		if err != nil {
@@ -181,11 +182,11 @@ func labelsToSelectors(in map[string][]string) []*workloadidentityv1pb.LabelSele
 func IssueJWTWorkloadIdentity(
 	ctx context.Context,
 	log *slog.Logger,
-	clt *authclient.Client,
-	workloadIdentity config.WorkloadIdentitySelector,
+	clt *apiclient.Client,
+	workloadIdentity bot.WorkloadIdentitySelector,
 	audiences []string,
 	ttl time.Duration,
-	attest *workloadidentityv1pb.WorkloadAttrs,
+	attest *attrs.WorkloadAttrs,
 ) ([]*workloadidentityv1pb.Credential, error) {
 	ctx, span := tracer.Start(
 		ctx,
@@ -215,7 +216,7 @@ func IssueJWTWorkloadIdentity(
 					},
 				},
 				RequestedTtl:  durationpb.New(ttl),
-				WorkloadAttrs: attest,
+				WorkloadAttrs: attest.GetAttrs(),
 			},
 		)
 		if err != nil {
@@ -243,7 +244,7 @@ func IssueJWTWorkloadIdentity(
 					},
 				},
 				RequestedTtl:  durationpb.New(ttl),
-				WorkloadAttrs: attest,
+				WorkloadAttrs: attest.GetAttrs(),
 			},
 		)
 		if err != nil {

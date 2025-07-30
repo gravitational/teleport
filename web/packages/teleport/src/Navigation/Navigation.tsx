@@ -252,7 +252,7 @@ function useDebounceClose<T>(
   isClosing: boolean
 ): T | null {
   const [debouncedValue, setDebouncedValue] = useState<T | null>(value);
-  const timeoutRef = useRef<NodeJS.Timeout>();
+  const timeoutRef = useRef<NodeJS.Timeout>(undefined);
 
   useEffect(() => {
     // Clear any existing timeout
@@ -312,7 +312,11 @@ export const useFloatingUiWithRestMs = ({
   };
 };
 
-export function Navigation() {
+export function Navigation({
+  showPoweredByLogo,
+}: {
+  showPoweredByLogo?: boolean;
+}) {
   const features = useFeatures();
   const history = useHistory();
   const { clusterId } = useStickyClusterId();
@@ -324,7 +328,7 @@ export function Navigation() {
   const debouncedSection = useDebounceClose(targetSection, 200, isClosing);
   const [previousExpandedSection, setPreviousExpandedSection] =
     useState<NavigationSection | null>();
-  const navigationTimeoutRef = useRef<NodeJS.Timeout>();
+  const navigationTimeoutRef = useRef<NodeJS.Timeout>(undefined);
 
   // Clear navigation timeout on unmount.
   useEffect(() => {
@@ -501,6 +505,7 @@ export function Navigation() {
               stickyMode={stickyMode}
               toggleStickyMode={toggleStickyMode}
               canToggleStickyMode={!!currentPageSection}
+              showPoweredByLogo={showPoweredByLogo}
             />
           </>
         )}
@@ -538,6 +543,7 @@ export function Navigation() {
                 aria-controls={`panel-${debouncedSection?.category}`}
                 onNavigationItemClick={onNavigationItemClick}
                 isExpanded={isExpanded}
+                showPoweredByLogo={showPoweredByLogo}
               />
             </React.Fragment>
           );

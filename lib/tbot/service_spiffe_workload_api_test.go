@@ -37,7 +37,8 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -49,7 +50,7 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 	// This test is more for overall behavior. Use the _field test for
 	// each individual field.
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 	tests := []struct {
 		name string
 		att  *workloadidentityv1pb.WorkloadAttrs
@@ -279,7 +280,7 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := filterSVIDRequests(ctx, log, tt.in, tt.att)
+			got := filterSVIDRequests(ctx, log, tt.in, attrs.FromWorkloadAttrs(tt.att))
 			assert.Empty(t, gocmp.Diff(tt.want, got))
 		})
 	}
@@ -287,7 +288,7 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 
 func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 	tests := []struct {
 		field       string
 		matching    *workloadidentityv1pb.WorkloadAttrs
@@ -426,10 +427,10 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 				},
 			}
 			t.Run("matching", func(t *testing.T) {
-				assert.Len(t, filterSVIDRequests(ctx, log, rules, tt.matching), 1)
+				assert.Len(t, filterSVIDRequests(ctx, log, rules, attrs.FromWorkloadAttrs(tt.matching)), 1)
 			})
 			t.Run("non-matching", func(t *testing.T) {
-				assert.Empty(t, filterSVIDRequests(ctx, log, rules, tt.nonMatching))
+				assert.Empty(t, filterSVIDRequests(ctx, log, rules, attrs.FromWorkloadAttrs(tt.nonMatching)))
 			})
 		})
 	}
@@ -440,7 +441,7 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	// Make a new auth server.
 	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))

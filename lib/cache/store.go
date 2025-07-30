@@ -18,52 +18,70 @@ package cache
 
 import (
 	"iter"
+	"time"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/backend/backendmetrics"
 	"github.com/gravitational/teleport/lib/utils/sortcache"
 )
 
 // store persists cached resources directly in memory.
-type store[T any] struct {
-	cache   *sortcache.SortCache[T]
-	indexes map[string]func(T) string
+type store[T any, I comparable] struct {
+	kind    string
+	cache   *sortcache.SortCache[T, I]
+	clone   func(T) T
+	indexes map[I]func(T) string
 }
 
 // newStore creates a store that will index the resource
 // based on the provided indexes.
-func newStore[T any](indexes map[string]func(T) string) *store[T] {
-	return &store[T]{
+func newStore[T any, I comparable](kind string, clone func(T) T, indexes map[I]func(T) string) *store[T, I] {
+	return &store[T, I]{
+		kind:    kind,
+		clone:   clone,
 		indexes: indexes,
-		cache: sortcache.New(sortcache.Config[T]{
+		cache: sortcache.New(sortcache.Config[T, I]{
 			Indexes: indexes,
 		}),
 	}
 }
 
 // clear removes all items from the store.
-func (s *store[T]) clear() error {
+func (s *store[T, I]) clear() error {
+	start := time.Now()
 	s.cache.Clear()
+	backendmetrics.BatchWriteLatencies.WithLabelValues("cache").Observe(time.Since(start).Seconds())
+	backendmetrics.BatchWriteRequests.WithLabelValues("cache").Inc()
+	backendmetrics.Requests.WithLabelValues("cache", s.kind, "true").Inc()
 	return nil
 }
 
 // put adds a new item, or updates an existing item.
-func (s *store[T]) put(t T) error {
-	s.cache.Put(t)
+func (s *store[T, I]) put(t T) error {
+	start := time.Now()
+	s.cache.Put(s.clone(t))
+	backendmetrics.WriteLatencies.WithLabelValues("cache").Observe(time.Since(start).Seconds())
+	backendmetrics.WriteRequests.WithLabelValues("cache").Inc()
+	backendmetrics.Requests.WithLabelValues("cache", s.kind, "false").Inc()
 	return nil
 }
 
 // delete removes the provided item if any of the indexes match.
-func (s *store[T]) delete(t T) error {
+func (s *store[T, I]) delete(t T) error {
+	start := time.Now()
 	for idx, transform := range s.indexes {
 		s.cache.Delete(idx, transform(t))
 	}
+	backendmetrics.WriteLatencies.WithLabelValues("cache").Observe(time.Since(start).Seconds())
+	backendmetrics.WriteRequests.WithLabelValues("cache").Inc()
+	backendmetrics.Requests.WithLabelValues("cache", s.kind, "false").Inc()
 
 	return nil
 }
 
 // len returns the number of values currently stored.
-func (s *store[T]) len() int {
+func (s *store[T, I]) len() int {
 	return s.cache.Len()
 }
 
@@ -72,10 +90,15 @@ func (s *store[T]) len() int {
 //
 // It is the responsibility of the caller to clone the resource
 // before propagating it further.
-func (s *store[T]) get(index, key string) (T, error) {
+func (s *store[T, I]) get(index I, key string) (T, error) {
+	start := time.Now()
 	t, ok := s.cache.Get(index, key)
+	backendmetrics.ReadLatencies.WithLabelValues("cache").Observe(time.Since(start).Seconds())
+	backendmetrics.ReadRequests.WithLabelValues("cache").Inc()
+	backendmetrics.Requests.WithLabelValues("cache", s.kind, "false").Inc()
 	if !ok {
-		return t, trace.NotFound("no value for key %q in index %q", key, index)
+		backendmetrics.ReadRequestsFailed.WithLabelValues("cache").Inc()
+		return t, trace.NotFound("%q %q does not exist", s.kind, key)
 	}
 
 	return t, nil
@@ -86,6 +109,28 @@ func (s *store[T]) get(index, key string) (T, error) {
 //
 // It is the responsibility of the caller to clone the resource
 // before propagating it further.
-func (s *store[T]) resources(index, start, stop string) iter.Seq[T] {
-	return s.cache.Ascend(index, start, stop)
+func (s *store[T, I]) resources(index I, start, stop string) iter.Seq[T] {
+	return func(yield func(T) bool) {
+		defer func() {
+			backendmetrics.StreamingRequests.WithLabelValues("cache").Inc()
+			backendmetrics.Requests.WithLabelValues("cache", s.kind, "false").Inc()
+		}()
+
+		for t := range s.cache.Ascend(index, start, stop) {
+			backendmetrics.ReadRequests.WithLabelValues("cache").Inc()
+			if !yield(t) {
+				return
+			}
+		}
+	}
+}
+
+// count returns the number of items that exist in the provided range.
+func (s *store[T, I]) count(index I, start, stop string) int {
+	var n int
+	for range s.cache.Ascend(index, start, stop) {
+		n++
+	}
+
+	return n
 }

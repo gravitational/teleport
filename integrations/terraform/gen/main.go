@@ -21,7 +21,10 @@ import (
 	"log"
 	"os"
 	"path"
+	"strings"
 	"text/template"
+
+	"github.com/gravitational/teleport/integrations/terraform/gen/strcase"
 )
 
 // payload represents template payload
@@ -38,7 +41,9 @@ type payload struct {
 	GetMethod string
 	// CreateMethod represents API create method name
 	CreateMethod string
-	// CreateMethod represents API update method name
+	// UpdateMethod represents the API update method name.
+	// On services without conditional updates, you can use the Update method.
+	// On services with conditional updates, you must use the Upsert variant.
 	UpdateMethod string
 	// DeleteMethod represents API reset method used in singular resources
 	DeleteMethod string
@@ -48,6 +53,8 @@ type payload struct {
 	WithSecrets string
 	// ID id value on create and import
 	ID string
+	// IDPrefix is optional for resources which are stored with an prefix in the backend.
+	IDPrefix string
 	// RandomMetadataName indicates that Metadata.Name must be generated (supported by plural resources only)
 	RandomMetadataName bool
 	// UUIDMetadataName functions similar to RandomMetadataName but generates UUID instead of
@@ -88,6 +95,12 @@ type payload struct {
 	WithNonce bool
 	// ConvertPackagePath is the path of the package doing the conversion between protobuf and the go types.
 	ConvertPackagePath string
+	// ConvertToProtoFunc is the function converting the internal struct to the protobuf
+	// struct. Defaults to "ToProto" if empty.
+	ConvertToProtoFunc string
+	// ConvertFromProtoFunc is the function converting the protobuf struct to the internal
+	// struct. Defaults to "FromProto" if empty.
+	ConvertFromProtoFunc string
 	// PropagatedFields is a list of fields that must be copied from the
 	// existing resource when we're updating it. For example:
 	// "Spec.Audit.NextAuditDate" in AccessList resource
@@ -152,8 +165,9 @@ var (
 		TypeName:               "AuthPreferenceV2",
 		VarName:                "authPreference",
 		GetMethod:              "GetAuthPreference",
-		CreateMethod:           "SetAuthPreference",
-		UpdateMethod:           "SetAuthPreference",
+		CreateMethod:           "UpsertAuthPreference",
+		UpdateMethod:           "UpsertAuthPreference",
+		UpsertMethodArity:      2,
 		DeleteMethod:           "ResetAuthPreference",
 		ID:                     `"auth_preference"`,
 		Kind:                   "cluster_auth_preference",
@@ -184,8 +198,9 @@ var (
 		TypeName:               "ClusterNetworkingConfigV2",
 		VarName:                "clusterNetworkingConfig",
 		GetMethod:              "GetClusterNetworkingConfig",
-		CreateMethod:           "SetClusterNetworkingConfig",
-		UpdateMethod:           "SetClusterNetworkingConfig",
+		CreateMethod:           "UpsertClusterNetworkingConfig",
+		UpdateMethod:           "UpsertClusterNetworkingConfig",
+		UpsertMethodArity:      2,
 		DeleteMethod:           "ResetClusterNetworkingConfig",
 		ID:                     `"cluster_networking_config"`,
 		Kind:                   "cluster_networking_config",
@@ -216,7 +231,7 @@ var (
 		IfaceName:              "DynamicWindowsDesktop",
 		GetMethod:              "DynamicDesktopClient().GetDynamicWindowsDesktop",
 		CreateMethod:           "DynamicDesktopClient().CreateDynamicWindowsDesktop",
-		UpdateMethod:           "DynamicDesktopClient().UpdateDynamicWindowsDesktop",
+		UpdateMethod:           "DynamicDesktopClient().UpsertDynamicWindowsDesktop",
 		DeleteMethod:           "DynamicDesktopClient().DeleteDynamicWindowsDesktop",
 		UpsertMethodArity:      2,
 		ID:                     `desktop.Metadata.Name`,
@@ -315,8 +330,9 @@ var (
 		TypeName:               "SessionRecordingConfigV2",
 		VarName:                "sessionRecordingConfig",
 		GetMethod:              "GetSessionRecordingConfig",
-		CreateMethod:           "SetSessionRecordingConfig",
-		UpdateMethod:           "SetSessionRecordingConfig",
+		CreateMethod:           "UpsertSessionRecordingConfig",
+		UpdateMethod:           "UpsertSessionRecordingConfig",
+		UpsertMethodArity:      2,
 		DeleteMethod:           "ResetSessionRecordingConfig",
 		ID:                     `"session_recording_config"`,
 		Kind:                   "session_recording_config",
@@ -553,7 +569,7 @@ var (
 		GetMethod:             "GetAutoUpdateVersion",
 		CreateMethod:          "CreateAutoUpdateVersion",
 		UpsertMethodArity:     2,
-		UpdateMethod:          "UpdateAutoUpdateVersion",
+		UpdateMethod:          "UpsertAutoUpdateVersion",
 		DeleteMethod:          "DeleteAutoUpdateVersion",
 		ID:                    "autoUpdateVersion.Metadata.Name",
 		Kind:                  "autoupdate_version",
@@ -580,7 +596,7 @@ var (
 		GetMethod:             "GetAutoUpdateConfig",
 		CreateMethod:          "CreateAutoUpdateConfig",
 		UpsertMethodArity:     2,
-		UpdateMethod:          "UpdateAutoUpdateConfig",
+		UpdateMethod:          "UpsertAutoUpdateConfig",
 		DeleteMethod:          "DeleteAutoUpdateConfig",
 		ID:                    "autoUpdateConfig.Metadata.Name",
 		Kind:                  "autoupdate_config",
@@ -598,6 +614,32 @@ var (
 		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
 		ForceSetKind: "apitypes.KindAutoUpdateConfig",
 		DefaultName:  "apitypes.MetaNameAutoUpdateConfig",
+	}
+
+	healthCheckConfig = payload{
+		Name:                  "HealthCheckConfig",
+		TypeName:              "HealthCheckConfig",
+		VarName:               "healthCheckConfig",
+		GetMethod:             "GetHealthCheckConfig",
+		CreateMethod:          "CreateHealthCheckConfig",
+		UpsertMethodArity:     2,
+		UpdateMethod:          "UpsertHealthCheckConfig",
+		DeleteMethod:          "DeleteHealthCheckConfig",
+		ID:                    "healthCheckConfig.Metadata.Name",
+		Kind:                  "health_check_config",
+		HasStaticID:           false,
+		ProtoPackage:          "healthcheckconfigv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/healthcheckconfig/v1",
+		TerraformResourceType: "teleport_health_check_config",
+		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+		// resources are plain structs
+		IsPlainStruct: true,
+		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+		// We import the package containing kinds, then use ForceSetKind.
+		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind: "apitypes.KindHealthCheckConfig",
 	}
 )
 
@@ -656,6 +698,8 @@ func genTFSchema() {
 	generateDataSource(autoUpdateVersion, singularDataSource)
 	generateResource(autoUpdateConfig, singularResource)
 	generateDataSource(autoUpdateConfig, singularDataSource)
+	generateResource(healthCheckConfig, pluralResource)
+	generateDataSource(healthCheckConfig, pluralDataSource)
 }
 
 func generateResource(p payload, tpl string) {
@@ -673,6 +717,9 @@ func generate(p payload, tpl, outFile string) {
 	}
 
 	funcs := template.FuncMap{
+		"join":    strings.Join,
+		"split":   strings.Split,
+		"toSnake": toSnake,
 		"schemaImport": func(p payload) string {
 			if p.SchemaPackage == "tfschema" {
 				return `"` + p.SchemaPackagePath + `"`
@@ -704,4 +751,9 @@ func generate(p payload, tpl, outFile string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+// ToSnake converts a string to snake_case ignoring "." characters.
+func toSnake(s string) string {
+	return strcase.ToScreamingDelimited(s, '_', ".", false)
 }

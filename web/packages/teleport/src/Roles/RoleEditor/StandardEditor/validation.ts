@@ -26,22 +26,28 @@ import {
 } from 'shared/components/Validation/rules';
 
 import { nonEmptyLabels } from 'teleport/components/LabelsInput/LabelsInput';
-import {
-  KubernetesResourceKind,
-  RoleVersion,
-} from 'teleport/services/resources';
+import { RoleVersion } from 'teleport/services/resources';
 
 import {
+  AppAccess,
+  DatabaseAccess,
+  KubernetesAccess,
+  kubernetesResourceKindV7Groups,
   KubernetesResourceModel,
   KubernetesVerbOption,
   MetadataModel,
   ResourceAccess,
+  ResourceKindOption,
+  resourceKindOptions,
   RoleEditorModel,
   RuleModel,
+  ServerAccess,
+  supportsKubernetesCustomResources,
   VerbModel,
+  WindowsDesktopAccess,
 } from './standardmodel';
 
-export const kubernetesClusterWideResourceKinds: KubernetesResourceKind[] = [
+export const v7kubernetesClusterWideResourceKinds: string[] = [
   'namespace',
   'kube_node',
   'persistentvolume',
@@ -160,17 +166,17 @@ export function validateResourceAccess(
   const { kind } = resource;
   switch (kind) {
     case 'kube_cluster':
-      return runRules(resource, kubernetesAccessValidationRules);
+      return validateKubernetesAccess(resource);
     case 'node':
-      return runRules(resource, serverAccessValidationRules);
+      return validateServerAccess(resource);
     case 'app':
-      return runRules(resource, appAccessValidationRules);
+      return validateAppAccess(resource);
     case 'db':
-      return runRules(resource, databaseAccessValidationRules);
+      return validateDatabaseAccess(resource);
     case 'windows_desktop':
-      return runRules(resource, windowsDesktopAccessValidationRules);
+      return validateWindowsDesktopAccess(resource);
     case 'git_server':
-      return { valid: true };
+      return runRules(resource, gitHubOrganizationAccessValidationRules);
     default:
       kind satisfies never;
   }
@@ -185,29 +191,107 @@ export type ResourceAccessValidationResult =
   | GitHubOrganizationAccessValidationResult;
 
 const validKubernetesResource = (res: KubernetesResourceModel) => () => {
-  const kind = validKubernetesKind(res.kind.value, res.roleVersion);
+  const kind = validKubernetesKind(
+    res.kind.value,
+    res.apiGroup,
+    res.roleVersion
+  );
   const name = requiredField(
     'Resource name is required, use "*" for any resource'
   )(res.name)();
-  const namespace = kubernetesClusterWideResourceKinds.includes(res.kind.value)
-    ? { valid: true }
-    : requiredField('Namespace is required for resources of this kind')(
-        res.namespace
-      )();
+  const namespace = validKubernetesNamespace(res);
   const verbs = validKubernetesVerbs(res.verbs);
+  const apiGroup = validKubernetesGroup(res.apiGroup, res.roleVersion);
+
   return {
-    valid: kind.valid && name.valid && namespace.valid && verbs.valid,
+    valid:
+      kind.valid &&
+      name.valid &&
+      namespace.valid &&
+      verbs.valid &&
+      apiGroup.valid,
     kind,
     name,
     namespace,
     verbs,
+    apiGroup,
   };
 };
+
 export type KubernetesResourceValidationResult = {
   kind: ValidationResult;
   name: ValidationResult;
   namespace: ValidationResult;
   verbs: ValidationResult;
+  apiGroup: ValidationResult;
+};
+
+// Best-effort validation for namespace requirement.
+// Generated from `kubectl api-resources --namespaced=true -o name --sort-by=name`
+const v8kubernetesNamespacedResourceKinds = [
+  'bindings',
+  'configmaps',
+  'controllerrevisions.apps',
+  'cronjobs.batch',
+  'csistoragecapacities.storage.k8s.io',
+  'daemonsets.apps',
+  'deployments.apps',
+  'endpoints',
+  'endpointslices.discovery.k8s.io',
+  'events.events.k8s.io',
+  'events',
+  'horizontalpodautoscalers.autoscaling',
+  'ingresses.networking.k8s.io',
+  'jobs.batch',
+  'leases.coordination.k8s.io',
+  'limitranges',
+  'localsubjectaccessreviews.authorization.k8s.io',
+  'networkpolicies.networking.k8s.io',
+  'persistentvolumeclaims',
+  'poddisruptionbudgets.policy',
+  'pods',
+  'podtemplates',
+  'replicasets.apps',
+  'replicationcontrollers',
+  'resourcequotas',
+  'rolebindings.rbac.authorization.k8s.io',
+  'roles.rbac.authorization.k8s.io',
+  'secrets',
+  'serviceaccounts',
+  'services',
+  'statefulsets.apps',
+];
+
+const validKubernetesNamespace = (
+  res: KubernetesResourceModel
+): ValidationResult => {
+  const supportsCrds = supportsKubernetesCustomResources(res.roleVersion);
+
+  // If we don't support CRDs we validate against the v7 cluster wide values.
+  if (!supportsCrds) {
+    return v7kubernetesClusterWideResourceKinds.includes(res.kind.value)
+      ? { valid: true }
+      : requiredField('Namespace is required for resources of this kind')(
+          res.namespace
+        )();
+  }
+
+  // Otherwise we validate against the v8 namespaced values.
+  const kindGroup = !res.apiGroup
+    ? res.kind.value
+    : `res.kind.value.${res.apiGroup}`;
+  if (
+    !res.namespace &&
+    v8kubernetesNamespacedResourceKinds.includes(kindGroup)
+  ) {
+    return requiredField('Namespace is required for resources of this kind')(
+      res.namespace
+    )();
+  }
+
+  // If we didn't have a match, it doesn't mean it is valid, but we can't known about
+  // it at this point.
+  return { valid: true };
 };
 
 /**
@@ -216,7 +300,8 @@ export type KubernetesResourceValidationResult = {
  * Kubernetes resources.
  */
 const validKubernetesKind = (
-  kind: KubernetesResourceKind,
+  kind: string,
+  apiGroup: string | undefined,
   ver: RoleVersion
 ): ValidationResult => {
   switch (ver) {
@@ -224,16 +309,74 @@ const validKubernetesKind = (
     case RoleVersion.V4:
     case RoleVersion.V5:
     case RoleVersion.V6:
-      const valid = kind === 'pod';
+      const v6valid = kind === 'pod';
       return {
-        valid,
-        message: valid
+        valid: v6valid,
+        message: v6valid
           ? undefined
           : `Only pods are allowed for role version ${ver}`,
       };
 
     case RoleVersion.V7:
+      // NOTE: We need to validate in case the user switches between role versions.
+      // Valid values in rolev8 could be invalid in older versions.
+      const v7valid = resourceKindOptions.some(elem => elem.value === kind);
+
+      return {
+        valid: v7valid,
+        message: v7valid
+          ? undefined
+          : `Only core predefined kinds are allowed for role version ${ver}`,
+      };
+
+    case RoleVersion.V8:
+      const v7groups = kubernetesResourceKindV7Groups[kind];
+      const v8valid =
+        !v7groups || (apiGroup !== '*' && !v7groups.groups.includes(apiGroup));
+      return {
+        valid: v8valid,
+        message: v8valid
+          ? undefined
+          : `Kind must use k8s plural name. Did you mean "${v7groups.v8name}"?`,
+      };
+
+    default:
+      ver satisfies never;
       return { valid: true };
+  }
+};
+
+/**
+ * Validates a `group` field of a `KubernetesResourceModel`. In roles with
+ * version prior to v8, the auth server only accepts empty string or "*".
+ */
+const validKubernetesGroup = (
+  group: string,
+  ver: RoleVersion
+): ValidationResult => {
+  switch (ver) {
+    case RoleVersion.V3:
+    case RoleVersion.V4:
+    case RoleVersion.V5:
+    case RoleVersion.V6:
+    case RoleVersion.V7:
+      const v7valid = !group;
+
+      return {
+        valid: v7valid,
+        message: v7valid
+          ? undefined
+          : `API Group not supported for role version ${ver}.`,
+      };
+
+    case RoleVersion.V8:
+      const v8valid = !!group;
+      return {
+        valid: v8valid,
+        message: v8valid
+          ? undefined
+          : `API Group required. Use "*" for any group.`,
+      };
 
     default:
       ver satisfies never;
@@ -254,7 +397,31 @@ const validKubernetesVerbs = (
   };
 };
 
+const validateKubernetesAccess = (
+  a: KubernetesAccess
+): KubernetesAccessValidationResult => {
+  const result = runRules(a, kubernetesAccessValidationRules);
+  if (
+    a.groups.length === 0 &&
+    a.users.length === 0 &&
+    a.labels.length === 0 &&
+    a.resources.length === 0
+  ) {
+    result.valid = false;
+    result.message = 'At least one group, user, label, or resource required';
+    result.fields.groups.valid = false;
+    result.fields.users.valid = false;
+    result.fields.labels.valid = false;
+    result.fields.resources.valid = false;
+  }
+  return result;
+};
+
+const alwaysValid = () => () => ({ valid: true });
+
 const kubernetesAccessValidationRules = {
+  groups: alwaysValid,
+  users: alwaysValid,
   labels: nonEmptyLabels,
   resources: arrayOf(validKubernetesResource),
 };
@@ -272,6 +439,19 @@ const noWildcardOptions = (message: string) => (options: Option[]) => () => {
   return { valid, message: valid ? '' : message };
 };
 
+const validateServerAccess = (
+  a: ServerAccess
+): ServerAccessValidationResult => {
+  const result = runRules(a, serverAccessValidationRules);
+  if (a.labels.length === 0 && a.logins.length === 0) {
+    result.valid = false;
+    result.message = 'At least one label or login required';
+    result.fields.labels.valid = false;
+    result.fields.logins.valid = false;
+  }
+  return result;
+};
+
 const serverAccessValidationRules = {
   labels: nonEmptyLabels,
   logins: noWildcardOptions('Wildcard is not allowed in logins'),
@@ -279,6 +459,27 @@ const serverAccessValidationRules = {
 export type ServerAccessValidationResult = RuleSetValidationResult<
   typeof serverAccessValidationRules
 >;
+
+const validateAppAccess = (a: AppAccess): AppAccessValidationResult => {
+  const result = runRules(a, appAccessValidationRules);
+  if (
+    a.labels.length === 0 &&
+    a.awsRoleARNs.length === 0 &&
+    a.azureIdentities.length === 0 &&
+    a.gcpServiceAccounts.length === 0 &&
+    a.mcpTools.length === 0
+  ) {
+    result.valid = false;
+    result.message =
+      'At least one label, AWS role ARN, Azure identity, GCP service account, or MCP tools required';
+    result.fields.labels.valid = false;
+    result.fields.awsRoleARNs.valid = false;
+    result.fields.azureIdentities.valid = false;
+    result.fields.gcpServiceAccounts.valid = false;
+    result.fields.mcpTools.valid = false;
+  }
+  return result;
+};
 
 const appAccessValidationRules = {
   labels: nonEmptyLabels,
@@ -289,13 +490,39 @@ const appAccessValidationRules = {
   gcpServiceAccounts: arrayOf(
     noWildcard('Wildcard is not allowed in GCP service accounts')
   ),
+  mcpTools: alwaysValid,
 };
 export type AppAccessValidationResult = RuleSetValidationResult<
   typeof appAccessValidationRules
 >;
 
+const validateDatabaseAccess = (
+  a: DatabaseAccess
+): DatabaseAccessValidationResult => {
+  const result = runRules(a, databaseAccessValidationRules);
+  if (
+    a.labels.length === 0 &&
+    a.names.length === 0 &&
+    a.users.length === 0 &&
+    a.roles.length === 0 &&
+    a.dbServiceLabels.length === 0
+  ) {
+    result.valid = false;
+    result.message =
+      'At least one label, database name, user, role, or service label required';
+    result.fields.labels.valid = false;
+    result.fields.names.valid = false;
+    result.fields.users.valid = false;
+    result.fields.roles.valid = false;
+    result.fields.dbServiceLabels.valid = false;
+  }
+  return result;
+};
+
 const databaseAccessValidationRules = {
   labels: nonEmptyLabels,
+  names: alwaysValid,
+  users: alwaysValid,
   roles: noWildcardOptions('Wildcard is not allowed in database roles'),
   dbServiceLabels: nonEmptyLabels,
 };
@@ -303,14 +530,33 @@ export type DatabaseAccessValidationResult = RuleSetValidationResult<
   typeof databaseAccessValidationRules
 >;
 
+const validateWindowsDesktopAccess = (
+  a: WindowsDesktopAccess
+): WindowsDesktopAccessValidationResult => {
+  const result = runRules(a, windowsDesktopAccessValidationRules);
+  if (a.labels.length === 0 && a.logins.length === 0) {
+    result.valid = false;
+    result.message = 'At least one label or login required';
+    result.fields.labels.valid = false;
+    result.fields.logins.valid = false;
+  }
+  return result;
+};
+
 const windowsDesktopAccessValidationRules = {
   labels: nonEmptyLabels,
+  logins: alwaysValid,
 };
 export type WindowsDesktopAccessValidationResult = RuleSetValidationResult<
   typeof windowsDesktopAccessValidationRules
 >;
 
-export type GitHubOrganizationAccessValidationResult = ValidationResult;
+const gitHubOrganizationAccessValidationRules = {
+  organizations: requiredField<Option>('At least one organization required'),
+};
+export type GitHubOrganizationAccessValidationResult = RuleSetValidationResult<
+  typeof gitHubOrganizationAccessValidationRules
+>;
 
 export function validateAdminRuleList(
   rules: RuleModel[],
@@ -343,7 +589,9 @@ const requiredVerbs = (message: string) => (verbs: VerbModel[]) => () => {
 };
 
 const adminRuleValidationRules = {
-  resources: requiredField('At least one resource kind is required'),
+  resources: requiredField<ResourceKindOption>(
+    'At least one resource kind is required'
+  ),
   verbs: requiredVerbs('At least one permission is required'),
 };
 export type AdminRuleValidationResult = RuleSetValidationResult<

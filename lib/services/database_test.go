@@ -60,14 +60,14 @@ func TestDatabaseUnmarshal(t *testing.T) {
 			caCert := indent(fixtures.TLSCACertPEM, 4)
 
 			// verify it works with string tls mode.
-			data, err := utils.ToJSON([]byte(fmt.Sprintf(databaseYAML, tlsModeName, caCert)))
+			data, err := utils.ToJSON(fmt.Appendf(nil, databaseYAML, tlsModeName, caCert))
 			require.NoError(t, err)
 			actual, err := UnmarshalDatabase(data)
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(expected, actual))
 
 			// verify it works with integer tls mode.
-			data, err = utils.ToJSON([]byte(fmt.Sprintf(databaseYAML, int32(tlsModeValue), caCert)))
+			data, err = utils.ToJSON(fmt.Appendf(nil, databaseYAML, int32(tlsModeValue), caCert))
 			require.NoError(t, err)
 			actual, err = UnmarshalDatabase(data)
 			require.NoError(t, err)
@@ -332,7 +332,7 @@ func TestValidateDatabase(t *testing.T) {
 					Krb5File:    "path-to.krb5",
 					Domain:      "domain.goteleport.com",
 					SPN:         "MSSQLSvc/sqlserver.goteleport.com:1433",
-					LDAPCert:    "-----BEGIN CERTIFICATE-----",
+					LDAPCert:    fixtures.TLSCACertPEM,
 				},
 			},
 			expectError: false,

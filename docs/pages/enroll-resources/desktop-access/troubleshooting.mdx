@@ -1,6 +1,9 @@
 ---
 title: Troubleshooting Desktop Access
 description: Common issues and resolutions for Teleport's desktop access
+labels:
+ - how-to
+ - zero-trust
 ---
 
 Common issues and resolution steps.
@@ -334,7 +337,7 @@ for your `windows_desktop_service`:
 
 ```yaml
 windows_desktop_service:
-  enabled: yes
+  enabled: true
   ldap:
     username: 'MYDOMAIN\svc-teleport'
     sid: S-1-5-21-...

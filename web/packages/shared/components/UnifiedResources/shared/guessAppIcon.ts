@@ -21,8 +21,7 @@ import {
   ResourceIconName,
   resourceIconSpecs,
 } from 'design/ResourceIcon';
-
-import { AppSubKind } from 'teleport/services/apps';
+import { AppSubKind } from 'shared/services';
 
 import { UnifiedResourceApp } from '../types';
 

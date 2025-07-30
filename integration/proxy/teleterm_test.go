@@ -241,7 +241,7 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 
 	fakeClock := clockwork.NewFakeClockAt(time.Now())
 	storage, err := clusters.NewStorage(clusters.Config{
-		Dir:                tc.KeysDir,
+		ClientStore:        tc.ClientStore,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
 		// Inject a fake clock into clusters.Storage so we can control when the middleware thinks the
 		// db cert has expired.
@@ -250,12 +250,14 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 	})
 	require.NoError(t, err)
 
+	tshdEventsClient := daemon.NewTshdEventsClient(func() (grpc.DialOption, error) {
+		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+	})
+
 	daemonService, err := daemon.New(daemon.Config{
-		Clock:   fakeClock,
-		Storage: storage,
-		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
-			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
-		},
+		Clock:            fakeClock,
+		Storage:          storage,
+		TshdEventsClient: tshdEventsClient,
 		CreateClientCacheFunc: func(newClient clientcache.NewClientFunc) (daemon.ClientCache, error) {
 			return clientcache.NewNoCache(newClient), nil
 		},
@@ -413,7 +415,7 @@ func TestTeletermKubeGateway(t *testing.T) {
 			KubeUsers:        []string{k8User},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
 				},
 			},
 		},
@@ -876,15 +878,18 @@ func testTeletermAppGatewayTargetPortValidation(t *testing.T, pack *appaccess.Pa
 		require.NoError(t, err)
 
 		storage, err := clusters.NewStorage(clusters.Config{
-			Dir:                tc.KeysDir,
+			ClientStore:        tc.ClientStore,
 			InsecureSkipVerify: tc.InsecureSkipVerify,
 		})
 		require.NoError(t, err)
+
+		tshdEventsClient := daemon.NewTshdEventsClient(func() (grpc.DialOption, error) {
+			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+		})
+
 		daemonService, err := daemon.New(daemon.Config{
-			Storage: storage,
-			CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
-				return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
-			},
+			Storage:          storage,
+			TshdEventsClient: tshdEventsClient,
 			CreateClientCacheFunc: func(newClient clientcache.NewClientFunc) (daemon.ClientCache, error) {
 				return clientcache.NewNoCache(newClient), nil
 			},

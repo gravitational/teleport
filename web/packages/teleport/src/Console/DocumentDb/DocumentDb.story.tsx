@@ -111,6 +111,32 @@ export const ConnectWithWildcards = () => {
           labels: [],
           names: ['postgres', '*'],
           users: ['*'],
+          roles: ['*'],
+          hostname: '',
+          supportsInteractive: true,
+        },
+      ],
+    })
+  );
+
+  return <DocumentDbWrapper ctx={ctx} consoleCtx={consoleCtx} doc={baseDoc} />;
+};
+
+export const ConnectWithAutoUserProvisioning = () => {
+  const { ctx, consoleCtx } = getContexts(
+    Promise.resolve({
+      agents: [
+        {
+          kind: 'db',
+          name: 'mydb',
+          description: '',
+          type: '',
+          protocol: 'postgres',
+          labels: [],
+          names: ['postgres', '*'],
+          users: ['alice'],
+          roles: ['readonly', 'read-write'],
+          autoUsersEnabled: true,
           hostname: '',
           supportsInteractive: true,
         },

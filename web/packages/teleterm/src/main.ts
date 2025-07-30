@@ -23,6 +23,7 @@ import path from 'node:path';
 import { app, dialog, globalShortcut, nativeTheme, shell } from 'electron';
 
 import { CUSTOM_PROTOCOL } from 'shared/deepLinks';
+import { ensureError } from 'shared/utils/error';
 
 import { parseDeepLink } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
@@ -31,10 +32,7 @@ import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandle
 import { manageRootClusterProxyHostAllowList } from 'teleterm/mainProcess/rootClusterProxyHostAllowList';
 import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
-import {
-  createConfigService,
-  runConfigFileMigration,
-} from 'teleterm/services/config';
+import { createConfigService } from 'teleterm/services/config';
 import { createFileStorage } from 'teleterm/services/fileStorage';
 import { createFileLoggerService, LoggerColor } from 'teleterm/services/logger';
 import * as types from 'teleterm/types';
@@ -50,6 +48,10 @@ if (!app.isPackaged) {
 if (!process.defaultApp) {
   app.setAsDefaultProtocolClient(CUSTOM_PROTOCOL);
 }
+
+// Fix a bug introduced in Electron 36.
+// https://github.com/electron/electron/issues/46538#issuecomment-2808806722
+app.commandLine.appendSwitch('gtk-version', '3');
 
 if (app.requestSingleInstanceLock()) {
   initializeApp();
@@ -72,7 +74,6 @@ async function initializeApp(): Promise<void> {
     configJsonSchemaFileStorage,
   } = createFileStorages(settings.userDataDir);
 
-  runConfigFileMigration(configFileStorage);
   const configService = createConfigService({
     configFile: configFileStorage,
     jsonSchemaFile: configJsonSchemaFileStorage,
@@ -83,19 +84,30 @@ async function initializeApp(): Promise<void> {
   const windowsManager = new WindowsManager(appStateFileStorage, settings);
 
   process.on('uncaughtException', (error, origin) => {
-    logger.error(origin, error);
-    app.quit();
+    logger.error('Uncaught exception', origin, error);
+    showDialogWithError(`Uncaught exception (${origin} origin)`, error);
+    app.exit(1);
   });
 
-  // init main process
-  const mainProcess = MainProcess.create({
-    settings,
-    logger,
-    configService,
-    appStateFileStorage,
-    configFileStorage,
-    windowsManager,
-  });
+  let mainProcess: MainProcess;
+  try {
+    mainProcess = MainProcess.create({
+      settings,
+      logger,
+      configService,
+      appStateFileStorage,
+      configFileStorage,
+      windowsManager,
+    });
+  } catch (error) {
+    const message = 'Could not initialize the main process';
+    logger.error(message, error);
+    showDialogWithError(message, error);
+    // app.exit(1) isn't equivalent to throwing an error, use an explicit return to stop further
+    // execution. See https://github.com/gravitational/teleport/issues/56272.
+    app.exit(1);
+    return;
+  }
 
   //TODO(gzdunek): Make sure this is not needed after migrating to Vite.
   app.on(
@@ -155,22 +167,18 @@ async function initializeApp(): Promise<void> {
   const rootClusterProxyHostAllowList = new Set<string>();
 
   (async () => {
-    const tshdClient = await mainProcess.initTshdClient();
+    const { terminalService } = await mainProcess.getTshdClients();
 
     manageRootClusterProxyHostAllowList({
-      tshdClient,
+      tshdClient: terminalService,
       logger,
       allowList: rootClusterProxyHostAllowList,
     });
   })().catch(error => {
-    const message =
-      'Could not initialize tsh daemon client in the main process';
+    const message = 'Could not initialize the tshd client in the main process';
     logger.error(message, error);
-    dialog.showErrorBox(
-      'Error during main process startup',
-      `${message}: ${error}`
-    );
-    app.quit();
+    showDialogWithError(message, error);
+    app.exit(1);
   });
 
   app
@@ -189,13 +197,10 @@ async function initializeApp(): Promise<void> {
       windowsManager.createWindow();
     })
     .catch(error => {
-      const message = 'Could not initialize the app';
+      const message = 'Could not create the main app window';
       logger.error(message, error);
-      dialog.showErrorBox(
-        'Error during app initialization',
-        `${message}: ${error}`
-      );
-      app.quit();
+      showDialogWithError(message, error);
+      app.exit(1);
     });
 
   // Limit navigation capabilities to reduce the attack surface.
@@ -417,4 +422,11 @@ function launchDeepLink(
   // Always pass the result to the frontend app so that the error can be shown to the user.
   // Otherwise the app would receive focus but nothing would be visible in the UI.
   windowsManager.launchDeepLink(result);
+}
+
+function showDialogWithError(title: string, unknownError: unknown) {
+  const error = ensureError(unknownError);
+  // V8 includes the error message in the stack, so there's no need to append stack to message.
+  const content = error.stack || error.message;
+  dialog.showErrorBox(title, content);
 }

@@ -40,7 +40,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 func extractPort(svr *httptest.Server) (int, error) {
@@ -96,7 +97,7 @@ func testPingLocalServer(t *testing.T, port int, expectSuccess bool) {
 }
 
 func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
-	invalidOSLogin := utils.GenerateLocalUsername(t)
+	invalidOSLogin := testutils.GenerateLocalUsername(t)
 
 	// Providing our own logins to Teleport so we can verify that a user
 	// that exists within Teleport but does not exist on the local node
@@ -170,7 +171,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 				NodeName:    Host,
 				Priv:        privateKey,
 				Pub:         publicKey,
-				Logger:      utils.NewSlogLoggerForTests(),
+				Logger:      logtest.NewLogger(),
 			})
 
 			for _, login := range logins {
@@ -196,7 +197,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 				NodeName:    Host,
 				Priv:        privateKey,
 				Pub:         publicKey,
-				Logger:      utils.NewSlogLoggerForTests(),
+				Logger:      logtest.NewLogger(),
 			})
 
 			// Create node config.

@@ -2,6 +2,9 @@
 title: Dual Authorization
 description: Dual Authorization for SSH and Kubernetes.
 videoBanner: b_iqJm_o15I
+labels:
+ - how-to
+ - identity-governance
 ---
 
 You can set up Teleport to require the approval of multiple team members to perform some critical actions.
@@ -14,19 +17,34 @@ In this guide, we will set up Teleport's Just-in-Time Access Requests to require
 the approval of two team members for a privileged role `elevated-access`.
 
 The steps below describe how to use Teleport with Mattermost. You can also
-[integrate with many other providers](../access-requests/access-requests.mdx).
+[integrate with many other providers](../../../identity-governance/access-requests/access-requests.mdx).
 
 <Admonition type="warning">
 
-Dual Authorization requires Teleport Enterprise.
+Dual Authorization requires Teleport Identity Governance.
 
 </Admonition>
+
+## How it works
+
+Teleport administrators can configure a role that allows elevated privileges as
+long as multiple additional users approve a request for that role. When a user
+requests access to the elevated role, they create an Access Request resource on
+the Teleport Auth Service backend. 
+
+A Teleport Access Request plugin connects to the Teleport Auth Service and
+receives a gRPC message whenever a Teleport user creates or updates an Access
+Request. The plugin then manages updates in a third-party communication
+platform, in this case, Mattermost. Users can then approve and deny Access
+Requests by following a message link.
+
+![The Mattermost Access Request plugin](../../../../img/enterprise/plugins/mattermost/diagram.png)
 
 ## Prerequisites
 
 - Mattermost installed.
 
-(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
 
 <Admonition
   type="tip"
@@ -62,7 +80,7 @@ Create the bot and save the access token.
 
 ### Set up RBAC for the plugin
 
-(!docs/pages/includes/plugins/rbac.mdx!)
+(!docs/pages/includes/plugins/rbac-with-friendly-name.mdx!)
 
 (!/docs/pages/includes/plugins/rbac-impersonate.mdx!)
 

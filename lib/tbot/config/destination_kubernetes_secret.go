@@ -33,6 +33,8 @@ import (
 	applyconfigv1 "k8s.io/client-go/applyconfigurations/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
 const DestinationKubernetesSecretType = "kubernetes_secret"
@@ -283,9 +285,9 @@ func (dks *DestinationKubernetesSecret) String() string {
 	return fmt.Sprintf("%s: %s", DestinationKubernetesSecretType, dks.Name)
 }
 
-func (dks *DestinationKubernetesSecret) MarshalYAML() (interface{}, error) {
+func (dks *DestinationKubernetesSecret) MarshalYAML() (any, error) {
 	type raw DestinationKubernetesSecret
-	return withTypeHeader((*raw)(dks), DestinationKubernetesSecretType)
+	return encoding.WithTypeHeader((*raw)(dks), DestinationKubernetesSecretType)
 }
 
 func (dks *DestinationKubernetesSecret) IsPersistent() bool {

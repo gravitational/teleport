@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/cmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	"github.com/gravitational/teleport/lib/teleterm/services/desktop"
 	"github.com/gravitational/teleport/lib/teleterm/services/unifiedresources"
 	"github.com/gravitational/teleport/lib/teleterm/services/userpreferences"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
@@ -87,8 +88,10 @@ func New(cfg Config) (*Service, error) {
 		closeContext:           closeContext,
 		cancel:                 cancel,
 		gateways:               make(map[string]gateway.Gateway),
+		desktopSessions:        make(map[string]*desktop.Session),
 		usageReporter:          connectUsageReporter,
 		headlessWatcherClosers: make(map[string]context.CancelFunc),
+		headlessAuthSemaphore:  newWaitSemaphore(maxConcurrentImportantModals, imporantModalWaitDuraiton),
 	}
 
 	// TODO(gzdunek): The client cache should be created outside of daemon.New.
@@ -119,7 +122,7 @@ func (s *Service) relogin(ctx context.Context, req *api.ReloginRequest) error {
 	timeoutCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, reloginUserTimeout)
 	defer cancelTshdEventsCtx()
 
-	if _, err := s.tshdEventsClient.Relogin(timeoutCtx, req); err != nil {
+	if _, err := s.cfg.TshdEventsClient.client.Relogin(timeoutCtx, req); err != nil {
 		if status.Code(err) == codes.DeadlineExceeded {
 			return trace.Wrap(err, "the user did not refresh the session within %s", reloginUserTimeout.String())
 		}
@@ -204,6 +207,64 @@ func (s *Service) AddCluster(ctx context.Context, webProxyAddress string) (*clus
 	}
 
 	return cluster, nil
+}
+
+// ConnectToDesktop establishes a desktop connection.
+func (s *Service) ConnectToDesktop(stream grpc.BidiStreamingServer[api.ConnectToDesktopRequest, api.ConnectToDesktopResponse], desktopURI uri.ResourceURI, login string) error {
+	ctx := stream.Context()
+
+	cluster, clusterClient, err := s.ResolveClusterURI(desktopURI)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cachedClient, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	session, cleanup, err := s.newDesktopSession(desktopURI, login)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer cleanup()
+
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		return trace.Wrap(session.Start(ctx, stream, clusterClient, cachedClient.ProxyClient))
+	})
+	return trace.Wrap(err)
+}
+
+// newDesktopSession creates a new desktop session for the specified desktop URI and login.
+//
+// If a session already exists for the given desktop URI and login, it returns an error.
+// On success, it returns the created session and a cleanup function that should be called to remove
+// the session from the service when it is no longer used.
+func (s *Service) newDesktopSession(desktopURI uri.ResourceURI, login string) (*desktop.Session, func(), error) {
+	s.desktopSessionsMu.Lock()
+	defer s.desktopSessionsMu.Unlock()
+
+	key := desktopSessionKey(desktopURI, login)
+
+	if _, ok := s.desktopSessions[key]; ok {
+		return nil, nil, trace.AlreadyExists("session for desktop %q and login %q already exists", desktopURI, login)
+	}
+
+	session, err := desktop.NewSession(desktopURI, login)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	s.desktopSessions[key] = session
+
+	cleanup := func() {
+		s.desktopSessionsMu.Lock()
+		defer s.desktopSessionsMu.Unlock()
+
+		delete(s.desktopSessions, key)
+	}
+
+	return session, cleanup, nil
 }
 
 // RemoveCluster removes cluster
@@ -308,8 +369,8 @@ func (s *Service) ClusterLogout(ctx context.Context, uri string) error {
 
 // CreateGateway creates a gateway to given targetURI
 func (s *Service) CreateGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.gatewaysMu.Lock()
+	defer s.gatewaysMu.Unlock()
 
 	gateway, err := s.createGateway(ctx, params)
 	if err != nil {
@@ -432,8 +493,8 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 
 // RemoveGateway removes cluster gateway
 func (s *Service) RemoveGateway(gatewayURI string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.gatewaysMu.Lock()
+	defer s.gatewaysMu.Unlock()
 
 	gateway, err := s.findGateway(gatewayURI)
 	if err != nil {
@@ -471,8 +532,8 @@ func (s *Service) findGateway(gatewayURI string) (gateway.Gateway, error) {
 
 // ListGateways lists gateways
 func (s *Service) ListGateways() []gateway.Gateway {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.gatewaysMu.RLock()
+	defer s.gatewaysMu.RUnlock()
 
 	gws := make([]gateway.Gateway, 0, len(s.gateways))
 	for _, gateway := range s.gateways {
@@ -516,8 +577,8 @@ func (s *Service) GetGatewayCLICommand(ctx context.Context, gateway gateway.Gate
 // SetGatewayTargetSubresourceName updates the TargetSubresourceName field of a gateway stored in
 // s.gateways.
 func (s *Service) SetGatewayTargetSubresourceName(ctx context.Context, gatewayURI, targetSubresourceName string) (gateway.Gateway, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.gatewaysMu.Lock()
+	defer s.gatewaysMu.Unlock()
 
 	gateway, err := s.findGateway(gatewayURI)
 	if err != nil {
@@ -568,8 +629,8 @@ func (s *Service) SetGatewayTargetSubresourceName(ctx context.Context, gatewayUR
 //
 // SetGatewayLocalPort is a noop if port is equal to the existing port.
 func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gateway, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.gatewaysMu.Lock()
+	defer s.gatewaysMu.Unlock()
 
 	oldGateway, err := s.findGateway(gatewayURI)
 	if err != nil {
@@ -609,26 +670,6 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gat
 	}()
 
 	return newGateway, nil
-}
-
-// GetServers accepts parameterized input to enable searching, sorting, and pagination.
-func (s *Service) GetServers(ctx context.Context, req *api.GetServersRequest) (*clusters.GetServersResponse, error) {
-	cluster, _, err := s.ResolveCluster(req.ClusterUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response, err := cluster.GetServers(ctx, req, proxyClient.CurrentCluster())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return response, nil
 }
 
 func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest) (*api.GetRequestableRolesResponse, error) {
@@ -830,11 +871,11 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 	//
 	// We don't know which gateways are affected by the access request,
 	// so we need to clear certs for all of them.
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.gatewaysMu.RLock()
+	defer s.gatewaysMu.RUnlock()
 	for _, gw := range s.gateways {
 		targetURI := gw.TargetURI()
-		if !(targetURI.IsKube() && targetURI.GetRootClusterURI() == cluster.URI) {
+		if !targetURI.IsKube() && targetURI.GetRootClusterURI() != cluster.URI {
 			continue
 		}
 		kubeGw, err := gateway.AsKube(gw)
@@ -883,6 +924,27 @@ func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.Re
 	return resources, trace.Wrap(err)
 }
 
+// ListDatabaseServers returns a paginated list of database servers (resource kind "db_server").
+func (s *Service) ListDatabaseServers(ctx context.Context, req *api.ListDatabaseServersRequest) (*clusters.GetDatabaseServersResponse, error) {
+	clusterURI, err := uri.Parse(req.GetClusterUri())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cluster, _, err := s.ResolveClusterURI(clusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxyClient, err := s.GetCachedClient(ctx, clusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := cluster.ListDatabaseServers(ctx, req.GetParams(), proxyClient.CurrentCluster())
+	return response, trace.Wrap(err)
+}
+
 func (s *Service) ReportUsageEvent(req *api.ReportUsageEventRequest) error {
 	prehogEvent, err := usagereporter.GetAnonymizedPrehogEvent(req)
 	if err != nil {
@@ -894,8 +956,8 @@ func (s *Service) ReportUsageEvent(req *api.ReportUsageEventRequest) error {
 
 // Stop terminates all cluster open connections
 func (s *Service) Stop() {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.gatewaysMu.RLock()
+	defer s.gatewaysMu.RUnlock()
 
 	s.cfg.Logger.InfoContext(s.closeContext, "Stopping")
 
@@ -924,43 +986,17 @@ func (s *Service) Stop() {
 
 // UpdateAndDialTshdEventsServerAddress allows the Electron app to provide the tshd events server
 // address.
-//
-// The startup of the app is orchestrated so that this method is called before any other method on
-// daemon.Service. This way all the other code in daemon.Service can assume that the tshd events
-// client is available right from the beginning, without the need for nil checks.
 func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	withCreds, err := s.cfg.CreateTshdEventsClientCredsFunc()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	conn, err := grpc.Dial(serverAddress, withCreds)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	client := api.NewTshdEventsServiceClient(conn)
-
-	s.tshdEventsClient = client
-	s.headlessAuthSemaphore = newWaitSemaphore(maxConcurrentImportantModals, imporantModalWaitDuraiton)
-
-	return nil
+	return s.cfg.TshdEventsClient.Connect(serverAddress)
 }
 
 // TshdEventsClient returns the client if it was initialized earlied by calling
 // UpdateAndDialTshdEventsServerAddress, otherwise it returns an error.
 //
 // The startup of Connect is orchestrated in a way that makes it safe to call this method from any
-// RPC. Code inside daemon.Service should just use s.tshdEventsClient directly.
-func (s *Service) TshdEventsClient() (api.TshdEventsServiceClient, error) {
-	if s.tshdEventsClient == nil {
-		return nil, trace.NotFound("tshd events client has not been initialized yet")
-	}
-
-	return s.tshdEventsClient, nil
+// RPC. Code inside daemon.Service should just use s.cfg.tshdEventsClient directly.
+func (s *Service) TshdEventsClient(ctx context.Context) (api.TshdEventsServiceClient, error) {
+	return s.cfg.TshdEventsClient.GetClient(ctx)
 }
 
 // NotifyApp sends a notification (usually an error) to the Electron App.
@@ -968,7 +1004,7 @@ func (s *Service) NotifyApp(ctx context.Context, notification *api.SendNotificat
 	tshdEventsCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, tshdEventsTimeout)
 	defer cancelTshdEventsCtx()
 
-	_, err := s.tshdEventsClient.SendNotification(tshdEventsCtx, notification)
+	_, err := s.cfg.TshdEventsClient.client.SendNotification(tshdEventsCtx, notification)
 	return trace.Wrap(err)
 }
 
@@ -1238,21 +1274,47 @@ func (s *Service) ClearCachedClientsForRoot(clusterURI uri.ResourceURI) error {
 	return trace.Wrap(s.clientCache.ClearForRoot(profileName))
 }
 
+// SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.
+// If there is no active desktop session associated with the specified desktop_uri and login,
+// an error is returned.
+func (s *Service) SetSharedDirectoryForDesktopSession(_ context.Context, desktopURI uri.ResourceURI, login, path string) error {
+	s.desktopSessionsMu.Lock()
+	defer s.desktopSessionsMu.Unlock()
+
+	session, ok := s.desktopSessions[desktopSessionKey(desktopURI, login)]
+	if !ok {
+		return trace.BadParameter("there is no desktop session for desktop %s and login %q", desktopURI, login)
+	}
+
+	err := session.SetSharedDirectory(path)
+	return trace.Wrap(err)
+}
+
+func desktopSessionKey(desktopURI uri.ResourceURI, login string) string {
+	return desktopURI.String() + "-" + login
+}
+
 // Service is the daemon service
 type Service struct {
 	cfg *Config
-	// mu guards gateways and the creation of tshdEventsClient.
-	mu sync.RWMutex
 
 	// closeContext is canceled when Service is getting stopped. It is used as a context for the calls
 	// to the tshd events gRPC client.
 	closeContext context.Context
 	cancel       context.CancelFunc
+
 	// gateways holds the long-running gateways for resources on different clusters. So far it's been
 	// used mostly for database gateways but it has potential to be used for app access as well.
 	gateways map[string]gateway.Gateway
-	// tshdEventsClient is a client to send events to the Electron App.
-	tshdEventsClient api.TshdEventsServiceClient
+	// gatewaysMu guards gateways.
+	gatewaysMu sync.RWMutex
+
+	// desktopSessions maps a desktop key (derived from desktop URI and login) to desktop sessions.
+	//
+	// Each session is created by the ConnectToDesktop RPC and later used by the SetSharedDirectoryForDesktopSession RPC
+	// to share a directory within the session.
+	desktopSessions   map[string]*desktop.Session
+	desktopSessionsMu sync.Mutex
 
 	// The Electron App can display multiple important modals by showing the latest one and hiding the others.
 	// However, we should be careful with it, and generally try to limit the number of prompts on the tshd side,

@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/textproto"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -38,6 +39,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/utils"
+	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 )
 
 const (
@@ -213,6 +215,17 @@ func VerifyAWSSignature(req *http.Request, credProvider aws.CredentialsProvider)
 	creds, err := credProvider.Retrieve(ctx)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// If the original request does not sign "content-length" (e.g. "aws sts
+	// get-caller-identity"), do not set reqCopy.ContentLength as go sdk's
+	// signer will forcefully sign "content-length" if it is set on the HTTP
+	// request.
+	findContentLength := slices.ContainsFunc(sigV4.SignedHeaders, func(header string) bool {
+		return strings.EqualFold(header, "content-length")
+	})
+	if !findContentLength {
+		reqCopy.ContentLength = 0
 	}
 
 	signer := NewSigner(sigV4.Service)
@@ -521,3 +534,8 @@ func iamResourceARN(partition, accountID, resourceType, resourceName string) str
 		Resource:  fmt.Sprintf("%s/%s", resourceType, resourceName),
 	}.String()
 }
+
+// IsKnownRegion returns true if provided region is one of the "well-known" AWS
+// regions.
+// TODO(greedy52): DELETE once e is updated to use the package directly.
+var IsKnownRegion = awsregion.IsKnownRegion

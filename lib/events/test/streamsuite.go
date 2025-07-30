@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -187,7 +186,7 @@ func StreamEmpty(t *testing.T, handler events.MultipartHandler) {
 	require.NoError(t, err)
 	defer os.Remove(f.Name())
 
-	fixtures.AssertNotFound(t, handler.Download(ctx, sid, f))
+	require.True(t, trace.IsNotFound(handler.Download(ctx, sid, f)))
 }
 
 // StreamWithParameters tests stream upload and subsequent download and reads the results
@@ -256,7 +255,8 @@ func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params 
 	_, err = f.Seek(0, 0)
 	require.NoError(t, err)
 
-	reader := events.NewProtoReader(f)
+	reader := events.NewProtoReader(f, nil)
+
 	out, err := reader.ReadAll(ctx)
 	require.NoError(t, err)
 
@@ -327,7 +327,8 @@ func StreamResumeWithParameters(t *testing.T, handler events.MultipartHandler, p
 	_, err = f.Seek(0, 0)
 	require.NoError(t, err)
 
-	reader := events.NewProtoReader(f)
+	reader := events.NewProtoReader(f, nil)
+
 	out, err := reader.ReadAll(ctx)
 	require.NoError(t, err)
 

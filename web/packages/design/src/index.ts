@@ -28,6 +28,7 @@ import {
 } from './Button';
 import ButtonIcon from './ButtonIcon';
 import ButtonLink from './ButtonLink';
+import { ButtonSelect } from './ButtonSelect';
 import { ButtonWithMenu } from './ButtonWithMenu';
 import Card from './Card';
 import CardSuccess, { CardSuccessLogin } from './CardSuccess';
@@ -46,6 +47,7 @@ import { Pill } from './Pill';
 import Popover from './Popover';
 import { ResourceIcon } from './ResourceIcon';
 import { StepSlider } from './StepSlider';
+import { SyncStamp } from './SyncStamp';
 import Text, {
   H1,
   H2,
@@ -73,6 +75,7 @@ export {
   ButtonLink,
   ButtonPrimary,
   ButtonSecondary,
+  ButtonSelect,
   ButtonText,
   ButtonWarning,
   ButtonWithMenu,
@@ -106,6 +109,7 @@ export {
   Subtitle1,
   Subtitle2,
   Subtitle3,
+  SyncStamp,
   Text,
   TextArea,
   Toggle,

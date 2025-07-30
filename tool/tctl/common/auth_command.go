@@ -20,6 +20,9 @@ package common
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/base32"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"log/slog"
@@ -42,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/identityfile"
@@ -51,14 +53,13 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/winpki"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // authCommandClient is aggregated client interface for auth command.
 type authCommandClient interface {
-	certificateSigner
-	crlGenerator
 	authclient.ClientI
 }
 
@@ -171,6 +172,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 
 	a.authCRL = auth.Command("crl", "Export empty certificate revocation list (CRL) for certificate authorities.")
 	a.authCRL.Flag("type", fmt.Sprintf("Certificate authority type, one of: %s", strings.Join(allowedCRLCertificateTypes, ", "))).Required().EnumVar(&a.caType, allowedCRLCertificateTypes...)
+	a.authCRL.Flag("out", "If set, writes exported revocation lists to files with the given path prefix").StringVar(&a.output)
 }
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
@@ -220,6 +222,7 @@ var allowedCertificateTypes = []string{
 	"openssh",
 	"saml-idp",
 	"github",
+	"awsra",
 }
 
 // allowedCRLCertificateTypes list of certificate authorities types that can
@@ -283,7 +286,7 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt authCommandClie
 			if err := os.WriteFile(name, authority.Data, perms); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Println(name)
+			fmt.Fprintln(os.Stderr, name)
 		}
 		return nil
 	}
@@ -404,7 +407,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 		return trace.Wrap(err)
 	}
 
-	certDER, _, err := windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
+	certDER, _, err := winpki.GenerateWindowsDesktopCredentials(ctx, clusterAPI, &winpki.GenerateCredentialsRequest{
 		CAType:             types.UserCA,
 		Username:           a.windowsUser,
 		Domain:             a.windowsDomain,
@@ -413,7 +416,6 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 		TTL:                a.genTTL,
 		ClusterName:        cn.GetClusterName(),
 		OmitCDP:            a.omitCDP,
-		AuthClient:         clusterAPI,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -493,10 +495,6 @@ func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI authComman
 	return nil
 }
 
-type crlGenerator interface {
-	GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error)
-}
-
 // GenerateCRLForCA generates a certificate revocation list for a certificate
 // authority.
 func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authCommandClient) error {
@@ -504,13 +502,80 @@ func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authComma
 	if err := certType.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-
-	crl, err := clusterAPI.GenerateCertAuthorityCRL(ctx, certType)
+	clusterName, err := clusterAPI.GetClusterName(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	authority, err := clusterAPI.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       certType,
+		DomainName: clusterName.GetClusterName(),
+	}, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	fmt.Println(string(crl))
+	tlsKeys := authority.GetActiveKeys().TLS
+	if len(tlsKeys) == 0 {
+		return trace.BadParameter("CA has no active keys")
+	}
+
+	if a.output == "" {
+		if len(tlsKeys) > 1 {
+			return trace.BadParameter("CA has multiple active keys, use --out to export all CRLs")
+		}
+		crl := tlsKeys[0].CRL
+		if len(crl) == 0 {
+			fmt.Fprintf(os.Stderr, "keypair is missing CRL for %v authority %v, generating legacy fallback", authority.GetType(), authority.GetName())
+			crl, err = clusterAPI.GenerateCertAuthorityCRL(ctx, certType)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		fmt.Print(string(crl))
+		return nil
+	}
+
+	// collect the CRLs ahead of time so we can print a message
+	// like we do with tctl auth export
+	type output struct{ cert, crl []byte }
+	var results []output
+	for i, keypair := range tlsKeys {
+		crl := keypair.CRL
+		if len(crl) == 0 {
+			fmt.Fprintf(os.Stderr, "keypair %v is missing CRL for %v authority %v, generating legacy fallback", i, authority.GetType(), authority.GetName())
+			crl, err = clusterAPI.GenerateCertAuthorityCRL(ctx, certType)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		results = append(results, output{keypair.Cert, crl})
+	}
+
+	fmt.Fprintf(os.Stderr, "Writing %d files with prefix %q\n", len(results), a.output)
+	commands := make([]string, len(results))
+	for i, out := range results {
+		block, _ := pem.Decode(out.cert)
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		cn := base32.HexEncoding.EncodeToString(cert.SubjectKeyId) + "_" + cert.Subject.CommonName
+		filename := fmt.Sprintf("%s-%v-%v.crl", a.output, certType, cn)
+		if err := os.WriteFile(filename, out.crl, os.FileMode(0644)); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprintln(os.Stderr, filename)
+		commands[i] = fmt.Sprintf("certutil -dspublish %s TeleportDB %s", filename, cn)
+	}
+
+	if certType == types.DatabaseClientCA && len(results) > 1 {
+		fmt.Fprintln(os.Stderr, "\nTo publish CRLs, run the following in Windows:")
+		for _, command := range commands {
+			fmt.Fprintln(os.Stderr, "  "+command)
+		}
+	}
+
 	return nil
 }
 
@@ -643,7 +708,7 @@ func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output st
 		// Consider adding one to ease the installation for the end-user
 		return nil
 	}
-	tplVars := map[string]interface{}{
+	tplVars := map[string]any{
 		"files":     strings.Join(filesWritten, ", "),
 		"password":  password,
 		"output":    output,

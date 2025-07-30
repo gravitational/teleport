@@ -1,6 +1,9 @@
 ---
 title: Dynamic Windows Desktop Registration
 description: Register/unregister Windows desktops without restarting Teleport.
+labels:
+ - conceptual
+ - zero-trust
 ---
 
 Dynamic Windows desktop registration allows Teleport administrators to register
@@ -36,7 +39,7 @@ service to monitor for registering:
 
 ```yaml
 windows_desktop_service:
-  enabled: "yes"
+  enabled: true
   resources:
   - labels:
       "*": "*"

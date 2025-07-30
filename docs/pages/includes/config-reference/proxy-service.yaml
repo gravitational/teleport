@@ -1,7 +1,7 @@
 # This section configures the 'proxy service'
 proxy_service:
-    # Turns 'proxy' role on. Default is 'yes'
-    enabled: yes
+    # Turns 'proxy' role on. Default is true
+    enabled: true
 
     # proxy_protocol controls support for HAProxy PROXY protocol.
     # Unspecified by default, possible values:

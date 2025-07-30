@@ -31,6 +31,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -263,10 +264,8 @@ func IsGroupMember(gid int) (bool, error) {
 	if err != nil {
 		return false, trace.ConvertSystemError(err)
 	}
-	for _, group := range groups {
-		if group == gid {
-			return true, nil
-		}
+	if slices.Contains(groups, gid) {
+		return true, nil
 	}
 	return false, nil
 }
@@ -304,6 +303,16 @@ func Host(hostname string) (string, error) {
 	return host, nil
 }
 
+// TryHost is a utility function that extracts host from the host:port pair,
+// in case of any error returns the original value.
+func TryHost(in string) string {
+	out, err := Host(in)
+	if err != nil {
+		return in
+	}
+	return out
+}
+
 // SplitHostPort splits host and port and checks that host is not empty
 func SplitHostPort(hostname string) (string, string, error) {
 	host, port, err := net.SplitHostPort(hostname)
@@ -316,9 +325,14 @@ func SplitHostPort(hostname string) (string, string, error) {
 	return host, port, nil
 }
 
+// HostFQDN consists of host UUID and cluster name joined via '.'
+func HostFQDN(hostUUID, clusterName string) string {
+	return hostUUID + "." + clusterName
+}
+
 // IsValidHostname checks if a string represents a valid hostname.
 func IsValidHostname(hostname string) bool {
-	for _, label := range strings.Split(hostname, ".") {
+	for label := range strings.SplitSeq(hostname, ".") {
 		if len(validation.IsDNS1035Label(label)) > 0 {
 			return false
 		}
@@ -664,6 +678,12 @@ const (
 	// ExtIntSSHJoinPermi is an internal extension used to propagate
 	// the join permit for the user.
 	ExtIntSSHJoinPermit = "ssh-join-permit" + extIntSuffix
+	// ExtIntProxyingPermit is an internal extension used to propagate
+	// the proxying permit for the user.
+	ExtIntProxyingPermit = "proxying-permit" + extIntSuffix
+	// ExtIntGitForwardingPermit is an internal extension used to propagate
+	// the git forwarding permit for the user.
+	ExtIntGitForwardingPermit = "git-forwarding-permit" + extIntSuffix
 )
 
 // IsInternalSSHExtension returns true if the extension has the internal

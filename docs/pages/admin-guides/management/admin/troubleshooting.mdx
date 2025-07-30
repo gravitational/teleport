@@ -1,6 +1,9 @@
 ---
 title: Troubleshooting
 description: Troubleshooting and Collecting Metrics of Teleport Processes
+labels:
+ - how-to
+ - platform-wide
 ---
 
 In this guide, we will explain how to address issues or unexpected behavior in your
@@ -37,7 +40,7 @@ To change the instance log level use the `teleport debug set-log-level` command:
 $ teleport debug set-log-level DEBUG
 Changed log level from "INFO" to "DEBUG".
 
-$ kubectl -n teleport exec my-pod -- teleport set-log-level DEBUG
+$ kubectl -n teleport exec my-pod -- teleport debug set-log-level DEBUG
 Changed log level from "INFO" to "DEBUG".
 ```
 

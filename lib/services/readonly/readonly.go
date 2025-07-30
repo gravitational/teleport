@@ -217,6 +217,10 @@ type Application interface {
 	GetAWSAccountID() string
 	// GetAWSExternalID returns the AWS External ID configured for this app.
 	GetAWSExternalID() string
+	// GetAWSRolesAnywhereProfileARN returns the AWS IAM Roles Anywhere Profile ARN which originated this App.
+	GetAWSRolesAnywhereProfileARN() string
+	// GetAWSRolesAnywhereAcceptRoleSessionName returns whether the IAM Roles Anywhere Profile supports defining a custom AWS Session Name.
+	GetAWSRolesAnywhereAcceptRoleSessionName() bool
 	// GetUserGroups will get the list of user group IDs associated with the application.
 	GetUserGroups() []string
 	// Copy returns a copy of this app resource.

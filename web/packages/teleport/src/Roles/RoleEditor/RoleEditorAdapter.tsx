@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect } from 'react';
-import { useTheme } from 'styled-components';
+import { useCallback, useEffect, useState } from 'react';
+import styled, { useTheme } from 'styled-components';
 
 import { Danger } from 'design/Alert';
 import Flex from 'design/Flex';
@@ -32,7 +32,10 @@ import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
 import { RoleDiffState, RolesProps } from '../Roles';
 import { RoleEditor } from './RoleEditor';
-import { RoleEditorVisualizer } from './RoleEditorVisualizer';
+import {
+  RoleEditorVisualizer,
+  shouldShowRoleDiff,
+} from './RoleEditorVisualizer';
 
 /**
  * This component is responsible for converting from the `Resource`
@@ -44,11 +47,14 @@ export function RoleEditorAdapter({
   onSave,
   onCancel,
   roleDiffProps,
+  forceProcessingStatus = false,
 }: {
   resources: ResourcesState;
   onSave: (role: Partial<RoleWithYaml>) => Promise<void>;
   onCancel: () => void;
+  forceProcessingStatus?: boolean;
 } & RolesProps) {
+  const showRoleDiff = roleDiffProps && shouldShowRoleDiff(roleDiffProps);
   const theme = useTheme();
   const [convertAttempt, convertToRole] = useAsync(
     async (yaml: string): Promise<RoleWithYaml | null> => {
@@ -64,6 +70,8 @@ export function RoleEditorAdapter({
     }
   );
 
+  const [editorMinimized, setEditorMinimized] = useState(false);
+
   const originalContent = resources.item?.content ?? '';
   useEffect(() => {
     convertToRole(originalContent);
@@ -75,17 +83,20 @@ export function RoleEditorAdapter({
   );
 
   return (
-    <Flex flex="1">
+    <Container flex="1">
       {/* This component's width influences how we lay out the permission
           checkboxes in AdminRules. */}
-      <Flex
+      <EditorPane
+        minimized={editorMinimized}
         flexDirection="column"
         borderLeft={1}
         borderColor={theme.colors.interactive.tonal.neutral[0]}
         backgroundColor={theme.colors.levels.surface}
-        width="550px"
+        width="35%"
+        minWidth="494px"
+        maxWidth="672px"
       >
-        {convertAttempt.status === 'processing' && (
+        {(convertAttempt.status === 'processing' || forceProcessingStatus) && (
           <Flex
             flexDirection="column"
             alignItems="center"
@@ -99,12 +110,7 @@ export function RoleEditorAdapter({
           <Danger>{convertAttempt.statusText}</Danger>
         )}
 
-        {/* TODO(bl-nero): Remove once RoleE doesn't set this attribute. */}
-        {roleDiffProps?.errorMessage && (
-          <Danger>{roleDiffProps.errorMessage}</Danger>
-        )}
-
-        {convertAttempt.status === 'success' && (
+        {convertAttempt.status === 'success' && !forceProcessingStatus && (
           <RoleEditor
             originalRole={convertAttempt.data}
             roleDiffAttempt={roleDiffProps?.roleDiffAttempt}
@@ -112,13 +118,37 @@ export function RoleEditorAdapter({
             onSave={onSave}
             onRoleUpdate={onRoleUpdate}
             demoMode={roleDiffProps?.roleDiffState === RoleDiffState.DemoReady}
+            minimized={editorMinimized}
+            onMinimizedChange={showRoleDiff ? setEditorMinimized : undefined}
           />
         )}
-      </Flex>
+      </EditorPane>
       <RoleEditorVisualizer
         roleDiffProps={roleDiffProps}
         currentFlow={resources.status === 'creating' ? 'creating' : 'updating'}
       />
-    </Flex>
+    </Container>
   );
 }
+
+const Container = styled(Flex)`
+  position: relative;
+`;
+
+const EditorPane = styled(Flex)<{ minimized: boolean }>`
+  position: ${props => (props.minimized ? 'absolute' : 'static')};
+  left: ${props => props.theme.space[4]}px;
+  top: ${props => props.theme.space[4]}px;
+
+  border-top-left-radius: ${props =>
+    props.minimized ? props.theme.radii[3] : 0}px;
+  border-top-right-radius: ${props => props.theme.radii[3]}px;
+  border-bottom-right-radius: ${props => props.theme.radii[3]}px;
+  border-bottom-left-radius: ${props =>
+    props.minimized ? props.theme.radii[3] : 0}px;
+  box-shadow: ${props => props.theme.boxShadow[3]};
+
+  // The editor pane needs to appear on top, even though it's before the
+  // visualizer in the DOM tree.
+  z-index: 1;
+`;

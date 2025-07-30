@@ -61,11 +61,11 @@ func (f fakeExec) LookPath(path string) (string, error) {
 
 func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 	conf := &client.Config{
-		HomePath:     t.TempDir(),
 		Host:         "localhost",
 		WebProxyAddr: "proxy.example.com",
 		SiteName:     "db.example.com",
 		Tracer:       tracing.NoopProvider().Tracer("test"),
+		ClientStore:  client.NewMemClientStore(),
 	}
 
 	tc, err := client.NewClient(conf)
@@ -186,6 +186,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				},
 			},
 			cmd: []string{"mariadb",
+				"--skip-password",
 				"--user", "myUser",
 				"--database", "mydb",
 				"--port", "12345",
@@ -208,6 +209,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				},
 			},
 			cmd: []string{"mariadb",
+				"--skip-password",
 				"--user", "myUser",
 				"--database", "mydb",
 				"--port", "12345",
@@ -225,6 +227,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				},
 			},
 			cmd: []string{"mysql",
+				"--skip-password",
 				"--user", "myUser",
 				"--database", "mydb",
 				"--port", "12345",
@@ -247,6 +250,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			},
 			cmd: []string{"mysql",
 				"--defaults-group-suffix=_db.example.com-mysql",
+				"--skip-password",
 				"--user", "myUser",
 				"--database", "mydb",
 				"--port", "12345",
@@ -265,6 +269,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				},
 			},
 			cmd: []string{"mysql",
+				"--skip-password",
 				"--user", "myUser",
 				"--database", "mydb",
 				"--port", "12345",
@@ -291,6 +296,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				execOutput: map[string][]byte{},
 			},
 			cmd: []string{"mysql",
+				"--skip-password",
 				"--user", "myUser",
 				"--database", "mydb",
 				"--port", "12345",
@@ -309,6 +315,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				},
 			},
 			cmd: []string{"mariadb",
+				"--skip-password",
 				"--user", "myUser",
 				"--database", "mydb",
 				"--port", "3036",
@@ -769,7 +776,6 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -801,11 +807,11 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 
 func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 	conf := &client.Config{
-		HomePath:     t.TempDir(),
 		Host:         "localhost",
 		WebProxyAddr: "proxy.example.com",
 		SiteName:     "db.example.com",
 		Tracer:       tracing.NoopProvider().Tracer("test"),
+		ClientStore:  client.NewMemClientStore(),
 	}
 
 	tc, err := client.NewClient(conf)
@@ -932,7 +938,6 @@ func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -970,13 +975,12 @@ func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 
 func TestConvertCommandError(t *testing.T) {
 	t.Parallel()
-	homePath := t.TempDir()
 	conf := &client.Config{
-		HomePath:     homePath,
 		Host:         "localhost",
 		WebProxyAddr: "localhost",
 		SiteName:     "db.example.com",
 		Tracer:       tracing.NoopProvider().Tracer("test"),
+		ClientStore:  client.NewMemClientStore(),
 	}
 
 	tc, err := client.NewClient(conf)
@@ -985,7 +989,6 @@ func TestConvertCommandError(t *testing.T) {
 	profile := &client.ProfileStatus{
 		Name:     "example.com",
 		Username: "bob",
-		Dir:      homePath,
 		Cluster:  "example.com",
 	}
 
@@ -1020,7 +1023,6 @@ func TestConvertCommandError(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 

@@ -20,180 +20,376 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
-type identityCenterAccountGetter interface {
-	GetIdentityCenterAccount(context.Context, services.IdentityCenterAccountID) (services.IdentityCenterAccount, error)
-	ListIdentityCenterAccounts(context.Context, int, *pagination.PageRequestToken) ([]services.IdentityCenterAccount, pagination.NextPageToken, error)
+type identityCenterAccountIndex string
+
+const identityCenterAccountNameIndex identityCenterAccountIndex = "name"
+
+func newIdentityCenterAccountCollection(ic services.IdentityCenter, w types.WatchKind) (*collection[*identitycenterv1.Account, identityCenterAccountIndex], error) {
+	if ic == nil {
+		return nil, trace.BadParameter("missing parameter IdentityCenter")
+	}
+
+	return &collection[*identitycenterv1.Account, identityCenterAccountIndex]{
+		store: newStore(
+			types.KindIdentityCenterAccount,
+			proto.CloneOf[*identitycenterv1.Account],
+			map[identityCenterAccountIndex]func(*identitycenterv1.Account) string{
+				identityCenterAccountNameIndex: func(r *identitycenterv1.Account) string {
+					return r.GetMetadata().GetName()
+				},
+			}),
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]*identitycenterv1.Account, error) {
+			var pageToken pagination.PageRequestToken
+			var accounts []*identitycenterv1.Account
+			for {
+				resp, nextToken, err := ic.ListIdentityCenterAccounts(ctx, 0, &pageToken)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				for _, item := range resp {
+					accounts = append(accounts, item.Account)
+				}
+				if nextToken == "" {
+					break
+				}
+				pageToken.Update(nextToken)
+			}
+			return accounts, nil
+		},
+		headerTransform: func(hdr *types.ResourceHeader) *identitycenterv1.Account {
+			return &identitycenterv1.Account{
+				Kind:    hdr.Kind,
+				SubKind: hdr.SubKind,
+				Version: hdr.Version,
+				Metadata: &headerv1.Metadata{
+					Name: hdr.Metadata.Name,
+				},
+			}
+		},
+		watch: w,
+	}, nil
 }
 
-type identityCenterAccountExecutor struct{}
+func (c *Cache) GetIdentityCenterAccount(ctx context.Context, name string) (*identitycenterv1.Account, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetIdentityCenterAccount")
+	defer span.End()
 
-func (identityCenterAccountExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]services.IdentityCenterAccount, error) {
-	var pageToken pagination.PageRequestToken
-	var resources []services.IdentityCenterAccount
-	for {
-		resourcesPage, nextPage, err := cache.IdentityCenter.ListIdentityCenterAccounts(ctx, 0, &pageToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
+	rg, err := acquireReadGuard(c, c.collections.identityCenterAccounts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	if !rg.ReadCache() {
+		account, err := c.Config.IdentityCenter.GetIdentityCenterAccount(ctx, name)
+		return account, trace.Wrap(err)
+	}
+
+	account, err := rg.store.get(identityCenterAccountNameIndex, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return utils.CloneProtoMsg(account), nil
+}
+
+func (c *Cache) ListIdentityCenterAccounts(ctx context.Context, pageSize int, token *pagination.PageRequestToken) ([]services.IdentityCenterAccount, pagination.NextPageToken, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListIdentityCenterAccounts")
+	defer span.End()
+
+	pageToken, err := token.Consume()
+	if err != nil {
+		return nil, "", trace.Wrap(err, "extracting page token")
+	}
+
+	accounts, next, err := c.ListIdentityCenterAccounts2(ctx, pageSize, pageToken)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	var out []services.IdentityCenterAccount
+	for _, account := range accounts {
+		out = append(out, services.IdentityCenterAccount{Account: account})
+
+	}
+	return out, pagination.NextPageToken(next), nil
+}
+
+func (c *Cache) ListIdentityCenterAccounts2(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.Account, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListIdentityCenterAccounts2")
+	defer span.End()
+
+	rg, err := acquireReadGuard(c, c.collections.identityCenterAccounts)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	if !rg.ReadCache() {
+		accounts, next, err := c.Config.IdentityCenter.ListIdentityCenterAccounts2(ctx, pageSize, pageToken)
+		return accounts, next, trace.Wrap(err)
+	}
+
+	if pageSize == 0 {
+		pageSize = 100
+	}
+
+	var accounts []*identitycenterv1.Account
+	for account := range rg.store.resources(identityCenterAccountNameIndex, pageToken, "") {
+		if len(accounts) == pageSize {
+			return accounts, account.Metadata.GetName(), nil
 		}
 
-		resources = append(resources, resourcesPage...)
+		accounts = append(accounts, utils.CloneProtoMsg(account))
 
-		if nextPage == pagination.EndOfList {
-			break
+	}
+	return accounts, "", nil
+}
+
+type identityCenterAccountAssignmentIndex string
+
+const identityCenterAccountAssignmentNameIndex identityCenterAccountAssignmentIndex = "name"
+
+func newIdentityCenterAccountAssignmentCollection(ic services.IdentityCenter, w types.WatchKind) (*collection[*identitycenterv1.AccountAssignment, identityCenterAccountAssignmentIndex], error) {
+	if ic == nil {
+		return nil, trace.BadParameter("missing parameter IdentityCenter")
+	}
+
+	return &collection[*identitycenterv1.AccountAssignment, identityCenterAccountAssignmentIndex]{
+		store: newStore(
+			types.KindIdentityCenterAccountAssignment,
+			proto.CloneOf[*identitycenterv1.AccountAssignment],
+			map[identityCenterAccountAssignmentIndex]func(*identitycenterv1.AccountAssignment) string{
+				identityCenterAccountAssignmentNameIndex: func(r *identitycenterv1.AccountAssignment) string {
+					return r.GetMetadata().GetName()
+				},
+			}),
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]*identitycenterv1.AccountAssignment, error) {
+			var pageToken pagination.PageRequestToken
+			var accounts []*identitycenterv1.AccountAssignment
+			for {
+				resp, nextToken, err := ic.ListAccountAssignments(ctx, 0, &pageToken)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				for _, item := range resp {
+					accounts = append(accounts, item.AccountAssignment)
+				}
+				if nextToken == "" {
+					break
+				}
+				pageToken.Update(nextToken)
+			}
+			return accounts, nil
+		},
+		headerTransform: func(hdr *types.ResourceHeader) *identitycenterv1.AccountAssignment {
+			return &identitycenterv1.AccountAssignment{
+				Kind:    hdr.Kind,
+				SubKind: hdr.SubKind,
+				Version: hdr.Version,
+				Metadata: &headerv1.Metadata{
+					Name: hdr.Metadata.Name,
+				},
+			}
+		},
+		watch: w,
+	}, nil
+}
+
+func (c *Cache) GetAccountAssignment(ctx context.Context, id services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccountAssignment")
+	defer span.End()
+
+	assignment, err := c.GetIdentityCenterAccountAssignment(ctx, string(id))
+	if err != nil {
+		return services.IdentityCenterAccountAssignment{}, trace.Wrap(err)
+	}
+
+	return services.IdentityCenterAccountAssignment{AccountAssignment: assignment}, nil
+}
+
+func (c *Cache) GetIdentityCenterAccountAssignment(ctx context.Context, id string) (*identitycenterv1.AccountAssignment, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetIdentityCenterAccountAssignment")
+	defer span.End()
+
+	rg, err := acquireReadGuard(c, c.collections.identityCenterAccountAssignments)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	if !rg.ReadCache() {
+		assignment, err := c.Config.IdentityCenter.GetIdentityCenterAccountAssignment(ctx, id)
+		return assignment, trace.Wrap(err)
+	}
+
+	assignment, err := rg.store.get(identityCenterAccountAssignmentNameIndex, id)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return assignment, nil
+}
+
+// ListAccountAssignments fetches a paginated list of IdentityCenter Account Assignments
+func (c *Cache) ListAccountAssignments(ctx context.Context, pageSize int, pageToken *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAccountAssignments")
+	defer span.End()
+
+	token, err := pageToken.Consume()
+	if err != nil {
+		return nil, "", trace.Wrap(err, "extracting page token")
+	}
+
+	assignments, next, err := c.ListIdentityCenterAccountAssignments(ctx, pageSize, token)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	out := make([]services.IdentityCenterAccountAssignment, 0, len(assignments))
+	for _, assignment := range assignments {
+		out = append(out, services.IdentityCenterAccountAssignment{AccountAssignment: assignment})
+
+	}
+	return out, pagination.NextPageToken(next), nil
+}
+
+// ListIdentityCenterAccountAssignments fetches a paginated list of IdentityCenter Account Assignments
+func (c *Cache) ListIdentityCenterAccountAssignments(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.AccountAssignment, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListIdentityCenterAccountAssignments")
+	defer span.End()
+
+	rg, err := acquireReadGuard(c, c.collections.identityCenterAccountAssignments)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	if !rg.ReadCache() {
+		assignment, next, err := c.Config.IdentityCenter.ListIdentityCenterAccountAssignments(ctx, pageSize, pageToken)
+		return assignment, next, trace.Wrap(err)
+	}
+
+	if pageSize == 0 {
+		pageSize = 100
+	}
+
+	var assignments []*identitycenterv1.AccountAssignment
+	for assignment := range rg.store.resources(identityCenterAccountAssignmentNameIndex, pageToken, "") {
+		if len(assignments) == pageSize {
+			return assignments, assignment.GetMetadata().Name, nil
 		}
-		pageToken.Update(nextPage)
+
+		assignments = append(assignments, assignment)
 	}
-	return resources, nil
+	return assignments, "", nil
 }
 
-func (identityCenterAccountExecutor) upsert(ctx context.Context, cache *Cache, resource services.IdentityCenterAccount) error {
-	_, err := cache.identityCenterCache.UpsertIdentityCenterAccount(ctx, resource)
-	return trace.Wrap(err)
-}
+type identityCenterPrincipalAssignmentIndex string
 
-func (identityCenterAccountExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return trace.Wrap(cache.identityCenterCache.DeleteIdentityCenterAccount(ctx,
-		services.IdentityCenterAccountID(resource.GetName())))
-}
+const identityCenterPrincipalAssignmentNameIndex identityCenterPrincipalAssignmentIndex = "name"
 
-func (identityCenterAccountExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	_, err := cache.identityCenterCache.DeleteAllIdentityCenterAccounts(ctx, &identitycenterv1.DeleteAllIdentityCenterAccountsRequest{})
-	return trace.Wrap(err)
-}
-
-func (identityCenterAccountExecutor) getReader(cache *Cache, cacheOK bool) identityCenterAccountGetter {
-	if cacheOK {
-		return cache.identityCenterCache
+func newIdentityCenterPrincipalAssignmentCollection(upstream services.IdentityCenter, w types.WatchKind) (*collection[*identitycenterv1.PrincipalAssignment, identityCenterPrincipalAssignmentIndex], error) {
+	if upstream == nil {
+		return nil, trace.BadParameter("missing parameter IdentityCenter")
 	}
-	return cache.Config.IdentityCenter
+
+	return &collection[*identitycenterv1.PrincipalAssignment, identityCenterPrincipalAssignmentIndex]{
+		store: newStore(
+			types.KindIdentityCenterPrincipalAssignment,
+			proto.CloneOf[*identitycenterv1.PrincipalAssignment],
+			map[identityCenterPrincipalAssignmentIndex]func(*identitycenterv1.PrincipalAssignment) string{
+				identityCenterPrincipalAssignmentNameIndex: func(r *identitycenterv1.PrincipalAssignment) string {
+					return r.GetMetadata().GetName()
+				},
+			}),
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]*identitycenterv1.PrincipalAssignment, error) {
+			var pageToken pagination.PageRequestToken
+			var resources []*identitycenterv1.PrincipalAssignment
+			for {
+				resourcesPage, nextPage, err := upstream.ListPrincipalAssignments(ctx, 0, &pageToken)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				resources = append(resources, resourcesPage...)
+
+				if nextPage == "" {
+					break
+				}
+				pageToken.Update(nextPage)
+			}
+			return resources, nil
+		},
+		headerTransform: func(hdr *types.ResourceHeader) *identitycenterv1.PrincipalAssignment {
+			return &identitycenterv1.PrincipalAssignment{
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
+				Metadata: &headerv1.Metadata{
+					Name: hdr.Metadata.Name,
+				},
+			}
+		},
+		watch: w,
+	}, nil
 }
 
-func (identityCenterAccountExecutor) isSingleton() bool {
-	return false
-}
+func (c *Cache) GetPrincipalAssignment(ctx context.Context, id services.PrincipalAssignmentID) (*identitycenterv1.PrincipalAssignment, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetPrincipalAssignment")
+	defer span.End()
 
-var _ executor[
-	services.IdentityCenterAccount,
-	identityCenterAccountGetter,
-] = identityCenterAccountExecutor{}
-
-type identityCenterPrincipalAssignmentGetter interface {
-	GetPrincipalAssignment(context.Context, services.PrincipalAssignmentID) (*identitycenterv1.PrincipalAssignment, error)
-	ListPrincipalAssignments(context.Context, int, *pagination.PageRequestToken) ([]*identitycenterv1.PrincipalAssignment, pagination.NextPageToken, error)
-}
-
-type identityCenterPrincipalAssignmentExecutor struct{}
-
-var _ executor[
-	*identitycenterv1.PrincipalAssignment,
-	identityCenterPrincipalAssignmentGetter,
-] = identityCenterPrincipalAssignmentExecutor{}
-
-func (identityCenterPrincipalAssignmentExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*identitycenterv1.PrincipalAssignment, error) {
-	var pageToken pagination.PageRequestToken
-	var resources []*identitycenterv1.PrincipalAssignment
-	for {
-		resourcesPage, nextPage, err := cache.IdentityCenter.ListPrincipalAssignments(ctx, 0, &pageToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		resources = append(resources, resourcesPage...)
-
-		if nextPage == pagination.EndOfList {
-			break
-		}
-		pageToken.Update(nextPage)
+	getter := genericGetter[*identitycenterv1.PrincipalAssignment, identityCenterPrincipalAssignmentIndex]{
+		cache:      c,
+		collection: c.collections.identityCenterPrincipalAssignments,
+		index:      identityCenterPrincipalAssignmentNameIndex,
+		upstreamGet: func(ctx context.Context, s string) (*identitycenterv1.PrincipalAssignment, error) {
+			out, err := c.Config.IdentityCenter.GetPrincipalAssignment(ctx, services.PrincipalAssignmentID(s))
+			return out, trace.Wrap(err)
+		},
 	}
-	return resources, nil
+	out, err := getter.get(ctx, string(id))
+	return out, trace.Wrap(err)
 }
 
-func (identityCenterPrincipalAssignmentExecutor) upsert(ctx context.Context, cache *Cache, resource *identitycenterv1.PrincipalAssignment) error {
-	_, err := cache.identityCenterCache.UpsertPrincipalAssignment(ctx, resource)
-	return trace.Wrap(err)
-}
+func (c *Cache) ListPrincipalAssignments(ctx context.Context, pageSize int, req *pagination.PageRequestToken) ([]*identitycenterv1.PrincipalAssignment, pagination.NextPageToken, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListPrincipalAssignments")
+	defer span.End()
 
-func (identityCenterPrincipalAssignmentExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return trace.Wrap(cache.identityCenterCache.DeletePrincipalAssignment(ctx,
-		services.PrincipalAssignmentID(resource.GetName())))
-}
-
-func (identityCenterPrincipalAssignmentExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	_, err := cache.identityCenterCache.DeleteAllPrincipalAssignments(ctx, &identitycenterv1.DeleteAllPrincipalAssignmentsRequest{})
-	return trace.Wrap(err)
-}
-
-func (identityCenterPrincipalAssignmentExecutor) getReader(cache *Cache, cacheOK bool) identityCenterPrincipalAssignmentGetter {
-	if cacheOK {
-		return cache.identityCenterCache
+	nextToken, err := req.Consume()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
 	}
-	return cache.Config.IdentityCenter
+
+	out, next, err := c.ListPrincipalAssignments2(ctx, pageSize, nextToken)
+	return out, pagination.NextPageToken(next), trace.Wrap(err)
 }
 
-func (identityCenterPrincipalAssignmentExecutor) isSingleton() bool {
-	return false
-}
+func (c *Cache) ListPrincipalAssignments2(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.PrincipalAssignment, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListPrincipalAssignments")
+	defer span.End()
 
-type identityCenterAccountAssignmentGetter interface {
-	GetAccountAssignment(context.Context, services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error)
-	ListAccountAssignments(context.Context, int, *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error)
-}
-
-type identityCenterAccountAssignmentExecutor struct{}
-
-func (identityCenterAccountAssignmentExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]services.IdentityCenterAccountAssignment, error) {
-	var pageToken pagination.PageRequestToken
-	var resources []services.IdentityCenterAccountAssignment
-	for {
-		resourcesPage, nextPage, err := cache.IdentityCenter.ListAccountAssignments(ctx, 0, &pageToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		resources = append(resources, resourcesPage...)
-
-		if nextPage == pagination.EndOfList {
-			break
-		}
-		pageToken.Update(nextPage)
+	lister := genericLister[*identitycenterv1.PrincipalAssignment, identityCenterPrincipalAssignmentIndex]{
+		cache:        c,
+		collection:   c.collections.identityCenterPrincipalAssignments,
+		index:        identityCenterPrincipalAssignmentNameIndex,
+		upstreamList: c.Config.IdentityCenter.ListPrincipalAssignments2,
+		nextToken: func(t *identitycenterv1.PrincipalAssignment) string {
+			return t.GetMetadata().GetName()
+		},
 	}
-	return resources, nil
-}
 
-func (identityCenterAccountAssignmentExecutor) upsert(ctx context.Context, cache *Cache, resource services.IdentityCenterAccountAssignment) error {
-	_, err := cache.identityCenterCache.UpsertAccountAssignment(ctx, resource)
-	return trace.Wrap(err)
+	out, next, err := lister.list(ctx, pageSize, pageToken)
+	return out, next, trace.Wrap(err)
 }
-
-func (identityCenterAccountAssignmentExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return trace.Wrap(cache.identityCenterCache.DeleteAccountAssignment(ctx,
-		services.IdentityCenterAccountAssignmentID(resource.GetName())))
-}
-
-func (identityCenterAccountAssignmentExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	_, err := cache.identityCenterCache.DeleteAllIdentityCenterAccounts(ctx, &identitycenterv1.DeleteAllIdentityCenterAccountsRequest{})
-	return trace.Wrap(err)
-}
-
-func (identityCenterAccountAssignmentExecutor) getReader(cache *Cache, cacheOK bool) identityCenterAccountAssignmentGetter {
-	if cacheOK {
-		return cache.identityCenterCache
-	}
-	return cache.Config.IdentityCenter
-}
-
-func (identityCenterAccountAssignmentExecutor) isSingleton() bool {
-	return false
-}
-
-var _ executor[
-	services.IdentityCenterAccountAssignment,
-	identityCenterAccountAssignmentGetter,
-] = identityCenterAccountAssignmentExecutor{}

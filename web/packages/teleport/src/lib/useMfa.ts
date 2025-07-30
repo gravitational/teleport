@@ -18,7 +18,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
+import {
+  Attempt,
+  CanceledError,
+  makeEmptyAttempt,
+  useAsync,
+} from 'shared/hooks/useAsync';
 
 import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { TermEvent } from 'teleport/lib/term/enums';
@@ -125,7 +130,7 @@ export function useMfa(props?: MfaProps): MfaState {
     )
   );
 
-  const mfaResponseRef = useRef<mfaResponsePromiseWithResolvers>();
+  const mfaResponseRef = useRef<mfaResponsePromiseWithResolvers>(undefined);
 
   const cancelAttempt = () => {
     if (mfaResponseRef.current) {
@@ -175,19 +180,32 @@ export function useMfa(props?: MfaProps): MfaState {
     submit,
     attempt,
     cancelAttempt,
+    reset: () => {
+      setMfaChallenge(null);
+      setMfaAttempt(makeEmptyAttempt());
+    },
   };
 }
 
 export function useMfaEmitter(
   emitterSender: EventEmitterMfaSender,
-  mfaProps?: MfaProps
+  mfaProps?: MfaProps,
+  emitterOptions?: { onPromptCancel?(): void }
 ): MfaState {
   const mfa = useMfa(mfaProps);
 
+  const onPromptCancel = emitterOptions?.onPromptCancel;
   useEffect(() => {
     const challengeHandler = async (challengeJson: string) => {
       const challenge = parseMfaChallengeJson(JSON.parse(challengeJson));
-      const resp = await mfa.getChallengeResponse(challenge);
+      let resp: MfaChallengeResponse;
+      try {
+        resp = await mfa.getChallengeResponse(challenge);
+      } catch (err) {
+        if (err instanceof CanceledError) {
+          onPromptCancel?.();
+        }
+      }
       emitterSender.sendChallengeResponse(resp);
     };
 
@@ -195,7 +213,7 @@ export function useMfaEmitter(
     return () => {
       emitterSender?.removeListener(TermEvent.MFA_CHALLENGE, challengeHandler);
     };
-  }, [mfa, emitterSender]);
+  }, [mfa, emitterSender, onPromptCancel]);
 
   return mfa;
 }
@@ -213,6 +231,8 @@ export type MfaState = {
   submit: (mfaType?: DeviceType, totpCode?: string) => Promise<void>;
   attempt: Attempt<any>;
   cancelAttempt: () => void;
+  /** Clears the challenge and the attempt state. */
+  reset: () => void;
 };
 
 /** Indicates if an MFA dialog should be visible. */
@@ -237,6 +257,7 @@ export function makeDefaultMfaState(): MfaState {
     submit: () => null,
     attempt: makeEmptyAttempt(),
     cancelAttempt: () => null,
+    reset: () => {},
   };
 }
 

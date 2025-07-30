@@ -62,4 +62,20 @@ type SSHConfig struct {
 	// DisableCreateHostUser disables automatic user provisioning on this
 	// SSH node.
 	DisableCreateHostUser bool
+
+	// ForceListen enables the service to listen on the configured [Addr]
+	// when it is connected to the cluster via a reverse tunnel.
+	// This allows the service to be connectable by users with direct network access.
+	// All connections still require a valid user certificate to be presented and will
+	// not permit any extra access. This is intended to provide an optional connection
+	// path to hosts that may provide reduced latency if the Proxy is not co-located with
+	// the user and service.
+	ForceListen bool
+
+	// EnableSELinux indicates that SELinux support will be enabled.
+	EnableSELinux bool
+
+	// EnsureSELinuxEnforcing will exit if SELinux is not configured to
+	// enforce the SSH service.
+	EnsureSELinuxEnforcing bool
 }

@@ -149,11 +149,11 @@ traits:
 	}
 
 	for _, tc := range tests {
-		tc := tc // capture range variable
+		// capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			// Creating the Kubernetes resource. We are using an untyped client to be able to create invalid resources.
-			userManifest := map[string]interface{}{}
+			userManifest := map[string]any{}
 			err := yaml.Unmarshal([]byte(tc.userSpecYAML), &userManifest)
 			require.NoError(t, err)
 
@@ -223,8 +223,8 @@ func compareUserSpecs(t *testing.T, expectedUser, actualUser types.User) {
 
 	// We don't want compare spec.created_by and metadata as they were tested before and are not 100%
 	// managed by the operator
-	delete(expected["spec"].(map[string]interface{}), "created_by")
-	delete(actual["spec"].(map[string]interface{}), "created_by")
+	delete(expected["spec"].(map[string]any), "created_by")
+	delete(actual["spec"].(map[string]any), "created_by")
 
 	require.Equal(t, expected["spec"], actual["spec"])
 }
@@ -398,7 +398,7 @@ func k8sCreateUser(ctx context.Context, t *testing.T, kc kclient.Client, user *v
 	require.NoError(t, err)
 }
 
-func getUserStatusConditionError(object map[string]interface{}) []metav1.Condition {
+func getUserStatusConditionError(object map[string]any) []metav1.Condition {
 	var conditionsWithError []metav1.Condition
 	var status apiresources.Status
 	_ = mapstructure.Decode(object["status"], &status)

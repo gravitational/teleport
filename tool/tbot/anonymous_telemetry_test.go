@@ -28,8 +28,11 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type mockReportingServiceClient struct {
@@ -52,7 +55,7 @@ func mockEnvGetter(data map[string]string) envGetter {
 
 func TestSendTelemetry(t *testing.T) {
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	t.Run("sends telemetry when enabled", func(t *testing.T) {
 		mockClient := &mockReportingServiceClient{}
@@ -63,21 +66,21 @@ func TestSendTelemetry(t *testing.T) {
 		}
 		cfg := &config.BotConfig{
 			Oneshot: true,
-			Onboarding: config.OnboardingConfig{
+			Onboarding: onboarding.Config{
 				JoinMethod: types.JoinMethodGitHub,
 			},
 			Services: config.ServiceConfigs{
 				&config.IdentityOutput{
-					Destination: &config.DestinationDirectory{},
+					Destination: &destination.Directory{},
 				},
 				&config.KubernetesOutput{
-					Destination: &config.DestinationDirectory{},
+					Destination: &destination.Directory{},
 				},
-				&config.ApplicationOutput{
-					Destination: &config.DestinationDirectory{},
+				&application.OutputConfig{
+					Destination: &destination.Directory{},
 				},
 				&config.DatabaseOutput{
-					Destination: &config.DestinationDirectory{},
+					Destination: &destination.Directory{},
 				},
 			},
 		}
@@ -91,7 +94,7 @@ func TestSendTelemetry(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, mockClient.eventRequest)
 		require.NotZero(t, mockClient.eventRequest.Timestamp)
-		require.NotZero(t, mockClient.eventRequest.DistinctId)
+		require.NotEmpty(t, mockClient.eventRequest.DistinctId)
 		require.Equal(t, &prehogv1a.SubmitTbotEventRequest_Start{
 			Start: &prehogv1a.TbotStartEvent{
 				RunMode:  prehogv1a.TbotStartEvent_RUN_MODE_ONE_SHOT,
