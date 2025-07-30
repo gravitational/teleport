@@ -179,7 +179,3 @@ func (c *fakeMySQLConn) UseDB(dbName string) error {
 func (c *fakeMySQLConn) GetServerVersion() string {
 	return "1.2.3 Fake MySQL Server"
 }
-
-func (c *fakeMySQLConn) GetConnectionID() uint32 {
-	return 12345
-}

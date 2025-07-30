@@ -59,7 +59,6 @@ type mysqlConn interface {
 	Execute(command string, args ...any) (*mysql.Result, error)
 	UseDB(dbName string) error
 	GetServerVersion() string
-	GetConnectionID() uint32
 }
 
 // New implements [dbrepl.REPLNewFunc].

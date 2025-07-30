@@ -218,7 +218,6 @@ use       \u   Use another database.
 foo> status
 
 Teleport database: mysql-test-container 
-Connection ID:     11                   
 Current database:  foo                  
 Current user:      root                 
 Server version:    8.4.6                
@@ -227,7 +226,6 @@ Using delimiter:   //
 foo> \s
 
 Teleport database: mysql-test-container 
-Connection ID:     11                   
 Current database:  foo                  
 Current user:      root                 
 Server version:    8.4.6                
@@ -281,7 +279,6 @@ Limitations:
 
 
 Teleport database: mysql-test-container 
-Connection ID:     11                   
 Current database:  mysql                
 Current user:      root                 
 Server version:    8.4.6                
