@@ -78,21 +78,21 @@ export const DeviceTrust = () => {
                 >
                   <H3 mb={3}>Register Trusted Device</H3>
                   <P>
-                    Trusted Devices can be registered manually using{' '}
+                    Trusted Devices can be{' '}
                     <Link
                       color="text.main"
-                      href="https://goteleport.com/docs/admin-guides/access-controls/device-trust/guide/?scope=enterprise#step-12-register-a-trusted-device"
+                      href="https://goteleport.com/docs/identity-governance/device-trust/device-management/#register-a-trusted-device"
                       target="_blank"
                     >
-                      tctl client
+                      registered with tctl
                     </Link>{' '}
-                    or synced automatically from MDM services like{' '}
+                    or{' '}
                     <Link
                       color="text.main"
-                      href="https://goteleport.com/docs/admin-guides/access-controls/device-trust/jamf-integration/?scope=enterprise"
+                      href="https://goteleport.com/docs/identity-governance/device-trust/jamf-integration/"
                       target="_blank"
                     >
-                      Jamf
+                      synced from Jamf
                     </Link>
                     .
                   </P>
