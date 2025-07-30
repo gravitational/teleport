@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -17,6 +18,7 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proxy"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -64,6 +66,9 @@ func (s *MCPService) String() string {
 }
 
 func (s *MCPService) Run(ctx context.Context) error {
+	// Hacks and cut corners:
+	// - Directly assigned bot user the requester role with search_as_roles set.
+	// - No renewal support, so the identities here will expire.
 	id, err := s.identityGenerator.GenerateFacade(
 		ctx,
 		identity.WithLogger(s.log),
@@ -104,6 +109,67 @@ func (s *MCPService) Run(ctx context.Context) error {
 			},
 		}, nil
 	})
+
+	server.AddTool(
+		mcp.NewTool(
+			"make_access_request",
+			mcp.WithDescription("Create a new pending access request for a specific set of resources."),
+			mcp.WithString(
+				"reason",
+				mcp.Description("Why the agent requires access to the resources"),
+				mcp.Required(),
+			),
+			mcp.WithArray(
+				"node_ids",
+				mcp.Description("List of IDs for the nodes to request access to"),
+				mcp.Required(),
+				mcp.Items(map[string]any{"type": "string"}),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			reasonParam, err := request.RequireString("reason")
+			if err != nil {
+				return nil, trace.Wrap(err, "missing reason")
+			}
+			nodeIDsParam, err := request.RequireStringSlice("node_ids")
+			if err != nil {
+				return nil, trace.Wrap(err, "missing node_ids")
+			}
+
+			resourceIDs := []types.ResourceID{}
+			for _, nodeID := range nodeIDsParam {
+				resourceIDs = append(resourceIDs, types.ResourceID{
+					Kind:        types.KindNode,
+					Name:        nodeID,
+					ClusterName: id.Get().ClusterName,
+				})
+			}
+
+			req, err := types.NewAccessRequestWithResources(
+				uuid.New().String(),
+				id.Get().X509Cert.Subject.CommonName,
+				// I think we can request with no roles and the server will
+				// default to whatever roles are necessary
+				[]string{},
+				resourceIDs,
+			)
+			if err != nil {
+				return nil, trace.Wrap(err, "creating access request")
+			}
+			req.SetRequestReason(reasonParam)
+
+			req, err = c.CreateAccessRequestV2(ctx, req)
+			if err != nil {
+				return nil, trace.Wrap(err, "creating access request")
+			}
+			return mcp.NewToolResultText(
+				fmt.Sprintf(
+					"Access request created. The ID is %q. You will now need to wait for it to be approved.",
+					req.GetName(),
+				),
+			), nil
+		},
+	)
 
 	server.AddTool(mcp.NewTool(
 		"run_ssh_command",
