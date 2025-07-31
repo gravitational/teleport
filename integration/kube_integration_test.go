@@ -767,10 +767,9 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 				require.Error(t, err)
 
 				// Wait for port-forwarding to exit.
-				start = time.Now()
 				select {
 				case <-time.After(5 * time.Second):
-					t.Fatalf("Timed out waiting for port forward exit (%s)", time.Since(start))
+					t.Fatal("Timed out waiting for port forward exit")
 				case err := <-forwarderCh:
 					t.Log("Exited port forwarding after pod deletion")
 					require.Equal(t, err, portforward.ErrLostConnectionToPod)
