@@ -43,7 +43,7 @@ export function getDownloadHost(event: AppUpdateEvent): string {
 }
 
 export function isTeleportDownloadHost(host: string): boolean {
-  return ['cdn.teleport.dev', 'cdn.cloud.gravitational.io'].includes(host);
+  return ['cdn.teleport.dev'].includes(host);
 }
 
 export interface ClusterGetter {
