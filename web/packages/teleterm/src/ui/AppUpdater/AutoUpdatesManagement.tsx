@@ -273,7 +273,7 @@ function makeContentForEnabledAutoUpdates(
     case 'managing-cluster':
       return {
         kind: 'neutral',
-        description: `Updates are managed by the ${getClusterName(status.options.managingClusterUri)} cluster, which requires client version ${status.version}.`,
+        description: `App updates are managed by the cluster ${getClusterName(status.options.managingClusterUri)}, which requires client version ${status.version}.`,
       };
     case 'highest-compatible':
       const providingClusters = status.options.clusters
@@ -283,15 +283,14 @@ function makeContentForEnabledAutoUpdates(
       if (status.options.clusters.length === 1) {
         return {
           kind: 'neutral',
-          description: `Updates are managed by the cluster ${providingClusters}, which requires client version ${status.version}.`,
+          description: `App updates are managed by the cluster ${providingClusters}, which requires client version ${status.version}.`,
         };
       }
 
       return {
         kind: 'neutral',
         description:
-          `Updates are managed.` +
-          ` Version ${status.version} from the ${pluralize(providingClusters.length, 'cluster')}` +
+          `Version ${status.version} from the ${pluralize(providingClusters.length, 'cluster')}` +
           ` ${listFormatter.format(providingClusters.map(c => c))} was chosen as the highest compatible.`,
       };
   }
@@ -311,7 +310,7 @@ function makeContentForDisabledAutoUpdates(
     case 'disabled-by-env-var':
       return {
         kind: 'neutral',
-        description: 'Updates are disabled by your device settings.',
+        description: 'App updates are disabled by your device settings.',
       };
     case 'no-cluster-with-auto-update':
       // There's only one cluster and it's unreachable.
