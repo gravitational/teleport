@@ -129,7 +129,7 @@ function ManagingClusterSelector({
   // True means selected checkbox, false - unselected, string value - selected cluster.
   const [optimisticManagingCluster, setOptimisticManagingCluster] = useState<
     boolean | RootClusterUri
-  >(isAutoManaged ? true : autoUpdatesStatus.options.managingClusterUri);
+  >(isAutoManaged || autoUpdatesStatus.options.managingClusterUri || false);
 
   const isMostCompatibleCheckboxDisabled =
     isCheckingForUpdates || !autoUpdatesStatus.options.highestCompatibleVersion;
