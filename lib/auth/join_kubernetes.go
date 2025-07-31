@@ -29,11 +29,24 @@ import (
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 )
 
+const (
+	// kubernetesDefaultOIDCAudience is the default audience used by Kubernetes
+	// for JWTs issued to service accounts.
+	kubernetesDefaultOIDCAudience = "https://kubernetes.default.svc"
+)
+
 type k8sTokenReviewValidator interface {
 	Validate(ctx context.Context, token, clusterName string) (*kubetoken.ValidationResult, error)
 }
 
 type k8sJWKSValidator func(now time.Time, jwksData []byte, clusterName string, token string) (*kubetoken.ValidationResult, error)
+
+type k8sOIDCValidator func(
+	ctx context.Context,
+	issuerURL string,
+	audience string,
+	token string,
+) (*kubetoken.ValidationResult, error)
 
 func (a *Server) checkKubernetesJoinRequest(
 	ctx context.Context,
@@ -68,6 +81,16 @@ func (a *Server) checkKubernetesJoinRequest(
 		)
 		if err != nil {
 			return nil, trace.WrapWithMessage(err, "reviewing kubernetes token with static_jwks")
+		}
+	case types.KubernetesJoinTypeOIDC:
+		result, err = a.k8sOIDCValidator(
+			ctx,
+			token.Spec.Kubernetes.OIDC.Issuer,
+			token.Spec.Kubernetes.OIDC.Audience,
+			req.IDToken,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "reviewing kubernetes token with oidc")
 		}
 	case types.KubernetesJoinTypeInCluster, types.KubernetesJoinTypeUnspecified:
 		result, err = a.k8sTokenReviewValidator.Validate(ctx, req.IDToken, clusterName)
