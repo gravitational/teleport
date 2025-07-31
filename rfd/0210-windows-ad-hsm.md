@@ -1,6 +1,6 @@
 ---
 authors: Zac Bergquist <zac.bergquist@goteleport.com>
-state: draft
+state: released (v18.1.0, v17.7.0)
 ---
 
 # RFD 210 - HSM support for Active Directory environments
@@ -119,10 +119,13 @@ When generating certificates, Teleport will use the subject key ID of the signer
 generate a CDP that is unique to that signer.
 
 ```
-ldap://CN=IV4GC3LQNRSSAVDFNRSXA33SORJUWSKE,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=example,DC=com
+ldap://CN=IV4GC3LQNRSSAVDFNRSXA33SORJUWSKE_CLUSTER,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=example,DC=com
 ```
 
-In this case, `IV4GC3LQNRSSAVDFNRSXA33SORJUWSKE` is Base32-encoded SKID of the issuer
+In this case, `IV4GC3LQNRSSAVDFNRSXA33SORJUWSKE` is the base32-encoded subject
+key identifier of the issuing certificate, and `CLUSTER` is the name of the
+Teleport cluster.
+
 
 #### Publishing: `tctl auth crl --out`
 
@@ -135,8 +138,6 @@ single CRL to standard out.
 Teleport users setting up MS SQL access will then be able to perform a setup
 procedure very similar to what they already do, they will only have to repeat
 the `certutil -dspublish` command  once for each individual CRL.
-
-TODO: in order to publish to auth server, the CN of the CRL would need to change.
 
 #### Publishing: add CRLs to the backend `certificate_authority`
 
@@ -201,13 +202,14 @@ This field will store empty DER-encoded revocation list for `cert_authorities` t
 
 ### Audit Events
 
-New message will be added to `events.proto` which will hold information about authority used to create certificate:
+A new field will be added to the `certificate.create` audit event which will
+hold information about the authority used to create certificate:
 
 ```protobuf
 message CertificateCreate {
   // ...
-  
-  // CertificateAuthority holds information about creator of certificate    
+
+  // CertificateAuthority holds information about creator of certificate
   CertificateAuthority CertificateAuthority = 5 [(gogoproto.jsontag) = "certificate_authority"];
 }
 
