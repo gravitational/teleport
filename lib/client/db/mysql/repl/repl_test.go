@@ -310,10 +310,9 @@ func Test_formatResult(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		desc     string
-		input    *mysql.Result
-		isBinary bool
-		elapsed  time.Duration
+		desc    string
+		input   *mysql.Result
+		elapsed time.Duration
 	}{
 		{
 			desc:    "result rows",
@@ -338,7 +337,7 @@ func Test_formatResult(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			mustParseResult(t, test.input, test.isBinary)
+			mustParseResult(t, test.input)
 			got := formatResult(test.input, &test.elapsed)
 			goldenName := strings.ReplaceAll(test.desc, " ", "-")
 			if golden.ShouldSet() {
@@ -349,13 +348,14 @@ func Test_formatResult(t *testing.T) {
 	}
 }
 
-func mustParseResult(t *testing.T, result *mysql.Result, isBinary bool) {
+func mustParseResult(t *testing.T, result *mysql.Result) {
 	t.Helper()
 	if result.Resultset == nil {
 		return
 	}
 	result.Values = make([][]mysql.FieldValue, len(result.RowDatas))
 	for i := range result.RowDatas {
+		const isBinary = false
 		v, err := result.RowDatas[i].Parse(result.Fields, isBinary, result.Values[i])
 		result.Values[i] = v
 		require.NoError(t, err)
