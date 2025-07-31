@@ -1891,6 +1891,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = mcpCmd.list.run()
 	case mcpCmd.config.FullCommand():
 		err = mcpCmd.config.run()
+	case mcpCmd.test.FullCommand():
+		err = mcpCmd.test.run()
 	case updateCommand.update.FullCommand():
 		err = updateCommand.update.run(&cf)
 	default:

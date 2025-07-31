@@ -36,6 +36,7 @@ type mcpCommands struct {
 	config  *mcpConfigCommand
 	list    *mcpListCommand
 	connect *mcpConnectCommand
+	test    *mcpTestCommand
 }
 
 func newMCPCommands(app *kingpin.Application, cf *CLIConf) *mcpCommands {
@@ -48,6 +49,7 @@ func newMCPCommands(app *kingpin.Application, cf *CLIConf) *mcpCommands {
 		list:    newMCPListCommand(mcp, cf),
 		config:  newMCPConfigCommand(mcp, cf),
 		connect: newMCPConnectCommand(mcp, cf),
+		test:    newMCPTestCommand(mcp, cf),
 	}
 }
 
