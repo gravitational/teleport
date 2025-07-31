@@ -148,6 +148,29 @@ Open the Windows Event Log and navigate to Event Viewer, Application and Service
 Microsoft, Windows, Security-Kerberos, Operational. Enable this Event Log and attempt
 to connect with Teleport Web UI to review log entries.
 
+#### Error : The Kerberos Key Distribution Center (KDC) for the domain <Your Domain> does not have a certificate installed or does not support logon using certificates: 0xC0000320
+
+You see this error in your Security-Kerberos Windows Event log on the client you're trying to connect to.
+
+**Solution:** Review the Kerberos-Key-Distribution-Center Logs on each of your **Domain Controler** for causes.
+
+The Kerberos-Key-Distribution-Center Windows Event Log provides information on KDC configuration that's required for Smartcard Authentication. This Event Log might not be enabled by default.
+Open the Windows Event Log and navigate to Event Viewer, Application and Services Logs,
+Microsoft, Windows, Kerberos-Key-Distribution-Center, Operational. Enable this Event Log, restart the "Kerberos Key Distribution Center" service and review the logs 
+
+You should see a log that looks like : 
+```
+The Key Distribution Center (KDC) uses the below KDC certificate for smart card or certificate authentication.
+
+Kdc Certificate Information:
+  Issuer Name: <Your PKI>
+  Serial Number: XX0000000XXXXXXXXXXXXXX000000000000
+  Thumbprint: X00XX0990YYY9Y9Y22YYY123456789987654321
+  Template: <Template used to generate your DC Certificate>
+```
+
+If The Template 
+
 ### Smart card certificate not trusted
 
 You connect to a Windows host from the Teleport UI, land on the Windows login
