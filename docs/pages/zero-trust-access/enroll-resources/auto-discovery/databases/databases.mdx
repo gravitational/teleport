@@ -12,7 +12,7 @@ them with your Teleport cluster.
 ## Supported clouds
 
 - [AWS](aws.mdx): Discovery for AWS databases.
-- [Azure](../../database-access/enroll-azure-databases/enroll-azure-databases.mdx): Discovery for Azure databases.
+- [Azure](../../../../enroll-resources/database-access/enroll-azure-databases/enroll-azure-databases.mdx): Discovery for Azure databases.
 {/* TODO(gavin): Add an Azure discovery guide and permission reference */}
 
 ## Architecture overview
@@ -34,7 +34,7 @@ from database access.
 The Teleport Discovery Service is responsible for polling APIs for databases
 that match its configured selectors.
 When the Discovery Service matches a database, it will
-[dynamically register the database](../../database-access/guides/dynamic-registration.mdx)
+[dynamically register the database](../../../../enroll-resources/database-access/guides/dynamic-registration.mdx)
 with your Teleport cluster.
 The dynamic `db` resources it creates in your Teleport cluster will include
 information such as:
@@ -149,12 +149,12 @@ Here's how it works in detail:
 
 For more information about Discovery Service configuration, refer to
 [one of the guides above](#supported-clouds) or the
-[Discovery Service Config File Reference](../../../reference/config.mdx).
+[Discovery Service Config File Reference](../../../../reference/config.mdx).
 
 ## How the Database Service works
 
 The Teleport Database Service is responsible for monitoring
-[dynamically registered](../../database-access/guides/dynamic-registration.mdx)
+[dynamically registered](../../../../enroll-resources/database-access/guides/dynamic-registration.mdx)
 `db` resources in your Teleport cluster and acting as a connection proxy for the
 databases they represent.
 
@@ -166,7 +166,7 @@ database that the `db` resource represents.
 The Database Service must have network connectivity to the database endpoint and
 permissions to authenticate to the database.
 The permissions it needs vary by database type, so refer to Teleport's
-[database access guides](../../database-access/database-access.mdx)
+[database access guides](../../../../enroll-resources/database-access/database-access.mdx)
 for detailed permissions information.
 
 ## Database Service configuration
