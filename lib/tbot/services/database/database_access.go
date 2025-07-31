@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package database
 
 import (
 	"context"
@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 )
 
 func getDatabase(ctx context.Context, clt *apiclient.Client, name string) (types.Database, error) {
@@ -38,7 +39,7 @@ func getDatabase(ctx context.Context, clt *apiclient.Client, name string) (types
 	servers, err := apiclient.GetAllResources[types.DatabaseServer](ctx, clt, &proto.ListResourcesRequest{
 		Namespace:           defaults.Namespace,
 		ResourceType:        types.KindDatabaseServer,
-		PredicateExpression: makeNameOrDiscoveredNamePredicate(name),
+		PredicateExpression: internal.MakeNameOrDiscoveredNamePredicate(name),
 		Limit:               int32(defaults.DefaultChunkSize),
 	})
 	if err != nil {
