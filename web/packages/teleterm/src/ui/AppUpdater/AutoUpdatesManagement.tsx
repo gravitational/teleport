@@ -338,11 +338,11 @@ function makeContentForDisabledAutoUpdates(
         title: 'App updates are disabled',
         description: (
           <>
-            The cluster{' '}
+            The cluster needs to{' '}
             <Link href="https://goteleport.com/docs/upgrading/automatic-updates">
-              needs to enroll
+              enroll in automatic updates
             </Link>{' '}
-            in automatic updates to keep Teleport Connect updated.
+            to keep Teleport Connect updated.
           </>
         ),
       };
