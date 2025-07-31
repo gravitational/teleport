@@ -103,12 +103,7 @@ export function BotDetails() {
             <ArrowLeft size="medium" />
           </ButtonIcon>
         </HoverTooltip>
-        <Flex
-          flex={1}
-          gap={2}
-          justifyContent="space-between"
-          overflow={'hidden'}
-        >
+        <Flex flex={1} gap={2} justifyContent="space-between" overflow="hidden">
           {isSuccess && data ? (
             <>
               <FeatureHeaderTitle>
@@ -320,15 +315,12 @@ const EditButton = styled(ButtonSecondary)`
 
 const TitleText = styled(Text)`
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 `;
 
-const LabelText = styled(Text)`
-  font-size: ${({ theme }) => theme.fontSizes[1]}px;
+const LabelText = styled(Text).attrs({
+  typography: 'body3',
+})`
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 `;
 
 const EmptyText = styled(Text)`

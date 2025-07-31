@@ -51,7 +51,7 @@ export function Instance(props: {
   return (
     <Container>
       <TopRow>
-        <IdText>{id}</IdText>
+        <IdText typography="body2">{id}</IdText>
         {activeAt ? (
           <HoverTooltip
             placement="top"
@@ -137,15 +137,14 @@ const EmptyText = styled(Text)`
   color: ${p => p.theme.colors.text.muted};
 `;
 
-const TimeText = styled(Text)`
-  font-size: ${props => props.theme.fontSizes[0]}px;
-  font-weight: ${props => props.theme.fontWeights.regular};
+const TimeText = styled(Text).attrs({
+  typography: 'body4',
+})`
   white-space: nowrap;
 `;
 
 const IdText = styled(Text)`
   flex: 1;
-  font-weight: ${props => props.theme.fontWeights.light};
   white-space: nowrap;
 `;
 
@@ -201,7 +200,5 @@ function Version(props: { version: string | undefined }) {
 const LabelText = styled(Text)`
   font-size: ${({ theme }) => theme.fontSizes[1]}px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   max-width: 96px;
 `;
