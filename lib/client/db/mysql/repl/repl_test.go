@@ -42,11 +42,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
-var servers map[string]*testServer
-var serversMu sync.Mutex
+var testSrv *testServer
+var testSrvMu sync.Mutex
 
 func TestMain(m *testing.M) {
-	servers = make(map[string]*testServer)
 	code := m.Run()
 
 	// The "Ryuk" container will cleanup everything anyhow, but only after 10s
@@ -54,15 +53,14 @@ func TestMain(m *testing.M) {
 	// We can speed up container cleanup after a -count=N run, e.g., a flaky
 	// test detector run, by terminating them immediately after tests have run.
 	// https://github.com/testcontainers/moby-ryuk
-	serversMu.Lock()
-	defer serversMu.Unlock()
+	testSrvMu.Lock()
+	defer testSrvMu.Unlock()
 	// if we don't clean up after 10 seconds, RYUK will get them anyway.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	for _, srv := range servers {
-		// ignore errors, Ryuk or worst case VM termination in CI will deal with it
-		_ = srv.container.Terminate(ctx)
-	}
+
+	// ignore errors, Ryuk or worst case VM termination in CI will deal with it
+	_ = testSrv.container.Terminate(ctx)
 	os.Exit(code)
 }
 
@@ -369,11 +367,11 @@ func newTestServer(t *testing.T) *testServer {
 	ctx := t.Context()
 
 	reuseName := cmp.Or(os.Getenv("MYSQL_TEST_SERVER_REUSE_CONTAINER_BY_NAME"), "default-mysql-test-server")
-	serversMu.Lock()
+	testSrvMu.Lock()
 	// hold the lock for the entire func to avoid parallel container requests
-	defer serversMu.Unlock()
-	if srv, ok := servers[reuseName]; ok {
-		return srv
+	defer testSrvMu.Unlock()
+	if testSrv != nil {
+		return testSrv
 	}
 
 	user := cmp.Or(os.Getenv("MYSQL_TEST_SERVER_USER"), "root")
@@ -407,7 +405,7 @@ func newTestServer(t *testing.T) *testServer {
 		password:  pass,
 		database:  db,
 	}
-	servers[reuseName] = srv
+	testSrv = srv
 	return srv
 }
 
