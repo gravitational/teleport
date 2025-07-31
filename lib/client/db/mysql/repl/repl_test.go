@@ -109,6 +109,7 @@ func TestREPL(t *testing.T) {
 			})
 			require.NoError(t, err)
 			testREPL.(*REPL).testPassword = testSrv.password
+			testREPL.(*REPL).disableQueryTimings = true
 			err = testREPL.Run(t.Context())
 			require.NoError(t, err)
 			goldenName := strings.ReplaceAll(test.name, " ", "-")
@@ -295,6 +296,72 @@ func TestInteractively(t *testing.T) {
 	require.NoError(t, err)
 	repl.(*REPL).testPassword = testSrv.password
 	require.NoError(t, repl.Run(t.Context()))
+}
+
+func Test_formatResult(t *testing.T) {
+	resultRows, err := mysql.BuildSimpleTextResultset(
+		[]string{"one", "two", "three"},
+		[][]any{{1, 2.2, "3"}, {4, 5.5, "6"}, {7, 8.8, "8"}},
+	)
+	require.NoError(t, err)
+
+	noRows, err := mysql.BuildSimpleTextResultset(
+		[]string{"one", "two", "three"},
+		nil,
+	)
+	require.NoError(t, err)
+
+	tests := []struct {
+		desc     string
+		input    *mysql.Result
+		isBinary bool
+		elapsed  time.Duration
+	}{
+		{
+			desc:    "result rows",
+			input:   &mysql.Result{Resultset: resultRows},
+			elapsed: time.Millisecond * 1234,
+		},
+		{
+			desc:    "long elapsed time",
+			input:   &mysql.Result{Resultset: resultRows},
+			elapsed: time.Millisecond * 123456,
+		},
+		{
+			desc:    "empty set",
+			input:   &mysql.Result{Resultset: noRows},
+			elapsed: time.Millisecond * 42,
+		},
+		{
+			desc:    "nil set",
+			input:   &mysql.Result{Warnings: 2, AffectedRows: 42},
+			elapsed: 0,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			mustParseResult(t, test.input, test.isBinary)
+			got := formatResult(test.input, &test.elapsed)
+			goldenName := strings.ReplaceAll(test.desc, " ", "-")
+			if golden.ShouldSet() {
+				golden.SetNamed(t, goldenName, []byte(got))
+			}
+			require.Equal(t, string(golden.GetNamed(t, goldenName)), got)
+		})
+	}
+}
+
+func mustParseResult(t *testing.T, result *mysql.Result, isBinary bool) {
+	t.Helper()
+	if result.Resultset == nil {
+		return
+	}
+	result.Values = make([][]mysql.FieldValue, len(result.RowDatas))
+	for i := range result.RowDatas {
+		v, err := result.RowDatas[i].Parse(result.Fields, isBinary, result.Values[i])
+		result.Values[i] = v
+		require.NoError(t, err)
+	}
 }
 
 func newTestServer(t *testing.T) *testServer {

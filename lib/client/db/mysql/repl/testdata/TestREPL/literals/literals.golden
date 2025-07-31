@@ -22,7 +22,7 @@ thing
 ------- 
 'thing' 
 
-(1 row in set)
+1 row in set
 
 (none)> select 1,  -1,1.24, -1.24, 'foo', null, 'null';
 
@@ -30,7 +30,7 @@ thing
 -    --   ------ ------- ----- ---- ------ 
 1    -1   '1.24' '-1.24' 'foo' NULL 'null' 
 
-(1 row in set)
+1 row in set
 
 (none)> select
      ->     1 as 'unsigned int',
@@ -45,7 +45,7 @@ unsigned int negative int float  negative float string actual NULL string null
 ------------ ------------ ------ -------------- ------ ----------- ----------- 
 1            -1           '1.24' '-1.24'        'foo'  NULL        'null'      
 
-(1 row in set)
+1 row in set
 
 (none)> 
 (none)> select 1 as 'multiple rows of literals'
@@ -72,7 +72,7 @@ multiple rows of literals
 NULL                      
 'null'                    
 
-(7 rows in set)
+7 rows in set
 
 (none)> 
 (none)> select 'a
@@ -85,7 +85,7 @@ multiline-string
 b
 c'   
 
-(1 row in set)
+1 row in set
 
 (none)> 
 (none)> select 'a
@@ -102,7 +102,7 @@ multiline with delimiters
     ;
 c'   
 
-(1 row in set)
+1 row in set
 
 (none)> 
 (none)> /* foo bar */
@@ -112,7 +112,7 @@ c'
 -    
 1    
 
-(1 row in set)
+1 row in set
 
 (none)> /* foo bar */select /*
     /*> baz */ 42;
@@ -121,7 +121,7 @@ c'
 --   
 42   
 
-(1 row in set)
+1 row in set
 
 (none)> 
 (none)> delimiter $$
@@ -131,7 +131,7 @@ $$1$$
 ------- 
 '$$1$$' 
 
-(1 row in set)
+1 row in set
 
 (none)> select '$$;$$';$$
 
@@ -139,7 +139,7 @@ $$;$$
 ------- 
 '$$;$$' 
 
-(1 row in set)
+1 row in set
 
 (none)> delimiter ;
 (none)> select 1;
@@ -148,7 +148,7 @@ $$;$$
 -    
 1    
 
-(1 row in set)
+1 row in set
 
 (none)> 
 (none)> 

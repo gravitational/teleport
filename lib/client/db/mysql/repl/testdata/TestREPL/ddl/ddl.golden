@@ -31,7 +31,7 @@ Type 'help' or '\h' for help.
 --------------- 
 1               
 
-(1 row in set)
+1 row in set
 
 (none)> USE test_ddl_db;
 
@@ -172,7 +172,7 @@ id   value       note note2
 1    'from proc' NULL NULL  
 2    'FROM PROC' NULL NULL  
 
-(2 rows in set)
+2 rows in set
 
 test_ddl_db> 
 test_ddl_db> RENAME
@@ -189,7 +189,7 @@ id   value       note note2
 1    'from proc' NULL NULL  
 2    'FROM PROC' NULL NULL  
 
-(2 rows in set)
+2 rows in set
 
 test_ddl_db> 
 test_ddl_db> -- there is no "test_server", this should make an error.

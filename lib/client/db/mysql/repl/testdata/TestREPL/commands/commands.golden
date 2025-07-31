@@ -201,7 +201,7 @@ use       \u   Use another database.
 -    
 1    
 
-(1 row in set)
+1 row in set
 
 foo> delimiter $$
 foo> help$$

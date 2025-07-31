@@ -19,6 +19,7 @@ package repl
 import (
 	"iter"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 )
@@ -160,12 +161,18 @@ type evaluator interface {
 type queryEvaluator string
 
 func (query queryEvaluator) eval(r *REPL) (string, bool) {
+	start := time.Now()
 	result, err := r.myConn.Execute(string(query))
 	if err != nil {
 		return errorReplyPrefix + err.Error(), false
 	}
 	defer result.Close()
-	return formatResult(result), false
+	if r.disableQueryTimings {
+		return formatResult(result, nil), false
+	}
+
+	elapsed := time.Now().Sub(start)
+	return formatResult(result, &elapsed), false
 }
 
 // commandEvaluator executes a command.

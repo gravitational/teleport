@@ -25,6 +25,7 @@ import (
 	"iter"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/go-mysql-org/go-mysql/mysql"
@@ -53,6 +54,9 @@ type REPL struct {
 	// testPassword is normally blank, only used in tests where the REPL connects
 	// directly to a MySQL instance without Teleport proxying.
 	testPassword string
+	// disableQueryTimings is used in golden tests to disable query timings for
+	// test consistency.
+	disableQueryTimings bool
 }
 
 type mysqlConn interface {
@@ -220,11 +224,17 @@ func rewriteTermError(ctx context.Context, err error) error {
 }
 
 // formatResult formats a query result.
-func formatResult(result *mysql.Result) string {
+func formatResult(result *mysql.Result, elapsed *time.Duration) string {
+	var out string
 	if result.Resultset != nil {
-		return lineBreak + formatResultset(result.Resultset)
+		out = formatResultset(result.Resultset)
+	} else {
+		out = fmt.Sprintf("%v warnings, %v rows affected", result.Warnings, result.AffectedRows)
 	}
-	return lineBreak + fmt.Sprintf("%v warnings, %v rows affected", result.Warnings, result.AffectedRows)
+	if elapsed != nil {
+		return fmt.Sprintf("%s (%.2f sec)", out, elapsed.Seconds())
+	}
+	return out
 }
 
 // formatResultset formats a query result that contains rows.
@@ -249,10 +259,10 @@ func formatResultset(set *mysql.Resultset) string {
 	sb.WriteString(lineBreak)
 
 	if numRows := len(set.Values); numRows == 1 {
-		sb.WriteString("(1 row in set)")
+		sb.WriteString("1 row in set")
 	} else {
 		// pluralize 0 or multiple rows
-		fmt.Fprintf(&sb, "(%d rows in set)", numRows)
+		fmt.Fprintf(&sb, "%d rows in set", numRows)
 	}
 	return sb.String()
 }
