@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
 	"github.com/gravitational/teleport/lib/client/mcp/claude"
+	"github.com/gravitational/teleport/lib/client/mcp/testercli"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -83,6 +84,19 @@ func newMCPConfigCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpConfigComma
 	cmd.Arg("name", "Name of the MCP server.").StringVar(&cf.AppName)
 	cmd.clientConfig.addToCmd(cmd.CmdClause)
 	cmd.Alias(mcpConfigHelp)
+	return cmd
+}
+
+func newMCPTestCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpTestCommand {
+	cmd := &mcpTestCommand{
+		CmdClause: parent.Command("test", "A simple MCP client for testing MCP access.").Interspersed(false),
+		cf:        cf,
+	}
+
+	cmd.Arg("name", "Name of the MCP server to connect. Or, the command to execute with --exec flag.").StringVar(&cf.AppName)
+	cmd.Flag("exec", "Execute different commands rather than \"tsh mcp connect\".").BoolVar(&cmd.exec)
+	cmd.Flag("interactive", "Starts interactive MCP client otherwise quit after listing tools.").Default("true").BoolVar(&cmd.interactive)
+	cmd.Arg("args", "Arguments to execute with --exec flag.").StringsVar(&cmd.args)
 	return cmd
 }
 
@@ -538,4 +552,29 @@ func makeMCPReconnectUserMessage(err error) string {
 
 	userMessage += " If the issue persists, check the MCP logs for more details or contact your Teleport admin."
 	return userMessage
+}
+
+// mcpTestCommand implements `tsh mcp test` command.
+type mcpTestCommand struct {
+	*kingpin.CmdClause
+	exec        bool
+	cf          *CLIConf
+	args        []string
+	interactive bool
+}
+
+func (c *mcpTestCommand) run() error {
+	command := c.cf.executablePath
+	args := []string{"mcp", "connect", c.cf.AppName}
+	if c.exec {
+		command = c.cf.AppName
+		args = c.args
+	}
+	return testercli.Run(c.cf.Context, testercli.Config{
+		Stdin:       c.cf.Stdin(),
+		Stdout:      c.cf.Stdout(),
+		Command:     command,
+		Args:        args,
+		Interactive: c.interactive,
+	})
 }
