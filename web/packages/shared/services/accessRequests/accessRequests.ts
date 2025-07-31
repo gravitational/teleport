@@ -27,6 +27,39 @@ export type RequestState =
   | 'PROMOTED'
   | '';
 
+export enum RequestKind {
+  Undefined = 0,
+  ShortTerm = 1,
+  LongTerm = 2,
+}
+
+/**
+ * LongTermResourceGrouping contains information about how resources can be grouped
+ * for long-term Access Requests.
+ */
+export interface LongTermResourceGrouping {
+  /**
+   * canProceed represents the validity of the long-term request. If all requested
+   * resources cannot be grouped together, this will be false.
+   */
+  canProceed: boolean;
+  /**
+   * validationMessage is a user-friendly message explaining any grouping error if `canProceed` is false
+   */
+  validationMessage?: string;
+  /**
+   * recommendedAccessList is the name of the Access List that would provide
+   * access to the most resources. If multiple Access Lists provide the same
+   * number of resources, the first one found will be used.
+   */
+  recommendedAccessList?: string;
+  /**
+   * accessListToResources maps applicable Access List names to the resources they can grant,
+   * including the optimal grouping.
+   */
+  accessListToResources: { [key: string]: ResourceId[] };
+}
+
 export interface AccessRequest {
   id: string;
   state: RequestState;
@@ -53,6 +86,8 @@ export interface AccessRequest {
   assumeStartTimeDuration?: string;
   reasonMode: string;
   reasonPrompts: string[];
+  requestKind?: RequestKind;
+  longTermResourceGrouping?: LongTermResourceGrouping;
 }
 
 export interface AccessRequestReview {

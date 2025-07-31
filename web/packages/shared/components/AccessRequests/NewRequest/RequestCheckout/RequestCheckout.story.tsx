@@ -21,6 +21,7 @@ import { Link, MemoryRouter } from 'react-router-dom';
 
 import { Box, ButtonPrimary, ButtonText } from 'design';
 import { Option } from 'shared/components/Select';
+import { RequestKind } from 'shared/services/accessRequests';
 
 import { dryRunResponse } from '../../fixtures';
 import { useSpecifiableFields } from '../useSpecifiableFields';
@@ -249,6 +250,7 @@ const baseProps: RequestCheckoutWithSliderProps = {
   clearAttempt: () => null,
   onClose: () => null,
   toggleResource: () => null,
+  toggleResources: () => null,
   reset: () => null,
   transitionState: 'entered',
   numRequestedResources: 4,
@@ -264,5 +266,7 @@ const baseProps: RequestCheckoutWithSliderProps = {
   pendingRequestTtlOptions: [],
   dryRunResponse,
   startTime: null,
+  requestKind: RequestKind.ShortTerm,
+  setRequestKind: () => null,
   onStartTimeChange: () => null,
 };
