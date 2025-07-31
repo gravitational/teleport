@@ -45,7 +45,7 @@ export function getDownloadHost(event: AppUpdateEvent): string {
 }
 
 export function isTeleportDownloadHost(host: string): boolean {
-  return ['cdn.teleport.dev'].includes(host);
+  return host === 'cdn.teleport.dev';
 }
 
 export interface ClusterGetter {
