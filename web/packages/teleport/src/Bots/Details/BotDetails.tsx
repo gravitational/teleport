@@ -284,8 +284,6 @@ const LabelsContainer = styled(Flex)`
   gap: ${props => props.theme.space[1]}px;
 `;
 
-const RolesContainer = styled.div``;
-
 const Divider = styled.div`
   height: 1px;
   background-color: ${p => p.theme.colors.interactive.tonal.neutral[0]};
