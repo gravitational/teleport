@@ -239,7 +239,7 @@ to reconfigure them again during the `rollback` phase before proceeding to the
 
 The `openssh` CA issues ephemeral SSH user certificates that the Proxy Service
 uses to authenticate to
-[OpenSSH servers registered with Teleport](../../../enroll-resources/server-access/openssh/openssh.mdx).
+[OpenSSH servers registered with Teleport](../../../zero-trust-access/server-access/openssh/openssh.mdx).
 The OpenSSH agent verifies these certificates when it receives incoming
 connections from the Proxy Service.
 
@@ -250,13 +250,13 @@ starts using certificates signed by the new CA keys during the `update_clients`
 phase.
 
 If you used the
-[manual method](../../../enroll-resources/server-access/openssh/openssh-manual-install.mdx)
+[manual method](../../../zero-trust-access/server-access/openssh/openssh-manual-install.mdx)
 to enroll any OpenSSH servers, you must follow the instructions to export the
 new `openssh` CA public key and provide it to your OpenSSH servers before you
 transition the rotation to the `update_clients` phase.
 
 If you used the
-[automated method](../../../enroll-resources/server-access/openssh/openssh-agentless.mdx)
+[automated method](../../../zero-trust-access/server-access/openssh/openssh-agentless.mdx)
 you should reconfigure `sshd` by following the same steps before proceeding to
 the `update_clients` phase.
 

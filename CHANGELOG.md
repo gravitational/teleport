@@ -603,7 +603,7 @@ Teleport 14 before upgrading.
 #### SSH node open dial no longer supported
 
 Teleport 14 no longer allows connecting to OpenSSH servers not registered with
-the cluster. Follow the updated agentless OpenSSH integration [guide](docs/pages/enroll-resources/server-access/openssh/openssh-agentless.mdx)
+the cluster. Follow the updated agentless OpenSSH integration [guide](docs/pages/zero-trust-access/server-access/openssh/openssh-agentless.mdx)
 to register your OpenSSH nodes in the cluster’s inventory.
 
 You can set `TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING=yes` environment variable
@@ -852,7 +852,7 @@ This will allow users to view the OpenSSH nodes in Web UI and using `tsh ls`
 and use RBAC to control access to them.
 
 See the updated [OpenSSH integration
-guide](docs/pages/enroll-resources/server-access/openssh/openssh-agentless.mdx).
+guide](docs/pages/zero-trust-access/server-access/openssh/openssh-agentless.mdx).
 
 ### Cross-cluster search for Teleport Connect
 
@@ -1764,8 +1764,8 @@ editing files on remote systems.
 The following guides explain how to use IDEs to connect to a remote machine via
 Teleport:
 
-- [VS Code](./docs/pages/enroll-resources/server-access/guides/vscode.mdx)
-- [JetBrains](./docs/pages/enroll-resources/server-access/guides/jetbrains-sftp.mdx)
+- [VS Code](docs/pages/zero-trust-access/server-access/guides/vscode.mdx)
+- [JetBrains](docs/pages/zero-trust-access/server-access/guides/jetbrains-sftp.mdx)
 
 In addition, Teleport 11 clients will use SFTP protocol for file transfer under
 the hood instead of the obsolete scp protocol. Server-side scp is still
@@ -1983,7 +1983,7 @@ login without having to use Teleport's PAM integration. Users can be added to sp
 Linux groups and assigned appropriate “sudoer” privileges.
 
 To learn more about configuring automatic user provisioning read the
-[documentation](docs/pages/enroll-resources/server-access/guides/host-user-creation.mdx).
+[documentation](docs/pages/zero-trust-access/server-access/guides/host-user-creation.mdx).
 
 ### Audit Logging for Microsoft SQL Server database access
 
@@ -2069,7 +2069,7 @@ and we recommend upgrading to them. The old repositories will be maintained for
 the foreseeable future.
 
 See the [installation
-instructions](docs/pages/enroll-resources/server-access/getting-started.mdx#step-14-install-teleport-on-your-linux-host).
+instructions](docs/pages/zero-trust-access/server-access/getting-started.mdx#step-14-install-teleport-on-your-linux-host).
 
 #### Removed “tctl access ls”
 
