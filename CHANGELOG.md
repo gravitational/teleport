@@ -548,14 +548,14 @@ protocols. When using HTTP protocol, the user's query activity is captured in
 the Teleport audit log.
 
 See how to connect ClickHouse to Teleport
-[here](docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/clickhouse-self-hosted.mdx).
+[here](docs/pages/zero-trust-access/enroll-resources/database-access/enroll-self-hosted-databases/clickhouse-self-hosted.mdx).
 
 #### Oracle database access audit logging support
 
 In Teleport 14, database access for Oracle integration is updated with query
 audit logging support.
 
-See documentation on how to configure it in the [Oracle guide](docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/oracle-self-hosted.mdx).
+See documentation on how to configure it in the [Oracle guide](docs/pages/zero-trust-access/enroll-resources/database-access/enroll-self-hosted-databases/oracle-self-hosted.mdx).
 
 #### Limited passwordless access for local Windows users in Teleport Community Edition
 
@@ -1795,7 +1795,7 @@ label resources.
 
 Teleport database access now supports auto-discovery for Azure-hosted PostgreSQL
 and MySQL databases. See the [Azure
-guide](docs/pages/enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql.mdx) for more
+guide](docs/pages/zero-trust-access/enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql.mdx) for more
 details.
 
 In addition, Teleport database access will now use Azure AD managed identity
@@ -2006,7 +2006,7 @@ standard database access features like role-based access control and audit
 logging, including query activity.
 
 Connect your Snowflake database to Teleport following the
-[documentation](docs/pages/enroll-resources/database-access/enroll-managed-databases/snowflake.mdx).
+[documentation](docs/pages/zero-trust-access/enroll-resources/database-access/enroll-managed-databases/snowflake.mdx).
 
 ### Elasticache/MemoryDB database access (Preview)
 
@@ -2506,7 +2506,7 @@ Redis cluster and view Redis commands in the Teleport audit log. We will be
 adding support for Amazon Elasticache in the coming weeks.
 
 [Self-hosted Redis
-guide](docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/redis.mdx)
+guide](docs/pages/zero-trust-access/enroll-resources/database-access/enroll-self-hosted-databases/redis.mdx)
 
 #### SQL Server (Preview)
 
@@ -2733,13 +2733,13 @@ Teleport 7.0 is a major release of Teleport that contains new features, improvem
 
 Added support for [MongoDB](https://www.mongodb.com) to Teleport database access. [#6600](https://github.com/gravitational/teleport/issues/6600).
 
-View the [database access with MongoDB](docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/mongodb-self-hosted.mdx) for more details.
+View the [database access with MongoDB](docs/pages/zero-trust-access/enroll-resources/database-access/enroll-self-hosted-databases/mongodb-self-hosted.mdx) for more details.
 
 #### Cloud SQL MySQL
 
 Added support for [GCP Cloud SQL MySQL](https://cloud.google.com/sql/docs/mysql) to Teleport database access. [#7302](https://github.com/gravitational/teleport/pull/7302)
 
-View the Cloud SQL MySQL [guide](docs/pages/enroll-resources/database-access/enroll-google-cloud-databases/mysql-cloudsql.mdx) for more details.
+View the Cloud SQL MySQL [guide](docs/pages/zero-trust-access/enroll-resources/database-access/enroll-google-cloud-databases/mysql-cloudsql.mdx) for more details.
 
 #### AWS Console
 
@@ -2960,8 +2960,8 @@ Configure database access following the [Getting Started](./docs/pages/enroll-re
 * [AWS RDS/Aurora
   PostgreSQL](./docs/pages/enroll-resources/database-access/enroll-aws-databases/rds.mdx)
 * [AWS RDS/Aurora MySQL](./docs/pages/enroll-resources/database-access/enroll-aws-databases/rds.mdx)
-* [Self-hosted PostgreSQL](./docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted.mdx)
-* [Self-hosted MySQL](./docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/mysql-self-hosted.mdx)
+* [Self-hosted PostgreSQL](docs/pages/zero-trust-access/enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted.mdx)
+* [Self-hosted MySQL](docs/pages/zero-trust-access/enroll-resources/database-access/enroll-self-hosted-databases/mysql-self-hosted.mdx)
 * [GUI clients](docs/pages/connect-your-client/gui-clients.mdx)
 
 ##### Resources
