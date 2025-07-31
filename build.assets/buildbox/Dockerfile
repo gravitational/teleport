@@ -101,6 +101,30 @@ RUN curl --proto =https --tlsv1.2 -fsSL https://sh.rustup.rs | \
 		wasm32-unknown-unknown
 
 # ----------------------------------------------------------------------------
+# Install node
+
+FROM base AS node
+
+RUN apt-get update \
+    && apt-get install -y xz-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN install -d -m 0775 -o buildbox -g buildbox /opt/node
+USER buildbox
+
+ARG NODE_VERSION
+RUN \
+	case "$(uname -m)" in \
+		aarch64|arm64) NARCH=arm64 ;; \
+		x86_64|amd64) NARCH=x64 ;; \
+		*) echo "Unsupported architecture for node: $(uname -m)" >&2; exit 1 ;; \
+	esac; \
+	curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NARCH}.tar.xz" | \
+	tar -C /opt/node -xJ --strip-components=1 && \
+	/opt/node/bin/node --version
+RUN PATH=/opt/node/bin corepack enable yarn pnpm
+
+# ----------------------------------------------------------------------------
 # Clang 12.0.0 for FIPS builds of boring-rs
 
 FROM base AS clang
@@ -138,6 +162,7 @@ RUN apt-get update && apt-get install -y \
     automake \
     autopoint \
     bison \
+    binaryen \
     cmake \
     flex \
     gettext \
@@ -147,6 +172,11 @@ RUN apt-get update && apt-get install -y \
     make \
     ninja-build \
     pkg-config \
+    python3-pip \
+    python3-setuptools \
+    python3-wheel \
+    ruby \
+    rpm \
     sed \
     w3m \
     wget \
@@ -155,6 +185,14 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 RUN install -d -m 1777 -o teleport -g teleport /tmp/build
+
+# Install the FPM ruby gem as electron-builder only uses x86{,_64} versions
+# which do not work on arm64. We set USE_SYSTEM_FPM to ensure it uses this
+# version.
+# TODO(camscale): Change build.assets/build-package.sh to use this FPM instead
+# of the docker image we produce.
+RUN gem install fpm
+ENV USE_SYSTEM_FPM=true
 
 # The boring-rs build wants llvm-{ar,ranlib}-12 in /usr/bin. The
 # clang install has /opt/clang/bin/llvm-{ar,ranlib}. Create /usr/bin
@@ -170,6 +208,7 @@ ARG THIRDPARTY_DIR=/opt/thirdparty
 COPY --from=thirdparty ${THIRDPARTY_DIR} ${THIRDPARTY_DIR}
 COPY --from=rust /opt/rust /opt/rust
 COPY --from=go /opt/go /opt/go
+COPY --from=node /opt/node /opt/node
 COPY --from=clang /opt/clang /opt/clang
 
 # The boring-rs build uses cmake which wants clang++ to be called clang++-12.
@@ -187,9 +226,9 @@ RUN \
 # Set RUSTUP_HOME so cargo does not warn/error about not finding it at ~/.cargo
 ENV RUSTUP_HOME=/opt/rust
 
-ENV PATH=/opt/go/bin:/opt/rust/bin:${THIRDPARTY_DIR}/host/bin:${PATH}
+ENV PATH=/opt/go/bin:/opt/rust/bin:/opt/node/bin:${THIRDPARTY_DIR}/host/bin:${PATH}
 
-# Ensure THIRDPARTY_DIR gets propagated to the makefiles if the provided arg
+# Ensure THIRDPARTY_DIR gets propagated to the makefiles in case the provided arg
 # is not the default value.
 ENV THIRDPARTY_DIR=${THIRDPARTY_DIR}
 
@@ -211,6 +250,8 @@ ENV CARGO_TARGET_ARM_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-unknown-linux-gnueabihf-
 ENV CARGO_HOME=/tmp/build/rust
 ENV GOPATH=/tmp/build/go
 ENV GOCACHE=/tmp/build/go/build
+ENV COREPACK_HOME=/tmp/build/node
+ENV HOME=/tmp/build
 
 # Add the writable cargo and go bin directories to the path so we will find
 # binaries build with `cargo install` and `go install` during a build.
