@@ -71,7 +71,7 @@ impl<const S: usize> Card<S> {
     }
 
     pub fn handle(&mut self, cmd: Command<S>) -> PduResult<Response> {
-        debug!("got command: {:?}", cmd);
+        debug!("got command: {cmd:?}");
         debug!("command data: {}", hex_data(&cmd));
 
         // Handle chained commands.
@@ -105,7 +105,7 @@ impl<const S: usize> Card<S> {
                 Ok(Response::new(Status::InstructionNotSupportedOrInvalid))
             }
         }?;
-        debug!("send response: {:?}", resp);
+        debug!("send response: {resp:?}");
         debug!("response data: {}", to_hex(&resp.encode()));
         Ok(resp)
     }

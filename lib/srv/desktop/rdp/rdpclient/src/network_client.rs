@@ -68,22 +68,22 @@ impl NetworkClient {
         );
 
         let mut stream = TcpStream::connect(addr).await.map_err(|e| {
-            error!("KDC connection failed: {:?}", e);
+            error!("KDC connection failed: {e:?}");
             reason_err!("NLA", "connection to Key Distribution Center failed")
         })?;
 
         stream.write(data).await.map_err(|e| {
-            error!("KDC send failed: {:?}", e);
+            error!("KDC send failed: {e:?}");
             reason_err!("NLA", "sending data to Key Distribution Center failed")
         })?;
 
         let len = stream.read_u32().await.map_err(|e| {
-            error!("KDC length read failed: {:?}", e);
+            error!("KDC length read failed: {e:?}");
             reason_err!("NLA", "reading data from Key Distribution Center failed")
         })?;
 
         if len > MAX_RESPONSE_LENGTH {
-            error!("KDC response too large: {} > {}", len, MAX_RESPONSE_LENGTH);
+            error!("KDC response too large: {len} > {MAX_RESPONSE_LENGTH}");
             return Err(reason_err!(
                 "NLA",
                 "response from Key Distribution Center was too large"
@@ -94,7 +94,7 @@ impl NetworkClient {
         buf[0..4].copy_from_slice(&(len.to_be_bytes()));
 
         stream.read_exact(&mut buf[4..]).await.map_err(|e| {
-            error!("KDC read failed: {:?}", e);
+            error!("KDC read failed: {e:?}");
             reason_err!("NLA", "reading data from Key Distribution Center failed")
         })?;
 

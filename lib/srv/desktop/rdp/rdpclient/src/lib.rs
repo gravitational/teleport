@@ -146,12 +146,12 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
             },
         },
         Err(e) => {
-            error!("client_run failed: {:?}", e);
+            error!("client_run failed: {e:?}");
             let message = match e {
                 client::ClientError::Tcp(io_err) if io_err.kind() == ErrorKind::TimedOut => {
                     String::from(TIMEOUT_ERROR_MESSAGE)
                 }
-                _ => format!("{}", e),
+                _ => format!("{e}"),
             };
             CGOResult {
                 err_code: CGOErrCode::ErrCodeFailure,
@@ -184,7 +184,7 @@ where
     match f(client_handle) {
         Ok(_) => CGOErrCode::ErrCodeSuccess,
         Err(e) => {
-            error!("{} failed: {:?}", ctx, e);
+            error!("{ctx} failed: {e:?}");
             CGOErrCode::ErrCodeFailure
         }
     }
@@ -228,7 +228,7 @@ pub unsafe extern "C" fn client_update_clipboard(
             move |client_handle| client_handle.update_clipboard(s),
         ),
         Err(e) => {
-            error!("can't convert clipboard data: {}", e);
+            error!("can't convert clipboard data: {e}");
             CGOErrCode::ErrCodeFailure
         }
     }
