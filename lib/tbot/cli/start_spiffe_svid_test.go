@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 )
 
 // TestSPIFFESVIDCommand tests that the SPIFFESVIDCommand properly parses its
@@ -53,7 +54,7 @@ func TestSPIFFESVIDCommand(t *testing.T) {
 
 				// It must configure a SPIFFE output with a directory destination.
 				svc := cfg.Services[0]
-				spiffe, ok := svc.(*config.SPIFFESVIDOutput)
+				spiffe, ok := svc.(*legacyspiffe.SVIDOutputConfig)
 				require.True(t, ok)
 
 				require.True(t, spiffe.IncludeFederatedTrustBundles)
