@@ -16,22 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package sshutils
+package teleagent
 
 import (
-	"testing"
-
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
+	"github.com/gravitational/teleport/lib/sshagent"
 )
 
-func TestAgentChannelClose(t *testing.T) {
-	aChannel := AgentChannel{
-		ch: &mockChannel{
-			ReadWriter: fakeReaderWriter{},
-		},
-	}
-	// Ensure write part of channel is closed first
-	require.EqualError(t, aChannel.Close(),
-		trace.NewAggregate(errCloseWrite, errClose).Error())
-}
+// TODO(Joerger): Remove this file once no longer needed by /e
+type (
+	Agent = sshagent.Client
+)
+
+var (
+	NopCloser = sshagent.NewStaticClient
+	NewServer = sshagent.NewServer
+)
