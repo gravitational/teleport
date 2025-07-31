@@ -282,7 +282,7 @@ type ServiceAccountClaims struct {
 // OIDCServiceAccountClaims is a variant of `ServiceAccountClaims` intended for
 // use with the OIDC validator rather than plain JWKS.
 type OIDCServiceAccountClaims struct {
-	zoidc.Claims
+	zoidc.TokenClaims
 	Kubernetes *KubernetesSubClaim `json:"kubernetes.io"`
 }
 
