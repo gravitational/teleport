@@ -224,6 +224,9 @@ func (s *Service) generateUserSSHConfig(ctx context.Context, userJWT string, rol
 	dest := &destination.Directory{
 		Path: filepath.Join(s.cfg.Path, uuid.NewString()),
 	}
+	if err := dest.CheckAndSetDefaults(); err != nil {
+		return "", trace.Wrap(err, "check and set defaults")
+	}
 
 	// TODO: Also bad.
 	if err := os.MkdirAll(dest.Path, os.ModePerm); err != nil {
@@ -238,6 +241,12 @@ func (s *Service) generateUserSSHConfig(ctx context.Context, userJWT string, rol
 	keyRing, err := internal.NewClientKeyRing(userID, hostCAs)
 	if err != nil {
 		return "", trace.Wrap(err, "creating keyring")
+	}
+
+	if err := identity.SaveIdentity(
+		ctx, userID, dest, identity.DestinationKinds()...,
+	); err != nil {
+		return "", trace.Wrap(err, "persisting identity")
 	}
 
 	if err := internal.WriteIdentityFile(ctx, s.log, keyRing, dest); err != nil {
