@@ -18,11 +18,11 @@ Azure as a principal with permissions to manage the database.
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Enroll Azure Cache for Redis with a Self-Hosted Teleport Cluster](../../../../img/database-access/guides/azure/redis-self-hosted.png)
+![Enroll Azure Cache for Redis with a Self-Hosted Teleport Cluster](../../../../../img/database-access/guides/azure/redis-self-hosted.png)
 </TabItem>
 
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Enroll Azure Cache for Redis with a Cloud-Hosted Teleport Cluster](../../../../img/database-access/guides/azure/redis-cloud.png)
+![Enroll Azure Cache for Redis with a Cloud-Hosted Teleport Cluster](../../../../../img/database-access/guides/azure/redis-cloud.png)
 </TabItem>
 
 </Tabs>
@@ -143,11 +143,11 @@ you want to further limit the `assignableScopes`, you can use a resource group
 Now go to the [Subscriptions](https://portal.azure.com/#view/Microsoft_Azure_Billing/SubscriptionsBlade) page and select a subscription.
 
 Click on *Access control (IAM)* in the subscription and select *Add > Add custom role*:
-![IAM custom role](../../../../img/azure/add-custom-role@2x.png)
+![IAM custom role](../../../../../img/azure/add-custom-role@2x.png)
 
 In the custom role creation page, click the *JSON* tab and click *Edit*, then paste the JSON example
 and replace the subscription in `assignableScopes` with your own subscription id:
-![Create JSON role](../../../../img/database-access/guides/azure/redis-create-role-from-json.png)
+![Create JSON role](../../../../../img/database-access/guides/azure/redis-create-role-from-json.png)
 
 ### Create a role assignment for the Teleport Database Service principal
 

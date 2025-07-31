@@ -12,7 +12,7 @@ labels:
 ## Prerequisites
 
 - Teleport cluster with a configured [self-hosted
-  PostgreSQL](../enroll-self-hosted-databases/postgres-self-hosted.mdx) or [RDS
+  PostgreSQL](../../../zero-trust-access/enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted.mdx) or [RDS
   PostgreSQL](../enroll-aws-databases/rds.mdx) database. To configure
   permissions for database objects like tables, your cluster must be on version
   v15.2 or above.
@@ -81,7 +81,7 @@ hostssl all             all             ::/0                    cert
 hostssl all             all             0.0.0.0/0               cert
 ```
 
-Refer to the [self-hosted PostgreSQL guide](../enroll-self-hosted-databases/postgres-self-hosted.mdx#step-35-configure-your-postgresql-server)
+Refer to the [self-hosted PostgreSQL guide](../../../zero-trust-access/enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted.mdx#step-35-configure-your-postgresql-server)
 to ensure that your configuration is correct.
 </TabItem>
 </Tabs>

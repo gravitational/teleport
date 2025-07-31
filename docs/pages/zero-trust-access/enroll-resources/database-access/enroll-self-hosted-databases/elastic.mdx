@@ -21,7 +21,7 @@ labels:
 
 - A host where you will run the Teleport Database Service.
 
-  See [Installation](../../../installation/installation.mdx) for details.
+  See [Installation](../../../../installation/installation.mdx) for details.
 
 - Optional: a certificate authority that issues certificates for
   your self-hosted database.
@@ -80,7 +80,7 @@ $ curl -u elastic:your_elasticsearch_password -X POST "https://elasticsearch.exa
 <details>
 <summary>Role Mapping with wildcards</summary>
 
-In a scenario where Teleport is using [single sign-on](../../../zero-trust-access/sso/sso.mdx) you may want to define a mapping for all users to a role:
+In a scenario where Teleport is using [single sign-on](../../../sso/sso.mdx) you may want to define a mapping for all users to a role:
 
 ```code
 $ curl -u elastic:your_elasticsearch_password -X POST "https://elasticsearch.example.com:9200/_security/role_mapping/mapping1?pretty" -H 'Content-Type: application/json' -d'
@@ -187,7 +187,7 @@ Use one of the following commands to connect to the database:
 
 Note the assigned port, and provide it to your GUI client:
 
-![ElasticVue](../../../../img/database-access/guides/elasticvue.png)
+![ElasticVue](../../../../../img/database-access/guides/elasticvue.png)
 
 ## Next steps
 

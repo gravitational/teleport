@@ -22,10 +22,10 @@ database.
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Enrolling Azure PostgreSQL/MySQL with a self-hosted Teleport cluster](../../../../img/database-access/guides/azure_selfhosted.png)
+![Enrolling Azure PostgreSQL/MySQL with a self-hosted Teleport cluster](../../../../../img/database-access/guides/azure_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Enrolling Azure PostgreSQL/MySQL with a cloud-hosted Teleport cluster](../../../../img/database-access/guides/azure_cloud.png)
+![Enrolling Azure PostgreSQL/MySQL with a cloud-hosted Teleport cluster](../../../../../img/database-access/guides/azure_cloud.png)
 </TabItem>
 </Tabs>
 
@@ -98,11 +98,11 @@ more information.
 Go to the [Subscriptions](https://portal.azure.com/#view/Microsoft_Azure_Billing/SubscriptionsBlade) page and select a subscription.
 
 Click on *Access control (IAM)* in the subscription and select *Add > Add custom role*:
-![IAM custom role](../../../../img/azure/add-custom-role@2x.png)
+![IAM custom role](../../../../../img/azure/add-custom-role@2x.png)
 
 In the custom role creation page, click the *JSON* tab and click *Edit*, then paste the JSON example
 and replace the subscription in "assignableScopes" with your own subscription id:
-![Create JSON role](../../../../img/database-access/guides/azure/create-role-from-json@2x.png)
+![Create JSON role](../../../../../img/database-access/guides/azure/create-role-from-json@2x.png)
 
 ### Create a role assignment for the Teleport Database Service principal
 
@@ -123,21 +123,21 @@ Azure AD users.
 Go to your database's **Authentication** page and set the AD
 admin using the edit button:
 
-![Set AD admin](../../../../img/database-access/guides/azure/set-ad-admin.png)
+![Set AD admin](../../../../../img/database-access/guides/azure/set-ad-admin.png)
 
 </TabItem>
 <TabItem label="PostgreSQL Flexible">
 Go to your database's **Authentication** page and set the AD
 admin by selecting **+ Add Azure AD Admins**:
 
-![Set AD admin](../../../../img/database-access/guides/azure/set-ad-admin-postgres.png)
+![Set AD admin](../../../../../img/database-access/guides/azure/set-ad-admin-postgres.png)
 
 </TabItem>
 <TabItem label="Single server">
 Go to your database's *Active Directory admin* page
 and set the AD admin using the *Set admin* button:
 
-![Set AD admin](../../../../img/database-access/guides/azure/set-ad-admin@2x.png)
+![Set AD admin](../../../../../img/database-access/guides/azure/set-ad-admin@2x.png)
 
 </TabItem>
 </Tabs>
