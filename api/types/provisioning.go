@@ -122,6 +122,7 @@ var (
 	KubernetesJoinTypeUnspecified KubernetesJoinType = ""
 	KubernetesJoinTypeInCluster   KubernetesJoinType = "in_cluster"
 	KubernetesJoinTypeStaticJWKS  KubernetesJoinType = "static_jwks"
+	KubernetesJoinTypeOIDC        KubernetesJoinType = "oidc"
 )
 
 // ProvisionToken is a provisioning token
