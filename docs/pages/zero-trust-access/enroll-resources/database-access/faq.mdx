@@ -8,7 +8,7 @@ labels:
 
 This page provides the answers to common questions about enrolling databases
 with Teleport. For a list of frequently asked questions about Teleport in
-general, see [Frequently Asked Questions](../../faq.mdx).
+general, see [Frequently Asked Questions](../../../faq.mdx).
 
 ## Which database protocols does Teleport the Database Service support?
 
@@ -60,21 +60,21 @@ The following PostgreSQL protocol features aren't currently supported:
 When configuring the Teleport Proxy Service, administrators can set the
 `postgres_public_addr` and `mysql_public_addr` configuration fields to public
 addresses over which respective database clients should connect. See
-[Proxy Configuration](../../reference/agent-services/database-access-reference/configuration.mdx) for
+[Proxy Configuration](../../../reference/agent-services/database-access-reference/configuration.mdx) for
 more details.
 
 This is useful when the Teleport Web UI is running behind an L7 load balancer
 (e.g. ALB in AWS), in which case the PostgreSQL/MySQL proxy needs to be exposed
 on a plain TCP load balancer (e.g. NLB in AWS).
 
-Using [TLS routing](../../reference/architecture/tls-routing.mdx) for the Teleport Proxy Service allows for all 
+Using [TLS routing](../../../reference/architecture/tls-routing.mdx) for the Teleport Proxy Service allows for all 
 database connections with the web public address.
 
 </TabItem>
 <TabItem scope={["cloud","team"]} label="Cloud-Hosted">
 
 In Teleport Enterprise (Cloud), database connections use the web public address
-since [TLS routing](../../reference/architecture/tls-routing.mdx) is applied.
+since [TLS routing](../../../reference/architecture/tls-routing.mdx) is applied.
 
 </TabItem>
 </Tabs>
@@ -87,7 +87,7 @@ should work.
 
 Standard command-line clients such as `psql`, `mysql`, `mongo` or `mongosh` are
 supported. There are also instructions for configuring select
-[graphical clients](../../connect-your-client/gui-clients.mdx).
+[graphical clients](../../../connect-your-client/gui-clients.mdx).
 
 ## When will you support X database?
 
@@ -101,14 +101,14 @@ to register your interest.
 ## Can I provide a custom CA certificate?
 
 Yes, you can pass custom CA certificate by using a
-[configuration file](../../reference/agent-services/database-access-reference/configuration.mdx)
+[configuration file](../../../reference/agent-services/database-access-reference/configuration.mdx)
 (look at `ca_cert_file`).
 
 ## Can I provide a custom DNS name for Teleport generated CA?
 
 Yes, use `server_name` under the `tls` section in your Teleport configuration
 file. Please look on our reference
-[configuration file](../../reference/agent-services/database-access-reference/configuration.mdx)
+[configuration file](../../../reference/agent-services/database-access-reference/configuration.mdx)
 for more details.
 
 ## Can I disable CA verification when connecting to a database?
@@ -118,7 +118,7 @@ person-in-the-middle attacks and makes sure that you
 are connected to the database that you intended to. 
 
 Teleport also allows you to edit your
-[configuration file](../../reference/agent-services/database-access-reference/configuration.mdx)
+[configuration file](../../../reference/agent-services/database-access-reference/configuration.mdx)
 to provide a custom CA certificate (`ca_cert_file`) or custom DNS name
 (`server_name`), which is more secure. 
 
@@ -126,7 +126,7 @@ If none of the above options work for you and you still want to disable the CA
 check, you can use `mode` under the `tls` option in the Teleport configuration file.
 
 For more details please refer to the reference
-[configuration file](../../reference/agent-services/database-access-reference/configuration.mdx).
+[configuration file](../../../reference/agent-services/database-access-reference/configuration.mdx).
 
 ## Can I disable read-only and custom endpoints from auto-discovered databases?
 
@@ -145,5 +145,5 @@ match:
         - "instance"
 ```
 
-See [labels reference](../../reference/agent-services/database-access-reference/labels.mdx) for a full list of Teleport
+See [labels reference](../../../reference/agent-services/database-access-reference/labels.mdx) for a full list of Teleport
 generated labels and values.

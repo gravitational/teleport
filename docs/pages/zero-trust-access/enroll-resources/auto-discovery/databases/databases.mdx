@@ -34,7 +34,7 @@ from database access.
 The Teleport Discovery Service is responsible for polling APIs for databases
 that match its configured selectors.
 When the Discovery Service matches a database, it will
-[dynamically register the database](../../../../enroll-resources/database-access/guides/dynamic-registration.mdx)
+[dynamically register the database](../../database-access/guides/dynamic-registration.mdx)
 with your Teleport cluster.
 The dynamic `db` resources it creates in your Teleport cluster will include
 information such as:
@@ -154,7 +154,7 @@ For more information about Discovery Service configuration, refer to
 ## How the Database Service works
 
 The Teleport Database Service is responsible for monitoring
-[dynamically registered](../../../../enroll-resources/database-access/guides/dynamic-registration.mdx)
+[dynamically registered](../../database-access/guides/dynamic-registration.mdx)
 `db` resources in your Teleport cluster and acting as a connection proxy for the
 databases they represent.
 
