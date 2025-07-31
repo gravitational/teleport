@@ -300,6 +300,8 @@ func (h *portForwardProxy) requestID(stream httpstream.Stream) (string, error) {
 // when the httpstream.Connection is closed.
 func (h *portForwardProxy) run() {
 	h.logger.DebugContext(h.context, "Waiting for port forward streams")
+	var wg sync.WaitGroup
+	defer wg.Wait()
 	for {
 		select {
 		case <-h.context.Done():
@@ -311,6 +313,9 @@ func (h *portForwardProxy) run() {
 		case <-h.targetConn.CloseChan():
 			// Backend pod lifecycle completed
 			h.logger.DebugContext(h.context, "Target connection closed")
+			// Wait for all other pairs to complete
+			// to ensure data transfer completes fully.
+			wg.Wait()
 			// Close source connection
 			if err := h.sourceConn.Close(); err != nil {
 				h.logger.ErrorContext(h.context, "Unable to close source connection", "error", err)
@@ -334,7 +339,11 @@ func (h *portForwardProxy) run() {
 				err := trace.BadParameter("error processing stream for request %s: %v", requestID, err)
 				p.sendErr(err)
 			} else if complete {
-				go h.portForward(p)
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					h.portForward(p)
+				}()
 			}
 		}
 	}
