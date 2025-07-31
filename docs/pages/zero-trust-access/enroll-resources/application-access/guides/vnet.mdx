@@ -87,7 +87,7 @@ app_service:
 
 ## Step 3/3. Connect
 
-Once you [start VNet](../../../connect-your-client/vnet.mdx), you should be able to connect to the
+Once you [start VNet](../../../../connect-your-client/vnet.mdx), you should be able to connect to the
 application over the custom `public_addr` using the application client you would normally use to
 connect to it. You might need to restart VNet if it was already running while you were making
 changes to the cluster.
@@ -134,7 +134,7 @@ an address for the TUN device from a range offered by one of those clusters.
 
 ### Configuring leaf cluster apps
 
-To make a [leaf cluster](../../../admin-guides/management/admin/trustedclusters.mdx) app accessible over a custom
+To make a [leaf cluster](../../../../admin-guides/management/admin/trustedclusters.mdx) app accessible over a custom
 `public_addr`, you need to follow the same steps while being logged in directly to the leaf cluster.
 
 ```code
@@ -169,7 +169,7 @@ There are a few more caveats when converting a Teleport web app to a TCP app:
 - [JWT Tokens](../jwt/introduction.mdx), [redirects](connecting-apps.mdx#rewrite-redirect) and
   [header rewrites](connecting-apps.mdx#headers-passthrough) are not available for TCP apps.
 - Teleport records the start and the end of a session for TCP apps in the audit log, but [session
-  chunks](../../../reference/architecture/session-recording.mdx) are not captured.
+  chunks](../../../../reference/architecture/session-recording.mdx) are not captured.
 
 The important thing to understand is that VNet doesn't do anything extra with a
 TCP connection, it tunnels it directly to the target application's `uri`.
@@ -178,6 +178,6 @@ clients.
 
 ### Further reading
 
-- Read our VNet usage [guide](../../../connect-your-client/vnet.mdx) for end-users
+- Read our VNet usage [guide](../../../../connect-your-client/vnet.mdx) for end-users
   accessing your applications with VNet.
 - Read [RFD 163](https://github.com/gravitational/teleport/blob/master/rfd/0163-vnet.md) to learn how VNet works on a technical level.

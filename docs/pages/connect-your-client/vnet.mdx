@@ -117,7 +117,7 @@ Teleport Connect.
 
 <Admonition type="note" title="Support for multiple ports">
 Unless the application specifies [multiple
-ports](../enroll-resources/application-access/guides/tcp.mdx#configuring-access-to-multiple-ports),
+ports](../zero-trust-access/enroll-resources/application-access/guides/tcp.mdx#configuring-access-to-multiple-ports),
 VNet proxies connections over any port used by the application client. For multi-port apps, the port
 number must match one of the target ports of the app. To see a list of target ports, click the
 three dot menu next to an application in Teleport Connect or execute `tsh apps ls`.
@@ -186,7 +186,7 @@ running Tailscale or another VPN client, and try disabling it to see if the
 issue persists.
 To avoid the conflict and run VNet alongside Tailscale or another VPN client you
 can configure VNet to use a different IPv4 range, see our VNet configuration
-[guide](../enroll-resources/application-access/guides/vnet.mdx#configuring-ipv4-cidr-range).
+[guide](../zero-trust-access/enroll-resources/application-access/guides/vnet.mdx#configuring-ipv4-cidr-range).
 
 ### Connecting to the app without VNet
 
@@ -353,7 +353,7 @@ Before version 18.0.0, VNet logs were saved in `C:\Program Files\Teleport Connec
 
 ## Next steps
 
-- Read our VNet configuration [guide](../enroll-resources/application-access/guides/vnet.mdx)
+- Read our VNet configuration [guide](../zero-trust-access/enroll-resources/application-access/guides/vnet.mdx)
   to learn how to configure VNet access to your applications.
 - Read [RFD 163](https://github.com/gravitational/teleport/blob/master/rfd/0163-vnet.md) to learn how VNet works on a technical level.
 - Read [RFD 207](https://github.com/gravitational/teleport/blob/master/rfd/0207-vnet-ssh.md) to learn how VNet SSH access works.

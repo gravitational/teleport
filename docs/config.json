@@ -1044,6 +1044,116 @@
       "source": "/model-context-preview/",
       "destination": "/connect-your-client/model-context-protocol/",
       "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/",
+      "destination": "/zero-trust-access/enroll-resources/application-access/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/cloud-apis/aws-console/",
+      "destination": "/zero-trust-access/enroll-resources/application-access/cloud-apis/aws-console/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/cloud-apis/azure-aks-workload-id/",
+      "destination": "/zero-trust-access/enroll-resources/application-access/cloud-apis/azure-aks-workload-id/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/cloud-apis/azure/",
+      "destination": "/zero-trust-access/enroll-resources/application-access/cloud-apis/azure/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/cloud-apis/",
+      "destination": "/zero-trust-access/enroll-resources/application-access/cloud-apis/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/cloud-apis/google-cloud/",
+      "destination": "/zero-trust-access/enroll-resources/application-access/cloud-apis/google-cloud/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/controls/",
+      "destination": "/zero-trust-access/enroll-resources/application-access/controls/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/getting-started/",
+      "destination": "/zero-trust-access/enroll-resources/application-access/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/guides/amazon-athena/",
+      "destination": "/zero-trust-access/enroll-resources/application-access/guides/amazon-athena/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/guides/api-access/",
+      "destination": "/zero-trust-access/enroll-resources/application-access/guides/api-access/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/guides/connecting-apps/",
+      "destination": "/zero-trust-access/enroll-resources/application-access/guides/connecting-apps/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/guides/dynamic-registration/",
+      "destination": "/zero-trust-access/enroll-resources/application-access/guides/dynamic-registration/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/guides/dynamodb/",
+      "destination": "/zero-trust-access/enroll-resources/application-access/guides/dynamodb/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/guides/",
+      "destination": "/zero-trust-access/enroll-resources/application-access/guides/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/guides/ha/",
+      "destination": "/zero-trust-access/enroll-resources/application-access/guides/ha/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/guides/tcp/",
+      "destination": "/zero-trust-access/enroll-resources/application-access/guides/tcp/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/guides/vnet/",
+      "destination": "/zero-trust-access/enroll-resources/application-access/guides/vnet/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/introduction/",
+      "destination": "/zero-trust-access/enroll-resources/application-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/jwt/elasticsearch/",
+      "destination": "/zero-trust-access/enroll-resources/application-access/jwt/elasticsearch/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/jwt/introduction/",
+      "destination": "/zero-trust-access/enroll-resources/application-access/jwt/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/jwt/",
+      "destination": "/zero-trust-access/enroll-resources/application-access/jwt/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/troubleshooting-apps/",
+      "destination": "/zero-trust-access/enroll-resources/application-access/troubleshooting-apps/",
+      "permanent": true
     }
   ]
 }

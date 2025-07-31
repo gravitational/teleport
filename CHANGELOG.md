@@ -647,7 +647,7 @@ All requests will still include `Teleport-JWT-Assertion` containing the JWT
 token.
 
 See documentation for details on how to inject the JWT token into any header
-using [header rewriting](docs/pages/enroll-resources/application-access/jwt/introduction.mdx#inject-jwt).
+using [header rewriting](docs/pages/zero-trust-access/enroll-resources/application-access/jwt/introduction.mdx#inject-jwt).
 
 #### tsh db CLI commands changes
 
@@ -2610,7 +2610,7 @@ to log into their AWS console using `tsh apps login` and use `tsh aws` commands
 to interact with AWS APIs.
 
 See more info in the
-[documentation](docs/pages/enroll-resources/application-access/cloud-apis/aws-console.mdx).
+[documentation](docs/pages/zero-trust-access/enroll-resources/application-access/cloud-apis/aws-console.mdx).
 
 #### Application and Database Dynamic Registration
 
@@ -2619,7 +2619,7 @@ without needing to update static YAML configuration or restart application or
 database agents.
 
 See dynamic registration guides for
-[apps](docs/pages/enroll-resources/application-access/guides/dynamic-registration.mdx)
+[apps](docs/pages/zero-trust-access/enroll-resources/application-access/guides/dynamic-registration.mdx)
 and
 [databases](docs/pages/enroll-resources/database-access/guides/dynamic-registration.mdx).
 
@@ -2745,7 +2745,7 @@ View the Cloud SQL MySQL [guide](docs/pages/enroll-resources/database-access/enr
 
 Added support for [AWS Console](https://aws.amazon.com/console) to Teleport application access. [#7590](https://github.com/gravitational/teleport/pull/7590)
 
-Teleport application access can now automatically sign users into the AWS Management Console using [Identity federation](https://aws.amazon.com/identity/federation). View AWS Management Console [guide](docs/pages/enroll-resources/application-access/cloud-apis/aws-console.mdx) for more details.
+Teleport application access can now automatically sign users into the AWS Management Console using [Identity federation](https://aws.amazon.com/identity/federation). View AWS Management Console [guide](docs/pages/zero-trust-access/enroll-resources/application-access/cloud-apis/aws-console.mdx) for more details.
 
 #### Restricted Sessions
 
@@ -3172,7 +3172,7 @@ proxy_service:
     cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 ```
 
-You can learn more in [Introduction to Enrolling Applications](./docs/pages/enroll-resources/application-access/introduction.mdx).
+You can learn more in [Introduction to Enrolling Applications](docs/pages/zero-trust-access/enroll-resources/application-access/introduction.mdx).
 
 ##### Teleport Kubernetes access
 
