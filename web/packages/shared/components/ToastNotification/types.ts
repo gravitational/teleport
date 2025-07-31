@@ -21,22 +21,24 @@ import React from 'react';
 import { Action } from 'design/Alert';
 import { IconProps } from 'design/Icon/Icon';
 
-export type NotificationSeverity =
+export type ToastNotificationSeverity =
   | 'info'
   | 'warn'
   | 'error'
   | 'success'
   | 'neutral';
 
-export interface NotificationItem {
-  content: NotificationItemContent;
-  severity: NotificationSeverity;
+export interface ToastNotificationItem {
+  content: ToastNotificationItemContent;
+  severity: ToastNotificationSeverity;
   id: string;
 }
 
-export type NotificationItemContent = string | NotificationItemObjectContent;
+export type ToastNotificationItemContent =
+  | string
+  | ToastNotificationItemObjectContent;
 
-export type NotificationItemObjectContent = {
+export type ToastNotificationItemObjectContent = {
   title?: string;
   subtitle?: string;
   list?: string[];

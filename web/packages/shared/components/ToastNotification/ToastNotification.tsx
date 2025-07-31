@@ -29,14 +29,14 @@ import { borderColor } from 'design/system';
 import { Theme } from 'design/theme/themes/types';
 
 import type {
-  NotificationItem,
-  NotificationItemContent,
-  NotificationItemObjectContent,
-  NotificationSeverity,
+  ToastNotificationItem,
+  ToastNotificationItemContent,
+  ToastNotificationItemObjectContent,
+  ToastNotificationSeverity,
 } from './types';
 
-interface NotificationProps extends BoxProps {
-  item: NotificationItem;
+interface ToastNotificationProps extends BoxProps {
+  item: ToastNotificationItem;
 
   onRemove(): void;
 
@@ -51,9 +51,9 @@ interface NotificationProps extends BoxProps {
   isAutoRemovable?: boolean;
 }
 
-const autoRemoveDurationMs = 5_000; // 5s
+export const autoRemoveDurationMs = 5_000; // 5s
 
-export function Notification(props: NotificationProps) {
+export function ToastNotification(props: ToastNotificationProps) {
   const {
     item,
     onRemove,
@@ -94,6 +94,7 @@ export function Notification(props: NotificationProps) {
 
   return (
     <Container
+      data-testid={`toast-note-${item.id}`}
       py={3}
       // We use a custom value to offset the default padding by the width of the
       // left border.
@@ -154,7 +155,7 @@ const NotificationIcon = ({
   customIcon: CustomIcon,
   ...otherProps
 }: {
-  severity: NotificationSeverity;
+  severity: ToastNotificationSeverity;
   customIcon: React.ComponentType<IconProps>;
 } & IconProps) => {
   const commonProps = { role: 'graphics-symbol', ...otherProps };
@@ -178,16 +179,19 @@ const NotificationIcon = ({
 };
 
 const toObjectContent = (
-  content: NotificationItemContent
-): NotificationItemObjectContent =>
+  content: ToastNotificationItemContent
+): ToastNotificationItemObjectContent =>
   typeof content === 'string' ? { title: content } : content;
 
 const getContentIsAutoRemovable = (
-  content: NotificationItemContent
+  content: ToastNotificationItemContent
 ): boolean | undefined =>
   typeof content === 'string' ? undefined : content.isAutoRemovable;
 
-const notificationColors = (theme: Theme, severity: NotificationSeverity) => {
+const notificationColors = (
+  theme: Theme,
+  severity: ToastNotificationSeverity
+) => {
   switch (severity) {
     case 'neutral':
       return {
@@ -231,7 +235,7 @@ const NotificationBody = ({
   content,
   isExpanded,
 }: {
-  content: NotificationItemObjectContent;
+  content: ToastNotificationItemObjectContent;
   isExpanded: boolean;
 }) => {
   const longerTextCss = isExpanded ? textCss : shortTextCss;
