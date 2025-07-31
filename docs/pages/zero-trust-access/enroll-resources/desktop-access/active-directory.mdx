@@ -190,7 +190,7 @@ logins.
 
 1. Verify the **Teleport Service Account** is selected, then click **OK** in all the dialogs.
 
-   ![Deny interactive login](../../../img/desktop-access/deny-interactive-login.png)
+   ![Deny interactive login](../../../../img/desktop-access/deny-interactive-login.png)
 
 1. Repeat these steps for **Deny log on through Remote Desktop Services**.
 
@@ -256,7 +256,7 @@ To configure the group policy object:
    should apply this GPO to the automatically-created OU with the NetBIOS domain name
    containing `Computers` and `Users` nested one level inside the domain root.
 
-   ![AWS Managed AD OU Location](../../../img/desktop-access/aws-managed-ad.png)
+   ![AWS Managed AD OU Location](../../../../img/desktop-access/aws-managed-ad.png)
 
 1. Open **Group Policy Management** and expand Forest, Domains, your domain, and
    Group Policy Objects to locate the GPO you just created.
@@ -270,7 +270,7 @@ To configure the group policy object:
 
 1. Use the wizard to select and import the Teleport certificate.
 
-   ![Import Teleport CA](../../../img/desktop-access/ca.png)
+   ![Import Teleport CA](../../../../img/desktop-access/ca.png)
 
    If you are using HSM-backed keys, you should repeat this step for each CA certificate.
 
@@ -346,7 +346,7 @@ To add smart card authentication to your group policy object:
 
 1. Select **Automatic**, then click **OK**.
 
-   ![Enable Smartcard](../../../img/desktop-access/smartcard.png)
+   ![Enable Smartcard](../../../../img/desktop-access/smartcard.png)
 
 1. To ensure your GPO update takes effect immediately on this host,
    open PowerShell and run the following command (optional):
@@ -378,7 +378,7 @@ Next you need to configure policies that allow remote connections to domain comp
    [NLA](#network-level-authentication-nla) section.
    </Admonition>
 
-   ![Disable Require](../../../img/desktop-access/disable.png)
+   ![Disable Require](../../../../img/desktop-access/disable.png)
 
 1. Right-click **Always prompt for password upon connection**, select **Edit**,
    select **Disabled**, then click **OK**.
@@ -398,7 +398,7 @@ Next you need to configure policies that allow remote connections to domain comp
    - Select **User Mode (TCP-in)**, then click **Next**.
    - Select **Allow the connection**, then click **Finish**.
 
-   ![Open the Firewall](../../../img/desktop-access/firewall.png)
+   ![Open the Firewall](../../../../img/desktop-access/firewall.png)
 
 1. To ensure your GPO update takes effect immediately on this host,
    open PowerShell and run the following command (optional):
@@ -420,17 +420,17 @@ the performance of remote desktop connections.
 
 1. Right-click **Configure RemoteFX**, select **Edit**, select **Enabled**, then click **OK**.
 
-   ![Enable RemoteFX](../../../img/desktop-access/enable-remotefx-step-1.png)
+   ![Enable RemoteFX](../../../../img/desktop-access/enable-remotefx-step-1.png)
 
 1. Now left-click **Remote Session Environment**
    (**`Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Remote Session Environment`** in the left pane)
    and from the items in the right pane, right-click **Enable RemoteFX encoding for RemoteFX clients designed for Windows Server 2008 R2 SP1**, select **Edit**, select **Enabled**, then click **OK**.
 
-   ![Enable RemoteFX](../../../img/desktop-access/enable-remotefx-step-2.png)
+   ![Enable RemoteFX](../../../../img/desktop-access/enable-remotefx-step-2.png)
 
 1. Again left-click **Remote Session Environment** in the left pane, and from the items in the right pane, right-click **Limit maximum color depth**, select **Edit**, select **Enabled**, then click **OK**.
 
-   ![Enable RemoteFX](../../../img/desktop-access/enable-remotefx-step-3.png)
+   ![Enable RemoteFX](../../../../img/desktop-access/enable-remotefx-step-3.png)
 
 1. Open PowerShell and run the following command to update your Teleport
    group policy object:
@@ -510,7 +510,7 @@ To update the Teleport group policy object to use the new certificate template:
 1. Right-click **Server authentication certificate template**, select **Edit**, select
    **Enabled**, then set the Certificate Template Name to **RemoteDesktopAccess**.
 
-   ![RDP Certificate Template](../../../img/desktop-access/rdp-certificate-template.png)
+   ![RDP Certificate Template](../../../../img/desktop-access/rdp-certificate-template.png)
 
 1. Expand Computer Configuration, Policies, and Windows Settings to select
    **Public Key Policies**.
@@ -604,7 +604,7 @@ To configure Teleport to protect access to Windows desktops:
    ```
 
    For a detailed description of the configuration fields, see
-   [Desktop Configuration Reference](../../reference/agent-services/desktop-access-reference/configuration.mdx).
+   [Desktop Configuration Reference](../../../reference/agent-services/desktop-access-reference/configuration.mdx).
 
 1. Configure LDAP server selection.
 
@@ -697,12 +697,12 @@ To connect to a Windows desktop:
 1. Click **Connect** for the Windows computer you want to access, then select the
    login to use for the connection.
 
-   ![Connect to a Windows desktop from the Teleport Web UI](../../../img/desktop-access/passwordless-desktop.png)
+   ![Connect to a Windows desktop from the Teleport Web UI](../../../../img/desktop-access/passwordless-desktop.png)
 
    Teleport opens a remote desktop connection and starts recording the desktop session. When you're
    finished working with the Windows desktop, click the **More items** menu, then click **Disconnect**.
 
-   ![Disconnect from a Windows desktop ](../../../img/desktop-access/desktop-disconnect.png)
+   ![Disconnect from a Windows desktop ](../../../../img/desktop-access/desktop-disconnect.png)
 
    To view the recording, select **Audit** in the Teleport Web UI, then click **Session Recordings** in the menu.
 

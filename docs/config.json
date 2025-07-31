@@ -1,10 +1,6 @@
 {
+  "navigation": null,
   "variables": {
-    "clusterDefaults": {
-      "clusterName": "teleport.example.com",
-      "username": "myuser",
-      "nodeIP": "ip-172-31-35-170"
-    },
     "access_graph": {
       "version": "1.28.0"
     },
@@ -1403,6 +1399,46 @@
     {
       "source": "/enroll-resources/kubernetes-access/troubleshooting/",
       "destination": "/zero-trust-access/enroll-resources/kubernetes-access/troubleshooting/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/desktop-access/active-directory/",
+      "destination": "/zero-trust-access/enroll-resources/desktop-access/active-directory/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/desktop-access/",
+      "destination": "/zero-trust-access/enroll-resources/desktop-access/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/desktop-access/directory-sharing/",
+      "destination": "/zero-trust-access/enroll-resources/desktop-access/directory-sharing/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/desktop-access/dynamic-registration/",
+      "destination": "/zero-trust-access/enroll-resources/desktop-access/dynamic-registration/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/desktop-access/getting-started/",
+      "destination": "/zero-trust-access/enroll-resources/desktop-access/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/desktop-access/introduction/",
+      "destination": "/zero-trust-access/enroll-resources/desktop-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/desktop-access/rbac/",
+      "destination": "/zero-trust-access/enroll-resources/desktop-access/rbac/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/desktop-access/troubleshooting/",
+      "destination": "/zero-trust-access/enroll-resources/desktop-access/troubleshooting/",
       "permanent": true
     }
   ]
