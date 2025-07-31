@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
+	"github.com/gravitational/teleport/lib/tbot/services/database"
 )
 
 func TestMigrate(t *testing.T) {
@@ -153,27 +154,27 @@ destinations:
 						Destination:       &destination.Memory{},
 						KubernetesCluster: "my-kubernetes-cluster",
 					},
-					&DatabaseOutput{
+					&database.OutputConfig{
 						Destination: &destination.Memory{},
 						Service:     "my-db-service",
 						Database:    "the-db",
 						Username:    "alice",
-						Format:      UnspecifiedDatabaseFormat,
+						Format:      database.UnspecifiedDatabaseFormat,
 					},
-					&DatabaseOutput{
+					&database.OutputConfig{
 						Destination: &destination.Memory{},
 						Service:     "my-db-service",
-						Format:      MongoDatabaseFormat,
+						Format:      database.MongoDatabaseFormat,
 					},
-					&DatabaseOutput{
+					&database.OutputConfig{
 						Destination: &destination.Memory{},
 						Service:     "my-db-service",
-						Format:      TLSDatabaseFormat,
+						Format:      database.TLSDatabaseFormat,
 					},
-					&DatabaseOutput{
+					&database.OutputConfig{
 						Destination: &destination.Memory{},
 						Service:     "my-db-service",
-						Format:      CockroachDatabaseFormat,
+						Format:      database.CockroachDatabaseFormat,
 					},
 					&SSHHostOutput{
 						Destination: &destination.Memory{},
@@ -382,7 +383,7 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&DatabaseOutput{
+					&database.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
@@ -432,11 +433,11 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&DatabaseOutput{
+					&database.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
-						Format:   MongoDatabaseFormat,
+						Format:   database.MongoDatabaseFormat,
 						Service:  "example-server",
 						Username: "alice",
 						Database: "example",
@@ -482,11 +483,11 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&DatabaseOutput{
+					&database.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
-						Format:   CockroachDatabaseFormat,
+						Format:   database.CockroachDatabaseFormat,
 						Service:  "example-server",
 						Username: "alice",
 						Database: "example",
@@ -532,11 +533,11 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&DatabaseOutput{
+					&database.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
-						Format:   TLSDatabaseFormat,
+						Format:   database.TLSDatabaseFormat,
 						Service:  "example-server",
 						Username: "alice",
 						Database: "example",
@@ -865,7 +866,7 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&DatabaseOutput{
+					&database.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
