@@ -144,10 +144,11 @@ func TestPortForwardKubeService(t *testing.T) {
 				// ErrLostConnectionToPod is an expected error.
 				// Server allowed to communicate error to client.
 				if err := <-errCh; !errors.Is(err, portforward.ErrLostConnectionToPod) {
-				// ErrLostConnectionToPod is an expected error.
-				// Server allowed to communicate error to client.
-				if !errors.Is(err, portforward.ErrLostConnectionToPod) {
-					require.NoError(t, err)
+					// ErrLostConnectionToPod is an expected error.
+					// Server allowed to communicate error to client.
+					if !errors.Is(err, portforward.ErrLostConnectionToPod) {
+						require.NoError(t, err)
+					}
 				}
 			})
 			// stopCh control the port forwarding lifecycle. When it gets closed the
@@ -347,7 +348,7 @@ func TestPortForwardProxy_run_targetConnClosed(t *testing.T) {
 	targetConn := newfakeSPDYConnection()
 	h := &portForwardProxy{
 		portForwardRequest: portForwardRequest{
-			context:       t.Context(),
+			context:       context.Background(),
 			onPortForward: func(addr string, success bool) {},
 		},
 		logger:                logtest.NewLogger(),
