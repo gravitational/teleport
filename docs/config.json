@@ -1304,6 +1304,51 @@
       "source": "/enroll-resources/auto-discovery/servers/",
       "destination": "/zero-trust-access/enroll-resources/auto-discovery/servers/",
       "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/add-service-to-agent/",
+      "destination": "/zero-trust-access/enroll-resources/agents/add-service-to-agent/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/",
+      "destination": "/zero-trust-access/enroll-resources/agents/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/aws-ec2/",
+      "destination": "/zero-trust-access/enroll-resources/agents/aws-ec2/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/aws-iam/",
+      "destination": "/zero-trust-access/enroll-resources/agents/aws-iam/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/azure/",
+      "destination": "/zero-trust-access/enroll-resources/agents/azure/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/gcp/",
+      "destination": "/zero-trust-access/enroll-resources/agents/gcp/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/join-token/",
+      "destination": "/zero-trust-access/enroll-resources/agents/join-token/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/kubernetes/",
+      "destination": "/zero-trust-access/enroll-resources/agents/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/oracle/",
+      "destination": "/zero-trust-access/enroll-resources/agents/oracle/",
+      "permanent": true
     }
   ]
 }
