@@ -1440,6 +1440,36 @@
       "source": "/enroll-resources/desktop-access/troubleshooting/",
       "destination": "/zero-trust-access/enroll-resources/desktop-access/troubleshooting/",
       "permanent": true
+    },
+    {
+      "source": "/enroll-resources/mcp-access/dynamic-registration/",
+      "destination": "/zero-trust-access/enroll-resources/mcp-access/dynamic-registration/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/mcp-access/getting-started/",
+      "destination": "/zero-trust-access/enroll-resources/mcp-access/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/mcp-access/",
+      "destination": "/zero-trust-access/enroll-resources/mcp-access/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/mcp-access/rbac/",
+      "destination": "/zero-trust-access/enroll-resources/mcp-access/rbac/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/mcp-access/stdio/",
+      "destination": "/zero-trust-access/enroll-resources/mcp-access/stdio/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/mcp-access/troubleshooting/",
+      "destination": "/zero-trust-access/enroll-resources/mcp-access/troubleshooting/",
+      "permanent": true
     }
   ]
 }
