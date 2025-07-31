@@ -141,7 +141,9 @@ func TestPortForwardKubeService(t *testing.T) {
 			// errCh receives a single error from ForwardPorts goroutine.
 			errCh := make(chan error)
 			t.Cleanup(func() {
-				err := <-errCh
+				// ErrLostConnectionToPod is an expected error.
+				// Server allowed to communicate error to client.
+				if err := <-errCh; !errors.Is(err, portforward.ErrLostConnectionToPod) {
 				// ErrLostConnectionToPod is an expected error.
 				// Server allowed to communicate error to client.
 				if !errors.Is(err, portforward.ErrLostConnectionToPod) {
