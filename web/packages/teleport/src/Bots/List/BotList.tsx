@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 
 import Table, { LabelCell } from 'design/DataTable';
 
@@ -47,14 +47,6 @@ export function BotList({
   setSelectedBot,
 }: BotListProps) {
   const [interaction, setInteraction] = useState<Interaction>(Interaction.NONE);
-
-  const rowConfig = useMemo(
-    () => ({
-      onClick: onSelect,
-      getStyle: () => ({ cursor: 'pointer' }),
-    }),
-    [onSelect]
-  );
 
   return (
     <>
@@ -100,7 +92,10 @@ export function BotList({
         emptyText="No Bots Found"
         isSearchable
         pagination={{ pageSize: 20 }}
-        row={rowConfig}
+        row={{
+          onClick: onSelect,
+          getStyle: () => ({ cursor: 'pointer' }),
+        }}
       />
       {selectedBot && interaction === Interaction.DELETE && (
         <DeleteBot
