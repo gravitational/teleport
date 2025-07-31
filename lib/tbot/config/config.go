@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
+	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -355,8 +356,8 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case SPIFFEWorkloadAPIServiceType:
-			v := &SPIFFEWorkloadAPIService{}
+		case legacyspiffe.WorkloadAPIServiceType:
+			v := &legacyspiffe.WorkloadAPIConfig{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
@@ -385,9 +386,9 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case SPIFFESVIDOutputType:
-			v := &SPIFFESVIDOutput{}
-			if err := node.Decode(v); err != nil {
+		case legacyspiffe.SVIDOutputServiceType:
+			v := &legacyspiffe.SVIDOutputConfig{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)

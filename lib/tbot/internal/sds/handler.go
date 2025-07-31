@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package sds
 
 import (
 	"context"
@@ -39,7 +39,6 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
 
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -48,29 +47,77 @@ import (
 // without knowing their names. These special values are relied upon by tools
 // like Istio.
 const (
-	// envoyDefaultSVIDName indicates that the first available SVID should be
+	// EnvoyDefaultSVIDName indicates that the first available SVID should be
 	// returned.
-	envoyDefaultSVIDName = "default"
-	// envoyDefaultBundleName indicates that the default trust bundle should be
+	EnvoyDefaultSVIDName = "default"
+	// EnvoyDefaultBundleName indicates that the default trust bundle should be
 	// returned, e.g the one for the trust domain that the workload is part of.
-	envoyDefaultBundleName = "ROOTCA"
-	// envoyAllBundlesName indicates that all available trust bundles,
+	EnvoyDefaultBundleName = "ROOTCA"
+	// EnvoyAllBundlesName indicates that all available trust bundles,
 	// including federated ones, should be returned.
-	envoyAllBundlesName = "ALL"
+	EnvoyAllBundlesName = "ALL"
 )
 
-type svidFetcher func(ctx context.Context, localBundle *spiffebundle.Bundle) ([]*workloadpb.X509SVID, error)
+// BundleSetGetter is an interface for retrieving trust bundle sets.
+type BundleSetGetter interface {
+	GetBundleSet(ctx context.Context) (*workloadidentity.BundleSet, error)
+}
 
-// spiffeSDSHandler implements an Envoy SDS API.
+// SVIDFetcher is a function type for fetching X509 SVIDs.
+type SVIDFetcher func(ctx context.Context, localBundle *spiffebundle.Bundle) ([]*workloadpb.X509SVID, error)
+
+// ClientAuthenticator is a function type that authenticates clients and returns
+// a logger and SVID fetcher for the authenticated client.
+type ClientAuthenticator func(ctx context.Context) (*slog.Logger, SVIDFetcher, error)
+
+// HandlerConfig contains the configuration for creating a new SDS handler.
+type HandlerConfig struct {
+	Logger              *slog.Logger
+	RenewalInterval     time.Duration
+	TrustBundleCache    BundleSetGetter
+	ClientAuthenticator ClientAuthenticator
+}
+
+// CheckAndSetDefaults validates the HandlerConfig and sets default values.
+func (cfg *HandlerConfig) CheckAndSetDefaults() error {
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
+	}
+	if cfg.RenewalInterval <= 0 {
+		return trace.BadParameter("RenewalInterval must be positive")
+	}
+	if cfg.TrustBundleCache == nil {
+		return trace.BadParameter("TrustBundleCache is required")
+	}
+	if cfg.ClientAuthenticator == nil {
+		return trace.BadParameter("ClientAuthenticator is required")
+	}
+	return nil
+}
+
+// Handler implements an Envoy SDS API.
 //
 // This effectively replaces the Workload API for Envoy, but functions in a
 // very similar way.
-type spiffeSDSHandler struct {
-	log              *slog.Logger
-	botCfg           *config.BotConfig
-	trustBundleCache TrustBundleGetter
+type Handler struct {
+	log                 *slog.Logger
+	renewalInterval     time.Duration
+	trustBundleCache    BundleSetGetter
+	clientAuthenticator ClientAuthenticator
+}
 
-	clientAuthenticator func(ctx context.Context) (*slog.Logger, svidFetcher, error)
+// NewHandler creates a new SDS handler with the provided configuration.
+func NewHandler(cfg HandlerConfig) (*Handler, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err, "validating handler config")
+	}
+
+	return &Handler{
+		log:                 cfg.Logger,
+		renewalInterval:     cfg.RenewalInterval,
+		trustBundleCache:    cfg.TrustBundleCache,
+		clientAuthenticator: cfg.ClientAuthenticator,
+	}, nil
 }
 
 // FetchSecrets implements
@@ -80,7 +127,7 @@ type spiffeSDSHandler struct {
 // See:
 // - DiscoveryRequest - https://www.envoyproxy.io/docs/envoy/latest/api-v3/service/discovery/v3/discovery.proto#service-discovery-v3-discoveryrequest
 // - DiscoveryResponse - https://www.envoyproxy.io/docs/envoy/latest/api-v3/service/discovery/v3/discovery.proto#service-discovery-v3-discoveryresponse
-func (s *spiffeSDSHandler) FetchSecrets(
+func (h *Handler) FetchSecrets(
 	ctx context.Context,
 	req *discoveryv3pb.DiscoveryRequest,
 ) (*discoveryv3pb.DiscoveryResponse, error) {
@@ -88,7 +135,7 @@ func (s *spiffeSDSHandler) FetchSecrets(
 		return nil, trace.Wrap(err)
 	}
 
-	log, fetchSVIDs, err := s.clientAuthenticator(ctx)
+	log, fetchSVIDs, err := h.clientAuthenticator(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "authenticating client")
 	}
@@ -100,7 +147,7 @@ func (s *spiffeSDSHandler) FetchSecrets(
 	)
 	defer log.DebugContext(ctx, "SecretDiscoveryService.FetchSecrets request handled")
 
-	bundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
+	bundleSet, err := h.trustBundleCache.GetBundleSet(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting trust bundle set")
 	}
@@ -110,7 +157,7 @@ func (s *spiffeSDSHandler) FetchSecrets(
 		return nil, trace.Wrap(err, "fetching X509 SVIDs")
 	}
 
-	return s.generateResponse(
+	return h.generateResponse(
 		bundleSet,
 		svids,
 		req,
@@ -157,11 +204,11 @@ func (s *spiffeSDSHandler) FetchSecrets(
 // TODO: We could probably be smarter about how we handle the version e.g,
 // do we need to send another response if we're just going to send identical
 // certificates ??
-func (s *spiffeSDSHandler) StreamSecrets(
+func (h *Handler) StreamSecrets(
 	srv secretv3pb.SecretDiscoveryService_StreamSecretsServer,
 ) error {
 	ctx := srv.Context()
-	log, fetchSVIDs, err := s.clientAuthenticator(ctx)
+	log, fetchSVIDs, err := h.clientAuthenticator(ctx)
 	if err != nil {
 		return trace.Wrap(err, "authenticating client")
 	}
@@ -172,7 +219,7 @@ func (s *spiffeSDSHandler) StreamSecrets(
 	)
 	defer log.DebugContext(ctx, "SecretDiscoveryService.FetchSecrets stream finished")
 
-	bundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
+	bundleSet, err := h.trustBundleCache.GetBundleSet(ctx)
 	if err != nil {
 		return trace.Wrap(err, "getting trust bundle set")
 	}
@@ -197,7 +244,7 @@ func (s *spiffeSDSHandler) StreamSecrets(
 		}
 	}()
 
-	renewalTimer := time.NewTimer(s.botCfg.CredentialLifetime.RenewalInterval)
+	renewalTimer := time.NewTimer(h.renewalInterval)
 	// Stop the timer immediately so we can start timing after the first
 	// response is sent.
 	renewalTimer.Stop()
@@ -278,7 +325,7 @@ func (s *spiffeSDSHandler) StreamSecrets(
 			}
 
 		case <-bundleSet.Stale():
-			newBundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
+			newBundleSet, err := h.trustBundleCache.GetBundleSet(ctx)
 			if err != nil {
 				return trace.Wrap(err, "getting trust bundle set")
 			}
@@ -301,7 +348,7 @@ func (s *spiffeSDSHandler) StreamSecrets(
 			}
 		}
 
-		resp, err := s.generateResponse(
+		resp, err := h.generateResponse(
 			bundleSet, svids, lastReq,
 		)
 		if err != nil {
@@ -331,28 +378,24 @@ func (s *spiffeSDSHandler) StreamSecrets(
 			),
 		)
 
-		renewalTimer.Reset(s.botCfg.CredentialLifetime.RenewalInterval)
+		renewalTimer.Reset(h.renewalInterval)
 	}
 }
 
-// elementsMatch compares two string slices for equality, ignoring order.
-func elementsMatch(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	seen := map[string]bool{}
-	for _, v := range a {
-		seen[v] = true
-	}
-	for _, v := range b {
-		if !seen[v] {
-			return false
-		}
-	}
-	return true
+// DeltaSecrets implements
+// envoy.service.secret.v3/SecretDiscoveryService.DeltaSecrets.
+// We do not implement this method.
+func (h *Handler) DeltaSecrets(
+	_ secretv3pb.SecretDiscoveryService_DeltaSecretsServer,
+) error {
+	return status.Error(
+		codes.Unimplemented,
+		"method not implemented",
+	)
 }
 
-func (s *spiffeSDSHandler) generateResponse(
+// generateResponse generates a DiscoveryResponse for the given bundle set, SVIDs, and request.
+func (h *Handler) generateResponse(
 	bundleSet *workloadidentity.BundleSet,
 	svids []*workloadpb.X509SVID,
 	req *discoveryv3pb.DiscoveryRequest,
@@ -386,13 +429,13 @@ func (s *spiffeSDSHandler) generateResponse(
 			}
 			resources = append(resources, secret)
 			delete(names, svid.SpiffeId)
-		case names[envoyDefaultSVIDName] && i == 0:
-			secret, err := newTLSV3Certificate(svid, envoyDefaultSVIDName)
+		case names[EnvoyDefaultSVIDName] && i == 0:
+			secret, err := newTLSV3Certificate(svid, EnvoyDefaultSVIDName)
 			if err != nil {
 				return nil, trace.Wrap(err, "creating TLS certificate")
 			}
 			resources = append(resources, secret)
-			delete(names, envoyDefaultSVIDName)
+			delete(names, EnvoyDefaultSVIDName)
 		}
 	}
 
@@ -411,33 +454,33 @@ func (s *spiffeSDSHandler) generateResponse(
 		}
 		resources = append(resources, validator)
 		delete(names, bundleSet.Local.TrustDomain().IDString())
-	case names[envoyDefaultBundleName]:
+	case names[EnvoyDefaultBundleName]:
 		// If they've requested the default bundle, we send the connected trust
 		// domain's bundle - but - we override the name to match what they
 		// expect.
 		validator, err := newTLSV3ValidationContext(
 			[]*spiffebundle.Bundle{
 				bundleSet.Local,
-			}, envoyDefaultBundleName,
+			}, EnvoyDefaultBundleName,
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating TLS validation context")
 		}
 		resources = append(resources, validator)
-		delete(names, envoyDefaultBundleName)
-	case names[envoyAllBundlesName]:
+		delete(names, EnvoyDefaultBundleName)
+	case names[EnvoyAllBundlesName]:
 		// Return all the trust bundles as part of a single validation context.
 		// We'll also override the name to match what they requested.
 		bundles := slices.Collect(maps.Values(bundleSet.Federated))
 		bundles = append(bundles, bundleSet.Local)
 		validator, err := newTLSV3ValidationContext(
-			bundles, envoyAllBundlesName,
+			bundles, EnvoyAllBundlesName,
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating TLS validation context")
 		}
 		resources = append(resources, validator)
-		delete(names, envoyAllBundlesName)
+		delete(names, EnvoyAllBundlesName)
 	}
 
 	if returnAll {
@@ -490,6 +533,24 @@ func (s *spiffeSDSHandler) generateResponse(
 	}, nil
 }
 
+// elementsMatch compares two string slices for equality, ignoring order.
+func elementsMatch(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, v := range a {
+		seen[v] = true
+	}
+	for _, v := range b {
+		if !seen[v] {
+			return false
+		}
+	}
+	return true
+}
+
+// enforceMinimumEnvoyVersion ensures that the client is running a minimum version of Envoy.
 func enforceMinimumEnvoyVersion(req *discoveryv3pb.DiscoveryRequest) error {
 	// Envoy 1.18 introduced the SPIFFE specific tls context validator - so
 	// that's our minimum supported version.
@@ -507,6 +568,7 @@ func enforceMinimumEnvoyVersion(req *discoveryv3pb.DiscoveryRequest) error {
 	return trace.BadParameter("minimum supported version of envoy supported by the tbot SDS API is 1.18")
 }
 
+// newTLSV3Certificate creates a new TLS certificate secret for the given SVID.
 func newTLSV3Certificate(
 	svid *workloadpb.X509SVID, overrideResourceName string,
 ) (*anypb.Any, error) {
@@ -550,6 +612,7 @@ func newTLSV3Certificate(
 
 const envoySPIFFECertValidator = "envoy.tls.cert_validator.spiffe"
 
+// newTLSV3ValidationContext creates a new TLS validation context for the given bundles.
 func newTLSV3ValidationContext(
 	bundles []*spiffebundle.Bundle, resourceName string,
 ) (*anypb.Any, error) {
@@ -563,7 +626,7 @@ func newTLSV3ValidationContext(
 		// https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/transport_sockets/tls/v3/tls_spiffe_validator_config.proto#extensions-transport-sockets-tls-v3-spiffecertvalidatorconfig-trustdomain
 		trustDomain := &tlsv3pb.SPIFFECertValidatorConfig_TrustDomain{
 			// From API reference:
-			//   Note that this must not have “spiffe://” prefix.
+			//   Note that this must not have "spiffe://" prefix.
 			Name: bundle.TrustDomain().Name(),
 			TrustBundle: &corev3pb.DataSource{
 				Specifier: &corev3pb.DataSource_InlineBytes{
@@ -602,16 +665,4 @@ func newTLSV3ValidationContext(
 	}
 
 	return anypb.New(secret)
-}
-
-// DeltaSecrets implements
-// envoy.service.secret.v3/SecretDiscoveryService.DeltaSecrets.
-// We do not implement this method.
-func (s *spiffeSDSHandler) DeltaSecrets(
-	_ secretv3pb.SecretDiscoveryService_DeltaSecretsServer,
-) error {
-	return status.Error(
-		codes.Unimplemented,
-		"method not implemented",
-	)
 }
