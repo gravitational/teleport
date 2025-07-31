@@ -313,6 +313,8 @@ func (h *portForwardProxy) run() {
 		case <-h.targetConn.CloseChan():
 			// Backend pod lifecycle completed
 			h.logger.DebugContext(h.context, "Target connection closed")
+			// Wait for all other pairs to complete.
+			wg.Wait()
 			// Close source connection
 			if err := h.sourceConn.Close(); err != nil {
 				h.logger.ErrorContext(h.context, "Unable to close source connection", "error", err)
@@ -344,7 +346,6 @@ func (h *portForwardProxy) run() {
 			}
 		}
 	}
-
 }
 
 // portForward handles the port-forwarding for the given stream pair.
