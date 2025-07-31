@@ -208,6 +208,8 @@ func (h *Handler) sessionDetails(
 		Duration   int64          `json:"duration"`
 		Thumbnails []Thumbnail    `json:"thumbnails"`
 		Events     []SessionEvent `json:"events"`
+		StartCols  int            `json:"start_cols,omitempty"`
+    StartRows  int            `json:"start_rows,omitempty"`
 	}
 
 	var sessionStartTime time.Time
@@ -217,12 +219,21 @@ func (h *Handler) sessionDetails(
 	const inactivityThreshold = 5000
 	var lastEventTime time.Time
 	var lastEventTimeMs int64
+	var startCols int
+	var startRows int
 
 	// Initialize VT10X terminal for real-time processing
 	vt := vt10x.New()
 	var thumbnails []Thumbnail
 	const intervalMs = 500 // 200 seconds
 	var nextThumbnailTime int64 = 0
+	var dataBuffer []byte
+	var eventCount int
+	var totalDataSize int
+	var skippedDataSize int
+
+	// For high-volume sessions, we'll limit data processing
+	const maxDataPerThumbnail = 1024 * 1024 // 1MB per thumbnail interval
 
 	evts, errs := clt.StreamSessionEvents(metadata.WithSessionRecordingFormatContext(ctx, teleport.PTY), session.ID(sID), 0)
 	for {
@@ -243,15 +254,19 @@ func (h *Handler) sessionDetails(
 				lastEventTime = evt.Time
 				lastEventTimeMs = 0
 
-				// Initialize terminal size
 				parts := strings.Split(evt.TerminalSize, ":")
-				if len(parts) == 2 {
-					if width, err := strconv.Atoi(parts[0]); err == nil {
-						if height, err := strconv.Atoi(parts[1]); err == nil {
-							vt.Resize(width, height)
-						}
-					}
-				}
+
+        if len(parts) == 2 {
+          width, wErr := strconv.Atoi(parts[0])
+          height, hErr := strconv.Atoi(parts[1])
+
+          if cmp.Or(wErr, hErr) == nil {
+            startRows = height
+            startCols = width
+
+            vt.Resize(width, height)
+          }
+        }
 
 			case *apievents.SessionPrint:
 				currentEventTime = evt.Time
@@ -267,9 +282,25 @@ func (h *Handler) sessionDetails(
 					})
 				}
 
-				vt.Write(evt.Data)
+				// Track statistics
+				eventCount++
+				totalDataSize += len(evt.Data)
+
+				// For high-volume sessions, limit data processing
+				if len(dataBuffer) < maxDataPerThumbnail {
+					dataBuffer = append(dataBuffer, evt.Data...)
+				} else {
+					// Skip data that would exceed our limit
+					skippedDataSize += len(evt.Data)
+				}
 
 				if currentEventTimeMs >= nextThumbnailTime {
+					// Write buffered data at once before serializing
+					if len(dataBuffer) > 0 {
+						vt.Write(dataBuffer)
+						dataBuffer = dataBuffer[:0] // Reset buffer
+					}
+
 					serialized := terminal.Serialize(vt)
 
 					thumbnails = append(thumbnails, Thumbnail{
@@ -317,6 +348,12 @@ func (h *Handler) sessionDetails(
 
 				endTime := int64(evt.EndTime.Sub(evt.StartTime) / time.Millisecond)
 
+				// Flush any remaining buffered data before final serialization
+				if len(dataBuffer) > 0 {
+					vt.Write(dataBuffer)
+					dataBuffer = nil
+				}
+
 				serialized := terminal.Serialize(vt)
 
 				thumbnails = append(thumbnails, Thumbnail{
@@ -334,10 +371,15 @@ func (h *Handler) sessionDetails(
 					})
 				}
 
+				fmt.Printf("sessionDetails: processed %d events, %d MB total data, %d MB skipped, %d thumbnails\n", 
+					eventCount, totalDataSize/(1024*1024), skippedDataSize/(1024*1024), len(thumbnails))
+
 				return SessionEventsResponse{
 					Duration:   int64(evt.EndTime.Sub(evt.StartTime) / time.Millisecond),
 					Thumbnails: thumbnails,
 					Events:     userEvents,
+					StartCols:  startCols,
+					StartRows:  startRows,
 				}, nil
 
 			case *apievents.Resize:
@@ -355,9 +397,115 @@ func (h *Handler) sessionDetails(
 							Rows:      height,
 						})
 
+						// Flush buffered data before resizing to ensure terminal state is current
+						if len(dataBuffer) > 0 {
+							vt.Write(dataBuffer)
+							dataBuffer = dataBuffer[:0]
+						}
+
 						vt.Resize(width, height)
 					}
 				}
+			}
+		}
+	}
+}
+
+func (h *Handler) sessionFrame(
+	w http.ResponseWriter,
+	r *http.Request,
+	p httprouter.Params,
+	sctx *SessionContext,
+	site reversetunnelclient.RemoteSite,
+) (interface{}, error) {
+	sID := p.ByName("sid")
+	if sID == "" {
+		return nil, trace.BadParameter("missing session ID in request URL")
+	}
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	type FrameResponse struct {
+		Screen    terminal.SerializedTerminal `json:"screen"`
+		Timestamp int64                       `json:"timestamp"`
+		Cols      int                         `json:"cols"`
+		Rows      int                         `json:"rows"`
+	}
+
+	const targetTimeMs int64 = 15000
+
+	vt := vt10x.New()
+	var sessionStartTime time.Time
+	var cols, rows int
+
+	evts, errs := clt.StreamSessionEvents(metadata.WithSessionRecordingFormatContext(ctx, teleport.PTY), session.ID(sID), 0)
+	for {
+		select {
+		case err := <-errs:
+			return nil, trace.Wrap(err)
+		case evt, ok := <-evts:
+			if !ok {
+				return nil, trace.NotFound("could not find end event for session %v", sID)
+			}
+
+			switch evt := evt.(type) {
+			case *apievents.SessionStart:
+				sessionStartTime = evt.Time
+
+				parts := strings.Split(evt.TerminalSize, ":")
+				if len(parts) == 2 {
+					width, wErr := strconv.Atoi(parts[0])
+					height, hErr := strconv.Atoi(parts[1])
+
+					if cmp.Or(wErr, hErr) == nil {
+						cols = width
+						rows = height
+						vt.Resize(width, height)
+					}
+				}
+
+			case *apievents.SessionPrint:
+				currentTimeMs := int64(evt.Time.Sub(sessionStartTime) / time.Millisecond)
+				vt.Write(evt.Data)
+
+				if currentTimeMs >= targetTimeMs {
+					serialized := terminal.Serialize(vt)
+					return FrameResponse{
+						Screen:    *serialized,
+						Timestamp: currentTimeMs,
+						Cols:      cols,
+						Rows:      rows,
+					}, nil
+				}
+
+			case *apievents.Resize:
+				parts := strings.Split(evt.TerminalSize, ":")
+				if len(parts) == 2 {
+					width, wErr := strconv.Atoi(parts[0])
+					height, hErr := strconv.Atoi(parts[1])
+
+					if cmp.Or(wErr, hErr) == nil {
+						cols = width
+						rows = height
+						vt.Resize(width, height)
+					}
+				}
+
+			case *apievents.SessionEnd:
+				endTimeMs := int64(evt.EndTime.Sub(sessionStartTime) / time.Millisecond)
+				serialized := terminal.Serialize(vt)
+				return FrameResponse{
+					Screen:    *serialized,
+					Timestamp: endTimeMs,
+					Cols:      cols,
+					Rows:      rows,
+				}, nil
 			}
 		}
 	}

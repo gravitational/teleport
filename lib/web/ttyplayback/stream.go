@@ -257,6 +257,37 @@ func encodeScreenWithChanges(vt vt10x.Terminal) []byte {
 	return encodeTerminalChangesInternal(lines, cursorVisible, cursor.X, cursor.Y, size)
 }
 
+//export interface ScreenEvent extends BaseSessionEvent {
+//  screen: SerializedTerminal;
+//  type: EventType.Screen;
+//}
+//
+//export interface SerializedTerminal {
+//  cols: number;
+//  cursorX: number;
+//  cursorY: number;
+//  data: Uint8Array;
+//  rows: number;
+//}
+
+func encodeScreenEvent(vt vt10x.Terminal) []byte {
+	screen := terminal.Serialize(vt)
+	data := vt.ANSI()
+
+	eventData := make([]byte, 21+len(data))
+	eventData[0] = EventTypeScreen
+
+	binary.BigEndian.PutUint32(eventData[1:5], uint32(screen.Cols))
+	binary.BigEndian.PutUint32(eventData[5:9], uint32(screen.Rows))
+	binary.BigEndian.PutUint32(eventData[9:13], uint32(screen.CursorX))
+	binary.BigEndian.PutUint32(eventData[13:17], uint32(screen.CursorY))
+	binary.BigEndian.PutUint32(eventData[17:21], uint32(len(data)))
+
+	copy(eventData[21:], data)
+
+	return eventData
+}
+
 type terminalSize struct {
 	cols, rows int
 }
@@ -493,29 +524,29 @@ func (s *SessionEventsHandler) streamEvents(ctx context.Context, req *BinaryRequ
 
 			case *apievents.SessionPrint:
 				// Always update terminal state
-				_, linesChanged, _ := vt.WriteWithChanges(evt.Data)
+				_, _ = vt.Write(evt.Data)
 
 				currentTime = evt.DelayMilliseconds
 
 				// Only send events within the requested time range
 				if evt.DelayMilliseconds >= req.StartTime && evt.DelayMilliseconds <= req.EndTime {
-					lines := make([]lineSegments, 0, len(linesChanged))
-
-					for _, line := range linesChanged {
-						segments := vt.Line(line)
-
-						lines = append(lines, lineSegments{
-							Line:     line,
-							Segments: segments,
-						})
-					}
+					//lines := make([]lineSegments, 0, len(linesChanged))
+					//
+					//for _, line := range linesChanged {
+					//	segments := vt.Line(line)
+					//
+					//	lines = append(lines, lineSegments{
+					//		Line:     line,
+					//		Segments: segments,
+					//	})
+					//}
 
 					// Get cursor information
-					cursor := vt.Cursor()
-					cursorVisible := vt.CursorVisible()
+					//cursor := vt.Cursor()
+					//cursorVisible := vt.CursorVisible()
 
-					s.sendEvent(EventTypeLineChange, evt.DelayMilliseconds, encodeTerminalChanges(lines, cursorVisible, cursor.X, cursor.Y), index, req.RequestID)
-					//s.sendEvent(EventTypeSessionPrint, evt.DelayMilliseconds, evt.Data, index, req.RequestID)
+					//s.sendEvent(EventTypeLineChange, evt.DelayMilliseconds, encodeTerminalChanges(lines, cursorVisible, cursor.X, cursor.Y), index, req.RequestID)
+					s.sendEvent(EventTypeSessionPrint, evt.DelayMilliseconds, evt.Data, index, req.RequestID)
 					index++
 				} else if evt.DelayMilliseconds > req.EndTime {
 					// We've passed the end time, stop streaming
@@ -532,31 +563,32 @@ func (s *SessionEventsHandler) streamEvents(ctx context.Context, req *BinaryRequ
 				return
 
 			case *apievents.Resize:
-				linesChanged := resizeTerminal(vt, evt.TerminalSize)
+				resizeTerminal(vt, evt.TerminalSize)
+
 				if inTimeRange {
-					lines := make([]lineSegments, 0, len(linesChanged))
-					for _, line := range linesChanged {
-						segments := vt.Line(line)
-						lines = append(lines, lineSegments{
-							Line:     line,
-							Segments: segments,
-						})
-					}
+					//lines := make([]lineSegments, 0, len(linesChanged))
+					//for _, line := range linesChanged {
+					//	segments := vt.Line(line)
+					//	lines = append(lines, lineSegments{
+					//		Line:     line,
+					//		Segments: segments,
+					//	})
+					//}
 
-					cols, rows := vt.Size()
-					cursor := vt.Cursor()
-					cursorVisible := vt.CursorVisible()
-
-					// use the start timestamp to get the resize time
-					var timestamp int64
-					if !streamStartTime.IsZero() {
-						timestamp = evt.Time.Sub(streamStartTime).Milliseconds()
-					}
+					//cols, rows := vt.Size()
+					//cursor := vt.Cursor()
+					//cursorVisible := vt.CursorVisible()
+					//
+					//// use the start timestamp to get the resize time
+					//var timestamp int64
+					//if !streamStartTime.IsZero() {
+					//	timestamp = evt.Time.Sub(streamStartTime).Milliseconds()
+					//}
 
 					// Send resize event with changes
-					s.sendEvent(EventTypeResizeWithChanges, timestamp, encodeResizeWithChanges(lines, cursorVisible, cursor.X, cursor.Y, cols, rows), index, req.RequestID)
+					//s.sendEvent(EventTypeResizeWithChanges, timestamp, encodeResizeWithChanges(lines, cursorVisible, cursor.X, cursor.Y, cols, rows), index, req.RequestID)
 
-					//s.sendEvent(EventTypeResize, 0, []byte(evt.TerminalSize), index, req.RequestID)
+					s.sendEvent(EventTypeResize, 0, []byte(evt.TerminalSize), index, req.RequestID)
 					index++
 				}
 			}
@@ -588,8 +620,8 @@ func (s *SessionEventsHandler) sendError(err error, requestID int) {
 
 func (s *SessionEventsHandler) sendScreenState(vt vt10x.Terminal, currentTime int64, requestID int) {
 	// Send the new screen with changes event
-	data := encodeScreenWithChanges(vt)
-	s.sendEvent(EventTypeScreenWithChanges, currentTime, data, 0, requestID)
+	data := encodeScreenEvent(vt)
+	s.sendEvent(EventTypeScreen, currentTime, data, 0, requestID)
 }
 
 func encodeTime(startTime, endTime int64) []byte {
@@ -643,21 +675,21 @@ func getEventTime(evt apievents.AuditEvent) int64 {
 	}
 }
 
-func resizeTerminal(vt vt10x.Terminal, size string) []int {
+func resizeTerminal(vt vt10x.Terminal, size string) {
 	parts := strings.Split(size, ":")
 	if len(parts) != 2 {
-		return nil
+		return
 	}
 
 	width, err := strconv.Atoi(parts[0])
 	if err != nil {
-		return nil
+		return
 	}
 
 	height, err := strconv.Atoi(parts[1])
 	if err != nil {
-		return nil
+		return
 	}
 
-	return vt.ResizeWithChanges(width, height)
+	vt.Resize(width, height)
 }
