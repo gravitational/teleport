@@ -568,10 +568,9 @@ func TestPortForwardUnderlyingProtocol(t *testing.T) {
 			// errCh receives a single error from ForwardPorts goroutine.
 			errCh := make(chan error)
 			t.Cleanup(func() {
-				err := <-errCh
 				// ErrLostConnectionToPod is an expected error.
 				// Server allowed to communicate error to client.
-				if !errors.Is(err, portforward.ErrLostConnectionToPod) {
+				if err := <-errCh; !errors.Is(err, portforward.ErrLostConnectionToPod) {
 					require.NoError(t, err)
 				}
 			})
