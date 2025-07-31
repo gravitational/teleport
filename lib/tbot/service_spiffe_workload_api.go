@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
+	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
@@ -71,21 +72,9 @@ func SPIFFEWorkloadAPIServiceBuilder(
 	trustBundleCache TrustBundleGetter,
 ) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
-		clientCredential := &config.UnstableClientCredentialOutput{}
-		svcIdentity := &ClientCredentialOutputService{
-			botAuthClient:      deps.Client,
-			botIdentityReadyCh: deps.BotIdentityReadyCh,
-			botCfg:             botCfg,
-			cfg:                clientCredential,
-			reloadCh:           deps.ReloadCh,
-			identityGenerator:  deps.IdentityGenerator,
-		}
-		svcIdentity.log = deps.Logger.With(
-			teleport.ComponentKey,
-			teleport.Component(teleport.ComponentTBot, "svc", svcIdentity.String()),
-		)
+		sidecar, credential := clientcredentials.NewSidecar(deps, botCfg.CredentialLifetime)
 		svc := &SPIFFEWorkloadAPIService{
-			svcIdentity:      clientCredential,
+			svcIdentity:      credential,
 			botCfg:           botCfg,
 			cfg:              cfg,
 			trustBundleCache: trustBundleCache,
@@ -96,7 +85,7 @@ func SPIFFEWorkloadAPIServiceBuilder(
 			teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
 		)
 		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
-		return bot.NewServicePair(svc, svcIdentity), nil
+		return bot.NewServicePair(svc, sidecar), nil
 	}
 }
 
@@ -116,7 +105,7 @@ type TrustBundleGetter interface {
 type SPIFFEWorkloadAPIService struct {
 	workloadpb.UnimplementedSpiffeWorkloadAPIServer
 
-	svcIdentity      *config.UnstableClientCredentialOutput
+	svcIdentity      *clientcredentials.UnstableConfig
 	botCfg           *config.BotConfig
 	cfg              *config.SPIFFEWorkloadAPIService
 	log              *slog.Logger
