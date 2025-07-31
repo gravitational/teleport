@@ -1292,7 +1292,7 @@ export type RawEvents = {
     typeof eventCodes.CERTIFICATE_CREATED,
     {
       cert_type: 'user';
-      identity: { user: string };
+      identity: { user: string; usage?: string[] };
     }
   >;
   [eventCodes.UPGRADE_WINDOW_UPDATED]: RawEvent<
