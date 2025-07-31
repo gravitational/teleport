@@ -2581,6 +2581,43 @@ func (l kubernetesClusterLabelMatcher) getKubeLabelMatchers(role types.Role, typ
 	return labelMatchers, nil
 }
 
+// CheckAccessToPod checks if the user has access to the specified Kubernetes Pod
+// in a given Kubernetes cluster, based on their RoleSet and the cluster's label constraints.
+// It first checks deny rules, then allow rules, and returns an error if access is denied.
+func (set RoleSet) CheckAccessToPod(ctx context.Context, cluster types.KubeCluster, pod types.KubernetesResource, userTraits wrappers.Traits) error {
+
+	//check deny: a single match on a deny rule prohibits access
+	for _, role := range set {
+		podMatcher := NewKubeResourcesMatcher([]types.KubernetesResource{pod})
+		matched, err := podMatcher.Match(role, types.Deny)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matched {
+			return trace.AccessDenied("access to pod %q denied by role %q", pod.Name, role.GetName())
+		}
+	}
+
+	// check allow: if matches, allow access
+	for _, role := range set {
+		matchLabels, _, err := checkRoleLabelsMatch(types.Allow, role, userTraits, cluster, false)
+		if err != nil || !matchLabels {
+			continue
+		}
+
+		podMatcher := NewKubeResourcesMatcher([]types.KubernetesResource{pod})
+		matched, err := podMatcher.Match(role, types.Allow)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matched {
+			return nil // access allowed
+		} // If matched, access is allowed.
+	}
+
+	return trace.AccessDenied("no role allows access to pod %q", pod.Name)
+}
+
 // AccessCheckable is the subset of types.Resource required for the RBAC checks.
 type AccessCheckable interface {
 	GetKind() string
