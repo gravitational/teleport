@@ -21,6 +21,7 @@ package cache
 import (
 	"cmp"
 	"context"
+	"crypto/x509/pkix"
 	"fmt"
 	"os"
 	"slices"
@@ -72,12 +73,14 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -582,7 +585,7 @@ func TestWatchers(t *testing.T) {
 		t.Fatalf("Timeout waiting for event.")
 	}
 
-	ca := suite.NewTestCA(types.UserCA, "example.com")
+	ca := NewTestCA(types.UserCA, "example.com")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	select {
@@ -641,7 +644,7 @@ func TestWatchers(t *testing.T) {
 
 	// this ca will not be matched by our filter, so the same reasoning applies
 	// as we upsert it and delete it
-	filteredCa := suite.NewTestCA(types.HostCA, "example.net")
+	filteredCa := NewTestCA(types.HostCA, "example.net")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, filteredCa))
 	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, filteredCa.GetID()))
 
@@ -844,7 +847,7 @@ func TestCompletenessInit(t *testing.T) {
 
 	// put lots of CAs in the backend
 	for i := 0; i < caCount; i++ {
-		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
+		ca := NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
 		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
 
@@ -946,7 +949,7 @@ func TestCompletenessReset(t *testing.T) {
 
 	// put lots of CAs in the backend
 	for i := 0; i < caCount; i++ {
-		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
+		ca := NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
 		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
 
@@ -1107,7 +1110,7 @@ func BenchmarkListResourcesWithSort(b *testing.B) {
 
 	count := 100000
 	for i := 0; i < count; i++ {
-		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		// Set some static and dynamic labels.
 		server.Metadata.Labels = map[string]string{"os": "mac", "env": "prod", "country": "us", "tier": "frontend"}
 		server.Spec.CmdLabels = map[string]types.CommandLabelV2{
@@ -1220,7 +1223,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < nodeCount; i++ {
-		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		_, err := p.presenceS.UpsertNode(ctx, server)
 		require.NoError(t, err)
 	}
@@ -1321,7 +1324,7 @@ func initStrategy(t *testing.T) {
 	_, err = p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 	require.True(t, trace.IsConnectionProblem(err))
 
-	ca := suite.NewTestCA(types.UserCA, "example.com")
+	ca := NewTestCA(types.UserCA, "example.com")
 	// NOTE 1: this could produce event processed
 	// below, based on whether watcher restarts to get the event
 	// or not, which is normal, but has to be accounted below
@@ -1383,7 +1386,7 @@ func TestRecovery(t *testing.T) {
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 
-	ca := suite.NewTestCA(types.UserCA, "example.com")
+	ca := NewTestCA(types.UserCA, "example.com")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	select {
@@ -1402,7 +1405,7 @@ func TestRecovery(t *testing.T) {
 	waitForRestart(t, p.eventsC)
 
 	// add modification and expect the resource to recover
-	ca2 := suite.NewTestCA(types.UserCA, "example2.com")
+	ca2 := NewTestCA(types.UserCA, "example2.com")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca2))
 
 	// wait for watcher to receive an event
@@ -3213,7 +3216,7 @@ func TestRelativeExpiry(t *testing.T) {
 	now := clock.Now()
 	for i := int64(0); i < nodeCount; i++ {
 		exp := now.Add(time.Minute * time.Duration(i))
-		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		server.SetExpiry(exp)
 		_, err := p.presenceS.UpsertNode(ctx, server)
 		require.NoError(t, err)
@@ -3291,7 +3294,7 @@ func TestRelativeExpiryLimit(t *testing.T) {
 	now := clock.Now()
 	for i := 0; i < nodeCount; i++ {
 		exp := now.Add(time.Minute * time.Duration(i))
-		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		server.SetExpiry(exp)
 		_, err := p.presenceS.UpsertNode(ctx, server)
 		require.NoError(t, err)
