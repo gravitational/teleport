@@ -72,6 +72,32 @@ Optional:
 Optional:
 
 - `enabled` (Boolean) Enabled controls whether or not session recordings should be encrypted.
+- `manual_key_management` (Attributes) ManualKeyManagement defines whether or not recording encryption keys should be managed externally and how to query those keys. (see [below for nested schema](#nested-schema-for-specencryptionmanual_key_management))
+
+### Nested Schema for `spec.encryption.manual_key_management`
+
+Optional:
+
+- `active_key` (Attributes List) ActiveKeys describe which keys should be queried for active recording encryption and replay. (see [below for nested schema](#nested-schema-for-specencryptionmanual_key_managementactive_key))
+- `enabled` (Boolean) Enabled controls whether or recording encryption keys should be managed externally.
+- `rotated_key` (Attributes List) RotatedKeys describe which keys should be queried for historical replay. (see [below for nested schema](#nested-schema-for-specencryptionmanual_key_managementrotated_key))
+
+### Nested Schema for `spec.encryption.manual_key_management.active_key`
+
+Optional:
+
+- `label` (String) Label is a value that can be used with the related keystore in order to find relevant keys.
+- `type` (String) Type represents which keystore should be searched when looking up keys by label.
+
+
+### Nested Schema for `spec.encryption.manual_key_management.rotated_key`
+
+Optional:
+
+- `label` (String) Label is a value that can be used with the related keystore in order to find relevant keys.
+- `type` (String) Type represents which keystore should be searched when looking up keys by label.
+
+
 
 
 
