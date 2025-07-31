@@ -16,8 +16,7 @@ to Amazon EC2 and reconciles the servers enrolled on the Auth Service backend
 with servers it lists from the EC2 API. If an EC2 instance matches a configured
 label and is not enrolled in your cluster, the Discovery Service executes a
 script on these discovered instances using AWS Systems Manager that installs
-Teleport, starts it and joins the cluster using the [IAM join method](
-../../agents/aws-iam.mdx).
+Teleport, starts it and joins the cluster using the [IAM join method](../../../../enroll-resources/agents/aws-iam.mdx).
 
 The Teleport Discovery Service uses an IAM invite token with a long time-to-live
 (TTL), so that new instances can be discovered and added to the Teleport cluster
@@ -401,10 +400,10 @@ See SSM RunCommand error codes and troubleshooting information in AWS documentat
 ## Next steps
 
 - Read [Joining Nodes via AWS IAM
-  Role](../../agents/aws-iam.mdx)
+  Role](../../../../enroll-resources/agents/aws-iam.mdx)
 for more information on IAM Invite Tokens.
 - Information on IAM best practices on EC2 instances managed by Systems
 Manager can be found for in the [AWS Cloud Operations & Migrations Blog
 ](https://aws.amazon.com/blogs/mt/applying-managed-instance-policy-best-practices/).
 - Full documentation on EC2 discovery configuration can be found through the [
-config file reference documentation](../../../reference/config.mdx).
+config file reference documentation](../../../../reference/config.mdx).

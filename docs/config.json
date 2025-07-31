@@ -1239,6 +1239,71 @@
       "source": "/enroll-resources/server-access/troubleshooting-server/",
       "destination": "/zero-trust-access/server-access/troubleshooting-server/",
       "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/",
+      "destination": "/zero-trust-access/enroll-resources/auto-discovery/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/databases/aws/",
+      "destination": "/zero-trust-access/enroll-resources/auto-discovery/databases/aws/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/databases/",
+      "destination": "/zero-trust-access/enroll-resources/auto-discovery/databases/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/kubernetes-applications/get-started/",
+      "destination": "/zero-trust-access/enroll-resources/auto-discovery/kubernetes-applications/get-started/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/kubernetes-applications/",
+      "destination": "/zero-trust-access/enroll-resources/auto-discovery/kubernetes-applications/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/kubernetes/aws/",
+      "destination": "/zero-trust-access/enroll-resources/auto-discovery/kubernetes/aws/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/kubernetes/azure/",
+      "destination": "/zero-trust-access/enroll-resources/auto-discovery/kubernetes/azure/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/kubernetes/google-cloud/",
+      "destination": "/zero-trust-access/enroll-resources/auto-discovery/kubernetes/google-cloud/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/kubernetes/",
+      "destination": "/zero-trust-access/enroll-resources/auto-discovery/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/servers/azure-discovery/",
+      "destination": "/zero-trust-access/enroll-resources/auto-discovery/servers/azure-discovery/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/servers/ec2-discovery/",
+      "destination": "/zero-trust-access/enroll-resources/auto-discovery/servers/ec2-discovery/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/servers/gcp-discovery/",
+      "destination": "/zero-trust-access/enroll-resources/auto-discovery/servers/gcp-discovery/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/servers/",
+      "destination": "/zero-trust-access/enroll-resources/auto-discovery/servers/",
+      "permanent": true
     }
   ]
 }

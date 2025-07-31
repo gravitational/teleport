@@ -530,7 +530,7 @@ applications in Kubernetes clusters. When connected to a Kubernetes cluster (or
 deployed as a Helm chart), the Teleport Discovery Service will automatically find
 and enroll web applications with your Teleport cluster.
 
-See documentation [here](docs/pages/enroll-resources/auto-discovery/kubernetes-applications/kubernetes-applications.mdx).
+See documentation [here](docs/pages/zero-trust-access/enroll-resources/auto-discovery/kubernetes-applications/kubernetes-applications.mdx).
 
 #### Extended Kubernetes per-resource RBAC
 
