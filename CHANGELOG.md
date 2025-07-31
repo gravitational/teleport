@@ -1995,7 +1995,7 @@ to other supported database protocols.
 Teleport database access for SQL Server remains in Preview mode with more UX
 improvements coming in future releases.
 
-Refer to [the guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/sql-server-ad.mdx) to set
+Refer to [the guide](docs/pages/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/sql-server-ad.mdx) to set
 up access to a SQL Server with Active Directory authentication.
 
 ### Snowflake database access (Preview)
@@ -2015,8 +2015,7 @@ this integration by adding native support for AWS-hosted Elasticache and
 MemoryDB, including auto-discovery and automatic credential management in some
 deployment configurations.
 
-Learn more about it in the [documentation](
-docs/pages/enroll-resources/database-access/enroll-aws-databases/redis-aws.mdx).
+Learn more about it in the [documentation](docs/pages/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/redis-aws.mdx).
 
 ### Teleport Connect for server and database access (Preview)
 
@@ -2515,7 +2514,7 @@ Directory authentication support for database access. Audit logging of query
 activity is not included in the preview release and will be implemented in a
 later 9.x release.
 
-[SQL Server guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/sql-server-ad.mdx)
+[SQL Server guide](docs/pages/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/sql-server-ad.mdx)
 
 #### RDS MariaDB
 
@@ -2523,7 +2522,7 @@ Teleport 9 updates MariaDB support with auto-discovery and connection to AWS RDS
 MariaDB databases using IAM authentication. The minimum MariaDB version that
 supports IAM authentication is 10.6.
 
-[Updated RDS guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds.mdx)
+[Updated RDS guide](docs/pages/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/rds.mdx)
 
 #### Other Improvements
 
@@ -2621,7 +2620,7 @@ database agents.
 See dynamic registration guides for
 [apps](docs/pages/zero-trust-access/enroll-resources/application-access/guides/dynamic-registration.mdx)
 and
-[databases](docs/pages/enroll-resources/database-access/guides/dynamic-registration.mdx).
+[databases](docs/pages/zero-trust-access/enroll-resources/database-access/guides/dynamic-registration.mdx).
 
 #### RDS Automatic Discovery
 
@@ -2629,7 +2628,7 @@ With RDS auto discovery Teleport database agents can automatically discover RDS
 instances and Aurora clusters in an AWS account.
 
 See updated
-[RDS guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds.mdx) for
+[RDS guide](docs/pages/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/rds.mdx) for
 more information.
 
 #### WebAuthn
@@ -2802,7 +2801,7 @@ before upgrading.
 
 Added support for [Amazon Redshift](https://aws.amazon.com/redshift) to Teleport database access.[#6479](https://github.com/gravitational/teleport/pull/6479).
 
-View the [database access with Redshift on AWS guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/postgres-redshift.mdx) for more details.
+View the [database access with Redshift on AWS guide](docs/pages/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/postgres-redshift.mdx) for more details.
 
 ### Improvements
 
@@ -2938,7 +2937,7 @@ This release of Teleport contains multiple bug fixes.
 
 Teleport 6.0 is a major release with new features, functionality, and bug fixes.
 
-We have implemented [database access](./docs/pages/enroll-resources/database-access/database-access.mdx),
+We have implemented [database access](./docs/pages/zero-trust-access/enroll-resources/database-access/database-access.mdx),
 open sourced role-based access control (RBAC), and added official API and a Go client library.
 
 Users can review the [6.0 milestone](https://github.com/gravitational/teleport/milestone/33?closed=1) on Github for more details.
@@ -2958,21 +2957,21 @@ Configure database access following the [Getting Started](./docs/pages/enroll-re
 ##### Guides
 
 * [AWS RDS/Aurora
-  PostgreSQL](./docs/pages/enroll-resources/database-access/enroll-aws-databases/rds.mdx)
-* [AWS RDS/Aurora MySQL](./docs/pages/enroll-resources/database-access/enroll-aws-databases/rds.mdx)
+  PostgreSQL](docs/pages/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/rds.mdx)
+* [AWS RDS/Aurora MySQL](docs/pages/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/rds.mdx)
 * [Self-hosted PostgreSQL](docs/pages/zero-trust-access/enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted.mdx)
 * [Self-hosted MySQL](docs/pages/zero-trust-access/enroll-resources/database-access/enroll-self-hosted-databases/mysql-self-hosted.mdx)
 * [GUI clients](docs/pages/connect-your-client/gui-clients.mdx)
 
 ##### Resources
 
-To learn more about configuring role-based access control for database access, check out the [RBAC](./docs/pages/enroll-resources/database-access/database-access.mdx) section.
+To learn more about configuring role-based access control for database access, check out the [RBAC](docs/pages/index.mdx) section.
 
-[Architecture](./docs/pages/enroll-resources/database-access/database-access.mdx) provides a more in-depth look at database access internals such as networking and security.
+[Architecture](docs/pages/index.mdx) provides a more in-depth look at database access internals such as networking and security.
 
 See [Reference](docs/pages/reference/agent-services/database-access-reference/database-access-reference.mdx) for an overview of database access related configuration and CLI commands.
 
-Finally, check out [Frequently Asked Questions](docs/pages/enroll-resources/database-access/faq.mdx).
+Finally, check out [Frequently Asked Questions](docs/pages/zero-trust-access/enroll-resources/database-access/faq.mdx).
 
 #### OSS RBAC
 

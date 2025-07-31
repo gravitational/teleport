@@ -22,7 +22,7 @@ used to access a database configured in Teleport.
   follow the [database access getting started guide](../../../zero-trust-access/enroll-resources/database-access/getting-started.mdx).
   The Teleport Database Service supports databases like PostgreSQL, MongoDB,
   Redis, and much more. See our [database access
-  guides](../../../enroll-resources/database-access/guides/guides.mdx) for a complete list.
+  guides](../../../zero-trust-access/enroll-resources/database-access/guides/guides.mdx) for a complete list.
 - (!docs/pages/includes/tctl.mdx!)
 - The `tsh` binary must be installed on the machine that will access the
   database. Depending on how `tbot` was installed, this may already be
@@ -87,7 +87,7 @@ This rule will allow the bot to do two things:
 The `'*': '*'` label selector grants access to any database server configured in Teleport.
 In production, consider restricting the bot's access using a more specific
 label selector; see the
-[Database Access RBAC guide](../../../enroll-resources/database-access/rbac.mdx)
+[Database Access RBAC guide](../../../zero-trust-access/enroll-resources/database-access/rbac.mdx)
 for a full reference of database-related role options.
 {/* vale messaging.protocol-products = YES */}
 

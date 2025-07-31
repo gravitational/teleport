@@ -221,7 +221,7 @@ to match your cluster domain if it is different from the default value `cluster.
 `awsDatabases` configures AWS database auto-discovery.
 
 <Admonition type="note" title="IAM roles">
-  For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../enroll-resources/database-access/enroll-aws-databases/rds.mdx#step-36-create-iam-policies-for-teleport).
+  For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../zero-trust-access/enroll-resources/database-access/enroll-aws-databases/rds.mdx#step-36-create-iam-policies-for-teleport).
   After configuring a role, you can use an `eks.amazonaws.com/role-arn` annotation with the `annotations.serviceAccount` value to associate it with the service account and grant permissions:
 
   ```yaml
@@ -432,7 +432,7 @@ databaseResources:
 
 <Admonition type="tip" title="Example">
 Once `databaseResources` is set, you can dynamically register database with
-`tsh` by following [this guide](../../enroll-resources/database-access/guides/dynamic-registration.mdx).
+`tsh` by following [this guide](../../zero-trust-access/enroll-resources/database-access/guides/dynamic-registration.mdx).
 </Admonition>
 
 ## `kubernetesDiscovery`

@@ -1600,6 +1600,156 @@
       "source": "/enroll-resources/database-access/getting-started/",
       "destination": "/zero-trust-access/enroll-resources/database-access/getting-started/",
       "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/auto-user-provisioning/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/auto-user-provisioning/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/auto-user-provisioning/aws-redshift/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/auto-user-provisioning/aws-redshift/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/auto-user-provisioning/mariadb/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/auto-user-provisioning/mariadb/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/auto-user-provisioning/mongodb/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/auto-user-provisioning/mongodb/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/auto-user-provisioning/mysql/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/auto-user-provisioning/mysql/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/auto-user-provisioning/postgres/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/auto-user-provisioning/postgres/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/",
+      "destination": "/enroll-resources/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/aws-cassandra-keyspaces/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/aws-cassandra-keyspaces/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/aws-cross-account/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/aws-cross-account/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/aws-docdb/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/aws-docdb/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/aws-dynamodb/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/aws-dynamodb/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/aws-memorydb/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/aws-memorydb/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/aws-opensearch/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/aws-opensearch/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/postgres-redshift/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/postgres-redshift/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/rds-oracle/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/rds-oracle/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-mysql/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/rds-proxy-mysql/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-postgres/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/rds-proxy-postgres/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-sqlserver/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/rds-proxy-sqlserver/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/rds/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/rds/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/redis-aws/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/redis-aws/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/redshift-serverless/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/redshift-serverless/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/sql-server-ad/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/enroll-aws-databases/sql-server-ad/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/faq/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/faq/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/guides/dynamic-registration/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/guides/dynamic-registration/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/guides/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/guides/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/guides/ha/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/guides/ha/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/guides/health-checks/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/guides/health-checks/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/rbac/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/rbac/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/troubleshooting/",
+      "destination": "/zero-trust-access/enroll-resources/database-access/troubleshooting/",
+      "permanent": true
     }
   ]
 }
