@@ -560,9 +560,9 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 				require.NoError(t, err)
 
 				// Forward local port to container port.
+				forwarderCh := make(chan error)
 				t.Cleanup(func() { forwarder.Close() })
 				go func() { forwarderCh <- forwarder.ForwardPorts() }()
-	
 
 				select {
 				case <-time.After(5 * time.Second):
@@ -712,23 +712,9 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 				require.NoError(t, err)
 
 				// Forward local port to container port.
-				// 60 second timeout accommodates CI pod deletion.
-				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-				done := make(chan struct{})
-				forwarderCh := make(chan error, 1)
-				go func() {
-					defer close(done)
-					select {
-					case forwarderCh <- forwarder.ForwardPorts():
-					case <-ctx.Done():
-						forwarderCh <- ctx.Err()
-					}
-				}()
-				t.Cleanup(func() {
-					close(forwarder.stopC)
-					cancel()
-					<-done
-				})
+				forwarderCh := make(chan error)
+				t.Cleanup(func() { forwarder.Close() })
+				go func() { forwarderCh <- forwarder.ForwardPorts() }()
 
 				// Wait for port-forwarding to be ready.
 				start := time.Now()
@@ -1035,21 +1021,9 @@ loop:
 	require.NoError(t, err)
 
 	// Forward local port to container port.
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	done := make(chan struct{})
-	forwarderCh := make(chan error, 1)
-	go func() {
-		defer close(done)
-		select {
-		case forwarderCh <- forwarder.ForwardPorts():
-		case <-ctx.Done():
-			forwarderCh <- ctx.Err()
-		}
-	}()
-	t.Cleanup(func() {
-		cancel()
-		<-done
-	})
+	forwarderCh := make(chan error)
+	t.Cleanup(func() { forwarder.Close() })
+	go func() { forwarderCh <- forwarder.ForwardPorts() }()
 
 	defer func() {
 		require.NoError(t, <-forwarderCh, "Forward ports exited with error")
@@ -1320,21 +1294,9 @@ loop:
 	require.NoError(t, err)
 
 	// Forward local port to container port.
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	done := make(chan struct{})
-	forwarderCh := make(chan error, 1)
-	go func() {
-		defer close(done)
-		select {
-		case forwarderCh <- forwarder.ForwardPorts():
-		case <-ctx.Done():
-			forwarderCh <- ctx.Err()
-		}
-	}()
-	t.Cleanup(func() {
-		cancel()
-		<-done
-	})
+	forwarderCh := make(chan error)
+	t.Cleanup(func() { forwarder.Close() })
+	go func() { forwarderCh <- forwarder.ForwardPorts() }()
 
 	defer func() {
 		require.NoError(t, <-forwarderCh, "Forward ports exited with error")
