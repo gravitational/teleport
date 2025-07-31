@@ -358,6 +358,13 @@ func (c *Client) UpsertAccessListWithMembers(ctx context.Context, list *accessli
 	return accessList, updatedMembers, nil
 }
 
+// UpsertAccessListWithMembersV2 creates or updates an access list resource and its members.
+// Replica of UpsertAccessListWithMembers.
+// TODO(kimlisa): delete once UpsertAccessListWithMembers signature gets updated and is consumed by enterprise.
+func (c *Client) UpsertAccessListWithMembersV2(ctx context.Context, req accesslist.UpsertAccessListWithMembersRequest) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	return c.UpsertAccessListWithMembers(ctx, req.AccessList, req.Members)
+}
+
 // AccessRequestPromote promotes an access request to an access list.
 func (c *Client) AccessRequestPromote(ctx context.Context, req *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error) {
 	resp, err := c.grpcClient.AccessRequestPromote(ctx, req)
