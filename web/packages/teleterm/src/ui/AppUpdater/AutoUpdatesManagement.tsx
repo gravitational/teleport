@@ -124,11 +124,17 @@ function ManagingClusterSelector({
     autoUpdatesStatus.enabled &&
     autoUpdatesStatus.source === 'highest-compatible';
   // A local state allows us to unselect the checkbox without choosing any managing cluster.
-  const [localIsAutoManaged, setLocalIsAutoManaged] = useState(isAutoManaged);
+  // Additionally, the cluster can be selected in the UI optimistically, without waiting for
+  // autoUpdatesStatus refresh.
+  // True means selected checkbox, false - unselected, string value - selected cluster.
+  const [optimisticManagingCluster, setOptimisticManagingCluster] = useState<
+    boolean | RootClusterUri
+  >(isAutoManaged ? true : autoUpdatesStatus.options.managingClusterUri);
 
   const isMostCompatibleCheckboxDisabled =
     isCheckingForUpdates || !autoUpdatesStatus.options.highestCompatibleVersion;
-  const disabledClusterSelection = localIsAutoManaged;
+  const disabledClusterSelection =
+    optimisticManagingCluster === true || isCheckingForUpdates;
   const options = makeOptions({
     status: autoUpdatesStatus,
     getClusterName: getClusterName,
@@ -146,10 +152,14 @@ function ManagingClusterSelector({
             `}
           >
             <CheckboxInput
-              checked={localIsAutoManaged}
+              checked={
+                typeof optimisticManagingCluster === 'boolean'
+                  ? optimisticManagingCluster
+                  : false
+              }
               disabled={isMostCompatibleCheckboxDisabled}
               onChange={e => {
-                setLocalIsAutoManaged(e.target.checked);
+                setOptimisticManagingCluster(e.target.checked);
                 if (e.target.checked) {
                   changeManagingCluster(undefined);
                 }
@@ -167,9 +177,13 @@ function ManagingClusterSelector({
               gap={0}
               name="managingCluster"
               size="small"
-              value={autoUpdatesStatus.options.managingClusterUri}
+              value={
+                typeof optimisticManagingCluster === 'boolean'
+                  ? null
+                  : optimisticManagingCluster
+              }
               onChange={clusterUri => {
-                setLocalIsAutoManaged(false);
+                setOptimisticManagingCluster(clusterUri);
                 changeManagingCluster(clusterUri);
               }}
               options={options}
