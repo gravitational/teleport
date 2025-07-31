@@ -3,7 +3,7 @@ authors: Dan Upton (daniel.upton@goteleport.com)
 state: draft
 ---
 
-# RFD XXX - `tbot` Argo CD Output
+# RFD 220 - `tbot` Argo CD Output
 
 ## Required Approvers
 
