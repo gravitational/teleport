@@ -750,12 +750,8 @@ To register the keypair with Teleport, include this public key in the token's
 
 This public key, including the algorithm identifier (`ssh-ed25519`, but may vary
 depending on your cluster configuration) can then be copied into a Bound Keypair
-join token to be used as a preregistered key.
-
-{/*
-TODO: Replace with a link into the admin guide once the follow up PR has merged.
-[preregistered key](../machine-id/bound-keypair.mdx#preregistered-key-example).
-*/}
+join token to be used as a
+[preregistered key](../machine-id/bound-keypair/concepts.mdx#onboarding).
 
 Note that the Teleport Proxy Service address is required to fetch the currently
 enabled [signature suite](../signature-algorithms.mdx). No authentication takes
