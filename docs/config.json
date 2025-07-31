@@ -1154,6 +1154,91 @@
       "source": "/enroll-resources/application-access/troubleshooting-apps/",
       "destination": "/zero-trust-access/enroll-resources/application-access/troubleshooting-apps/",
       "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/getting-started/",
+      "destination": "/zero-trust-access/server-access/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/guides/ansible/",
+      "destination": "/zero-trust-access/server-access/guides/ansible/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/guides/auditd/",
+      "destination": "/zero-trust-access/server-access/guides/auditd/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/guides/bpf-session-recording/",
+      "destination": "/zero-trust-access/server-access/guides/bpf-session-recording/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/guides/",
+      "destination": "/zero-trust-access/server-access/guides/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/guides/host-user-creation/",
+      "destination": "/zero-trust-access/server-access/guides/host-user-creation/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/guides/jetbrains-sftp/",
+      "destination": "/zero-trust-access/server-access/guides/jetbrains-sftp/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/guides/recording-proxy-mode/",
+      "destination": "/zero-trust-access/server-access/guides/recording-proxy-mode/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/guides/ssh-pam/",
+      "destination": "/zero-trust-access/server-access/guides/ssh-pam/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/guides/vscode/",
+      "destination": "/zero-trust-access/server-access/guides/vscode/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/introduction/",
+      "destination": "/zero-trust-access/server-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/openssh/openssh-agentless/",
+      "destination": "/zero-trust-access/server-access/openssh/openssh-agentless/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/openssh/openssh-manual-install/",
+      "destination": "/zero-trust-access/server-access/openssh/openssh-manual-install/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/openssh/",
+      "destination": "/zero-trust-access/server-access/openssh/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/rbac/",
+      "destination": "/zero-trust-access/server-access/rbac/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/",
+      "destination": "/zero-trust-access/server-access/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/troubleshooting-server/",
+      "destination": "/zero-trust-access/server-access/troubleshooting-server/",
+      "permanent": true
     }
   ]
 }
