@@ -34,7 +34,7 @@ type Client interface {
 }
 
 // ClientGetter is a function used to get a new agent client.
-type ClientGetter func() (Client, error)
+type ClientGetter = func() (Client, error)
 
 type client struct {
 	agent.ExtendedAgent

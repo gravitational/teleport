@@ -48,7 +48,9 @@ func TestSSHAgentClient(t *testing.T) {
 		// Track open connections.
 		var connWg sync.WaitGroup
 
+		connWg.Add(1)
 		go func() {
+			defer connWg.Done()
 			for {
 				conn, err := l.Accept()
 				if err != nil {
@@ -56,15 +58,21 @@ func TestSSHAgentClient(t *testing.T) {
 					return
 				}
 
-				connCtx, cancel := context.WithCancel(serveCtx)
-				connWg.Add(1)
-				context.AfterFunc(connCtx, func() {
+				closeConn := func() {
 					conn.Close()
 					connWg.Done()
-				})
+				}
 
+				// Close the connection early if the server is stopped.
+				connNotClosed := context.AfterFunc(serveCtx, closeConn)
+
+				connWg.Add(1)
 				go func() {
-					defer cancel()
+					defer func() {
+						if connNotClosed() {
+							closeConn()
+						}
+					}()
 					agent.ServeAgent(keyring, conn)
 				}()
 			}
