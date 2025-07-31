@@ -408,14 +408,16 @@ func ExtendAccessCheckerRoles(ctx context.Context, in AccessChecker, getter Role
 	return extendedChecker, nil
 }
 
-// ExtendAccessChecker returns a shallow copy of [in], where the users roles have been
-// extended with search and preview as roles. It may return [in] unmodified.
-func ExtendKubernetesAccessChecker(ctx context.Context, in AccessChecker, getter RolesGetter, resourceType string, params ExtendAccessCheckerParam) (AccessChecker, error) {
+// ExtendKubernetesAccessCheckerRoles returns a shallow copy of [in], where the users
+// roles have been extended with search and preview as roles available for Kubernetes
+// resource access. It may return [in] unmodified.
+func ExtendKubernetesAccessCheckerRoles(ctx context.Context, in AccessChecker, getter RolesGetter, resourceType string, params ExtendAccessCheckerParam) (AccessChecker, error) {
 	set := NewRoleSet(in.Roles()...)
 	if set.checkKubernetesResourceDenied(resourceType) {
 		// Return the current access checker unmodified.
 		return in, nil
 	}
+	params.SearchAsRolesFilters = []SearchAsRolesOption{WithAllowedKubernetesResourceKindFilter(resourceType)}
 	return ExtendAccessCheckerRoles(ctx, in, getter, params)
 }
 

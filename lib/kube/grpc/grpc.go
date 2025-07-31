@@ -160,11 +160,10 @@ func (s *Server) ListKubernetesResources(ctx context.Context, req *proto.ListKub
 		return nil, trail.ToGRPC(err)
 	}
 
-	newChecker, err := services.ExtendAccessCheckerRoles(ctx, userContext.Checker, s.cfg.AccessPoint, services.ExtendAccessCheckerParam{
-		UseSearchAsRoles:     req.UseSearchAsRoles,
-		UsePreviewAsRoles:    req.UsePreviewAsRoles,
-		ClusterName:          s.cfg.ClusterName,
-		SearchAsRolesFilters: []services.SearchAsRolesOption{services.WithAllowedKubernetesResourceKindFilter(req.ResourceType)},
+	newChecker, err := services.ExtendKubernetesAccessCheckerRoles(ctx, userContext.Checker, s.cfg.AccessPoint, req.ResourceType, services.ExtendAccessCheckerParam{
+		UseSearchAsRoles:  req.UseSearchAsRoles,
+		UsePreviewAsRoles: req.UsePreviewAsRoles,
+		ClusterName:       s.cfg.ClusterName,
 	})
 	if err != nil {
 		return nil, trail.ToGRPC(err)

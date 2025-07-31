@@ -5048,9 +5048,8 @@ func TestExtendAccessChecker_WithAllowedKubernetesResourceKindFilter(t *testing.
 		require.NoError(t, err)
 
 		t.Run(tc.name, func(t *testing.T) {
-			extendedChecker, err := ExtendKubernetesAccessChecker(context.Background(), originalAccessChecker, getter, tc.requestType, ExtendAccessCheckerParam{
-				UseSearchAsRoles:     true,
-				SearchAsRolesFilters: []SearchAsRolesOption{WithAllowedKubernetesResourceKindFilter(tc.requestType)},
+			extendedChecker, err := ExtendKubernetesAccessCheckerRoles(context.Background(), originalAccessChecker, getter, tc.requestType, ExtendAccessCheckerParam{
+				UseSearchAsRoles: true,
 			})
 			require.NoError(t, err)
 			expected := append(tc.roleSet.RoleNames(), tc.expectedAllowedRoles...)
