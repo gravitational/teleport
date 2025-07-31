@@ -560,21 +560,9 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 				require.NoError(t, err)
 
 				// Forward local port to container port.
-				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-				done := make(chan struct{})
-				forwarderCh := make(chan error, 1)
-				go func() {
-					defer close(done)
-					select {
-					case forwarderCh <- forwarder.ForwardPorts():
-					case <-ctx.Done():
-						forwarderCh <- ctx.Err()
-					}
-				}()
-				t.Cleanup(func() {
-					cancel()
-					<-done
-				})
+				t.Cleanup(func() { forwarder.Close() })
+				go func() { forwarderCh <- forwarder.ForwardPorts() }()
+	
 
 				select {
 				case <-time.After(5 * time.Second):
