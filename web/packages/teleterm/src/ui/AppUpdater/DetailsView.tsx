@@ -47,7 +47,10 @@ import {
 
 /**
  * Detailed updates view.
- * Shows the auto updates status and
+ * The details can be accessed through the widget if the widget is
+ * shown.
+ * Otherwise, the user can access them through "Check for
+ * updates" in the additional actions menu.
  */
 export function DetailsView({
   changeManagingCluster,

@@ -44,8 +44,10 @@ import {
 
 /**
  * App updates widget.
- * The widget is hidden for `update-not-available` and `checking-for-update`
- * events.
+ * The component is rendered in the login form.
+ *
+ * Hidden for `update-not-available` and `checking-for-update` events,
+ * unless there's an issue that prevents autoupdates from working.
  */
 export function WidgetView(props: {
   updateEvent: AppUpdateEvent;
