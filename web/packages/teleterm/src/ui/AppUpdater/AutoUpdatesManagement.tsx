@@ -35,7 +35,11 @@ import {
 } from 'teleterm/services/appUpdater';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
-import { ClusterGetter, clusterNameGetter } from './common';
+import {
+  ClusterGetter,
+  clusterNameGetter,
+  makeUnreachableClusterText,
+} from './common';
 
 const listFormatter = new Intl.ListFormat('en', {
   style: 'long',
@@ -53,10 +57,10 @@ export function AutoUpdatesManagement(props: {
 
   const { unreachableClusters } = status.options;
   const getClusterName = clusterNameGetter(props.clusterGetter);
-  const unreachableClustersText =
-    `Unable to retrieve accepted client versions` +
-    ` from the ${pluralize(unreachableClusters.length, 'cluster')}` +
-    ` ${listFormatter.format(unreachableClusters.map(c => getClusterName(c.clusterUri)))}.`;
+  const unreachableClustersText = makeUnreachableClusterText(
+    unreachableClusters,
+    getClusterName
+  );
   const content =
     status.enabled === true
       ? makeContentForEnabledAutoUpdates(status, getClusterName)
