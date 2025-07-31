@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package database
 
 import (
 	"testing"
@@ -28,10 +28,10 @@ import (
 
 func TestDatabaseOutput_YAML(t *testing.T) {
 	dest := &destination.Memory{}
-	tests := []testYAMLCase[DatabaseOutput]{
+	tests := []testYAMLCase[OutputConfig]{
 		{
 			name: "full",
-			in: DatabaseOutput{
+			in: OutputConfig{
 				Destination: dest,
 				Roles:       []string{"access"},
 				Format:      TLSDatabaseFormat,
@@ -46,7 +46,7 @@ func TestDatabaseOutput_YAML(t *testing.T) {
 		},
 		{
 			name: "minimal",
-			in: DatabaseOutput{
+			in: OutputConfig{
 				Destination: dest,
 				Service:     "my-database-service",
 			},
@@ -56,11 +56,11 @@ func TestDatabaseOutput_YAML(t *testing.T) {
 }
 
 func TestDatabaseOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*DatabaseOutput]{
+	tests := []testCheckAndSetDefaultsCase[*OutputConfig]{
 		{
 			name: "valid",
-			in: func() *DatabaseOutput {
-				return &DatabaseOutput{
+			in: func() *OutputConfig {
+				return &OutputConfig{
 					Destination: destination.NewMemory(),
 					Roles:       []string{"access"},
 					Database:    "db",
@@ -71,8 +71,8 @@ func TestDatabaseOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing destination",
-			in: func() *DatabaseOutput {
-				return &DatabaseOutput{
+			in: func() *OutputConfig {
+				return &OutputConfig{
 					Destination: nil,
 					Service:     "service",
 				}
@@ -81,8 +81,8 @@ func TestDatabaseOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing service",
-			in: func() *DatabaseOutput {
-				return &DatabaseOutput{
+			in: func() *OutputConfig {
+				return &OutputConfig{
 					Destination: destination.NewMemory(),
 				}
 			},
@@ -90,8 +90,8 @@ func TestDatabaseOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "invalid format",
-			in: func() *DatabaseOutput {
-				return &DatabaseOutput{
+			in: func() *OutputConfig {
+				return &OutputConfig{
 					Destination: destination.NewMemory(),
 					Service:     "service",
 					Format:      "no-such-format",
