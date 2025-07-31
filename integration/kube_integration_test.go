@@ -712,7 +712,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 				require.NoError(t, err)
 
 				// Forward local port to container port.
-				forwarderCh := make(chan error)
+				forwarderCh := make(chan error, 1)
 				t.Cleanup(func() { forwarder.Close() })
 				go func() { forwarderCh <- forwarder.ForwardPorts() }()
 
