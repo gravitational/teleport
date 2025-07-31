@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services/suite"
 )
 
 // TestApplicationServersCRUD verifies backend operations on app servers.
@@ -816,7 +815,7 @@ func TestListResources_Helpers(t *testing.T) {
 
 	// Add some test servers.
 	for i := 0; i < 20; i++ {
-		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
+		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
 		_, err = presence.UpsertNode(ctx, server)
 		require.NoError(t, err)
 	}
@@ -951,21 +950,21 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 	presence := NewPresenceService(bend)
 
 	// Add some control servers.
-	server := suite.NewServer(types.KindNode, "foo-bar", "127.0.0.1:2022", namespace)
+	server := NewServer(types.KindNode, "foo-bar", "127.0.0.1:2022", namespace)
 	_, err = presence.UpsertNode(ctx, server)
 	require.NoError(t, err)
 
-	server = suite.NewServer(types.KindNode, "foo-baz", "127.0.0.1:2022", namespace)
+	server = NewServer(types.KindNode, "foo-baz", "127.0.0.1:2022", namespace)
 	_, err = presence.UpsertNode(ctx, server)
 	require.NoError(t, err)
 
-	server = suite.NewServer(types.KindNode, "foo-qux", "127.0.0.1:2022", namespace)
+	server = NewServer(types.KindNode, "foo-qux", "127.0.0.1:2022", namespace)
 	_, err = presence.UpsertNode(ctx, server)
 	require.NoError(t, err)
 
 	// Add some test servers.
 	for i := 0; i < 10; i++ {
-		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
+		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
 		_, err = presence.UpsertNode(ctx, server)
 		require.NoError(t, err)
 	}
