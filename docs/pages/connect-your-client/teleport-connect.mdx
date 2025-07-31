@@ -406,7 +406,7 @@ INFO [AUTH]      Attempting registration via proxy server. auth/register.go:279
 ERRO [PROC:1]    Can not join the cluster as node, the token expired or not found. Regenerate the token and try again. pid:54364.1 service/connect.go:106
 ```
 
-During the setup, Connect My Computer creates [a join token](../enroll-resources/agents/join-token.mdx)
+During the setup, Connect My Computer creates [a join token](../zero-trust-access/enroll-resources/agents/join-token.mdx)
 that is valid for up to five minutes. If the logs say that the token has expired, it most likely
 means that the initial attempt to join the cluster has failed and you started another one after more
 than five minutes.

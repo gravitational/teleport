@@ -32,7 +32,7 @@ as the Auth Service.
 ## Prerequisites
 
 - A running Teleport cluster in Kubernetes. For details on how to set this up,
-  see [Guides for running Teleport using Helm](../../admin-guides/deploy-a-cluster/helm-deployments/helm-deployments.mdx).
+  see [Guides for running Teleport using Helm](../../../admin-guides/deploy-a-cluster/helm-deployments/helm-deployments.mdx).
 - Editor access to the Kubernetes cluster running the Teleport cluster.
   You must be able to create Namespaces and Deployments.
 - A Teleport user with `access` role, or any other role that allows access to
@@ -41,7 +41,7 @@ as the Auth Service.
   existing Teleport Auth Service pods.
 - The Auth Service ServiceAccount must be granted the `system:auth-delegator`
   ClusterRole. Clusters deployed with the [`teleport-cluster` Helm
-  chart](../../reference/helm-reference/teleport-cluster.mdx) 
+  chart](../../../reference/helm-reference/teleport-cluster.mdx) 
   have the correct role by default.
 
 ## Step 1/5. Create a Kubernetes join token
@@ -245,7 +245,7 @@ namespace "teleport-agent" deleted
 
 {/* vale messaging.protocol-products = NO */}
 - The possible values for `teleport-kube-agent` chart are documented
-  [in its reference](../../reference/helm-reference/teleport-kube-agent.mdx).
-- See [Application Access Guides](../../zero-trust-access/enroll-resources/application-access/guides/guides.mdx)
-- See [Database Access Guides](../database-access/guides/guides.mdx)
+  [in its reference](../../../reference/helm-reference/teleport-kube-agent.mdx).
+- See [Application Access Guides](../application-access/guides/guides.mdx)
+- See [Database Access Guides](../../../enroll-resources/database-access/guides/guides.mdx)
 {/* vale messaging.protocol-products = YES */}
