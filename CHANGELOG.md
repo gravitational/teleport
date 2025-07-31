@@ -276,7 +276,7 @@ Remote Desktop Services > Remote Desktop Session Host, enable:
 1. Remote Session Environment > Limit maximum color depth
 
 Detailed instructions are available in the
-[setup guide](docs/pages/enroll-resources/desktop-access/active-directory.mdx#enable-remotefx).
+[setup guide](docs/pages/zero-trust-access/enroll-resources/desktop-access/active-directory.mdx#enable-remotefx).
 A reboot may be required for these changes to take effect.
 
 #### `tsh ssh`
@@ -563,7 +563,7 @@ In Teleport 14, access to Windows desktops with local Windows users has been
 extended to Community Edition. Teleport will permit users to register and
 connect to up to 5 desktops with local users without an enterprise license.
 
-For more information on using Teleport with local Windows users, see [docs](docs/pages/enroll-resources/desktop-access/getting-started.mdx).
+For more information on using Teleport with local Windows users, see [docs](docs/pages/zero-trust-access/enroll-resources/desktop-access/getting-started.mdx).
 
 #### Discord and ServiceNow hosted plugins
 
@@ -2237,7 +2237,7 @@ secure cipher suites for desktop access.
 
 As a result of these changes, desktop access users with desktops running Windows
 Server 2012R2 will need to perform [additional
-configuration](docs/pages/enroll-resources/desktop-access/getting-started.mdx) to force Windows
+configuration](docs/pages/zero-trust-access/enroll-resources/desktop-access/getting-started.mdx) to force Windows
 to use compatible cipher suites.
 
 Windows desktops running Windows Server 2016 and newer will continue to operate
@@ -2572,7 +2572,7 @@ Teleport users can connect to Active Directory enrolled Windows hosts running
 Windows 10, Windows Server 2012 R2 and newer Windows versions.
 
 To try this feature yourself, check out our
-[Getting Started Guide](docs/pages/enroll-resources/desktop-access/getting-started.mdx).
+[Getting Started Guide](docs/pages/zero-trust-access/enroll-resources/desktop-access/getting-started.mdx).
 
 Review the desktop access design in:
 
