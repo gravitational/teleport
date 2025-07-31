@@ -33,13 +33,14 @@ import (
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 )
 
 // EmbeddedBot is an embedded tBot instance to renew the operator certificates.
 type EmbeddedBot struct {
 	cfg *config.BotConfig
 
-	credential *config.UnstableClientCredentialOutput
+	credential *clientcredentials.UnstableConfig
 
 	// mutex protects started, cancelCtx and errCh
 	mutex     sync.Mutex
@@ -50,7 +51,7 @@ type EmbeddedBot struct {
 
 // New creates a new EmbeddedBot from a BotConfig.
 func New(botConfig *BotConfig) (*EmbeddedBot, error) {
-	credential := &config.UnstableClientCredentialOutput{}
+	credential := &clientcredentials.UnstableConfig{}
 
 	cfg := (*config.BotConfig)(botConfig)
 	cfg.Storage = &config.StorageConfig{Destination: destination.NewMemory()}
