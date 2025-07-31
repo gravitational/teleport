@@ -685,7 +685,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 					require.Eventually(t, func() bool {
 						rsp, err := suite.CoreV1().Pods(testNamespace).Get(context.Background(), testPod, metav1.GetOptions{})
 						if err != nil {
-							t.Logf("Get pod error: %v", err)
+							t.Logf("Get pod error: %s", err)
 							return false
 						}
 						t.Logf("Get pod %q: Status: %s", testPod, rsp.Status.Phase)
