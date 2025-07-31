@@ -72,6 +72,7 @@ export function WidgetView(props: {
       <Alert
         kind="danger"
         width="100%"
+        mb={0}
         details={issueRequiringAttention}
         secondaryAction={{
           content: 'Resolve',
@@ -89,13 +90,14 @@ export function WidgetView(props: {
       <Alert
         kind="danger"
         width="100%"
+        mb={0}
         details={updateEvent.error.message}
         secondaryAction={{
           content: 'More',
           onClick: props.onMore,
         }}
       >
-        An error occurred
+        Unable to check for app updates
       </Alert>
     );
   }
