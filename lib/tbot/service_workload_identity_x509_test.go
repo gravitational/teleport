@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
@@ -94,7 +95,7 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 	require.NoError(t, err)
 
 	checkCRL := func(t *testing.T, tmpDir string, bundle *x509bundle.Bundle) {
-		crlPEM, err := os.ReadFile(filepath.Join(tmpDir, config.SVIDCRLPemPath))
+		crlPEM, err := os.ReadFile(filepath.Join(tmpDir, internal.SVIDCRLPemPath))
 		require.NoError(t, err)
 		crlBytes, _ := pem.Decode(crlPEM)
 		crl, err := x509.ParseRevocationList(crlBytes.Bytes)
@@ -126,8 +127,8 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 		require.NoError(t, b.Run(ctx))
 
 		svid, err := x509svid.Load(
-			path.Join(tmpDir, config.SVIDPEMPath),
-			path.Join(tmpDir, config.SVIDKeyPEMPath),
+			path.Join(tmpDir, internal.SVIDPEMPath),
+			path.Join(tmpDir, internal.SVIDKeyPEMPath),
 		)
 		require.NoError(t, err)
 		require.Equal(t, "spiffe://root/valid/by-name", svid.ID.String())
@@ -138,7 +139,7 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 		// appears valid according to the trust bundle.
 		td := spiffeid.RequireTrustDomainFromString("root")
 		bundle, err := x509bundle.Load(
-			td, filepath.Join(tmpDir, config.SVIDTrustBundlePEMPath),
+			td, filepath.Join(tmpDir, internal.SVIDTrustBundlePEMPath),
 		)
 		require.NoError(t, err)
 		_, _, err = x509svid.Verify(svid.Certificates, bundle)
@@ -172,8 +173,8 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 		require.NoError(t, b.Run(ctx))
 
 		svid, err := x509svid.Load(
-			path.Join(tmpDir, config.SVIDPEMPath),
-			path.Join(tmpDir, config.SVIDKeyPEMPath),
+			path.Join(tmpDir, internal.SVIDPEMPath),
+			path.Join(tmpDir, internal.SVIDKeyPEMPath),
 		)
 		require.NoError(t, err)
 		require.Equal(t, "spiffe://root/valid/by-labels", svid.ID.String())
@@ -182,7 +183,7 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 		// appears valid according to the trust bundle.
 		td := spiffeid.RequireTrustDomainFromString("root")
 		bundle, err := x509bundle.Load(
-			td, filepath.Join(tmpDir, config.SVIDTrustBundlePEMPath),
+			td, filepath.Join(tmpDir, internal.SVIDTrustBundlePEMPath),
 		)
 		require.NoError(t, err)
 		_, _, err = x509svid.Verify(svid.Certificates, bundle)
