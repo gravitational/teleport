@@ -297,6 +297,15 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case types.JoinMethodEnv0:
+		claims, err := a.checkTerraformCloudJoinRequest(ctx, req, provisionToken)
+		if claims != nil {
+			rawClaims = claims
+			attrs.TerraformCloud = claims.JoinAttrs()
+		}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	case types.JoinMethodBitbucket:
 		claims, err := a.checkBitbucketJoinRequest(ctx, req, provisionToken)
 		if claims != nil {

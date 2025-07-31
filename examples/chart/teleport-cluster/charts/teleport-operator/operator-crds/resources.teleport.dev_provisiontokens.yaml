@@ -538,6 +538,37 @@ spec:
                       standard JWKS endpoints.
                     type: string
                 type: object
+              env0:
+                description: Env0 allows the configuration of options specific
+                  to the "env0" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of Rules, nodes using this token
+                      must match one allow rule to use this token.
+                    items:
+                      properties:
+                        organization_id:
+                          type: string
+                        organization_name:
+                          type: string
+                        project_id:
+                          type: string
+                        project_name:
+                          type: string
+                        environment_id:
+                          type: string
+                        environment_name:
+                          type: string
+                        deployment_type:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  audience:
+                    description: Audience in Env0 will always be set to "https://prod.env0.com"
+                    type: string
+                type: object
               tpm:
                 description: TPM allows the configuration of options specific to the
                   "tpm" join method.

@@ -719,6 +719,8 @@ func botIdentityFromToken(
 		}
 	case types.JoinMethodTerraformCloud:
 		params.TerraformCloudAudienceTag = cfg.Onboarding.Terraform.AudienceTag
+	case types.JoinMethodEnv0:
+		params.Env0AudienceTag = "something"
 	case types.JoinMethodGitLab:
 		params.GitlabParams = join.GitlabParams{
 			EnvVarName: cfg.Onboarding.Gitlab.TokenEnvVarName,

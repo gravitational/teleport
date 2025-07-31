@@ -324,6 +324,11 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case types.JoinMethodEnv0:
+		params.IDToken, err = env0.NewIDTokenSource(os.Getenv).GetIDToken()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	case types.JoinMethodBitbucket:
 		params.IDToken, err = bitbucket.NewIDTokenSource(os.Getenv).GetIDToken()
 		if err != nil {

@@ -119,6 +119,10 @@ func (p *JoinURIParams) ApplyToConfig(cfg *BotConfig) error {
 			errors = append(errors, applyValueOrError(
 				&cfg.Onboarding.Terraform.AudienceTag, param,
 				"URI join method parameter %q conflicts with configured field: onboarding.terraform.audience_tag", param))
+		case types.JoinMethodEnv0:
+			errors = append(errors, applyValueOrError(
+				&cfg.Onboarding.Env0.Audience, param,
+				"URI join method parameter %q conflicts with configured field: onboarding.env0.audience", param))
 		case types.JoinMethodGitLab:
 			errors = append(errors, applyValueOrError(
 				&cfg.Onboarding.Gitlab.TokenEnvVarName, param,
@@ -156,6 +160,8 @@ func MapURLSafeJoinMethod(name string) (types.JoinMethod, error) {
 		return types.JoinMethodAzureDevops, nil
 	case "terraform-cloud", "terraformcloud":
 		return types.JoinMethodTerraformCloud, nil
+	case "env0":
+		return types.JoinMethodEnv0, nil
 	default:
 		return types.JoinMethodUnspecified, trace.BadParameter("unsupported join method %q", name)
 	}

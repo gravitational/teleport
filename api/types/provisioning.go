@@ -86,6 +86,9 @@ const (
 	// JoinMethodBoundKeypair indicates the node will join using the Bound
 	// Keypair join method. See lib/boundkeypair for more.
 	JoinMethodBoundKeypair JoinMethod = "bound_keypair"
+	// JoinMethodEnv0 indicates that the node will join using the Env0
+	// join method. See lib/env0 for more.
+	JoinMethodEnv0 JoinMethod = "env0"
 )
 
 var JoinMethods = []JoinMethod{
@@ -105,6 +108,7 @@ var JoinMethods = []JoinMethod{
 	JoinMethodTerraformCloud,
 	JoinMethodOracle,
 	JoinMethodBoundKeypair,
+	JoinMethodEnv0,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
@@ -447,6 +451,14 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 
 		if err := p.Spec.BoundKeypair.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "spec.bound_keypair: failed validation")
+		}
+	case JoinMethodEnv0:
+		if p.Spec.Env0 == nil {
+			p.Spec.Env0 = &ProvisionTokenSpecV2Env0{}
+		}
+
+		if err := p.Spec.Env0.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "spec.env0: failed validation")
 		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
@@ -1044,6 +1056,36 @@ func (a *ProvisionTokenSpecV2BoundKeypair) checkAndSetDefaults() error {
 
 	// Note: Recovery.Mode will be interpreted at joining time; it's zero value
 	// ("") is mapped to RecoveryModeStandard.
+
+	return nil
+}
+
+func (a *ProvisionTokenSpecV2Env0) checkAndSetDefaults() error {
+	if len(a.Allow) == 0 {
+		return trace.BadParameter("the %q join method requires at least one token allow rule", JoinMethodEnv0)
+	}
+
+	// Note: an empty audience will fall back to the cluster name.
+
+	for i, allowRule := range a.Allow {
+		orgSet := allowRule.OrganizationID != "" || allowRule.OrganizationName != ""
+		projectSet := allowRule.ProjectID != "" || allowRule.ProjectName != ""
+		environmentSet := allowRule.EnvironmentID != "" || allowRule.EnvironmentName != ""
+
+		if !orgSet {
+			return trace.BadParameter(
+				"allow[%d]: one of ['organization_id', 'organization_name'] must be set",
+				i,
+			)
+		}
+
+		if !projectSet && !environmentSet {
+			return trace.BadParameter(
+				"allow[%d]: at least one of ['project_id', 'project_name', 'environment_id', 'environment_name'] must be set",
+				i,
+			)
+		}
+	}
 
 	return nil
 }
