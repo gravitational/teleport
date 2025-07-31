@@ -25,16 +25,21 @@ import {
   Flex,
   H2,
   Indicator,
+  StepSlider,
   Text,
 } from 'design';
 import * as Alerts from 'design/Alert';
 import { DialogContent, DialogHeader } from 'design/Dialog';
 import * as Icons from 'design/Icon';
+import { ArrowBack } from 'design/Icon';
+import type { StepComponentProps } from 'design/StepSlider';
 import { AuthSettings } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 import { PrimaryAuthType } from 'shared/services';
 
 import { publicAddrWithTargetPort } from 'teleterm/services/tshd/app';
 import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { DetailsView, useAppUpdaterContext } from 'teleterm/ui/AppUpdater';
 import { ClusterConnectReason } from 'teleterm/ui/services/modals';
 
 import { outermostPadding } from '../spacing';
@@ -44,12 +49,13 @@ import useClusterLogin, { Props, State } from './useClusterLogin';
 export function ClusterLogin(props: Props & { reason: ClusterConnectReason }) {
   const { reason, ...otherProps } = props;
   const state = useClusterLogin(otherProps);
-  return <ClusterLoginPresentation {...state} reason={reason} />;
+  // @ts-expect-error TODO fix
+  return <Container {...state} reason={reason} />;
 }
 
 export type ClusterLoginPresentationProps = State & {
   reason: ClusterConnectReason;
-};
+} & StepComponentProps;
 
 export function ClusterLoginPresentation({
   title,
@@ -69,9 +75,11 @@ export function ClusterLoginPresentation({
   shouldSkipVersionCheck,
   disableVersionCheck,
   platform,
+  next,
+  refCallback,
 }: ClusterLoginPresentationProps) {
   return (
-    <>
+    <Flex ref={refCallback} flexDirection="column">
       <DialogHeader px={outermostPadding}>
         <H2>
           Log in to <b>{title}</b>
@@ -125,12 +133,64 @@ export function ClusterLoginPresentation({
             shouldSkipVersionCheck={shouldSkipVersionCheck}
             disableVersionCheck={disableVersionCheck}
             platform={platform}
+            switchToAppUpdateDetails={() => next()}
           />
         )}
       </DialogContent>
-    </>
+    </Flex>
   );
 }
+
+const Container = (props: ClusterLoginPresentationProps) => {
+  return (
+    // @ts-expect-error TODO fix
+    <StepSlider<typeof loginViews>
+      flows={loginViews}
+      currFlow={'default'}
+      {...props}
+    />
+  );
+};
+
+const AppUpp = ({ refCallback, ...otherProps }: Props & StepComponentProps) => {
+  const updateContext = useAppUpdaterContext();
+  const appContext = useAppContext();
+
+  return (
+    <Flex ref={refCallback} flexDirection="column">
+      <DialogHeader px={outermostPadding}>
+        <Flex alignItems="center" gap={1}>
+          <ButtonIcon title="Go Back" onClick={otherProps.prev}>
+            <ArrowBack />
+          </ButtonIcon>
+          <H2>App Updates</H2>
+        </Flex>
+        <ButtonIcon
+          ml="auto"
+          p={3}
+          onClick={() => otherProps.onCancel()}
+          aria-label="Close"
+        >
+          <Icons.Cross size="medium" />
+        </ButtonIcon>
+      </DialogHeader>
+      <Flex px={4}>
+        <DetailsView
+          onInstall={updateContext.quitAndInstall}
+          platform={updateContext.platform}
+          changeManagingCluster={updateContext.changeManagingCluster}
+          updateEvent={updateContext.updateEvent}
+          onDownload={updateContext.download}
+          onCancelDownload={updateContext.cancelDownload}
+          clusterGetter={appContext.clustersService}
+          onCheckForUpdates={updateContext.checkForUpdates}
+        />
+      </Flex>
+    </Flex>
+  );
+};
+
+const loginViews = { default: [ClusterLoginPresentation, AppUpp] };
 
 function getPrimaryAuthType(auth: AuthSettings): PrimaryAuthType {
   if (auth.localConnectorName === 'passwordless') {

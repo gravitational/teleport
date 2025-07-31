@@ -30,6 +30,9 @@ export function useClusterLogout({
   const ctx = useAppContext();
   const [{ status, statusText }, removeCluster] = useAsync(async () => {
     await ctx.clustersService.logout(clusterUri);
+    await ctx.mainProcessClient.maybeRemoveAppUpdatesManagingCluster(
+      clusterUri
+    );
 
     if (ctx.workspacesService.getRootClusterUri() === clusterUri) {
       const [firstConnectedWorkspace] =

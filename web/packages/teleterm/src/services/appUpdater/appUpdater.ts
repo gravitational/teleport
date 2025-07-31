@@ -24,7 +24,6 @@ import {
   CancellationToken,
   AppUpdater as ElectronAppUpdater,
   ProgressInfo,
-  UpdateDownloadedEvent,
   UpdateInfo,
 } from 'electron-updater';
 import { ProviderRuntimeOptions } from 'electron-updater/out/providers/Provider';
@@ -48,12 +47,20 @@ import {
 
 const TELEPORT_TOOLS_VERSION_ENV_VAR = 'TELEPORT_TOOLS_VERSION';
 
+interface UpdateCheckResult {
+  isUpdateAvailable: boolean;
+  updateInfo: UpdateInfo;
+  downloadPromise?: Promise<Array<string>> | null;
+  cancellationToken?: CancellationToken;
+}
+
 export class AppUpdater {
   private readonly logger = new Logger('AppUpdater');
   private readonly unregisterEventHandlers: () => void;
   private autoUpdatesStatus: AutoUpdatesStatus | undefined;
-  private downloadCancellationToken: CancellationToken | undefined;
-  private downloadedFilePath: string | undefined;
+  private updateCheckResult: UpdateCheckResult | undefined;
+  private downloadPromise: Promise<string[]> | undefined;
+  private downloadedUpdatePath = '';
 
   constructor(
     private readonly storage: AppUpdaterStorage,
@@ -95,21 +102,10 @@ export class AppUpdater {
     // Downloads are saved to the path specified in dev-app-update.yml.
     autoUpdater.forceDevUpdateConfig = true;
 
-    const unregisterEventHandlers = registerEventHandlers(
+    this.unregisterEventHandlers = registerEventHandlers(
       this.emit,
       () => this.autoUpdatesStatus
     );
-
-    const onUpdateDownloaded = (event: UpdateDownloadedEvent) => {
-      this.downloadedFilePath = event.downloadedFile;
-    };
-
-    autoUpdater.on('update-downloaded', onUpdateDownloaded);
-
-    this.unregisterEventHandlers = () => {
-      unregisterEventHandlers();
-      autoUpdater.off('update-downloaded', onUpdateDownloaded);
-    };
   }
 
   dispose(): void {
@@ -126,47 +122,124 @@ export class AppUpdater {
   async changeManagingCluster(
     clusterUri: RootClusterUri | undefined
   ): Promise<void> {
-    this.cancelDownload();
-    await this.clearStaleDownloadedUpdate();
     this.storage.put({ managingClusterUri: clusterUri });
+    await this.cancelDownload();
     await this.checkForUpdates();
   }
 
   /**
-   * Asks the server whether there is an update.
-   * * If a newer version is found and `autoUpdatesStatus` permits it,
-   *  * the update is downloaded automatically.
+   * Removes managing cluster if matches the passed cluster URI.
+   *
+   * If this cluster was considered during update status resolution,
+   * any ongoing download is cancelled and any previously downloaded update is removed.
    */
-  async checkForUpdates(): Promise<void> {
-    const result = await autoUpdater.checkForUpdates();
-    this.downloadCancellationToken = result.cancellationToken;
+  async maybeRemoveManagingCluster(clusterUri: RootClusterUri): Promise<void> {
+    const { managingClusterUri } = this.storage.get();
+    if (managingClusterUri === clusterUri) {
+      this.storage.put({ managingClusterUri: undefined });
+    }
+
+    if (this.autoUpdatesStatus.enabled === false) {
+      return;
+    }
+
+    const tookPartInHighestCompatibleResolution =
+      this.autoUpdatesStatus.source === 'highest-compatible' &&
+      this.autoUpdatesStatus.options.clusters.some(
+        c => c.clusterUri === clusterUri
+      );
+    const wasManaging =
+      this.autoUpdatesStatus.source === 'managing-cluster' &&
+      this.autoUpdatesStatus.options.managingClusterUri === clusterUri;
+
+    if (tookPartInHighestCompatibleResolution || wasManaging) {
+      await this.cancelDownload();
+      await this.clearDownloadedUpdateIfAny();
+    }
   }
 
-  /** Starts the download manually. */
+  /**
+   * Asks the server whether there is an update.
+   * Cancels
+   * If a newer version is found and `autoUpdatesStatus` permits it,
+   * the update is downloaded automatically.
+   */
+  async checkForUpdates(): Promise<void> {
+    // Do nothing if download is in progress.
+    // In the ideal world, if a new update info was returned but the previous
+    // version would be downloaded, it would be cancelled and the user
+    // would either see a new version
+    if (this.downloadPromise) {
+      return;
+    }
+    const result = await autoUpdater.checkForUpdates();
+    const newSha = result.updateInfo?.files.at(0)?.sha512;
+    const oldSha = this.updateCheckResult?.updateInfo.files.at(0)?.sha512;
+    const isSameUpdate = oldSha === newSha;
+
+    if (result.downloadPromise) {
+      void this.storeDownloadPromise(result.downloadPromise);
+    }
+
+    this.updateCheckResult = result;
+    const shouldClearDownload =
+      !result.isUpdateAvailable || (!autoUpdater.autoDownload && !isSameUpdate);
+    if (shouldClearDownload) {
+      await this.clearDownloadedUpdateIfAny();
+    }
+  }
+
+  /** Starts download manually. */
   async download(): Promise<void> {
-    this.downloadCancellationToken = new CancellationToken();
-    await autoUpdater.downloadUpdate(this.downloadCancellationToken);
+    await this.storeDownloadPromise(autoUpdater.downloadUpdate());
   }
 
   /** Cancels download. */
-  cancelDownload(): void {
-    this.downloadCancellationToken?.cancel();
+  async cancelDownload(): Promise<void> {
+    if (!this.downloadPromise) {
+      return;
+    }
+    // In theory, we should pass a cancellation token to autoUpdater.downloadUpdate()
+    // and cancel it.
+    // Unfortunately, there is a bug in electron-updater: after starting and
+    // canceling the download two times, the updater stops reacting to download
+    // attempts.
+    // There is no way to recover it from that broken state, besides killing the app.
+    // Instead, we can abort all network connections performed by the updater
+    // (there is only one - the download process).
+    await autoUpdater.netSession.closeAllConnections();
+    await this.downloadPromise.catch(() => {});
+  }
+
+  private async storeDownloadPromise(
+    downloadPromise: Promise<string[]>
+  ): Promise<void> {
+    this.downloadPromise = downloadPromise;
+    try {
+      const paths = await downloadPromise;
+      this.downloadedUpdatePath = paths.at(0);
+    } catch {
+      // Swallow error.
+    } finally {
+      this.downloadPromise = undefined;
+    }
   }
 
   /**
    * Removes the previously downloaded update if it exists.
-   * This prevents no longer valid updates from being applied.
+   * This prevents no longer valid updates from being applied on quit.
    */
-  private async clearStaleDownloadedUpdate(): Promise<void> {
-    if (!this.downloadedFilePath) {
+  private async clearDownloadedUpdateIfAny(): Promise<void> {
+    if (!this.downloadedUpdatePath) {
       return;
     }
     this.logger.info(
       'Changed managing cluster, clearing downloaded update at',
-      this.downloadedFilePath
+      this.downloadedUpdatePath
     );
     try {
-      await rm(this.downloadedFilePath);
+      await rm(this.downloadedUpdatePath);
+      this.downloadedUpdatePath = '';
     } catch (error) {
       this.logger.error('Failed to clear downloaded update', error);
     }
@@ -235,21 +308,17 @@ function registerEventHandlers(
       kind: 'update-not-available',
       autoUpdatesStatus: getAutoUpdatesStatus(),
     });
-  const onUpdateCancelled = (update: UpdateInfo) => {
-    emit({
-      kind: 'error',
-      error: new AbortError('Update download was canceled'),
-      update,
-      autoUpdatesStatus: getAutoUpdatesStatus() as AutoUpdatesEnabled,
-    });
-  };
   const onError = (error: Error) => {
+    if (error.message.includes('net::ERR_ABORTED')) {
+      error = new AbortError('Update download was canceled');
+    }
     const serializedError = {
       name: error.name,
       message: error.message,
       cause: error.cause,
       stack: error.stack,
     };
+
     emit({
       kind: 'error',
       error: serializedError,
@@ -274,7 +343,6 @@ function registerEventHandlers(
   autoUpdater.on('checking-for-update', onCheckingForUpdate);
   autoUpdater.on('update-available', onUpdateAvailable);
   autoUpdater.on('update-not-available', onUpdateNotAvailable);
-  autoUpdater.on('update-cancelled', onUpdateCancelled);
   autoUpdater.on('error', onError);
   autoUpdater.on('download-progress', onDownloadProgress);
   autoUpdater.on('update-downloaded', onUpdateDownloaded);
@@ -283,7 +351,6 @@ function registerEventHandlers(
     autoUpdater.off('checking-for-update', onCheckingForUpdate);
     autoUpdater.off('update-available', onUpdateAvailable);
     autoUpdater.off('update-not-available', onUpdateNotAvailable);
-    autoUpdater.off('update-cancelled', onUpdateCancelled);
     autoUpdater.off('error', onError);
     autoUpdater.off('download-progress', onDownloadProgress);
     autoUpdater.off('update-downloaded', onUpdateDownloaded);
