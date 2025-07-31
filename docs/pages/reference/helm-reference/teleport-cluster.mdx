@@ -8,7 +8,7 @@ labels:
 ---
 
 The `teleport-cluster` Helm chart deploys a Teleport cluster on Kubernetes.
-This includes deploying proxies, auth servers, and [kubernetes-access](../../enroll-resources/kubernetes-access/introduction.mdx).
+This includes deploying proxies, auth servers, and [kubernetes-access](../../zero-trust-access/enroll-resources/kubernetes-access/introduction.mdx).
 See the [Teleport HA Architecture page](../../admin-guides/deploy-a-cluster/high-availability.mdx)
 for more details.
 
@@ -20,7 +20,7 @@ The `teleport-cluster` chart runs three Teleport services, split into two sets o
 | Teleport service | Running in | Purpose | Documentation |
 | - | - | - | - |
 | `auth_service` | auth `Deployment` | Authenticates users and hosts, and issues certificates. | [Auth documentation](../architecture/authentication.mdx)
-| `kubernetes_service` | auth `Deployment` | Provides secure access to the Kubernetes<br/>cluster where the Teleport cluster is hosted. | [Enrolling Kubernetes clusters](../../enroll-resources/kubernetes-access/introduction.mdx) |
+| `kubernetes_service` | auth `Deployment` | Provides secure access to the Kubernetes<br/>cluster where the Teleport cluster is hosted. | [Enrolling Kubernetes clusters](../../zero-trust-access/enroll-resources/kubernetes-access/introduction.mdx) |
 | `proxy_service` | proxy `Deployment` | Runs the externally-facing parts of a Teleport<br/>cluster, such as the web UI, SSH proxy and reverse tunnel service. | [Proxy documentation](../architecture/proxy.mdx) |
 
 <Admonition type="tip" title="Additional Kubernetes Clusters and Teleport Services">

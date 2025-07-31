@@ -1349,6 +1349,61 @@
       "source": "/enroll-resources/agents/oracle/",
       "destination": "/zero-trust-access/enroll-resources/agents/oracle/",
       "permanent": true
+    },
+    {
+      "source": "/enroll-resources/kubernetes-access/controls/",
+      "destination": "/zero-trust-access/enroll-resources/kubernetes-access/controls/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/kubernetes-access/faq/",
+      "destination": "/zero-trust-access/enroll-resources/kubernetes-access/faq/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/kubernetes-access/getting-started/",
+      "destination": "/zero-trust-access/enroll-resources/kubernetes-access/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/kubernetes-access/introduction/",
+      "destination": "/zero-trust-access/enroll-resources/kubernetes-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/kubernetes-access/",
+      "destination": "/zero-trust-access/enroll-resources/kubernetes-access/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/kubernetes-access/manage-access/",
+      "destination": "/zero-trust-access/enroll-resources/kubernetes-access/manage-access/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/kubernetes-access/register-clusters/dynamic-registration/",
+      "destination": "/zero-trust-access/enroll-resources/kubernetes-access/register-clusters/dynamic-registration/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/kubernetes-access/register-clusters/iam-joining/",
+      "destination": "/zero-trust-access/enroll-resources/kubernetes-access/register-clusters/iam-joining/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/kubernetes-access/register-clusters/",
+      "destination": "/zero-trust-access/enroll-resources/kubernetes-access/register-clusters/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/kubernetes-access/register-clusters/static-kubeconfig/",
+      "destination": "/zero-trust-access/enroll-resources/kubernetes-access/register-clusters/static-kubeconfig/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/kubernetes-access/troubleshooting/",
+      "destination": "/zero-trust-access/enroll-resources/kubernetes-access/troubleshooting/",
+      "permanent": true
     }
   ]
 }
