@@ -102,13 +102,13 @@ Label              | `v3` Default   | `v4` and higher Default
 `db_labels`         | `[{"*": "*"}]` | `[]`
 
 Role `v6` introduced a new field `kubernetes_resources` that allows
-fine-grained control over Kubernetes resources. See [Kubernetes RBAC](../../enroll-resources/kubernetes-access/controls.mdx) for more details.
+fine-grained control over Kubernetes resources. See [Kubernetes RBAC](../../zero-trust-access/enroll-resources/kubernetes-access/controls.mdx) for more details.
 
 Role `v7` added support for more `kind` values in the `kubernetes_resources` field.
 
 Role `v8` added support for Kubernetes CRDs and introduced changes for how `kubernetes_resources` behave and are defined.
 
-See [Kubernetes Resources](../../enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources) for more details about the difference between versions.
+See [Kubernetes Resources](../../zero-trust-access/enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources) for more details about the difference between versions.
 
 #### Default values for `kubernetes_resources`
 
@@ -502,7 +502,7 @@ Labels for resources enrolled with Teleport:
 |`cluster_labels`|[Trusted Clusters](../../admin-guides/management/admin/trustedclusters.mdx)|
 |`db_labels`|[Databases](../../enroll-resources/database-access/rbac.mdx)|
 |`db_service_labels`|[Database Service](../../enroll-resources/database-access/database-access.mdx) instances|
-|`kubernetes_labels`|[Kubernetes clusters](../../enroll-resources/kubernetes-access/controls.mdx)|
+|`kubernetes_labels`|[Kubernetes clusters](../../zero-trust-access/enroll-resources/kubernetes-access/controls.mdx)|
 |`node_labels`|[SSH Servers](../../zero-trust-access/server-access/server-access.mdx)|
 |`windows_desktop_labels`|[Windows desktops](../../zero-trust-access/server-access/server-access.mdx)|
 |`workload_identity_labels`|[Workload Identities](../workload-identity/workload-identity-resource.mdx)|

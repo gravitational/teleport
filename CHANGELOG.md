@@ -539,7 +539,7 @@ resources than just pods, including custom resources, and verbs. Note that this
 feature requires role version `v7`.
 
 See Kubernetes resources documentation to see a full list of [supported
-resources](docs/pages/enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources).
+resources](docs/pages/zero-trust-access/enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources).
 
 #### ClickHouse support for database access
 
@@ -3620,7 +3620,7 @@ can limit access by changing the options on the new `event` resource.
 The minimum set of Kubernetes permissions that need to be granted to Teleport
 proxies has been updated. If you use the Kubernetes integration, please make
 sure that the ClusterRole used by the proxy has [sufficient
-permissions](./docs/pages/enroll-resources/kubernetes-access/controls.mdx).
+permissions](docs/pages/zero-trust-access/enroll-resources/kubernetes-access/controls.mdx).
 
 ##### Path prefix for etcd
 
