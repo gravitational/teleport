@@ -830,11 +830,6 @@
       "permanent": true
     },
     {
-      "source": "/reference/architecture/proxy-peering/",
-      "destination": "/admin-guides/management/operations/proxy-peering/",
-      "permanent": true
-    },
-    {
       "source": "/admin-guides/access-controls/compliance-frameworks/",
       "destination": "/zero-trust-access/compliance-frameworks/",
       "permanent": true
