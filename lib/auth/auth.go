@@ -5443,11 +5443,31 @@ func (a *Server) listRequestableRoles(ctx context.Context, req *proto.ListRolesR
 		userRoles = append(userRoles, userRole)
 	}
 
+	matchFunc, err := BuildRequestableRoleMatchFunc(userRoles, userTraits, userRoleNames, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out, nextKey, err := a.IterateRoles(ctx, req, matchFunc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.ListRolesResponse{
+		Roles:   out,
+		NextKey: nextKey,
+	}, nil
+}
+
+// BuildRequestableRoleMatchFunc builds the MatchFunc for listing requestable roles that only matches roles that the user can request.
+func BuildRequestableRoleMatchFunc(userRoles []types.Role, userTraits map[string][]string, userRoleNames []string, req *proto.ListRolesRequest) (func(role *types.RoleV6) (bool, error), error) {
 	// Build allow/deny matchers for role requests from the user's current roles
 	var allowMatchers, denyMatchers []parse.Matcher
+
+	var err error
 	for _, userRole := range userRoles {
 		allow := userRole.GetAccessRequestConditions(types.Allow)
-		if allow.Roles != nil || len(allow.ClaimsToRoles) > 0 {
+		if allow.Roles != nil {
 			allowMatchers, err = services.AppendRoleMatchers(allowMatchers, allow.Roles, allow.ClaimsToRoles, userTraits)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -5455,7 +5475,7 @@ func (a *Server) listRequestableRoles(ctx context.Context, req *proto.ListRolesR
 		}
 
 		deny := userRole.GetAccessRequestConditions(types.Deny)
-		if deny.Roles != nil || len(deny.ClaimsToRoles) > 0 {
+		if deny.Roles != nil {
 			denyMatchers, err = services.AppendRoleMatchers(denyMatchers, deny.Roles, deny.ClaimsToRoles, userTraits)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -5491,15 +5511,7 @@ func (a *Server) listRequestableRoles(ctx context.Context, req *proto.ListRolesR
 		return false, nil
 	}
 
-	out, nextKey, err := a.IterateRoles(ctx, req, matchFunc)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &proto.ListRolesResponse{
-		Roles:   out,
-		NextKey: nextKey,
-	}, nil
+	return matchFunc, nil
 }
 
 // ListAccessRequests is an access request getter with pagination and sorting options.

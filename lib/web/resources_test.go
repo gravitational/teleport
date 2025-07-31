@@ -917,6 +917,70 @@ func Test_newKubeListRequest(t *testing.T) {
 	}
 }
 
+// TestListRequestableRoles tests the /webapi/requestableroles endpoint
+func TestListRequestableRoles(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+
+	// Create a user role that can request another role
+	userRole, err := types.NewRole("user-role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins: []string{"user"},
+			Request: &types.AccessRequestConditions{
+				Roles: []string{"role-requestable"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create a requestable role
+	requestableRole, err := types.NewRole("role-requestable", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins: []string{"123"},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create a role that they can't request
+	nonRequestableRole, err := types.NewRole("admin-role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins: []string{"admin"},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create the roles in the backend
+	_, err = env.server.Auth().CreateRole(ctx, userRole)
+	require.NoError(t, err)
+	_, err = env.server.Auth().CreateRole(ctx, requestableRole)
+	require.NoError(t, err)
+	_, err = env.server.Auth().CreateRole(ctx, nonRequestableRole)
+	require.NoError(t, err)
+
+	pack := proxy.authPack(t, "test-user", []types.Role{userRole})
+
+	resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "requestableroles"), url.Values{})
+	require.NoError(t, err)
+
+	var response listResourcesWithoutCountGetResponse
+	err = json.Unmarshal(resp.Bytes(), &response)
+	require.NoError(t, err)
+
+	requestableRoles, ok := response.Items.([]interface{})
+	require.True(t, ok)
+	require.Len(t, requestableRoles, 1)
+
+	roleItem, ok := requestableRoles[0].(map[string]interface{})
+	require.True(t, ok)
+
+	roleName, ok := roleItem["name"].(string)
+	require.True(t, ok)
+	require.Equal(t, "role-requestable", roleName)
+
+	require.Equal(t, "", response.StartKey)
+}
+
 func makeGithubConnector(t *testing.T, name string) types.GithubConnector {
 	connector, err := types.NewGithubConnector(name, types.GithubConnectorSpecV3{
 		TeamsToRoles: []types.TeamRolesMapping{

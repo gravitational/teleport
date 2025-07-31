@@ -96,11 +96,7 @@ func (h *Handler) listRequestableRolesHandle(w http.ResponseWriter, r *http.Requ
 	}
 
 	values := r.URL.Query()
-	return listRequestableRoles(r.Context(), clt, values)
-}
 
-// listRequestableRoles returns a paginated list of roles that the user can request.
-func listRequestableRoles(ctx context.Context, clt resourcesAPIGetter, values url.Values) (*listResourcesWithoutCountGetResponse, error) {
 	limit, err := QueryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -116,15 +112,13 @@ func listRequestableRoles(ctx context.Context, clt resourcesAPIGetter, values ur
 		},
 	}
 
-	resp, err := clt.ListRoles(ctx, rolesReq)
+	resp, err := clt.ListRoles(r.Context(), rolesReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	uiRoles := ui.NewRequestableRoles(resp.Roles)
-
 	return &listResourcesWithoutCountGetResponse{
-		Items:    uiRoles,
+		Items:    ui.NewRequestableRoles(resp.Roles),
 		StartKey: resp.NextKey,
 	}, nil
 }

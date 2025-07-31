@@ -69,7 +69,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
 // ServerWithRoles is a wrapper around auth service
@@ -4495,12 +4494,7 @@ func (a *ServerWithRoles) listRequestableRoles(ctx context.Context, req *proto.L
 		req.Limit = apidefaults.DefaultChunkSize
 	}
 
-	user, err := authz.UserFromContext(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	userState, err := a.authServer.GetUserOrLoginState(ctx, user.GetIdentity().Username)
+	userState, err := a.authServer.GetUserOrLoginState(ctx, a.context.GetUserMetadata().User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4514,58 +4508,15 @@ func (a *ServerWithRoles) listRequestableRoles(ctx context.Context, req *proto.L
 		userRole, err := a.authServer.GetRole(ctx, userRoleName)
 		if err != nil {
 			// If this fails, we log a warning but don't fail the entire request
-			a.authServer.logger.WarnContext(ctx, "Failed to get user role while calculating requestable roles", "user", user.GetIdentity().Username, "error", err)
+			a.authServer.logger.WarnContext(ctx, "Failed to get user role while calculating requestable roles", "user", a.context.GetUserMetadata().User, "error", err)
 			continue
 		}
 		userRoles = append(userRoles, userRole)
 	}
 
-	// Build allow/deny matchers for role requests from the user's current roles
-	var allowMatchers, denyMatchers []parse.Matcher
-	for _, userRole := range userRoles {
-		allow := userRole.GetAccessRequestConditions(types.Allow)
-		if allow.Roles != nil || len(allow.ClaimsToRoles) > 0 {
-			allowMatchers, err = services.AppendRoleMatchers(allowMatchers, allow.Roles, allow.ClaimsToRoles, userTraits)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-
-		deny := userRole.GetAccessRequestConditions(types.Deny)
-		if deny.Roles != nil || len(deny.ClaimsToRoles) > 0 {
-			denyMatchers, err = services.AppendRoleMatchers(denyMatchers, deny.Roles, deny.ClaimsToRoles, userTraits)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-	}
-
-	matchFunc := func(role *types.RoleV6) (bool, error) {
-		roleName := role.GetName()
-
-		// Skip any roles the user already has.
-		if slices.Contains(userRoleNames, role.GetName()) {
-			return false, nil
-		}
-
-		// Apply any RoleFilters if defined.
-		if req.Filter != nil && !req.Filter.Match(role) {
-			return false, nil
-		}
-
-		// Check if the user can request this role.
-		for _, denyMatcher := range denyMatchers {
-			if denyMatcher.Match(roleName) {
-				return false, nil
-			}
-		}
-		for _, allowMatcher := range allowMatchers {
-			if allowMatcher.Match(roleName) {
-				return true, nil
-			}
-		}
-
-		return false, nil
+	matchFunc, err := BuildRequestableRoleMatchFunc(userRoles, userTraits, userRoleNames, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	out, nextKey, err := a.authServer.IterateRoles(ctx, req, matchFunc)
