@@ -171,7 +171,7 @@ func (query queryEvaluator) eval(r *REPL) (string, bool) {
 		return formatResult(result, nil), false
 	}
 
-	elapsed := time.Now().Sub(start)
+	elapsed := time.Since(start)
 	return formatResult(result, &elapsed), false
 }
 
