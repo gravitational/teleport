@@ -118,7 +118,7 @@ func (h *Handler) listRequestableRolesHandle(w http.ResponseWriter, r *http.Requ
 	}
 
 	return &listResourcesWithoutCountGetResponse{
-		Items:    ui.NewRequestableRoles(resp.Roles),
+		Items:    resp.RequestableRoles,
 		StartKey: resp.NextKey,
 	}, nil
 }

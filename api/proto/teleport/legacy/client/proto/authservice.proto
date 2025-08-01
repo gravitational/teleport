@@ -1151,6 +1151,9 @@ message ListRolesResponse {
 
   // NextKey will serve as the StartKey for the next page of roles.
   string NextKey = 2;
+
+  // RequestableRoles is a page of requestable roles. This will be populated if the request only requested requestable roles.
+  repeated types.RequestableRole RequestableRoles = 3;
 }
 
 // Request for CreateRole.

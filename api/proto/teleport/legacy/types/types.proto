@@ -3370,6 +3370,15 @@ message RoleSpecV6 {
   ];
 }
 
+// RequestableRole is a role that can be requested, this is a format which only contains the role name and description
+// for the purpose of being displayed to the user.
+message RequestableRole {
+  // Name is the name of the requestable role.
+  string Name = 1 [(gogoproto.jsontag) = "name"];
+  // Description is the description of the requestable role.
+  string Description = 2 [(gogoproto.jsontag) = "description,omitempty"];
+}
+
 // CreateHostUserMode determines whether host user creation should be
 // disabled or if host users should be cleaned up or kept after
 // sessions end.

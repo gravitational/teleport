@@ -87,20 +87,6 @@ type RequestableRole struct {
 	Description string `json:"description,omitempty"`
 }
 
-// NewRequestableRoles creates a list of ui.RequestableRole from a list of types.Role.
-func NewRequestableRoles(roles []*types.RoleV6) []RequestableRole {
-	items := make([]RequestableRole, 0, len(roles))
-	for _, role := range roles {
-		item := RequestableRole{
-			Name:        role.GetName(),
-			Description: role.GetMetadata().Description,
-		}
-		items = append(items, item)
-	}
-
-	return items
-}
-
 // NewGithubConnectors creates resource item for each github connector.
 func NewGithubConnectors(connectors []types.GithubConnector) ([]ResourceItem, error) {
 	items := make([]ResourceItem, 0, len(connectors))

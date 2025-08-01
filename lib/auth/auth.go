@@ -137,7 +137,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/utils/parse"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/lib/versioncontrol/github"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
@@ -5412,7 +5411,7 @@ func (a *Server) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*p
 	return a.Cache.ListRoles(ctx, req)
 }
 
-// listRequestableRoles handles the RequestableOnly filter for the Server.
+// listRequestableRoles handles the RequestableOnly filter when listing roles.
 func (a *Server) listRequestableRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
 	if req.Limit == 0 || req.Limit > apidefaults.DefaultChunkSize {
 		req.Limit = apidefaults.DefaultChunkSize
@@ -5423,27 +5422,12 @@ func (a *Server) listRequestableRoles(ctx context.Context, req *proto.ListRolesR
 		return nil, trace.Wrap(err)
 	}
 
-	userState, err := a.GetUserOrLoginState(ctx, user.GetIdentity().Username)
+	requestValidator, err := services.NewRequestValidator(ctx, a.clock, a.Services, user.GetIdentity().Username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	userRoleNames := userState.GetRoles()
-	userTraits := userState.GetTraits()
-
-	// Load the user's roles to build the allow/deny matchers.
-	var userRoles []types.Role
-	for _, userRoleName := range userRoleNames {
-		userRole, err := a.GetRole(ctx, userRoleName)
-		if err != nil {
-			// If this fails, we log a warning but don't fail the entire request
-			a.logger.WarnContext(ctx, "Failed to get user role while calculating requestable roles", "user", user.GetIdentity().Username, "error", err)
-			continue
-		}
-		userRoles = append(userRoles, userRole)
-	}
-
-	matchFunc, err := BuildRequestableRoleMatchFunc(userRoles, userTraits, userRoleNames, req)
+	matchFunc, err := BuildRequestableRoleMatchFunc(requestValidator, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5454,58 +5438,23 @@ func (a *Server) listRequestableRoles(ctx context.Context, req *proto.ListRolesR
 	}
 
 	return &proto.ListRolesResponse{
-		Roles:   out,
-		NextKey: nextKey,
+		RequestableRoles: RolesToRequestableRoles(out),
+		NextKey:          nextKey,
 	}, nil
 }
 
 // BuildRequestableRoleMatchFunc builds the MatchFunc for listing requestable roles that only matches roles that the user can request.
-func BuildRequestableRoleMatchFunc(userRoles []types.Role, userTraits map[string][]string, userRoleNames []string, req *proto.ListRolesRequest) (func(role *types.RoleV6) (bool, error), error) {
-	// Build allow/deny matchers for role requests from the user's current roles
-	var allowMatchers, denyMatchers []parse.Matcher
-
-	var err error
-	for _, userRole := range userRoles {
-		allow := userRole.GetAccessRequestConditions(types.Allow)
-		if allow.Roles != nil {
-			allowMatchers, err = services.AppendRoleMatchers(allowMatchers, allow.Roles, allow.ClaimsToRoles, userTraits)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-
-		deny := userRole.GetAccessRequestConditions(types.Deny)
-		if deny.Roles != nil {
-			denyMatchers, err = services.AppendRoleMatchers(denyMatchers, deny.Roles, deny.ClaimsToRoles, userTraits)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-	}
-
+func BuildRequestableRoleMatchFunc(requestValidator services.RequestValidator, req *proto.ListRolesRequest) (func(role *types.RoleV6) (bool, error), error) {
 	matchFunc := func(role *types.RoleV6) (bool, error) {
 		roleName := role.GetName()
-
-		// Skip any roles the user already has.
-		if slices.Contains(userRoleNames, role.GetName()) {
-			return false, nil
-		}
 
 		// Apply any RoleFilters if defined.
 		if req.Filter != nil && !req.Filter.Match(role) {
 			return false, nil
 		}
 
-		// Check if the user can request this role.
-		for _, denyMatcher := range denyMatchers {
-			if denyMatcher.Match(roleName) {
-				return false, nil
-			}
-		}
-		for _, allowMatcher := range allowMatchers {
-			if allowMatcher.Match(roleName) {
-				return true, nil
-			}
+		if requestValidator.CanRequestRole(roleName) {
+			return true, nil
 		}
 
 		return false, nil

@@ -108,8 +108,8 @@ func TestListRequestableRoles(t *testing.T) {
 
 		// Verify that all the requestable roles were returned.
 		var receivedRoles []string
-		for _, role := range resp.Roles {
-			receivedRoles = append(receivedRoles, role.GetName())
+		for _, role := range resp.RequestableRoles {
+			receivedRoles = append(receivedRoles, role.Name)
 		}
 		require.Empty(t, cmp.Diff(expectedRequestableRoles, receivedRoles))
 
@@ -145,24 +145,24 @@ func TestListRequestableRoles(t *testing.T) {
 
 		// Verify that the second page has the correct roles.
 		var receivedRoles []string
-		for _, role := range secondPageResp.Roles {
-			receivedRoles = append(receivedRoles, role.GetName())
+		for _, role := range secondPageResp.RequestableRoles {
+			receivedRoles = append(receivedRoles, role.Name)
 		}
 		require.Empty(t, cmp.Diff(expectedRequestableRoles[3:6], receivedRoles))
 
 		// Verify there is no overlap in roles between the pages.
 		firstPageRoleNames := make(map[string]bool)
-		for _, role := range firstPageResp.Roles {
-			firstPageRoleNames[role.GetName()] = true
+		for _, role := range firstPageResp.RequestableRoles {
+			firstPageRoleNames[role.Name] = true
 		}
-		for _, role := range secondPageResp.Roles {
-			require.False(t, firstPageRoleNames[role.GetName()])
+		for _, role := range secondPageResp.RequestableRoles {
+			require.False(t, firstPageRoleNames[role.Name])
 		}
 	})
 
 	t.Run("list all pages of requestable roles", func(t *testing.T) {
 		limit := int32(3)
-		var respRoles []*types.RoleV6
+		var respRoles []*types.RequestableRole
 		nextKey := ""
 
 		for {
@@ -177,7 +177,7 @@ func TestListRequestableRoles(t *testing.T) {
 			resp, err := a.ListRoles(userCtx, req)
 			require.NoError(t, err)
 
-			respRoles = append(respRoles, resp.Roles...)
+			respRoles = append(respRoles, resp.RequestableRoles...)
 
 			if resp.NextKey == "" {
 				break
@@ -185,7 +185,7 @@ func TestListRequestableRoles(t *testing.T) {
 
 			// Verify that we got the correct page size.
 			if resp.NextKey != "" {
-				require.Len(t, resp.Roles, int(limit))
+				require.Len(t, resp.RequestableRoles, int(limit))
 			}
 
 			nextKey = resp.NextKey
@@ -194,7 +194,7 @@ func TestListRequestableRoles(t *testing.T) {
 		// Verify that all the requestable roles were returned.
 		var receivedRoles []string
 		for _, role := range respRoles {
-			receivedRoles = append(receivedRoles, role.GetName())
+			receivedRoles = append(receivedRoles, role.Name)
 		}
 		require.Empty(t, cmp.Diff(expectedRequestableRoles, receivedRoles))
 	})
@@ -238,7 +238,7 @@ func TestListRequestableRoles(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify that nothing is returned.
-		require.Empty(t, resp.Roles)
+		require.Empty(t, resp.RequestableRoles)
 		require.Empty(t, resp.NextKey)
 	})
 
@@ -253,8 +253,8 @@ func TestListRequestableRoles(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify that only "role-99" was returned
-		require.Len(t, resp.Roles, 1)
-		require.Equal(t, resp.Roles[0].GetName(), "role-99")
+		require.Len(t, resp.RequestableRoles, 1)
+		require.Equal(t, resp.RequestableRoles[0].Name, "role-99")
 
 		// There shouldn't be a nextKey
 		require.Empty(t, resp.NextKey)

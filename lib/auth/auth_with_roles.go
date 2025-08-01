@@ -4494,25 +4494,12 @@ func (a *ServerWithRoles) listRequestableRoles(ctx context.Context, req *proto.L
 		req.Limit = apidefaults.DefaultChunkSize
 	}
 
-	userState, err := a.authServer.GetUserOrLoginState(ctx, a.context.GetUserMetadata().User)
+	requestValidator, err := services.NewRequestValidator(ctx, a.authServer.clock, a.authServer.Services, a.context.GetUserMetadata().User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	userRoleNames := userState.GetRoles()
-	userTraits := userState.GetTraits()
-
-	// Load the user's roles to build the allow/deny matchers.
-	var userRoles []types.Role
-	for _, userRoleName := range userRoleNames {
-		userRole, err := a.authServer.GetRole(ctx, userRoleName)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to get user role %q while calculating requestable roles", userRoleName)
-		}
-		userRoles = append(userRoles, userRole)
-	}
-
-	matchFunc, err := BuildRequestableRoleMatchFunc(userRoles, userTraits, userRoleNames, req)
+	matchFunc, err := BuildRequestableRoleMatchFunc(requestValidator, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4523,9 +4510,23 @@ func (a *ServerWithRoles) listRequestableRoles(ctx context.Context, req *proto.L
 	}
 
 	return &proto.ListRolesResponse{
-		Roles:   out,
-		NextKey: nextKey,
+		RequestableRoles: RolesToRequestableRoles(out),
+		NextKey:          nextKey,
 	}, nil
+}
+
+// NewRequestableRoles converts a list of roles to RequestableRoles, stripping all data except the name and description.
+func RolesToRequestableRoles(roles []*types.RoleV6) []*types.RequestableRole {
+	items := make([]*types.RequestableRole, 0, len(roles))
+	for _, role := range roles {
+		item := &types.RequestableRole{
+			Name:        role.GetName(),
+			Description: role.GetMetadata().Description,
+		}
+		items = append(items, item)
+	}
+
+	return items
 }
 
 func (a *ServerWithRoles) validateRole(role types.Role) error {
