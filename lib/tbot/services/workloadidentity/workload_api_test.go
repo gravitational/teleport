@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
@@ -49,9 +50,10 @@ import (
 func TestBotWorkloadIdentityAPI(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	log := logtest.NewLogger()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	t.Cleanup(cancel)
 
+	log := logtest.NewLogger()
 	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
 	setWorkloadIdentityX509CAOverride(ctx, t, process)
 	rootClient := testenv.MakeDefaultAuthClient(t, process)
@@ -152,8 +154,13 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 		wg.Wait()
 	})
 
-	// This has a little flexibility internally in terms of waiting for the
-	// socket to come up, so we don't need a manual sleep/retry here.
+	// Wait for the socket to be ready before trying to connect. The SPIFFE SDK
+	// and gRPC should handle this for us, but we've seen this test flake in CI.
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(listenAddr.String())
+		return err != nil
+	}, 5*time.Second, 100*time.Millisecond, "socket not ready within 5s")
+
 	client, err := workloadapi.New(ctx, workloadapi.WithAddr(listenAddr.String()))
 	require.NoError(t, err)
 
