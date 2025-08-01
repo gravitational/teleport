@@ -2260,6 +2260,7 @@ func (g *GRPCServer) ListRoles(ctx context.Context, req *authpb.ListRolesRequest
 	return rsp, nil
 }
 
+
 // CreateRole creates a new role.
 func (g *GRPCServer) CreateRole(ctx context.Context, req *authpb.CreateRoleRequest) (*types.RoleV6, error) {
 	auth, err := g.authenticate(ctx)

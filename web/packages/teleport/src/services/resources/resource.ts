@@ -32,6 +32,7 @@ import {
   GitServer,
   makeResource,
   makeResourceList,
+  RequestableRole,
   Resource,
   Role,
   RoleResource,
@@ -127,6 +128,13 @@ class ResourceService {
     startKey: string;
   }> {
     return await api.get(cfg.getRoleUrl({ action: 'list', params }), signal);
+  }
+
+  async fetchRequestableRoles(params?: UrlListRolesParams): Promise<{
+    items: RequestableRole[];
+    startKey: string;
+  }> {
+    return await api.get(cfg.getListRequestableRolesUrl(params));
   }
 
   fetchPresetRoles() {

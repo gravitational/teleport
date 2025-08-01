@@ -138,6 +138,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/lib/versioncontrol/github"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
@@ -5430,6 +5431,107 @@ Outer:
 	}
 
 	return filtered, nextKey, nil
+}
+
+// ListRoles is a paginated role getter that supports requestable filtering.
+func (a *Server) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+	// If RequestableOnly is set, use requestable roles logic
+	if req.Filter != nil && req.Filter.RequestableOnly {
+		return a.listRequestableRoles(ctx, req)
+	}
+
+	// Otherwise, delegate to the cache
+	return a.Cache.ListRoles(ctx, req)
+}
+
+// listRequestableRoles handles the RequestableOnly filter for the Server.
+func (a *Server) listRequestableRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+	if req.Limit == 0 || req.Limit > apidefaults.DefaultChunkSize {
+		req.Limit = apidefaults.DefaultChunkSize
+	}
+
+	user, err := authz.UserFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userState, err := a.GetUserOrLoginState(ctx, user.GetIdentity().Username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userRoleNames := userState.GetRoles()
+	userTraits := userState.GetTraits()
+
+	// Load the user's roles to build the allow/deny matchers.
+	var userRoles []types.Role
+	for _, userRoleName := range userRoleNames {
+		userRole, err := a.GetRole(ctx, userRoleName)
+		if err != nil {
+			// If this fails, we log a warning but don't fail the entire request
+			a.logger.WarnContext(ctx, "Failed to get user role while calculating requestable roles", "user", user.GetIdentity().Username, "error", err)
+			continue
+		}
+		userRoles = append(userRoles, userRole)
+	}
+
+	// Build allow/deny matchers for role requests from the user's current roles
+	var allowMatchers, denyMatchers []parse.Matcher
+	for _, userRole := range userRoles {
+		allow := userRole.GetAccessRequestConditions(types.Allow)
+		if allow.Roles != nil || len(allow.ClaimsToRoles) > 0 {
+			allowMatchers, err = services.AppendRoleMatchers(allowMatchers, allow.Roles, allow.ClaimsToRoles, userTraits)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		deny := userRole.GetAccessRequestConditions(types.Deny)
+		if deny.Roles != nil || len(deny.ClaimsToRoles) > 0 {
+			denyMatchers, err = services.AppendRoleMatchers(denyMatchers, deny.Roles, deny.ClaimsToRoles, userTraits)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+	}
+
+	matchFunc := func(role *types.RoleV6) (bool, error) {
+		roleName := role.GetName()
+
+		// Skip any roles the user already has.
+		if slices.Contains(userRoleNames, role.GetName()) {
+			return false, nil
+		}
+
+		// Apply any RoleFilters if defined.
+		if req.Filter != nil && !req.Filter.Match(role) {
+			return false, nil
+		}
+
+		// Check if the user can request this role.
+		for _, denyMatcher := range denyMatchers {
+			if denyMatcher.Match(roleName) {
+				return false, nil
+			}
+		}
+		for _, allowMatcher := range allowMatchers {
+			if allowMatcher.Match(roleName) {
+				return true, nil
+			}
+		}
+
+		return false, nil
+	}
+
+	out, nextKey, err := a.IterateRoles(ctx, req, matchFunc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.ListRolesResponse{
+		Roles:   out,
+		NextKey: nextKey,
+	}, nil
 }
 
 // ListAccessRequests is an access request getter with pagination and sorting options.

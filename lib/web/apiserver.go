@@ -974,6 +974,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/roles/:name", h.WithAuth(h.getRole))
 	h.PUT("/webapi/roles/:name", h.WithAuth(h.updateRoleHandle))
 	h.DELETE("/webapi/roles/:name", h.WithAuth(h.deleteRole))
+	h.GET("/webapi/requestableroles", h.WithAuth(h.listRequestableRolesHandle))
 	h.GET("/webapi/presetroles", h.WithUnauthenticatedHighLimiter(h.getPresetRoles))
 
 	h.GET("/webapi/github", h.WithAuth(h.getGithubConnectorsHandle))

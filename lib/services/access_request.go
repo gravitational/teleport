@@ -770,10 +770,10 @@ type RequestValidatorGetter interface {
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
-// appendRoleMatchers constructs all role matchers for a given
+// AppendRoleMatchers constructs all role matchers for a given
 // AccessRequestConditions instance and appends them to the
 // supplied matcher slice.
-func appendRoleMatchers(matchers []parse.Matcher, roles []string, cms []types.ClaimMapping, traits map[string][]string) ([]parse.Matcher, error) {
+func AppendRoleMatchers(matchers []parse.Matcher, roles []string, cms []types.ClaimMapping, traits map[string][]string) ([]parse.Matcher, error) {
 	// build matchers for the role list
 	for _, r := range roles {
 		m, err := parse.NewMatcher(r)
@@ -1012,12 +1012,12 @@ func (c *ReviewPermissionChecker) push(role types.Role) error {
 
 	var err error
 
-	c.Roles.DenyReview[deny.Where], err = appendRoleMatchers(c.Roles.DenyReview[deny.Where], deny.Roles, deny.ClaimsToRoles, c.UserState.GetTraits())
+	c.Roles.DenyReview[deny.Where], err = AppendRoleMatchers(c.Roles.DenyReview[deny.Where], deny.Roles, deny.ClaimsToRoles, c.UserState.GetTraits())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	c.Roles.AllowReview[allow.Where], err = appendRoleMatchers(c.Roles.AllowReview[allow.Where], allow.Roles, allow.ClaimsToRoles, c.UserState.GetTraits())
+	c.Roles.AllowReview[allow.Where], err = AppendRoleMatchers(c.Roles.AllowReview[allow.Where], allow.Roles, allow.ClaimsToRoles, c.UserState.GetTraits())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1664,7 +1664,7 @@ func (m *requestValidator) push(ctx context.Context, role types.Role) error {
 		m.kubernetesResource.deny = append(m.kubernetesResource.deny, deniedKubeResources...)
 	}
 
-	m.roles.denyRequest, err = appendRoleMatchers(m.roles.denyRequest, deny.Roles, deny.ClaimsToRoles, m.userState.GetTraits())
+	m.roles.denyRequest, err = AppendRoleMatchers(m.roles.denyRequest, deny.Roles, deny.ClaimsToRoles, m.userState.GetTraits())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1672,7 +1672,7 @@ func (m *requestValidator) push(ctx context.Context, role types.Role) error {
 	// record what will be the starting index of the allow and deny matchers for this role, if it applies any.
 	astart := len(m.roles.allowRequest)
 
-	m.roles.allowRequest, err = appendRoleMatchers(m.roles.allowRequest, allow.Roles, allow.ClaimsToRoles, m.userState.GetTraits())
+	m.roles.allowRequest, err = AppendRoleMatchers(m.roles.allowRequest, allow.Roles, allow.ClaimsToRoles, m.userState.GetTraits())
 	if err != nil {
 		return trace.Wrap(err)
 	}
