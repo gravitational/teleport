@@ -45,7 +45,7 @@ each container.
 
 Multiple users have reported that using `tbot` with Argo CD today is challenging
 (e.g. [#41469](https://github.com/gravitational/teleport/discussions/41459)) and
-given its promenance in the Kubernetes ecosystem, it's worthwhile having a more
+given its prominence in the Kubernetes ecosystem, it's worthwhile having a more
 seamless integration.
 
 ## Details
@@ -159,9 +159,9 @@ stringData:
     {
       "tlsClientConfig": {
         "insecure": false,
-        "caData": "Y2EgY2VydGlmaWNhdGUK...",
-        "certData": "dXNlciBjZXJ0aWZpY2F0ZQo...",
-        "keyData": "cHJpdmF0ZSBrZXkK...",
+        "caData": "<base64 encoded ca certificates>",
+        "certData": "<base64 encoded certificate>",
+        "keyData": "<base64 encoded private key>",
         "serverName": "kube-teleport-proxy-alpn.teleport.cluster.local"
       }
     }
