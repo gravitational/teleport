@@ -1,90 +1,23 @@
 ---
-title: Entra ID Integration
+title: Getting started with the Entra ID integration
 description: Describes how to set up the Teleport Entra ID integration in Teleport.
 labels:
  - how-to
  - identity-governance
 ---
 
-This guide shows how to configure Entra ID integration in Teleport.
 
-## How it works
+This guide shows how to configure Entra ID integration in a guided configuration set up. 
 
-The Entra ID integration enables the following features in Teleport:
-
-1. **Single Sign-On (SSO):** Configures Teleport authentication with Entra ID as an
-   identity provider.
-2. **User sync:** Periodic import of the Entra ID users as Teleport users.
-3. **Group sync:** Periodic import of the Entra ID groups as Teleport
-   Access Lists. 
-4. **Integration with Teleport Identity Security (Optional):** Lets you analyze user access 
-paths and policies from the Teleport Identity Security product. If enabled, Teleport imports 
-enterprise applications as well. 
-
-To configure SSO, Teleport uses an Entra ID enterprise application where 
-Teleport must be set up as an SAML service provider. 
-
-To import users and groups from the Entra ID, Teleport must be configured with 
-a credential to authenticate with the Microsoft Graph API. 
-
-### Choosing the Microsoft Graph API authentication method
-
-Teleport supports two types of authentication mechanisms to authenticate with the
-Microsoft Graph API: OIDC IdP and system credentials. 
-
-#### Teleport as an OIDC Provider for Entra ID 
-
-In this setup, Teleport is configured as an OpenID Connect (OIDC) identity provider 
-for the Entra ID enterprise application, which is created during the setup. 
-Teleport OIDC IdP then generates a short-lived credential for the Microsoft Graph API
-client configured for the Entra ID. Authorization is limited to the API permission 
-configured in the Entra ID enterprise application. 
-
-Direct bidirectional connectivity between Teleport and Entra ID is necessary for 
-the Entra ID to validate the OIDC tokens issued by Teleport.
-
-For a Teleport cloud cluster, OIDC IdP based authentication is the only supported
-authentication method. 
-
-#### System credentials
-
-Designed for air-gapped Teleport clusters that are not publicly accessible, this setup 
-accommodates environments where Entra ID cannot validate OIDC tokens issued by Teleport. 
-
-Instead, Teleport relies on API credentials available where Teleport 
-Auth Service is running.
-
-### Choosing guided or manual Entra ID configuration method
-
-In the guided Entra ID configuration process, Teleport generates a configuration 
-script, which configures your Entra ID tenant with the properties that are required
-for the Teleport Entra ID integration. 
-
-But if you want to have more control over the Entra ID configuration, a manual
-Entra ID configuration may be suitable for you. In this case, you update the Entra ID
-tenant with the properties that are required for Teleport Entra ID integration. 
-
-The Web UI only supports guided Entra ID configuration with Teleport as OIDC IdP 
-authentication method. `tctl` supports both the guided and manual Entra ID 
-configuration methods, for both Teleport as OIDC IdP and system credential based setup. 
-
-Both the guided and manual configuration is demonstrated in this guide. 
+Teleport will generate a script that will configure your Entra ID tenant with the 
+properties required for the Teleport Entra ID integration.
 
 ## Prerequisites
 
 - Teleport Identity Governance enabled for your Teleport cluster. Optionally, Identity Security should
 also be enabled if you choose to enable Identity Security integration.
 - Your user must have privileged administrator permissions in the Microsoft Entra ID tenant.
-- For the OIDC IdP setup, the Teleport cluster must be publicly accessible from the internet.
-
-
-## Guided Configuration
-
-Teleport will generate a script that will configure your Entra ID tenant with the 
-properties required for the Teleport Entra ID integration.
-
-Below, the configuration methods are categorized based on the authentication method
-you choose, i.e. OIDC IdP or system credential. 
+- Choose Microsoft Graph API [authentication method](entra-id.mdx#choosing-the-microsoft-graph-api-authentication-method). 
 
 ## Step 1/3: Generate configuration script
 <Tabs groupId="entra-guided">
@@ -99,7 +32,7 @@ integration name “entra-id” is already populated for you. You will need to s
 Teleport user(s) that will be assigned as the default owner of Access Lists that 
 are created for your Entra ID groups. 
 
-![Entra ID Integration](../../img/igs/entraid/entra-default-owners.png)
+![Entra ID Integration](../../../img/igs/entraid/entra-default-owners.png)
 
 In the next step, you will be provided with a Entra ID configuration script.
 
@@ -223,7 +156,7 @@ from where the `tctl` is invoked.
 Copy the Entra ID tenant ID and enterprise application client ID from the script output
 and enter it in the Web UI to finish the integration.
 
-![Entra ID Integration](../../img/igs/entraid/entra-finish.png)
+![Entra ID Integration](../../../img/igs/entraid/entra-finish.png)
 
 </TabItem>
 
@@ -244,99 +177,6 @@ and enter it in the `tctl` to finish the integration.
 
 The integration is now configured and the Teleport Entra ID service will start 
 importing resources from Entra ID to Teleport.
-
-## Manual configuration
-
-Manual configuration may be preferable if you wish to have more control on the 
-Entra ID configuration. Below, a manual Entra ID configuration is demonstrated,
-which as based on setting up the OIDC IdP based authentication method.  
-
-## Step 1/5. Create enterprise application
-
-In the Azure Portal, under “Azure services”, select “Enterprise applications”.
-Click on `+ New Application` button, then click `+ Create your own application` button.
-Enter a name for your application and create the application.
-
-![Entra ID Integration](../../img/igs/entraid/entra-create-enterprise-app.png)
-
-
-## Step 2/5. Configure SSO
-
-Open the newly created enterprise application.
-
-Under “Manage” menu select “Single sign-on”. In this configuration UI, you will need to set up Teleport
-as an SAML servicer provider.
-
-Click edit button to configure  “Basic SAML Configuration”.
-Enter the SAML assertion endpoint as Entity ID and ACS URL value.
-- **Entity ID and ACS URL:** SAML ACS endpoint of your Teleport cluster. 
-E.g. `https://<teleport cluster addr>/v1/webapi/saml/acs/entra-id`
-
-For “Attributes & Claims”, attributes with user will already be available for you but you will need to 
-add a `groups` claim. 
-
-![Entra ID Integration](../../img/igs/entraid/entra-sso-config.png)
-
-
-## Step 3/5. Configure OIDC IdP
-
-Under “App registrations” from Azure services menu, find and open your enterprise
-application created in step 1.
-
-Select “Manage > Certificates & secrets” and then select “Federated credentials“.
-Click `+ Add credential` button.
-
-Under “Add a credential” UI, configure credential with the following values:
-- **Federated credential scenario:** Other issuer
-
-Under “Connect your account”, configure the following values:
-- **Issuer:** <Var name="https://example.teleport.sh" />
-- **Type:** Explicit subject identifier
-- **Value:** teleport-azure
-
-Under “Credential details”, configure the following values:
-- **Name:** teleport-oidc
-- **Description:** Teleport OIDC Identity Provider
-
-![Entra ID Integration](../../img/igs/entraid/entra-setup-oidc.png)
-
-## Step 4/5. Configure API permissions
-
-Under the same App registration UI for your enterprise application, select “Manage > API permissions”.
-
-You can add a new graph permission by clicking on `+ Add a permission` button and then selecting 
-“Microsoft Graph > Application permissions”.
-
-The following permissions need to be added to the application. 
-- `Application.ReadWrite.OwnedBy`
-- `Group.Read.All`
-- `User.Read.All`
-
-![Entra ID Integration](../../img/igs/entraid/entra-api-permission.png)
-
-
-## Step 5/5. Install the Entra ID plugin
-
-Now run the `tctl plugins install entraid` command.
-
-```code
-$ tctl plugins install entraid \
-    --name entra-id-default \
-    --auth-connector-name entra-id \
-    --default-owner=<Var name="Access List Owner"/> \
-    –-manual-setup
-```
-
-The `--name` flag specifies the resource name of the Entra ID plugin. 
-The `--auth-connector-name` flag specifies the name of the auth connector this integration will create.
-The `--default-owner` flag specifies default owners for the Access Lists that will be created
-in Teleport based on the groups imported from the Entra ID.
-The `--manual-setup` flag specifies a manual Entra ID configuration is selected by the user.
-
-`tctl` will then prompt for Entra ID tenant ID and application ID of the enterprise 
-application created in step 1.
-
-Once you enter these values, Entra ID plugin will be installed with the OIDC IdP based authentication method.
 
 ## FAQ
 
@@ -378,6 +218,6 @@ is required by the Identity Security product to perform policy and access path a
 
 ## Next steps
 
-- Take a deeper look into setting up [Entra ID auth connector](../zero-trust-access/sso/azuread.mdx). 
-- Learn more about [Access List](access-lists/access-lists.mdx) management.
-- Learn how the [Identity Security integration with Entra ID](../identity-security/integrations/entra-id.mdx) works. 
+- Take a deeper look into setting up [Entra ID auth connector](../../zero-trust-access/sso/azuread.mdx). 
+- Learn more about [Access List](../access-lists/access-lists.mdx) management.
+- Learn how the [Identity Security integration with Entra ID](../../identity-security/integrations/entra-id.mdx) works. 
