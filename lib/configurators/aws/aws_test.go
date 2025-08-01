@@ -31,6 +31,7 @@ import (
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	"github.com/aws/smithy-go"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
@@ -1452,7 +1453,7 @@ func TestAWSPoliciesTarget(t *testing.T) {
 				identity:     assumedRoleIdentity,
 				getIAMClient: makeIAMClientGetter("", "", &iamMock{unauthorized: true}),
 			},
-			wantErrContains: "policies cannot be attached to an assumed-role",
+			wantErrContains: failedToResolveAssumeRoleARN(assumedRoleIdentity.GetName(), true),
 		},
 		"AssumedRoleIdentityWithRoleFromFlags": {
 			config: ConfiguratorConfig{
@@ -1558,7 +1559,7 @@ func TestAWSPoliciesTarget(t *testing.T) {
 				identity:     defaultIdentity,
 			},
 			assumeRole:      types.AssumeRole{RoleARN: assumedRoleIdentity.String()},
-			wantErrContains: failedToResolveAssumeRoleARN(assumedRoleIdentity.GetName()),
+			wantErrContains: failedToResolveAssumeRoleARN(assumedRoleIdentity.GetName(), true),
 		},
 	}
 
@@ -2126,7 +2127,7 @@ type iamMock struct {
 func (m *iamMock) GetRole(ctx context.Context, input *iam.GetRoleInput, optFns ...func(*iam.Options)) (*iam.GetRoleOutput, error) {
 
 	if m.unauthorized {
-		return nil, trace.AccessDenied("unauthorized")
+		return nil, &smithy.GenericAPIError{Code: "AccessDenied"}
 	}
 	roleName := aws.ToString(input.RoleName)
 	path := m.addPath
