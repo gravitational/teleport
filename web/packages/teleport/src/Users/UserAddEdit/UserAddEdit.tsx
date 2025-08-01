@@ -157,6 +157,10 @@ export function UserAddEdit({
       // We have to update the user list on the clientside for the change to be visible immediately
       // without needing to refresh.
       modifyFetchedData(p => {
+        // If the user is created from the UI, then it must be a local user. We set these fields here so that the user
+        // doesn't need to refresh for them to be set.
+        u.isLocal = true;
+        u.authType = 'teleport local user';
         return {
           ...p,
           agents: [u, ...p.agents],
@@ -177,6 +181,10 @@ export function UserAddEdit({
       const index = p.agents.findIndex(a => a.name === u.name);
       if (index >= 0) {
         const newUsers = [...p.agents];
+        // If the user is being edited, then it must be a local user. We set these fields here so that the user
+        // doesn't need to refresh for them to be set.
+        u.isLocal = true;
+        u.authType = 'teleport local user';
         newUsers[index] = u;
         return {
           ...p,
