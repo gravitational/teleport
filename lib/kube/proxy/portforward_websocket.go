@@ -271,6 +271,7 @@ func (h *websocketPortforwardHandler) forwardStreamPair(p *websocketChannelPair)
 	go func() {
 		defer wg.Done()
 		// Use a unidirectional copy from Kube API to client.
+		_ = targetErrorStream.Close()
 		// Enables error propagation from Kube API server to kubectl client.
 		if _, err := io.Copy(p.errorStream, targetErrorStream); err != nil {
 			h.logger.DebugContext(h.context, "Unable to proxy portforward error-stream", "error", err)
