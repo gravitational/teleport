@@ -6,3 +6,8 @@ description: A Helm chart for the Teleport Email Plugin
 type: application
 version: *version
 appVersion: *version
+
+dependencies:
+  - name: tbot
+    version: *version
+    condition: tbot.enabled
