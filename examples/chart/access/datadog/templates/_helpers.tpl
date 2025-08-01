@@ -61,6 +61,9 @@ Create the name of the service account to use
 {{- end }}
 {{- end }}
 
+{{/*
+Use tbot-managed identity secret if tbot is enabled
+*/}}
 {{- define "datadog.identitySecretName" -}}
 {{- if .Values.teleport.identitySecretName -}}
 {{- .Values.teleport.identitySecretName -}}
