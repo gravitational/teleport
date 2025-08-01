@@ -28,6 +28,7 @@ To complete the steps in this guide, verify your environment meets the following
   encrypted LDAP connection, you should verify that your domain uses Active Directory
   Certificate Services or a non-Microsoft certification authority (CA) to issue LDAPS
   certificates.
+- Each Domain Controler must have a valid certificate with Smart Card Logon EKU included
 - Administrative access to a domain controller.
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -640,7 +641,7 @@ To configure Teleport to protect access to Windows desktops:
    windows_desktop_service:
       enabled: true
       ldap:
-         locate_server: 
+         locate_server:
             enabled: true
             site: "my-site" # optional
          domain: example.com

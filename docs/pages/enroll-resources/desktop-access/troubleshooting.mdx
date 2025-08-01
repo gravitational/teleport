@@ -140,36 +140,70 @@ above points to `msclmd.dll` after completing the uninstall.
 You connect to a Windows host and get the error message: **"Signing in with a smart card
 isn't supported for your account."** or similar.
 
-**Solution:** Review the Security-Kerberos Log on the Windows host for causes.
+**Solution:** Review the *Security-Kerberos* Log on the Windows host for causes.
 
-The Security-Kerberos Windows Event Log provides information on smart card-based
+The *Security-Kerberos* Windows Event Log provides information on smart card-based
 authentication attempts. This Event Log is not enabled by default.
 Open the Windows Event Log and navigate to Event Viewer, Application and Services Logs,
 Microsoft, Windows, Security-Kerberos, Operational. Enable this Event Log and attempt
 to connect with Teleport Web UI to review log entries.
 
-#### Error : The Kerberos Key Distribution Center (KDC) for the domain <Your Domain> does not have a certificate installed or does not support logon using certificates: 0xC0000320
+#### The Kerberos Key Distribution Center (KDC) for the domain "Your Domain" does not have a certificate installed or does not support logon using certificates: 0xC0000320
 
-You see this error in your Security-Kerberos Windows Event log on the client you're trying to connect to.
+You see this error in your *Security-Kerberos* Windows Event log on the client you're trying to connect to.
 
-**Solution:** Review the Kerberos-Key-Distribution-Center Logs on each of your **Domain Controler** for causes.
+**Solution:** Review the Kerberos-Key-Distribution-Center Logs on each of your **Domain controller** for causes.
 
-The Kerberos-Key-Distribution-Center Windows Event Log provides information on KDC configuration that's required for Smartcard Authentication. This Event Log might not be enabled by default.
+The *Kerberos-Key-Distribution-Center* Windows Event Log provides information on KDC configuration that's required for Smartcard Authentication. This Event Log might not be enabled by default.
 Open the Windows Event Log and navigate to Event Viewer, Application and Services Logs,
-Microsoft, Windows, Kerberos-Key-Distribution-Center, Operational. Enable this Event Log, restart the "Kerberos Key Distribution Center" service and review the logs 
+Microsoft, Windows, Kerberos-Key-Distribution-Center, Operational. Enable this Event Log, restart the *Kerberos Key Distribution Center* service and review the logs
 
-You should see a log that looks like : 
+You should see a log that looks like :
 ```
 The Key Distribution Center (KDC) uses the below KDC certificate for smart card or certificate authentication.
 
 Kdc Certificate Information:
   Issuer Name: <Your PKI>
-  Serial Number: XX0000000XXXXXXXXXXXXXX000000000000
-  Thumbprint: X00XX0990YYY9Y9Y22YYY123456789987654321
-  Template: <Template used to generate your DC Certificate>
+  Serial Number: XXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  Thumbprint: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  Template: Kerberos Authentication
 ```
 
-If The Template 
+If the template name you see is *Domain Controller* this template does not include the EKU for Smart Card by default.
+
+You can check in the local computer Personnal certificat store if the certificate has the "Smart Card Logon" listed in the intended purpose column. If it's not the case:
+- Request a new certificat for your domain controller using the default "Kerberos Autentication" Template or any custom template allowing for Smart Card Logon
+- Remove the old certificate
+- Restart the *Kerberos Key Distribution Center* Windows service
+- Repeat the operation for every Domain controller
+
+![Certificate Manager view](../../../img/desktop-access/certificate-configuration.png)
+
+#### The Key Distribution Center (KDC) cannot find a suitable certificate to use. This KDC is not enabled for smart card or certificate authentication.
+
+You see this error in your *Kerberos-Key-Distribution-Center* Windows Event log on the domain controller
+
+**Solution:** Review the Each certificate in the certification chain and ensure that all certificates are valid and that the Certificate Revocation List (CRL) URLs for each certificate are not expired and available.
+
+If the *Kerberos-Key-Distribution-Center* logs doesn't list a certificate for authentication, Smart Card authentifcation will not work.
+To check if your certificates are not expired and CRL working you can use the following command
+``` powershell
+certutil -f -verify -URLfetch base64_exported_DomainControler_certificate.cer
+```
+Review the output with attention.
+
+For checking CRL you can also use certutil GUI. Simply run the command below and click on the "Retrive". Below is an example of an expired revocation list that needs to be addressed
+
+![Certutil GUI](../../../img/desktop-access/certutilgui.png)
+
+Note that you can click on the items listed to open them for review.
+
+
+Another tool you can use for checking if everything is in order is *pkiview.msc*.
+
+pkiview.msc is included with the feature "Active Directory Certificate Services Tools" under the "Remote Server Administration Tools => Role Administration Tools" in the feature installation wizard
+
+pkiview.msc can be installed on any Domain Joined machine and lets you see the health and informations for the Ntauthstore, CDP containers and more. [Review this Microsoft article to learn more on how to use it](https://techcommunity.microsoft.com/blog/coreinfrastructureandsecurityblog/quick-check-on-adcs-health-using-enterprise-pki-tool-pkiview/1128638)
 
 ### Smart card certificate not trusted
 
