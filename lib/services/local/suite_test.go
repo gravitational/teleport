@@ -1,22 +1,20 @@
-/*
- * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package suite
+package local
 
 import (
 	"context"
@@ -55,140 +53,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// NewTestCA returns new test authority with a test key as a public and
-// signing key
-func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte) *types.CertAuthorityV2 {
-	return NewTestCAWithConfig(TestCAConfig{
-		Type:        caType,
-		ClusterName: clusterName,
-		PrivateKeys: privateKeys,
-		Clock:       clockwork.NewRealClock(),
-	})
-}
-
-// TestCAConfig defines the configuration for generating
-// a test certificate authority
-type TestCAConfig struct {
-	Type        types.CertAuthType
-	PrivateKeys [][]byte
-	Clock       clockwork.Clock
-	ClusterName string
-	// the below string fields default to ClusterName if left empty
-	ResourceName        string
-	SubjectOrganization string
-}
-
-// NewTestCAWithConfig generates a new certificate authority with the specified
-// configuration
-// Keep this function in-sync with lib/auth/auth.go:newKeySet().
-// TODO(jakule): reuse keystore.KeyStore interface to match newKeySet().
-func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
-	var keyPEM []byte
-	var key *keys.PrivateKey
-
-	if config.ResourceName == "" {
-		config.ResourceName = config.ClusterName
-	}
-	if config.SubjectOrganization == "" {
-		config.SubjectOrganization = config.ClusterName
-	}
-
-	switch config.Type {
-	case types.DatabaseCA, types.SAMLIDPCA, types.OIDCIdPCA:
-		// These CAs only support RSA.
-		keyPEM = fixtures.PEMBytes["rsa"]
-	case types.DatabaseClientCA:
-		// The db client CA also only supports RSA, but some tests rely on it
-		// being different than the DB CA.
-		keyPEM = fixtures.PEMBytes["rsa-db-client"]
-	}
-	if len(config.PrivateKeys) > 0 {
-		// Allow test to override the private key.
-		keyPEM = config.PrivateKeys[0]
-	}
-
-	if keyPEM != nil {
-		var err error
-		key, err = keys.ParsePrivateKey(keyPEM)
-		if err != nil {
-			panic(err)
-		}
-	} else {
-		// If config.PrivateKeys was not set and this CA does not exclusively
-		// support RSA, generate an ECDSA key. Signatures are ~10x faster than
-		// RSA and generating a new key is actually faster than parsing a PEM
-		// fixture.
-		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-		if err != nil {
-			panic(err)
-		}
-		key, err = keys.NewPrivateKey(signer)
-		if err != nil {
-			panic(err)
-		}
-		keyPEM = key.PrivateKeyPEM()
-	}
-
-	ca := &types.CertAuthorityV2{
-		Kind:    types.KindCertAuthority,
-		SubKind: string(config.Type),
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name:      config.ResourceName,
-			Namespace: apidefaults.Namespace,
-		},
-		Spec: types.CertAuthoritySpecV2{
-			Type:        config.Type,
-			ClusterName: config.ClusterName,
-		},
-	}
-
-	// Add SSH keys if necessary.
-	switch config.Type {
-	case types.UserCA, types.HostCA, types.OpenSSHCA:
-		ca.Spec.ActiveKeys.SSH = []*types.SSHKeyPair{{
-			PrivateKey: keyPEM,
-			PublicKey:  key.MarshalSSHPublicKey(),
-		}}
-	}
-
-	// Add TLS keys if necessary.
-	switch config.Type {
-	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
-		cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
-			Signer: key.Signer,
-			Entity: pkix.Name{
-				CommonName:   config.ClusterName,
-				Organization: []string{config.SubjectOrganization},
-			},
-			TTL:   defaults.CATTL,
-			Clock: config.Clock,
-		})
-		if err != nil {
-			panic(err)
-		}
-		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{
-			Key:  keyPEM,
-			Cert: cert,
-		}}
-	}
-
-	// Add JWT keys if necessary.
-	switch config.Type {
-	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA, types.BoundKeypairCA:
-		pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
-		if err != nil {
-			panic(err)
-		}
-		ca.Spec.ActiveKeys.JWT = []*types.JWTKeyPair{{
-			PrivateKey: keyPEM,
-			PublicKey:  pubKeyPEM,
-		}}
-	}
-
-	return ca
-}
-
 // ServicesTestSuite is an acceptance test suite
 // for services. It is used for local implementations and implementations
 // using gRPC to guarantee consistency between local and remote services
@@ -208,7 +72,7 @@ type ServicesTestSuite struct {
 	EventsS       types.Events
 	UsersS        services.UsersService
 	RestrictionsS services.Restrictions
-	ChangesC      chan interface{}
+	ChangesC      chan any
 	Clock         *clockwork.FakeClock
 }
 
@@ -1446,7 +1310,7 @@ func (s *ServicesTestSuite) SemaphoreFlakiness(t *testing.T) {
 	lock, err := services.AcquireSemaphoreLock(cancelCtx, cfg)
 	require.NoError(t, err)
 
-	for i := 0; i < renewals; i++ {
+	for range renewals {
 		select {
 		case <-lock.Renewed():
 			continue
@@ -1469,7 +1333,7 @@ func (s *ServicesTestSuite) SemaphoreContention(t *testing.T) {
 	ctx := context.Background()
 	const locks int64 = 50
 	const iters = 5
-	for i := 0; i < iters; i++ {
+	for i := range iters {
 		cfg := services.SemaphoreLockConfig{
 			Service: s.PresenceS,
 			Expiry:  time.Hour,
@@ -1484,13 +1348,13 @@ func (s *ServicesTestSuite) SemaphoreContention(t *testing.T) {
 		// background keepalive activity.
 		cancelCtx, cancel := context.WithCancel(ctx)
 		acquireErrs := make(chan error, locks)
-		for i := int64(0); i < locks; i++ {
+		for range locks {
 			go func() {
 				_, err := services.AcquireSemaphoreLock(cancelCtx, cfg)
 				acquireErrs <- err
 			}()
 		}
-		for i := int64(0); i < locks; i++ {
+		for range locks {
 			require.NoError(t, <-acquireErrs)
 		}
 		cancel()
@@ -1524,7 +1388,7 @@ func (s *ServicesTestSuite) SemaphoreConcurrency(t *testing.T) {
 	var success int64
 	var failure int64
 	var wg sync.WaitGroup
-	for i := int64(0); i < attempts; i++ {
+	for range attempts {
 		wg.Add(1)
 		go func() {
 			_, err := services.AcquireSemaphoreLock(cancelCtx, cfg)
@@ -1577,7 +1441,7 @@ func (s *ServicesTestSuite) SemaphoreLock(t *testing.T) {
 
 	timeout := time.After(time.Second)
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		select {
 		case <-lock.Done():
 			t.Fatalf("Unexpected lock failure: %v", lock.Wait())
@@ -2156,4 +2020,138 @@ waitLoop:
 			break waitLoop
 		}
 	}
+}
+
+// NewTestCA returns new test authority with a test key as a public and
+// signing key
+func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte) *types.CertAuthorityV2 {
+	return NewTestCAWithConfig(TestCAConfig{
+		Type:        caType,
+		ClusterName: clusterName,
+		PrivateKeys: privateKeys,
+		Clock:       clockwork.NewRealClock(),
+	})
+}
+
+// TestCAConfig defines the configuration for generating
+// a test certificate authority
+type TestCAConfig struct {
+	Type        types.CertAuthType
+	PrivateKeys [][]byte
+	Clock       clockwork.Clock
+	ClusterName string
+	// the below string fields default to ClusterName if left empty
+	ResourceName        string
+	SubjectOrganization string
+}
+
+// NewTestCAWithConfig generates a new certificate authority with the specified
+// configuration
+// Keep this function in-sync with lib/auth/auth.go:newKeySet().
+// TODO(jakule): reuse keystore.KeyStore interface to match newKeySet().
+func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
+	var keyPEM []byte
+	var key *keys.PrivateKey
+
+	if config.ResourceName == "" {
+		config.ResourceName = config.ClusterName
+	}
+	if config.SubjectOrganization == "" {
+		config.SubjectOrganization = config.ClusterName
+	}
+
+	switch config.Type {
+	case types.DatabaseCA, types.SAMLIDPCA, types.OIDCIdPCA:
+		// These CAs only support RSA.
+		keyPEM = fixtures.PEMBytes["rsa"]
+	case types.DatabaseClientCA:
+		// The db client CA also only supports RSA, but some tests rely on it
+		// being different than the DB CA.
+		keyPEM = fixtures.PEMBytes["rsa-db-client"]
+	}
+	if len(config.PrivateKeys) > 0 {
+		// Allow test to override the private key.
+		keyPEM = config.PrivateKeys[0]
+	}
+
+	if keyPEM != nil {
+		var err error
+		key, err = keys.ParsePrivateKey(keyPEM)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		// If config.PrivateKeys was not set and this CA does not exclusively
+		// support RSA, generate an ECDSA key. Signatures are ~10x faster than
+		// RSA and generating a new key is actually faster than parsing a PEM
+		// fixture.
+		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		if err != nil {
+			panic(err)
+		}
+		key, err = keys.NewPrivateKey(signer)
+		if err != nil {
+			panic(err)
+		}
+		keyPEM = key.PrivateKeyPEM()
+	}
+
+	ca := &types.CertAuthorityV2{
+		Kind:    types.KindCertAuthority,
+		SubKind: string(config.Type),
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      config.ResourceName,
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.CertAuthoritySpecV2{
+			Type:        config.Type,
+			ClusterName: config.ClusterName,
+		},
+	}
+
+	// Add SSH keys if necessary.
+	switch config.Type {
+	case types.UserCA, types.HostCA, types.OpenSSHCA:
+		ca.Spec.ActiveKeys.SSH = []*types.SSHKeyPair{{
+			PrivateKey: keyPEM,
+			PublicKey:  key.MarshalSSHPublicKey(),
+		}}
+	}
+
+	// Add TLS keys if necessary.
+	switch config.Type {
+	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
+		cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+			Signer: key.Signer,
+			Entity: pkix.Name{
+				CommonName:   config.ClusterName,
+				Organization: []string{config.SubjectOrganization},
+			},
+			TTL:   defaults.CATTL,
+			Clock: config.Clock,
+		})
+		if err != nil {
+			panic(err)
+		}
+		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{
+			Key:  keyPEM,
+			Cert: cert,
+		}}
+	}
+
+	// Add JWT keys if necessary.
+	switch config.Type {
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA, types.BoundKeypairCA:
+		pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
+		if err != nil {
+			panic(err)
+		}
+		ca.Spec.ActiveKeys.JWT = []*types.JWTKeyPair{{
+			PrivateKey: keyPEM,
+			PublicKey:  pubKeyPEM,
+		}}
+	}
+
+	return ca
 }
