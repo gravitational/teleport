@@ -80,4 +80,6 @@ identity
 {{- end -}}
 {{- end -}}
 
+{{- define "event-handler.teleportAddress" -}}
+
 {{- end -}}
