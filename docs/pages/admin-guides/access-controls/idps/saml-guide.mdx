@@ -34,15 +34,10 @@ of the service provider.
 
 Below we'll show both of the configuration options.
 
-First, in the Web UI, under **Access Management**, click **Enroll New Resource** menu.
-In the search box, enter "saml", which will show the SAML application
-integration tile. Click the tile.
+First, in the Web UI, under **Zero Trust Access**, click **Auth Connectors** in the menu.
+Choose the appropriate SAML application integration tile. Click the tile and follow the resulting steps.
 
-![Enroll SAML app](../../../../img/access-controls/saml-idp/enroll-saml-app.png)
-
-The first configuration step, **Configure Service Provider with Teleport's Identity Provider Metadata**
-shows Teleport SAML IdP metadata values. For this guide, you can move to next step by clicking **Next** button
-which takes to **Add Service Provider To Teleport** step.
+![Enroll SAML app](../../../../img/access-controls/saml-idp/saml-idp.png)
 
 ### Option 1: Configure with Entity ID and ACS URL
 
@@ -177,7 +172,7 @@ already available to access under resources page.
 
 ## Step 3/3. Verify access to iamshowcase protected page
 
-To verify everything works, navigate to **Resources** page in Teleport Web UI.
+To verify everything works, navigate to **Resources** page in Teleport Web UI and look for the app.
 
 ![Access app](../../../../img/access-controls/saml-idp/access-app.png)
 
