@@ -16,6 +16,8 @@ The configuration for the Relay service is described as follows:
 ```yaml
 version: v3
 teleport:
+  # the join method should be valid for joining as a Relay, creating such a token
+  # currently requires using the `tctl` tool from the same prerelease version
   join_params:
   # ...
   proxy_server: teleport.example.com:443
@@ -60,6 +62,12 @@ relay_service:
 <Admonition type="warning">
 
 The current version of the Relay service requires agents to make use of a single Relay tunnel address behind a load balancer. Direct connections from agents to individual Relay instances is planned as an optional mode of operation in future versions.
+
+</Admonition>
+
+<Admonition type="warning">
+
+The intended way to deploy the Relay service is through some container orchestrator that can launch new replicas and terminate old ones as necessary, to maintain high availability and uptime even during upgrades or configuration changes. As such, the Relay service is not designed to support in-place restarts or reusing the same host ID, manual installations in "stateful" virtual machines are discouraged, and the `teleport-relay` chart runs the Relay instances as a Kubernetes deployment and does not maintain any state (unlike the `teleport-kube-agent` chart), so the use of a secretless join method (`iam` through EKS Pod Identity, for example) is strongly recommended.
 
 </Admonition>
 
@@ -125,9 +133,3 @@ terminationGracePeriodSeconds: 300
 ```
 
 Other options are described in [the chart's default `values.yaml`](https://github.com/gravitational/teleport/blob/v18.1.2-dev.relay.2/examples/chart/teleport-relay/values.yaml); options such as `serviceSpec` and `serviceAnnotations` can be quite useful to configure the properties of the load balancer, for example.
-
-<Admonition type="warning">
-
-The Relay service does not support in-place restarts or reusing the same host ID and the `teleport-relay` chart runs as a deployment and does not maintain any state (unlike the `teleport-kube-agent` chart), so the use of a secretless join method (`iam` through EKS Pod Identity, for example) is strongly recommended.
-
-</Admonition>
