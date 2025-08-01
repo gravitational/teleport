@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/database"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
+	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 	workloadidentitysvc "github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -217,16 +218,16 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, database.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
 		case *config.ExampleService:
 			services = append(services, bot.LiteralService(&ExampleService{cfg: svcCfg}))
-		case *config.SSHMultiplexerService:
-			services = append(services, SSHMultiplexerServiceBuilder(b.cfg, svcCfg, alpnUpgradeCache))
+		case *ssh.MultiplexerConfig:
+			services = append(services, ssh.MultiplexerServiceBuilder(svcCfg, alpnUpgradeCache, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, clientMetrics))
 		case *k8s.OutputV1Config:
 			services = append(services, k8s.OutputV1ServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *k8s.OutputV2Config:
 			services = append(services, k8s.OutputV2ServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *legacyspiffe.SVIDOutputConfig:
 			services = append(services, legacyspiffe.SVIDOutputServiceBuilder(svcCfg, setupTrustBundleCache(), b.cfg.CredentialLifetime))
-		case *config.SSHHostOutput:
-			services = append(services, SSHHostOutputServiceBuilder(b.cfg, svcCfg))
+		case *ssh.HostOutputConfig:
+			services = append(services, ssh.HostOutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *application.OutputConfig:
 			services = append(services, application.OutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *database.OutputConfig:

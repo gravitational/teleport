@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package ssh
 
 import (
 	"context"
@@ -26,10 +26,11 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
-const SSHHostOutputType = "ssh_host"
+const HostOutputServiceType = "ssh_host"
 
 const (
 	// SSHHostCertPath is the default filename prefix for the SSH host
@@ -43,14 +44,9 @@ const (
 	SSHHostUserCASuffix = "-user-ca.pub"
 )
 
-var (
-	_ ServiceConfig = &SSHHostOutput{}
-	_ Initable      = &SSHHostOutput{}
-)
-
-// SSHHostOutput generates a host certificate signed by the Teleport CA. This
+// HostOutputConfig generates a host certificate signed by the Teleport CA. This
 // can be used to allow OpenSSH server to be trusted by Teleport SSH clients.
-type SSHHostOutput struct {
+type HostOutputConfig struct {
 	// Name of the service for logs and the /readyz endpoint.
 	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
@@ -68,21 +64,24 @@ type SSHHostOutput struct {
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
-func (o *SSHHostOutput) GetName() string {
+func (o *HostOutputConfig) GetName() string {
 	return o.Name
 }
 
-func (o *SSHHostOutput) Init(ctx context.Context) error {
+func (o *HostOutputConfig) Init(ctx context.Context) error {
 	return trace.Wrap(o.Destination.Init(ctx, []string{}))
 }
 
-func (o *SSHHostOutput) GetDestination() destination.Destination {
+func (o *HostOutputConfig) GetDestination() destination.Destination {
 	return o.Destination
 }
 
-func (o *SSHHostOutput) CheckAndSetDefaults() error {
-	if err := validateOutputDestination(o.Destination); err != nil {
-		return trace.Wrap(err)
+func (o *HostOutputConfig) CheckAndSetDefaults() error {
+	if o.Destination == nil {
+		return trace.BadParameter("no destination configured for output")
+	}
+	if err := o.Destination.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating destination")
 	}
 	if len(o.Principals) == 0 {
 		return trace.BadParameter("at least one principal must be specified")
@@ -91,7 +90,7 @@ func (o *SSHHostOutput) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (o *SSHHostOutput) Describe() []bot.FileDescription {
+func (o *HostOutputConfig) Describe() []bot.FileDescription {
 	return []bot.FileDescription{
 		{
 			Name: SSHHostCertPath,
@@ -105,18 +104,22 @@ func (o *SSHHostOutput) Describe() []bot.FileDescription {
 	}
 }
 
-func (o *SSHHostOutput) MarshalYAML() (any, error) {
-	type raw SSHHostOutput
-	return encoding.WithTypeHeader((*raw)(o), SSHHostOutputType)
+func (o *HostOutputConfig) MarshalYAML() (any, error) {
+	type raw HostOutputConfig
+	return encoding.WithTypeHeader((*raw)(o), HostOutputServiceType)
 }
 
-func (o *SSHHostOutput) UnmarshalYAML(node *yaml.Node) error {
-	dest, err := extractOutputDestination(node)
+func (o *HostOutputConfig) UnmarshalYAML(*yaml.Node) error {
+	return trace.NotImplemented("unmarshaling %T with UnmarshalYAML is not supported, use UnmarshalConfig instead", o)
+}
+
+func (o *HostOutputConfig) UnmarshalConfig(ctx bot.UnmarshalConfigContext, node *yaml.Node) error {
+	dest, err := internal.ExtractOutputDestination(ctx, node)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Alias type to remove UnmarshalYAML to avoid recursion
-	type raw SSHHostOutput
+	// Alias type to remove UnmarshalYAML to avoid getting our "not implemented" error
+	type raw HostOutputConfig
 	if err := node.Decode((*raw)(o)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -124,10 +127,10 @@ func (o *SSHHostOutput) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (o *SSHHostOutput) Type() string {
-	return SSHHostOutputType
+func (o *HostOutputConfig) Type() string {
+	return HostOutputServiceType
 }
 
-func (o *SSHHostOutput) GetCredentialLifetime() bot.CredentialLifetime {
+func (o *HostOutputConfig) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }
