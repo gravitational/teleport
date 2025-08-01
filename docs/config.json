@@ -827,7 +827,7 @@
     },
     {
       "source": "/reference/architecture/proxy-peering/",
-      "destination": "/admin-guides/management/operations/proxy-peering/",
+      "destination": "/zero-trust-access/management/operations/proxy-peering/",
       "permanent": true
     },
     {
@@ -1353,6 +1353,146 @@
     {
       "source": "/admin-guides/management/security/selinux/",
       "destination": "/zero-trust-access/management/security/selinux/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/diagnostics/",
+      "destination": "/zero-trust-access/management/diagnostics/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/diagnostics/logging/",
+      "destination": "/zero-trust-access/management/diagnostics/logging/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/diagnostics/metrics/",
+      "destination": "/zero-trust-access/management/diagnostics/metrics/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/diagnostics/monitoring/",
+      "destination": "/zero-trust-access/management/diagnostics/monitoring/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/diagnostics/profiles/",
+      "destination": "/zero-trust-access/management/diagnostics/profiles/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/diagnostics/tracing/",
+      "destination": "/zero-trust-access/management/diagnostics/tracing/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/external-audit-storage/",
+      "destination": "/zero-trust-access/management/external-audit-storage/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/guides/aws-iam-identity-center/",
+      "destination": "/zero-trust-access/management/guides/aws-iam-identity-center/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/guides/aws-iam-identity-center/guide/",
+      "destination": "/zero-trust-access/management/guides/aws-iam-identity-center/guide/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/guides/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/",
+      "destination": "/zero-trust-access/management/guides/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/guides/awsoidc-integration-rds/",
+      "destination": "/zero-trust-access/management/guides/awsoidc-integration-rds/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/guides/awsoidc-integration/",
+      "destination": "/zero-trust-access/management/guides/awsoidc-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/guides/datadog/",
+      "destination": "/zero-trust-access/management/guides/datadog/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/guides/ec2-tags/",
+      "destination": "/zero-trust-access/management/guides/ec2-tags/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/guides/gcp-tags/",
+      "destination": "/zero-trust-access/management/guides/gcp-tags/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/guides/github-integration/",
+      "destination": "/zero-trust-access/management/guides/github-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/guides/",
+      "destination": "/zero-trust-access/management/guides/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/guides/oracle-tags/",
+      "destination": "/zero-trust-access/management/guides/oracle-tags/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/guides/scim/sailpoint/",
+      "destination": "/zero-trust-access/management/guides/scim/sailpoint/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/guides/scim/",
+      "destination": "/zero-trust-access/management/guides/scim/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/",
+      "destination": "/admin-guides/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/operations/backup-restore/",
+      "destination": "/zero-trust-access/management/operations/backup-restore/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/operations/ca-rotation/",
+      "destination": "/zero-trust-access/management/operations/ca-rotation/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/operations/db-ca-migrations/",
+      "destination": "/zero-trust-access/management/operations/db-ca-migrations/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/operations/",
+      "destination": "/zero-trust-access/management/operations/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/operations/proxy-peering/",
+      "destination": "/zero-trust-access/management/operations/proxy-peering/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/operations/scaling/",
+      "destination": "/zero-trust-access/management/operations/scaling/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/operations/tls-routing/",
+      "destination": "/zero-trust-access/management/operations/tls-routing/",
       "permanent": true
     }
   ]
