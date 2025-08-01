@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 
 import { ButtonIcon, H2 } from 'design';
 import DialogConfirmation, {
@@ -30,9 +30,6 @@ import { DetailsView, useAppUpdaterContext } from 'teleterm/ui/AppUpdater';
 
 export function AppUpdates(props: { hidden?: boolean; onClose(): void }) {
   const appContext = useAppContext();
-  const updaterContext = useAppUpdaterContext();
-  const checkedForUpdates = useRef(false);
-
   const {
     updateEvent,
     checkForUpdates,
@@ -41,15 +38,11 @@ export function AppUpdates(props: { hidden?: boolean; onClose(): void }) {
     quitAndInstall,
     platform,
     changeManagingCluster,
-  } = updaterContext;
+  } = useAppUpdaterContext();
 
   useEffect(() => {
-    if (checkedForUpdates.current || updateEvent.kind === 'download-progress') {
-      return;
-    }
     void checkForUpdates();
-    checkedForUpdates.current = true;
-  }, [checkForUpdates, updateEvent.kind]);
+  }, [checkForUpdates]);
 
   return (
     <DialogConfirmation
