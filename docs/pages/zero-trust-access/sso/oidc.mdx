@@ -298,6 +298,29 @@ spec:
   username_claim: preferred_username
 ```
 
+### Optional: Request Object Mode
+
+Teleport supports the ability to send authorization request parameters in a
+JSON Web Token (JWT), referred to as "request objects", following RFC 9101.
+Presently, Teleport only supports signed request objects sent by value. This
+option necessitates that the IdP be provided with, or configured to discover,
+Teleport's JSON Web Key Sets (JWKS) used for OIDC IdP integration in order to
+verify request object signatures. This JWKS can be found at the `/.well-known/jwks-oidc`
+path of the Web API.
+
+By default, `request_object_mode` is unset, meaning authorization request parameters
+will be sent in the query string of the authorization endpoint.
+
+```yaml
+kind: oidc
+version: v2
+metadata:
+  name: connector
+spec:
+  # Use signed request objects when making authorization requests to the IdP.
+  request_object_mode: signed
+```
+
 ## Enable default OIDC authentication
 
 (!docs/pages/includes/enterprise/oidcauthentication.mdx!)
