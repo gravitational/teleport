@@ -587,18 +587,27 @@ message DocumentDB {
 }
 
 // GCPCloudSQL contains parameters specific to GCP databases.
-// The name GCPCloudSQL is legacy from time when only GCP Cloud SQL was supported.
+// The name "GCPCloudSQL" is a legacy from a time when only GCP Cloud SQL was supported.
 message GCPCloudSQL {
   // ProjectID is the GCP project ID the Cloud SQL instance resides in.
   string ProjectID = 1 [(gogoproto.jsontag) = "project_id,omitempty"];
   // InstanceID is the Cloud SQL instance ID.
   string InstanceID = 2 [(gogoproto.jsontag) = "instance_id,omitempty"];
-  // Region is the GCP region. Required only for AlloyDB databases.
-  string Region = 3 [(gogoproto.jsontag) = "region,omitempty"];
-  // ClusterID is the ID of the cluster. Required only for AlloyDB databases.
-  string ClusterID = 4 [(gogoproto.jsontag) = "cluster_id,omitempty"];
-  // IsAlloyDB is true if the database is an AlloyDB server.
-  bool IsAlloyDB = 5 [(gogoproto.jsontag) = "is_alloydb,omitempty"];
+  // AlloyDB contains AlloyDB specific configuration elements.
+  AlloyDB AlloyDB = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "alloydb,omitempty"
+  ];
+}
+
+// AlloyDB contains AlloyDB specific configuration elements.
+message AlloyDB {
+  // Endpoint is the database endpoint to use. Can be one of predefined endpoint types or an IP address. Mandatory for AlloyDB databases.
+  //
+  // It supports two types of values:
+  // - An enum: one of "private", "public" or "psc". Corresponding type of address will be looked up using GCP API.
+  // - IP address. This address will be used directly, without querying the GCP API.
+  string Endpoint = 1 [(gogoproto.jsontag) = "endpoint,omitempty"];
 }
 
 // Azure contains Azure specific database metadata.

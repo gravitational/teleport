@@ -242,11 +242,16 @@ Optional:
 
 Optional:
 
-- `cluster_id` (String) ClusterID is the ID of the cluster. Required only for AlloyDB databases.
+- `alloydb` (Attributes) AlloyDB contains AlloyDB specific configuration elements. (see [below for nested schema](#nested-schema-for-specgcpalloydb))
 - `instance_id` (String) InstanceID is the Cloud SQL instance ID.
-- `is_alloydb` (Boolean) IsAlloyDB is true if the database is an AlloyDB server.
 - `project_id` (String) ProjectID is the GCP project ID the Cloud SQL instance resides in.
-- `region` (String) Region is the GCP region. Required only for AlloyDB databases.
+
+### Nested Schema for `spec.gcp.alloydb`
+
+Optional:
+
+- `endpoint` (String) Endpoint is the database endpoint to use. Can be one of predefined endpoint types or an IP address. Mandatory for AlloyDB databases.  It supports two types of values: - An enum: one of "private", "public" or "psc". Corresponding type of address will be looked up using GCP API. - IP address. This address will be used directly, without querying the GCP API.
+
 
 
 ### Nested Schema for `spec.mongo_atlas`

@@ -1,0 +1,110 @@
+// Copyright 2025 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package gcp
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestIsAlloyDBConnectionURI(t *testing.T) {
+	require.True(t, IsAlloyDBConnectionURI("alloydb://dummy"))
+	require.False(t, IsAlloyDBConnectionURI("http://dummy"))
+	require.False(t, IsAlloyDBConnectionURI("just/some/stuff"))
+}
+
+func TestIsAlloyDBKnownEndpointType(t *testing.T) {
+	t.Run("all endpoint types in slice are accepted", func(t *testing.T) {
+		for _, endpointType := range AlloyDBEndpointTypes {
+			require.True(t, IsAlloyDBKnownEndpointType(endpointType))
+		}
+	})
+	t.Run("well-known endpoint types", func(t *testing.T) {
+		for _, endpointType := range []string{"private", "public", "psc"} {
+			require.True(t, IsAlloyDBKnownEndpointType(endpointType))
+		}
+	})
+	t.Run("non-lowercase types are not accepted", func(t *testing.T) {
+		for _, endpointType := range []string{"Private", "PUBLIC", "Psc"} {
+			require.False(t, IsAlloyDBKnownEndpointType(endpointType))
+		}
+	})
+	t.Run("empty string is not accepted", func(t *testing.T) {
+		require.False(t, IsAlloyDBKnownEndpointType(""))
+	})
+	t.Run("unrelated strings are not accepted", func(t *testing.T) {
+		for _, endpointType := range []string{"dummy", "GIRAFFE", "?"} {
+			require.False(t, IsAlloyDBKnownEndpointType(endpointType))
+		}
+	})
+}
+
+func TestParseAlloyDBConnectionURI(t *testing.T) {
+	tests := []struct {
+		name    string
+		uri     string
+		want    *AlloyDBFullInstanceName
+		wantErr string
+	}{
+		{
+			name: "valid address",
+			uri:  "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+			want: &AlloyDBFullInstanceName{
+				ProjectID:  "my-project-123456",
+				Location:   "europe-west1",
+				ClusterID:  "my-cluster",
+				InstanceID: "my-instance",
+			},
+		},
+		{
+			name:    "empty string is rejected",
+			uri:     "",
+			wantErr: `connection URI cannot be empty`,
+		},
+		{
+			name:    "bad fixed parts",
+			uri:     "alloydb://PROJECT/my-project-123456/REGION/europe-west1/clusters/my-cluster/instances/my-instance",
+			wantErr: `invalid connection URI "alloydb://PROJECT/my-project-123456/REGION/europe-west1/clusters/my-cluster/instances/my-instance": incorrect fixed URI elements`,
+		},
+		{
+			name:    "missing scheme",
+			uri:     "projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+			wantErr: `invalid connection URI "projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance": should start with alloydb://`,
+		},
+		{
+			name:    "invalid address",
+			uri:     "alloydb://invalid",
+			wantErr: `invalid connection URI "alloydb://invalid": wrong number of parts`,
+		},
+		{
+			name:    "query params are not accepted",
+			uri:     "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance?foo=bar",
+			wantErr: `invalid connection URI "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance?foo=bar": query parameters are not accepted`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parsed, err := ParseAlloyDBConnectionURI(tt.uri)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				require.Equal(t, tt.want, parsed)
+			} else {
+				require.ErrorContains(t, err, tt.wantErr)
+			}
+		})
+	}
+}

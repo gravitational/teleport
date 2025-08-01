@@ -2075,12 +2075,14 @@ type DatabaseGCP struct {
 	ProjectID string `yaml:"project_id,omitempty"`
 	// InstanceID is the Cloud SQL database instance ID.
 	InstanceID string `yaml:"instance_id,omitempty"`
-	// Region is the GCP region. Required only for AlloyDB databases.
-	Region string `yaml:"region,omitempty"`
-	// ClusterID is the ID of the cluster. Required only for AlloyDB databases.
-	ClusterID string `yaml:"cluster_id,omitempty"`
-	// IsAlloyDB is true if the database is an AlloyDB server.
-	IsAlloyDB bool `yaml:"is_alloydb,omitempty"`
+	// AlloyDB contains AlloyDB specific settings.
+	AlloyDB DatabaseGCPAlloyDB `yaml:"alloydb,omitempty"`
+}
+
+// DatabaseGCPAlloyDB contains GCP specific settings for AlloyDB databases.
+type DatabaseGCPAlloyDB struct {
+	// Endpoint is the database endpoint to use. Can be one of predefined endpoint types or an IP address.
+	Endpoint string `yaml:"endpoint,omitempty"`
 }
 
 // DatabaseAzure contains Azure database configuration.

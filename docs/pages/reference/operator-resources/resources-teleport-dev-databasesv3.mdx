@@ -199,11 +199,15 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|cluster_id|string|ClusterID is the ID of the cluster. Required only for AlloyDB databases.|
+|alloydb|[object](#specgcpalloydb)|AlloyDB contains AlloyDB specific configuration elements.|
 |instance_id|string|InstanceID is the Cloud SQL instance ID.|
-|is_alloydb|boolean|IsAlloyDB is true if the database is an AlloyDB server.|
 |project_id|string|ProjectID is the GCP project ID the Cloud SQL instance resides in.|
-|region|string|Region is the GCP region. Required only for AlloyDB databases.|
+
+### spec.gcp.alloydb
+
+|Field|Type|Description|
+|---|---|---|
+|endpoint|string|Endpoint is the database endpoint to use. Can be one of predefined endpoint types or an IP address. Mandatory for AlloyDB databases.  It supports two types of values: - An enum: one of "private", "public" or "psc". Corresponding type of address will be looked up using GCP API. - IP address. This address will be used directly, without querying the GCP API.|
 
 ### spec.mongo_atlas
 

@@ -2963,29 +2963,36 @@ func TestDatabaseCLIFlags(t *testing.T) {
 		{
 			desc: "AlloyDB database",
 			inFlags: CommandLineFlags{
-				DatabaseName:          "alloydb",
-				DatabaseProtocol:      defaults.ProtocolPostgres,
-				DatabaseURI:           "10.20.30.40:5433",
-				DatabaseCACertFile:    testCertPath,
-				DatabaseGCPProjectID:  "project-1",
-				DatabaseGCPInstanceID: "instance-1",
-				DatabaseGCPClusterID:  "cluster-1",
-				DatabaseGCPRegion:     "us-east-1",
-				DatabaseIsAlloyDB:     true,
+				DatabaseName:     "alloydb",
+				DatabaseProtocol: defaults.ProtocolPostgres,
+				DatabaseURI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
 			},
 			outDatabase: servicecfg.Database{
 				Name:     "alloydb",
 				Protocol: defaults.ProtocolPostgres,
-				URI:      "10.20.30.40:5433",
-				TLS: servicecfg.DatabaseTLS{
-					CACert: fixtures.LocalhostCert,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile,
 				},
+				DynamicLabels: services.CommandLabels{},
+			},
+		},
+		{
+			desc: "AlloyDB database with endpoint",
+			inFlags: CommandLineFlags{
+				DatabaseName:               "alloydb",
+				DatabaseProtocol:           defaults.ProtocolPostgres,
+				DatabaseURI:                "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				DatabaseGCPAlloyDBEndpoint: "11.22.33.44",
+			},
+			outDatabase: servicecfg.Database{
+				Name:     "alloydb",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
 				GCP: servicecfg.DatabaseGCP{
-					ProjectID:  "project-1",
-					InstanceID: "instance-1",
-					ClusterID:  "cluster-1",
-					Region:     "us-east-1",
-					IsAlloyDB:  true,
+					AlloyDB: servicecfg.DatabaseGCPAlloyDB{
+						Endpoint: "11.22.33.44",
+					},
 				},
 				StaticLabels: map[string]string{
 					types.OriginLabel: types.OriginConfigFile,

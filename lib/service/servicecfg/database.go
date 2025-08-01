@@ -167,9 +167,9 @@ func (d *Database) ToDatabase() (types.Database, error) {
 		GCP: types.GCPCloudSQL{
 			ProjectID:  d.GCP.ProjectID,
 			InstanceID: d.GCP.InstanceID,
-			Region:     d.GCP.Region,
-			ClusterID:  d.GCP.ClusterID,
-			IsAlloyDB:  d.GCP.IsAlloyDB,
+			AlloyDB: types.AlloyDB{
+				Endpoint: d.GCP.AlloyDB.Endpoint,
+			},
 		},
 		DynamicLabels: types.LabelsToV2(d.DynamicLabels),
 		AD: types.AD{
@@ -289,12 +289,14 @@ type DatabaseGCP struct {
 	ProjectID string
 	// InstanceID is the Cloud SQL instance ID.
 	InstanceID string
-	// ClusterID is the ID of the cluster. Required only for AlloyDB databases.
-	ClusterID string
-	// Region is the GCP region. Required only for AlloyDB databases.
-	Region string
-	// IsAlloyDB is true if the database is an AlloyDB server.
-	IsAlloyDB bool
+	// AlloyDB contains AlloyDB specific settings.
+	AlloyDB DatabaseGCPAlloyDB
+}
+
+// DatabaseGCPAlloyDB contains GCP specific settings for AlloyDB databases.
+type DatabaseGCPAlloyDB struct {
+	// Endpoint is the database endpoint to use. Can be one of predefined endpoint types or an IP address.
+	Endpoint string
 }
 
 // DatabaseAD contains database Active Directory configuration.

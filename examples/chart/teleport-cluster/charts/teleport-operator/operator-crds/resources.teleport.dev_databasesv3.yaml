@@ -320,23 +320,25 @@ spec:
               gcp:
                 description: GCP contains parameters specific to GCP Cloud SQL databases.
                 properties:
-                  cluster_id:
-                    description: ClusterID is the ID of the cluster. Required only
-                      for AlloyDB databases.
-                    type: string
+                  alloydb:
+                    description: AlloyDB contains AlloyDB specific configuration elements.
+                    properties:
+                      endpoint:
+                        description: 'Endpoint is the database endpoint to use. Can
+                          be one of predefined endpoint types or an IP address. Mandatory
+                          for AlloyDB databases.  It supports two types of values:
+                          - An enum: one of "private", "public" or "psc". Corresponding
+                          type of address will be looked up using GCP API. - IP address.
+                          This address will be used directly, without querying the
+                          GCP API.'
+                        type: string
+                    type: object
                   instance_id:
                     description: InstanceID is the Cloud SQL instance ID.
                     type: string
-                  is_alloydb:
-                    description: IsAlloyDB is true if the database is an AlloyDB server.
-                    type: boolean
                   project_id:
                     description: ProjectID is the GCP project ID the Cloud SQL instance
                       resides in.
-                    type: string
-                  region:
-                    description: Region is the GCP region. Required only for AlloyDB
-                      databases.
                     type: string
                 type: object
               mongo_atlas:

@@ -973,6 +973,11 @@ func setupTLSConfigServerName(tlsConfig *tls.Config, database types.Database) er
 		return nil
 	}
 
+	if database.GetType() == types.DatabaseTypeAlloyDB {
+		// The server name will be configured dynamically by the engine.
+		return nil
+	}
+
 	switch database.GetProtocol() {
 	case defaults.ProtocolMongoDB:
 		// Don't set the ServerName when connecting to a MongoDB cluster - in case

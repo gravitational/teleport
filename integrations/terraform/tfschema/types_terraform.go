@@ -463,28 +463,22 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 				},
 				"gcp": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"cluster_id": {
-							Description: "ClusterID is the ID of the cluster. Required only for AlloyDB databases.",
+						"alloydb": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"endpoint": {
+								Description: "Endpoint is the database endpoint to use. Can be one of predefined endpoint types or an IP address. Mandatory for AlloyDB databases.  It supports two types of values: - An enum: one of \"private\", \"public\" or \"psc\". Corresponding type of address will be looked up using GCP API. - IP address. This address will be used directly, without querying the GCP API.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							}}),
+							Description: "AlloyDB contains AlloyDB specific configuration elements.",
 							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"instance_id": {
 							Description: "InstanceID is the Cloud SQL instance ID.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"is_alloydb": {
-							Description: "IsAlloyDB is true if the database is an AlloyDB server.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
-						},
 						"project_id": {
 							Description: "ProjectID is the GCP project ID the Cloud SQL instance resides in.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-						},
-						"region": {
-							Description: "Region is the GCP region. Required only for AlloyDB databases.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -6355,53 +6349,36 @@ func CopyDatabaseV3FromTerraform(_ context.Context, tf github_com_hashicorp_terr
 										}
 									}
 									{
-										a, ok := tf.Attrs["region"]
+										a, ok := tf.Attrs["alloydb"]
 										if !ok {
-											diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.GCP.Region"})
+											diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.GCP.AlloyDB"})
 										} else {
-											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
 											if !ok {
-												diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.GCP.Region", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.GCP.AlloyDB", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 											} else {
-												var t string
+												obj.AlloyDB = github_com_gravitational_teleport_api_types.AlloyDB{}
 												if !v.Null && !v.Unknown {
-													t = string(v.Value)
+													tf := v
+													obj := &obj.AlloyDB
+													{
+														a, ok := tf.Attrs["endpoint"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.GCP.AlloyDB.Endpoint"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.GCP.AlloyDB.Endpoint", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.Endpoint = t
+															}
+														}
+													}
 												}
-												obj.Region = t
-											}
-										}
-									}
-									{
-										a, ok := tf.Attrs["cluster_id"]
-										if !ok {
-											diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.GCP.ClusterID"})
-										} else {
-											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.GCP.ClusterID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											} else {
-												var t string
-												if !v.Null && !v.Unknown {
-													t = string(v.Value)
-												}
-												obj.ClusterID = t
-											}
-										}
-									}
-									{
-										a, ok := tf.Attrs["is_alloydb"]
-										if !ok {
-											diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.GCP.IsAlloyDB"})
-										} else {
-											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
-											if !ok {
-												diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.GCP.IsAlloyDB", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
-											} else {
-												var t bool
-												if !v.Null && !v.Unknown {
-													t = bool(v.Value)
-												}
-												obj.IsAlloyDB = t
 											}
 										}
 									}
@@ -8701,69 +8678,55 @@ func CopyDatabaseV3ToTerraform(ctx context.Context, obj *github_com_gravitationa
 										}
 									}
 									{
-										t, ok := tf.AttrTypes["region"]
+										a, ok := tf.AttrTypes["alloydb"]
 										if !ok {
-											diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.GCP.Region"})
+											diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.GCP.AlloyDB"})
 										} else {
-											v, ok := tf.Attrs["region"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 											if !ok {
-												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-												if err != nil {
-													diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.GCP.Region", err})
-												}
-												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.GCP.AlloyDB", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["alloydb"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.GCP.Region", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
 												}
-												v.Null = string(obj.Region) == ""
+												{
+													obj := obj.AlloyDB
+													tf := &v
+													{
+														t, ok := tf.AttrTypes["endpoint"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.GCP.AlloyDB.Endpoint"})
+														} else {
+															v, ok := tf.Attrs["endpoint"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.GCP.AlloyDB.Endpoint", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.GCP.AlloyDB.Endpoint", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.Endpoint) == ""
+															}
+															v.Value = string(obj.Endpoint)
+															v.Unknown = false
+															tf.Attrs["endpoint"] = v
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["alloydb"] = v
 											}
-											v.Value = string(obj.Region)
-											v.Unknown = false
-											tf.Attrs["region"] = v
-										}
-									}
-									{
-										t, ok := tf.AttrTypes["cluster_id"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.GCP.ClusterID"})
-										} else {
-											v, ok := tf.Attrs["cluster_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-												if err != nil {
-													diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.GCP.ClusterID", err})
-												}
-												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.GCP.ClusterID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
-												v.Null = string(obj.ClusterID) == ""
-											}
-											v.Value = string(obj.ClusterID)
-											v.Unknown = false
-											tf.Attrs["cluster_id"] = v
-										}
-									}
-									{
-										t, ok := tf.AttrTypes["is_alloydb"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.GCP.IsAlloyDB"})
-										} else {
-											v, ok := tf.Attrs["is_alloydb"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
-											if !ok {
-												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-												if err != nil {
-													diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.GCP.IsAlloyDB", err})
-												}
-												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
-												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.GCP.IsAlloyDB", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
-												}
-												v.Null = bool(obj.IsAlloyDB) == false
-											}
-											v.Value = bool(obj.IsAlloyDB)
-											v.Unknown = false
-											tf.Attrs["is_alloydb"] = v
 										}
 									}
 								}
