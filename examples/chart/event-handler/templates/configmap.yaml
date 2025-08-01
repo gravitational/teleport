@@ -22,7 +22,7 @@ data:
     {{- end }}
 
     [teleport]
-    addr = "{{ .Values.teleport.address }}"
+    addr = {{ coalesce .Values.teleport.address .Values.tbot.teleportProxyAddress .Values.tbot.teleportAuthAddress | quote }}
     identity = "/var/lib/teleport/plugins/event-handler/teleport-identity/{{ .Values.teleport.identitySecretPath }}"
     refresh.enabled = true
 
