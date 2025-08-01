@@ -180,6 +180,8 @@ type CommandLineFlags struct {
 	DatabaseGCPProjectID string
 	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
 	DatabaseGCPInstanceID string
+	// DatabaseGCPAlloyDBEndpoint is the database endpoint to use. Can be one of predefined endpoint types or an IP address.
+	DatabaseGCPAlloyDBEndpoint string
 	// DatabaseADKeytabFile is the path to Kerberos keytab file.
 	DatabaseADKeytabFile string
 	// DatabaseADKrb5File is the path to krb5.conf file.
@@ -1856,6 +1858,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			GCP: servicecfg.DatabaseGCP{
 				ProjectID:  database.GCP.ProjectID,
 				InstanceID: database.GCP.InstanceID,
+				AlloyDB: servicecfg.DatabaseGCPAlloyDB{
+					Endpoint: database.GCP.AlloyDB.Endpoint,
+				},
 			},
 			AD: servicecfg.DatabaseAD{
 				KeytabFile:             database.AD.KeytabFile,
@@ -2528,6 +2533,9 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 			GCP: servicecfg.DatabaseGCP{
 				ProjectID:  clf.DatabaseGCPProjectID,
 				InstanceID: clf.DatabaseGCPInstanceID,
+				AlloyDB: servicecfg.DatabaseGCPAlloyDB{
+					Endpoint: clf.DatabaseGCPAlloyDBEndpoint,
+				},
 			},
 			AD: servicecfg.DatabaseAD{
 				KeytabFile: clf.DatabaseADKeytabFile,

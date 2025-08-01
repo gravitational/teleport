@@ -2961,6 +2961,46 @@ func TestDatabaseCLIFlags(t *testing.T) {
 			},
 		},
 		{
+			desc: "AlloyDB database",
+			inFlags: CommandLineFlags{
+				DatabaseName:     "alloydb",
+				DatabaseProtocol: defaults.ProtocolPostgres,
+				DatabaseURI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+			},
+			outDatabase: servicecfg.Database{
+				Name:     "alloydb",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile,
+				},
+				DynamicLabels: services.CommandLabels{},
+			},
+		},
+		{
+			desc: "AlloyDB database with endpoint",
+			inFlags: CommandLineFlags{
+				DatabaseName:               "alloydb",
+				DatabaseProtocol:           defaults.ProtocolPostgres,
+				DatabaseURI:                "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				DatabaseGCPAlloyDBEndpoint: "11.22.33.44",
+			},
+			outDatabase: servicecfg.Database{
+				Name:     "alloydb",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				GCP: servicecfg.DatabaseGCP{
+					AlloyDB: servicecfg.DatabaseGCPAlloyDB{
+						Endpoint: "11.22.33.44",
+					},
+				},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile,
+				},
+				DynamicLabels: services.CommandLabels{},
+			},
+		},
+		{
 			desc: "SQL Server",
 			inFlags: CommandLineFlags{
 				DatabaseName:         "sqlserver",

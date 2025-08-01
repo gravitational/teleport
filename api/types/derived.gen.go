@@ -53,7 +53,15 @@ func deriveTeleportEqualGCPCloudSQL(this, that *GCPCloudSQL) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
 			this.ProjectID == that.ProjectID &&
-			this.InstanceID == that.InstanceID
+			this.InstanceID == that.InstanceID &&
+			deriveTeleportEqualAlloyDB(&this.AlloyDB, &that.AlloyDB)
+}
+
+// deriveTeleportEqualAlloyDB returns whether this and that are equal.
+func deriveTeleportEqualAlloyDB(this, that *AlloyDB) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			this.Endpoint == that.Endpoint
 }
 
 // deriveTeleportEqualAzure returns whether this and that are equal.

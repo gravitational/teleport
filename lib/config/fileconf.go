@@ -2075,6 +2075,14 @@ type DatabaseGCP struct {
 	ProjectID string `yaml:"project_id,omitempty"`
 	// InstanceID is the Cloud SQL database instance ID.
 	InstanceID string `yaml:"instance_id,omitempty"`
+	// AlloyDB contains AlloyDB specific settings.
+	AlloyDB DatabaseGCPAlloyDB `yaml:"alloydb,omitempty"`
+}
+
+// DatabaseGCPAlloyDB contains GCP specific settings for AlloyDB databases.
+type DatabaseGCPAlloyDB struct {
+	// Endpoint is the database endpoint to use. Can be one of predefined endpoint types or an IP address.
+	Endpoint string `yaml:"endpoint,omitempty"`
 }
 
 // DatabaseAzure contains Azure database configuration.

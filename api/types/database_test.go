@@ -1121,6 +1121,163 @@ func TestDatabaseGCPCloudSQL(t *testing.T) {
 	}
 }
 
+func TestDatabaseAlloyDB(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		inputName string
+		inputSpec DatabaseSpecV3
+		wantSpec  DatabaseSpecV3
+		wantErr   string
+	}{
+		{
+			inputName: "URI-only configuration",
+			inputSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+			},
+			wantSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				GCP: GCPCloudSQL{
+					ProjectID:  "my-project-123456",
+					InstanceID: "my-instance",
+					AlloyDB: AlloyDB{
+						Endpoint: "private",
+					},
+				},
+			},
+		},
+		{
+			inputName: "endpoint override to endpoint type",
+			inputSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				GCP: GCPCloudSQL{
+					AlloyDB: AlloyDB{
+						Endpoint: "public",
+					},
+				},
+			},
+			wantSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				GCP: GCPCloudSQL{
+					ProjectID:  "my-project-123456",
+					InstanceID: "my-instance",
+					AlloyDB: AlloyDB{
+						Endpoint: "public",
+					},
+				},
+			},
+		},
+		{
+			inputName: "endpoint override to IP address",
+			inputSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				GCP: GCPCloudSQL{
+					AlloyDB: AlloyDB{
+						Endpoint: "11.22.33.44",
+					},
+				},
+			},
+			wantSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				GCP: GCPCloudSQL{
+					ProjectID:  "my-project-123456",
+					InstanceID: "my-instance",
+					AlloyDB: AlloyDB{
+						Endpoint: "11.22.33.44",
+					},
+				},
+			},
+		},
+		{
+			inputName: "endpoint override, GCP fields set and matching",
+			inputSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				GCP: GCPCloudSQL{
+					ProjectID:  "my-project-123456",
+					InstanceID: "my-instance",
+					AlloyDB: AlloyDB{
+						Endpoint: "11.22.33.44",
+					},
+				},
+			},
+			wantSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				GCP: GCPCloudSQL{
+					ProjectID:  "my-project-123456",
+					InstanceID: "my-instance",
+					AlloyDB: AlloyDB{
+						Endpoint: "11.22.33.44",
+					},
+				},
+			},
+		},
+		{
+			inputName: "endpoint override, GCP fields mismatch",
+			inputSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				GCP: GCPCloudSQL{
+					ProjectID:  "my-project-654321",
+					InstanceID: "other-instance",
+					AlloyDB: AlloyDB{
+						Endpoint: "11.22.33.44",
+					},
+				},
+			},
+			wantErr: `database "mydb" GCP instance ID "other-instance" does not match the configured URI instance ID "my-instance", omit the gcp.instance_id field and it will be derived automatically`,
+		},
+		{
+			inputName: "wrong URI scheme",
+			inputSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "dummy://foo",
+				GCP: GCPCloudSQL{
+					InstanceID: "instance-1",
+					AlloyDB: AlloyDB{
+						Endpoint: "11.22.33.44",
+					},
+				},
+			},
+			wantErr: `invalid connection URI "dummy://foo": should start with alloydb://`,
+		},
+		{
+			// just a single test for completeness; ParseAlloyDBConnectionURI has thorough tests already.
+			inputName: "incomplete URI",
+			inputSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "alloydb://projects/my-project-123456/locations/",
+				GCP: GCPCloudSQL{
+					ProjectID:  "my-project-123456",
+					InstanceID: "my-instance",
+					AlloyDB: AlloyDB{
+						Endpoint: "11.22.33.44",
+					},
+				},
+			},
+			wantErr: `invalid connection URI "alloydb://projects/my-project-123456/locations/": wrong number of parts`,
+		},
+	} {
+		t.Run(test.inputName, func(t *testing.T) {
+			db, err := NewDatabaseV3(Metadata{Name: "mydb"}, test.inputSpec)
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.wantSpec, db.Spec)
+				require.True(t, db.IsAlloyDB())
+			}
+		})
+	}
+}
+
 func TestGetAdminUser(t *testing.T) {
 	t.Parallel()
 
