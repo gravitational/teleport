@@ -91,24 +91,6 @@ func init() {
 	modules.SetModules(&cliModules{})
 }
 
-// WithInsecureDevMode is a test helper that sets insecure dev mode and resets
-// it in test cleanup.
-// It is NOT SAFE to use in parallel tests, because it modifies a global.
-// To run insecure dev mode tests in parallel, group them together under a
-// parent test and then run them as parallel subtests.
-// and call WithInsecureDevMode before running all the tests in parallel.
-func WithInsecureDevMode(t *testing.T, mode bool) {
-	originalValue := lib.IsInsecureDevMode()
-	lib.SetInsecureDevMode(mode)
-	// To detect tests that run in parallel incorrectly, call t.Setenv with a
-	// dummy env var - that function detects tests with parallel ancestors
-	// and panics, preventing improper use of this helper.
-	t.Setenv("WithInsecureDevMode", "1")
-	t.Cleanup(func() {
-		lib.SetInsecureDevMode(originalValue)
-	})
-}
-
 // WithResyncInterval is a test helper that sets the tunnel resync interval and
 // resets it in test cleanup.
 // Useful to substantially speedup test cluster setup - passing 0 for the

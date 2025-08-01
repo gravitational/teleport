@@ -333,7 +333,15 @@ func TestKubeSelection(t *testing.T) {
 			},
 		},
 	)
-	testenv.WithInsecureDevMode(t, true)
+	originalValue := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(true)
+	// To detect tests that run in parallel incorrectly, call t.Setenv with a
+	// dummy env var - that function detects tests with parallel ancestors
+	// and panics, preventing improper use of this helper.
+	t.Setenv("WithInsecureDevMode", "1")
+	t.Cleanup(func() {
+		lib.SetInsecureDevMode(originalValue)
+	})
 	testenv.WithResyncInterval(t, 0)
 
 	// Create a role that allows the user to request access to a restricted
