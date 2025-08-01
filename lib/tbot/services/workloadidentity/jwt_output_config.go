@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package config
+package workloadidentity
 
 import (
 	"context"
@@ -24,18 +24,15 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
-const WorkloadIdentityJWTOutputType = "workload-identity-jwt"
+const JWTOutputServiceType = "workload-identity-jwt"
 
-var (
-	_ ServiceConfig = &WorkloadIdentityJWTService{}
-	_ Initable      = &WorkloadIdentityJWTService{}
-)
-
-// WorkloadIdentityJWTService is the configuration for the WorkloadIdentityJWTService
-type WorkloadIdentityJWTService struct {
+// X509OutputConfig is the configuration for the Workload Identity JWT output
+// service.
+type JWTOutputConfig struct {
 	// Name of the service for logs and the /readyz endpoint.
 	Name string `yaml:"name,omitempty"`
 	// Selector is the selector for the WorkloadIdentity resource that will be
@@ -52,19 +49,22 @@ type WorkloadIdentityJWTService struct {
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
-func (o WorkloadIdentityJWTService) GetName() string {
+func (o JWTOutputConfig) GetName() string {
 	return o.Name
 }
 
 // Init initializes the destination.
-func (o *WorkloadIdentityJWTService) Init(ctx context.Context) error {
+func (o *JWTOutputConfig) Init(ctx context.Context) error {
 	return trace.Wrap(o.Destination.Init(ctx, []string{}))
 }
 
 // CheckAndSetDefaults checks the WorkloadIdentityJWTService values and sets any defaults.
-func (o *WorkloadIdentityJWTService) CheckAndSetDefaults() error {
-	if err := validateOutputDestination(o.Destination); err != nil {
-		return trace.Wrap(err)
+func (o *JWTOutputConfig) CheckAndSetDefaults() error {
+	if o.Destination == nil {
+		return trace.BadParameter("no destination configured for output")
+	}
+	if err := o.Destination.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating destination")
 	}
 	if err := o.Selector.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err, "validating selector")
@@ -79,33 +79,36 @@ func (o *WorkloadIdentityJWTService) CheckAndSetDefaults() error {
 const JWTSVIDPath = "jwt_svid"
 
 // Describe returns the file descriptions for the WorkloadIdentityJWTService.
-func (o *WorkloadIdentityJWTService) Describe() []bot.FileDescription {
+func (o *JWTOutputConfig) Describe() []bot.FileDescription {
 	fds := []bot.FileDescription{
 		{
-			Name: JWTSVIDPath,
+			Name: internal.JWTSVIDPath,
 		},
 	}
 	return fds
 }
 
-func (o *WorkloadIdentityJWTService) Type() string {
-	return WorkloadIdentityJWTOutputType
+func (o *JWTOutputConfig) Type() string {
+	return JWTOutputServiceType
 }
 
 // MarshalYAML marshals the WorkloadIdentityJWTService into YAML.
-func (o *WorkloadIdentityJWTService) MarshalYAML() (interface{}, error) {
-	type raw WorkloadIdentityJWTService
-	return encoding.WithTypeHeader((*raw)(o), WorkloadIdentityJWTOutputType)
+func (o *JWTOutputConfig) MarshalYAML() (any, error) {
+	type raw JWTOutputConfig
+	return encoding.WithTypeHeader((*raw)(o), JWTOutputServiceType)
 }
 
-// UnmarshalYAML unmarshals the WorkloadIdentityJWTService from YAML.
-func (o *WorkloadIdentityJWTService) UnmarshalYAML(node *yaml.Node) error {
-	dest, err := extractOutputDestination(node)
+func (o *JWTOutputConfig) UnmarshalYAML(*yaml.Node) error {
+	return trace.NotImplemented("unmarshaling %T with UnmarshalYAML is not supported, use UnmarshalConfig instead", o)
+}
+
+func (o *JWTOutputConfig) UnmarshalConfig(ctx bot.UnmarshalConfigContext, node *yaml.Node) error {
+	dest, err := internal.ExtractOutputDestination(ctx, node)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Alias type to remove UnmarshalYAML to avoid recursion
-	type raw WorkloadIdentityJWTService
+	// Alias type to remove UnmarshalYAML to avoid getting our "not implemented" error
+	type raw JWTOutputConfig
 	if err := node.Decode((*raw)(o)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -114,11 +117,11 @@ func (o *WorkloadIdentityJWTService) UnmarshalYAML(node *yaml.Node) error {
 }
 
 // GetDestination returns the destination.
-func (o *WorkloadIdentityJWTService) GetDestination() destination.Destination {
+func (o *JWTOutputConfig) GetDestination() destination.Destination {
 	return o.Destination
 }
 
-func (o *WorkloadIdentityJWTService) GetCredentialLifetime() bot.CredentialLifetime {
+func (o *JWTOutputConfig) GetCredentialLifetime() bot.CredentialLifetime {
 	lt := o.CredentialLifetime
 	lt.SkipMaxTTLValidation = true
 	return lt

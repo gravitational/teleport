@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package tbot
+package workloadidentity
 
 import (
 	"bytes"
@@ -30,54 +30,60 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
-func WorkloadIdentityX509ServiceBuilder(
-	botCfg *config.BotConfig,
-	cfg *config.WorkloadIdentityX509Service,
+type TrustBundleGetter interface {
+	GetBundleSet(ctx context.Context) (*workloadidentity.BundleSet, error)
+}
+
+type CRLGetter interface {
+	GetCRLSet(ctx context.Context) (*workloadidentity.CRLSet, error)
+}
+
+func X509OutputServiceBuilder(
+	cfg *X509OutputConfig,
 	trustBundleCache TrustBundleGetter,
 	crlCache CRLGetter,
+	defaultCredentialLifetime bot.CredentialLifetime,
 ) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
-		svc := &WorkloadIdentityX509Service{
-			botAuthClient:     deps.Client,
-			botCfg:            botCfg,
-			cfg:               cfg,
-			getBotIdentity:    deps.BotIdentity,
-			identityGenerator: deps.IdentityGenerator,
-			clientBuilder:     deps.ClientBuilder,
-			trustBundleCache:  trustBundleCache,
-			crlCache:          crlCache,
+		if err := cfg.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		svc.log = deps.Logger.With(
-			teleport.ComponentKey,
-			teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
-		)
+		svc := &X509OutputService{
+			botAuthClient:             deps.Client,
+			defaultCredentialLifetime: defaultCredentialLifetime,
+			cfg:                       cfg,
+			getBotIdentity:            deps.BotIdentity,
+			identityGenerator:         deps.IdentityGenerator,
+			clientBuilder:             deps.ClientBuilder,
+			trustBundleCache:          trustBundleCache,
+			crlCache:                  crlCache,
+		}
+		svc.log = deps.LoggerForService(svc)
 		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
 		return svc, nil
 	}
 }
 
-// WorkloadIdentityX509Service is a service that retrieves X.509 certificates
+// X509OutputService is a service that retrieves X.509 certificates
 // for WorkloadIdentity resources.
-type WorkloadIdentityX509Service struct {
-	botAuthClient  *apiclient.Client
-	botCfg         *config.BotConfig
-	cfg            *config.WorkloadIdentityX509Service
-	getBotIdentity getBotIdentityFn
-	log            *slog.Logger
-	statusReporter readyz.Reporter
+type X509OutputService struct {
+	botAuthClient             *apiclient.Client
+	defaultCredentialLifetime bot.CredentialLifetime
+	cfg                       *X509OutputConfig
+	getBotIdentity            func() *identity.Identity
+	log                       *slog.Logger
+	statusReporter            readyz.Reporter
 	// trustBundleCache is the cache of trust bundles. It only needs to be
 	// provided when running in daemon mode.
 	trustBundleCache  TrustBundleGetter
@@ -87,7 +93,7 @@ type WorkloadIdentityX509Service struct {
 }
 
 // String returns a human-readable description of the service.
-func (s *WorkloadIdentityX509Service) String() string {
+func (s *X509OutputService) String() string {
 	return cmp.Or(
 		s.cfg.Name,
 		fmt.Sprintf("workload-identity-x509 (%s)", s.cfg.Destination.String()),
@@ -96,7 +102,7 @@ func (s *WorkloadIdentityX509Service) String() string {
 
 // OneShot runs the service once, generating the output and writing it to the
 // destination, before exiting.
-func (s *WorkloadIdentityX509Service) OneShot(ctx context.Context) error {
+func (s *X509OutputService) OneShot(ctx context.Context) error {
 	res, privateKey, err := s.requestSVID(ctx)
 	if err != nil {
 		return trace.Wrap(err, "requesting SVID")
@@ -125,7 +131,7 @@ func (s *WorkloadIdentityX509Service) OneShot(ctx context.Context) error {
 
 // Run runs the service in daemon mode, periodically generating the output and
 // writing it to the destination.
-func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
+func (s *X509OutputService) Run(ctx context.Context) error {
 	bundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
 	if err != nil {
 		return trace.Wrap(err, "getting trust bundle set")
@@ -135,7 +141,7 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 		return trace.Wrap(err, "getting CRL set from cache")
 	}
 	renewalInterval := cmp.Or(
-		s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime,
+		s.cfg.CredentialLifetime, s.defaultCredentialLifetime,
 	).RenewalInterval
 
 	jitter := retryutils.DefaultJitter
@@ -215,7 +221,7 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 	}
 }
 
-func (s *WorkloadIdentityX509Service) requestSVID(
+func (s *X509OutputService) requestSVID(
 	ctx context.Context,
 ) (
 	*workloadidentityv1pb.Credential,
@@ -224,11 +230,11 @@ func (s *WorkloadIdentityX509Service) requestSVID(
 ) {
 	ctx, span := tracer.Start(
 		ctx,
-		"WorkloadIdentityX509Service/requestSVID",
+		"X509OutputService/requestSVID",
 	)
 	defer span.End()
 
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	id, err := s.identityGenerator.GenerateFacade(ctx,
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
@@ -250,7 +256,7 @@ func (s *WorkloadIdentityX509Service) requestSVID(
 		s.log,
 		impersonatedClient,
 		s.cfg.Selector,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).TTL,
 		nil,
 	)
 	if err != nil {
@@ -283,7 +289,7 @@ func (s *WorkloadIdentityX509Service) requestSVID(
 	return x509Credential, privateKey, nil
 }
 
-func (s *WorkloadIdentityX509Service) render(
+func (s *X509OutputService) render(
 	ctx context.Context,
 	bundleSet *workloadidentity.BundleSet,
 	x509Cred *workloadidentityv1pb.Credential,
@@ -292,7 +298,7 @@ func (s *WorkloadIdentityX509Service) render(
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"WorkloadIdentityX509Service/render",
+		"X509OutputService/render",
 	)
 	defer span.End()
 	s.log.InfoContext(ctx, "Rendering output")
