@@ -19,14 +19,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import {
-  Alert,
-  Box,
-  ButtonPrimary,
-  ButtonSecondary,
-  Flex,
-  Indicator,
-} from 'design';
+import { Alert, Box, ButtonPrimary, ButtonSecondary, Indicator } from 'design';
 import Dialog, {
   DialogContent,
   DialogFooter,
@@ -154,7 +147,9 @@ export function EditDialog(props: {
               ) : undefined}
 
               {error ? (
-                <Alert kind="danger">{`Error: ${error.message}`}</Alert>
+                <Alert kind="danger" details={error.message}>
+                  Failed to fetch bot
+                </Alert>
               ) : undefined}
 
               {isSuccess && data === null && (
@@ -163,10 +158,8 @@ export function EditDialog(props: {
 
               {missingPermissions.length ? (
                 <Alert kind="info">
-                  <Flex gap={2}>
-                    You do not have permission to edit this bot. Missing role
-                    permissions: <code>{missingPermissions.join(', ')}</code>
-                  </Flex>
+                  You do not have permission to edit this bot. Missing role
+                  permissions: <code>{missingPermissions.join(', ')}</code>
                 </Alert>
               ) : undefined}
 
@@ -264,7 +257,9 @@ export function EditDialog(props: {
               </div>
 
               {saveError ? (
-                <Alert kind="danger">Error: {saveError.message}</Alert>
+                <Alert kind="danger" details={saveError.message}>
+                  Failed to save changes
+                </Alert>
               ) : undefined}
             </DialogContent>
             <DialogFooter>

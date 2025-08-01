@@ -42,3 +42,19 @@ const (
 	// failures in renewing credentials before the loop exits fatally.
 	RenewalRetryLimit = 5
 )
+
+// Based on the default paths listed in
+// https://github.com/spiffe/spiffe-helper/blob/main/README.md
+const (
+	SVIDPEMPath            = "svid.pem"
+	SVIDKeyPEMPath         = "svid_key.pem"
+	SVIDTrustBundlePEMPath = "svid_bundle.pem"
+	SVIDCRLPemPath         = "svid_crl.pem"
+)
+
+const (
+	// PEMBlockTypePrivateKey is the PEM block type for a PKCS 8 encoded private key.
+	PEMBlockTypePrivateKey = "PRIVATE KEY"
+	// PEMBlockTypeCertificate is the PEM block type for a DER encoded certificate.
+	PEMBlockTypeCertificate = "CERTIFICATE"
+)

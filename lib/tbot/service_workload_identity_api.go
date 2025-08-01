@@ -49,7 +49,10 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/internal/sds"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
+	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
@@ -63,22 +66,9 @@ func WorkloadIdentityAPIServiceBuilder(
 	crlCache CRLGetter,
 ) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
-		clientCredential := &config.UnstableClientCredentialOutput{}
-		svcIdentity := &ClientCredentialOutputService{
-			botAuthClient:      deps.Client,
-			botIdentityReadyCh: deps.BotIdentityReadyCh,
-			botCfg:             botCfg,
-			cfg:                clientCredential,
-			reloadCh:           deps.ReloadCh,
-			identityGenerator:  deps.IdentityGenerator,
-		}
-		svcIdentity.log = deps.Logger.With(
-			teleport.ComponentKey,
-			teleport.Component(teleport.ComponentTBot, "svc", svcIdentity.String()),
-		)
-
+		sidecar, credential := clientcredentials.NewSidecar(deps, botCfg.CredentialLifetime)
 		svc := &WorkloadIdentityAPIService{
-			svcIdentity:      clientCredential,
+			svcIdentity:      credential,
 			botCfg:           botCfg,
 			cfg:              cfg,
 			trustBundleCache: trustBundleCache,
@@ -89,9 +79,12 @@ func WorkloadIdentityAPIServiceBuilder(
 			teleport.ComponentKey, teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
 		)
 		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
-
-		return bot.NewServicePair(svc, svcIdentity), nil
+		return bot.NewServicePair(svc, sidecar), nil
 	}
+}
+
+type TrustBundleGetter interface {
+	GetBundleSet(ctx context.Context) (*workloadidentity.BundleSet, error)
 }
 
 type CRLGetter interface {
@@ -110,7 +103,7 @@ type CRLGetter interface {
 type WorkloadIdentityAPIService struct {
 	workloadpb.UnimplementedSpiffeWorkloadAPIServer
 
-	svcIdentity      *config.UnstableClientCredentialOutput
+	svcIdentity      *clientcredentials.UnstableConfig
 	botCfg           *config.BotConfig
 	cfg              *config.WorkloadIdentityAPIService
 	log              *slog.Logger
@@ -214,11 +207,11 @@ func (s *WorkloadIdentityAPIService) Run(ctx context.Context) error {
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
 	workloadpb.RegisterSpiffeWorkloadAPIServer(srv, s)
-	sdsHandler := &spiffeSDSHandler{
-		log:              s.log,
-		botCfg:           s.botCfg,
-		trustBundleCache: s.trustBundleCache,
-		clientAuthenticator: func(ctx context.Context) (*slog.Logger, svidFetcher, error) {
+	sdsHandler, err := sds.NewHandler(sds.HandlerConfig{
+		Logger:           s.log,
+		RenewalInterval:  s.botCfg.CredentialLifetime.RenewalInterval,
+		TrustBundleCache: s.trustBundleCache,
+		ClientAuthenticator: func(ctx context.Context) (*slog.Logger, sds.SVIDFetcher, error) {
 			log, attrs, err := s.authenticateClient(ctx)
 			if err != nil {
 				return log, nil, trace.Wrap(err, "authenticating client")
@@ -233,10 +226,13 @@ func (s *WorkloadIdentityAPIService) Run(ctx context.Context) error {
 
 			return log, fetchSVIDs, nil
 		},
+	})
+	if err != nil {
+		return trace.Wrap(err, "creating SDS handler")
 	}
 	secretv3pb.RegisterSecretDiscoveryServiceServer(srv, sdsHandler)
 
-	lis, err := createListener(ctx, s.log, s.cfg.Listen)
+	lis, err := internal.CreateListener(ctx, s.log, s.cfg.Listen)
 	if err != nil {
 		return trace.Wrap(err, "creating listener")
 	}
