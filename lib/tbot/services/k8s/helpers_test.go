@@ -20,14 +20,27 @@ package k8s
 
 import (
 	"bytes"
+	"context"
+	"log/slog"
+	"net"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
+	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 type testYAMLCase[T any] struct {
@@ -111,4 +124,57 @@ func newMockDiscoveredKubeCluster(t *testing.T, name, discoveredName string) *ty
 	)
 	require.NoError(t, err)
 	return kubeCluster
+}
+
+// makeBot creates a server-side bot and returns joining parameters.
+func makeBot(t *testing.T, client *authclient.Client, name string, roles ...string) (*onboarding.Config, *machineidv1pb.Bot) {
+	ctx := context.TODO()
+	t.Helper()
+
+	b, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: name,
+			},
+			Spec: &machineidv1pb.BotSpec{
+				Roles: roles,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
+	require.NoError(t, err)
+	tok, err := types.NewProvisionTokenFromSpec(
+		tokenName,
+		time.Now().Add(10*time.Minute),
+		types.ProvisionTokenSpecV2{
+			Roles:   []types.SystemRole{types.RoleBot},
+			BotName: b.Metadata.Name,
+		})
+	require.NoError(t, err)
+	err = client.CreateToken(ctx, tok)
+	require.NoError(t, err)
+
+	return &onboarding.Config{
+		TokenValue: tok.GetName(),
+		JoinMethod: types.JoinMethodToken,
+	}, b
+}
+
+func defaultTestServerOpts(t *testing.T, log *slog.Logger) testenv.TestServerOptFunc {
+	return func(o *testenv.TestServersOpts) {
+		testenv.WithClusterName(t, "root")(o)
+		testenv.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Logger = log
+			cfg.Proxy.PublicAddrs = []utils.NetAddr{
+				{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
+			}
+			cfg.Proxy.TunnelPublicAddrs = []utils.NetAddr{
+				cfg.Proxy.ReverseTunnelListenAddr,
+			}
+		})(o)
+	}
 }

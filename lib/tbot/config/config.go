@@ -391,6 +391,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
+		case k8s.ArgoCDOutputServiceType:
+			v := &k8s.ArgoCDOutputConfig{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
 		case legacyspiffe.SVIDOutputServiceType:
 			v := &legacyspiffe.SVIDOutputConfig{}
 			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {

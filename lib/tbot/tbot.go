@@ -226,6 +226,13 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, k8s.OutputV1ServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *k8s.OutputV2Config:
 			services = append(services, k8s.OutputV2ServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
+		case *k8s.ArgoCDOutputConfig:
+			services = append(services, k8s.ArgoCDServiceBuilder(
+				svcCfg,
+				k8s.WithDefaultCredentialLifetime(b.cfg.CredentialLifetime),
+				k8s.WithInsecure(b.cfg.ConnectionConfig().Insecure),
+				k8s.WithALPNUpgradeCache(alpnUpgradeCache),
+			))
 		case *legacyspiffe.SVIDOutputConfig:
 			services = append(services, legacyspiffe.SVIDOutputServiceBuilder(svcCfg, setupTrustBundleCache(), b.cfg.CredentialLifetime))
 		case *ssh.HostOutputConfig:
