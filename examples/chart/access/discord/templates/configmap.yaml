@@ -12,7 +12,7 @@ data:
   teleport-discord.toml: |
     [teleport]
     addr = {{ coalesce .Values.teleport.address .Values.tbot.teleportProxyAddress .Values.tbot.teleportAuthAddress | quote }}
-    identity = "/var/lib/teleport/plugins/discord/teleport-identity/{{ .Values.teleport.identitySecretPath }}"
+    identity = "/var/lib/teleport/plugins/discord/teleport-identity/{{ include "discord.identitySecretPath" . }}"
     refresh_identity = true
 
     [discord]
