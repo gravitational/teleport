@@ -266,7 +266,7 @@ authentication connectors for common identity providers. In addition to SSO
 connector names, the following built-in connectors are supported:
 
 - [`local`](../../admin-guides/management/admin/users.mdx) for local users
-- [`passwordless`](../../admin-guides/access-controls/guides/passwordless.mdx) to enable by
+- [`passwordless`](../../zero-trust-access/access-controls/guides/passwordless.mdx) to enable by
 default passwordless authentication.
 
 Defaults to `local`.
@@ -302,7 +302,7 @@ Defaults to Teleport's binary default when empty: `best_effort`.
 
 `authentication.passwordless` controls whether passwordless authentication is enabled.
 
-[Can be used to forbid passwordless access to your cluster](../../admin-guides/access-controls/guides/passwordless.mdx)
+[Can be used to forbid passwordless access to your cluster](../../zero-trust-access/access-controls/guides/passwordless.mdx)
 
 ### `authentication.secondFactor`
 
@@ -371,7 +371,7 @@ Changing the RP ID will invalidate all already registered webauthn second factor
 
 ### `authentication.webauthn`
 
-See [Harden your Cluster Against IdP Compromises](../../admin-guides/access-controls/guides/webauthn.mdx) for more details.
+See [Harden your Cluster Against IdP Compromises](../../zero-trust-access/access-controls/guides/webauthn.mdx) for more details.
 
 #### `authentication.webauthn.attestationAllowedCas`
 
