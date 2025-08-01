@@ -177,7 +177,7 @@ spec:
 func TestWorkloadIdentityRevocation(t *testing.T) {
 	t.Parallel()
 
-	process,err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(logtest.NewLogger()))
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(logtest.NewLogger()))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())

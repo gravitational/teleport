@@ -21,17 +21,23 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/web"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
@@ -133,7 +139,7 @@ func TestMFAAuthenticateChallenge_IsMFARequiredApp(t *testing.T) {
 	require.NoError(t, err)
 
 	// Setup user for login, then login.
-	device := testserver.RegisterPasswordlessDeviceForUser(t, rootServer, user.GetName())
+	device := RegisterPasswordlessDeviceForUser(t, rootServer, user.GetName())
 	webPack := helpers.LoginMFAWebClient(t, rootProxyAddr.String(), device)
 
 	endpoint, err := url.JoinPath("mfa", "authenticatechallenge")
@@ -222,4 +228,46 @@ func TestMFAAuthenticateChallenge_IsMFARequiredApp(t *testing.T) {
 			}
 		})
 	}
+}
+
+// RegisterPasswordlessDeviceForUser registers a mocked passwordless device for the user
+// to use during login or pass other routine MFA checks. The cluster auth preference should
+// be set up to allow webauthn and passwordless before calling this helper.
+func RegisterPasswordlessDeviceForUser(t *testing.T, server *service.TeleportProcess, username string) *mocku2f.Key {
+	proxyAddr, err := server.ProxyWebAddr()
+	require.NoError(t, err)
+	origin := fmt.Sprintf("https://%v", proxyAddr.Host())
+
+	device, err := mocku2f.Create()
+	require.NoError(t, err)
+	device.SetPasswordless()
+
+	ctx := context.Background()
+	token, err := server.GetAuthServer().CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+		Name: username,
+	})
+	require.NoError(t, err)
+
+	tokenID := token.GetName()
+	res, err := server.GetAuthServer().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		TokenID:     tokenID,
+		DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+	})
+	require.NoError(t, err)
+	cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
+
+	ccr, err := device.SignCredentialCreation(origin, cc)
+	require.NoError(t, err)
+	_, err = server.GetAuthServer().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID: tokenID,
+		NewMFARegisterResponse: &proto.MFARegisterResponse{
+			Response: &proto.MFARegisterResponse_Webauthn{
+				Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	return device
 }

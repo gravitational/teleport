@@ -2330,7 +2330,7 @@ func TestCreateEnterpriseResources(t *testing.T) {
 		},
 	})
 
-	process,err := testenv.NewTeleportProcess(t.TempDir())
+	process, err := testenv.NewTeleportProcess(t.TempDir())
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())

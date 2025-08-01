@@ -87,7 +87,7 @@ func TestAppCommands(t *testing.T) {
 	ctx := context.Background()
 
 	oldResyncInterval := defaults.ResyncInterval
-	defaults.ResyncInterval = 100*time.Millisecond
+	defaults.ResyncInterval = 100 * time.Millisecond
 	// To detect tests that run in parallel incorrectly, call t.Setenv with a
 	// dummy env var - that function detects tests with parallel ancestors
 	// and panics, preventing improper use of this helper.

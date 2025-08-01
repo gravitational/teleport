@@ -49,7 +49,7 @@ import (
 func TestEditResources(t *testing.T) {
 	t.Parallel()
 	log := logtest.NewLogger()
-	process,err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(log))
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(log))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())

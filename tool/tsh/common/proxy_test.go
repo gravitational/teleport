@@ -1648,7 +1648,7 @@ func TestProxyAppMultiPort(t *testing.T) {
 			}
 		}),
 	}
-	process,err := testserver.NewTeleportProcess(t.TempDir(), rootServerOpts...)
+	process, err := testserver.NewTeleportProcess(t.TempDir(), rootServerOpts...)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())

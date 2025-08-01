@@ -52,7 +52,7 @@ func TestMCPDBCommand(t *testing.T) {
 	alice.SetDatabaseNames([]string{"postgres"})
 	alice.SetRoles([]string{"access"})
 
-	authProcess,err  := testserver.NewTeleportProcess(
+	authProcess, err := testserver.NewTeleportProcess(
 		t.TempDir(),
 		testserver.WithClusterName(t, "root"),
 		testserver.WithBootstrap(connector, alice),
@@ -160,7 +160,7 @@ func TestMCPDBCommandFailures(t *testing.T) {
 	alice.SetRoles([]string{"access"})
 	clusterName := "root"
 
-	authProcess,err:= testserver.NewTeleportProcess(
+	authProcess, err := testserver.NewTeleportProcess(
 		t.TempDir(),
 		testserver.WithClusterName(t, clusterName),
 		testserver.WithBootstrap(connector, alice),
