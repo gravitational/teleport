@@ -85,6 +85,10 @@ export const listBotInstancesSuccessHandler = listBotInstancesSuccess({
       os_latest: 'linux',
       version_latest: '1.3.2',
     },
+    {
+      bot_name: 'ansible-worker',
+      instance_id: crypto.randomUUID(),
+    },
   ],
   next_page_token: '',
 });

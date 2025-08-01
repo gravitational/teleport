@@ -19,7 +19,7 @@
 import React, { PropsWithChildren } from 'react';
 import { useTheme } from 'styled-components';
 
-import { Flex, Text } from 'design';
+import { Flex, Stack, Text } from 'design';
 import { ResourceIcon } from 'design/ResourceIcon';
 
 import { iconNames } from './resourceIconSpecs';
@@ -40,6 +40,21 @@ export const Icons = () => {
         );
       })}
     </Flex>
+  );
+};
+
+export const StandardSizes = () => {
+  return (
+    <Stack flexWrap="wrap" gap={2}>
+      <ResourceIcon name={'1password'} size="small" />
+      Small
+      <ResourceIcon name={'1password'} size="medium" />
+      Medium
+      <ResourceIcon name={'1password'} size="large" />
+      Large
+      <ResourceIcon name={'1password'} size="extra-large" />
+      Extra Large
+    </Stack>
   );
 };
 

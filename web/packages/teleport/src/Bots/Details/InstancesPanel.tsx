@@ -26,6 +26,7 @@ import { ButtonSecondary, ButtonText } from 'design/Button';
 import Flex from 'design/Flex/Flex';
 import { SortAscending, SortDescending } from 'design/Icon';
 import { Indicator } from 'design/Indicator/Indicator';
+import Text from 'design/Text';
 import { H2 } from 'design/Text/Text';
 import { fontWeights } from 'design/theme/typography';
 
@@ -154,7 +155,9 @@ export function InstancesPanel(props: { botName: string }) {
               </LoadMoreContainer>
             </ContentContainer>
           ) : (
-            <Box p={3}>No active instances</Box>
+            <Box p={3}>
+              <EmptyText>No active instances</EmptyText>
+            </Box>
           )}
         </>
       ) : undefined}
@@ -194,4 +197,8 @@ const Divider = styled.div`
   height: 1px;
   flex-shrink: 0;
   background-color: ${p => p.theme.colors.interactive.tonal.neutral[0]};
+`;
+
+const EmptyText = styled(Text)`
+  color: ${p => p.theme.colors.text.muted};
 `;
