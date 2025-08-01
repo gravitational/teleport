@@ -4507,9 +4507,7 @@ func (a *ServerWithRoles) listRequestableRoles(ctx context.Context, req *proto.L
 	for _, userRoleName := range userRoleNames {
 		userRole, err := a.authServer.GetRole(ctx, userRoleName)
 		if err != nil {
-			// If this fails, we log a warning but don't fail the entire request
-			a.authServer.logger.WarnContext(ctx, "Failed to get user role while calculating requestable roles", "user", a.context.GetUserMetadata().User, "error", err)
-			continue
+			return nil, trace.Wrap(err, "failed to get user role %q while calculating requestable roles", userRoleName)
 		}
 		userRoles = append(userRoles, userRole)
 	}
