@@ -38,9 +38,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
-	"github.com/gravitational/teleport/lib/client"
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
@@ -61,11 +61,12 @@ type KubernetesV2OutputService struct {
 	log                *slog.Logger
 	proxyPingCache     *proxyPingCache
 	reloadBroadcaster  *channelBroadcaster
-	resolver           reversetunnelclient.Resolver
 	statusReporter     readyz.Reporter
 	// executablePath is called to get the path to the tbot executable.
 	// Usually this is os.Executable
-	executablePath func() (string, error)
+	executablePath    func() (string, error)
+	identityGenerator *identity.Generator
+	clientBuilder     *client.Builder
 }
 
 func (s *KubernetesV2OutputService) String() string {
@@ -116,30 +117,18 @@ func (s *KubernetesV2OutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err, "verifying destination")
 	}
 
-	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
-	if err != nil {
-		return trace.Wrap(err, "fetching default roles")
-	}
-
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
-	id, err := generateIdentity(
-		ctx,
-		s.botAuthClient,
-		s.getBotIdentity(),
-		roles,
-		effectiveLifetime.TTL,
-		nil,
+	id, err := s.identityGenerator.GenerateFacade(ctx,
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
 	)
 	if err != nil {
 		return trace.Wrap(err, "generating identity")
 	}
 
-	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
-
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
-	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
-	impersonatedClient, err := clientForFacade(ctx, s.log, s.botCfg, facade, s.resolver)
+	impersonatedClient, err := s.clientBuilder.Build(ctx, id)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -161,7 +150,7 @@ func (s *KubernetesV2OutputService) generate(ctx context.Context) error {
 		ctx,
 		"Generated identity for Kubernetes access",
 		"matched_cluster_count", len(clusterNames),
-		"identity", describeTLSIdentity(ctx, s.log, id),
+		"identity", describeTLSIdentity(ctx, s.log, id.Get()),
 	)
 
 	// Ping the proxy to resolve connection addresses.
@@ -179,7 +168,7 @@ func (s *KubernetesV2OutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	keyRing, err := NewClientKeyRing(id, hostCAs)
+	keyRing, err := NewClientKeyRing(id.Get(), hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -192,7 +181,7 @@ func (s *KubernetesV2OutputService) generate(ctx context.Context) error {
 		kubernetesClusterNames: clusterNames,
 	}
 
-	return trace.Wrap(s.render(ctx, status, id, hostCAs))
+	return trace.Wrap(s.render(ctx, status, id.Get(), hostCAs))
 }
 
 // kubernetesStatus holds teleport client information necessary to populate a
@@ -201,7 +190,7 @@ type kubernetesStatusV2 struct {
 	clusterAddr            string
 	teleportClusterName    string
 	tlsServerName          string
-	credentials            *client.KeyRing
+	credentials            *libclient.KeyRing
 	kubernetesClusterNames []string
 }
 

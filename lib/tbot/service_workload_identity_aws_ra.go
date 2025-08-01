@@ -34,8 +34,8 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
@@ -51,9 +51,10 @@ type WorkloadIdentityAWSRAService struct {
 	cfg                *config.WorkloadIdentityAWSRAService
 	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
-	resolver           reversetunnelclient.Resolver
 	reloadBroadcaster  *channelBroadcaster
 	statusReporter     readyz.Reporter
+	identityGenerator  *identity.Generator
+	clientBuilder      *client.Builder
 }
 
 // String returns a human-readable description of the service.
@@ -173,28 +174,18 @@ func (s *WorkloadIdentityAWSRAService) requestSVID(
 	)
 	defer span.End()
 
-	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
-	if err != nil {
-		return nil, nil, trace.Wrap(err, "fetching roles")
-	}
-
-	id, err := generateIdentity(
-		ctx,
-		s.botAuthClient,
-		s.getBotIdentity(),
-		roles,
+	id, err := s.identityGenerator.GenerateFacade(ctx,
 		// We only need this to issue the X509 SVID, so we don't need the full
 		// lifetime.
-		time.Minute*10,
-		nil,
+		identity.WithLifetime(time.Minute*10, 0),
+		identity.WithLogger(s.log),
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "generating identity")
 	}
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
-	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
-	impersonatedClient, err := clientForFacade(ctx, s.log, s.botCfg, facade, s.resolver)
+	impersonatedClient, err := s.clientBuilder.Build(ctx, id)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
