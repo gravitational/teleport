@@ -124,6 +124,10 @@ type OIDCConnector interface {
 	// GetUserMatchers returns the set of glob patterns to narrow down which username(s) this auth connector should
 	// match for identifier-first login.
 	GetUserMatchers() []string
+	// GetRequestObjectMode will return the RequestObjectMode of the connector.
+	GetRequestObjectMode() constants.OIDCRequestObjectMode
+	// SetRequestObjectMode sets the RequestObjectMode of the connector.
+	SetRequestObjectMode(mode constants.OIDCRequestObjectMode)
 	// SetUserMatchers sets the set of glob patterns to narrow down which username(s) this auth connector should match
 	// for identifier-first login.
 	SetUserMatchers([]string)
@@ -584,6 +588,16 @@ func (r *OIDCConnectorV3) GetUserMatchers() []string {
 		return nil
 	}
 	return r.Spec.UserMatchers
+}
+
+// GetRequestObjectMode returns the configured OIDC request object mode.
+func (r *OIDCConnectorV3) GetRequestObjectMode() constants.OIDCRequestObjectMode {
+	return constants.OIDCRequestObjectMode(r.Spec.RequestObjectMode)
+}
+
+// SetRequestObjectMode sets the OIDC request object mode.
+func (r *OIDCConnectorV3) SetRequestObjectMode(mode constants.OIDCRequestObjectMode) {
+	r.Spec.RequestObjectMode = string(mode)
 }
 
 // SetUserMatchers sets the set of glob patterns to narrow down which username(s) this auth connector should match
