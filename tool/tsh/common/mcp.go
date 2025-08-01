@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/client/mcp/claude"
+	mcpconfig "github.com/gravitational/teleport/lib/client/mcp/config"
 )
 
 type mcpCommands struct {
@@ -57,17 +57,21 @@ type mcpClientConfigFlags struct {
 }
 
 const (
-	mcpClientConfigClaude = "claude"
-	mcpClientConfigCursor = "cursor"
+	mcpClientConfigClaude     = "claude"
+	mcpClientConfigClaudeCode = "claude-code"
+	mcpClientConfigCursor     = "cursor"
+	mcpClientConfigVSCode     = "vscode"
 )
 
 func (m *mcpClientConfigFlags) addToCmd(cmd *kingpin.CmdClause) {
 	cmd.Flag(
 		"client-config",
 		fmt.Sprintf(
-			"If specified, update the specified client config. %q for default Claude Desktop config, %q for global Cursor MCP servers config, or specify a JSON file path. Can also be set with environment variable %s.",
+			"If specified, generates config for the specified client. %q for default Claude Desktop config, %q for global Cursor MCP servers config, %q for Claude Code config, %q for VSCode config, or specify a JSON file path to automatically update the configuration. Can also be set with environment variable %s.",
 			mcpClientConfigClaude,
 			mcpClientConfigCursor,
+			mcpClientConfigClaudeCode,
+			mcpClientConfigVSCode,
 			mcpClientConfigEnvVar,
 		)).
 		Envar(mcpClientConfigEnvVar).
@@ -79,50 +83,83 @@ func (m *mcpClientConfigFlags) addToCmd(cmd *kingpin.CmdClause) {
 			"Format the JSON file (%s). auto saves in compact if the file is already compact, otherwise pretty. Can also be set with environment variable %s. Default is %s.",
 			strings.Join(m.jsonFormatOptions(), ", "),
 			mcpConfigJSONFormatEnvVar,
-			claude.FormatJSONAuto,
+			mcpconfig.FormatJSONAuto,
 		)).
 		Envar(mcpConfigJSONFormatEnvVar).
-		Default(string(claude.FormatJSONAuto)).
+		Default(string(mcpconfig.FormatJSONAuto)).
 		EnumVar(&m.jsonFormat, m.jsonFormatOptions()...)
 }
 
-func (m *mcpClientConfigFlags) isSet() bool {
-	return m.clientConfig != ""
-}
-
-func (m *mcpClientConfigFlags) loadConfig() (*claude.FileConfig, error) {
+func (m *mcpClientConfigFlags) loadConfig() (*mcpconfig.FileConfig, error) {
 	switch m.clientConfig {
 	case mcpClientConfigClaude:
-		return claude.LoadConfigFromDefaultPath()
+		return mcpconfig.LoadClaudeConfigFromDefaultPath()
 	case mcpClientConfigCursor:
-		return claude.LoadConfigFromGlobalCursor()
+		return mcpconfig.LoadConfigFromGlobalCursor()
 	default:
-		return claude.LoadConfigFromFile(m.clientConfig)
+		return mcpconfig.LoadConfigFromFile(m.clientConfig)
 	}
 }
 
 func (m *mcpClientConfigFlags) jsonFormatOptions() []string {
 	return []string{
-		string(claude.FormatJSONPretty),
-		string(claude.FormatJSONCompact),
-		string(claude.FormatJSONAuto),
-		string(claude.FormatJSONNone),
+		string(mcpconfig.FormatJSONPretty),
+		string(mcpconfig.FormatJSONCompact),
+		string(mcpconfig.FormatJSONAuto),
+		string(mcpconfig.FormatJSONNone),
 	}
 }
 
-func (m *mcpClientConfigFlags) printHint(w io.Writer) error {
+func (m *mcpClientConfigFlags) printFooterNotes(w io.Writer) error {
 	_, err := fmt.Fprintln(w, mcpConfigHint)
 	return trace.Wrap(err)
 }
 
-// claudeConfig defines a subset of functions from claude.Config.
-type claudeConfig interface {
-	PutMCPServer(string, claude.MCPServer) error
-	GetMCPServers() map[string]claude.MCPServer
+func (m *mcpClientConfigFlags) configFormat() mcpconfig.ConfigFormat {
+	switch m.clientConfig {
+	case mcpClientConfigClaude:
+		return mcpconfig.ConfigFormatClaude
+	case mcpClientConfigCursor:
+		return mcpconfig.ConfigFormatCursor
+	case mcpClientConfigVSCode:
+		return mcpconfig.ConfigFormatVSCode
+	default:
+		return mcpconfig.ConfigFormatFromPath(m.clientConfig)
+	}
 }
 
-func makeLocalMCPServer(cf *CLIConf, args []string) claude.MCPServer {
-	s := claude.MCPServer{
+// runMCPConfig runs the MCP config based on flags.
+func runMCPConfig(cf *CLIConf, flags *mcpClientConfigFlags, exec mcpConfigExec) error {
+	switch flags.clientConfig {
+	case "", mcpClientConfigVSCode, mcpClientConfigClaudeCode:
+		return trace.Wrap(exec.printInstructions(cf.Stdout()))
+	default:
+		config, err := flags.loadConfig()
+		if err != nil {
+			return trace.BadParameter("failed to load mcp configuration file at %q: %v", flags.clientConfig, err)
+		}
+		return trace.Wrap(exec.updateConfig(cf.Stdout(), config))
+	}
+}
+
+// mcpConfig defines a subset of functions from mcpconfig.Config.
+type mcpConfig interface {
+	PutMCPServer(string, mcpconfig.MCPServer) error
+	GetMCPServers() map[string]mcpconfig.MCPServer
+}
+
+// mcpConfigExec defines the interface for generating install instructions and
+// directly updating the MCP config.
+type mcpConfigExec interface {
+	// printInstructions prints instructions on how to configure the MCP server.
+	printInstructions(io.Writer) error
+	// updateConfig directly updates the client config. It might also print
+	// information.
+	updateConfig(io.Writer, *mcpconfig.FileConfig) error
+}
+
+func makeLocalMCPServer(cf *CLIConf, args []string) mcpconfig.MCPServer {
+	s := mcpconfig.MCPServer{
 		Command: cf.executablePath,
 		Args:    args,
 	}
@@ -154,8 +191,10 @@ func getLoggingOptsForMCPServer(cf *CLIConf) loggingOpts {
 
 // mcpConfigHint is the hint message displayed when the configuration is shown
 // to users.
-const mcpConfigHint = `Tip: You can use this command to update your MCP servers configuration file automatically.
-- For Claude Desktop, use --client-config=claude to update the default configuration.
-- For Cursor, use --client-config=cursor to update the global MCP servers configuration.
-In addition, you can use --client-config=<path> to specify a config file location that is compatible with the "mcpServers" mapping.
-For example, you can update a Cursor project using --client-config=<path-to-project>/.cursor/mcp.json`
+const mcpConfigHint = `Tip: You can use this command to generate your MCP servers configuration. Some clients support updating the file configuration automatically.
+- For Claude Desktop, use --client-config=claude to generate and update the default configuration.
+- For Cursor, use --client-config=cursor to generate and update the global MCP servers configuration.
+- For VSCode, use --client-config=vscode to generate the configuration.
+- For Claude Code, use --client-config=claude-code to generate the configuration.
+In addition, you can use --client-config=<path> to specify a config file location to directly update configuration of the supported clients.
+For example, you can update a VSCode project using --client-config=<path-to-project>/.vscode/mcp.json`
