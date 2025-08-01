@@ -982,11 +982,11 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 				// so we unfortunately need to unwrap and re-wrap these values
 				// to restore them to a useful state.
 				switch unwrapped := r.Unwrap().(type) {
-				case IdentityCenterAccount:
-					c.putLocked(types.Resource153ToUnifiedResource(unwrapped))
+				case *identitycenterv1.Account:
+					c.putLocked(types.Resource153ToUnifiedResource(IdentityCenterAccount{Account: unwrapped}))
 
-				case IdentityCenterAccountAssignment:
-					c.putLocked(types.Resource153ToUnifiedResource(unwrapped))
+				case *identitycenterv1.AccountAssignment:
+					c.putLocked(types.Resource153ToUnifiedResource(IdentityCenterAccountAssignment{AccountAssignment: unwrapped}))
 
 				default:
 					c.log.Warnf("unsupported Resource153 type %T.", unwrapped)
