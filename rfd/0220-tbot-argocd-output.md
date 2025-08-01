@@ -8,7 +8,8 @@ state: draft
 ## Required Approvers
 
 * Engineering: @strideynet && @timothyb89
-* Product: @thedevelopnik 
+* Product: @thedevelopnik
+
 ## What
 
 Adding a first-class integration with Argo CD to `tbot`, to provide a better
@@ -61,6 +62,11 @@ In our experiments, Argo detected and applied secret changes within a few
 seconds. Even if there were a slight delay due to caching, setting the
 credential TTL to sufficiently longer than the renewal interval should solve
 the issue.
+
+> [!NOTE]
+> For the initial version, configurations where the Teleport proxy is behind a
+> TLS-terminating load balancer will not be supported, as this would require
+> running a local proxy to apply our ALPN upgrade workaround.
 
 ### Service configuration
 
