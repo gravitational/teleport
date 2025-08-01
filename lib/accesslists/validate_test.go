@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -99,7 +100,7 @@ func TestAccessListHierarchyCircularRefsCheck(t *testing.T) {
 		},
 	}
 
-	err = ValidateAccessListWithMembers(ctx, acl5, []*accesslist.AccessListMember{acl4m1}, accessListAndMembersGetter)
+	err = ValidateAccessListWithMembers(ctx, nil, acl5, []*accesslist.AccessListMember{acl4m1}, accessListAndMembersGetter)
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as an Owner of '%s' because '%s' is already included as a Member or Owner in '%s'", acl4.Spec.Title, acl5.Spec.Title, acl5.Spec.Title, acl4.Spec.Title))
 }
@@ -152,9 +153,125 @@ func TestAccessListHierarchyDepthCheck(t *testing.T) {
 	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", acls[accesslist.MaxAllowedDepth+1].Spec.Title, acls[accesslist.MaxAllowedDepth].Spec.Title, accesslist.MaxAllowedDepth))
 }
 
-func TestAccessListValidateWithMembers(t *testing.T) {
-	clock := clockwork.NewFakeClock()
+func TestAccessListValidateWithMembers_basic(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	t.Run("type is validated", func(t *testing.T) {
+		accessList := newAccessList(t, "test_access_list", clock)
+		accessList.Spec.Type = "test_unknown_type"
+
+		err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+		require.Error(t, err)
+		require.ErrorContains(t, err, `unknown access list type "test_unknown_type"`)
+	})
+
+	for _, typ := range accesslist.AllTypes {
+		t.Run("for type: "+string(typ), func(t *testing.T) {
+			if typ == accesslist.DeprecatedDynamic {
+				t.Skip("DeprecatedDynamic type can be skipped because it's defaulted to Default in CheckAndSetDefaults")
+			}
+
+			t.Run("valid", func(t *testing.T) {
+				accessList := newAccessList(t, "test_access_list", clock)
+
+				err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+				require.NoError(t, err)
+			})
+
+			t.Run("owners are required", func(t *testing.T) {
+				accessList := newAccessList(t, "test_access_list", clock)
+				accessList.Spec.Type = typ
+				accessList.Spec.Owners = []accesslist.Owner{}
+
+				err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+				require.Error(t, err)
+				require.ErrorContains(t, err, "owners")
+			})
+
+			if typ.IsReviewable() {
+				t.Run("audit is required", func(t *testing.T) {
+					accessList := newAccessList(t, "test_access_list", clock)
+					accessList.Spec.Type = typ
+					accessList.Spec.Audit = accesslist.Audit{}
+
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+					require.Error(t, err)
+					require.ErrorContains(t, err, "audit")
+				})
+				t.Run("audit.recurrence.frequency is required", func(t *testing.T) {
+					accessList := newAccessList(t, "test_access_list", clock)
+					accessList.Spec.Type = typ
+					accessList.Spec.Audit.Recurrence.Frequency = 0
+
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+					require.Error(t, err)
+					require.ErrorContains(t, err, "audit recurrence frequency")
+				})
+				t.Run("audit.recurrence.day_of_month is required", func(t *testing.T) {
+					accessList := newAccessList(t, "test_access_list", clock)
+					accessList.Spec.Type = typ
+					accessList.Spec.Audit.Recurrence.DayOfMonth = 0
+
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+					require.Error(t, err)
+					require.ErrorContains(t, err, "audit recurrence day of month")
+				})
+				t.Run("audit.recurrence.next_audit_date is required", func(t *testing.T) {
+					accessList := newAccessList(t, "test_access_list", clock)
+					accessList.Spec.Type = typ
+					accessList.Spec.Audit.NextAuditDate = time.Time{}
+
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+					require.Error(t, err)
+					require.ErrorContains(t, err, "next audit date")
+				})
+				t.Run("audit.notifications.start is required", func(t *testing.T) {
+					accessList := newAccessList(t, "test_access_list", clock)
+					accessList.Spec.Type = typ
+					accessList.Spec.Audit.Notifications.Start = 0
+
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+					require.Error(t, err)
+					require.ErrorContains(t, err, "audit notifications start")
+				})
+			} else {
+				t.Run("audit is not required", func(t *testing.T) {
+					accessList := newAccessList(t, "test_access_list", clock)
+					accessList.Spec.Type = typ
+					accessList.Spec.Audit = accesslist.Audit{}
+
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+					require.NoError(t, err)
+				})
+				t.Run("audit can be set", func(t *testing.T) {
+					accessList := newAccessList(t, "test_access_list", clock)
+					accessList.Spec.Type = typ
+
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+					require.NoError(t, err)
+				})
+				t.Run("audit can be partially set", func(t *testing.T) {
+					accessList := newAccessList(t, "test_access_list", clock)
+					accessList.Spec.Type = typ
+					accessList.Spec.Audit = accesslist.Audit{}
+					accessList.Spec.Audit.Recurrence.DayOfMonth = accesslist.FifteenthDayOfMonth
+					accessList.Spec.Audit.Notifications.Start = 3 * time.Hour
+
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+					require.NoError(t, err)
+				})
+			}
+		})
+	}
+
+}
+
+func TestAccessListValidateWithMembers_members(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
 
 	// We're creating a hierarchy with a depth of 10, and then trying to add it as a Member of a 'root' Access List. This should fail.
 	rootAcl := newAccessList(t, "root", clock)
@@ -187,13 +304,13 @@ func TestAccessListValidateWithMembers(t *testing.T) {
 	}
 
 	// Should validate successfully, as acl-0 -> acl-10 is a valid hierarchy of depth 10.
-	err := ValidateAccessListWithMembers(ctx, rootAcl, []*accesslist.AccessListMember{}, accessListAndMembersGetter)
+	err := ValidateAccessListWithMembers(ctx, nil, rootAcl, []*accesslist.AccessListMember{}, accessListAndMembersGetter)
 	require.NoError(t, err)
-	err = ValidateAccessListWithMembers(ctx, nestedAcls[0], []*accesslist.AccessListMember{accessListAndMembersGetter.members[nestedAcls[0].GetName()][0]}, accessListAndMembersGetter)
+	err = ValidateAccessListWithMembers(ctx, nil, nestedAcls[0], []*accesslist.AccessListMember{accessListAndMembersGetter.members[nestedAcls[0].GetName()][0]}, accessListAndMembersGetter)
 	require.NoError(t, err)
 
 	// Calling `ValidateAccessListWithMembers`, with `rootAclm1`, should fail, as it would exceed the maximum nesting depth.
-	err = ValidateAccessListWithMembers(ctx, rootAcl, []*accesslist.AccessListMember{rootAclMember}, accessListAndMembersGetter)
+	err = ValidateAccessListWithMembers(ctx, nil, rootAcl, []*accesslist.AccessListMember{rootAclMember}, accessListAndMembersGetter)
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", nestedAcls[0].Spec.Title, rootAcl.Spec.Title, accesslist.MaxAllowedDepth))
 
@@ -243,13 +360,13 @@ func TestAccessListValidateWithMembers(t *testing.T) {
 	accessListAndMembersGetter.accessLists[nestedAcls2Last.GetName()] = nestedAcls2Last
 
 	// Should validate successfully when adding another list, as both hierarchies are valid.
-	err = ValidateAccessListWithMembers(ctx, nestedAcls1Last, []*accesslist.AccessListMember{newAccessListMember(t, nestedAcls1Last.GetName(), nestedAcls2Last.GetName(), accesslist.MembershipKindList, clock)}, accessListAndMembersGetter)
+	err = ValidateAccessListWithMembers(ctx, nil, nestedAcls1Last, []*accesslist.AccessListMember{newAccessListMember(t, nestedAcls1Last.GetName(), nestedAcls2Last.GetName(), accesslist.MembershipKindList, clock)}, accessListAndMembersGetter)
 	require.NoError(t, err)
-	err = ValidateAccessListWithMembers(ctx, nestedAcls2Last, []*accesslist.AccessListMember{newAccessListMember(t, nestedAcls2Last.GetName(), nestedAcls1Last.GetName(), accesslist.MembershipKindList, clock)}, accessListAndMembersGetter)
+	err = ValidateAccessListWithMembers(ctx, nil, nestedAcls2Last, []*accesslist.AccessListMember{newAccessListMember(t, nestedAcls2Last.GetName(), nestedAcls1Last.GetName(), accesslist.MembershipKindList, clock)}, accessListAndMembersGetter)
 	require.NoError(t, err)
 
 	// Now, we'll try to connect the two hierarchies, which should fail.
-	err = ValidateAccessListWithMembers(ctx, nestedAcls1Last, []*accesslist.AccessListMember{newAccessListMember(t, nestedAcls1Last.GetName(), nestedAcls2[0].GetName(), accesslist.MembershipKindList, clock)}, accessListAndMembersGetter)
+	err = ValidateAccessListWithMembers(ctx, nil, nestedAcls1Last, []*accesslist.AccessListMember{newAccessListMember(t, nestedAcls1Last.GetName(), nestedAcls2[0].GetName(), accesslist.MembershipKindList, clock)}, accessListAndMembersGetter)
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", nestedAcls2[0].Spec.Title, nestedAcls1[len(nestedAcls1)-1].Spec.Title, accesslist.MaxAllowedDepth))
 }

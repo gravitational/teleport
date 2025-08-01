@@ -6465,6 +6465,9 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 		}
 
 		for _, al := range response {
+			if !al.IsReviewable() {
+				continue
+			}
 			daysDiff := int(al.Spec.Audit.NextAuditDate.Sub(now).Hours() / 24)
 			// Only keep access lists that fall within our thresholds in memory
 			if daysDiff <= 15 {
