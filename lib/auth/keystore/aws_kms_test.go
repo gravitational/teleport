@@ -33,6 +33,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	kmstypes "github.com/aws/aws-sdk-go-v2/service/kms/types"
+	"github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi"
+	rgttypes "github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -60,6 +62,7 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		tags map[string]string
+		env  map[string]string
 	}{
 		{
 			name: "delete keys with default tags",
@@ -76,10 +79,20 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 				"TeleportCluster": "test-cluster-2",
 			},
 		},
+		{
+			name: "delete keys with tagging api lookup",
+			env: map[string]string{
+				"TELEPORT_UNSTABLE_SCOPED_KMS_KEY_DELETION": "yes",
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			const pageSize int = 4
 			fakeKMS := newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", pageSize)
+			fakeRGT := newFakeAWSRGTService(t, clock, "123456789012", "us-west-2", pageSize, fakeKMS)
+			for key, value := range tc.env {
+				t.Setenv(key, value)
+			}
 			cfg := servicecfg.KeystoreConfig{
 				AWSKMS: &servicecfg.AWSKMSConfig{
 					AWSAccount: "123456789012",
@@ -94,6 +107,7 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 				HostUUID:             "uuid",
 				AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
 				awsKMSClient:         fakeKMS,
+				awsRGTClient:         fakeRGT,
 				awsSTSClient: &fakeAWSSTSClient{
 					account: "123456789012",
 				},
@@ -335,6 +349,65 @@ func TestAWSKeyCreationParameters(t *testing.T) {
 	}
 }
 
+type fakeAWSRGTService struct {
+	kms       *fakeAWSKMSService
+	clock     clockwork.Clock
+	account   string
+	region    string
+	pageLimit int
+}
+
+func newFakeAWSRGTService(t *testing.T, clock clockwork.Clock, account string, region string, pageLimit int, kms *fakeAWSKMSService) *fakeAWSRGTService {
+	return &fakeAWSRGTService{
+		clock:     clock,
+		account:   account,
+		region:    region,
+		pageLimit: pageLimit,
+		kms:       kms,
+	}
+}
+
+func (f *fakeAWSRGTService) GetResources(_ context.Context, input *resourcegroupstaggingapi.GetResourcesInput, _ ...func(*resourcegroupstaggingapi.Options)) (*resourcegroupstaggingapi.GetResourcesOutput, error) {
+	pageLimit := min(int(aws.ToInt32(input.ResourcesPerPage)), f.pageLimit)
+	output := &resourcegroupstaggingapi.GetResourcesOutput{}
+	i := 0
+	if input.PaginationToken != nil && *input.PaginationToken != "" {
+		var err error
+		i, err = strconv.Atoi(aws.ToString(input.PaginationToken))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+keys:
+	for ; i < len(f.kms.keys) && len(output.ResourceTagMappingList) < pageLimit; i++ {
+		for _, t := range input.TagFilters {
+			if !f.kms.keys[i].satisfiesFilter(t) {
+				continue keys
+			}
+		}
+		convertedTags := convertKMSTagsToRGT(f.kms.keys[i].tags)
+		output.ResourceTagMappingList = append(output.ResourceTagMappingList, rgttypes.ResourceTagMapping{
+			ResourceARN: aws.String(f.kms.keys[i].arn.String()),
+			Tags:        convertedTags,
+		})
+	}
+	if i < len(f.kms.keys) {
+		output.PaginationToken = aws.String(strconv.Itoa(i))
+	}
+	return output, nil
+}
+
+func convertKMSTagsToRGT(kmsTags []kmstypes.Tag) []rgttypes.Tag {
+	out := make([]rgttypes.Tag, 0, len(kmsTags))
+	for _, t := range kmsTags {
+		out = append(out, rgttypes.Tag{
+			Key:   t.TagKey,
+			Value: t.TagValue,
+		})
+	}
+	return out
+}
+
 type fakeAWSKMSService struct {
 	keys               []*fakeAWSKMSKey
 	clock              clockwork.Clock
@@ -372,6 +445,24 @@ func (f fakeAWSKMSKey) replicaArn(region string) string {
 
 func (f fakeAWSKMSKey) hasReplica(region string) bool {
 	return region == f.region || slices.Contains(f.replicas, region)
+}
+
+func (f *fakeAWSKMSKey) satisfiesFilter(filter rgttypes.TagFilter) bool {
+	for _, tag := range f.tags {
+		if aws.ToString(tag.TagKey) != aws.ToString(filter.Key) {
+			continue
+		}
+		if len(filter.Values) == 0 {
+			return true
+		}
+		for _, val := range filter.Values {
+			if aws.ToString(tag.TagValue) == aws.ToString(&val) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func (f *fakeAWSKMSService) CreateKey(_ context.Context, input *kms.CreateKeyInput, _ ...func(*kms.Options)) (*kms.CreateKeyOutput, error) {
