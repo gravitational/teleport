@@ -209,7 +209,7 @@ require (
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
 	github.com/vulcand/predicate v1.2.0 // replaced
 	github.com/yusufpapurcu/wmi v1.2.4
-	github.com/zitadel/oidc/v3 v3.39.1
+	github.com/zitadel/oidc/v3 v3.43.0
 	gitlab.com/gitlab-org/api/client-go v0.131.0
 	go.etcd.io/etcd/api/v3 v3.6.1
 	go.etcd.io/etcd/client/v3 v3.6.1
@@ -228,10 +228,10 @@ require (
 	golang.org/x/mod v0.25.0
 	golang.org/x/net v0.41.0
 	golang.org/x/oauth2 v0.30.0
-	golang.org/x/sync v0.15.0
+	golang.org/x/sync v0.16.0
 	golang.org/x/sys v0.33.0
 	golang.org/x/term v0.32.0
-	golang.org/x/text v0.26.0
+	golang.org/x/text v0.27.0
 	golang.org/x/time v0.12.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
 	golang.zx2c4.com/wireguard/windows v0.5.3
@@ -313,7 +313,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
-	github.com/bmatcuk/doublestar/v4 v4.8.1 // indirect
+	github.com/bmatcuk/doublestar/v4 v4.9.0 // indirect
 	github.com/boombuler/barcode v1.0.1 // indirect
 	github.com/catppuccin/go v0.3.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
@@ -592,7 +592,7 @@ require (
 replace (
 	github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
 	github.com/crewjam/saml => github.com/gravitational/saml v0.4.15-teleport.2
-	github.com/datastax/go-cassandra-native-protocol => github.com/gravitational/go-cassandra-native-protocol v0.0.0-teleport.1
+	github.com/datastax/go-cassandra-native-protocol => github.com/gravitational/go-cassandra-native-protocol v0.0.0-teleport.2
 	github.com/go-mysql-org/go-mysql => github.com/gravitational/go-mysql v1.9.1-teleport.4
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-teleport.2
 	github.com/gravitational/teleport/api => ./api

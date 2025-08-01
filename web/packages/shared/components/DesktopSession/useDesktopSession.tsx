@@ -25,7 +25,7 @@ import {
   useState,
 } from 'react';
 
-import type { NotificationItem } from 'shared/components/Notification';
+import type { ToastNotificationItem } from 'shared/components/ToastNotification';
 import { Attempt } from 'shared/hooks/useAsync';
 import { ClipboardData, TdpClient } from 'shared/libs/tdp';
 import { isAbortError } from 'shared/utils/error';
@@ -88,11 +88,11 @@ export default function useDesktopSession(
     };
   }, []);
 
-  const [alerts, setAlerts] = useState<NotificationItem[]>([]);
+  const [alerts, setAlerts] = useState<ToastNotificationItem[]>([]);
   const onRemoveAlert = (id: string) => {
     setAlerts(prevState => prevState.filter(alert => alert.id !== id));
   };
-  const addAlert = useCallback((alert: Omit<NotificationItem, 'id'>) => {
+  const addAlert = useCallback((alert: Omit<ToastNotificationItem, 'id'>) => {
     setAlerts(prevState => [
       ...prevState,
       { ...alert, id: crypto.randomUUID() },
