@@ -104,6 +104,17 @@ func (r resourceTeleportAutoUpdateVersion) Create(ctx context.Context, req tfsdk
 	for {
 		tries = tries + 1
 		autoUpdateVersionI, err = r.p.Client.GetAutoUpdateVersion(ctx)
+		if trace.IsNotFound(err) {
+			if bErr := backoff.Do(ctx); bErr != nil {
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading AutoUpdateVersion", trace.Wrap(bErr), "autoupdate_version"))
+				return
+			}
+			if tries >= r.p.RetryConfig.MaxTries {
+				diagMessage := fmt.Sprintf("Error reading AutoUpdateVersion (tried %d times) - state outdated, please import resource", tries)
+				resp.Diagnostics.AddError(diagMessage, "autoupdate_version")
+			}
+			continue
+		}
 		if err != nil {
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading AutoUpdateVersion", trace.Wrap(err), "autoupdate_version"))
 			return
