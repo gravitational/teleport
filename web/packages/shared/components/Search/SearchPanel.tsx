@@ -84,6 +84,7 @@ export function SearchPanel({
           <InputSearch
             searchValue={query}
             setSearchValue={updateQueryForRefetching}
+            disabled={disableSearch}
           >
             {!hideAdvancedSearch && (
               <AdvancedSearchToggle

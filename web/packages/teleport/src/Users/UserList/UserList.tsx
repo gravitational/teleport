@@ -32,7 +32,6 @@ export default function UserList({
   serversidePagination,
   usersAcl,
 }: Props) {
-  const canView = usersAcl.read;
   const canEdit = usersAcl.edit;
   const canDelete = usersAcl.remove;
 
@@ -53,7 +52,7 @@ export default function UserList({
             updateQuery={null}
             hideAdvancedSearch={true}
             filter={{ search }}
-            disableSearch={serversidePagination.attempt.status === 'processing'}
+            disableSearch={serversidePagination.fetchStatus === 'loading'}
           />
         ),
       }}
@@ -80,7 +79,7 @@ export default function UserList({
           altKey: 'options-btn',
           render: (user: User) => (
             <ActionCell
-              canView={canView}
+              user={user}
               canEdit={canEdit}
               canDelete={canDelete}
               onEdit={() => onEdit(user)}
@@ -124,21 +123,25 @@ export default function UserList({
 }
 
 const ActionCell = ({
-  canView,
+  user,
   canEdit,
   canDelete,
   onEdit,
   onReset,
   onDelete,
 }: {
-  canView: boolean;
+  user: User;
   canEdit: boolean;
   canDelete: boolean;
   onEdit: () => void;
   onReset: () => void;
   onDelete: () => void;
 }) => {
-  if (!(canView || canEdit || canDelete)) {
+  if (!(canEdit || canDelete)) {
+    return <Cell align="right" />;
+  }
+
+  if (user.isBot || !user.isLocal) {
     return <Cell align="right" />;
   }
 

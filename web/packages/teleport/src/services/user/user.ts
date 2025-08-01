@@ -61,6 +61,7 @@ const service = {
     return api.get(cfg.getUserWithUsernameUrl(username)).then(makeUser);
   },
 
+  // TODO(rudream): DELETE IN v21.0
   fetchUsers(signal?: AbortSignal) {
     return api.get(cfg.getUsersUrl(), signal).then(makeUsers);
   },
@@ -72,18 +73,26 @@ const service = {
     items: User[];
     startKey: string;
   }> {
-    return await api.get(cfg.getUsersUrlV2(params), signal).catch(err => {
-      // If this v2 paginated endpoint isn't found, fallback to the v1 endpoint but paginate locally in order to
-      // maintain compatibility with the paginated table component which expects a paginated response.
-      // TODO(rudream): DELETE IN v21.0
-      if (isPathNotFoundError(err)) {
-        return this.fetchUsers()
-          .then(makeUsers)
-          .then(users => makeUsersPageLocally(params, users));
-      } else {
-        throw err;
-      }
-    });
+    return await api
+      .get(cfg.getUsersUrlV2(params), signal)
+      .then(res => {
+        return {
+          items: makeUsers(res.items),
+          startKey: res.startKey,
+        };
+      })
+      .catch(err => {
+        // If this v2 paginated endpoint isn't found, fallback to the v1 endpoint but paginate locally in order to
+        // maintain compatibility with the paginated table component which expects a paginated response.
+        // TODO(rudream): DELETE IN v21.0
+        if (isPathNotFoundError(err)) {
+          return this.fetchUsers()
+            .then(makeUsers)
+            .then(users => makeUsersPageLocally(params, users));
+        } else {
+          throw err;
+        }
+      });
   },
 
   /**

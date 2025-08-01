@@ -28,6 +28,7 @@ import {
   InfoUl,
   ReferenceLinks,
 } from 'shared/components/SlidingSidePanel/InfoGuide';
+import { isAbortError } from 'shared/utils/error';
 
 import { useServerSidePagination } from 'teleport/components/hooks';
 import {
@@ -76,24 +77,38 @@ export function Users(props: State) {
   const serverSidePagination = useServerSidePagination<User>({
     pageSize: 20,
     fetchFunc: async (_, params) => {
-      const { items, startKey } = await fetch(
-        params,
-        abortControllerRef.current?.signal
-      );
-      return { agents: items || [], startKey };
+      try {
+        const { items, startKey } = await fetch(
+          params,
+          abortControllerRef.current?.signal
+        );
+        return { agents: items || [], startKey };
+      } catch (err) {
+        // Silently ignore abort errors to prevent warning dialogs
+        if (isAbortError(err)) {
+          return { agents: [], startKey: '' };
+        }
+        throw err;
+      }
     },
     clusterId: '',
     params: { search },
   });
 
   useEffect(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
+    // Cancel previous request and create new controller
+    abortControllerRef.current?.abort();
     abortControllerRef.current = new AbortController();
+
     serverSidePagination.fetch();
   }, [search]);
+
+  // Cleanup controller on unmount
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   const requiredPermissions = Object.entries(usersAcl)
     .map(([key, value]) => {

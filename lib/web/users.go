@@ -21,7 +21,6 @@ package web
 import (
 	"context"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -66,13 +65,45 @@ func (h *Handler) getUsersHandle(w http.ResponseWriter, r *http.Request, params 
 	return getUsers(r.Context(), clt)
 }
 
+// listUsersHandle returns a paginated list of users.
 func (h *Handler) listUsersHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return listUsers(r.Context(), clt, r.URL.Query())
+	values := r.URL.Query()
+
+	limit, err := QueryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.ListUsers(r.Context(), &userspb.ListUsersRequest{
+		PageSize:  limit,
+		PageToken: values.Get("startKey"),
+		Filter: &types.UserFilter{
+			SearchKeywords:  client.ParseSearchKeywords(values.Get("search"), ' '),
+			SkipSystemUsers: true,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var uiUsers []ui.UserListEntry
+	for _, u := range resp.GetUsers() {
+		uiuser, err := ui.NewUserListEntry(u)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		uiUsers = append(uiUsers, *uiuser)
+	}
+
+	return &listUsersResponse{
+		Items:    uiUsers,
+		StartKey: resp.GetNextPageToken(),
+	}, nil
 }
 
 func (h *Handler) getUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
@@ -239,40 +270,6 @@ type listUsersResponse struct {
 	Items []ui.UserListEntry `json:"items"`
 	// StartKey is the position from which to resume search.
 	StartKey string `json:"startKey"`
-}
-
-// listUsers returns a paginated list of users.
-func listUsers(ctx context.Context, clt userAPIGetter, values url.Values) (*listUsersResponse, error) {
-	limit, err := QueryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := clt.ListUsers(ctx, &userspb.ListUsersRequest{
-		PageSize:  limit,
-		PageToken: values.Get("startKey"),
-		Filter: &types.UserFilter{
-			SearchKeywords: client.ParseSearchKeywords(values.Get("search"), ' '),
-			SkipSystemUsers: true,
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var uiUsers []ui.UserListEntry
-	for _, u := range resp.GetUsers() {
-		uiuser, err := ui.NewUserListEntry(u)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		uiUsers = append(uiUsers, *uiuser)
-	}
-
-	return &listUsersResponse{
-		Items:    uiUsers,
-		StartKey: resp.GetNextPageToken(),
-	}, nil
 }
 
 func getUser(ctx context.Context, username string, m userAPIGetter) (*ui.User, error) {

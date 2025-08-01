@@ -157,24 +157,9 @@ export function UserAddEdit({
       // We have to update the user list on the clientside for the change to be visible immediately
       // without needing to refresh.
       modifyFetchedData(p => {
-        // First check if the new user would alphabetically belong on this page.
-        if (p.agents.length > 0) {
-          // If the last user on this page is alphabetically ordered before the new user, then do nothing
-          // because it means the new user would be on the next page.
-          const lastUserOnPage = p.agents[p.agents.length - 1];
-          if (u.name.localeCompare(lastUserOnPage.name) > 0) {
-            return p;
-          }
-        }
-
-        // Add the new user to the page and then sort so the page is alphabetically sorted again.
-        const newUsers = [...p.agents, u].sort((a, b) =>
-          a.name.localeCompare(b.name)
-        );
-
         return {
           ...p,
-          agents: newUsers,
+          agents: [u, ...p.agents],
         };
       });
 
