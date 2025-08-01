@@ -14,7 +14,7 @@ data:
     
     [teleport]
     addr = {{ coalesce .Values.teleport.address .Values.tbot.teleportProxyAddress .Values.tbot.teleportAuthAddress | quote }}
-    identity = "/var/lib/teleport/plugins/msteams/teleport-identity/{{ .Values.teleport.identitySecretPath }}"
+    identity = "/var/lib/teleport/plugins/msteams/teleport-identity/{{ include "msteams.identitySecretPath" . }}"
     refresh_identity = true
 
     [msapi]
