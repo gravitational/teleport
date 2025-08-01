@@ -28,9 +28,8 @@ func (r *RegisterUsingIAMMethodRequest) CheckAndSetDefaults() error {
 }
 
 func (r *RegisterUsingAzureMethodRequest) CheckAndSetDefaults() error {
-	if len(r.AttestedData) == 0 {
-		return trace.BadParameter("missing parameter AttestedData")
-	}
+	// AttestedData can be empty for AKS pods using Workload Identity
+	// Empty AttestedData signals to the server to use AKS-specific validation
 	if len(r.AccessToken) == 0 {
 		return trace.BadParameter("missing parameter AccessToken")
 	}

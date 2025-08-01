@@ -9,7 +9,15 @@ version: v3
 teleport:
   join_params:
     method: "{{ .Values.joinParams.method }}"
+    {{- if or (eq .Values.joinParams.method "azure") (eq .Values.joinParams.method "iam") (eq .Values.joinParams.method "kubernetes") }}
+    token_name: "{{ required "joinParams.tokenName is required for delegated join methods" .Values.joinParams.tokenName }}"
+    {{- else }}
     token_name: "/etc/teleport-secrets/auth-token"
+    {{- end }}
+    {{- if and (eq .Values.joinParams.method "azure") .Values.joinParams.azure }}
+    azure:
+      client_id: "{{ .Values.joinParams.azure.clientID }}"
+    {{- end }}
   {{- if (ge (include "teleport-kube-agent.version" . | semver).Major 11) }}
   proxy_server: {{ required "proxyAddr is required in chart values" .Values.proxyAddr }}
   {{- else }}

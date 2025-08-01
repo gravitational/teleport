@@ -75,6 +75,8 @@ joinParams:
   #   same Kubernetes cluster as the `teleport-cluster` chart) or the `JWKS`
   #   variant (works in every Kubernetes cluster, regardless of the Teleport Auth
   #   Service location).
+  # - `iam`: for EKS clusters using AWS IAM Roles for Service Accounts (IRSA)
+  # - `azure`: for AKS clusters using Azure Workload Identity
   method: "token"
 
   # joinParams.tokenName(string) -- controls which token is used by the agent to
@@ -92,6 +94,13 @@ joinParams:
   # is provided through an existing Kubernetes Secret, see
   # [`joinTokenSecret`](#joinTokenSecret) for more details and instructions.
   tokenName: ""
+
+  # joinParams.azure -- controls Azure-specific join parameters when using Azure join method.
+  # Only used when `joinParams.method` is `azure`.
+  azure:
+    # joinParams.azure.clientID(string) -- client ID of the Azure managed identity to use.
+    # If empty, uses the pod's default managed identity.
+    clientID: ""
 
 ################################################################
 # Values that must be provided if Kubernetes access is enabled.
@@ -893,7 +902,7 @@ adminClusterRoleBinding:
 # You can override this to use your own Teleport image rather than a
 # Teleport-published image.
 #
-# <Admonition type="warning" title="Interaction with Teleport Kube Agent Updater"> 
+# <Admonition type="warning" title="Interaction with Teleport Kube Agent Updater">
 # When using the Teleport Kube Agent Updater, you must ensure the
 # image is available before the updater version target gets updated and
 # Kubernetes tries to pull the image.

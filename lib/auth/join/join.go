@@ -26,6 +26,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/go-jose/go-jose/v3"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -814,6 +816,21 @@ func registerUsingAzureMethod(
 	ctx context.Context, client joinServiceClient, token string, hostKeys *newHostKeys, params RegisterParams,
 ) (*proto.Certs, error) {
 	certs, err := client.RegisterUsingAzureMethod(ctx, func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
+		// Check if we're running in AKS with Azure Workload Identity
+		if isRunningInAKS() {
+			slog.InfoContext(ctx, "Detected AKS environment with Azure Workload Identity")
+			return registerUsingAzureMethodAKS(ctx, challenge, token, hostKeys, params)
+		}
+
+		// Log what environment variables we have for debugging
+		slog.InfoContext(ctx, "Azure join environment check",
+			"KUBERNETES_SERVICE_HOST", os.Getenv("KUBERNETES_SERVICE_HOST") != "",
+			"AZURE_CLIENT_ID", os.Getenv("AZURE_CLIENT_ID") != "",
+			"AZURE_TENANT_ID", os.Getenv("AZURE_TENANT_ID") != "",
+			"AZURE_FEDERATED_TOKEN_FILE", os.Getenv("AZURE_FEDERATED_TOKEN_FILE") != "",
+		)
+
+		// Standard Azure VM flow
 		imds := azure.NewInstanceMetadataClient()
 		if !imds.IsAvailable(ctx) {
 			return nil, trace.AccessDenied("could not reach instance metadata. Is Teleport running on an Azure VM?")
@@ -834,6 +851,87 @@ func registerUsingAzureMethod(
 		}, nil
 	})
 	return certs, trace.Wrap(err)
+}
+
+// isRunningInAKS checks if the code is running in an AKS pod with Azure Workload Identity
+func isRunningInAKS() bool {
+	// Check for Kubernetes environment
+	_, hasKubeHost := os.LookupEnv("KUBERNETES_SERVICE_HOST")
+
+	// Check for Azure Workload Identity environment variables
+	// These are injected by the Azure Workload Identity webhook
+	_, hasAzureClientID := os.LookupEnv("AZURE_CLIENT_ID")
+	_, hasAzureTenantID := os.LookupEnv("AZURE_TENANT_ID")
+	_, hasAzureFederatedTokenFile := os.LookupEnv("AZURE_FEDERATED_TOKEN_FILE")
+
+	return hasKubeHost && hasAzureClientID && hasAzureTenantID && hasAzureFederatedTokenFile
+}
+
+// registerUsingAzureMethodAKS handles Azure registration for AKS pods using Workload Identity
+func registerUsingAzureMethodAKS(
+	ctx context.Context,
+	challenge string,
+	token string,
+	hostKeys *newHostKeys,
+	params RegisterParams,
+) (*proto.RegisterUsingAzureMethodRequest, error) {
+	slog.InfoContext(ctx, "Detected AKS environment, using Azure Workload Identity for authentication")
+
+	// Get access token using Azure Workload Identity
+	accessToken, err := getAKSAccessToken(ctx, params.AzureParams.ClientID)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get Azure access token in AKS")
+	}
+
+	// For AKS, we don't have attested data, so we send an empty slice
+	// The server will detect this and use the AKS-specific validation flow
+	return &proto.RegisterUsingAzureMethodRequest{
+		RegisterUsingTokenRequest: registerUsingTokenRequestForParams(token, hostKeys, params),
+		AttestedData:              []byte{}, // Empty to signal AKS mode
+		AccessToken:               accessToken,
+	}, nil
+}
+
+// getAKSAccessToken gets an Azure access token using Workload Identity in AKS
+func getAKSAccessToken(ctx context.Context, clientID string) (string, error) {
+	// Azure Workload Identity sets these environment variables
+	tenantID := os.Getenv("AZURE_TENANT_ID")
+	federatedTokenFile := os.Getenv("AZURE_FEDERATED_TOKEN_FILE")
+
+	if tenantID == "" || federatedTokenFile == "" {
+		return "", trace.BadParameter("Azure Workload Identity environment variables not set")
+	}
+
+	// If no client ID is provided, use the one from environment
+	if clientID == "" {
+		clientID = os.Getenv("AZURE_CLIENT_ID")
+		if clientID == "" {
+			return "", trace.BadParameter("no Azure client ID provided and AZURE_CLIENT_ID not set")
+		}
+	}
+
+	// The federated token is read automatically by NewWorkloadIdentityCredential
+	// from the file path specified in TokenFilePath
+
+	// Create workload identity credential
+	cred, err := azidentity.NewWorkloadIdentityCredential(&azidentity.WorkloadIdentityCredentialOptions{
+		ClientID:      clientID,
+		TenantID:      tenantID,
+		TokenFilePath: federatedTokenFile,
+	})
+	if err != nil {
+		return "", trace.Wrap(err, "failed to create workload identity credential")
+	}
+
+	// Get token for Azure Resource Manager (same audience as VMs use)
+	tokenResponse, err := cred.GetToken(ctx, policy.TokenRequestOptions{
+		Scopes: []string{"https://management.azure.com/.default"},
+	})
+	if err != nil {
+		return "", trace.Wrap(err, "failed to get access token")
+	}
+
+	return tokenResponse.Token, nil
 }
 
 // registerUsingTPMMethod is used to register using the TPM join method. It

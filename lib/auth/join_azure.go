@@ -23,11 +23,15 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -35,6 +39,7 @@ import (
 	armpolicy "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/digitorus/pkcs7"
+	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
@@ -44,12 +49,11 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	liboidc "github.com/gravitational/teleport/lib/oidc"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
-	azureAccessTokenAudience = "https://management.azure.com/"
+	azureAccessTokenAudience = "https://management.azure.com"
 
 	// azureUserAgent specifies the Azure User-Agent identification for telemetry.
 	azureUserAgent = "teleport"
@@ -129,22 +133,130 @@ type azureRegisterConfig struct {
 	getVMClient            vmClientGetter
 }
 
-func azureVerifyFuncFromOIDCVerifier(clientID string) azureVerifyTokenFunc {
+// azureJWKSCache caches Azure AD's JWKS to avoid repeated fetches
+var azureJWKSCache = struct {
+	sync.RWMutex
+	keys      *jose.JSONWebKeySet
+	fetchedAt time.Time
+	tenantID  string
+}{}
+
+func fetchAzureJWKS(ctx context.Context, tenantID string) (*jose.JSONWebKeySet, error) {
+	// Check cache first (valid for 24 hours)
+	azureJWKSCache.RLock()
+	if azureJWKSCache.keys != nil &&
+		azureJWKSCache.tenantID == tenantID &&
+		time.Since(azureJWKSCache.fetchedAt) < 24*time.Hour {
+		defer azureJWKSCache.RUnlock()
+		return azureJWKSCache.keys, nil
+	}
+	azureJWKSCache.RUnlock()
+
+	// Fetch new keys
+	azureJWKSCache.Lock()
+	defer azureJWKSCache.Unlock()
+
+	// Double-check after acquiring write lock
+	if azureJWKSCache.keys != nil &&
+		azureJWKSCache.tenantID == tenantID &&
+		time.Since(azureJWKSCache.fetchedAt) < 24*time.Hour {
+		return azureJWKSCache.keys, nil
+	}
+
+	// Azure AD JWKS endpoint
+	jwksURL := fmt.Sprintf("https://login.microsoftonline.com/%s/discovery/v2.0/keys", tenantID)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", jwksURL, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, trace.BadParameter("failed to fetch Azure JWKS: HTTP %d", resp.StatusCode)
+	}
+
+	var jwks jose.JSONWebKeySet
+	if err := json.NewDecoder(resp.Body).Decode(&jwks); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Update cache
+	azureJWKSCache.keys = &jwks
+	azureJWKSCache.fetchedAt = time.Now()
+	azureJWKSCache.tenantID = tenantID
+
+	return &jwks, nil
+}
+
+func azureVerifyFuncFromOIDCVerifier(audience string) azureVerifyTokenFunc {
 	return func(ctx context.Context, rawIDToken string) (*accessTokenClaims, error) {
+		// Parse the JWT
 		token, err := jwt.ParseSigned(rawIDToken)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// Need to get the tenant ID before we verify so we can construct the issuer URL.
+
+		// Get unverified claims to determine which keys to use
 		var unverifiedClaims accessTokenClaims
 		if err := token.UnsafeClaimsWithoutVerification(&unverifiedClaims); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		issuer, err := url.JoinPath("https://sts.windows.net", unverifiedClaims.TenantID, "/")
+
+		// Fetch Azure AD's public keys
+		jwks, err := fetchAzureJWKS(ctx, unverifiedClaims.TenantID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return liboidc.ValidateToken[*accessTokenClaims](ctx, issuer, clientID, rawIDToken)
+
+		// Verify the token signature using Azure AD's keys
+		var claims accessTokenClaims
+		var keyFound bool
+		for _, key := range jwks.Keys {
+			if err := token.Claims(key, &claims); err == nil {
+				keyFound = true
+				break
+			}
+		}
+
+		if !keyFound {
+			return nil, trace.AccessDenied("token signature verification failed: no matching key found")
+		}
+
+		// Construct expected issuer
+		expectedIssuer := fmt.Sprintf("https://sts.windows.net/%s/", claims.TenantID)
+		if claims.Version == "2.0" {
+			// v2.0 tokens can have either issuer format
+			altIssuer := fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", claims.TenantID)
+			if claims.Issuer != expectedIssuer && claims.Issuer != altIssuer {
+				return nil, trace.BadParameter("invalid issuer: got %q, expected %q or %q", claims.Issuer, expectedIssuer, altIssuer)
+			}
+		} else if claims.Issuer != expectedIssuer {
+			return nil, trace.BadParameter("invalid issuer: got %q, expected %q", claims.Issuer, expectedIssuer)
+		}
+
+		// Validate audience
+		if !slices.Contains(claims.Audience, audience) {
+			return nil, trace.BadParameter("invalid audience: %v does not contain %q", claims.Audience, audience)
+		}
+
+		// Validate expiration
+		if claims.Expiration.AsTime().Before(time.Now()) {
+			return nil, trace.BadParameter("token has expired")
+		}
+
+		// Validate not before
+		if claims.NotBefore.AsTime().After(time.Now()) {
+			return nil, trace.BadParameter("token not yet valid")
+		}
+
+		return &claims, nil
 	}
 }
 
@@ -405,6 +517,12 @@ func (a *Server) checkAzureRequest(
 	token, ok := provisionToken.(*types.ProvisionTokenV2)
 	if !ok {
 		return nil, trace.BadParameter("azure join method only supports ProvisionTokenV2, '%T' was provided", provisionToken)
+	}
+
+	// Check if we have attested data - if not, this might be an AKS pod
+	if len(req.AttestedData) == 0 {
+		// AKS pods don't have access to attested data, handle them differently
+		return a.checkAzureRequestAKS(ctx, req, cfg)
 	}
 
 	subID, vmID, err := parseAndVerifyAttestedData(ctx, req.AttestedData, challenge, cfg.certificateAuthorities)
