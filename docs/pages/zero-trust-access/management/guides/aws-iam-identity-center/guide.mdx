@@ -10,6 +10,16 @@ Teleport's integration with [AWS IAM Identity Center](https://aws.amazon.com/iam
 allows you to organize and manage your users' short- and long-term access to AWS
 accounts and their permissions.
 
+## How it works
+
+The Teleport Web UI provides a guided configuration flow for the Identity Center
+integration. The AWS IAM Identity Center integration fetches Identity Center
+accounts, users, groups, permission set assignments, and other data. To enable
+the integration, you set up Teleport as an OIDC identity provider for your AWS
+account and create an AWS role with the permissions required for the integration
+to function. You then enable the SCIM endpoint in AWS Identity Center to allow
+Teleport to push user and group changes.
+
 ## Prerequisites
 
 - Teleport Enterprise or Teleport Enterprise Cloud cluster version 17.0 or higher.
@@ -27,16 +37,13 @@ in Teleport or, if you're using Okta, enable the
 
 ## Step 1/6. Configure AWS integration
 
-Teleport provides a guided web UI based configuration flow for the Identity
-Center integration. To get started, navigate to the "Add new integration" page
-in your Teleport cluster control panel and select "AWS Identity Center".
+To get started, navigate to the "Add new integration" page in your Teleport
+cluster control panel and select "AWS Identity Center".
 
 ![Pick Identity Center integration](../../../../../img/identity-center/ic-pick-integration.png)
 
-During this step, you will set up Teleport as an OIDC identity provider for
-your AWS account and create an AWS role with the permissions required for the
-integration to function, such as fetching Identity Center accounts, users,
-groups, permission set assignments, and so on.
+Next, you will generate a script that creates an AWS IAM role for the
+integration.
 
 <details>
 <summary>Full list of IAM permissions required by Identity Center integration</summary>
