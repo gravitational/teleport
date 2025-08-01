@@ -384,6 +384,9 @@ func ExtendAccessCheckerRoles(ctx context.Context, in AccessChecker, getter Role
 	var extraRoles []string
 	set := NewRoleSet(in.Roles()...)
 	matcher, err := set.buildMatchers(params)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if len(matcher.allowSearch) == 0 && len(matcher.allowPreview) == 0 {
 		// Return the current access checker unmodified.
 		return in, nil

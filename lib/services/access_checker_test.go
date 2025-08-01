@@ -1316,7 +1316,13 @@ func mustRole(t *testing.T, name string) types.Role {
 
 func mustRequestRole(t *testing.T, name string, allowSearch, denySearch, denyRequest []string) types.Role {
 	t.Helper()
-	role, err := types.NewRole(name, types.RoleSpecV6{
+	role, err := createRole(name, allowSearch, denySearch, denyRequest)
+	require.NoError(t, err)
+	return role
+}
+
+func createRole(name string, allowSearch, denySearch, denyRequest []string) (types.Role, error) {
+	return types.NewRole(name, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				SearchAsRoles: allowSearch,
@@ -1329,8 +1335,6 @@ func mustRequestRole(t *testing.T, name string, allowSearch, denySearch, denyReq
 			},
 		},
 	})
-	require.NoError(t, err)
-	return role
 }
 
 func mustReviewRole(t *testing.T, name string, allowed, denied []string) types.Role {

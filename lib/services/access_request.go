@@ -1208,7 +1208,7 @@ func (m *requestValidator) validate(ctx context.Context, req types.AccessRequest
 				// Roles are normally determined automatically for resource
 				// access requests, this role must have been explicitly
 				// requested, or a new deny rule has since been added.
-				return trace.BadParameter("user %q can not request role %q", req.GetUser(), roleName)
+				return trace.BadParameter("user %q can not request search as role %q", req.GetUser(), roleName)
 			}
 		} else {
 			if !slices.Contains(m.roles.allowedRequest, roleName) {
