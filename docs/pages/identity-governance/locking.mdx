@@ -28,6 +28,14 @@ A lock can target the following objects or attributes:
 - a bot instance ID (for Machine & Workload Identity bots)
 - a join token name (for Machine & Workload Identity bots using a [delegated join method](../reference/join-methods.mdx#delegated-join-methods))
 
+## How it works
+
+A lock is a dynamic Teleport resource stored on the Teleport Auth Service
+backend. Teleport services implement a lock watcher that subscribes to Auth
+Service events related to lock creation. When these services receive a
+notification that the a lock has been created or modified, they enact safeguards
+to prevent various operations, e.g., preventing access from a locked user.
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)

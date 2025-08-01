@@ -7,6 +7,13 @@ labels:
  - zero-trust
 ---
 
+{/*
+Don't lint the presence of "Azure AD" until we change the guide to apply to
+Entra ID: https://github.com/gravitational/teleport/issues/47776
+*/}
+
+{/* vale 3rd-party-products.former-names = NO */}
+
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Azure PostgreSQL or MySQL" dbConfigure="with Microsoft Entra ID-based authentication"!)
 
 Database auto-discovery for Azure PostgreSQL/MySQL flexible servers is available starting from

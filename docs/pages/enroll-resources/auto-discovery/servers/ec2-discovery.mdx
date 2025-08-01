@@ -337,26 +337,30 @@ In each AWS account where your want to discover EC2 instances:
 1. Create a new role and note its ARN. Create an IAM policy as described in
   [Step 2](#step-27-define-an-iam-policy) and attach it to the new role.
 1. Add an entry to the `discovery_service.aws` section of your `teleport.yaml`
-  file as described in [Step 4](#step-47-configure-teleport-to-discover-ec2-instances):
-```yaml
-# ...
-discovery_service:
-  enabled: true
-  discovery_group: "aws-prod"
-  aws:
-  - types: ["ec2"]
-    regions: ["us-east-1","us-west-1"]
-    install:
-      join_params:
-        token_name: aws-discovery-iam-token
-        method: iam
-    tags:
-      "env": "prod" # Match EC2 instances where tag:env=prod
-    assume_role_arn: "<Var name="role ARN" />"
-    external_id: "<Var name="optional external ID" />"
-  - types: ["ec2"]
-    # Add a new entry for each account.
-    # ...
+  file as described in [Step
+  4](#step-47-configure-teleport-to-discover-ec2-instances), assigning 
+  <Var name="role ARN" /> to the ARN of the IAM role to assume and
+  <Var name="optional external ID" /> to an optional external ID:
+
+  ```yaml
+  # ...
+  discovery_service:
+    enabled: true
+    discovery_group: "aws-prod"
+    aws:
+    - types: ["ec2"]
+      regions: ["us-east-1","us-west-1"]
+      install:
+        join_params:
+          token_name: aws-discovery-iam-token
+          method: iam
+      tags:
+        "env": "prod" # Match EC2 instances where tag:env=prod
+      assume_role_arn: "<Var name="role ARN" />"
+      external_id: "<Var name="optional external ID" />"
+    - types: ["ec2"]
+      # Add a new entry for each account.
+      # ...
   ```
 
 Set `assume_role_arn` to the ARN of your new role. Optionally, set
