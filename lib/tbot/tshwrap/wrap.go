@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -191,9 +192,9 @@ func GetEnvForTSH(destPath string) (map[string]string, error) {
 
 	// We don't want to provide a fallback for CAs since it would be ambiguous,
 	// so we'll specify them exactly.
-	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA))] = filepath.Join(destPath, config.UserCAPath)
-	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA))] = filepath.Join(destPath, config.HostCAPath)
-	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.DatabaseCA))] = filepath.Join(destPath, config.DatabaseCAPath)
+	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA))] = filepath.Join(destPath, internal.UserCAPath)
+	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA))] = filepath.Join(destPath, internal.HostCAPath)
+	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.DatabaseCA))] = filepath.Join(destPath, internal.DatabaseCAPath)
 
 	return env, nil
 }
