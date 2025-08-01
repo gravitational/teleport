@@ -105,6 +105,17 @@ func (r resourceTeleportClusterMaintenanceConfig) Create(ctx context.Context, re
 	for {
 		tries = tries + 1
 		clusterMaintenanceConfigI, err = r.p.Client.GetClusterMaintenanceConfig(ctx)
+		if trace.IsNotFound(err) {
+			if bErr := backoff.Do(ctx); bErr != nil {
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClusterMaintenanceConfig", trace.Wrap(bErr), "cluster_maintenance_config"))
+				return
+			}
+			if tries >= r.p.RetryConfig.MaxTries {
+				diagMessage := fmt.Sprintf("Error reading ClusterMaintenanceConfig (tried %d times) - state outdated, please import resource", tries)
+				resp.Diagnostics.AddError(diagMessage, "cluster_maintenance_config")
+			}
+			continue
+		}
 		if err != nil {
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClusterMaintenanceConfig", trace.Wrap(err), "cluster_maintenance_config"))
 			return
