@@ -593,6 +593,7 @@ func TestListBotInstances(t *testing.T) {
 					Version:    "1.0.0",
 					Hostname:   "test-hostname",
 					JoinMethod: "test-join-method",
+					Os:         "linux",
 				},
 			},
 		},
@@ -616,6 +617,7 @@ func TestListBotInstances(t *testing.T) {
 				HostNameLatest:   "test-hostname",
 				VersionLatest:    "1.0.0",
 				ActiveAtLatest:   "1970-01-01T00:00:03Z",
+				OSLatest:         "linux",
 			},
 		},
 	}))

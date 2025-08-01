@@ -24,6 +24,7 @@ import { Alert } from 'design/Alert/Alert';
 import Box from 'design/Box/Box';
 import { ButtonSecondary } from 'design/Button/Button';
 import ButtonIcon from 'design/ButtonIcon/ButtonIcon';
+import { CardTile } from 'design/CardTile/CardTile';
 import Flex, { Stack } from 'design/Flex/Flex';
 import { ArrowLeft } from 'design/Icon/Icons/ArrowLeft';
 import { FingerprintSimple } from 'design/Icon/Icons/FingerprintSimple';
@@ -31,7 +32,7 @@ import { NewTab } from 'design/Icon/Icons/NewTab';
 import { Pencil } from 'design/Icon/Icons/Pencil';
 import { Question } from 'design/Icon/Icons/Question';
 import { Indicator } from 'design/Indicator/Indicator';
-import { Outline } from 'design/Label/Label';
+import { SecondaryOutlined } from 'design/Label/Label';
 import Text from 'design/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
@@ -51,6 +52,7 @@ import { EditDialog } from '../Edit/EditDialog';
 import { formatDuration } from '../formatDuration';
 import { useGetBot, useListBotTokens } from '../hooks';
 import { InfoGuide } from '../InfoGuide';
+import { InstancesPanel } from './InstancesPanel';
 import { JoinMethodIcon } from './JoinMethodIcon';
 import { Panel } from './Panel';
 
@@ -112,13 +114,15 @@ export function BotDetails() {
       </FeatureHeader>
 
       {isLoading ? (
-        <Box data-testid="loading" textAlign="center" m={10}>
+        <Box data-testid="loading-bot" textAlign="center" m={10}>
           <Indicator />
         </Box>
       ) : undefined}
 
       {isError ? (
-        <Alert kind="danger">Error: {error.message}</Alert>
+        <Alert kind="danger" details={error.message}>
+          Failed to fetch bot
+        </Alert>
       ) : undefined}
 
       {isSuccess && data === null ? (
@@ -147,60 +151,70 @@ export function BotDetails() {
             <Divider />
 
             <Panel title="Metadata" isSubPanel>
-              <Grid>
-                <GridLabel>Bot name</GridLabel>
-                <Flex inline alignItems={'center'} gap={1} mr={0}>
-                  <MonoText>{data.name}</MonoText>
-                  <CopyButton name={data.name} />
-                </Flex>
-                <GridLabel>Max session duration</GridLabel>
-                {data.max_session_ttl
-                  ? formatDuration(data.max_session_ttl, {
-                      separator: ' ',
-                    })
-                  : '-'}
-              </Grid>
+              <PanelContentContainer>
+                <Grid>
+                  <GridLabel>Bot name</GridLabel>
+                  <Flex inline alignItems={'center'} gap={1}>
+                    <MonoText>{data.name}</MonoText>
+                    <CopyButton name={data.name} />
+                  </Flex>
+                  <GridLabel>Max session duration</GridLabel>
+                  {data.max_session_ttl
+                    ? formatDuration(data.max_session_ttl, {
+                        separator: ' ',
+                      })
+                    : '-'}
+                </Grid>
+              </PanelContentContainer>
             </Panel>
 
             <PaddedDivider />
 
             <Panel title="Roles" isSubPanel>
-              {data.roles.length ? (
-                <Flex gap={1} flexWrap={'wrap'}>
-                  {data.roles.toSorted().map(r => (
-                    <Outline key={r}>{r}</Outline>
-                  ))}
-                </Flex>
-              ) : (
-                'No roles assigned'
-              )}
+              <PanelContentContainer>
+                {data.roles.length ? (
+                  <RolesContainer>
+                    {data.roles.toSorted().map(r => (
+                      <SecondaryOutlined mr="1" key={r}>
+                        {r}
+                      </SecondaryOutlined>
+                    ))}
+                  </RolesContainer>
+                ) : (
+                  'No roles assigned'
+                )}
+              </PanelContentContainer>
             </Panel>
 
             <PaddedDivider />
 
             <Panel title="Traits" isSubPanel>
-              {data.traits.length ? (
-                <Grid>
-                  {data.traits
-                    .toSorted((a, b) => a.name.localeCompare(b.name))
-                    .map(r => (
-                      <React.Fragment key={r.name}>
-                        <GridLabel>
-                          <Trait traitName={r.name} />
-                        </GridLabel>
-                        <Flex gap={1} flexWrap={'wrap'}>
-                          {r.values.length > 0
-                            ? r.values
-                                .toSorted()
-                                .map(v => <Outline key={v}>{v}</Outline>)
-                            : 'no values'}
-                        </Flex>
-                      </React.Fragment>
-                    ))}
-                </Grid>
-              ) : (
-                'No traits set'
-              )}
+              <PanelContentContainer>
+                {data.traits.length ? (
+                  <Grid>
+                    {data.traits
+                      .toSorted((a, b) => a.name.localeCompare(b.name))
+                      .map(r => (
+                        <React.Fragment key={r.name}>
+                          <GridLabel>
+                            <Trait traitName={r.name} />
+                          </GridLabel>
+                          <div>
+                            {r.values.length > 0
+                              ? r.values.toSorted().map(v => (
+                                  <SecondaryOutlined mr="1" key={v}>
+                                    {v}
+                                  </SecondaryOutlined>
+                                ))
+                              : 'no values'}
+                          </div>
+                        </React.Fragment>
+                      ))}
+                  </Grid>
+                ) : (
+                  'No traits set'
+                )}
+              </PanelContentContainer>
             </Panel>
 
             <Divider />
@@ -210,8 +224,8 @@ export function BotDetails() {
               onViewAllClicked={handleViewAllTokensClicked}
             />
           </ColumnContainer>
-          <ColumnContainer>
-            <Panel title="Active Instances">Coming soon</Panel>
+          <ColumnContainer maxWidth={400}>
+            <InstancesPanel botName={params.botName} />
           </ColumnContainer>
 
           {isEditing ? (
@@ -227,21 +241,31 @@ export function BotDetails() {
   );
 }
 
-const Container = styled(Flex).attrs({ gap: 3 })`
-  flex-wrap: wrap;
+const Container = styled(Flex).attrs({ gap: 2 })`
+  flex: 1;
+  overflow: auto;
 `;
 
-const ColumnContainer = styled(Flex)`
-  flex: 1;
+const ColumnContainer = styled(CardTile)`
   flex-direction: column;
-  min-width: 300px;
-  background-color: ${p => p.theme.colors.levels.surface};
-  border-radius: ${props => props.theme.space[1]}px;
+  overflow: auto;
+  padding: 0;
+  gap: 0;
+  margin: ${props => props.theme.space[1]}px;
 `;
+
+const PanelContentContainer = styled(Flex)`
+  flex-direction: column;
+  padding: ${props => props.theme.space[3]}px;
+  padding-top: 0;
+`;
+
+const RolesContainer = styled.div``;
 
 const Divider = styled.div`
   height: 1px;
   background-color: ${p => p.theme.colors.interactive.tonal.neutral[0]};
+  flex-shrink: 0;
 `;
 
 const PaddedDivider = styled(Divider)`
@@ -253,12 +277,13 @@ const Grid = styled(Box)`
   align-self: flex-start;
   display: grid;
   grid-template-columns: repeat(2, auto);
-  gap: ${props => props.theme.space[2]}px;
+  gap: ${({ theme }) => theme.space[2]}px;
 `;
 
 const GridLabel = styled(Text)`
   color: ${({ theme }) => theme.colors.text.muted};
   font-weight: ${({ theme }) => theme.fontWeights.regular};
+  padding-right: ${({ theme }) => theme.space[2]}px;
 `;
 
 const MonoText = styled(Text)`
@@ -343,62 +368,66 @@ function JoinTokens(props: { botName: string; onViewAllClicked: () => void }) {
         disabled: !hasListPermission,
       }}
     >
-      {isLoading ? (
-        <Box data-testid="loading" textAlign="center" m={10}>
-          <Indicator />
-        </Box>
-      ) : undefined}
+      <PanelContentContainer>
+        {isLoading ? (
+          <Box data-testid="loading-tokens" textAlign="center" m={10}>
+            <Indicator />
+          </Box>
+        ) : undefined}
 
-      {!hasListPermission ? (
-        <Alert kind="info">
-          You do not have permission to view join tokens. Missing role
-          permissions: <code>tokens.list</code>
-        </Alert>
-      ) : undefined}
+        {!hasListPermission ? (
+          <Alert kind="info">
+            You do not have permission to view join tokens. Missing role
+            permissions: <code>tokens.list</code>
+          </Alert>
+        ) : undefined}
 
-      {requiresMfa ? (
-        <MfaContainer>
-          <MfaText fontWeight={'regular'}>
-            Multi-factor authentication is required to view join tokens
-          </MfaText>
-          <MfaVerifyButton onClick={handleVerifyClick}>
-            <FingerprintSimple size="medium" /> Authenticate
-          </MfaVerifyButton>
-        </MfaContainer>
-      ) : undefined}
+        {requiresMfa ? (
+          <MfaContainer>
+            <MfaText fontWeight={'regular'}>
+              Multi-factor authentication is required to view join tokens
+            </MfaText>
+            <MfaVerifyButton onClick={handleVerifyClick}>
+              <FingerprintSimple size="medium" /> Authenticate
+            </MfaVerifyButton>
+          </MfaContainer>
+        ) : undefined}
 
-      {isError && !requiresMfa ? (
-        <Alert kind="danger">Error: {error.message}</Alert>
-      ) : undefined}
+        {isError && !requiresMfa ? (
+          <Alert kind="danger" details={error.message}>
+            Failed to fetch join tokens
+          </Alert>
+        ) : undefined}
 
-      {isSuccess ? (
-        <>
-          {data.items.length ? (
-            <Flex gap={1} flexWrap={'wrap'}>
-              {data.items
-                .toSorted((a, b) => a.safeName.localeCompare(b.safeName))
-                .map(t => {
-                  return (
-                    <Outline key={t.id}>
-                      <HoverTooltip placement="top" tipContent={t.method}>
-                        <Flex alignItems={'center'} gap={1}>
-                          <JoinMethodIcon
-                            method={t.method}
-                            size={'small'}
-                            includeTooltip={false}
-                          />
-                          {t.safeName}
-                        </Flex>
-                      </HoverTooltip>
-                    </Outline>
-                  );
-                })}
-            </Flex>
-          ) : (
-            'No join tokens'
-          )}
-        </>
-      ) : undefined}
+        {isSuccess ? (
+          <>
+            {data.items.length ? (
+              <Flex gap={1} flexWrap={'wrap'}>
+                {data.items
+                  .toSorted((a, b) => a.safeName.localeCompare(b.safeName))
+                  .map(t => {
+                    return (
+                      <SecondaryOutlined key={t.id}>
+                        <HoverTooltip placement="top" tipContent={t.method}>
+                          <Flex alignItems={'center'} gap={1}>
+                            <JoinMethodIcon
+                              method={t.method}
+                              size={'small'}
+                              includeTooltip={false}
+                            />
+                            {t.safeName}
+                          </Flex>
+                        </HoverTooltip>
+                      </SecondaryOutlined>
+                    );
+                  })}
+              </Flex>
+            ) : (
+              'No join tokens'
+            )}
+          </>
+        ) : undefined}
+      </PanelContentContainer>
     </Panel>
   );
 }

@@ -70,6 +70,7 @@ export type BotInstanceSummary = {
   host_name_latest?: string;
   version_latest?: string;
   active_at_latest?: string;
+  os_latest?: string;
 };
 
 export type GetBotInstanceResponse = {

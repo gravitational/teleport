@@ -31,56 +31,60 @@ export const Labels = () => (
       bg="levels.surface"
       justifyContent="center"
       alignItems="center"
+      gap={4}
     >
-      <Label mr={4} kind="primary">
+      <Label kind="primary">Primary</Label>
+      <Label kind="secondary">Secondary</Label>
+      <Label kind="warning">Warning</Label>
+      <Label kind="danger">Danger</Label>
+      <Label kind="success">Success</Label>
+    </Flex>
+    <Flex
+      height="100px"
+      bg="levels.surface"
+      justifyContent="center"
+      alignItems="center"
+      gap={4}
+    >
+      <Label kind="primary" css={{ visibility: 'hidden' }}>
         Primary
       </Label>
-      <Label mr={4} kind="secondary">
-        Secondary
+      <Label kind="outline-secondary">Secondary</Label>
+      <Label kind="outline-warning">Warning</Label>
+      <Label kind="outline-danger">Danger</Label>
+      <Label kind="success" css={{ visibility: 'hidden' }}>
+        Success
       </Label>
-      <Label mr={4} kind="outline">
-        Outline
-      </Label>
-      <Label mr={4} kind="warning">
-        Warning
-      </Label>
-      <Label kind="danger">Danger</Label>
     </Flex>
     <Flex
       height="100px"
       bg="levels.surface"
       justifyContent="center"
       alignItems="center"
+      gap={4}
     >
-      <LabelState mr="4" kind="success">
-        Success
-      </LabelState>
-      <LabelState mr="4" kind="secondary">
-        Secondary
-      </LabelState>
-      <LabelState mr="4" kind="warning">
-        Warning
-      </LabelState>
-      <LabelState mr="4" kind="danger">
-        Danger
-      </LabelState>
+      <LabelState kind="success">Success</LabelState>
+      <LabelState kind="secondary">Secondary</LabelState>
+      <LabelState kind="warning">Warning</LabelState>
+      <LabelState kind="danger">Danger</LabelState>
     </Flex>
     <Flex
       height="100px"
       bg="levels.surface"
       justifyContent="center"
       alignItems="center"
+      gap={4}
     >
-      <LabelState shadow mr="4" kind="success">
+      <LabelState shadow kind="success">
         Success
       </LabelState>
-      <LabelState shadow mr="4" kind="secondary">
+      <LabelState shadow kind="secondary">
         Secondary
       </LabelState>
-      <LabelState shadow mr="4" kind="warning">
+      <LabelState shadow kind="warning">
         Warning
       </LabelState>
-      <LabelState shadow mr="4" kind="danger">
+      <LabelState shadow kind="danger">
         Danger
       </LabelState>
     </Flex>
