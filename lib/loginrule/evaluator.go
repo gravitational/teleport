@@ -26,6 +26,9 @@ type EvaluationInput struct {
 	// or the internal static traits (for local users) which will be input to
 	// the login rule evaluation.
 	Traits map[string][]string
+	// Claims holds the original, unparsed provider claims. Each claim may be
+	// a standard string/list, or an arbitrary json object.
+	Claims map[string]any
 }
 
 // EvaluationOutput holds the output of a login rule evaluation.
@@ -48,7 +51,7 @@ type Evaluator interface {
 type NullEvaluator struct{}
 
 // Evaluate returns the input traits unmodified.
-func (NullEvaluator) Evaluate(ctx context.Context, input *EvaluationInput) (*EvaluationOutput, error) {
+func (NullEvaluator) Evaluate(_ context.Context, input *EvaluationInput) (*EvaluationOutput, error) {
 	return &EvaluationOutput{
 		Traits: input.Traits,
 	}, nil
