@@ -1,5 +1,15 @@
 # Changelog
 
+## 17.7.1 (08/01/25)
+
+* Fixed usage print for global `--help` flag. [#57452](https://github.com/gravitational/teleport/pull/57452)
+* Tctl top respects local teleport config file. [#57353](https://github.com/gravitational/teleport/pull/57353)
+* Fixed an issue backfilling CRLs during startup for long-standing clusters. [#57322](https://github.com/gravitational/teleport/pull/57322)
+* Disable NLA in FIPS mode. [#57308](https://github.com/gravitational/teleport/pull/57308)
+
+Enterprise:
+* Slightly optimized access token refresh logic for Jamf integration when using API credentials.
+
 ## 17.7.0 (07/28/25)
 
 ### Managed Updates canary support
