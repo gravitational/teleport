@@ -255,6 +255,7 @@ export const resourceIconSpecs = {
   snowflake: forAllThemes(i.snowflake),
   spacelift: { dark: i.spaceliftDark, light: i.spaceliftLight },
   sparrow: forAllThemes(i.sparrow),
+  strapi: forAllThemes(i.strapi),
   stripe: { dark: i.stripeDark, light: i.stripeLight },
 
   tableau: forAllThemes(i.tableau),
