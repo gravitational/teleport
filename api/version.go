@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "19.0.0-dev"
+const Version = "19.0.0-dev.pnpm.10-14-0"
 
 const VersionMajor = 19
 const VersionMinor = 0
 const VersionPatch = 0
-const VersionPreRelease = "dev"
+const VersionPreRelease = "dev.pnpm.10-14-0"
 const VersionMetadata = ""
