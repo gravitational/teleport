@@ -619,7 +619,7 @@ func TestPluginIntuneValidation(t *testing.T) {
 			},
 			assertErr: func(t require.TestingT, err error, args ...any) {
 				require.True(t, trace.IsBadParameter(err))
-				require.Contains(t, err.Error(), "login_endpoint must be a valid URL")
+				require.Contains(t, err.Error(), "login endpoint")
 			},
 		},
 		{
@@ -627,7 +627,7 @@ func TestPluginIntuneValidation(t *testing.T) {
 			settings: &PluginSpecV1_Intune{
 				Intune: &PluginIntuneSettings{
 					Tenant:        "foo",
-					LoginEndpoint: "https://example.com",
+					LoginEndpoint: "https://login.microsoftonline.us",
 				},
 			},
 			creds: &PluginCredentialsV1{
@@ -662,7 +662,7 @@ func TestPluginIntuneValidation(t *testing.T) {
 			},
 			assertErr: func(t require.TestingT, err error, args ...any) {
 				require.True(t, trace.IsBadParameter(err))
-				require.ErrorContains(t, err, "graph_endpoint must be a valid URL")
+				require.ErrorContains(t, err, "graph endpoint")
 			},
 		},
 		{
@@ -670,7 +670,7 @@ func TestPluginIntuneValidation(t *testing.T) {
 			settings: &PluginSpecV1_Intune{
 				Intune: &PluginIntuneSettings{
 					Tenant:        "foo",
-					GraphEndpoint: "https://example.com",
+					GraphEndpoint: "https://graph.microsoft.us",
 				},
 			},
 			creds: &PluginCredentialsV1{

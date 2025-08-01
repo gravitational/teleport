@@ -18108,13 +18108,13 @@ type PluginIntuneSettings struct {
 	//
 	// https://learn.microsoft.com/en-us/partner-center/account-settings/find-ids-and-domain-names#find-the-microsoft-entra-tenant-id-and-primary-domain-name
 	Tenant string `protobuf:"bytes,1,opt,name=tenant,proto3" json:"tenant,omitempty"`
-	// login_endpoint is the address used to access Microsoft identity platform in order to exchange
-	// app credentials for an access token. Optional, defaults to "https://login.microsoftonline.com".
+	// login_endpoint points to one of the national deployments of Microsoft Entra ID.
+	// Optional, defaults to "https://login.microsoftonline.com".
 	//
 	// https://learn.microsoft.com/en-us/graph/deployments
 	LoginEndpoint string `protobuf:"bytes,2,opt,name=login_endpoint,json=loginEndpoint,proto3" json:"login_endpoint,omitempty"`
-	// graph_endpoint is the address used to access Microsoft Graph with the access token obtained
-	// from login_endpoint. Optional, defaults to "https://graph.microsoft.com".
+	// graph_endpoint points to one of the national deployments of Microsoft Graph.
+	// Optional, defaults to "https://graph.microsoft.com".
 	//
 	// https://learn.microsoft.com/en-us/graph/deployments
 	GraphEndpoint        string   `protobuf:"bytes,3,opt,name=graph_endpoint,json=graphEndpoint,proto3" json:"graph_endpoint,omitempty"`

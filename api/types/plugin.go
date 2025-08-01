@@ -1033,26 +1033,10 @@ func (c *PluginIntuneSettings) Validate() error {
 	if c.Tenant == "" {
 		return trace.BadParameter("tenant must be set")
 	}
-	if c.LoginEndpoint != "" {
-		if err := validateIntuneURL(c.LoginEndpoint); err != nil {
-			return trace.Wrap(err, "login_endpoint must be a valid URL when present")
-		}
-	}
-	if c.GraphEndpoint != "" {
-		if err := validateIntuneURL(c.GraphEndpoint); err != nil {
-			return trace.Wrap(err, "graph_endpoint must be a valid URL when present")
-		}
-	}
-	return nil
-}
 
-func validateIntuneURL(value string) error {
-	u, err := url.Parse(value)
-	if err != nil {
-		return trace.BadParameter(err.Error())
+	if err := ValidateIntuneAPIEndpoints(c.LoginEndpoint, c.GraphEndpoint); err != nil {
+		return trace.Wrap(err)
 	}
-	if u.Scheme != "https" {
-		return trace.BadParameter("scheme must be https")
-	}
+
 	return nil
 }

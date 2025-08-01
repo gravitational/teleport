@@ -7062,14 +7062,14 @@ message PluginIntuneSettings {
   // https://learn.microsoft.com/en-us/partner-center/account-settings/find-ids-and-domain-names#find-the-microsoft-entra-tenant-id-and-primary-domain-name
   string tenant = 1;
 
-  // login_endpoint is the address used to access Microsoft identity platform in order to exchange
-  // app credentials for an access token. Optional, defaults to "https://login.microsoftonline.com".
+  // login_endpoint points to one of the national deployments of Microsoft Entra ID.
+  // Optional, defaults to "https://login.microsoftonline.com".
   //
   // https://learn.microsoft.com/en-us/graph/deployments
   string login_endpoint = 2;
 
-  // graph_endpoint is the address used to access Microsoft Graph with the access token obtained
-  // from login_endpoint. Optional, defaults to "https://graph.microsoft.com".
+  // graph_endpoint points to one of the national deployments of Microsoft Graph.
+  // Optional, defaults to "https://graph.microsoft.com".
   //
   // https://learn.microsoft.com/en-us/graph/deployments
   string graph_endpoint = 3;
