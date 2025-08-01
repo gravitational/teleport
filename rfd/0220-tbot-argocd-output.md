@@ -8,7 +8,7 @@ state: draft
 ## Required Approvers
 
 * Engineering: @strideynet && @timothyb89
-
+* Product: @thedevelopnik 
 ## What
 
 Adding a first-class integration with Argo CD to `tbot`, to provide a better
