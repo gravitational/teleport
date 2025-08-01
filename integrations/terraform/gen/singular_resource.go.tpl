@@ -145,6 +145,17 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	for {
 		tries = tries + 1
 		{{.VarName}}I, err = r.p.Client.{{.GetMethod}}(ctx)
+		if trace.IsNotFound(err) {
+			if bErr := backoff.Do(ctx); bErr != nil {
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(bErr), "{{.Kind}}"))
+				return
+			}
+			if tries >= r.p.RetryConfig.MaxTries {
+				diagMessage := fmt.Sprintf("Error reading {{.Name}} (tried %d times) - state outdated, please import resource", tries)
+				resp.Diagnostics.AddError(diagMessage, "{{.Kind}}")
+			}
+			continue
+		}
 		if err != nil {
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 			return
