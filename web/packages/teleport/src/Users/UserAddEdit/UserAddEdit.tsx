@@ -38,6 +38,7 @@ import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
 import { useTeleport } from 'teleport';
+import { ResourcesResponse } from 'teleport/services/agents';
 import auth from 'teleport/services/auth';
 import userService, {
   ExcludeUserField,
@@ -53,9 +54,17 @@ interface UserAddEditProps {
   user: User;
   isNew: boolean;
   onClose: () => void;
+  modifyFetchedData: React.Dispatch<
+    React.SetStateAction<ResourcesResponse<User>>
+  >;
 }
 
-export function UserAddEdit({ onClose, isNew, user }: UserAddEditProps) {
+export function UserAddEdit({
+  onClose,
+  isNew,
+  user,
+  modifyFetchedData,
+}: UserAddEditProps) {
   const ctx = useTeleport();
 
   const queryClient = useQueryClient();
@@ -145,12 +154,50 @@ export function UserAddEdit({ onClose, isNew, user }: UserAddEditProps) {
         excludeUserField: ExcludeUserField.Traits,
       });
 
+      // We have to update the user list on the clientside for the change to be visible immediately
+      // without needing to refresh.
+      modifyFetchedData(p => {
+        // First check if the new user would alphabetically belong on this page.
+        if (p.agents.length > 0) {
+          // If the last user on this page is alphabetically ordered before the new user, then do nothing
+          // because it means the new user would be on the next page.
+          const lastUserOnPage = p.agents[p.agents.length - 1];
+          if (u.name.localeCompare(lastUserOnPage.name) > 0) {
+            return p;
+          }
+        }
+
+        // Add the new user to the page and then sort so the page is alphabetically sorted again.
+        const newUsers = [...p.agents, u].sort((a, b) =>
+          a.name.localeCompare(b.name)
+        );
+
+        return {
+          ...p,
+          agents: newUsers,
+        };
+      });
+
       return;
     }
 
     await updateUser.mutateAsync({
       user: u,
       excludeUserField: ExcludeUserField.Traits,
+    });
+
+    // We have to update the user on the clientside for the change to be visible immediately
+    // without needing to refresh.
+    modifyFetchedData(p => {
+      const index = p.agents.findIndex(a => a.name === u.name);
+      if (index >= 0) {
+        const newUsers = [...p.agents];
+        newUsers[index] = u;
+        return {
+          ...p,
+          agents: newUsers,
+        };
+      }
     });
 
     onClose();
