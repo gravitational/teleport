@@ -251,6 +251,7 @@ the intersection of all requested resource labels.
 - `clock_between(time, start, end)` returns `true` if the clock time of the
 provided time is bewtween the start and end clock times. Clock time is represented
 as a 24-hour formatted string containing the hour and minute. For example, `17:15`.
+Also note that the start and end times are inclusive.
 
 #### Examples
 ```yaml
