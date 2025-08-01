@@ -76,7 +76,3 @@ identity
 {{- .Values.teleport.identitySecretPath -}}
 {{- end -}}
 {{- end -}}
-
-{{- define "datadog.teleportAddress" -}}
-
-{{- end -}}
