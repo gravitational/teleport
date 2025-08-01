@@ -118,6 +118,41 @@ export const Checkbox = () => (
           <CheckboxInput size="small" disabled checked />
         </td>
       </tr>
+      <tr></tr>
+      <tr>
+        <th rowSpan={4}>Read Only</th>
+        <th>Default</th>
+        <td>
+          <CheckboxInput readOnly />
+          <CheckboxInput readOnly checked />
+        </td>
+        <td>
+          <CheckboxInput size="small" readOnly />
+          <CheckboxInput size="small" readOnly checked />
+        </td>
+      </tr>
+      <tr className="teleport-checkbox__force-hover">
+        <th>Hover</th>
+        <td>
+          <CheckboxInput readOnly />
+          <CheckboxInput readOnly checked />
+        </td>
+        <td>
+          <CheckboxInput size="small" readOnly />
+          <CheckboxInput size="small" readOnly checked />
+        </td>
+      </tr>
+      <tr className="teleport-checkbox__force-active">
+        <th>Active</th>
+        <td>
+          <CheckboxInput readOnly />
+          <CheckboxInput readOnly checked />
+        </td>
+        <td>
+          <CheckboxInput size="small" readOnly />
+          <CheckboxInput size="small" readOnly checked />
+        </td>
+      </tr>
     </Table>
     <label>
       <CheckboxInput size="small" defaultChecked={false} /> Uncontrolled

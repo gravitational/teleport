@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024 Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -19,26 +19,23 @@
 import { Meta } from '@storybook/react-vite';
 import { useState } from 'react';
 
-import Box from 'design/Box';
-import { Button } from 'design/Button';
 import Validation from 'shared/components/Validation';
 
-import { arrayOf, requiredField } from '../Validation/rules';
-import { FieldMultiInput } from './FieldMultiInput';
+import { Label, LabelsInput } from './LabelsInput';
 
 type StoryProps = {
   readOnly?: boolean;
-  disabled?: boolean;
+  disableBtns?: boolean;
 };
 
 const meta: Meta<StoryProps> = {
-  title: 'Shared/FieldMultiInput',
+  title: 'Teleport/LabelsInput/AtLeastOneRowVisible',
   component: Controls,
   argTypes: {
     readOnly: {
       control: { type: 'boolean' },
     },
-    disabled: {
+    disableBtns: {
       control: { type: 'boolean' },
     },
   },
@@ -46,29 +43,17 @@ const meta: Meta<StoryProps> = {
 export default meta;
 
 export function Controls(props: StoryProps) {
-  const [items, setItems] = useState([]);
+  const [labels, setLabels] = useState<Label[]>([]);
   return (
-    <Box width="500px">
-      <Validation>
-        {({ validator }) => (
-          <>
-            <FieldMultiInput
-              label="Some items"
-              value={items}
-              onChange={setItems}
-              rule={arrayOf(requiredField('required'))}
-              required
-              tooltipContent="I'm a sticky tooltip."
-              tooltipSticky
-              disabled={props.disabled}
-              readOnly={props.readOnly}
-            />
-            <Button mt={3} onClick={() => validator.validate()}>
-              Validate
-            </Button>
-          </>
-        )}
-      </Validation>
-    </Box>
+    <Validation>
+      <LabelsInput
+        legend="Labels"
+        labels={labels}
+        setLabels={setLabels}
+        atLeastOneRow
+        readOnly={props.readOnly}
+        disableBtns={props.disableBtns}
+      />
+    </Validation>
   );
 }

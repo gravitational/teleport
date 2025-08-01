@@ -209,6 +209,7 @@ export function UserAddEdit({ onClose, isNew, user }: UserAddEditProps) {
                 value={name}
                 onChange={e => onChangeName(e.target.value)}
                 readonly={!isNew}
+                disabled={isLoading}
               />
               <FieldSelectAsync
                 mr={2}
@@ -227,6 +228,7 @@ export function UserAddEdit({ onClose, isNew, user }: UserAddEditProps) {
                   return roles.map(r => ({ value: r, label: r }));
                 }}
                 elevated={true}
+                isDisabled={isLoading}
               />
               <TraitsEditor
                 isLoading={isLoading}

@@ -62,7 +62,16 @@ export const CheckboxInput = forwardRef<HTMLInputElement, CheckboxInputProps>(
             because we want to be able to use this component both with and
             without surrounding labels. Instead, we use absolute positioning and
             an actually rendered input with a custom appearance. */}
-          <CheckboxInternal ref={ref} cbSize={size} {...inputProps} />
+          {inputProps.readOnly ? (
+            <ReadOnlyCheckboxInternal
+              ref={ref}
+              cbSize={size}
+              {...inputProps}
+              disabled
+            />
+          ) : (
+            <CheckboxInternal ref={ref} cbSize={size} {...inputProps} />
+          )}
           <Checkmark />
         </InnerWrapper>
       </OuterWrapper>
@@ -188,6 +197,8 @@ const CheckboxInternal = styled.input.attrs(props => ({
 
   ${size}
 `;
+
+const ReadOnlyCheckboxInternal = styled(CheckboxInternal)``;
 
 /**
  * Returns dimensions of a checkbox with a given `size` property. Since its name
