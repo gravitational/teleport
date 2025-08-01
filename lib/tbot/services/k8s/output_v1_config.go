@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package k8s
 
 import (
 	"context"
@@ -26,19 +26,15 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
-var (
-	_ ServiceConfig = &KubernetesOutput{}
-	_ Initable      = &KubernetesOutput{}
-)
+const OutputV1ServiceType = "kubernetes"
 
-const KubernetesOutputType = "kubernetes"
-
-// KubernetesOutput produces credentials which can be used to connect to a
+// OutputV1Config produces credentials which can be used to connect to a
 // Kubernetes Cluster through teleport.
-type KubernetesOutput struct {
+type OutputV1Config struct {
 	// Name of the service for logs and the /readyz endpoint.
 	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
@@ -65,13 +61,16 @@ type KubernetesOutput struct {
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
-func (o *KubernetesOutput) GetName() string {
+func (o *OutputV1Config) GetName() string {
 	return o.Name
 }
 
-func (o *KubernetesOutput) CheckAndSetDefaults() error {
-	if err := validateOutputDestination(o.Destination); err != nil {
-		return trace.Wrap(err)
+func (o *OutputV1Config) CheckAndSetDefaults() error {
+	if o.Destination == nil {
+		return trace.BadParameter("no destination configured for output")
+	}
+	if err := o.Destination.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating destination")
 	}
 	if o.KubernetesCluster == "" {
 		return trace.BadParameter("kubernetes_cluster must not be empty")
@@ -79,47 +78,50 @@ func (o *KubernetesOutput) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (o *KubernetesOutput) GetDestination() destination.Destination {
+func (o *OutputV1Config) GetDestination() destination.Destination {
 	return o.Destination
 }
 
-func (o *KubernetesOutput) Init(ctx context.Context) error {
+func (o *OutputV1Config) Init(ctx context.Context) error {
 	return trace.Wrap(o.Destination.Init(ctx, []string{}))
 }
 
-func (o *KubernetesOutput) Describe() []bot.FileDescription {
-	// Based on tbot.KubernetesOutputService.Render
+func (o *OutputV1Config) Describe() []bot.FileDescription {
 	return []bot.FileDescription{
 		{
 			Name: "kubeconfig.yaml",
 		},
 		{
-			Name: IdentityFilePath,
+			Name: internal.IdentityFilePath,
 		},
 		{
-			Name: HostCAPath,
+			Name: internal.HostCAPath,
 		},
 		{
-			Name: UserCAPath,
+			Name: internal.UserCAPath,
 		},
 		{
-			Name: DatabaseCAPath,
+			Name: internal.DatabaseCAPath,
 		},
 	}
 }
 
-func (o *KubernetesOutput) MarshalYAML() (any, error) {
-	type raw KubernetesOutput
-	return encoding.WithTypeHeader((*raw)(o), KubernetesOutputType)
+func (o *OutputV1Config) MarshalYAML() (any, error) {
+	type raw OutputV1Config
+	return encoding.WithTypeHeader((*raw)(o), OutputV1ServiceType)
 }
 
-func (o *KubernetesOutput) UnmarshalYAML(node *yaml.Node) error {
-	dest, err := extractOutputDestination(node)
+func (o *OutputV1Config) UnmarshalYAML(*yaml.Node) error {
+	return trace.NotImplemented("unmarshaling %T with UnmarshalYAML is not supported, use UnmarshalConfig instead", o)
+}
+
+func (o *OutputV1Config) UnmarshalConfig(ctx bot.UnmarshalConfigContext, node *yaml.Node) error {
+	dest, err := internal.ExtractOutputDestination(ctx, node)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Alias type to remove UnmarshalYAML to avoid recursion
-	type raw KubernetesOutput
+	// Alias type to remove UnmarshalYAML to avoid getting our "not implemented" error
+	type raw OutputV1Config
 	if err := node.Decode((*raw)(o)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -127,10 +129,10 @@ func (o *KubernetesOutput) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (o *KubernetesOutput) Type() string {
-	return KubernetesOutputType
+func (o *OutputV1Config) Type() string {
+	return OutputV1ServiceType
 }
 
-func (o *KubernetesOutput) GetCredentialLifetime() bot.CredentialLifetime {
+func (o *OutputV1Config) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package k8s
 
 import (
 	"context"
@@ -26,19 +26,15 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
-var (
-	_ ServiceConfig = &KubernetesV2Output{}
-	_ Initable      = &KubernetesV2Output{}
-)
+const OutputV2ServiceType = "kubernetes/v2"
 
-const KubernetesV2OutputType = "kubernetes/v2"
-
-// KubernetesOutput produces credentials which can be used to connect to a
+// OutputV2Config produces credentials which can be used to connect to a
 // Kubernetes Cluster through teleport.
-type KubernetesV2Output struct {
+type OutputV2Config struct {
 	// Name of the service for logs and the /readyz endpoint.
 	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
@@ -61,13 +57,16 @@ type KubernetesV2Output struct {
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
-func (o *KubernetesV2Output) GetName() string {
+func (o *OutputV2Config) GetName() string {
 	return o.Name
 }
 
-func (o *KubernetesV2Output) CheckAndSetDefaults() error {
-	if err := validateOutputDestination(o.Destination); err != nil {
-		return trace.Wrap(err)
+func (o *OutputV2Config) CheckAndSetDefaults() error {
+	if o.Destination == nil {
+		return trace.BadParameter("no destination configured for output")
+	}
+	if err := o.Destination.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating destination")
 	}
 
 	if len(o.Selectors) == 0 {
@@ -83,41 +82,44 @@ func (o *KubernetesV2Output) CheckAndSetDefaults() error {
 	return trace.Wrap(o.Destination.CheckAndSetDefaults())
 }
 
-func (o *KubernetesV2Output) GetDestination() destination.Destination {
+func (o *OutputV2Config) GetDestination() destination.Destination {
 	return o.Destination
 }
 
-func (o *KubernetesV2Output) Init(ctx context.Context) error {
+func (o *OutputV2Config) Init(ctx context.Context) error {
 	return trace.Wrap(o.Destination.Init(ctx, []string{}))
 }
 
-func (o *KubernetesV2Output) Describe() []bot.FileDescription {
-	// Based on tbot.KubernetesOutputService.Render
+func (o *OutputV2Config) Describe() []bot.FileDescription {
 	return []bot.FileDescription{
 		{
 			Name: "kubeconfig.yaml",
 		},
 		{
-			Name: IdentityFilePath,
+			Name: internal.IdentityFilePath,
 		},
 		{
-			Name: HostCAPath,
+			Name: internal.HostCAPath,
 		},
 	}
 }
 
-func (o *KubernetesV2Output) MarshalYAML() (any, error) {
-	type raw KubernetesV2Output
-	return encoding.WithTypeHeader((*raw)(o), KubernetesV2OutputType)
+func (o *OutputV2Config) MarshalYAML() (any, error) {
+	type raw OutputV2Config
+	return encoding.WithTypeHeader((*raw)(o), OutputV2ServiceType)
 }
 
-func (o *KubernetesV2Output) UnmarshalYAML(node *yaml.Node) error {
-	dest, err := extractOutputDestination(node)
+func (o *OutputV2Config) UnmarshalYAML(*yaml.Node) error {
+	return trace.NotImplemented("unmarshaling %T with UnmarshalYAML is not supported, use UnmarshalConfig instead", o)
+}
+
+func (o *OutputV2Config) UnmarshalConfig(ctx bot.UnmarshalConfigContext, node *yaml.Node) error {
+	dest, err := internal.ExtractOutputDestination(ctx, node)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Alias type to remove UnmarshalYAML to avoid recursion
-	type raw KubernetesV2Output
+	// Alias type to remove UnmarshalYAML to avoid getting our "not implemented" error
+	type raw OutputV2Config
 	if err := node.Decode((*raw)(o)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -125,8 +127,8 @@ func (o *KubernetesV2Output) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (o *KubernetesV2Output) Type() string {
-	return KubernetesV2OutputType
+func (o *OutputV2Config) Type() string {
+	return OutputV2ServiceType
 }
 
 // KubernetesSelector allows querying for a Kubernetes cluster to include either
@@ -169,6 +171,6 @@ func (s *KubernetesSelector) UnmarshalYAML(value *yaml.Node) error {
 	return nil
 }
 
-func (o *KubernetesV2Output) GetCredentialLifetime() bot.CredentialLifetime {
+func (o *OutputV2Config) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }
