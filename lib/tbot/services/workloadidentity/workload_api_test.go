@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package tbot
+package workloadidentity
 
 import (
 	"context"
@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
@@ -40,7 +41,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
-	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -48,7 +50,9 @@ import (
 func TestBotWorkloadIdentityAPI(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	t.Cleanup(cancel)
+
 	log := utils.NewSlogLoggerForTests()
 
 	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(log))
@@ -107,19 +111,41 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 		Path:   filepath.Join(tmpDir, "workload.sock"),
 	}
 	onboarding, _ := makeBot(t, rootClient, "api", role.GetName())
-	botConfig := defaultBotConfig(t, process, onboarding, config.ServiceConfigs{
-		&config.WorkloadIdentityAPIService{
-			Selector: bot.WorkloadIdentitySelector{
-				Name: workloadIdentity.GetMetadata().GetName(),
-			},
-			Listen: listenAddr.String(),
+
+	authAddr, err := process.AuthAddr()
+	require.NoError(t, err)
+
+	connCfg := connection.Config{
+		Address:     authAddr.Addr,
+		AddressKind: connection.AddressKindAuth,
+		Insecure:    true,
+	}
+	require.NoError(t, err)
+
+	trustBundleCache := workloadidentity.NewTrustBundleCacheFacade()
+	crlCache := workloadidentity.NewCRLCacheFacade()
+
+	b, err := bot.New(bot.Config{
+		Connection: connCfg,
+		Logger:     log,
+		Onboarding: *onboarding,
+		Services: []bot.ServiceBuilder{
+			trustBundleCache.BuildService,
+			crlCache.BuildService,
+			WorkloadAPIServiceBuilder(
+				&WorkloadAPIConfig{
+					Selector: bot.WorkloadIdentitySelector{
+						Name: workloadIdentity.GetMetadata().GetName(),
+					},
+					Listen: listenAddr.String(),
+				},
+				trustBundleCache,
+				crlCache,
+				bot.DefaultCredentialLifetime,
+			),
 		},
-	}, defaultBotConfigOpts{
-		useAuthServer: true,
-		insecure:      true,
 	})
-	botConfig.Oneshot = false
-	b := New(botConfig, log)
+	require.NoError(t, err)
 
 	// Spin up goroutine for bot to run in
 	botCtx, cancelBot := context.WithCancel(ctx)
@@ -137,8 +163,13 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 		wg.Wait()
 	})
 
-	// This has a little flexibility internally in terms of waiting for the
-	// socket to come up, so we don't need a manual sleep/retry here.
+	// Wait for the socket to be ready before trying to connect. The SPIFFE SDK
+	// and gRPC should handle this for us, but we've seen this test flake in CI.
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(listenAddr.String())
+		return err != nil
+	}, 5*time.Second, 100*time.Millisecond, "socket not ready within 5s")
+
 	client, err := workloadapi.New(ctx, workloadapi.WithAddr(listenAddr.String()))
 	require.NoError(t, err)
 
