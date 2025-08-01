@@ -71,6 +71,9 @@ func TestStreams(t *testing.T) {
 	t.Run("UploadDownload", func(t *testing.T) {
 		test.UploadDownload(t, handler)
 	})
+	t.Run("UploadDownloadSummary", func(t *testing.T) {
+		test.UploadDownloadSummary(t, handler)
+	})
 	t.Run("DownloadNotFound", func(t *testing.T) {
 		test.DownloadNotFound(t, handler)
 	})
