@@ -97,9 +97,9 @@ log:
 # Only default and mandatory values are described here, see the tbot chart reference
 # for the full list of supported values.
 tbot:
-  # tbot.enabled(bool) -- controls if tbot should be deployed with the mail plugin.
+  # tbot.enabled(bool) -- controls if tbot should be deployed with the Discord plugin.
   enabled: false
-  # tbot.clusterName(string) -- is the name of the Teleport cluster tbot and the mail plugin will join.
+  # tbot.clusterName(string) -- is the name of the Teleport cluster tbot and the Discord plugin will join.
   # Setting this value is mandatory when tbot is enabled.
   clusterName: ""
   # tbot.teleportProxyAddress(string) -- is the teleport Proxy Service address the bot will connect to.
