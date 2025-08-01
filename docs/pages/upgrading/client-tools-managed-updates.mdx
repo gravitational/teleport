@@ -106,13 +106,13 @@ manually setting the max_tools value to the desired limit.
 
 ### Managed updates initiation
 
-Client tools make a request to the proxy discovery endpoint `/v1/webapi/find` during every login
-in order to retrieve the required client tools version and check the update mode for the target cluster.
+Client tools make a request to the Teleport Proxy Service discovery endpoint `/v1/webapi/find` during every login
+in order to retrieve the required version of Teleport client tools and check the update mode for the target cluster.
 
-To enable version checks for `tsh ssh` or `tsh proxy ssh` commands in case when login is not required,
+To enable version checks for `tsh ssh` or `tsh proxy ssh` commands in case a login is not required,
 set the `TELEPORT_TOOLS_CHECK_UPDATE=t` environment variable to initiate this check. For example:
 
-```bash
+```code
 $ TELEPORT_TOOLS_CHECK_UPDATE=t tsh ssh user@host
 Update progress: [▒▒▒▒▒▒▒▒▒▒] (Ctrl-C to cancel update)
 user@host ~ #
