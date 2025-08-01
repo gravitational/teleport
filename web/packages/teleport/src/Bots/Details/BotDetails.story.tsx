@@ -17,63 +17,222 @@
  */
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import createMemoryHistory from 'history/createMemoryHistory';
+import { createMemoryHistory } from 'history';
 import { MemoryRouter, Route, Router } from 'react-router';
 
 import cfg from 'teleport/config';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
+import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 import {
   editBotSuccess,
   getBotError,
+  getBotForever,
   getBotSuccess,
 } from 'teleport/test/helpers/bots';
+import { mfaAuthnChallengeSuccess } from 'teleport/test/helpers/mfa';
 import { successGetRoles } from 'teleport/test/helpers/roles';
+import {
+  listV2TokensError,
+  listV2TokensMfaError,
+  listV2TokensSuccess,
+} from 'teleport/test/helpers/tokens';
 
 import { BotDetails } from './BotDetails';
 
 const meta = {
   title: 'Teleport/Bots/Details',
-  component: Details,
+  component: Wrapper,
   beforeEach: () => {
     queryClient.clear(); // Prevent cached data sharing between stories
   },
-} satisfies Meta<typeof Details>;
+} satisfies Meta<typeof Wrapper>;
 
 type Story = StoryObj<typeof meta>;
 
 export default meta;
 
-export const DetailsWithFetchFailure: Story = {
+const successHandler = getBotSuccess({
+  name: 'ansible-worker',
+  roles: Array.from({ length: 8 }, (_, k) => k).map(
+    r => `testing-role-${r + 1}`
+  ),
+  traits: [
+    {
+      name: 'logins',
+      values: ['guest'],
+    },
+    {
+      name: 'db_names',
+      values: ['*'],
+    },
+    {
+      name: 'custom_idp',
+      values: Array.from({ length: 8 }, (_, k) => k).map(
+        r => `test-value-${r + 1}`
+      ),
+    },
+  ],
+  max_session_ttl: {
+    seconds: 43200,
+  },
+});
+
+export const Happy: Story = {
   parameters: {
     msw: {
-      handlers: [getBotError(500, 'error message goes here')],
+      handlers: [
+        successHandler,
+        listV2TokensSuccess(),
+        successGetRoles({
+          startKey: '',
+          items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
+            content: `role-${r}`,
+            id: `role-${r}`,
+            name: `role-${r}`,
+            kind: 'role',
+          })),
+        }),
+        editBotSuccess(),
+      ],
     },
   },
 };
 
-export const DetailsWithFetchSuccess: Story = {
+export const HappyWithEmpty: Story = {
   parameters: {
     msw: {
       handlers: [
         getBotSuccess({
           name: 'ansible-worker',
-          roles: ['terraform-provider'],
-          traits: [
-            {
-              name: 'logins',
-              values: ['guest'],
-            },
-            {
-              name: 'db_names',
-              values: ['*'],
-            },
-            {
-              name: 'custom_idp',
-              values: ['val-1', 'val-2', 'val-3'],
-            },
-          ],
+          roles: [],
+          traits: [],
           max_session_ttl: {
             seconds: 43200,
+          },
+        }),
+        listV2TokensSuccess({
+          isEmpty: true,
+        }),
+        mfaAuthnChallengeSuccess(),
+        successGetRoles({
+          startKey: '',
+          items: ['access', 'editor', 'terraform-provider'].map(r => ({
+            content: r,
+            id: r,
+            name: r,
+            kind: 'role',
+          })),
+        }),
+        editBotSuccess(),
+      ],
+    },
+  },
+};
+
+export const HappyWithoutEditPermission: Story = {
+  args: {
+    hasBotsEdit: false,
+  },
+  parameters: {
+    msw: {
+      handlers: [
+        successHandler,
+        listV2TokensSuccess(),
+        successGetRoles({
+          startKey: '',
+          items: ['access', 'editor', 'terraform-provider'].map(r => ({
+            content: r,
+            id: r,
+            name: r,
+            kind: 'role',
+          })),
+        }),
+        editBotSuccess(),
+      ],
+    },
+  },
+};
+
+export const HappyWithoutTokenListPermission: Story = {
+  args: {
+    hasTokensList: false,
+  },
+  parameters: {
+    msw: {
+      handlers: [
+        successHandler,
+        listV2TokensSuccess(),
+        successGetRoles({
+          startKey: '',
+          items: ['access', 'editor', 'terraform-provider'].map(r => ({
+            content: r,
+            id: r,
+            name: r,
+            kind: 'role',
+          })),
+        }),
+        editBotSuccess(),
+      ],
+    },
+  },
+};
+
+export const HappyWithMFAPrompt: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        successHandler,
+        listV2TokensMfaError(),
+        mfaAuthnChallengeSuccess(),
+        successGetRoles({
+          startKey: '',
+          items: ['access', 'editor', 'terraform-provider'].map(r => ({
+            content: r,
+            id: r,
+            name: r,
+            kind: 'role',
+          })),
+        }),
+        editBotSuccess(),
+      ],
+    },
+  },
+};
+
+export const HappyWithTokensError: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        successHandler,
+        listV2TokensError(500, 'something went wrong'),
+        successGetRoles({
+          startKey: '',
+          items: ['access', 'editor', 'terraform-provider'].map(r => ({
+            content: r,
+            id: r,
+            name: r,
+            kind: 'role',
+          })),
+        }),
+        editBotSuccess(),
+      ],
+    },
+  },
+};
+
+export const HappyWithTokensOutdatedProxy: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        successHandler,
+        listV2TokensError(404, 'path not found', {
+          proxyVersion: {
+            major: 19,
+            minor: 0,
+            patch: 0,
+            preRelease: 'dev',
+            string: '18.0.0',
           },
         }),
         successGetRoles({
@@ -91,14 +250,80 @@ export const DetailsWithFetchSuccess: Story = {
   },
 };
 
-function Details() {
+export const WithFetchPending: Story = {
+  parameters: {
+    msw: {
+      handlers: [getBotForever()],
+    },
+  },
+};
+
+export const WithFetchFailure: Story = {
+  parameters: {
+    msw: {
+      handlers: [getBotError(500, 'error message goes here')],
+    },
+  },
+};
+
+export const WithBotNotFound: Story = {
+  parameters: {
+    msw: {
+      handlers: [getBotError(404, 'not found')],
+    },
+  },
+};
+
+export const WithNoBotReadPermission: Story = {
+  args: {
+    hasBotsRead: false,
+  },
+  parameters: {
+    msw: {
+      handlers: [getBotError(500, 'you have permission, congrats 🎉')],
+    },
+  },
+};
+
+function Wrapper(props?: {
+  hasBotsRead?: boolean;
+  hasBotsEdit?: boolean;
+  hasTokensList?: boolean;
+}) {
+  const {
+    hasBotsRead = true,
+    hasBotsEdit = true,
+    hasTokensList = true,
+  } = props ?? {};
+
   const history = createMemoryHistory({
     initialEntries: ['/web/bot/ansible-worker'],
   });
+
+  const customAcl = makeAcl({
+    bots: {
+      ...defaultAccess,
+      read: hasBotsRead,
+      edit: hasBotsEdit,
+    },
+    roles: {
+      ...defaultAccess,
+      list: true,
+    },
+    tokens: {
+      ...defaultAccess,
+      list: hasTokensList,
+    },
+  });
+
+  const ctx = createTeleportContext({
+    customAcl,
+  });
+
   return (
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
-        <TeleportProviderBasic>
+        <TeleportProviderBasic teleportCtx={ctx}>
           <Router history={history}>
             <Route path={cfg.routes.bot}>
               <BotDetails />
