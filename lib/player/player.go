@@ -498,7 +498,8 @@ func (p *Player) translateEvent(evt events.AuditEvent) (translatedEvent events.A
 
 // databaseTranslators maps database protocol event translators.
 var databaseTranslators = map[string]newSessionPrintTranslatorFunc{
-	defaults.ProtocolPostgres: func() sessionPrintTranslator { return db.NewPostgresTranslator() },
+	defaults.ProtocolPostgres:    func() sessionPrintTranslator { return db.NewPostgresTranslator() },
+	defaults.ProtocolCockroachDB: func() sessionPrintTranslator { return db.NewPostgresTranslator() },
 }
 
 // SupportedDatabaseProtocols a list of database protocols supported by the
