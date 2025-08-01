@@ -178,7 +178,7 @@ func convertLDAPError(err error) error {
 func (l *LDAPClient) GetActiveDirectorySID(ctx context.Context, username string) (string, error) {
 	filter := CombineLDAPFilters([]string{
 		fmt.Sprintf("(%s=%s)", AttrSAMAccountType, AccountTypeUser),
-		fmt.Sprintf("(%s=%s)", AttrSAMAccountName, username),
+		fmt.Sprintf("(%s=%s)", AttrSAMAccountName, ldap.EscapeFilter(username)),
 	})
 
 	entries, err := l.ReadWithFilter(DomainDN(l.cfg.Domain), filter, []string{AttrObjectSid})
