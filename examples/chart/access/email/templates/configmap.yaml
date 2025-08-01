@@ -12,7 +12,7 @@ data:
   teleport-email.toml: |
     [teleport]
     addr = {{ coalesce .Values.teleport.address .Values.tbot.teleportProxyAddress .Values.tbot.teleportAuthAddress | quote }}
-    identity = "/var/lib/teleport/plugins/email/teleport-identity/{{ .Values.teleport.identitySecretPath }}"
+    identity = "/var/lib/teleport/plugins/email/teleport-identity/{{ include "email.identitySecretPath" . }}"
     refresh_identity = true
 
     {{ if .Values.mailgun.enabled -}}
