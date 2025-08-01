@@ -138,7 +138,8 @@ async function fetchChecksum(fileUrl: string): Promise<string> {
       `Could not retrieve checksum from "${response.url}" (${response.status} ${response.statusText}).`
     );
   }
-  const checksumText = await response.text();
+  const checksumText = (await response.text()).trim();
+  console.log(`"${checksumText}"`);
   if (!CHECKSUM_FORMAT.test(checksumText)) {
     throw new Error(`Invalid checksum format ${checksumText}`);
   }

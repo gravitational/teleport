@@ -27,6 +27,8 @@ import { Attempt } from 'shared/hooks/useAsync';
 import type { PrimaryAuthType } from 'shared/services';
 
 import { Platform } from 'teleterm/mainProcess/types';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useAppUpdaterContext, WidgetView } from 'teleterm/ui/AppUpdater';
 import * as types from 'teleterm/ui/services/clusters/types';
 
 import { outermostPadding } from '../../spacing';
@@ -39,6 +41,8 @@ import { PromptPasswordless } from './PromptPasswordless';
 import PromptSsoStatus from './PromptSsoStatus';
 
 export default function LoginForm(props: Props) {
+  const appUpdaterContext = useAppUpdaterContext();
+  const appContext = useAppContext();
   const {
     loginAttempt,
     onAbort,
@@ -69,6 +73,14 @@ export default function LoginForm(props: Props) {
     disableVersionCheck: props.disableVersionCheck,
     platform: props.platform,
   };
+  const elo = {
+    updateEvent: appUpdaterContext.updateEvent,
+    onDownload: appUpdaterContext.download,
+    onInstall: appUpdaterContext.quitAndInstall,
+    platform: appUpdaterContext.platform,
+    onMore: props.switchToAppUpdateDetails,
+    clusterGetter: appContext.clustersService,
+  };
   const ssoEnabled = authProviders?.length > 0;
 
   // If local auth was not enabled, disregard any primary auth type config
@@ -82,6 +94,7 @@ export default function LoginForm(props: Props) {
           </Alerts.Danger>
         )}
         <CompatibilityWarning {...compatibilityWarningProps} />
+        <WidgetView {...elo} />
         <FormSso {...props} />
       </FlexBordered>
     );
@@ -97,6 +110,7 @@ export default function LoginForm(props: Props) {
           Login has not been enabled
         </Alerts.Danger>
         <CompatibilityWarning {...compatibilityWarningProps} />
+        <WidgetView {...elo} />
       </FlexBordered>
     );
   }
@@ -120,6 +134,9 @@ export default function LoginForm(props: Props) {
         mx={outermostPadding}
         {...compatibilityWarningProps}
       />
+      <Flex mx={outermostPadding}>
+        <WidgetView {...elo} />
+      </Flex>
       <StepSlider<typeof loginViews>
         flows={loginViews}
         currFlow={'default'}
@@ -321,6 +338,7 @@ export type Props = {
   shouldSkipVersionCheck: boolean;
   disableVersionCheck(): void;
   platform: Platform;
+  switchToAppUpdateDetails(): void;
 };
 
 const OutermostPadding = styled(Box).attrs({ px: outermostPadding })``;

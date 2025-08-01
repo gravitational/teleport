@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useId } from 'react';
+import { useId, useState } from 'react';
 
 import {
   Alert,
@@ -89,6 +89,7 @@ export function DetailsView({
         onDownload={onDownload}
         onCancelDownload={onCancelDownload}
         onInstall={onInstall}
+        key={JSON.stringify(updateEvent)}
       />
     </Stack>
   );
@@ -109,6 +110,8 @@ function UpdaterState({
   onCancelDownload(): void;
   onInstall(): void;
 }) {
+  console.log('UpdaterState', event);
+  const [startedDownload, setStartedDownload] = useState(false);
   switch (event.kind) {
     case 'checking-for-update':
       return (
@@ -126,12 +129,18 @@ function UpdaterState({
       return (
         <Stack gap={3} width="100%">
           <AvailableUpdate update={event.update} platform={platform} />
-          {event.autoDownload ? (
+          {event.autoDownload || startedDownload ? (
             <ButtonSecondary disabled block>
               Starting Download…
             </ButtonSecondary>
           ) : (
-            <ButtonSecondary block onClick={onDownload}>
+            <ButtonSecondary
+              block
+              onClick={() => {
+                setStartedDownload(true);
+                onDownload();
+              }}
+            >
               Download
             </ButtonSecondary>
           )}
