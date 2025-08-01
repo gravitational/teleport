@@ -98,12 +98,10 @@ func TestListRequestableRoles(t *testing.T) {
 	})
 
 	t.Run("list all requestable roles, no limit", func(t *testing.T) {
-		req := &authpb.ListRolesRequest{
-			Filter: &types.RoleFilter{
-				RequestableOnly: true,
-			},
+		req := &authpb.ListRequestableRolesRequest{
+			Filter: &types.RoleFilter{},
 		}
-		resp, err := a.ListRoles(userCtx, req)
+		resp, err := a.ListRequestableRoles(userCtx, req)
 		require.NoError(t, err)
 
 		// Verify that all the requestable roles were returned.
@@ -123,24 +121,20 @@ func TestListRequestableRoles(t *testing.T) {
 
 	t.Run("list a page of requestable roles starting with a startKey", func(t *testing.T) {
 		// Get the first page of 3
-		firstPageReq := &authpb.ListRolesRequest{
-			Limit: 3,
-			Filter: &types.RoleFilter{
-				RequestableOnly: true,
-			},
+		firstPageReq := &authpb.ListRequestableRolesRequest{
+			Limit:  3,
+			Filter: &types.RoleFilter{},
 		}
-		firstPageResp, err := a.ListRoles(userCtx, firstPageReq)
+		firstPageResp, err := a.ListRequestableRoles(userCtx, firstPageReq)
 		require.NoError(t, err)
 		require.NotEmpty(t, firstPageResp.NextKey)
 
-		secondPageReq := &authpb.ListRolesRequest{
+		secondPageReq := &authpb.ListRequestableRolesRequest{
 			Limit:    3,
 			StartKey: firstPageResp.NextKey,
-			Filter: &types.RoleFilter{
-				RequestableOnly: true,
-			},
+			Filter:   &types.RoleFilter{},
 		}
-		secondPageResp, err := a.ListRoles(userCtx, secondPageReq)
+		secondPageResp, err := a.ListRequestableRoles(userCtx, secondPageReq)
 		require.NoError(t, err)
 
 		// Verify that the second page has the correct roles.
@@ -166,15 +160,13 @@ func TestListRequestableRoles(t *testing.T) {
 		nextKey := ""
 
 		for {
-			req := &authpb.ListRolesRequest{
+			req := &authpb.ListRequestableRolesRequest{
 				Limit:    limit,
 				StartKey: nextKey,
-				Filter: &types.RoleFilter{
-					RequestableOnly: true,
-				},
+				Filter:   &types.RoleFilter{},
 			}
 
-			resp, err := a.ListRoles(userCtx, req)
+			resp, err := a.ListRequestableRoles(userCtx, req)
 			require.NoError(t, err)
 
 			respRoles = append(respRoles, resp.RequestableRoles...)
@@ -229,12 +221,10 @@ func TestListRequestableRoles(t *testing.T) {
 			Identity: noPermsIdentity,
 		})
 
-		req := &authpb.ListRolesRequest{
-			Filter: &types.RoleFilter{
-				RequestableOnly: true,
-			},
+		req := &authpb.ListRequestableRolesRequest{
+			Filter: &types.RoleFilter{},
 		}
-		resp, err := a.ListRoles(restrictedCtx, req)
+		resp, err := a.ListRequestableRoles(restrictedCtx, req)
 		require.NoError(t, err)
 
 		// Verify that nothing is returned.
@@ -243,13 +233,12 @@ func TestListRequestableRoles(t *testing.T) {
 	})
 
 	t.Run("list requestable roles with a search filter", func(t *testing.T) {
-		req := &authpb.ListRolesRequest{
+		req := &authpb.ListRequestableRolesRequest{
 			Filter: &types.RoleFilter{
-				SearchKeywords:  []string{"role-99"},
-				RequestableOnly: true,
+				SearchKeywords: []string{"role-99"},
 			},
 		}
-		resp, err := a.ListRoles(userCtx, req)
+		resp, err := a.ListRequestableRoles(userCtx, req)
 		require.NoError(t, err)
 
 		// Verify that only "role-99" was returned

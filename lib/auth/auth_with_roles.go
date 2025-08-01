@@ -4453,14 +4453,6 @@ func (a *ServerWithRoles) GetRoles(ctx context.Context) ([]types.Role, error) {
 
 // ListRoles is a paginated role getter.
 func (a *ServerWithRoles) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
-	// If RequestableOnly flag is set, we use a separate logic path. This logic path does not require any RBAC permissions for
-	// listing role resources, so we don't check them. This is because when we list requestable roles, we are just aggregating the
-	// roles listed by name in the user's RBAC's allow.request.roles, as opposed to fetching role resources from the backend, which
-	// would require list/read permissions for `types.KindRole` resources.
-	if req.Filter != nil && req.Filter.RequestableOnly {
-		return a.listRequestableRoles(ctx, req)
-	}
-
 	authErr := a.authorizeAction(types.KindRole, types.VerbList, types.VerbRead)
 	if authErr == nil {
 		rsp, err := a.authServer.ListRoles(ctx, req)
@@ -4488,8 +4480,8 @@ func (a *ServerWithRoles) ListRoles(ctx context.Context, req *proto.ListRolesReq
 	}, nil
 }
 
-// listRequestableRoles returns only the roles that the user can request.
-func (a *ServerWithRoles) listRequestableRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+// ListRequestableRoles is a paginated requestable role getter.
+func (a *ServerWithRoles) ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error) {
 	if req.Limit == 0 || req.Limit > apidefaults.DefaultChunkSize {
 		req.Limit = apidefaults.DefaultChunkSize
 	}
@@ -4499,17 +4491,24 @@ func (a *ServerWithRoles) listRequestableRoles(ctx context.Context, req *proto.L
 		return nil, trace.Wrap(err)
 	}
 
-	matchFunc, err := BuildRequestableRoleMatchFunc(requestValidator, req)
+	// Convert ListRequestableRolesRequest to ListRolesRequest for compatibility with `IterateRoles`
+	listReq := &proto.ListRolesRequest{
+		Limit:    req.Limit,
+		StartKey: req.StartKey,
+		Filter:   req.Filter,
+	}
+
+	matchFunc, err := BuildRequestableRoleMatchFunc(requestValidator, listReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	out, nextKey, err := a.authServer.IterateRoles(ctx, req, matchFunc)
+	out, nextKey, err := a.authServer.IterateRoles(ctx, listReq, matchFunc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &proto.ListRolesResponse{
+	return &proto.ListRequestableRolesResponse{
 		RequestableRoles: RolesToRequestableRoles(out),
 		NextKey:          nextKey,
 	}, nil

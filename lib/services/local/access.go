@@ -147,6 +147,11 @@ func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesReque
 	return &resp, nil
 }
 
+// ListRequestableRoles is not supported at the storage service level.
+func (s *AccessService) ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error) {
+	return nil, trace.NotImplemented("ListRequestableRoles is not supported at the storage service level")
+}
+
 // CreateRole creates a new role.
 func (s *AccessService) CreateRole(ctx context.Context, role types.Role) (types.Role, error) {
 	err := services.ValidateRoleName(role)

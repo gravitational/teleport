@@ -43,6 +43,8 @@ type Access interface {
 	GetRoles(ctx context.Context) ([]types.Role, error)
 	// ListRoles is a paginated role getter.
 	ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
+	// ListRequestableRoles is a paginated requestable role getter.
+	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
 	// CreateRole creates a role.
 	CreateRole(ctx context.Context, role types.Role) (types.Role, error)
 	// UpdateRole updates an existing role.

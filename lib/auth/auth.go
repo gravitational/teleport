@@ -5400,19 +5400,14 @@ Outer:
 	return filtered, nextKey, nil
 }
 
-// ListRoles is a paginated role getter that supports requestable filtering.
+// ListRoles is a paginated role getter.
 func (a *Server) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
-	// If RequestableOnly is set, use requestable roles logic
-	if req.Filter != nil && req.Filter.RequestableOnly {
-		return a.listRequestableRoles(ctx, req)
-	}
-
-	// Otherwise, delegate to the cache
+	// Delegate to the cache
 	return a.Cache.ListRoles(ctx, req)
 }
 
-// listRequestableRoles handles the RequestableOnly filter when listing roles.
-func (a *Server) listRequestableRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+// ListRequestableRoles is a paginated requestable role getter.
+func (a *Server) ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error) {
 	if req.Limit == 0 || req.Limit > apidefaults.DefaultChunkSize {
 		req.Limit = apidefaults.DefaultChunkSize
 	}
@@ -5427,17 +5422,24 @@ func (a *Server) listRequestableRoles(ctx context.Context, req *proto.ListRolesR
 		return nil, trace.Wrap(err)
 	}
 
-	matchFunc, err := BuildRequestableRoleMatchFunc(requestValidator, req)
+	// Convert ListRequestableRolesRequest to ListRolesRequest for compatibility with `IterateRoles`
+	listReq := &proto.ListRolesRequest{
+		Limit:    req.Limit,
+		StartKey: req.StartKey,
+		Filter:   req.Filter,
+	}
+
+	matchFunc, err := BuildRequestableRoleMatchFunc(requestValidator, listReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	out, nextKey, err := a.IterateRoles(ctx, req, matchFunc)
+	out, nextKey, err := a.IterateRoles(ctx, listReq, matchFunc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &proto.ListRolesResponse{
+	return &proto.ListRequestableRolesResponse{
 		RequestableRoles: RolesToRequestableRoles(out),
 		NextKey:          nextKey,
 	}, nil

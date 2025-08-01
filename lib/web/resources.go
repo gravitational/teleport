@@ -102,17 +102,16 @@ func (h *Handler) listRequestableRolesHandle(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	rolesReq := &proto.ListRolesRequest{
+	rolesReq := &proto.ListRequestableRolesRequest{
 		Limit:    limit,
 		StartKey: values.Get("startKey"),
 		Filter: &types.RoleFilter{
 			SearchKeywords:  client.ParseSearchKeywords(values.Get("search"), ' '),
 			SkipSystemRoles: true,
-			RequestableOnly: true,
 		},
 	}
 
-	resp, err := clt.ListRoles(r.Context(), rolesReq)
+	resp, err := clt.ListRequestableRoles(r.Context(), rolesReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -663,6 +662,8 @@ type resourcesAPIGetter interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 	// ListRoles returns a paginated list of roles.
 	ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
+	// ListRequestableRoles returns a paginated list of requestable roles.
+	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
 	// UpsertRole creates or updates role
 	UpsertRole(ctx context.Context, role types.Role) (types.Role, error)
 	// GetGithubConnectors returns all configured Github connectors

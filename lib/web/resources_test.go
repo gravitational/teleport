@@ -719,6 +719,7 @@ type mockedResourceAPIGetter struct {
 	mockGetRole               func(ctx context.Context, name string) (types.Role, error)
 	mockGetRoles              func(ctx context.Context) ([]types.Role, error)
 	mockListRoles             func(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
+	mockListRequestableRoles  func(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
 	mockUpsertRole            func(ctx context.Context, role types.Role) (types.Role, error)
 	mockGetGithubConnectors   func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
 	mockGetGithubConnector    func(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error)
@@ -751,6 +752,13 @@ func (m *mockedResourceAPIGetter) ListRoles(ctx context.Context, req *proto.List
 		return m.mockListRoles(ctx, req)
 	}
 	return nil, trace.NotImplemented("mockListRoles not implemented")
+}
+
+func (m *mockedResourceAPIGetter) ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error) {
+	if m.mockListRequestableRoles != nil {
+		return m.mockListRequestableRoles(ctx, req)
+	}
+	return nil, trace.NotImplemented("mockListRequestableRoles not implemented")
 }
 
 func (m *mockedResourceAPIGetter) UpsertRole(ctx context.Context, role types.Role) (types.Role, error) {
