@@ -59,7 +59,7 @@ func TestE2E_ApplicationTunnelService(t *testing.T) {
 	appName := "my-test-app"
 	process, err := testenv.NewTeleportProcess(
 		t.TempDir(),
-		defaultTestServerOpts(t, log),
+		defaultTestServerOpts(log),
 		testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Apps.Enabled = true
 			cfg.Apps.Apps = []servicecfg.App{

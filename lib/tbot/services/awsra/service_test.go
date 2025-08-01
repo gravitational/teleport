@@ -163,7 +163,7 @@ func TestBotWorkloadIdentityAWSRA(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(t, log))
+			process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(log))
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				require.NoError(t, process.Close())

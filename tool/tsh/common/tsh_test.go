@@ -2430,7 +2430,7 @@ func TestSSHCommands(t *testing.T) {
 	rootServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(connector, accessUser),
 		testserver.WithHostname(sshHostname),
-		testserver.WithClusterName(t, "root"),
+		testserver.WithClusterName("root"),
 		testserver.WithSSHLabel(accessRoleName, "true"),
 		testserver.WithSSHPublicAddrs("127.0.0.1:0"),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
@@ -6124,7 +6124,7 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 	rootServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(connector, accessUser),
 		testserver.WithHostname("node01"),
-		testserver.WithClusterName(t, "root"),
+		testserver.WithClusterName("root"),
 		testserver.WithDebugApp(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			// Enable DB
@@ -6148,7 +6148,7 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 	leafServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(connector, accessUser),
 		testserver.WithHostname("node02"),
-		testserver.WithClusterName(t, "leaf"),
+		testserver.WithClusterName("leaf"),
 		testserver.WithDebugApp(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			// Enable DB
@@ -6168,7 +6168,7 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 		require.NoError(t, leafServer.Close())
 		require.NoError(t, leafServer.Wait())
 	})
-	testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer)
+	SetupTrustedCluster(ctx, t, rootServer, leafServer)
 
 	var (
 		rootNode, leafNode *types.ServerV2
@@ -6697,7 +6697,7 @@ func TestResolve(t *testing.T) {
 	rootServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(connector, accessUser),
 		testserver.WithHostname(sshHostname),
-		testserver.WithClusterName(t, "root"),
+		testserver.WithClusterName("root"),
 		testserver.WithSSHPublicAddrs("127.0.0.1:0"),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SSH.Enabled = true
@@ -6997,7 +6997,7 @@ func TestSCP(t *testing.T) {
 	rootServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(connector, accessUser),
 		testserver.WithHostname(sshHostname),
-		testserver.WithClusterName(t, "root"),
+		testserver.WithClusterName("root"),
 		testserver.WithSSHPublicAddrs("127.0.0.1:0"),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SSH.Enabled = true

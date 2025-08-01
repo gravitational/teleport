@@ -53,7 +53,6 @@ import (
 	dbcommon "github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func registerFakeEnterpriseDBEngines(t *testing.T) {

@@ -93,9 +93,9 @@ type defaultBotConfigOpts struct {
 	insecure bool
 }
 
-func defaultTestServerOpts(t *testing.T, log *slog.Logger) testenv.TestServerOptFunc {
-	return func(o *testenv.TestServersOpts) {
-		testenv.WithClusterName(t, "root")(o)
+func defaultTestServerOpts(log *slog.Logger) testenv.TestServerOptFunc {
+	return func(o *testenv.TestServersOpts) error {
+		testenv.WithClusterName("root")(o)
 		testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Logger = log
 			cfg.Proxy.PublicAddrs = []utils.NetAddr{
@@ -105,6 +105,8 @@ func defaultTestServerOpts(t *testing.T, log *slog.Logger) testenv.TestServerOpt
 				cfg.Proxy.ReverseTunnelListenAddr,
 			}
 		})(o)
+
+		return nil
 	}
 }
 
@@ -213,8 +215,8 @@ func TestBot(t *testing.T) {
 
 	process, err := testenv.NewTeleportProcess(
 		t.TempDir(),
-		defaultTestServerOpts(t, log),
-		testenv.WithProxyKube(t),
+		defaultTestServerOpts(log),
+		testenv.WithProxyKube(),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -575,7 +577,7 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 	log := logtest.NewLogger()
 
 	// Make a new auth server.
-	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(t, log))
+	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(log))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())
@@ -643,12 +645,13 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 
 	// Make a new auth server.
 	process, err := testenv.NewTeleportProcess(t.TempDir(),
-		func(o *testenv.TestServersOpts) {
-			defaultTestServerOpts(t, log)(o)
+		func(o *testenv.TestServersOpts) error {
+			defaultTestServerOpts(log)(o)
 
 			testenv.WithConfig(func(cfg *servicecfg.Config) {
 				cfg.Proxy.TunnelPublicAddrs = []utils.NetAddr{*utils.MustParseAddr(proxy.addr())}
 			})(o)
+			return nil
 		},
 	)
 	require.NoError(t, err)
@@ -857,7 +860,7 @@ func TestBot_InsecureViaProxy(t *testing.T) {
 	log := logtest.NewLogger()
 
 	// Make a new auth server.
-	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(t, log))
+	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(log))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())
@@ -977,7 +980,7 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	log := logtest.NewLogger()
 
 	// Make a new auth server.
-	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(t, log))
+	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(log))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())
@@ -1097,7 +1100,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	// Make a new auth server with SSH agent
 	process, err := testenv.NewTeleportProcess(
 		t.TempDir(),
-		defaultTestServerOpts(t, log),
+		defaultTestServerOpts(log),
 		testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SSH.Enabled = true
 		}),
@@ -1230,7 +1233,7 @@ func TestBotDeviceTrust(t *testing.T) {
 
 	// Start a test server with `device.trust.mode="required-for-humans"`.
 	process, err := testenv.NewTeleportProcess(t.TempDir(),
-		defaultTestServerOpts(t, log),
+		defaultTestServerOpts(log),
 		testenv.WithAuthConfig(func(cfg *servicecfg.AuthConfig) {
 			cfg.Preference.SetDeviceTrust(&types.DeviceTrust{
 				Mode: constants.DeviceTrustModeRequiredForHumans,
@@ -1280,8 +1283,8 @@ func TestBotJoiningURI(t *testing.T) {
 
 	process, err := testenv.NewTeleportProcess(
 		t.TempDir(),
-		defaultTestServerOpts(t, log),
-		testenv.WithProxyKube(t),
+		defaultTestServerOpts(log),
+		testenv.WithProxyKube(),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {

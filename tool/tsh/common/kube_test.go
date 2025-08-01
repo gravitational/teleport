@@ -58,7 +58,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
-	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestKube(t *testing.T) {

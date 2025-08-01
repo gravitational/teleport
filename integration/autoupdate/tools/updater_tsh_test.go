@@ -297,7 +297,7 @@ func bootstrapTestServer(t *testing.T) (*service.TeleportProcess, string, string
 
 	rootServer, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithBootstrap(alice),
-		testserver.WithClusterName(t, "root"),
+		testserver.WithClusterName("root"),
 		testserver.WithAuthPreference(ap),
 	)
 	require.NoError(t, err)

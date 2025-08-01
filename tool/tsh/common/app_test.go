@@ -105,10 +105,13 @@ func TestAppCommands(t *testing.T) {
 	accessUser.SetLogins([]string{user.Name})
 	connector := mockConnector(t)
 
+	rootApp := testserver.StartDummyHTTPServer("rootapp")
+	t.Cleanup(rootApp.Close)
+
 	rootServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(connector, accessUser),
-		testserver.WithClusterName(t, "root"),
-		testserver.WithTestApp(t, "rootapp"),
+		testserver.WithClusterName("root"),
+		testserver.WithTestApp("rootapp", rootApp.URL),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
@@ -129,10 +132,13 @@ func TestAppCommands(t *testing.T) {
 	_, err = rootAuthServer.UpdateAuthPreference(ctx, cap)
 	require.NoError(t, err)
 
+	leafApp := testserver.StartDummyHTTPServer("leafapp")
+	t.Cleanup(leafApp.Close)
+
 	leafServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(accessUser),
-		testserver.WithClusterName(t, "leaf"),
-		testserver.WithTestApp(t, "leafapp"),
+		testserver.WithClusterName("leaf"),
+		testserver.WithTestApp("leafapp", leafApp.URL),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
@@ -143,7 +149,7 @@ func TestAppCommands(t *testing.T) {
 		require.NoError(t, leafServer.Close())
 		require.NoError(t, leafServer.Wait())
 	})
-	testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer)
+	SetupTrustedCluster(ctx, t, rootServer, leafServer)
 
 	// Set up user with MFA device for per session MFA tests below.
 	origin := "https://127.0.0.1"

@@ -454,7 +454,7 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 	log := logtest.NewLogger()
 
 	// Make a new auth server.
-	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(t, log))
+	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(log))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())
@@ -670,7 +670,7 @@ func Test_E2E_SPIFFE_SDS(t *testing.T) {
 	log := logtest.NewLogger()
 
 	// Make a new auth server.
-	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(t, log))
+	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(log))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())

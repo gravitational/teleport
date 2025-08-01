@@ -25,7 +25,9 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -33,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -71,12 +74,18 @@ func TestMFAAuthenticateChallenge_IsMFARequiredApp(t *testing.T) {
 	require.NoError(t, err)
 	user.SetRoles([]string{"app-access", "app-access-mfa"})
 
+	rootAppServer := testserver.StartDummyHTTPServer("root-app")
+	t.Cleanup(rootAppServer.Close)
+
+	rootAppMFAServer := testserver.StartDummyHTTPServer("root-app-mfa")
+	t.Cleanup(rootAppMFAServer.Close)
+
 	// Create root and leaf cluster.
 	rootServer, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithBootstrap(appAccessRole, appAccessMfaRole, user),
-		testserver.WithClusterName(t, "root"),
-		testserver.WithTestApp(t, "root-app"),
-		testserver.WithTestApp(t, "root-app-mfa"),
+		testserver.WithClusterName("root"),
+		testserver.WithTestApp("root-app", rootAppServer.URL),
+		testserver.WithTestApp("root-app-mfa", rootAppMFAServer.URL),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SSH.Enabled = false
 			cfg.Auth.Preference = &types.AuthPreferenceV2{
@@ -102,11 +111,17 @@ func TestMFAAuthenticateChallenge_IsMFARequiredApp(t *testing.T) {
 	rootProxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 
+	leafAppServer := testserver.StartDummyHTTPServer("leaf-app")
+	t.Cleanup(leafAppServer.Close)
+
+	leafAppMFAServer := testserver.StartDummyHTTPServer("leaf-app-mfa")
+	t.Cleanup(leafAppMFAServer.Close)
+
 	leafServer, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithBootstrap(appAccessRole, appAccessMfaRole),
-		testserver.WithClusterName(t, "leaf"),
-		testserver.WithTestApp(t, "leaf-app"),
-		testserver.WithTestApp(t, "leaf-app-mfa"),
+		testserver.WithClusterName("leaf"),
+		testserver.WithTestApp("leaf-app", leafAppServer.URL),
+		testserver.WithTestApp("leaf-app-mfa", leafAppMFAServer.URL),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SSH.Enabled = false
 		}),
@@ -118,7 +133,7 @@ func TestMFAAuthenticateChallenge_IsMFARequiredApp(t *testing.T) {
 	})
 	leafAuth := leafServer.GetAuthServer()
 
-	testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer,
+	SetupTrustedCluster(ctx, t, rootServer, leafServer,
 		types.RoleMapping{
 			Remote: "app-access",
 			Local:  []string{"app-access"},
@@ -270,4 +285,45 @@ func RegisterPasswordlessDeviceForUser(t *testing.T, server *service.TeleportPro
 	require.NoError(t, err)
 
 	return device
+}
+
+func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServer *service.TeleportProcess, additionalRoleMappings ...types.RoleMapping) {
+	// Use insecure mode so that the trusted cluster can establish trust over reverse tunnel.
+	isInsecure := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(isInsecure) })
+
+	rootProxyAddr, err := rootServer.ProxyWebAddr()
+	require.NoError(t, err)
+	rootProxyTunnelAddr, err := rootServer.ProxyTunnelAddr()
+	require.NoError(t, err)
+
+	tc, err := types.NewTrustedCluster(rootServer.Config.Auth.ClusterName.GetClusterName(), types.TrustedClusterSpecV2{
+		Enabled:              true,
+		Token:                testserver.StaticToken,
+		ProxyAddress:         rootProxyAddr.String(),
+		ReverseTunnelAddress: rootProxyTunnelAddr.String(),
+		RoleMap: append(additionalRoleMappings,
+			types.RoleMapping{
+				Remote: "access",
+				Local:  []string{"access"},
+			},
+		),
+	})
+	require.NoError(t, err)
+
+	_, err = leafServer.GetAuthServer().UpsertTrustedClusterV2(ctx, tc)
+	require.NoError(t, err)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rt, err := rootServer.GetAuthServer().GetTunnelConnections(leafServer.Config.Auth.ClusterName.GetClusterName())
+		assert.NoError(t, err)
+		assert.Len(t, rt, 1)
+	}, time.Second*10, time.Second)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rts, err := rootServer.GetAuthServer().GetRemoteClusters(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, rts, 1)
+	}, time.Second*10, time.Second)
 }

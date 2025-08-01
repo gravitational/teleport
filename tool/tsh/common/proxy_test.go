@@ -262,7 +262,7 @@ func TestWithRsync(t *testing.T) {
 	serverOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(connector, accessUser),
 		testserver.WithHostname("node01"),
-		testserver.WithClusterName(t, "root"),
+		testserver.WithClusterName("root"),
 	}
 
 	process, err := testserver.NewTeleportProcess(t.TempDir(), serverOpts...)
@@ -626,7 +626,7 @@ func TestProxySSHJumpHost(t *testing.T) {
 				rootServerOpts := []testserver.TestServerOptFunc{
 					testserver.WithBootstrap(connector, accessUser),
 					testserver.WithHostname("node01"),
-					testserver.WithClusterName(t, "root"),
+					testserver.WithClusterName("root"),
 					testserver.WithAuthConfig(
 						func(cfg *servicecfg.AuthConfig) {
 							cfg.NetworkingConfig.SetProxyListenerMode(rootListenerMode)
@@ -645,7 +645,7 @@ func TestProxySSHJumpHost(t *testing.T) {
 				leafServerOpts := []testserver.TestServerOptFunc{
 					testserver.WithBootstrap(accessUser),
 					testserver.WithHostname("node02"),
-					testserver.WithClusterName(t, "leaf"),
+					testserver.WithClusterName("leaf"),
 					testserver.WithAuthConfig(
 						func(cfg *servicecfg.AuthConfig) {
 							cfg.NetworkingConfig.SetProxyListenerMode(leafListenerMode)
@@ -658,7 +658,7 @@ func TestProxySSHJumpHost(t *testing.T) {
 					require.NoError(t, leafServer.Close())
 					require.NoError(t, leafServer.Wait())
 				})
-				testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer)
+				SetupTrustedCluster(ctx, t, rootServer, leafServer)
 
 				rootProxyAddr, err := rootServer.ProxyWebAddr()
 				require.NoError(t, err)
@@ -1482,9 +1482,12 @@ func TestProxyAppWithIdentity(t *testing.T) {
 		userName    = "admin"
 	)
 
+	appServer := testserver.StartDummyHTTPServer(appName)
+	t.Cleanup(appServer.Close)
+
 	rootServerOpts := []testserver.TestServerOptFunc{
-		testserver.WithClusterName(t, clusterName),
-		testserver.WithTestApp(t, appName),
+		testserver.WithClusterName(clusterName),
+		testserver.WithTestApp(appName, appServer.URL),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
@@ -1632,7 +1635,7 @@ func TestProxyAppMultiPort(t *testing.T) {
 	connector := mockConnector(t)
 	rootServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(connector, user),
-		testserver.WithClusterName(t, clusterName),
+		testserver.WithClusterName(clusterName),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Apps = servicecfg.AppsConfig{

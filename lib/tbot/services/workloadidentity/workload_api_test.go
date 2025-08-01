@@ -55,7 +55,7 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 
 	log := logtest.NewLogger()
 
-	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(t, log))
+	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(log))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())

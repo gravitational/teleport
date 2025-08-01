@@ -54,7 +54,7 @@ func TestMCPDBCommand(t *testing.T) {
 
 	authProcess, err := testserver.NewTeleportProcess(
 		t.TempDir(),
-		testserver.WithClusterName(t, "root"),
+		testserver.WithClusterName("root"),
 		testserver.WithBootstrap(connector, alice),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
@@ -162,7 +162,7 @@ func TestMCPDBCommandFailures(t *testing.T) {
 
 	authProcess, err := testserver.NewTeleportProcess(
 		t.TempDir(),
-		testserver.WithClusterName(t, clusterName),
+		testserver.WithClusterName(clusterName),
 		testserver.WithBootstrap(connector, alice),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)

@@ -51,7 +51,7 @@ func TestAzure(t *testing.T) {
 
 	authProcess, err := testserver.NewTeleportProcess(
 		t.TempDir(),
-		testserver.WithClusterName(t, "localhost"),
+		testserver.WithClusterName("localhost"),
 		testserver.WithBootstrap(connector, user, azureRole),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
