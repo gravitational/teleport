@@ -249,7 +249,7 @@ export class AppUpdater {
     }
     this.logger.info('Clearing update at', this.downloadedUpdatePath);
     try {
-      // await rm(this.downloadedUpdatePath);
+      await rm(this.downloadedUpdatePath);
       this.downloadedUpdatePath = '';
     } catch (error) {
       this.logger.error('Failed to clear update', error);
