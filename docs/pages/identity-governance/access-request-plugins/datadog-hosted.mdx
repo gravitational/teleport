@@ -63,7 +63,7 @@ For the purpose of this guide, we will define an `editor-requester` role, which
 can request the built-in `editor` role, and an `editor-reviewer` role that can
 review requests for the `editor` role.
 
-In the Teleport WebUI navigate to **Access -> Roles**. Then select **Create New
+In the Teleport Web UI navigate to **Zero Trust Access -> Roles**. Then select **Create New
 Role** and create the desired roles.
 
 
@@ -94,12 +94,12 @@ spec:
 
 First, assign yourself the `editor-reviewer` role. This will allow your user to
 review Access Requests for the `editor` role. To edit your user roles navigate to
-**Management -> Access -> Users**, then for your user select **Options -> Edit**
+**Zero Trust Access -> Users**, then for your user select **Options -> Edit**
 and add the `editor-reviewer` role.
 
 Next, create a user called `myuser@example.com` who has the `editor-requester` role.
 Later in this guide, you will create an Access Request as this user to test the
-Datadog plugin. To this user, navigate to **Management -> Access -> Users**. Then
+Datadog plugin. To this user, navigate to **Zero Trust Access -> Users**. Then
 select **Enroll Users** and create a user with the `editor-requester` role.
 
 You should end up with two users that look like this:
@@ -141,9 +141,8 @@ to create a new Application key. Copy the Application key to paste in a later st
 ## Step 4/6. Enroll the Datadog Incident Management plugin
 
 At this point, you're now ready to enroll the Datadog Incident Management plugin.
-Navigate to **Access Management -> Enroll New Integration -> Datadog**.
 
-![Select enrollment](../../../img/enterprise/plugins/datadog/select-enrollment.png)
+(!docs/pages/includes/plugins/enroll.mdx name="the Datadog Incident Management"!)
 
 Provide the API and Application keys generated above. Select the desired API endpoint.
 Then provide the Datadog team handle, that you created earlier, as the fallback recipient.
@@ -153,8 +152,6 @@ The fallback recipient will be the default recipient for notifications. The reci
 can be a Datadog user email, or a Datadog team handle. You can configure more custom
 notification routing rules afterwards using
 [Access Monitoring Rules](./notification-routing-rules.mdx).
-
-![Datadog enrollment](../../../img/enterprise/plugins/datadog/datadog-enrollment.png)
 
 If the recipient is a Datadog team, the team name will be added to the Datadog incident
 teams attribute.
