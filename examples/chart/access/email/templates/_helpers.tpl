@@ -79,7 +79,3 @@ identity
 {{- .Values.teleport.identitySecretPath -}}
 {{- end -}}
 {{- end -}}
-
-{{- define "email.teleportAddress" -}}
-
-{{- end -}}
