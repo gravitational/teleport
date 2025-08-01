@@ -55,7 +55,9 @@ func TestEditResources(t *testing.T) {
 		require.NoError(t, process.Close())
 		require.NoError(t, process.Wait())
 	})
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	tests := []struct {
 		kind string
@@ -380,7 +382,9 @@ func TestEditEnterpriseResources(t *testing.T) {
 		require.NoError(t, process.Close())
 		require.NoError(t, process.Wait())
 	})
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	tests := []struct {
 		kind string

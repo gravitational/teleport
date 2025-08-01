@@ -178,7 +178,9 @@ func TestTerraformJoinViaProxy(t *testing.T) {
 		require.NoError(t, process.Wait())
 	})
 
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	// Test setup: get the terraform role
 	tfRole, err := clt.GetRole(t.Context(), teleport.PresetTerraformProviderRoleName)

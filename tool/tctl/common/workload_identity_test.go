@@ -64,7 +64,9 @@ func TestWorkloadIdentity(t *testing.T) {
 		require.NoError(t, process.Close())
 		require.NoError(t, process.Wait())
 	})
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	yamlData := `kind: workload_identity
 version: v1
@@ -183,7 +185,9 @@ func TestWorkloadIdentityRevocation(t *testing.T) {
 		require.NoError(t, process.Close())
 		require.NoError(t, process.Wait())
 	})
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	t.Run("workload-identity revocations ls empty", func(t *testing.T) {
 		buf, err := runWorkloadIdentityCommand(

@@ -55,7 +55,9 @@ func TestClientToolsAutoUpdateCommands(t *testing.T) {
 		require.NoError(t, process.Close())
 		require.NoError(t, process.Wait())
 	})
-	authClient := testenv.MakeDefaultAuthClient(t, process)
+	authClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = authClient.Close() })
 
 	// Check that AutoUpdateConfig and AutoUpdateVersion are not created.
 	_, err = authClient.GetAutoUpdateConfig(ctx)

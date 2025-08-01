@@ -555,31 +555,48 @@ func (p *cliModules) SetFeatures(f modules.Features) {
 // MakeDefaultAuthClient reimplements the bare minimum needed to create a
 // default root-level auth client for a Teleport server started by
 // MakeTestServer.
-func MakeDefaultAuthClient(t *testing.T, process *service.TeleportProcess) *authclient.Client {
+// Deprecated: Prefer using NewDefaultAuthClient
+// TODO(tross): Remove once all callers are converted to NewDefaultAuthClient.
+func MakeDefaultAuthClient1(t *testing.T, process *service.TeleportProcess) *authclient.Client {
 	t.Helper()
 
+	clt, err := NewDefaultAuthClient(process)
+	require.NoError(t, err)
+
+	return clt
+}
+
+// NewDefaultAuthClient reimplements the bare minimum needed to create a
+// default root-level auth client for a Teleport server started by
+// NewTeleportProcess.
+func NewDefaultAuthClient(process *service.TeleportProcess) (*authclient.Client, error) {
 	cfg := process.Config
 	hostUUID, err := hostid.ReadFile(process.Config.DataDir)
-	require.NoError(t, err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	identity, err := storage.ReadLocalIdentity(
 		filepath.Join(cfg.DataDir, teleport.ComponentProcess),
 		state.IdentityID{Role: types.RoleAdmin, HostUUID: hostUUID},
 	)
-	require.NoError(t, err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	authConfig := new(authclient.Config)
 	authConfig.TLS, err = identity.TLSConfig(cfg.CipherSuites)
-	require.NoError(t, err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	authConfig.AuthServers = cfg.AuthServerAddresses()
 	authConfig.Log = cfg.Logger
 
 	client, err := authclient.Connect(context.Background(), authConfig)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = client.Close()
-	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return client
+	return client, nil
 }

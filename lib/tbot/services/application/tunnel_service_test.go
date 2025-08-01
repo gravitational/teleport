@@ -75,7 +75,9 @@ func TestE2E_ApplicationTunnelService(t *testing.T) {
 		require.NoError(t, process.Close())
 		require.NoError(t, process.Wait())
 	})
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	// Create role that allows the bot to access the app.
 	role, err := types.NewRole("app-access", types.RoleSpecV6{

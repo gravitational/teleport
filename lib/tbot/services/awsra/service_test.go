@@ -183,8 +183,9 @@ func TestBotWorkloadIdentityAWSRA(t *testing.T) {
 			require.Len(t, spiffeCAX509KeyPairs, 1)
 			spiffeCACert, err := tlsca.ParseCertificatePEM(spiffeCAX509KeyPairs[0].Cert)
 			require.NoError(t, err)
-			rootClient := testenv.MakeDefaultAuthClient(t, process)
-
+			rootClient, err := testenv.NewDefaultAuthClient(process)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = rootClient.Close() })
 			roleArn := "arn:aws:iam::123456789012:role/example-role"
 			trustAnchorArn := "arn:aws:rolesanywhere:us-east-1:123456789012:trust-anchor/0000000-0000-0000-0000-000000000000"
 			profileArn := "arn:aws:rolesanywhere:us-east-1:123456789012:profile/0000000-0000-0000-0000-00000000000"
