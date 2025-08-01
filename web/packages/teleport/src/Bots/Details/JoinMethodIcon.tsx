@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ReactElement } from 'react';
-
 import { IconProps } from 'design/Icon/Icon';
 import { Key } from 'design/Icon/Icons/Key';
 import { Keypair } from 'design/Icon/Icons/Keypair';
@@ -46,52 +44,39 @@ export function JoinMethodIcon(props: {
 }
 
 const renderLogo = (method: string, size: IconProps['size']) => {
-  let logo: ReactElement | null = null;
+  const name = (() => {
+    switch (method) {
+      case 'ec2':
+        return 'ec2';
+      case 'iam':
+        return 'awsaccount';
+      case 'github':
+        return 'github';
+      case 'circleci':
+        return 'circleci';
+      case 'kubernetes':
+        return 'kube';
+      case 'azure':
+        return 'azure';
+      case 'gitlab':
+        return 'gitlab';
+      case 'gcp':
+        return 'googlecloud';
+      case 'spacelift':
+        return 'spacelift';
+      case 'terraform_cloud':
+        return 'terraform';
+      case 'bitbucket':
+        return 'git';
+      case 'oracle':
+        // TODO(nicholasmarais1158): Add missing oracle icon/logo
+        return 'database';
+      case 'azure_devops':
+        return 'azure';
+    }
+  })();
 
-  switch (method) {
-    case 'ec2':
-      logo = <ResourceIcon name={'ec2'} width={sizetoPx(size)} />;
-      break;
-    case 'iam':
-      logo = <ResourceIcon name={'awsaccount'} width={sizetoPx(size)} />;
-      break;
-    case 'github':
-      logo = <ResourceIcon name={'github'} width={sizetoPx(size)} />;
-      break;
-    case 'circleci':
-      logo = <ResourceIcon name={'circleci'} width={sizetoPx(size)} />;
-      break;
-    case 'kubernetes':
-      logo = <ResourceIcon name={'kube'} width={sizetoPx(size)} />;
-      break;
-    case 'azure':
-      logo = <ResourceIcon name={'azure'} width={sizetoPx(size)} />;
-      break;
-    case 'gitlab':
-      logo = <ResourceIcon name={'gitlab'} width={sizetoPx(size)} />;
-      break;
-    case 'gcp':
-      logo = <ResourceIcon name={'googlecloud'} width={sizetoPx(size)} />;
-      break;
-    case 'spacelift':
-      logo = <ResourceIcon name={'spacelift'} width={sizetoPx(size)} />;
-      break;
-    case 'terraform_cloud':
-      logo = <ResourceIcon name={'terraform'} width={sizetoPx(size)} />;
-      break;
-    case 'bitbucket':
-      logo = <ResourceIcon name={'git'} width={sizetoPx(size)} />;
-      break;
-    case 'oracle':
-      // TODO(nicholasmarais1158): Add missing oracle icon/logo
-      logo = <ResourceIcon name={'database'} width={sizetoPx(size)} />;
-      break;
-    case 'azure_devops':
-      logo = <ResourceIcon name={'azure'} width={sizetoPx(size)} />;
-      break;
-  }
-
-  return logo;
+  return name ? <ResourceIcon name={name} size={size} /> : undefined;
 };
 
 const renderIcon = (
@@ -110,11 +95,3 @@ const renderIcon = (
       return <Key size={size} color={color} />;
   }
 };
-
-function sizetoPx(size: IconProps['size']) {
-  if (size === 'small') return '14px';
-  if (size === 'medium') return '16px';
-  if (size === 'large') return '20px';
-  if (size === 'extra-large') return '24px';
-  return '24px';
-}
