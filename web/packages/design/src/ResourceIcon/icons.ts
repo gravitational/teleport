@@ -272,6 +272,7 @@ import snowflake from './assets/snowflake.svg?no-inline';
 import spaceliftDark from './assets/spacelift-dark.svg?no-inline';
 import spaceliftLight from './assets/spacelift-light.svg?no-inline';
 import sparrow from './assets/sparrow.svg?no-inline';
+import strapi from './assets/strapi.svg?no-inline';
 import stripeDark from './assets/stripe-dark.svg?no-inline';
 import stripeLight from './assets/stripe-light.svg?no-inline';
 import tableau from './assets/tableau.svg?no-inline';
@@ -563,6 +564,7 @@ export {
   spaceliftDark,
   spaceliftLight,
   sparrow,
+  strapi,
   stripeDark,
   stripeLight,
   tableau,
