@@ -10,6 +10,22 @@ This guide explains how to run the Teleport Kubernetes Operator against any remo
 If your Teleport cluster is deployed using the `teleport-cluster` Helm chart, you might want to follow
 [the guide for Helm-deployed clusters](./teleport-operator-helm.mdx) instead.
 
+## How it works
+
+The Teleport Kubernetes Operator is a Teleport Auth Service client that you
+install using the `teleport-operator` Helm chart. 
+
+For the Operator to manage Teleport resources in your cluster, you need to
+authenticate it with your Teleport cluster and authorize it to manage Teleport
+resources. This requires the following additional resources, which we show you
+how to create in this guide:
+
+- A Teleport role
+- A join token
+- A Machine & Workload Identity Bot
+
+You can then deploy the Operator by installing the `teleport-operator` chart.
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)

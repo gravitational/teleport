@@ -13,6 +13,14 @@ and Grafana to accept the identities it provides.
 Note that Teleport can act as an identity provider to any SAML-compatible service,
 not just those running behind the Teleport App Service.
 
+## How it works
+
+Grafana enables users to authenticate using SAML. You can export SAML IdP
+metadata from Teleport, then provide it to your Grafana configuration file in
+order to instruct Grafana to trust the Teleport IdP's certificate authority.
+Your Teleport cluster then uses a SAML IdP service provider resource  to provide
+information about your Grafana deployment to the Teleport SAML IdP.
+
 ## Prerequisites
 
 - An instance of Grafana Enterprise, with edit access to `grafana.ini`.

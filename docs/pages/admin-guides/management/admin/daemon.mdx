@@ -9,7 +9,15 @@ On Linux systems in non-containerized environments, we recommend running the `te
 Using a daemon helps to ensure that the `teleport` process can remain running and available regardless of a controlling terminal session or parent process, and opens up additional
 configuration options that allow for better optimization, uptime, and availability.
 
-This guide will outline best practices for installing, configuring, and starting teleport as a daemon on a Linux host using systemd.
+This guide will outline best practices for installing, configuring, and starting `teleport` as a daemon on a Linux host using systemd.
+
+## How it works
+
+When you install Teleport on a Linux server using a package manager, the
+installation creates a systemd service configuration that starts `teleport` in
+the background when your machine boots up. If you build Teleport from source or
+install it from a TAR archive, you can install the systemd service using the
+`teleport install systemd` command.
 
 ## Prerequisites
 
