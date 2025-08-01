@@ -850,7 +850,7 @@ ways to integrate Teleport onto your servers. We recommend looking at our [Insta
 To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 
 - [Install the Teleport binary on the Server](../../../installation/installation.mdx)
-- [Run Teleport - we recommend using systemd](../../../admin-guides/management/admin/daemon.mdx)
+- [Run Teleport - we recommend using systemd](../../management/admin/daemon.mdx)
 - [Set the correct settings in /etc/teleport.yaml](../../../reference/config.mdx)
 - [Add Nodes to the Teleport
   cluster](../../../enroll-resources/agents/agents.mdx)
@@ -893,7 +893,7 @@ spec:
 ```
 
 You can generate a token for adding the trusted cluster using `tctl tokens add --type=trusted_cluster` after connecting
-to a Teleport Auth Service instance. Follow the instructions in our [Trusted Clusters guide](../../../admin-guides/management/admin/trustedclusters.mdx).
+to a Teleport Auth Service instance. Follow the instructions in our [Trusted Clusters guide](../../management/admin/trustedclusters.mdx).
 
 ## Script to quickly connect to instances
 

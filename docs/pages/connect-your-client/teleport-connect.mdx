@@ -103,7 +103,7 @@ this by setting the environment variables `TELEPORT_PROXY` and `TELEPORT_CLUSTER
 Additionally, Teleport Connect prepends the `PATH` environment variable in the session with the
 directory containing the tsh binary, even if [tsh is not globally available](#using-tsh-outside-of-teleport-connect).
 
-When using [trusted clusters](../admin-guides/management/admin/trustedclusters.mdx), the cluster selector allows
+When using [trusted clusters](../zero-trust-access/management/admin/trustedclusters.mdx), the cluster selector allows
 you to determine which cluster the shell session will be bound to. The selected cluster will be
 reflected in both the tab title and the status bar.
 
@@ -667,7 +667,7 @@ see them only after you restart the app.
 
 You can open Teleport Connect in insecure mode, which skips TLS certificate verification when
 talking to a Teleport Proxy Service. This is useful in [test environments with self-signed
-certificates](../admin-guides/management/admin/self-signed-certs.mdx) or for demo purposes. We do not recommend
+certificates](../zero-trust-access/management/admin/self-signed-certs.mdx) or for demo purposes. We do not recommend
 using this mode in production.
 
 <Tabs>
