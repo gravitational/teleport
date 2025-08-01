@@ -776,28 +776,3 @@ func (c *HTTPClient) ValidateGithubAuthCallback(ctx context.Context, q url.Value
 	}
 	return &response, nil
 }
-
-func (c *HTTPClient) ValidateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
-	validateRequestRaw, err := validateRequest.ToRaw()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	out, err := c.PostJSON(ctx, c.Endpoint("trustedclusters", "validate"), validateRequestRaw)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var validateResponseRaw ValidateTrustedClusterResponseRaw
-	err = json.Unmarshal(out.Bytes(), &validateResponseRaw)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	validateResponse, err := validateResponseRaw.ToNative()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return validateResponse, nil
-}
