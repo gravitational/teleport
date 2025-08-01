@@ -147,7 +147,9 @@ export function EditDialog(props: {
               ) : undefined}
 
               {error ? (
-                <Alert kind="danger">{`Error: ${error.message}`}</Alert>
+                <Alert kind="danger" details={error.message}>
+                  Failed to fetch bot
+                </Alert>
               ) : undefined}
 
               {isSuccess && data === null && (
@@ -255,7 +257,9 @@ export function EditDialog(props: {
               </div>
 
               {saveError ? (
-                <Alert kind="danger">Error: {saveError.message}</Alert>
+                <Alert kind="danger" details={saveError.message}>
+                  Failed to save changes
+                </Alert>
               ) : undefined}
             </DialogContent>
             <DialogFooter>
