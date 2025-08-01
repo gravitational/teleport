@@ -169,6 +169,7 @@ export class AppUpdater {
   private async doCheckForUpdates(
     options: { noAutoDownload?: boolean } = {}
   ): Promise<void> {
+    autoUpdater.autoInstallOnAppQuit = false;
     this.forceNoAutoDownload = options.noAutoDownload;
 
     const result = await autoUpdater.checkForUpdates();
@@ -211,6 +212,7 @@ export class AppUpdater {
       return this.downloadPromise;
     }
 
+    autoUpdater.autoInstallOnAppQuit = true;
     this.downloadPromise = autoUpdater.downloadUpdate();
     try {
       // The second element in this array can be packagePath.
@@ -253,7 +255,7 @@ export class AppUpdater {
     }
     this.logger.info('Clearing update at', this.downloadedUpdatePath);
     try {
-      await rm(this.downloadedUpdatePath);
+      // await rm(this.downloadedUpdatePath);
       this.downloadedUpdatePath = '';
     } catch (error) {
       this.logger.error('Failed to clear update', error);
