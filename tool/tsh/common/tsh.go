@@ -3691,7 +3691,15 @@ func onSummarizeSession(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	fmt.Println(res.Summary.Content)
+	switch res.GetSummary().GetState() {
+	case summarizerv1.SummaryState_SUMMARY_STATE_PENDING:
+		fmt.Println("Session recording summary is still being generated, please try again later.")
+	case summarizerv1.SummaryState_SUMMARY_STATE_ERROR:
+		fmt.Printf("Failed to summarize the session recording: %s\n", res.GetSummary().GetErrorMessage())
+	case summarizerv1.SummaryState_SUMMARY_STATE_SUCCESS,
+		summarizerv1.SummaryState_SUMMARY_STATE_UNSPECIFIED:
+		fmt.Println(res.GetSummary().GetContent())
+	}
 
 	return nil
 }
