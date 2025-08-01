@@ -91,26 +91,6 @@ func init() {
 	modules.SetModules(&cliModules{})
 }
 
-// WithResyncInterval is a test helper that sets the tunnel resync interval and
-// resets it in test cleanup.
-// Useful to substantially speedup test cluster setup - passing 0 for the
-// interval selects a reasonably fast default of 100ms.
-// It is NOT SAFE to use in parallel tests, because it modifies a global.
-func WithResyncInterval(t *testing.T, interval time.Duration) {
-	if interval == 0 {
-		interval = time.Millisecond * 100
-	}
-	oldResyncInterval := defaults.ResyncInterval
-	defaults.ResyncInterval = interval
-	// To detect tests that run in parallel incorrectly, call t.Setenv with a
-	// dummy env var - that function detects tests with parallel ancestors
-	// and panics, preventing improper use of this helper.
-	t.Setenv("WithResyncInterval", "1")
-	t.Cleanup(func() {
-		defaults.ResyncInterval = oldResyncInterval
-	})
-}
-
 // MakeTestServer creates a Teleport Server for testing.
 func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.TeleportProcess) {
 	t.Helper()
