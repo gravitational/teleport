@@ -3317,7 +3317,7 @@ Enterprise Only:
 
 #### Documentation
 
-We've added an [API Guide](docs/pages/admin-guides/api/api.mdx) to simply developing applications against Teleport.
+We've added an [API Guide](docs/pages/zero-trust-access/api/api.mdx) to simply developing applications against Teleport.
 
 #### Upgrade Notes
 

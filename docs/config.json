@@ -322,7 +322,7 @@
     },
     {
       "source": "/api/getting-started/",
-      "destination": "/admin-guides/api/getting-started/",
+      "destination": "/zero-trust-access/api/getting-started/",
       "permanent": true
     },
     {
@@ -1457,7 +1457,7 @@
     },
     {
       "source": "/admin-guides/management/",
-      "destination": "/admin-guides/",
+      "destination": "/zero-trust-access/management/",
       "permanent": true
     },
     {
@@ -1493,6 +1493,66 @@
     {
       "source": "/admin-guides/management/operations/tls-routing/",
       "destination": "/zero-trust-access/management/operations/tls-routing/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/api/access-plugin/",
+      "destination": "/identity-governance/access-request-plugins/access-plugin/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/api/",
+      "destination": "/zero-trust-access/api/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/api/automatically-register-agents/",
+      "destination": "/zero-trust-access/api/automatically-register-agents/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/api/getting-started/",
+      "destination": "/zero-trust-access/api/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/api/rbac/",
+      "destination": "/zero-trust-access/api/rbac/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/",
+      "destination": "/zero-trust-access/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/api/access-plugin/",
+      "destination": "/identity-governance/access-request-plugins/access-plugin/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/api/",
+      "destination": "/zero-trust-access/api/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/api/automatically-register-agents/",
+      "destination": "/zero-trust-access/api/automatically-register-agents/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/api/getting-started/",
+      "destination": "/zero-trust-access/api/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/api/rbac/",
+      "destination": "/zero-trust-access/api/rbac/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/migrate-plans/",
+      "destination": "/migrate-plans/",
       "permanent": true
     }
   ]
