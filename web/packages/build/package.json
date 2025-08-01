@@ -21,7 +21,7 @@
     "@vitejs/plugin-react-swc": "^3.10.2",
     "babel-plugin-styled-components": "^2.1.4",
     "eslint": "^9.30.0",
-    "eslint-plugin-jest": "^28.14.0",
+    "eslint-plugin-jest": "^29.0.1",
     "eslint-plugin-jest-dom": "^5.5.0",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "6.0.0-rc.1",
