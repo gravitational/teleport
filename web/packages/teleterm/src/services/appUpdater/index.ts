@@ -23,3 +23,4 @@ export type {
   AutoUpdatesDisabled,
   Cluster,
 } from './autoUpdatesStatus';
+export type { UpdateInfo } from 'electron-updater';
