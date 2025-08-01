@@ -33,4 +33,5 @@ FROM $BASE_IMAGE
 COPY --from=teleport /opt/staging /
 COPY --from=staging /opt/staging/root /
 COPY --from=staging /opt/staging/status /var/lib/dpkg/status.d
+ENV TELEPORT_TOOLS_VERSION=off
 ENTRYPOINT ["/usr/bin/dumb-init", "/usr/local/bin/teleport", "start", "-c", "/etc/teleport/teleport.yaml"]

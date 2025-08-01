@@ -244,3 +244,54 @@ Commands:
 		})
 	}
 }
+
+// TestFilterArguments tests filtering command arguments.
+func TestFilterArguments(t *testing.T) {
+	t.Parallel()
+
+	app := kingpin.New("tsh", "")
+	app.Flag("proxy", "").String()
+	app.Flag("check-update", "").Bool()
+
+	tests := []struct {
+		args     []string
+		expected []string
+	}{
+		{
+			args:     []string{"--insecure", "--proxy", "localhost", "--check-update", "test"},
+			expected: []string{"--proxy", "localhost", "--check-update"},
+		},
+		{
+			args:     []string{"--insecure", "--proxy=localhost", "--check-update", "test"},
+			expected: []string{"--proxy=localhost", "--check-update"},
+		},
+		{
+			args:     []string{"--proxy", "localhost", "test"},
+			expected: []string{"--proxy", "localhost"},
+		},
+		{
+			args:     []string{"--proxy"},
+			expected: []string(nil),
+		},
+		{
+			args:     []string{"--insecure", "--check-update", "test", "--proxy=localhost"},
+			expected: []string{"--proxy=localhost", "--check-update"},
+		},
+		{
+			args:     []string{"--insecure", "--check-update", "test", "--proxy1=localhost"},
+			expected: []string{"--check-update"},
+		},
+		{
+			args:     []string{"--check-update", "test", "--proxy1", "localhost"},
+			expected: []string{"--check-update"},
+		},
+		{
+			args:     []string{"--insecure", "test", "--proxy1", "localhost", "--check-update"},
+			expected: []string{"--check-update"},
+		},
+	}
+
+	for i, tt := range tests {
+		require.Equal(t, tt.expected, FilterArguments(tt.args, app.Model()), fmt.Sprintf("test case %v", i))
+	}
+}

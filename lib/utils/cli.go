@@ -377,6 +377,18 @@ func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 	return app.UsageTemplate(createUsageTemplate())
 }
 
+// InitHiddenCLIParser initializes a `kingpin.Application` that does not terminate the application
+// or write any usage information to os.Stdout. Can be used in scenarios where multiple `kingpin.Application`
+// instances are needed without interfering with subsequent parsing. Usage output is completely suppressed,
+// and the default global `--help` flag is ignored to prevent the application from exiting.
+func InitHiddenCLIParser() (app *kingpin.Application) {
+	app = kingpin.New("", "")
+	app.UsageWriter(io.Discard)
+	app.Terminate(func(i int) {})
+
+	return app
+}
+
 // createUsageTemplate creates an usage template for kingpin applications.
 func createUsageTemplate(opts ...func(*usageTemplateOptions)) string {
 	opt := &usageTemplateOptions{
@@ -654,4 +666,28 @@ func FormatAlert(alert types.ClusterAlert) string {
 		}
 	}
 	return buf.String()
+}
+
+// FilterArguments filters the input arguments, keeping only those defined in the provided `kingpin.ApplicationModel`.
+// For example, if the model defines only one boolean flag `--insecure`, all other arguments in `args`
+// will be excluded, and only the `--insecure` flag will remain.
+func FilterArguments(args []string, model *kingpin.ApplicationModel) []string {
+	var result []string
+	for _, flag := range model.Flags {
+		for i := range args {
+			if strings.HasPrefix(args[i], fmt.Sprint("--", flag.Name, "=")) {
+				result = append(result, args[i])
+				break
+			}
+			if args[i] == fmt.Sprint("--", flag.Name) {
+				if flag.IsBoolFlag() {
+					result = append(result, args[i])
+				} else if i+2 <= len(args) {
+					result = append(result, args[i], args[i+1])
+				}
+				break
+			}
+		}
+	}
+	return result
 }
