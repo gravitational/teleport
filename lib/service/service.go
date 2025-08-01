@@ -106,7 +106,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	_ "github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/backend/firestore"
-	"github.com/gravitational/teleport/lib/backend/kubernetes"
 	_ "github.com/gravitational/teleport/lib/backend/lite"
 	_ "github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -1111,18 +1110,14 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	}
 
 	supervisor := NewSupervisor(processID, cfg.Logger)
-	storage, err := storage.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
+	storage, typedKubeBackend, err := storage.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var kubeBackend kubernetesBackend
-	// If running in a Kubernetes Pod we must init the backend storage for `host_uuid` storage/retrieval.
-	if kubernetes.InKubeCluster() {
-		kubeBackend, err = kubernetes.New()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if typedKubeBackend != nil {
+		kubeBackend = typedKubeBackend
 	}
 
 	// Load `host_uuid` from different storages. If this process is running in a Kubernetes Cluster,
@@ -6974,7 +6969,10 @@ func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBacke
 
 // kubernetesBackend interface for kube storage backend.
 type kubernetesBackend interface {
-	// Put puts value into backend (creates if it does not
+	// Create a value into backend (fails if it
+	// exists, creates it otherwise)
+	Create(ctx context.Context, i backend.Item) (*backend.Lease, error)
+	// Put puts value into backend (fails if it does not
 	// exists, updates it otherwise)
 	Put(ctx context.Context, i backend.Item) (*backend.Lease, error)
 	// Get returns a single item or not found error
@@ -7002,18 +7000,21 @@ func readHostIDFromStorages(ctx context.Context, dataDir string, kubeBackend kub
 // persistHostIDToStorages writes the cfg.HostUUID to local data and to
 // Kubernetes Secret if this process is running on a Kubernetes Cluster.
 func persistHostIDToStorages(ctx context.Context, cfg *servicecfg.Config, kubeBackend kubernetesBackend) error {
-	if err := hostid.WriteFile(cfg.DataDir, cfg.HostUUID); err != nil {
+	// Persists the `host_uuid` into Kubernetes Secret for later reusage.
+	// This is required because `host_uuid` is part of the client secret
+	// and Auth connection will fail if we present a different `host_uuid`.
+	// Done before hostid.WriteFile as if this fails due to conflict, we don't want to store to file.
+	if kubeBackend != nil {
+		return trace.Wrap(writeHostIDToKubeSecret(ctx, kubeBackend, cfg.HostUUID))
+	}
+
+	if newID, err := hostid.ReadOrCreateFile(cfg.DataDir, hostid.WithID(cfg.HostUUID)); err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			cfg.Logger.ErrorContext(ctx, "Teleport does not have permission to write to the data directory. Ensure that you are running as a user with appropriate permissions.", "data_dir", cfg.DataDir)
 		}
 		return trace.Wrap(err)
-	}
-
-	// Persists the `host_uuid` into Kubernetes Secret for later reusage.
-	// This is required because `host_uuid` is part of the client secret
-	// and Auth connection will fail if we present a different `host_uuid`.
-	if kubeBackend != nil {
-		return trace.Wrap(writeHostIDToKubeSecret(ctx, kubeBackend, cfg.HostUUID))
+	} else if newID != cfg.HostUUID {
+		return trace.CompareFailed("host_uuid conflict")
 	}
 	return nil
 }
@@ -7031,7 +7032,7 @@ func loadHostIDFromKubeSecret(ctx context.Context, kubeBackend kubernetesBackend
 // writeHostIDToKubeSecret writes the `host_uuid` into the Kubernetes secret under
 // the key `/host_uuid`.
 func writeHostIDToKubeSecret(ctx context.Context, kubeBackend kubernetesBackend, id string) error {
-	_, err := kubeBackend.Put(
+	_, err := kubeBackend.Create(
 		ctx,
 		backend.Item{
 			Key:   backend.NewKey(hostid.FileName),

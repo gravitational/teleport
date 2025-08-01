@@ -233,7 +233,7 @@ func (b *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	return b.updateSecretContent(ctx, i)
+	return b.updateSecretContent(ctx, true, i)
 }
 
 // Put puts value into backend (creates if it does not exist, updates it otherwise)
@@ -241,7 +241,7 @@ func (b *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, erro
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	return b.updateSecretContent(ctx, i)
+	return b.updateSecretContent(ctx, false, i)
 }
 
 // getSecret reads the secret from K8S API.
@@ -277,12 +277,12 @@ func (b *Backend) readSecretData(ctx context.Context, key backend.Key) (*backend
 	}, nil
 }
 
-func (b *Backend) updateSecretContent(ctx context.Context, items ...backend.Item) (*backend.Lease, error) {
+func (b *Backend) updateSecretContent(ctx context.Context, create bool, items ...backend.Item) (*backend.Lease, error) {
 	// FIXME(tigrato):
 	// for now, the agent is the owner of the secret so it's safe to replace changes
 
 	secret, err := b.getSecret(ctx)
-	if trace.IsNotFound(err) {
+	if trace.IsNotFound(err) && create {
 		secret = b.genSecretObject()
 	} else if err != nil {
 		return nil, trace.Wrap(err)
@@ -294,10 +294,15 @@ func (b *Backend) updateSecretContent(ctx context.Context, items ...backend.Item
 
 	updateDataMap(secret.Data, items...)
 
-	if err := b.upsertSecret(ctx, secret); err != nil {
-		return nil, trace.Wrap(err)
+	if create {
+		if err := b.createSecret(ctx, secret); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := b.upsertSecret(ctx, secret); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
-
 	return &backend.Lease{}, nil
 }
 
@@ -316,6 +321,15 @@ func (b *Backend) upsertSecret(ctx context.Context, secret *corev1.Secret) error
 		CoreV1().
 		Secrets(b.Namespace).
 		Apply(ctx, secretApply, metav1.ApplyOptions{FieldManager: b.FieldManager})
+
+	return trace.Wrap(err)
+}
+
+func (b *Backend) createSecret(ctx context.Context, secret *corev1.Secret) error {
+	_, err := b.KubeClient.
+		CoreV1().
+		Secrets(b.Namespace).
+		Create(ctx, secret, metav1.CreateOptions{FieldManager: b.FieldManager})
 
 	return trace.Wrap(err)
 }

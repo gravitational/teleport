@@ -1520,7 +1520,7 @@ func setupConfig(t *testing.T) auth.InitConfig {
 	bk, err := lite.New(context.TODO(), backend.Params{"path": tempDir})
 	require.NoError(t, err)
 
-	processStorage, err := storage.NewProcessStorage(
+	processStorage, _, err := storage.NewProcessStorage(
 		context.Background(),
 		filepath.Join(tempDir, teleport.ComponentProcess),
 	)

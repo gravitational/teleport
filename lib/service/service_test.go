@@ -1209,9 +1209,22 @@ type fakeKubeBackend struct {
 	getErr  error
 }
 
-// Put puts value into backend (creates if it does not
-// exists, updates it otherwise)
+// Create a value into backend (creates if it does not
+// exists, fails it otherwise)
+func (f *fakeKubeBackend) Create(ctx context.Context, i backend.Item) (*backend.Lease, error) {
+	if f.putData != nil {
+		return nil, trace.AlreadyExists("item already exists")
+	}
+	f.putData = &i
+	return &backend.Lease{}, nil
+}
+
+// Put puts value into backend (updates if it does not
+// exists, fails it otherwise)
 func (f *fakeKubeBackend) Put(ctx context.Context, i backend.Item) (*backend.Lease, error) {
+	if f.putData == nil {
+		return nil, trace.NotFound("item not found")
+	}
 	f.putData = &i
 	return &backend.Lease{}, nil
 }
