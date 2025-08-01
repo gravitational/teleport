@@ -6,15 +6,15 @@ require (
 	github.com/gravitational/teleport v0.0.0-00010101000000-000000000000
 	github.com/gravitational/teleport/api v0.0.0
 	github.com/gravitational/trace v1.5.1
-	github.com/hashicorp/terraform-plugin-framework v1.15.0
+	github.com/hashicorp/terraform-plugin-framework v1.15.1
 	github.com/hashicorp/terraform-plugin-framework-timetypes v0.5.0
 	github.com/hashicorp/terraform-plugin-framework-validators v0.18.0
 	github.com/hashicorp/terraform-plugin-go v0.28.0
 	github.com/hashicorp/terraform-plugin-testing v1.13.2
 	github.com/jonboulle/clockwork v0.5.0
 	github.com/stretchr/testify v1.10.0
-	k8s.io/api v0.33.2
-	k8s.io/client-go v0.33.2
+	k8s.io/api v0.33.3
+	k8s.io/client-go v0.33.3
 )
 
 require (
@@ -140,7 +140,7 @@ require (
 	github.com/bgentry/speakeasy v0.2.0 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
-	github.com/bmatcuk/doublestar/v4 v4.8.1 // indirect
+	github.com/bmatcuk/doublestar/v4 v4.9.0 // indirect
 	github.com/boombuler/barcode v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.2 // indirect
@@ -470,7 +470,7 @@ require (
 	github.com/zclconf/go-cty v1.16.3 // indirect
 	github.com/zeebo/errs v1.4.0 // indirect
 	github.com/zitadel/logging v0.6.2 // indirect
-	github.com/zitadel/oidc/v3 v3.39.1 // indirect
+	github.com/zitadel/oidc/v3 v3.43.0 // indirect
 	github.com/zitadel/schema v1.3.1 // indirect
 	gitlab.com/gitlab-org/api/client-go v0.131.0 // indirect
 	go.abhg.dev/goldmark/frontmatter v0.2.0 // indirect
@@ -503,10 +503,10 @@ require (
 	golang.org/x/mod v0.25.0 // indirect
 	golang.org/x/net v0.41.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/sync v0.15.0 // indirect
+	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/term v0.32.0 // indirect
-	golang.org/x/text v0.26.0 // indirect
+	golang.org/x/text v0.27.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 	golang.org/x/tools v0.34.0 // indirect
 	google.golang.org/api v0.239.0 // indirect
@@ -527,7 +527,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	helm.sh/helm/v3 v3.18.4 // indirect
 	k8s.io/apiextensions-apiserver v0.33.2 // indirect
-	k8s.io/apimachinery v0.33.2 // indirect
+	k8s.io/apimachinery v0.33.3 // indirect
 	k8s.io/apiserver v0.33.2 // indirect
 	k8s.io/cli-runtime v0.33.2 // indirect
 	k8s.io/component-base v0.33.2 // indirect

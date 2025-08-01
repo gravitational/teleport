@@ -49,6 +49,8 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/internal/sds"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
@@ -79,6 +81,10 @@ func WorkloadIdentityAPIServiceBuilder(
 		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
 		return bot.NewServicePair(svc, sidecar), nil
 	}
+}
+
+type TrustBundleGetter interface {
+	GetBundleSet(ctx context.Context) (*workloadidentity.BundleSet, error)
 }
 
 type CRLGetter interface {
@@ -201,11 +207,11 @@ func (s *WorkloadIdentityAPIService) Run(ctx context.Context) error {
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
 	workloadpb.RegisterSpiffeWorkloadAPIServer(srv, s)
-	sdsHandler := &spiffeSDSHandler{
-		log:              s.log,
-		botCfg:           s.botCfg,
-		trustBundleCache: s.trustBundleCache,
-		clientAuthenticator: func(ctx context.Context) (*slog.Logger, svidFetcher, error) {
+	sdsHandler, err := sds.NewHandler(sds.HandlerConfig{
+		Logger:           s.log,
+		RenewalInterval:  s.botCfg.CredentialLifetime.RenewalInterval,
+		TrustBundleCache: s.trustBundleCache,
+		ClientAuthenticator: func(ctx context.Context) (*slog.Logger, sds.SVIDFetcher, error) {
 			log, attrs, err := s.authenticateClient(ctx)
 			if err != nil {
 				return log, nil, trace.Wrap(err, "authenticating client")
@@ -220,10 +226,13 @@ func (s *WorkloadIdentityAPIService) Run(ctx context.Context) error {
 
 			return log, fetchSVIDs, nil
 		},
+	})
+	if err != nil {
+		return trace.Wrap(err, "creating SDS handler")
 	}
 	secretv3pb.RegisterSecretDiscoveryServiceServer(srv, sdsHandler)
 
-	lis, err := createListener(ctx, s.log, s.cfg.Listen)
+	lis, err := internal.CreateListener(ctx, s.log, s.cfg.Listen)
 	if err != nil {
 		return trace.Wrap(err, "creating listener")
 	}

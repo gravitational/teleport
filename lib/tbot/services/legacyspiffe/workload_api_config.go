@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024 Gravitational, Inc.
+ * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package legacyspiffe
 
 import (
 	"log/slog"
@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
 
-const SPIFFEWorkloadAPIServiceType = "spiffe-workload-api"
+const WorkloadAPIServiceType = "spiffe-workload-api"
 
 // SVIDRequestWithRules is the configuration for a single SVID along with the
 // workload attestation rules that must be passed by a workload for this SVID
@@ -113,9 +113,8 @@ func (o SVIDRequestRule) LogValue() slog.Value {
 	)
 }
 
-// SPIFFEWorkloadAPIService is the configuration for the SPIFFE Workload API
-// service.
-type SPIFFEWorkloadAPIService struct {
+// WorkloadAPIConfig is the configuration for the SPIFFE Workload API service.
+type WorkloadAPIConfig struct {
 	// Name of the service for logs and the /readyz endpoint.
 	Name string `yaml:"name,omitempty"`
 	// Listen is the address on which the SPIFFE Workload API server should
@@ -137,29 +136,29 @@ type SPIFFEWorkloadAPIService struct {
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
-func (o *SPIFFEWorkloadAPIService) GetName() string {
+func (o *WorkloadAPIConfig) GetName() string {
 	return o.Name
 }
 
-func (s *SPIFFEWorkloadAPIService) Type() string {
-	return SPIFFEWorkloadAPIServiceType
+func (s *WorkloadAPIConfig) Type() string {
+	return WorkloadAPIServiceType
 }
 
-func (s *SPIFFEWorkloadAPIService) MarshalYAML() (any, error) {
-	type raw SPIFFEWorkloadAPIService
-	return encoding.WithTypeHeader((*raw)(s), SPIFFEWorkloadAPIServiceType)
+func (s *WorkloadAPIConfig) MarshalYAML() (any, error) {
+	type raw WorkloadAPIConfig
+	return encoding.WithTypeHeader((*raw)(s), WorkloadAPIServiceType)
 }
 
-func (s *SPIFFEWorkloadAPIService) UnmarshalYAML(node *yaml.Node) error {
+func (s *WorkloadAPIConfig) UnmarshalYAML(node *yaml.Node) error {
 	// Alias type to remove UnmarshalYAML to avoid recursion
-	type raw SPIFFEWorkloadAPIService
+	type raw WorkloadAPIConfig
 	if err := node.Decode((*raw)(s)); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func (s *SPIFFEWorkloadAPIService) CheckAndSetDefaults() error {
+func (s *WorkloadAPIConfig) CheckAndSetDefaults() error {
 	if s.Listen == "" {
 		return trace.BadParameter("listen: should not be empty")
 	}
@@ -177,6 +176,6 @@ func (s *SPIFFEWorkloadAPIService) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (o *SPIFFEWorkloadAPIService) GetCredentialLifetime() bot.CredentialLifetime {
+func (o *WorkloadAPIConfig) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }
