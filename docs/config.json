@@ -1274,6 +1274,86 @@
       "source": "/admin-guides/deploy-a-cluster/separate-proxy-service-endpoints/",
       "destination": "/zero-trust-access/deploy-a-cluster/separate-proxy-service-endpoints/",
       "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/admin/",
+      "destination": "/zero-trust-access/management/admin/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/admin/daemon/",
+      "destination": "/zero-trust-access/management/admin/daemon/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/admin/labels/",
+      "destination": "/zero-trust-access/management/admin/labels/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/admin/self-signed-certs/",
+      "destination": "/zero-trust-access/management/admin/self-signed-certs/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/admin/troubleshooting/",
+      "destination": "/zero-trust-access/management/admin/troubleshooting/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/admin/trusted-cluster-address-lookup/",
+      "destination": "/zero-trust-access/management/admin/trusted-cluster-address-lookup/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/admin/trustedclusters/",
+      "destination": "/zero-trust-access/management/admin/trustedclusters/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/admin/uninstall-teleport/",
+      "destination": "/zero-trust-access/management/admin/uninstall-teleport/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/admin/users/",
+      "destination": "/zero-trust-access/management/admin/users/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/security/client-timeout/",
+      "destination": "/zero-trust-access/management/security/client-timeout/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/security/proxy-protocol/",
+      "destination": "/zero-trust-access/management/security/proxy-protocol/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/security/reduce-blast-radius/",
+      "destination": "/zero-trust-access/management/security/reduce-blast-radius/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/security/restrict-privileges/",
+      "destination": "/zero-trust-access/management/security/restrict-privileges/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/security/revoking-access/",
+      "destination": "/zero-trust-access/management/security/revoking-access/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/security/",
+      "destination": "/zero-trust-access/management/security/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/security/selinux/",
+      "destination": "/zero-trust-access/management/security/selinux/",
+      "permanent": true
     }
   ]
 }
