@@ -93,9 +93,9 @@ type defaultBotConfigOpts struct {
 	insecure bool
 }
 
-func defaultTestServerOpts(t *testing.T, log *slog.Logger) testenv.TestServerOptFunc {
-	return func(o *testenv.TestServersOpts) {
-		testenv.WithClusterName(t, "root")(o)
+func defaultTestServerOpts(log *slog.Logger) testenv.TestServerOptFunc {
+	return func(o *testenv.TestServersOpts) error {
+		testenv.WithClusterName("root")(o)
 		testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Logger = log
 			cfg.Proxy.PublicAddrs = []utils.NetAddr{
@@ -105,6 +105,8 @@ func defaultTestServerOpts(t *testing.T, log *slog.Logger) testenv.TestServerOpt
 				cfg.Proxy.ReverseTunnelListenAddr,
 			}
 		})(o)
+
+		return nil
 	}
 }
 
@@ -211,12 +213,20 @@ func TestBot(t *testing.T) {
 		kubeClusterDiscoveredName     = "test-kube-cluster"
 	)
 
-	process := testenv.MakeTestServer(
-		t,
-		defaultTestServerOpts(t, log),
-		testenv.WithProxyKube(t),
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		defaultTestServerOpts(log),
+		testenv.WithProxyKube(),
 	)
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 	clusterName := process.Config.Auth.ClusterName.GetClusterName()
 
 	// Register an application server so the bot can request certs for it.
@@ -569,8 +579,15 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 	log := logtest.NewLogger()
 
 	// Make a new auth server.
-	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(log))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	// Create bot user and join token
 	botParams, _ := makeBot(t, rootClient, "test", "access")
@@ -631,16 +648,24 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 	proxy := newFailureProxy(t)
 
 	// Make a new auth server.
-	process := testenv.MakeTestServer(t,
-		func(o *testenv.TestServersOpts) {
-			defaultTestServerOpts(t, log)(o)
+	process, err := testenv.NewTeleportProcess(t.TempDir(),
+		func(o *testenv.TestServersOpts) error {
+			defaultTestServerOpts(log)(o)
 
 			testenv.WithConfig(func(cfg *servicecfg.Config) {
 				cfg.Proxy.TunnelPublicAddrs = []utils.NetAddr{*utils.MustParseAddr(proxy.addr())}
 			})(o)
+			return nil
 		},
 	)
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	// Create bot user and join token
 	botParams, _ := makeBot(t, rootClient, "test", "access")
@@ -841,8 +866,15 @@ func TestBot_InsecureViaProxy(t *testing.T) {
 	log := logtest.NewLogger()
 
 	// Make a new auth server.
-	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(log))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	// Create bot user and join token
 	botParams, _ := makeBot(t, rootClient, "test", "access")
@@ -956,8 +988,15 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	log := logtest.NewLogger()
 
 	// Make a new auth server.
-	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(log))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	// Make fake postgres server and add a database access instance to expose
 	// it.
@@ -1069,18 +1108,22 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	})
 
 	// Make a new auth server with SSH agent
-	process := testenv.MakeTestServer(
-		t,
-		defaultTestServerOpts(t, log),
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		defaultTestServerOpts(log),
 		testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SSH.Enabled = true
-			cfg.SSH.Addr = utils.NetAddr{
-				AddrNetwork: "tcp",
-				Addr:        testenv.NewTCPListener(t, service.ListenerNodeSSH, &cfg.FileDescriptors),
-			}
 		}),
 	)
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	// Create role that allows the bot to access the database.
 	role, err := types.NewRole("ssh-access", types.RoleSpecV6{
@@ -1201,15 +1244,22 @@ func TestBotDeviceTrust(t *testing.T) {
 	log := logtest.NewLogger()
 
 	// Start a test server with `device.trust.mode="required-for-humans"`.
-	process := testenv.MakeTestServer(t,
-		defaultTestServerOpts(t, log),
+	process, err := testenv.NewTeleportProcess(t.TempDir(),
+		defaultTestServerOpts(log),
 		testenv.WithAuthConfig(func(cfg *servicecfg.AuthConfig) {
 			cfg.Preference.SetDeviceTrust(&types.DeviceTrust{
 				Mode: constants.DeviceTrustModeRequiredForHumans,
 			})
 		}),
 	)
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	// Run a bot with an identity output.
 	onboarding, _ := makeBot(t, rootClient, "test", "access")
@@ -1245,12 +1295,19 @@ func TestBotJoiningURI(t *testing.T) {
 	ctx := context.Background()
 	log := logtest.NewLogger()
 
-	process := testenv.MakeTestServer(
-		t,
-		defaultTestServerOpts(t, log),
-		testenv.WithProxyKube(t),
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		defaultTestServerOpts(log),
+		testenv.WithProxyKube(),
 	)
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	role, err := types.NewRole("role", types.RoleSpecV6{
 		Allow: types.RoleConditions{

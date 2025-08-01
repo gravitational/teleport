@@ -295,11 +295,17 @@ func bootstrapTestServer(t *testing.T) (*service.TeleportProcess, string, string
 	})
 	require.NoError(t, err)
 
-	rootServer := testserver.MakeTestServer(t,
+	rootServer, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithBootstrap(alice),
-		testserver.WithClusterName(t, "root"),
+		testserver.WithClusterName("root"),
 		testserver.WithAuthPreference(ap),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, rootServer.Close())
+		require.NoError(t, rootServer.Wait())
+	})
+
 	authService := rootServer.GetAuthServer()
 
 	// Set password for the cluster login.

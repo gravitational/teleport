@@ -58,8 +58,15 @@ func runWorkloadIdentityCommand(
 func TestWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 
-	process := testenv.MakeTestServer(t, testenv.WithLogger(logtest.NewLogger()))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(logtest.NewLogger()))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	yamlData := `kind: workload_identity
 version: v1
@@ -172,8 +179,15 @@ spec:
 func TestWorkloadIdentityRevocation(t *testing.T) {
 	t.Parallel()
 
-	process := testenv.MakeTestServer(t, testenv.WithLogger(logtest.NewLogger()))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(logtest.NewLogger()))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	t.Run("workload-identity revocations ls empty", func(t *testing.T) {
 		buf, err := runWorkloadIdentityCommand(
