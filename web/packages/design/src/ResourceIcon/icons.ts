@@ -192,7 +192,7 @@ import maxioLight from './assets/maxio-light.svg?no-inline';
 import mcpCursorDark from './assets/mcpcursor-dark.svg';
 import mcpCursorLight from './assets/mcpcursor-dark.svg';
 import mcpVscode from './assets/mcpvscode.svg';
-import mcpVscodeInsiders from './assets/mcpVscodeinsiders.svg';
+import mcpVscodeInsiders from './assets/mcpvscodeinsiders.svg';
 import metabase from './assets/metabase.svg?no-inline';
 import microsoft from './assets/microsoft.svg?no-inline';
 import microsoftexcel from './assets/microsoftexcel.svg?no-inline';
