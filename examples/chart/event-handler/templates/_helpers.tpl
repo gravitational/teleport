@@ -79,7 +79,3 @@ identity
 {{- .Values.teleport.identitySecretPath -}}
 {{- end -}}
 {{- end -}}
-
-{{- define "event-handler.teleportAddress" -}}
-
-{{- end -}}

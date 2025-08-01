@@ -79,7 +79,3 @@ identity
 {{- .Values.teleport.identitySecretPath -}}
 {{- end -}}
 {{- end -}}
-
-{{- define "discord.teleportAddress" -}}
-
-{{- end -}}
