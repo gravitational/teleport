@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package claude
+package config
 
 import (
 	"bytes"
@@ -134,17 +134,21 @@ func TestFileConfig_sampleFile(t *testing.T) {
 }
 
 func TestConfig_Write(t *testing.T) {
-	config := NewConfig()
+	for _, format := range []ConfigFormat{ConfigFormatClaude, ConfigFormatCursor, ConfigFormatVSCode} {
+		t.Run(format.serversKey(), func(t *testing.T) {
+			config := NewConfig(format)
 
-	mcpServer := MCPServer{
-		Command: "command",
+			mcpServer := MCPServer{
+				Command: "command",
+			}
+			mcpServer.AddEnv("foo", "bar")
+			require.NoError(t, config.PutMCPServer("test", mcpServer))
+			var buf bytes.Buffer
+
+			require.NoError(t, config.Write(&buf, FormatJSONCompact))
+			require.Equal(t, `{"`+format.serversKey()+`":{"test":{"command":"command","env":{"foo":"bar"}}}}`, buf.String())
+		})
 	}
-	mcpServer.AddEnv("foo", "bar")
-	require.NoError(t, config.PutMCPServer("test", mcpServer))
-	var buf bytes.Buffer
-
-	require.NoError(t, config.Write(&buf, FormatJSONCompact))
-	require.Equal(t, `{"mcpServers":{"test":{"command":"command","env":{"foo":"bar"}}}}`, buf.String())
 }
 
 func Test_isJSONCompact(t *testing.T) {
@@ -257,7 +261,7 @@ func TestReadableResourceURIs(t *testing.T) {
 		"random uri with params":   "teleport://random?hello=world&random=resource",
 	} {
 		t.Run(name, func(t *testing.T) {
-			config := NewConfig()
+			config := NewConfig(claudeServersKey)
 			mcpServer := MCPServer{
 				Command: "command",
 				Args:    []string{uri},
@@ -267,6 +271,97 @@ func TestReadableResourceURIs(t *testing.T) {
 			var buf bytes.Buffer
 			require.NoError(t, config.Write(&buf, FormatJSONCompact))
 			require.Contains(t, buf.String(), uri)
+		})
+	}
+}
+
+func TestReadDifferentConfigFormats(t *testing.T) {
+	fileNamePathWithDir := func(dir, fileName string) func(*testing.T, string) string {
+		return func(t *testing.T, basePath string) string {
+			path := filepath.Join(basePath, dir)
+			require.NoError(t, os.Mkdir(path, 0700))
+			return filepath.Join(path, fileName)
+		}
+	}
+
+	fileNamePath := func(fileName string) func(*testing.T, string) string {
+		return func(t *testing.T, basePath string) string {
+			return filepath.Join(basePath, fileName)
+		}
+	}
+
+	for name, tc := range map[string]struct {
+		filePath     func(*testing.T, string) string
+		contents     string
+		expectErr    require.ErrorAssertionFunc
+		expectConfig require.ValueAssertionFunc
+	}{
+		"vscode": {
+			filePath:  fileNamePathWithDir(vsCodeProjectDir, "mcp.json"),
+			contents:  `{"servers":{"everything": {"command": "npx", "args": []}}}`,
+			expectErr: require.NoError,
+			expectConfig: func(tt require.TestingT, i1 any, i2 ...any) {
+				config := i1.(*FileConfig)
+				servers := config.GetMCPServers()
+
+				srv, ok := servers["everything"]
+				require.True(tt, ok, `expected config to have "everything" mcp server configured`)
+				require.Equal(tt, "npx", srv.Command)
+			},
+		},
+		"cursor": {
+			filePath:  fileNamePathWithDir(cursorProjectDir, "mcp.json"),
+			contents:  `{"mcpServers":{"everything": {"command": "npx", "args": []}}}`,
+			expectErr: require.NoError,
+			expectConfig: func(tt require.TestingT, i1 any, i2 ...any) {
+				config := i1.(*FileConfig)
+				servers := config.GetMCPServers()
+
+				srv, ok := servers["everything"]
+				require.True(tt, ok, `expected config to have "everything" mcp server configured`)
+				require.Equal(tt, "npx", srv.Command)
+			},
+		},
+		"claude-code": {
+			filePath:  fileNamePath(".mcp.json"),
+			contents:  `{"mcpServers":{"everything": {"command": "npx", "args": []}}}`,
+			expectErr: require.NoError,
+			expectConfig: func(tt require.TestingT, i1 any, i2 ...any) {
+				config := i1.(*FileConfig)
+				servers := config.GetMCPServers()
+
+				srv, ok := servers["everything"]
+				require.True(tt, ok, `expected config to have "everything" mcp server configured`)
+				require.Equal(tt, "npx", srv.Command)
+			},
+		},
+		"claude/default": {
+			filePath:  fileNamePath("claude_desktop_config.json"),
+			contents:  `{"mcpServers":{"everything": {"command": "npx", "args": []}}}`,
+			expectErr: require.NoError,
+			expectConfig: func(tt require.TestingT, i1 any, i2 ...any) {
+				config := i1.(*FileConfig)
+				servers := config.GetMCPServers()
+
+				srv, ok := servers["everything"]
+				require.True(tt, ok, `expected config to have "everything" mcp server configured`)
+				require.Equal(tt, "npx", srv.Command)
+			},
+		},
+		"empty config": {
+			filePath:     fileNamePath("file.json"),
+			contents:     ``,
+			expectErr:    require.Error,
+			expectConfig: require.Nil,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			configPath := tc.filePath(t, t.TempDir())
+			require.NoError(t, os.WriteFile(configPath, []byte(tc.contents), 0600))
+
+			config, err := LoadConfigFromFile(configPath)
+			tc.expectErr(t, err)
+			tc.expectConfig(t, config)
 		})
 	}
 }
