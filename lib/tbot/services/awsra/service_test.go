@@ -163,7 +163,12 @@ func TestBotWorkloadIdentityAWSRA(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
+			process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(t, log))
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, process.Close())
+				require.NoError(t, process.Wait())
+			})
 
 			if tt.externalPKI {
 				setWorkloadIdentityX509CAOverride(ctx, t, process)

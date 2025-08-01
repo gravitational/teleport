@@ -1569,7 +1569,12 @@ func requireGotDatabaseServers(t *testing.T, buf *bytes.Buffer, want ...types.Da
 func TestCreateResources(t *testing.T) {
 	t.Parallel()
 
-	process := testenv.MakeTestServer(t, testenv.WithLogger(logtest.NewLogger()))
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(logtest.NewLogger()))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
 	// tctlGetAllValidations allows tests to register post-test validations to validate
@@ -2325,7 +2330,12 @@ func TestCreateEnterpriseResources(t *testing.T) {
 		},
 	})
 
-	process := testenv.MakeTestServer(t)
+	process,err := testenv.NewTeleportProcess(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 	clt := testenv.MakeDefaultAuthClient(t, process)
 
 	tests := []struct {

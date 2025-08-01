@@ -44,7 +44,12 @@ func TestBotWorkloadIdentityJWT(t *testing.T) {
 	ctx := context.Background()
 	log := logtest.NewLogger()
 
-	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
+	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(t, log))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
 	role, err := types.NewRole("issue-foo", types.RoleSpecV6{

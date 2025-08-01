@@ -92,9 +92,22 @@ func init() {
 }
 
 // MakeTestServer creates a Teleport Server for testing.
-func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.TeleportProcess) {
-	t.Helper()
+// Deprecated: Use NewTestServer instead.
+// TODO(tross): Remove this after everything has migrated to NewTeleportProcess
+func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) *service.TeleportProcess {
+	process, err := NewTeleportProcess(t.TempDir(), opts...)
+	require.NoError(t, err)
 
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
+	return process
+}
+
+// NewTeleportProcess creates a Teleport Server for testing.
+func NewTeleportProcess(dataDir string, opts ...TestServerOptFunc) (_ *service.TeleportProcess, err error) {
 	var options TestServersOpts
 	for _, opt := range opts {
 		opt(&options)
@@ -102,6 +115,14 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 
 	// Set up a test auth server with default config.
 	cfg := servicecfg.MakeDefaultConfig()
+	defer func() {
+		if err != nil {
+			for _, fd := range cfg.FileDescriptors {
+				fd.Close()
+			}
+		}
+	}()
+
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.CachePolicy.Enabled = false
 	// Disables cloud auto-imported labels when running tests in cloud envs
@@ -117,13 +138,18 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	cfg.Hostname = "server01"
-	cfg.DataDir = t.TempDir()
+	cfg.DataDir = dataDir
 	cfg.Logger = logtest.NewLogger()
-	authAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerAuth, &cfg.FileDescriptors)}
-	cfg.SetToken(StaticToken)
-	cfg.SetAuthServerAddress(authAddr)
 
-	cfg.Auth.ListenAddr = authAddr
+	authAddr, err := newTCPListener(service.ListenerAuth, &cfg.FileDescriptors)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authNetAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: authAddr}
+	cfg.SetToken(StaticToken)
+	cfg.SetAuthServerAddress(authNetAddr)
+
+	cfg.Auth.ListenAddr = authNetAddr
 	cfg.Auth.BootstrapResources = options.Bootstrap
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	staticToken, err := types.NewStaticTokens(types.StaticTokensSpecV2{
@@ -133,7 +159,9 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 			Token:   StaticToken,
 		}},
 	})
-	require.NoError(t, err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	cfg.Auth.StaticTokens = staticToken
 	cfg.Auth.Preference.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1)
 
@@ -142,12 +170,30 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 	// Speeds up tests considerably.
 	cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
 
-	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxyWeb, &cfg.FileDescriptors)}
-	cfg.Proxy.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxySSH, &cfg.FileDescriptors)}
-	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxyTunnel, &cfg.FileDescriptors)}
+	proxyWebAddr, err := newTCPListener(service.ListenerProxyWeb, &cfg.FileDescriptors)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: proxyWebAddr}
+
+	proxySSHAddr, err := newTCPListener(service.ListenerProxySSH, &cfg.FileDescriptors)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxyTunnelAddr, err := newTCPListener(service.ListenerProxyTunnel, &cfg.FileDescriptors)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cfg.Proxy.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: proxySSHAddr}
+	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: proxyTunnelAddr}
 	cfg.Proxy.DisableWebInterface = true
 
-	cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerNodeSSH, &cfg.FileDescriptors)}
+	nodeSSHAddr, err := newTCPListener(service.ListenerNodeSSH, &cfg.FileDescriptors)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: nodeSSHAddr}
 	cfg.SSH.DisableCreateHostUser = true
 
 	// Disabling debug service for tests so that it doesn't break if the data
@@ -159,53 +205,61 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 		fn(cfg)
 	}
 
-	process, err = service.NewTeleport(cfg)
-	require.NoError(t, err, trace.DebugReport(err))
-	require.NoError(t, process.Start())
-	t.Cleanup(func() {
-		require.NoError(t, process.Close())
-		require.NoError(t, process.Wait())
-	})
+	process, err := service.NewTeleport(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	waitForServices(t, process, cfg)
+	if err := process.Start(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return process
+	// t.Cleanup(func() {
+	// 	require.NoError(t, process.Close())
+	// 	require.NoError(t, process.Wait())
+	// })
+
+	if err := waitForServices(process, cfg); err != nil {
+		_ = process.Close()
+		_ = process.Wait()
+		return nil, trace.Wrap(err)
+	}
+
+	return process, nil
 }
 
-// NewTCPListener creates a new TCP listener on 127.0.0.1:0, adds it to the
+// newTCPListener creates a new TCP listener on 127.0.0.1:0, adds it to the
 // FileDescriptor slice (with the specified type) and returns its actual local
 // address as a string (for use in configuration). Takes a pointer to the slice
 // so that it's convenient to call in the middle of a FileConfig or Config
 // struct literal.
-func NewTCPListener(t *testing.T, lt service.ListenerType, fds *[]*servicecfg.FileDescriptor) string {
-	t.Helper()
-
+func newTCPListener(lt service.ListenerType, fds *[]*servicecfg.FileDescriptor) (string, error) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
 	defer l.Close()
 	addr := l.Addr().String()
 
 	// File() returns a dup of the listener's file descriptor as an *os.File, so
 	// the original net.Listener still needs to be closed.
 	lf, err := l.(*net.TCPListener).File()
-	require.NoError(t, err)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
 	fd := &servicecfg.FileDescriptor{
 		Type:    string(lt),
 		Address: addr,
 		File:    lf,
 	}
-	// If the file descriptor slice ends up being passed to a TeleportProcess
-	// that successfully starts, listeners will either get "imported" and used
-	// or discarded and closed, this is just an extra safety measure that closes
-	// the listener at the end of the test anyway (the finalizer would do that
-	// anyway, in principle).
-	t.Cleanup(func() { require.NoError(t, fd.Close()) })
 
 	*fds = append(*fds, fd)
-	return addr
+	return addr, nil
 }
 
-func waitForServices(t *testing.T, auth *service.TeleportProcess, cfg *servicecfg.Config) {
+func waitForServices(auth *service.TeleportProcess, cfg *servicecfg.Config) error {
 	var serviceReadyEvents []string
 	if cfg.Proxy.Enabled {
 		serviceReadyEvents = append(serviceReadyEvents, service.ProxyWebServerReady)
@@ -225,32 +279,45 @@ func waitForServices(t *testing.T, auth *service.TeleportProcess, cfg *servicecf
 	if cfg.Kube.Enabled {
 		serviceReadyEvents = append(serviceReadyEvents, service.KubernetesReady)
 	}
-	waitForEvents(t, auth, serviceReadyEvents...)
+	if err := waitForEvents(auth, serviceReadyEvents...); err != nil {
+		return trace.Wrap(err)
+	}
 
 	if cfg.Auth.Enabled && cfg.Databases.Enabled {
-		waitForDatabases(t, auth, cfg.Databases.Databases)
+		if err := waitForDatabases(auth, cfg.Databases.Databases); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	if cfg.Auth.Enabled && cfg.Apps.Enabled {
-		waitForApps(t, auth, cfg.Apps.Apps)
+		if err := waitForApps(auth, cfg.Apps.Apps); err != nil {
+			return trace.Wrap(err)
+		}
 	}
+
+	return nil
 }
 
-func waitForEvents(t *testing.T, svc service.Supervisor, events ...string) {
+func waitForEvents(svc service.Supervisor, events ...string) error {
 	for _, event := range events {
-		_, err := svc.WaitForEventTimeout(10*time.Second, event)
-		require.NoError(t, err, "service server didn't receive %v event after 10s", event)
+		if _, err := svc.WaitForEventTimeout(10*time.Second, event); err != nil {
+			return trace.Wrap(err, "service didn't receive %v event after 10s", event)
+		}
 	}
+
+	return nil
 }
 
-func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []servicecfg.Database) {
+func waitForDatabases(auth *service.TeleportProcess, dbs []servicecfg.Database) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for {
 		select {
 		case <-time.After(500 * time.Millisecond):
 			all, err := auth.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
-			require.NoError(t, err)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 
 			// Count how many input "dbs" are registered.
 			var registered int
@@ -264,22 +331,24 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []service
 			}
 
 			if registered == len(dbs) {
-				return
+				return nil
 			}
 		case <-ctx.Done():
-			t.Fatal("Databases not registered after 10s")
+			return trace.LimitExceeded("Databases not registered after 10s")
 		}
 	}
 }
 
-func waitForApps(t *testing.T, auth *service.TeleportProcess, apps []servicecfg.App) {
+func waitForApps(auth *service.TeleportProcess, apps []servicecfg.App) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for {
 		select {
 		case <-time.After(500 * time.Millisecond):
 			all, err := auth.GetAuthServer().GetApplicationServers(ctx, apidefaults.Namespace)
-			require.NoError(t, err)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 
 			var registered int
 			for _, app := range apps {
@@ -292,10 +361,10 @@ func waitForApps(t *testing.T, auth *service.TeleportProcess, apps []servicecfg.
 			}
 
 			if registered == len(apps) {
-				return
+				return nil
 			}
 		case <-ctx.Done():
-			t.Fatal("Apps not registered after 10s")
+			return trace.LimitExceeded("Apps not registered after 10s")
 		}
 	}
 }
@@ -375,7 +444,7 @@ func WithProxyKube(t *testing.T) TestServerOptFunc {
 		cfg.Proxy.Kube.Enabled = true
 		cfg.Proxy.Kube.ListenAddr = utils.NetAddr{
 			AddrNetwork: "tcp",
-			Addr:        NewTCPListener(t, service.ListenerProxyKube, &cfg.FileDescriptors),
+			Addr:        newTCPListener(t, service.ListenerProxyKube, &cfg.FileDescriptors),
 		}
 	})
 }

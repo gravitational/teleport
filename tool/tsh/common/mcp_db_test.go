@@ -52,8 +52,8 @@ func TestMCPDBCommand(t *testing.T) {
 	alice.SetDatabaseNames([]string{"postgres"})
 	alice.SetRoles([]string{"access"})
 
-	authProcess := testserver.MakeTestServer(
-		t,
+	authProcess,err  := testserver.NewTeleportProcess(
+		t.TempDir(),
 		testserver.WithClusterName(t, "root"),
 		testserver.WithBootstrap(connector, alice),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
@@ -78,6 +78,11 @@ func TestMCPDBCommand(t *testing.T) {
 			}
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authProcess.Close())
+		require.NoError(t, authProcess.Wait())
+	})
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
@@ -155,8 +160,8 @@ func TestMCPDBCommandFailures(t *testing.T) {
 	alice.SetRoles([]string{"access"})
 	clusterName := "root"
 
-	authProcess := testserver.MakeTestServer(
-		t,
+	authProcess,err:= testserver.NewTeleportProcess(
+		t.TempDir(),
 		testserver.WithClusterName(t, clusterName),
 		testserver.WithBootstrap(connector, alice),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
@@ -181,6 +186,11 @@ func TestMCPDBCommandFailures(t *testing.T) {
 			}
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authProcess.Close())
+		require.NoError(t, authProcess.Wait())
+	})
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)

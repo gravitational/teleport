@@ -46,8 +46,8 @@ func TestAWS(t *testing.T) {
 
 	connector := mockConnector(t)
 	user, awsRole := makeUserWithAWSRole(t)
-	authProcess := testserver.MakeTestServer(
-		t,
+	authProcess,err := testserver.NewTeleportProcess(
+		t.TempDir(),
 		testserver.WithBootstrap(connector, user, awsRole),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
@@ -60,6 +60,11 @@ func TestAWS(t *testing.T) {
 			}
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authProcess.Close())
+		require.NoError(t, authProcess.Wait())
+	})
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
@@ -163,10 +168,15 @@ func TestAWSRolesAnywhereBasedAccess(t *testing.T) {
 
 	connector := mockConnector(t)
 	user, awsRole := makeUserWithAWSRole(t)
-	authProcess := testserver.MakeTestServer(
-		t,
+	authProcess,err := testserver.NewTeleportProcess(
+		t.TempDir(),
 		testserver.WithBootstrap(connector, user, awsRole),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authProcess.Close())
+		require.NoError(t, authProcess.Wait())
+	})
 
 	expectedAWSCredentials := `{"Version":1,"AccessKeyId":"aki","SecretAccessKey":"sak","SessionToken":"st","Expiration":"2025-06-25T12:07:02.474135Z"}`
 	authProcess.GetAuthServer().AWSRolesAnywhereCreateSessionOverride = func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
@@ -293,8 +303,8 @@ func TestAWSConsoleLogins(t *testing.T) {
 	require.NoError(t, err)
 	user.SetRoles([]string{"access", rootAWSRole.GetName()})
 	user.SetAWSRoleARNs(userARNs)
-	rootServer := testserver.MakeTestServer(
-		t,
+	rootServer, err := testserver.NewTeleportProcess(
+		t.TempDir(),
 		testserver.WithClusterName(t, "root"),
 		testserver.WithBootstrap(connector, user, rootAWSRole),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
@@ -308,6 +318,11 @@ func TestAWSConsoleLogins(t *testing.T) {
 			}
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, rootServer.Close())
+		require.NoError(t, rootServer.Wait())
+	})
 
 	leafARNs := []string{"arn:aws:iam::999999999999:role/leaf-1", "arn:aws:iam::999999999999:role/leaf-2"}
 	leafAWSRole, err := types.NewRole("aws", types.RoleSpecV6{
@@ -317,8 +332,8 @@ func TestAWSConsoleLogins(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	leafServer := testserver.MakeTestServer(
-		t,
+	leafServer, err := testserver.NewTeleportProcess(
+		t.TempDir(),
 		testserver.WithClusterName(t, "leaf"),
 		testserver.WithBootstrap(leafAWSRole),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
@@ -332,6 +347,11 @@ func TestAWSConsoleLogins(t *testing.T) {
 			}
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, leafServer.Close())
+		require.NoError(t, leafServer.Wait())
+	})
 	testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer, types.RoleMapping{Remote: "aws", Local: []string{"aws"}})
 
 	authServer := rootServer.GetAuthServer()

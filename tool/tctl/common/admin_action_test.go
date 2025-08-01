@@ -1073,7 +1073,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	authPref.SetOrigin(types.OriginDefaults)
 
 	var proxyPublicAddr utils.NetAddr
-	process := testserver.MakeTestServer(t,
+	process, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithAuthPreference(authPref),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			proxyPublicAddr = cfg.Proxy.WebAddr
@@ -1081,6 +1081,11 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 			cfg.Proxy.PublicAddrs = []utils.NetAddr{proxyPublicAddr}
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 	authAddr, err := process.AuthAddr()
 	require.NoError(t, err)
 	s.authServer = process.GetAuthServer()

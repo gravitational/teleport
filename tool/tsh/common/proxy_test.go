@@ -265,7 +265,12 @@ func TestWithRsync(t *testing.T) {
 		testserver.WithClusterName(t, "root"),
 	}
 
-	process := testserver.MakeTestServer(t, serverOpts...)
+	process, err := testserver.NewTeleportProcess(t.TempDir(), serverOpts...)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 	tshHome, _ := mustLogin(t, process, accessUser, connector.GetName())
 
 	testBin, err := os.Executable()
@@ -630,7 +635,12 @@ func TestProxySSHJumpHost(t *testing.T) {
 						},
 					),
 				}
-				rootServer := testserver.MakeTestServer(t, rootServerOpts...)
+				rootServer, err := testserver.NewTeleportProcess(t.TempDir(), rootServerOpts...)
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					require.NoError(t, rootServer.Close())
+					require.NoError(t, rootServer.Wait())
+				})
 
 				leafServerOpts := []testserver.TestServerOptFunc{
 					testserver.WithBootstrap(accessUser),
@@ -642,7 +652,12 @@ func TestProxySSHJumpHost(t *testing.T) {
 						},
 					),
 				}
-				leafServer := testserver.MakeTestServer(t, leafServerOpts...)
+				leafServer, err := testserver.NewTeleportProcess(t.TempDir(), leafServerOpts...)
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					require.NoError(t, leafServer.Close())
+					require.NoError(t, leafServer.Wait())
+				})
 				testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer)
 
 				rootProxyAddr, err := rootServer.ProxyWebAddr()
@@ -1012,7 +1027,7 @@ func (s *suite) setMockSSOLogin(t *testing.T) CliOption {
 }
 
 // deprecated: Use mustLogin instead which requires migrating from newTestSuite to
-// tools/teleport/testenv.MakeTestServer.
+// tools/teleport/testenv.NewTeleportProcess.
 func mustLoginLegacy(t *testing.T, s *suite, args ...string) (tshHome, kubeConfig string) {
 	tshHome = t.TempDir()
 	kubeConfig = filepath.Join(t.TempDir(), teleport.KubeConfigFile)
@@ -1034,7 +1049,7 @@ func mustLoginLegacy(t *testing.T, s *suite, args ...string) (tshHome, kubeConfi
 // login with new temp tshHome and set it in Env. This is useful
 // when running "ssh" commands with a tsh "ProxyCommand".
 // deprecated: Create a new helper that depends on mustLogin instead which requires migrating from
-// newTestSuite to tools/teleport/testenv.MakeTestServer.
+// newTestSuite to tools/teleport/testenv.NewTeleportProcess.
 func mustLoginSetEnvLegacy(t *testing.T, s *suite, args ...string) (tshHome, kubeConfig string) {
 	tshHome, kubeConfig = mustLoginLegacy(t, s, args...)
 	t.Setenv(types.HomeEnvVar, tshHome)
@@ -1474,7 +1489,12 @@ func TestProxyAppWithIdentity(t *testing.T) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
 	}
-	process := testserver.MakeTestServer(t, rootServerOpts...)
+	process, err := testserver.NewTeleportProcess(t.TempDir(), rootServerOpts...)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 	authServer := process.GetAuthServer()
 
 	// create admin role and user.
@@ -1628,7 +1648,12 @@ func TestProxyAppMultiPort(t *testing.T) {
 			}
 		}),
 	}
-	process := testserver.MakeTestServer(t, rootServerOpts...)
+	process,err := testserver.NewTeleportProcess(t.TempDir(), rootServerOpts...)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 
 	tshHome, _ := mustLogin(t, process, user, connector.GetName())
 

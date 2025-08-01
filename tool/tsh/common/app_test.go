@@ -113,7 +113,12 @@ func TestAppCommands(t *testing.T) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
 	}
-	rootServer := testserver.MakeTestServer(t, rootServerOpts...)
+	rootServer, err := testserver.NewTeleportProcess(t.TempDir(), rootServerOpts...)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, rootServer.Close())
+		require.NoError(t, rootServer.Wait())
+	})
 	rootAuthServer := rootServer.GetAuthServer()
 	rootProxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
@@ -132,7 +137,12 @@ func TestAppCommands(t *testing.T) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
 	}
-	leafServer := testserver.MakeTestServer(t, leafServerOpts...)
+	leafServer, err := testserver.NewTeleportProcess(t.TempDir(), leafServerOpts...)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, leafServer.Close())
+		require.NoError(t, leafServer.Wait())
+	})
 	testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer)
 
 	// Set up user with MFA device for per session MFA tests below.

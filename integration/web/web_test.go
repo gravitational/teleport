@@ -66,7 +66,7 @@ func TestMFAAuthenticateChallenge_IsMFARequiredApp(t *testing.T) {
 	user.SetRoles([]string{"app-access", "app-access-mfa"})
 
 	// Create root and leaf cluster.
-	rootServer := testserver.MakeTestServer(t,
+	rootServer, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithBootstrap(appAccessRole, appAccessMfaRole, user),
 		testserver.WithClusterName(t, "root"),
 		testserver.WithTestApp(t, "root-app"),
@@ -87,10 +87,16 @@ func TestMFAAuthenticateChallenge_IsMFARequiredApp(t *testing.T) {
 			}
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, rootServer.Close())
+		require.NoError(t, rootServer.Wait())
+	})
+
 	rootProxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 
-	leafServer := testserver.MakeTestServer(t,
+	leafServer, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithBootstrap(appAccessRole, appAccessMfaRole),
 		testserver.WithClusterName(t, "leaf"),
 		testserver.WithTestApp(t, "leaf-app"),
@@ -99,6 +105,11 @@ func TestMFAAuthenticateChallenge_IsMFARequiredApp(t *testing.T) {
 			cfg.SSH.Enabled = false
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, leafServer.Close())
+		require.NoError(t, leafServer.Wait())
+	})
 	leafAuth := leafServer.GetAuthServer()
 
 	testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer,

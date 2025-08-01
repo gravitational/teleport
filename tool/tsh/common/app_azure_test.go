@@ -49,8 +49,8 @@ func TestAzure(t *testing.T) {
 	connector := mockConnector(t)
 	user, azureRole := makeUserWithAzureRole(t)
 
-	authProcess := testserver.MakeTestServer(
-		t,
+	authProcess, err := testserver.NewTeleportProcess(
+		t.TempDir(),
 		testserver.WithClusterName(t, "localhost"),
 		testserver.WithBootstrap(connector, user, azureRole),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
@@ -64,6 +64,11 @@ func TestAzure(t *testing.T) {
 			}
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authProcess.Close())
+		require.NoError(t, authProcess.Wait())
+	})
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)

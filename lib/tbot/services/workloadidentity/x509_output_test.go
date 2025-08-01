@@ -49,7 +49,12 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 	ctx := context.Background()
 	log := logtest.NewLogger()
 
-	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
+	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(t, log))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 	setWorkloadIdentityX509CAOverride(ctx, t, process)
 	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
