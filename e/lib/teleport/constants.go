@@ -27,6 +27,9 @@ const (
 	// ComponentJamf is the Jamf service component.
 	ComponentJamf = "jamf"
 
+	// ComponentIntune is the Intune service component.
+	ComponentIntune = "intune"
+
 	// ComponentPluginManager is a plugin manager component.
 	ComponentPluginManager = "pluginmanager"
 

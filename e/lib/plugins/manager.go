@@ -70,6 +70,7 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 			types.PluginTypeServiceNow:        serviceNowInstanceFactory,
 			types.PluginTypePagerDuty:         pagerDutyInstanceFactory,
 			types.PluginTypeJamf:              jamfInstanceFactory,
+			types.PluginTypeIntune:            intuneInstanceFactory,
 			types.PluginTypeJira:              jiraInstanceFactory,
 			types.PluginTypeMattermost:        mattermostInstanceFactory,
 			types.PluginTypeGitlab:            gitlabInstanceFactory,

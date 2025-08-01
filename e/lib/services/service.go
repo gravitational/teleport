@@ -13,6 +13,10 @@ const (
 
 	// OktaStopped is generated when the Teleport Okta service has stopped.
 	OktaStopped = "OktaStopped"
+
+	// mdmIdentityEvent is generated when an identity has been initialized in the backend for either
+	// the Jamf plugin or the Intune plugin.
+	mdmIdentityEvent = "MDMIdentity"
 )
 
 // EventWithComponents will generate an event name with components appended to the end.

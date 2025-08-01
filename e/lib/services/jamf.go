@@ -19,7 +19,6 @@ import (
 )
 
 const (
-	jamfIdentityEvent = "JamfIdentity"
 	// JamfReadyEvent is generated when the Jamf service is started.
 	JamfReadyEvent = "JamfReady"
 	// JamfStoppedEvent is generated when the Jamf service is stopped.
@@ -35,7 +34,7 @@ func JamfRegister(cfg *servicecfg.Config) {
 
 	cfg.AdditionalExpectedRoles = append(cfg.AdditionalExpectedRoles, servicecfg.RoleAndIdentityEvent{
 		Role:          types.RoleMDM,
-		IdentityEvent: jamfIdentityEvent,
+		IdentityEvent: mdmIdentityEvent,
 	})
 	cfg.AdditionalReadyEvents = append(cfg.AdditionalReadyEvents, JamfReadyEvent)
 }
@@ -59,12 +58,12 @@ func JamfStandaloneInit(process *service.TeleportProcess, httpClient *http.Clien
 
 func startJamfService(ctx context.Context, process *service.TeleportProcess, httpClient *http.Client, statusSink common.StatusSink) error {
 	// Register our request for MDM credentials.
-	process.RegisterWithAuthServer(types.RoleMDM, jamfIdentityEvent)
+	process.RegisterWithAuthServer(types.RoleMDM, mdmIdentityEvent)
 
 	logger := process.Config.Logger.With(teleport.ComponentKey, teleport.Component(ent.ComponentJamf, process.GetID()))
 
 	// Wait for MDM credentials.
-	conn, err := process.WaitForConnector(jamfIdentityEvent, logger)
+	conn, err := process.WaitForConnector(mdmIdentityEvent, logger)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -152,8 +151,7 @@ func JamfPluginInit(ctx context.Context, process *service.TeleportProcess, httpC
 		Credentials: credentials,
 	}
 
-	// Set the expected instance role for this identity event since it's unique to this plugin.
-	process.SetExpectedHostedPluginRole(types.RoleMDM, jamfIdentityEvent)
+	process.SetExpectedHostedPluginRole(types.RoleMDM, mdmIdentityEvent)
 
 	// We don't want auth process to exit due to faulty jamf config.
 	process.RegisterFunc("jamf.init", func() error {

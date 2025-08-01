@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/jamf/testenv"
 	"github.com/gravitational/teleport/e/lib/services"
 	storage "github.com/gravitational/teleport/integrations/access/common/auth/storage"
+	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cloud/imds"
@@ -380,6 +381,33 @@ func TestInstanceFactory(t *testing.T) {
 			readyEvent:   services.JamfReadyEvent,
 			stoppedEvent: services.JamfStoppedEvent,
 		},
+		{
+			name:       "intuneInstanceFactory",
+			pluginType: types.PluginTypeIntune,
+			plugin: types.NewPluginV1(
+				types.Metadata{
+					Name: "intune",
+				},
+				types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Intune{
+						Intune: &types.PluginIntuneSettings{
+							Tenant: "foo",
+						},
+					},
+				},
+				&types.PluginCredentialsV1{
+					Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+						StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+							Labels: map[string]string{
+								"label1": "value1",
+							},
+						},
+					},
+				},
+			),
+			readyEvent:   services.IntuneReadyEvent,
+			stoppedEvent: services.IntuneStoppedEvent,
+		},
 	}
 
 	// GIVEN a running Teleport Cluster...
@@ -436,6 +464,32 @@ func TestInstanceFactory(t *testing.T) {
 									BasicAuth: &types.PluginStaticCredentialsBasicAuth{
 										Username: testenv.DefaultUsers[0].Username,
 										Password: testenv.DefaultUsers[0].Password,
+									},
+								},
+							},
+						},
+					},
+				})
+				require.NoError(t, err)
+			case types.PluginTypeIntune:
+				var err error
+				factoryFunc, err = intuneInstanceFactory(factoryCtx, tc.plugin, instanceDependencies{
+					lifetime:      pluginLifetime,
+					logger:        slog.Default(),
+					parentProcess: process,
+					statusSink:    &integration.FakeStatusSink{},
+					staticCredentials: []types.PluginStaticCredentials{
+						&types.PluginStaticCredentialsV1{
+							ResourceHeader: types.ResourceHeader{
+								Metadata: types.Metadata{
+									Name: "cred",
+								},
+							},
+							Spec: &types.PluginStaticCredentialsSpecV1{
+								Credentials: &types.PluginStaticCredentialsSpecV1_OAuthClientSecret{
+									OAuthClientSecret: &types.PluginStaticCredentialsOAuthClientSecret{
+										ClientId:     "client-id",
+										ClientSecret: "client-secret",
 									},
 								},
 							},
