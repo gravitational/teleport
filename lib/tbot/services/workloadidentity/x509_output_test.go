@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package tbot
+package workloadidentity
 
 import (
 	"context"
@@ -35,13 +35,10 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/internal"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -106,25 +103,42 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 	t.Run("By Name", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		onboarding, _ := makeBot(t, rootClient, "by-name", role.GetName())
-		botConfig := defaultBotConfig(t, process, onboarding, config.ServiceConfigs{
-			&config.WorkloadIdentityX509Service{
-				Selector: bot.WorkloadIdentitySelector{
-					Name: workloadIdentity.GetMetadata().GetName(),
-				},
-				Destination: &destination.Directory{
-					Path: tmpDir,
-				},
+
+		proxyAddr, err := process.ProxyWebAddr()
+		require.NoError(t, err)
+
+		connCfg := connection.Config{
+			Address:     proxyAddr.Addr,
+			AddressKind: connection.AddressKindProxy,
+			Insecure:    true,
+		}
+
+		b, err := bot.New(bot.Config{
+			Connection: connCfg,
+			Logger:     log,
+			Onboarding: *onboarding,
+			Services: []bot.ServiceBuilder{
+				X509OutputServiceBuilder(
+					&X509OutputConfig{
+						Selector: bot.WorkloadIdentitySelector{
+							Name: workloadIdentity.GetMetadata().GetName(),
+						},
+						Destination: &destination.Directory{
+							Path: tmpDir,
+						},
+					},
+					nil, // trustBundleCache
+					nil, // crlCache
+					bot.DefaultCredentialLifetime,
+				),
 			},
-		}, defaultBotConfigOpts{
-			useAuthServer: true,
-			insecure:      true,
 		})
-		botConfig.Oneshot = true
-		b := New(botConfig, log)
+		require.NoError(t, err)
+
 		// Run Bot with 10 second timeout to catch hangs.
 		ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 		defer cancel()
-		require.NoError(t, b.Run(ctx))
+		require.NoError(t, b.OneShot(ctx))
 
 		svid, err := x509svid.Load(
 			path.Join(tmpDir, internal.SVIDPEMPath),
@@ -150,27 +164,44 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 	t.Run("By Labels", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		onboarding, _ := makeBot(t, rootClient, "by-labels", role.GetName())
-		botConfig := defaultBotConfig(t, process, onboarding, config.ServiceConfigs{
-			&config.WorkloadIdentityX509Service{
-				Selector: bot.WorkloadIdentitySelector{
-					Labels: map[string][]string{
-						"foo": {"bar"},
+
+		proxyAddr, err := process.ProxyWebAddr()
+		require.NoError(t, err)
+
+		connCfg := connection.Config{
+			Address:     proxyAddr.Addr,
+			AddressKind: connection.AddressKindProxy,
+			Insecure:    true,
+		}
+
+		b, err := bot.New(bot.Config{
+			Connection: connCfg,
+			Logger:     log,
+			Onboarding: *onboarding,
+			Services: []bot.ServiceBuilder{
+				X509OutputServiceBuilder(
+					&X509OutputConfig{
+						Selector: bot.WorkloadIdentitySelector{
+							Labels: map[string][]string{
+								"foo": {"bar"},
+							},
+						},
+						Destination: &destination.Directory{
+							Path: tmpDir,
+						},
 					},
-				},
-				Destination: &destination.Directory{
-					Path: tmpDir,
-				},
+					nil,                           // trustBundleCache
+					nil,                           // crlCache
+					bot.DefaultCredentialLifetime, // defaultCredentialLifetime
+				),
 			},
-		}, defaultBotConfigOpts{
-			useAuthServer: true,
-			insecure:      true,
 		})
-		botConfig.Oneshot = true
-		b := New(botConfig, log)
+		require.NoError(t, err)
+
 		// Run Bot with 10 second timeout to catch hangs.
 		ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 		defer cancel()
-		require.NoError(t, b.Run(ctx))
+		require.NoError(t, b.OneShot(ctx))
 
 		svid, err := x509svid.Load(
 			path.Join(tmpDir, internal.SVIDPEMPath),
@@ -191,38 +222,4 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 
 		checkCRL(t, tmpDir, bundle)
 	})
-}
-
-func setWorkloadIdentityX509CAOverride(ctx context.Context, t *testing.T, process *service.TeleportProcess) {
-	const loadKeysFalse = false
-	spiffeCA, err := process.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: "root",
-		Type:       types.SPIFFECA,
-	}, loadKeysFalse)
-	require.NoError(t, err)
-
-	spiffeCAX509KeyPairs := spiffeCA.GetTrustedTLSKeyPairs()
-	require.Len(t, spiffeCAX509KeyPairs, 1)
-	spiffeCACert, err := tlsca.ParseCertificatePEM(spiffeCAX509KeyPairs[0].Cert)
-	require.NoError(t, err)
-
-	// this is a bit of a hack: by adding the self-signed CA certificate to the
-	// override chain we distribute a nonempty chain that we can test for, but
-	// all validations will continue working and it's technically not a broken
-	// intermediate chain (just a bit of a useless one)
-
-	// (this is an unsynced write but we know that nothing is issuing
-	// certificates just yet)
-	process.GetAuthServer().SetWorkloadIdentityX509CAOverrideGetter(&staticOverrideGetter{chain: [][]byte{spiffeCACert.Raw}})
-}
-
-type staticOverrideGetter struct {
-	chain [][]byte
-}
-
-var _ services.WorkloadIdentityX509CAOverrideGetter = (*staticOverrideGetter)(nil)
-
-// GetWorkloadIdentityX509CAOverride implements [services.WorkloadIdentityX509CAOverrideGetter].
-func (m *staticOverrideGetter) GetWorkloadIdentityX509CAOverride(ctx context.Context, name string, ca *tlsca.CertAuthority) (*tlsca.CertAuthority, [][]byte, error) {
-	return ca, m.chain, nil
 }

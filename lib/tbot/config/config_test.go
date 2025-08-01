@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
+	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
@@ -293,7 +294,7 @@ func TestBotConfig_YAML(t *testing.T) {
 							RenewalInterval: 15 * time.Second,
 						},
 					},
-					&WorkloadIdentityX509Service{
+					&workloadidentity.X509OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/an/output/path",
 						},
@@ -305,7 +306,7 @@ func TestBotConfig_YAML(t *testing.T) {
 							RenewalInterval: 15 * time.Second,
 						},
 					},
-					&WorkloadIdentityAPIService{
+					&workloadidentity.WorkloadAPIConfig{
 						Listen: "tcp://127.0.0.1:123",
 						Selector: bot.WorkloadIdentitySelector{
 							Name: "my-workload-identity",
@@ -315,7 +316,7 @@ func TestBotConfig_YAML(t *testing.T) {
 							RenewalInterval: 15 * time.Second,
 						},
 					},
-					&WorkloadIdentityJWTService{
+					&workloadidentity.JWTOutputConfig{
 						Destination: &destination.Directory{
 							Path: "/an/output/path",
 						},
