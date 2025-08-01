@@ -67,7 +67,7 @@ func checkPaginationMethod(
 	hasNextKey := hasAnyField(resp.Fields(), cfg.nextNames)
 	checkRepeated := cfg.checkRepeated && hasRepeatedField(resp.Fields())
 
-	if !(paginationExpected || checkRepeated) {
+	if !paginationExpected && !checkRepeated {
 		return nil
 	}
 
