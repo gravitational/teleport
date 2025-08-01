@@ -23,6 +23,16 @@ spreadsheet, with links to allow or deny each request.
 
 ![The result of the plugin](../../../img/api/google-sheets.png)
 
+## How it works
+
+A Teleport Access Request plugin authenticates to the Teleport Auth Service gRPC
+API and receives messages when the Auth Service creates or updates an Access
+Request. The plugin then interacts with a third-party API based on the Access
+Request notifications it receives. The Teleport API client library includes
+methods for authenticating to the API using a Teleport identity file, as well as
+for receiving audit events from the Auth Service in order to perform some
+action.
+
 <Admonition type="danger">
 
 The plugin we will build in this guide is intended as a learning tool. **Do not

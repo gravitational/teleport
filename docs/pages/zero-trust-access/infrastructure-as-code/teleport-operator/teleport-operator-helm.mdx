@@ -15,6 +15,17 @@ If your Teleport cluster is not deployed using the `teleport-cluster` Helm chart
 [the standalone operator guide](./teleport-operator-standalone.mdx) instead.
 </Admonition>
 
+## How it works
+
+The `teleport-cluster` Helm chart includes the `teleport-operator` chart as a
+dependency. If you install the `teleport-cluster` chart with the
+`operator.enabled` values field set to `true`, the chart launches one or more
+pods for the Teleport Kubernetes Operator. It also creates a join token that
+allows the Teleport Kubernetes Operator to establish trust with your Teleport
+cluster, plus a Teleport role and Kubernetes service account for the Operator.
+Finally, the `teleport-operator` chart installs custom resource definitions that
+enable the Operator to manage Teleport resources.
+
 ## Prerequisites
 
 - Kubernetes cluster (with or without `teleport-cluster` Helm chart already deployed);

@@ -15,6 +15,17 @@ Here are the steps we'll walkthrough:
 - Generate credentials for that user.
 - Create and connect a Go client to interact with Teleport's API.
 
+## How it works
+
+The Teleport Auth Service exposes a gRPC API that allows client tools to manage
+backend resources. `tctl`, the Teleport Kubernetes Operator, and the Teleport
+Terraform provider use this API, and you can write custom tools to manage API
+resources or subscribe to Teleport audit events. 
+
+Teleport API clients authenticate to Teleport using TLS credentials. In this
+guide, we show you how to load the TLS credentials that the Auth Service
+provides to you after you log in using `tsh`.
+
 ## Prerequisites
 
 - Install [Go](https://golang.org/doc/install) (=teleport.golang=)+ and Go development environment.
