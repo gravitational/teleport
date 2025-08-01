@@ -474,13 +474,13 @@ func TestDefaultPrintUsage(t *testing.T) {
 	ctx := context.Background()
 
 	cmd := exec.CommandContext(ctx, testExecutable, "version", "--help")
-	cmd.Env = []string{fmt.Sprintf("%s=1", tshBinMainTestEnv)}
+	cmd.Env = []string{fmt.Sprintf("%s=1", tshBinMainTestEnv), "TELEPORT_TOOLS_VERSION=off"}
 	flagOutput, err := cmd.CombinedOutput()
 	require.NoError(t, err)
 	require.Contains(t, string(flagOutput), "Print the tsh client and Proxy server versions for the current context")
 
 	cmd = exec.CommandContext(ctx, testExecutable, "help", "version")
-	cmd.Env = []string{fmt.Sprintf("%s=1", tshBinMainTestEnv)}
+	cmd.Env = []string{fmt.Sprintf("%s=1", tshBinMainTestEnv), "TELEPORT_TOOLS_VERSION=off"}
 	commandOutput, err := cmd.CombinedOutput()
 	require.NoError(t, err)
 	require.Equal(t, string(flagOutput), string(commandOutput))
