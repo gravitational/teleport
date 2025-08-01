@@ -113,9 +113,11 @@ export class AppUpdater {
     // The way electron-updater works on mac is that it downloads the update file,
     // and feeds it into native electron autoUpdater through a local server.
     //
-    if (autoUpdater instanceof MacUpdater) {
-      app.on('will-quit', () => {
-        if (!this.downloadedUpdatePath) {
+    app.on('will-quit', () => {
+      if (!this.downloadedUpdatePath) {
+        autoUpdater.autoInstallOnAppQuit = false;
+
+        if (autoUpdater instanceof MacUpdater) {
           try {
             rmSync(getShipItCachePath(), {
               recursive: true,
@@ -126,8 +128,8 @@ export class AppUpdater {
             /* empty */
           }
         }
-      });
-    }
+      }
+    });
   }
 
   dispose(): void {
@@ -169,7 +171,6 @@ export class AppUpdater {
   private async doCheckForUpdates(
     options: { noAutoDownload?: boolean } = {}
   ): Promise<void> {
-    autoUpdater.autoInstallOnAppQuit = false;
     this.forceNoAutoDownload = options.noAutoDownload;
 
     const result = await autoUpdater.checkForUpdates();
@@ -212,7 +213,6 @@ export class AppUpdater {
       return this.downloadPromise;
     }
 
-    autoUpdater.autoInstallOnAppQuit = true;
     this.downloadPromise = autoUpdater.downloadUpdate();
     try {
       // The second element in this array can be packagePath.

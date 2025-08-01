@@ -1,4 +1,4 @@
-.version: &version "19.0.0-dev.gzdunek.19"
+.version: &version "19.0.0-dev.gzdunek.20"
 
 apiVersion: v2
 name: teleport-plugin-discord
