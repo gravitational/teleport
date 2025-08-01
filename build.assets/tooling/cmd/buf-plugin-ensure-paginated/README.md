@@ -5,6 +5,12 @@ confirm to Teleport resource guidelines for pagination[2].
 
 ## Usage
 
+From root dir:
+
+```sh
+make buf/plugins
+```
+
 To enable the plugin in `buf.yaml`:
 
 ```yaml
@@ -14,7 +20,7 @@ lint:
   use:
     - PAGINATION_REQUIRED
 plugins:
-  - plugin: [./dev/bufplugin/run.sh, buf-plugin-ensure-paginated]
+  - plugin: [build.assets/tooling/bin/buf-plugin-ensure-paginated]
     options:
       prefixes: ['List', 'Search']
       size_names: ['page_size', 'limit']

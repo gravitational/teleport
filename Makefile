@@ -889,7 +889,7 @@ test-helm-update-snapshots: helmunit/installed
 # Runs all Go tests except integration, called by CI/CD.
 #
 .PHONY: test-go
-test-go: test-go-prepare test-go-unit test-go-touch-id test-go-vnet-daemon test-go-tsh test-go-chaos test-go-buf-plugins
+test-go: test-go-prepare test-go-unit test-go-touch-id test-go-vnet-daemon test-go-tsh test-go-chaos
 
 #
 # Runs a test to ensure no environment variable leak into build binaries.
@@ -922,7 +922,7 @@ test-go-prepare: ensure-webassets bpf-bytecode $(TEST_LOG_DIR) ensure-gotestsum 
 .PHONY: test-go-unit
 test-go-unit: rdpclient
 test-go-unit: FLAGS ?= -race -shuffle on
-test-go-unit: SUBJECT ?= $(shell go list ./... | grep -vE 'teleport/(e2e|integration|tool/tsh|integrations/operator|integrations/access|integrations/lib|dev/bufplugin)')
+test-go-unit: SUBJECT ?= $(shell go list ./... | grep -vE 'teleport/(e2e|integration|tool/tsh|integrations/operator|integrations/access|integrations/lib)')
 test-go-unit:
 	$(CGOFLAG) GOEXPERIMENT=synctest go test -cover -json -tags "enablesynctest $(PAM_TAG) $(RDPCLIENT_TAG) $(FIPS_TAG) $$(BPF_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG) $(ADDTAGS)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
@@ -935,12 +935,6 @@ test-go-unit-tbot:
 	$(CGOFLAG) go test -cover -json $(FLAGS) $(ADDFLAGS) ./tool/tbot/... ./lib/tbot/... \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
-
-# Runs tbot unit tests
-.PHONY: test-go-buf-plugins
-test-go-buf-plugins: FLAGS ?= -race -shuffle on
-test-go-buf-plugins:
-	$(MAKE) -C dev/bufplugin/buf-plugin-ensure-paginated test
 
 # Make sure untagged touchid code build/tests.
 .PHONY: test-go-touch-id
@@ -1219,7 +1213,6 @@ lint-go:
 	golangci-lint run -c .golangci.yml --build-tags='$(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_LINT_TAG) $(VNETDAEMON_TAG)' $(GO_LINT_FLAGS)
 	$(MAKE) -C integrations/terraform lint
 	$(MAKE) -C integrations/event-handler lint
-	$(MAKE) -C dev/bufplugin/buf-plugin-ensure-paginated lint
 
 .PHONY: fix-imports
 fix-imports:
@@ -1538,7 +1531,7 @@ protos/format: buf/installed
 	$(BUF) format -w
 
 .PHONY: protos/lint
-protos/lint: buf/installed
+protos/lint: buf/installed buf/plugins
 	$(BUF) lint
 	$(BUF) lint --config=buf-legacy.yaml api/proto
 
@@ -1560,6 +1553,13 @@ buf/installed:
 		echo 'Buf is required to build/format/lint protos. Follow https://docs.buf.build/installation.'; \
 		exit 1; \
 	fi
+
+BUF_PLUGIN_ENSURE_PAGINATED := $(TOOLINGDIR)/bin/buf-plugin-ensure-paginated
+$(BUF_PLUGIN_ENSURE_PAGINATED): $(wildcard $(TOOLINGDIR)/cmd/buf-plugin-ensure-paginated/*.go)
+	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/buf-plugin-ensure-paginated
+
+.PHONY: buf/plugins
+buf/plugins: $(BUF_PLUGIN_ENSURE_PAGINATED)
 
 GODERIVE := $(TOOLINGDIR)/bin/goderive
 # derive will generate derived functions for our API.
