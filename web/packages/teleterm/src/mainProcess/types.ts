@@ -208,6 +208,9 @@ export type MainProcessClient = {
     login: string;
   }): Promise<string>;
   changeManagingCluster(clusterUri: RootClusterUri | undefined): Promise<void>;
+  maybeRemoveAppUpdatesManagingCluster(
+    clusterUri: RootClusterUri
+  ): Promise<void>;
   checkForAppUpdates(): Promise<void>;
   downloadAppUpdate(): Promise<void>;
   cancelAppUpdateDownload(): void;
