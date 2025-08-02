@@ -1531,7 +1531,7 @@ protos/format: buf/installed
 	$(BUF) format -w
 
 .PHONY: protos/lint
-protos/lint: buf/installed
+protos/lint: buf/installed buf/plugins
 	$(BUF) lint
 	$(BUF) lint --config=buf-legacy.yaml api/proto
 
@@ -1553,6 +1553,13 @@ buf/installed:
 		echo 'Buf is required to build/format/lint protos. Follow https://docs.buf.build/installation.'; \
 		exit 1; \
 	fi
+
+BUF_PLUGIN_ENSURE_PAGINATED := $(TOOLINGDIR)/bin/buf-plugin-ensure-paginated
+$(BUF_PLUGIN_ENSURE_PAGINATED): $(wildcard $(TOOLINGDIR)/cmd/buf-plugin-ensure-paginated/*.go)
+	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/buf-plugin-ensure-paginated
+
+.PHONY: buf/plugins
+buf/plugins: $(BUF_PLUGIN_ENSURE_PAGINATED)
 
 GODERIVE := $(TOOLINGDIR)/bin/goderive
 # derive will generate derived functions for our API.
