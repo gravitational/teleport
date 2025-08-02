@@ -24,8 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mark3labs/mcp-go/mcp"
 
 	dbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
@@ -47,20 +46,28 @@ var queryTool = mcp.NewTool(dbmcp.ToolName(defaults.ProtocolPostgres, "query"),
 )
 
 type database struct {
-	*dbmcp.Database
-	pool *pgxpool.Pool
+	name       string
+	connConfig *pgconn.Config
 }
 
 // Server handles PostgreSQL-specific MCP tools requests.
 type Server struct {
-	logger    *slog.Logger
-	databases map[string]*database
+	logger      *slog.Logger
+	databases   map[string]*database
+	connManager *dbmcp.ConnectionsManager[pgconn.PgConn, *pgconn.PgConn]
 }
 
 // NewServer initializes a PostgreSQL MCP server, creating the database
 // configurations and registering Server tools into the root server.
 func NewServer(ctx context.Context, cfg *dbmcp.NewServerConfig) (dbmcp.Server, error) {
-	s := &Server{logger: cfg.Logger, databases: make(map[string]*database)}
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s := &Server{
+		logger:    cfg.Logger,
+		databases: make(map[string]*database, len(cfg.Databases)),
+	}
 
 	for _, db := range cfg.Databases {
 		if db.DatabaseUser == "" || db.DatabaseName == "" {
@@ -72,44 +79,67 @@ func NewServer(ctx context.Context, cfg *dbmcp.NewServerConfig) (dbmcp.Server, e
 			return nil, trace.Wrap(err)
 		}
 
-		pool, err := pgxpool.NewWithConfig(ctx, connCfg)
-		if err != nil {
-			return nil, trace.BadParameter("failed to parse database %q connection config: %s", db.DB.GetName(), err)
-		}
-
 		s.databases[db.ResourceURI().WithoutParams().String()] = &database{
-			Database: db,
-			pool:     pool,
+			name:       db.DB.GetName(),
+			connConfig: connCfg,
 		}
 	}
 
-	cfg.RootServer.AddTool(queryTool, s.RunQuery)
+	checker, err := dbmcp.NewConnectionsManager(ctx, &dbmcp.ConnectionsManagerConfig{
+		MaxIdleTime: connectionMaxIdleTime,
+		Logger:      cfg.Logger,
+	}, func(ctx context.Context, id string) (*pgconn.PgConn, error) {
+		db, ok := s.databases[id]
+		if !ok {
+			return nil, dbmcp.DatabaseNotFoundError
+		}
+
+		conn, err := pgconn.ConnectConfig(ctx, db.connConfig)
+		if err != nil {
+			return nil, trace.ConnectionProblem(err, "Unable to connect to database: %v", err)
+		}
+
+		return conn, nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s.connManager = checker
+	cfg.RootServer.AddTool(queryTool, s.runQuery)
 	return s, nil
 }
 
 // Close implements dbmcp.Server.
-func (s *Server) Close(context.Context) error {
-	for _, db := range s.databases {
-		db.pool.Close()
-	}
-
-	return nil
+func (s *Server) Close(ctx context.Context) error {
+	return trace.Wrap(s.connManager.Close(ctx))
 }
 
 // RunQueryResult is the run query tool result.
 type RunQueryResult struct {
-	// Data contains the data returned from the query. It can be empty in case
-	// the query doesn't return any data.
-	Data []map[string]any `json:"data"`
-	// RowsCount number of rows affected by the query or returned as data.
-	RowsCount int `json:"rowsCount"`
-	// ErrorMessage if the query wasn't successful, this field contains the
-	// error message.
+	// Results is the executed queries results.
+	Results []QueryResult `json:"results"`
+	// ErrorMessage if the queries execution wasn't successful, this field
+	// contains the error message. The most common error will be connectivity
+	// issues.
 	ErrorMessage string `json:"error,omitempty"`
 }
 
-// RunQuery tool function used to execute queries on databases.
-func (s *Server) RunQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+// QueryResult is a single query result.
+type QueryResult struct {
+	// Data contains the data returned from the query. It can be empty in case
+	// the query doesn't return any data.
+	Data []map[string]string `json:"data"`
+	// RowsAffected number of rows affected by the query or returned as data.
+	RowsAffected int `json:"rows_affected"`
+	// ErrorMessage if the query contains any error, this field will contain the
+	// error message. Given an execution of multiple queries, not all of them
+	// can fail.
+	ErrorMessage string `json:"error,omitempty"`
+}
+
+// runQuery tool function used to execute queries on databases.
+func (s *Server) runQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	uri, err := request.RequireString(queryToolDatabaseParam)
 	if err != nil {
 		return s.wrapErrorResult(ctx, trace.Wrap(err))
@@ -120,21 +150,25 @@ func (s *Server) RunQuery(ctx context.Context, request mcp.CallToolRequest) (*mc
 		return s.wrapErrorResult(ctx, trace.Wrap(err))
 	}
 
-	db, err := s.getDatabase(uri)
+	if !clientmcp.IsDatabaseResourceURI(uri) {
+		return s.wrapErrorResult(ctx, dbmcp.WrongDatabaseURIFormatError)
+	}
+
+	conn, err := s.connManager.Get(ctx, uri)
 	if err != nil {
 		return s.wrapErrorResult(ctx, err)
 	}
+	defer conn.Release()
 
 	// TODO(gabrielcorado): ensure the connection used is consistent for the
 	// session, making most of its queries to be present in a single audit
 	// session/recording.
-	rows, err := db.pool.Query(ctx, sql)
+	queryRes, err := conn.Conn().Exec(ctx, sql).ReadAll()
 	if err != nil {
 		return s.wrapErrorResult(ctx, err)
 	}
 
-	// Returned rows are being closed by this function.
-	result, err := buildQueryResult(rows)
+	result, err := buildQueryResult(queryRes)
 	if err != nil {
 		return s.wrapErrorResult(ctx, err)
 	}
@@ -148,91 +182,76 @@ func (s *Server) wrapErrorResult(ctx context.Context, toolErr error) (*mcp.CallT
 	return mcp.NewToolResultError(string(out)), trace.Wrap(err)
 }
 
-// buildQueryResult takes a the response from pgx and converts into a JSON
-// format (which will be returned to LLMs).
-func buildQueryResult(rows pgx.Rows) (string, error) {
-	// Just ensure the rows is always closed. It is safe if this is called
-	// multiple times.
-	defer rows.Close()
+// buildQueryResult takes a the response from pgconn and converts into a JSON
+// format (which will be returned to MCP clients).
+func buildQueryResult(results []*pgconn.Result) (string, error) {
+	data := make([]QueryResult, len(results))
 
-	var data []map[string]any
-	columns := rows.FieldDescriptions()
+	for i, result := range results {
+		commandTag := result.CommandTag
+		queryRes := QueryResult{RowsAffected: int(commandTag.RowsAffected())}
 
-	for rows.Next() {
-		values, err := rows.Values()
-		if err != nil {
-			return "", trace.Wrap(err)
+		if result.Err != nil {
+			queryRes.ErrorMessage = result.Err.Error()
 		}
 
-		item := make(map[string]any, len(values))
-		for i, v := range values {
-			item[columns[i].Name] = v
+		// Initialize the slice so the resulting JSON will have an empty
+		// array instead of null. This helps LLMs to not think there was an
+		// error on the query, but instead it returned no records.
+		if result.Err == nil && len(result.Rows) == 0 && commandTag.Select() {
+			queryRes.Data = []map[string]string{}
 		}
 
-		data = append(data, item)
-	}
+		columns := make([]string, len(result.FieldDescriptions))
+		for i, fd := range result.FieldDescriptions {
+			columns[i] = fd.Name
+		}
 
-	// Close the rows to finish consuming it. Depending on the its type
-	// we can only collect the command tag after rows is closed.
-	rows.Close()
-	commandTag := rows.CommandTag()
+		for _, row := range result.Rows {
+			rowData := make(map[string]string)
+			for columnIdx, contents := range row {
+				// Given we're using the PostgreSQL text format we can safely
+				// cast the returned values and they'll be in a readable format.
+				//
+				// References:
+				// - https://www.postgresql.org/docs/current/protocol-overview.html#PROTOCOL-FORMAT-CODES
+				rowData[columns[columnIdx]] = string(contents)
+			}
 
-	// Initialize the slice so the resulting JSON will have an empty array
-	// instead of null.
-	if len(data) == 0 && commandTag.Select() {
-		data = []map[string]any{}
+			queryRes.Data = append(queryRes.Data, rowData)
+		}
+
+		data[i] = queryRes
 	}
 
 	out, err := json.Marshal(RunQueryResult{
-		Data:      data,
-		RowsCount: int(commandTag.RowsAffected()),
+		Results: data,
 	})
 	return string(out), trace.Wrap(err)
 }
 
-func (s *Server) getDatabase(uri string) (*database, error) {
-	if !clientmcp.IsDatabaseResourceURI(uri) {
-		return nil, dbmcp.WrongDatabaseURIFormatError
-	}
-
-	db, ok := s.databases[uri]
-	if !ok {
-		return nil, dbmcp.DatabaseNotFoundError
-	}
-
-	return db, nil
-}
-
-func buildConnConfig(db *dbmcp.Database) (*pgxpool.Config, error) {
+func buildConnConfig(db *dbmcp.Database) (*pgconn.Config, error) {
 	// No need to provide a valid address here as the Lookup and DialContext
 	// will handle the connection.
-	config, err := pgxpool.ParseConfig("postgres://")
+	config, err := pgconn.ParseConfig("postgres://")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	config.MaxConnIdleTime = connectionIdleTime
-	config.MaxConns = int32(maxConnections)
-
-	config.ConnConfig.LookupFunc = func(ctx context.Context, host string) ([]string, error) {
+	config.LookupFunc = func(ctx context.Context, host string) ([]string, error) {
 		return db.LookupFunc(ctx, host)
 	}
-	config.ConnConfig.DialFunc = func(ctx context.Context, network, addr string) (net.Conn, error) {
+	config.DialFunc = func(ctx context.Context, network, addr string) (net.Conn, error) {
 		return db.DialContextFunc(ctx, network, addr)
 	}
 
-	config.ConnConfig.User = db.DatabaseUser
-	config.ConnConfig.Database = db.DatabaseName
-	config.ConnConfig.ConnectTimeout = defaults.DatabaseConnectTimeout
-	config.ConnConfig.RuntimeParams = map[string]string{
+	config.User = db.DatabaseUser
+	config.Database = db.DatabaseName
+	config.ConnectTimeout = defaults.DatabaseConnectTimeout
+	config.RuntimeParams = map[string]string{
 		applicationNameParamName: applicationNameParamValue,
 	}
-	config.ConnConfig.TLSConfig = nil
-	// Use simple protocol to have a closer behavior to DB REPL and psql.
-	//
-	// This also avoids each query being prepared, binded and executed, reducing
-	// the amount of audit events per query executed.
-	config.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
+	config.TLSConfig = nil
 	return config, nil
 }
 
@@ -249,13 +268,7 @@ const (
 	applicationNameParamName = "application_name"
 	// applicationNameParamValue defines the application name parameter value.
 	applicationNameParamValue = "teleport-mcp"
-	// connectionIdleTime is the max connection idle time before it gets closed
+	// connectionMaxIdleTime is the max connection idle time before it gets closed
 	// automatically.
-	connectionIdleTime = 1 * time.Minute
-	// maxConnections defines the max number of concurrent connections the pool
-	// can have.
-	//
-	// Given the current MCP usage, the clients will most likely do one query at
-	// time, even on multiple sessions.
-	maxConnections = 1
+	connectionMaxIdleTime = 30 * time.Minute
 )
