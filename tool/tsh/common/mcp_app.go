@@ -431,10 +431,6 @@ func (c *mcpConfigCommand) updateConfig(w io.Writer, config *mcpconfig.FileConfi
 		return trace.Wrap(err)
 	}
 
-	config, err := c.clientConfig.loadConfig()
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	if err := c.addMCPServersToConfig(config); err != nil {
 		return trace.Wrap(err)
 	}
@@ -443,7 +439,7 @@ func (c *mcpConfigCommand) updateConfig(w io.Writer, config *mcpconfig.FileConfi
 		return trace.Wrap(err)
 	}
 
-	_, err = fmt.Fprintf(c.cf.Stdout(), `Updated client configuration at:
+	_, err := fmt.Fprintf(c.cf.Stdout(), `Updated client configuration at:
 %s
 
 Teleport MCP servers will be prefixed with "teleport-mcp-" in this

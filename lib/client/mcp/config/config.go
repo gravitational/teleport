@@ -25,12 +25,12 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/tidwall/pretty"
 	"github.com/tidwall/sjson"
-	"slices"
 )
 
 // MCPServer contains details to launch an MCP server.
