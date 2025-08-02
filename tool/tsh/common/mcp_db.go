@@ -305,10 +305,6 @@ If you already have an entry for %q server, add the following database resource 
 
 // TODO(gabrielcorado): support updating multiple databases at once.
 func (m *mcpDBConfigCommand) updateConfig(w io.Writer, config *mcpconfig.FileConfig) error {
-	config, err := m.clientConfig.loadConfig()
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	preexistentDB, commandChanged, err := m.addDatabaseToConfig(config, m.dbURI)
 	if err != nil {
 		return trace.Wrap(err)
