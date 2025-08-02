@@ -56,6 +56,9 @@ type MultiParams struct {
 	// Jitter is a jitter function, applied every tick (if set) to the fixed or
 	// variable interval (except for the first tick if FirstJitter is set).
 	Jitter retryutils.Jitter
+	// ResetJitter is a jitter function, applied when a tick is reset before it
+	// fires.
+	ResetJitter retryutils.Jitter
 
 	clock clockwork.Clock
 }
@@ -77,6 +80,7 @@ type Multi[T comparable] struct {
 
 	firstJitter retryutils.Jitter
 	jitter      retryutils.Jitter
+	resetJitter retryutils.Jitter
 }
 
 // NewMulti returns a new [*Multi]. Note that the delay starts with no subintervals
@@ -84,6 +88,15 @@ type Multi[T comparable] struct {
 func NewMulti[T comparable](p MultiParams) *Multi[T] {
 	if p.clock == nil {
 		p.clock = clockwork.NewRealClock()
+	}
+	if p.Jitter == nil {
+		p.Jitter = func(d time.Duration) time.Duration { return d }
+	}
+	if p.FirstJitter == nil {
+		p.FirstJitter = p.Jitter
+	}
+	if p.ResetJitter == nil {
+		p.ResetJitter = p.Jitter
 	}
 	return &Multi[T]{
 		clock: p.clock,
@@ -97,6 +110,7 @@ func NewMulti[T comparable](p MultiParams) *Multi[T] {
 
 		firstJitter: p.FirstJitter,
 		jitter:      p.Jitter,
+		resetJitter: p.ResetJitter,
 	}
 }
 
@@ -104,7 +118,7 @@ func (h *Multi[T]) Add(key T) {
 	// add new target to the heap
 	now := h.clock.Now()
 	entry := entry[T]{
-		tick: now.Add(h.interval(true /* first */)),
+		tick: now.Add(h.interval(h.firstJitter)),
 		key:  key,
 	}
 	h.heap.Push(entry)
@@ -128,6 +142,25 @@ func (h *Multi[T]) Remove(key T) {
 	}
 }
 
+// Reset resets the next tick for the given key to the current time plus a delay.
+func (h *Multi[T]) Reset(key T, delay time.Duration) {
+	for i, item := range h.heap.Slice {
+		if item.key == key {
+			h.heap.Slice[i] = entry[T]{
+				key:  key,
+				tick: h.clock.Now().Add(h.resetJitter(delay)),
+			}
+			h.heap.Fix(i)
+			if i == 0 {
+				// if the adjusted entry was the root of the heap, then our target
+				// has changed and we need to reset the timer to a new target.
+				h.reset(h.clock.Now(), false /* fired */)
+			}
+			return
+		}
+	}
+}
+
 // Tick *must* be called exactly once for each firing observed on the Elapsed channel, with the time
 // of the firing. Tick will advance the internal state of the multi to start targeting the next interval,
 // and return the key associated with the interval that just fired.
@@ -136,7 +169,7 @@ func (h *Multi[T]) Tick(now time.Time) (key T) {
 	// key for later return.
 	root := h.heap.Root()
 	key = root.key
-	root.tick = now.Add(h.interval(false /* first */))
+	root.tick = now.Add(h.interval(h.jitter))
 
 	// fix the heap ordering to reflect the updated state
 	h.heap.FixRoot()
@@ -183,19 +216,12 @@ func (h *Multi[T]) Elapsed() <-chan time.Time {
 	return h.timer.Chan()
 }
 
-func (h *Multi[T]) interval(first bool) time.Duration {
+func (h *Multi[T]) interval(jitter retryutils.Jitter) time.Duration {
 	ivl := h.fixedInterval
 	if h.variableInterval != nil {
 		ivl = h.variableInterval.Duration()
 	}
-
-	if first && h.firstJitter != nil {
-		ivl = h.firstJitter(ivl)
-	} else if h.jitter != nil {
-		ivl = h.jitter(ivl)
-	}
-
-	return ivl
+	return jitter(ivl)
 }
 
 // Stop stops the delay. Only needed for Go 1.22 and [clockwork.Clock]
