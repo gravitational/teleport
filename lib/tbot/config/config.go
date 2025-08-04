@@ -58,8 +58,6 @@ const (
 	DefaultRenewInterval  = 20 * time.Minute
 )
 
-var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/config")
-
 // ReservedServiceNames are the service names reserved for internal use.
 var ReservedServiceNames = []string{
 	"ca-rotation",
