@@ -226,11 +226,9 @@ func RegexpReplace(inputs []string, match string, replacement string) ([]string,
 	})
 }
 
-// JSONPath takes a list of json blobs and uses jsonpath interpolation to transform
-// each entry into a list of strings, returning a combined list. If jsonpath interpolation
-// for any of the json blobs results in a value other than a string or list of strings,
-// the function will return an error. If any of the input values are normal strings and
-// not json blobs, this expression will return an empty list rather than an error.
+// JSONPath takes an unmarshaled json blob and uses the provided jsonpath query on it.
+// If the query results in a list of strings, it will be returned. If the query results
+// are empty, an empty list is returned. Any other query results will result in an error.
 func JSONPath(input map[string]any, path string) ([]string, error) {
 	jpExpr, err := jp.ParseString(path)
 	if err != nil {
