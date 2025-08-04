@@ -35,7 +35,6 @@ import (
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/lib/embeddedtbot"
 	"github.com/gravitational/teleport/lib/tbot/bot"
-	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 )
 
@@ -517,8 +516,7 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 		return nil, trace.Wrap(err, "Invalid Join Method")
 	}
 	botConfig := &embeddedtbot.BotConfig{
-		AuthServer:            addr,
-		AuthServerAddressMode: connection.AllowProxyAsAuthServer,
+		AuthServer: addr,
 		Onboarding: onboarding.Config{
 			TokenValue: joinToken,
 			CAPath:     caPath,

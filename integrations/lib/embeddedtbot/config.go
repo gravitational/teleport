@@ -24,7 +24,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 )
 
 const (
@@ -32,11 +33,15 @@ const (
 	defaultRenewalInterval = 30 * time.Minute
 )
 
-// BotConfig contains the embedded tbot configuration.
-// This is a wrapper around the pure tbot config.BotConfig structure
-// and exposes utils to parse configuration from CLI flags and operator-specific
+// BotConfig contains the embedded tbot configuration. It's a simplified version
+// of the `lib/tbot/config.BotConfig` struct with CLI flags and operator-specific
 // defaults.
-type BotConfig config.BotConfig
+type BotConfig struct {
+	AuthServer         string
+	Onboarding         onboarding.Config
+	CredentialLifetime bot.CredentialLifetime
+	Insecure           bool
+}
 
 // BindFlags binds BotConfig fields to CLI flags.
 // When calling flag.Parse(), the bot configuration will be parsed and
