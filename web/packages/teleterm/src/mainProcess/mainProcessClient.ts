@@ -237,5 +237,12 @@ export default function createMainProcessClient(): MainProcessClient {
           ipcRenderer.removeListener(RendererIpc.AppUpdateEvent, ipcListener),
       };
     },
+    subscribeToOpenAppUpdateDialog: listener => {
+      ipcRenderer.addListener(RendererIpc.OpenAppUpdateDialog, listener);
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(RendererIpc.OpenAppUpdateDialog, listener),
+      };
+    },
   };
 }

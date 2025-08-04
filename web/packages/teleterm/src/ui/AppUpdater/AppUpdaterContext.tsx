@@ -19,6 +19,7 @@
 import {
   createContext,
   PropsWithChildren,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -30,6 +31,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 interface AppUpdaterContext {
   updateEvent: AppUpdateEvent;
+  openDialog(): void;
 }
 
 const AppUpdaterContext = createContext<AppUpdaterContext>(null);
@@ -40,18 +42,28 @@ export function AppUpdaterContextProvider(props: PropsWithChildren) {
     kind: 'checking-for-update',
   });
 
-  useEffect(() => {
-    const { cleanup } =
-      appContext.mainProcessClient.subscribeToAppUpdateEvents(setUpdateEvent);
-
-    return cleanup;
+  const openDialog = useCallback(() => {
+    appContext.modalsService.openRegularDialog({ kind: 'app-updates' });
   }, [appContext]);
+
+  useEffect(() => {
+    const { cleanup: cleanUpEvents } =
+      appContext.mainProcessClient.subscribeToAppUpdateEvents(setUpdateEvent);
+    const { cleanup: cleanUpDialog } =
+      appContext.mainProcessClient.subscribeToOpenAppUpdateDialog(openDialog);
+
+    return () => {
+      cleanUpEvents();
+      cleanUpDialog();
+    };
+  }, [appContext, openDialog]);
 
   const value = useMemo(
     () => ({
       updateEvent,
+      openDialog,
     }),
-    [updateEvent]
+    [updateEvent, openDialog]
   );
 
   return (

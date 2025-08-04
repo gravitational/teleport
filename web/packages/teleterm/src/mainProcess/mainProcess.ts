@@ -704,7 +704,28 @@ export default class MainProcess {
         };
 
     const macTemplate: MenuItemConstructorOptions[] = [
-      { role: 'appMenu' },
+      {
+        role: 'appMenu',
+        submenu: [
+          { role: 'about' },
+          {
+            label: 'Check for Updates…',
+            click: () => {
+              this.windowsManager
+                .getWindow()
+                .webContents.send(RendererIpc.OpenAppUpdateDialog);
+            },
+          },
+          { type: 'separator' },
+          { role: 'services' },
+          { type: 'separator' },
+          { role: 'hide' },
+          { role: 'hideOthers' },
+          { role: 'unhide' },
+          { type: 'separator' },
+          { role: 'quit' },
+        ],
+      },
       { role: 'editMenu' },
       viewMenuTemplate,
       {
