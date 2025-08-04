@@ -20,13 +20,14 @@ package main
 
 import (
 	"path/filepath"
+	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/tbot/cli"
-	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/tshwrap"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func onDBCommand(globalCfg *cli.GlobalArgs, dbCmd *cli.DBCommand) error {
@@ -50,7 +51,7 @@ func onDBCommand(globalCfg *cli.GlobalArgs, dbCmd *cli.DBCommand) error {
 		return trace.Wrap(err)
 	}
 
-	identityPath := filepath.Join(destination.Path, config.IdentityFilePath)
+	identityPath := filepath.Join(destination.Path, identity.IdentityFilePath)
 	identity, err := tshwrap.LoadIdentity(identityPath)
 	if err != nil {
 		return trace.Wrap(err)
@@ -60,7 +61,7 @@ func onDBCommand(globalCfg *cli.GlobalArgs, dbCmd *cli.DBCommand) error {
 	if dbCmd.Cluster != "" {
 		// If we caught --cluster in our args, pass it through.
 		args = append(args, "--cluster="+dbCmd.Cluster)
-	} else if !utils.HasPrefixAny("--cluster", *dbCmd.RemainingArgs) {
+	} else if !slices.ContainsFunc(*dbCmd.RemainingArgs, func(s string) bool { return strings.HasPrefix(s, "--cluster") }) {
 		// If no `--cluster` was provided after a `--`, pass along the cluster
 		// name in the identity.
 		args = append(args, "--cluster="+identity.RouteToCluster)

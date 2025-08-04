@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/identity"
 )
 
 // LegacyDestinationDirArgs is an embeddable struct that provides legacy-style
@@ -74,7 +75,7 @@ func (a *LegacyDestinationDirArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Lo
 		// When using the CLI --destination-dir we configure an Identity type
 		// output for that directory.
 		cfg.Services = []config.ServiceConfig{
-			&config.IdentityOutput{
+			&identity.OutputConfig{
 				Destination: &destination.Directory{
 					Path: a.DestinationDir,
 				},

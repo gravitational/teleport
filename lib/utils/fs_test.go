@@ -408,8 +408,7 @@ func TestRemoveAllSecure(t *testing.T) {
 
 	require.NoError(t, RemoveAllSecure(""))
 	require.NoError(t, RemoveAllSecure(tempDir))
-	_, err = os.Stat(tempDir)
-	require.True(t, os.IsNotExist(err), "Directory should be removed: %v", err)
+	require.NoDirExists(t, tempDir)
 }
 
 func TestRemoveSecure(t *testing.T) {
@@ -419,8 +418,7 @@ func TestRemoveSecure(t *testing.T) {
 	require.NoError(t, f.Close())
 
 	require.NoError(t, RemoveSecure(f.Name()))
-	_, err = os.Stat(tempFile)
-	require.True(t, os.IsNotExist(err), "File should be removed: %v", err)
+	require.NoFileExists(t, tempFile)
 }
 
 func TestRemoveSecure_symlink(t *testing.T) {
@@ -428,6 +426,5 @@ func TestRemoveSecure_symlink(t *testing.T) {
 	require.NoError(t, os.Symlink("/tmp", symlink))
 
 	require.NoError(t, RemoveSecure(symlink))
-	_, err := os.Stat(symlink)
-	require.True(t, os.IsNotExist(err), "Symlink should be removed: %v", err)
+	require.NoFileExists(t, symlink)
 }
