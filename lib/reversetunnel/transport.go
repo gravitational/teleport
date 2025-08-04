@@ -455,7 +455,7 @@ func (p *transport) tunnelDial(r *sshutils.DialReq) (net.Conn, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	localCluster, ok := cluster.(*localSite)
+	localCluster, ok := cluster.(*localCluster)
 	if !ok {
 		return nil, trace.BadParameter("did not find local cluster, found %T", cluster)
 	}

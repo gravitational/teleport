@@ -59,7 +59,7 @@ func TestForwarderClusterDialer(t *testing.T) {
 		want          reversetunnelclient.DialParams
 	}{
 		{
-			name: "local site",
+			name: "local cluster",
 			dialerCreator: func(kubeClusterName string) dialContextFunc {
 				return f.localClusterDialer(kubeClusterName)
 			},
@@ -78,7 +78,7 @@ func TestForwarderClusterDialer(t *testing.T) {
 			},
 		},
 		{
-			name:          "remote site",
+			name:          "remote cluster",
 			dialerCreator: f.remoteClusterDialer,
 			want: reversetunnelclient.DialParams{
 				From: &utils.NetAddr{
@@ -110,20 +110,20 @@ type fakeReverseTunnel struct {
 	t    *testing.T
 }
 
-func (f *fakeReverseTunnel) GetSite(_ string) (reversetunnelclient.RemoteSite, error) {
-	return &fakeRemoteSiteTunnel{
+func (f *fakeReverseTunnel) GetSite(_ string) (reversetunnelclient.Cluster, error) {
+	return &fakeClusterTunnel{
 		want: f.want,
 		t:    f.t,
 	}, nil
 }
 
-type fakeRemoteSiteTunnel struct {
-	reversetunnelclient.RemoteSite
+type fakeClusterTunnel struct {
+	reversetunnelclient.Cluster
 	want reversetunnelclient.DialParams
 	t    *testing.T
 }
 
-func (f *fakeRemoteSiteTunnel) DialTCP(p reversetunnelclient.DialParams) (net.Conn, error) {
+func (f *fakeClusterTunnel) DialTCP(p reversetunnelclient.DialParams) (net.Conn, error) {
 	require.Equal(f.t, f.want, p)
 	return nil, nil
 }

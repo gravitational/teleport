@@ -1484,7 +1484,7 @@ type testContext struct {
 	mux            *multiplexer.Mux
 	mysqlListener  net.Listener
 	webListener    *multiplexer.WebListener
-	fakeRemoteSite *reversetunnelclient.FakeRemoteSite
+	fakeRemoteSite *reversetunnelclient.FakeCluster
 	server         *Server
 	emitter        *eventstest.ChannelEmitter
 	databaseCA     types.CertAuthority
@@ -2381,10 +2381,10 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	}
 
 	// Establish fake reversetunnel b/w database proxy and database service.
-	testCtx.fakeRemoteSite = reversetunnelclient.NewFakeRemoteSite(testCtx.clusterName, proxyAuthClient)
+	testCtx.fakeRemoteSite = reversetunnelclient.NewFakeCluster(testCtx.clusterName, proxyAuthClient)
 	t.Cleanup(func() { require.NoError(t, testCtx.fakeRemoteSite.Close()) })
 	tunnel := &reversetunnelclient.FakeServer{
-		Sites: []reversetunnelclient.RemoteSite{
+		Clusters: []reversetunnelclient.Cluster{
 			testCtx.fakeRemoteSite,
 		},
 	}

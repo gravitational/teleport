@@ -829,57 +829,57 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	h.POST("/webapi/headless/login", h.WithUnauthenticatedLimiter(h.headlessLogin))
 
-	// list available sites
+	// list available clusters
 	h.GET("/webapi/sites", h.WithAuth(h.getClusters))
 
-	// Site specific API
+	// Cluster specific API
 
-	// get site info
-	h.GET("/webapi/sites/:site/info", h.WithClusterAuth(h.getClusterInfo))
+	// get cluster info
+	h.GET("/webapi/sites/:cluster/info", h.WithClusterAuth(h.getClusterInfo))
 
 	// get namespaces
-	h.GET("/webapi/sites/:site/namespaces", h.WithClusterAuth(h.getSiteNamespaces))
+	h.GET("/webapi/sites/:cluster/namespaces", h.WithClusterAuth(h.getClusterNamespaces))
 
 	// get unified resources
-	h.GET("/webapi/sites/:site/resources", h.WithClusterAuth(h.clusterUnifiedResourcesGet))
+	h.GET("/webapi/sites/:cluster/resources", h.WithClusterAuth(h.clusterUnifiedResourcesGet))
 
 	// get nodes
-	h.GET("/webapi/sites/:site/nodes", h.WithClusterAuth(h.clusterNodesGet))
-	h.POST("/webapi/sites/:site/nodes", h.WithClusterAuth(h.handleNodeCreate))
+	h.GET("/webapi/sites/:cluster/nodes", h.WithClusterAuth(h.clusterNodesGet))
+	h.POST("/webapi/sites/:cluster/nodes", h.WithClusterAuth(h.handleNodeCreate))
 
 	// get login alerts
-	h.GET("/webapi/sites/:site/alerts", h.WithClusterAuth(h.clusterLoginAlertsGet))
+	h.GET("/webapi/sites/:cluster/alerts", h.WithClusterAuth(h.clusterLoginAlertsGet))
 
 	// lock interactions
-	h.GET("/webapi/sites/:site/locks", h.WithClusterAuth(h.getClusterLocks))
-	h.PUT("/webapi/sites/:site/locks", h.WithClusterAuth(h.createClusterLock))
-	h.DELETE("/webapi/sites/:site/locks/:uuid", h.WithClusterAuth(h.deleteClusterLock))
+	h.GET("/webapi/sites/:cluster/locks", h.WithClusterAuth(h.getClusterLocks))
+	h.PUT("/webapi/sites/:cluster/locks", h.WithClusterAuth(h.createClusterLock))
+	h.DELETE("/webapi/sites/:cluster/locks/:uuid", h.WithClusterAuth(h.deleteClusterLock))
 
 	// active sessions handlers
-	h.GET("/webapi/sites/:site/connect/ws", h.WithClusterAuthWebSocket(h.siteNodeConnect))         // connect to an active session (via websocket, with auth over websocket)
-	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.clusterActiveAndPendingSessionsGet)) // get list of active and pending sessions
+	h.GET("/webapi/sites/:cluster/connect/ws", h.WithClusterAuthWebSocket(h.openSSHSession))         // connect to an active session (via websocket, with auth over websocket)
+	h.GET("/webapi/sites/:cluster/sessions", h.WithClusterAuth(h.clusterActiveAndPendingSessionsGet)) // get list of active and pending sessions
 
-	h.GET("/webapi/sites/:site/kube/exec/ws", h.WithClusterAuthWebSocket(h.podConnect)) // connect to a pod with exec (via websocket, with auth over websocket)
-	h.GET("/webapi/sites/:site/db/exec/ws", h.WithClusterAuthWebSocket(h.dbConnect))
+	h.GET("/webapi/sites/:cluster/kube/exec/ws", h.WithClusterAuthWebSocket(h.podConnect)) // connect to a pod with exec (via websocket, with auth over websocket)
+	h.GET("/webapi/sites/:cluster/db/exec/ws", h.WithClusterAuthWebSocket(h.dbConnect))
 
 	// Audit events handlers.
-	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
-	h.GET("/webapi/sites/:site/events/search/sessions", h.WithClusterAuth(h.clusterSearchSessionEvents)) // search site session events
-	h.GET("/webapi/sites/:site/ttyplayback/:sid", h.WithClusterAuth(h.ttyPlaybackHandle))
-	h.GET("/webapi/sites/:site/sessionlength/:sid", h.WithClusterAuth(h.sessionLengthHandle))
+	h.GET("/webapi/sites/:cluster/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search cluster events
+	h.GET("/webapi/sites/:cluster/events/search/sessions", h.WithClusterAuth(h.clusterSearchSessionEvents)) // search cluster session events
+	h.GET("/webapi/sites/:cluster/ttyplayback/:sid", h.WithClusterAuth(h.ttyPlaybackHandle))
+	h.GET("/webapi/sites/:cluster/sessionlength/:sid", h.WithClusterAuth(h.sessionLengthHandle))
 
 	// scp file transfer
-	h.GET("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
-	h.POST("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
+	h.GET("/webapi/sites/:cluster/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
+	h.POST("/webapi/sites/:cluster/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 
 	// Sign required files to set up mTLS using the db format.
-	h.POST("/webapi/sites/:site/sign/db", h.WithProvisionTokenAuth(h.signDatabaseCertificate))
+	h.POST("/webapi/sites/:cluster/sign/db", h.WithProvisionTokenAuth(h.signDatabaseCertificate))
 
 	// Returns the CA Certs
 	// Deprecated, use the `webapi/auth/export` endpoint.
 	// Returning other clusters (trusted cluster) CA certs would leak wether the TrustedCluster exists or not.
 	// Given that this is a public/unauthorized endpoint, we should refrain from exposing that kind of information.
-	h.GET("/webapi/sites/:site/auth/export", h.authExportPublic)
+	h.GET("/webapi/sites/:cluster/auth/export", h.authExportPublic)
 	h.GET("/webapi/auth/export", h.authExportPublic)
 
 	// join token handlers
@@ -914,25 +914,25 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/scripts/:token/install-discovery.sh", h.WithLimiter(h.getDiscoveryJoinScriptHandle))
 
 	// web context
-	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
+	h.GET("/webapi/sites/:cluster/context", h.WithClusterAuth(h.getUserContext))
 
 	// Database access handlers.
-	h.GET("/webapi/sites/:site/databases", h.WithClusterAuth(h.clusterDatabasesGet))
-	h.POST("/webapi/sites/:site/databases", h.WithClusterAuth(h.handleDatabaseCreateOrOverwrite))
-	h.PUT("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.handleDatabasePartialUpdate))
-	h.GET("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.clusterDatabaseGet))
-	h.GET("/webapi/sites/:site/databases/:database/iam/policy", h.WithClusterAuth(h.handleDatabaseGetIAMPolicy))
+	h.GET("/webapi/sites/:cluster/databases", h.WithClusterAuth(h.clusterDatabasesGet))
+	h.POST("/webapi/sites/:cluster/databases", h.WithClusterAuth(h.handleDatabaseCreateOrOverwrite))
+	h.PUT("/webapi/sites/:cluster/databases/:database", h.WithClusterAuth(h.handleDatabasePartialUpdate))
+	h.GET("/webapi/sites/:cluster/databases/:database", h.WithClusterAuth(h.clusterDatabaseGet))
+	h.GET("/webapi/sites/:cluster/databases/:database/iam/policy", h.WithClusterAuth(h.handleDatabaseGetIAMPolicy))
 	h.GET("/webapi/scripts/databases/configure/sqlserver/:token/configure-ad.ps1", httplib.MakeHandler(h.sqlServerConfigureADScriptHandle))
 
 	// DatabaseService handlers
-	h.GET("/webapi/sites/:site/databaseservices", h.WithClusterAuth(h.clusterDatabaseServicesList))
+	h.GET("/webapi/sites/:cluster/databaseservices", h.WithClusterAuth(h.clusterDatabaseServicesList))
 
 	// Database server handlers
-	h.GET("/webapi/sites/:site/databaseservers", h.WithClusterAuth(h.clusterDatabaseServersList))
+	h.GET("/webapi/sites/:cluster/databaseservers", h.WithClusterAuth(h.clusterDatabaseServersList))
 
 	// Kube access handlers.
-	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
-	h.GET("/webapi/sites/:site/kubernetes/resources", h.WithClusterAuth(h.clusterKubeResourcesGet))
+	h.GET("/webapi/sites/:cluster/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
+	h.GET("/webapi/sites/:cluster/kubernetes/resources", h.WithClusterAuth(h.clusterKubeResourcesGet))
 
 	// Github connector handlers
 	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
@@ -940,7 +940,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/github/login/console", h.WithLimiter(h.githubLoginConsole))
 
 	// MFA public endpoints.
-	h.POST("/webapi/sites/:site/mfa/required", h.WithClusterAuth(h.isMFARequired))
+	h.POST("/webapi/sites/:cluster/mfa/required", h.WithClusterAuth(h.isMFARequired))
 	h.POST("/webapi/mfa/login/begin", h.WithLimiter(h.mfaLoginBegin))
 	h.POST("/webapi/mfa/login/finish", h.WithLimiter(h.mfaLoginFinish))
 	h.POST("/webapi/mfa/login/finishsession", h.WithLimiter(h.mfaLoginFinishSession))
@@ -1001,72 +1001,72 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/yaml/stringify/:kind", h.WithAuth(h.yamlStringify))
 
 	// Desktop access endpoints.
-	h.GET("/webapi/sites/:site/desktops", h.WithClusterAuth(h.clusterDesktopsGet))
-	h.GET("/webapi/sites/:site/desktopservices", h.WithClusterAuth(h.clusterDesktopServicesGet))
-	h.GET("/webapi/sites/:site/desktops/:desktopName", h.WithClusterAuth(h.getDesktopHandle))
-	// GET /webapi/sites/:site/desktops/:desktopName/connect?username=<username>&width=<width>&height=<height>
-	h.GET("/webapi/sites/:site/desktops/:desktopName/connect/ws", h.WithClusterAuthWebSocket(h.desktopConnectHandle))
-	// GET /webapi/sites/:site/desktopplayback/:sid/ws
-	h.GET("/webapi/sites/:site/desktopplayback/:sid/ws", h.WithClusterAuthWebSocket(h.desktopPlaybackHandle))
-	h.GET("/webapi/sites/:site/desktops/:desktopName/active", h.WithClusterAuth(h.desktopIsActive))
+	h.GET("/webapi/sites/:cluster/desktops", h.WithClusterAuth(h.clusterDesktopsGet))
+	h.GET("/webapi/sites/:cluster/desktopservices", h.WithClusterAuth(h.clusterDesktopServicesGet))
+	h.GET("/webapi/sites/:cluster/desktops/:desktopName", h.WithClusterAuth(h.getDesktopHandle))
+	// GET /webapi/sites/:cluster/desktops/:desktopName/connect?username=<username>&width=<width>&height=<height>
+	h.GET("/webapi/sites/:cluster/desktops/:desktopName/connect/ws", h.WithClusterAuthWebSocket(h.desktopConnectHandle))
+	// GET /webapi/sites/:cluster/desktopplayback/:sid/ws
+	h.GET("/webapi/sites/:cluster/desktopplayback/:sid/ws", h.WithClusterAuthWebSocket(h.desktopPlaybackHandle))
+	h.GET("/webapi/sites/:cluster/desktops/:desktopName/active", h.WithClusterAuth(h.desktopIsActive))
 
 	// GET a Connection Diagnostics by its name
-	h.GET("/webapi/sites/:site/diagnostics/connections/:connectionid", h.WithClusterAuth(h.getConnectionDiagnostic))
+	h.GET("/webapi/sites/:cluster/diagnostics/connections/:connectionid", h.WithClusterAuth(h.getConnectionDiagnostic))
 	// Diagnose a Connection
-	h.POST("/webapi/sites/:site/diagnostics/connections", h.WithClusterAuth(h.diagnoseConnection))
+	h.POST("/webapi/sites/:cluster/diagnostics/connections", h.WithClusterAuth(h.diagnoseConnection))
 
 	// Integrations CRUD
-	h.GET("/webapi/sites/:site/integrations", h.WithClusterAuth(h.integrationsList))
-	h.POST("/webapi/sites/:site/integrations", h.WithClusterAuth(h.integrationsCreate))
-	h.GET("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsGet))
-	h.PUT("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsUpdate))
-	h.GET("/webapi/sites/:site/integrations/:name/stats", h.WithClusterAuth(h.integrationStats))
-	h.GET("/webapi/sites/:site/integrations/:name/discoveryrules", h.WithClusterAuth(h.integrationDiscoveryRules))
-	h.GET("/webapi/sites/:site/integrations/:name/ca", h.WithClusterAuth(h.integrationsExportCA))
+	h.GET("/webapi/sites/:cluster/integrations", h.WithClusterAuth(h.integrationsList))
+	h.POST("/webapi/sites/:cluster/integrations", h.WithClusterAuth(h.integrationsCreate))
+	h.GET("/webapi/sites/:cluster/integrations/:name", h.WithClusterAuth(h.integrationsGet))
+	h.PUT("/webapi/sites/:cluster/integrations/:name", h.WithClusterAuth(h.integrationsUpdate))
+	h.GET("/webapi/sites/:cluster/integrations/:name/stats", h.WithClusterAuth(h.integrationStats))
+	h.GET("/webapi/sites/:cluster/integrations/:name/discoveryrules", h.WithClusterAuth(h.integrationDiscoveryRules))
+	h.GET("/webapi/sites/:cluster/integrations/:name/ca", h.WithClusterAuth(h.integrationsExportCA))
 	// TODO(kimlisa): DELETE IN 19.0 - Replaced by /v2 equivalent endpoint
-	h.DELETE("/webapi/sites/:site/integrations/:name_or_subkind", h.WithClusterAuth(h.integrationsDelete))
-	h.DELETE("/v2/webapi/sites/:site/integrations/:name_or_subkind", h.WithClusterAuth(h.integrationsDelete))
+	h.DELETE("/webapi/sites/:cluster/integrations/:name_or_subkind", h.WithClusterAuth(h.integrationsDelete))
+	h.DELETE("/v2/webapi/sites/:cluster/integrations/:name_or_subkind", h.WithClusterAuth(h.integrationsDelete))
 
 	// GET the Microsoft Teams plugin app.zip file.
-	h.GET("/webapi/sites/:site/plugins/:plugin/files/msteams_app.zip", h.WithClusterAuth(h.integrationsMsTeamsAppZipGet))
+	h.GET("/webapi/sites/:cluster/plugins/:plugin/files/msteams_app.zip", h.WithClusterAuth(h.integrationsMsTeamsAppZipGet))
 
 	// AWS OIDC Integration Actions
 	h.GET("/webapi/scripts/integrations/configure/awsoidc-idp.sh", h.WithLimiter(h.awsOIDCConfigureIdP))
-	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ping", h.WithClusterAuth(h.awsOIDCPing))
-	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databases", h.WithClusterAuth(h.awsOIDCListDatabases))
+	h.POST("/webapi/sites/:cluster/integrations/aws-oidc/:name/ping", h.WithClusterAuth(h.awsOIDCPing))
+	h.POST("/webapi/sites/:cluster/integrations/aws-oidc/:name/databases", h.WithClusterAuth(h.awsOIDCListDatabases))
 	h.GET("/webapi/scripts/integrations/configure/listdatabases-iam.sh", h.WithLimiter(h.awsOIDCConfigureListDatabasesIAM))
-	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployservice", h.WithClusterAuth(h.awsOIDCDeployService))
-	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deploydatabaseservices", h.WithClusterAuth(h.awsOIDCDeployDatabaseServices))
-	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/listdeployeddatabaseservices", h.WithClusterAuth(h.awsOIDCListDeployedDatabaseService))
+	h.POST("/webapi/sites/:cluster/integrations/aws-oidc/:name/deployservice", h.WithClusterAuth(h.awsOIDCDeployService))
+	h.POST("/webapi/sites/:cluster/integrations/aws-oidc/:name/deploydatabaseservices", h.WithClusterAuth(h.awsOIDCDeployDatabaseServices))
+	h.POST("/webapi/sites/:cluster/integrations/aws-oidc/:name/listdeployeddatabaseservices", h.WithClusterAuth(h.awsOIDCListDeployedDatabaseService))
 	h.GET("/webapi/scripts/integrations/configure/deployservice-iam.sh", h.WithLimiter(h.awsOIDCConfigureDeployServiceIAM))
-	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/eksclusters", h.WithClusterAuth(h.awsOIDCListEKSClusters))
-	// TODO(kimlisa): DELETE IN 19.0 - replaced by /v2/webapi/sites/:site/integrations/aws-oidc/:name/enrolleksclusters
+	h.POST("/webapi/sites/:cluster/integrations/aws-oidc/:name/eksclusters", h.WithClusterAuth(h.awsOIDCListEKSClusters))
+	// TODO(kimlisa): DELETE IN 19.0 - replaced by /v2/webapi/sites/:cluster/integrations/aws-oidc/:name/enrolleksclusters
 	// MUST delete with related code found in web/packages/teleport/src/services/integrations/integrations.ts(enrollEksClusters)
-	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/enrolleksclusters", h.WithClusterAuth(h.awsOIDCEnrollEKSClusters))
+	h.POST("/webapi/sites/:cluster/integrations/aws-oidc/:name/enrolleksclusters", h.WithClusterAuth(h.awsOIDCEnrollEKSClusters))
 	// v2 endpoint introduces "extraLabels" field.
-	h.POST("/v2/webapi/sites/:site/integrations/aws-oidc/:name/enrolleksclusters", h.WithClusterAuth(h.awsOIDCEnrollEKSClusters))
-	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/securitygroups", h.WithClusterAuth(h.awsOIDCListSecurityGroups))
-	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databasevpcs", h.WithClusterAuth(h.awsOIDCListDatabaseVPCs))
-	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/subnets", h.WithClusterAuth(h.awsOIDCListSubnets))
-	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/requireddatabasesvpcs", h.WithClusterAuth(h.awsOIDCRequiredDatabasesVPCS))
+	h.POST("/v2/webapi/sites/:cluster/integrations/aws-oidc/:name/enrolleksclusters", h.WithClusterAuth(h.awsOIDCEnrollEKSClusters))
+	h.POST("/webapi/sites/:cluster/integrations/aws-oidc/:name/securitygroups", h.WithClusterAuth(h.awsOIDCListSecurityGroups))
+	h.POST("/webapi/sites/:cluster/integrations/aws-oidc/:name/databasevpcs", h.WithClusterAuth(h.awsOIDCListDatabaseVPCs))
+	h.POST("/webapi/sites/:cluster/integrations/aws-oidc/:name/subnets", h.WithClusterAuth(h.awsOIDCListSubnets))
+	h.POST("/webapi/sites/:cluster/integrations/aws-oidc/:name/requireddatabasesvpcs", h.WithClusterAuth(h.awsOIDCRequiredDatabasesVPCS))
 	h.GET("/webapi/scripts/integrations/configure/eks-iam.sh", h.WithLimiter(h.awsOIDCConfigureEKSIAM))
 	h.GET("/webapi/scripts/integrations/configure/access-graph-cloud-sync-iam.sh", h.WithLimiter(h.accessGraphCloudSyncOIDC))
 	h.GET("/webapi/scripts/integrations/configure/aws-app-access-iam.sh", h.WithLimiter(h.awsOIDCConfigureAWSAppAccessIAM))
 	// TODO(kimlisa): DELETE IN 19.0 - Replaced by /v2 equivalent endpoint
-	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/aws-app-access", h.WithClusterAuth(h.awsOIDCCreateAWSAppAccess))
+	h.POST("/webapi/sites/:cluster/integrations/aws-oidc/:name/aws-app-access", h.WithClusterAuth(h.awsOIDCCreateAWSAppAccess))
 	// v2 endpoint introduces "labels" field
 	// MUST delete with related code found in web/packages/teleport/src/services/integrations/integrations.ts(createAwsAppAccess)
-	h.POST("/v2/webapi/sites/:site/integrations/aws-oidc/:name/aws-app-access", h.WithClusterAuth(h.awsOIDCCreateAWSAppAccess))
+	h.POST("/v2/webapi/sites/:cluster/integrations/aws-oidc/:name/aws-app-access", h.WithClusterAuth(h.awsOIDCCreateAWSAppAccess))
 	// The Integration DELETE endpoint already sets the expected named param after `/integrations/`
 	// It must be re-used here, otherwise the router will not start.
 	// See https://github.com/julienschmidt/httprouter/issues/364
-	h.DELETE("/webapi/sites/:site/integrations/:name_or_subkind/aws-app-access/:name", h.WithClusterAuth(h.awsOIDCDeleteAWSAppAccess))
+	h.DELETE("/webapi/sites/:cluster/integrations/:name_or_subkind/aws-app-access/:name", h.WithClusterAuth(h.awsOIDCDeleteAWSAppAccess))
 	h.GET("/webapi/scripts/integrations/configure/ec2-ssm-iam.sh", h.WithLimiter(h.awsOIDCConfigureEC2SSMIAM))
 
 	// AWS IAM Roles Anywhere Integration Actions
 	h.GET("/webapi/scripts/integrations/configure/awsra-trust-anchor.sh", h.WithLimiter(h.awsRolesAnywhereConfigureTrustAnchor))
-	h.POST("/webapi/sites/:site/integrations/aws-ra/:name/ping", h.WithClusterAuth(h.awsRolesAnywherePing))
-	h.POST("/webapi/sites/:site/integrations/aws-ra/:name/listprofiles", h.WithClusterAuth(h.awsRolesAnywhereListProfiles))
+	h.POST("/webapi/sites/:cluster/integrations/aws-ra/:name/ping", h.WithClusterAuth(h.awsRolesAnywherePing))
+	h.POST("/webapi/sites/:cluster/integrations/aws-ra/:name/listprofiles", h.WithClusterAuth(h.awsRolesAnywhereListProfiles))
 
 	// SAML IDP integration endpoints
 	h.GET("/webapi/scripts/integrations/configure/gcp-workforce-saml.sh", h.WithLimiter(h.gcpWorkforceConfigScript))
@@ -1089,17 +1089,17 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/workload-identity/.well-known/openid-configuration", h.WithLimiter(h.getSPIFFEOIDCDiscoveryDocument))
 
 	// DiscoveryConfig CRUD
-	h.GET("/webapi/sites/:site/discoveryconfig", h.WithClusterAuth(h.discoveryconfigList))
-	h.POST("/webapi/sites/:site/discoveryconfig", h.WithClusterAuth(h.discoveryconfigCreate))
-	h.GET("/webapi/sites/:site/discoveryconfig/:name", h.WithClusterAuth(h.discoveryconfigGet))
-	h.PUT("/webapi/sites/:site/discoveryconfig/:name", h.WithClusterAuth(h.discoveryconfigUpdate))
-	h.DELETE("/webapi/sites/:site/discoveryconfig/:name", h.WithClusterAuth(h.discoveryconfigDelete))
+	h.GET("/webapi/sites/:cluster/discoveryconfig", h.WithClusterAuth(h.discoveryconfigList))
+	h.POST("/webapi/sites/:cluster/discoveryconfig", h.WithClusterAuth(h.discoveryconfigCreate))
+	h.GET("/webapi/sites/:cluster/discoveryconfig/:name", h.WithClusterAuth(h.discoveryconfigGet))
+	h.PUT("/webapi/sites/:cluster/discoveryconfig/:name", h.WithClusterAuth(h.discoveryconfigUpdate))
+	h.DELETE("/webapi/sites/:cluster/discoveryconfig/:name", h.WithClusterAuth(h.discoveryconfigDelete))
 
 	// User Tasks CRUD
-	// Listing Tasks by Integration: GET /webapi/sites/:site/usertask?integration=<integration-name>
-	h.GET("/webapi/sites/:site/usertask", h.WithClusterAuth(h.userTaskListByIntegration))
-	h.GET("/webapi/sites/:site/usertask/:name", h.WithClusterAuth(h.userTaskGet))
-	h.PUT("/webapi/sites/:site/usertask/:name/state", h.WithClusterAuth(h.userTaskStateUpdate))
+	// Listing Tasks by Integration: GET /webapi/sites/:cluster/usertask?integration=<integration-name>
+	h.GET("/webapi/sites/:cluster/usertask", h.WithClusterAuth(h.userTaskListByIntegration))
+	h.GET("/webapi/sites/:cluster/usertask/:name", h.WithClusterAuth(h.userTaskGet))
+	h.PUT("/webapi/sites/:cluster/usertask/:name/state", h.WithClusterAuth(h.userTaskStateUpdate))
 
 	// Connection upgrades.
 	h.GET("/webapi/connectionupgrade", httplib.MakeHandler(h.connectionUpgrade))
@@ -1112,7 +1112,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/headless/:headless_authentication_id", h.WithAuth(h.getHeadless))
 	h.PUT("/webapi/headless/:headless_authentication_id", h.WithAuth(h.putHeadlessState))
 
-	h.GET("/webapi/sites/:site/user-groups", h.WithClusterAuth(h.getUserGroups))
+	h.GET("/webapi/sites/:cluster/user-groups", h.WithClusterAuth(h.getUserGroups))
 
 	// Fetches the user's preferences
 	h.GET("/webapi/user/preferences", h.WithAuth(h.getUserPreferences))
@@ -1121,10 +1121,10 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/user/preferences", h.WithAuth(h.updateUserPreferences))
 
 	// Fetches the user's cluster preferences.
-	h.GET("/webapi/user/preferences/:site", h.WithClusterAuth(h.getUserClusterPreferences))
+	h.GET("/webapi/user/preferences/:cluster", h.WithClusterAuth(h.getUserClusterPreferences))
 
 	// Updates the user's cluster preferences.
-	h.PUT("/webapi/user/preferences/:site", h.WithClusterAuth(h.updateUserClusterPreferences))
+	h.PUT("/webapi/user/preferences/:cluster", h.WithClusterAuth(h.updateUserClusterPreferences))
 
 	// Returns logins included in the Connect My Computer role of the user.
 	// Returns an empty list of logins if the user does not have a Connect My Computer role assigned.
@@ -1135,38 +1135,38 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/automaticupgrades/channel/*request", h.WithUnauthenticatedHighLimiter(h.automaticUpgrades109))
 
 	// GET Machine ID bot by name
-	h.GET("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.getBot))
+	h.GET("/webapi/sites/:cluster/machine-id/bot/:name", h.WithClusterAuth(h.getBot))
 	// GET Machine ID bots
-	h.GET("/webapi/sites/:site/machine-id/bot", h.WithClusterAuth(h.listBots))
+	h.GET("/webapi/sites/:cluster/machine-id/bot", h.WithClusterAuth(h.listBots))
 	// Create Machine ID bots
-	h.POST("/webapi/sites/:site/machine-id/bot", h.WithClusterAuth(h.createBot))
+	h.POST("/webapi/sites/:cluster/machine-id/bot", h.WithClusterAuth(h.createBot))
 	// Create bot join tokens
-	h.POST("/webapi/sites/:site/machine-id/token", h.WithClusterAuth(h.createBotJoinToken))
+	h.POST("/webapi/sites/:cluster/machine-id/token", h.WithClusterAuth(h.createBotJoinToken))
 	// PUT Machine ID bot by name
 	// TODO(nicholasmarais1158) DELETE IN v20.0.0
-	// Replaced by `PUT /v2/webapi/sites/:site/machine-id/bot/:name` which allows editing more than just roles.
-	h.PUT("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBot))
+	// Replaced by `PUT /v2/webapi/sites/:cluster/machine-id/bot/:name` which allows editing more than just roles.
+	h.PUT("/webapi/sites/:cluster/machine-id/bot/:name", h.WithClusterAuth(h.updateBot))
 	// PUT Machine ID bot by name
-	h.PUT("/v2/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBotV2))
+	h.PUT("/v2/webapi/sites/:cluster/machine-id/bot/:name", h.WithClusterAuth(h.updateBotV2))
 	// Delete Machine ID bot
-	h.DELETE("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.deleteBot))
+	h.DELETE("/webapi/sites/:cluster/machine-id/bot/:name", h.WithClusterAuth(h.deleteBot))
 
 	// GET Machine ID instance for a bot by id
-	h.GET("/webapi/sites/:site/machine-id/bot/:name/bot-instance/:id", h.WithClusterAuth(h.getBotInstance))
+	h.GET("/webapi/sites/:cluster/machine-id/bot/:name/bot-instance/:id", h.WithClusterAuth(h.getBotInstance))
 	// GET Machine ID bot instances (paged)
-	h.GET("/webapi/sites/:site/machine-id/bot-instance", h.WithClusterAuth(h.listBotInstances))
+	h.GET("/webapi/sites/:cluster/machine-id/bot-instance", h.WithClusterAuth(h.listBotInstances))
 
 	// GET a paginated list of notifications for a user
-	h.GET("/webapi/sites/:site/notifications", h.WithClusterAuth(h.notificationsGet))
+	h.GET("/webapi/sites/:cluster/notifications", h.WithClusterAuth(h.notificationsGet))
 	// Upsert the timestamp of the latest notification that the user has seen.
-	h.PUT("/webapi/sites/:site/lastseennotification", h.WithClusterAuth(h.notificationsUpsertLastSeenTimestamp))
+	h.PUT("/webapi/sites/:cluster/lastseennotification", h.WithClusterAuth(h.notificationsUpsertLastSeenTimestamp))
 	// Upsert a notification state when to mark a notification as read or hide it.
-	h.PUT("/webapi/sites/:site/notificationstate", h.WithClusterAuth(h.notificationsUpsertNotificationState))
+	h.PUT("/webapi/sites/:cluster/notificationstate", h.WithClusterAuth(h.notificationsUpsertNotificationState))
 
 	// Git servers
-	h.PUT("/webapi/sites/:site/gitservers", h.WithClusterAuth(h.gitServerCreateOrUpsert))
-	h.GET("/webapi/sites/:site/gitservers/:name", h.WithClusterAuth(h.gitServerGet))
-	h.DELETE("/webapi/sites/:site/gitservers/:name", h.WithClusterAuth(h.gitServerDelete))
+	h.PUT("/webapi/sites/:cluster/gitservers", h.WithClusterAuth(h.gitServerCreateOrUpsert))
+	h.GET("/webapi/sites/:cluster/gitservers/:name", h.WithClusterAuth(h.gitServerGet))
+	h.DELETE("/webapi/sites/:cluster/gitservers/:name", h.WithClusterAuth(h.gitServerDelete))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -1255,13 +1255,13 @@ func (h *Handler) handleGetUserOrResetToken(w http.ResponseWriter, r *http.Reque
 
 // getUserContext returns user context
 //
-// GET /webapi/sites/:site/context
-func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+// GET /webapi/sites/:cluster/context
+func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	cn, err := h.cfg.AccessPoint.GetClusterName(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if cn.GetClusterName() != site.GetName() {
+	if cn.GetClusterName() != cluster.GetName() {
 		return nil, trace.BadParameter("endpoint only implemented for root cluster")
 	}
 	accessChecker, err := c.GetUserAccessChecker()
@@ -1313,7 +1313,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 
 	userContext.AllowedSearchAsRoles = accessChecker.GetAllowedSearchAsRoles()
 
-	userContext.Cluster, err = ui.GetClusterDetails(r.Context(), site)
+	userContext.Cluster, err = ui.GetClusterDetails(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3140,15 +3140,15 @@ type getClusterInfoResponse struct {
 	IsCloud bool `json:"isCloud"`
 }
 
-// getClusterInfo returns the information about the cluster in the :site param
-func (h *Handler) getClusterInfo(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+// getClusterInfo returns the information about the cluster in the :cluster param
+func (h *Handler) getClusterInfo(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	ctx := r.Context()
-	clusterDetails, err := ui.GetClusterDetails(ctx, site)
+	clusterDetails, err := ui.GetClusterDetails(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(ctx, site)
+	clt, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3164,19 +3164,19 @@ func (h *Handler) getClusterInfo(w http.ResponseWriter, r *http.Request, p httpr
 	}, nil
 }
 
-type getSiteNamespacesResponse struct {
+type getClusterNamespacesResponse struct {
 	Namespaces []types.Namespace `json:"namespaces"`
 }
 
-// getSiteNamespaces returns a list of namespaces for a given site
+// getClusterNamespaces returns a list of namespaces for a given cluster
 //
-// GET /v1/webapi/sites/:site/namespaces
+// GET /v1/webapi/sites/:cluster/namespaces
 //
 // Successful response:
 //
 // {"namespaces": [{..namespace resource...}]}
-func (h *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
-	return getSiteNamespacesResponse{
+func (h *Handler) getClusterNamespaces(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	return getClusterNamespacesResponse{
 		Namespaces: []types.Namespace{types.DefaultNamespace()},
 	}, nil
 }
@@ -3300,10 +3300,10 @@ func (h *Handler) getUserGroupLookup(ctx context.Context, clt apiclient.GetResou
 	}
 }
 
-// clusterUnifiedResourcesGet returns a list of resources for a given cluster site. This includes all resources available to be displayed in the web ui
+// clusterUnifiedResourcesGet returns a list of resources for a given cluster. This includes all resources available to be displayed in the web ui
 // such as Nodes, Apps, Desktops, etc etc
-func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
-	clt, err := sctx.GetUserClient(request.Context(), site)
+func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	clt, err := sctx.GetUserClient(request.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3340,9 +3340,9 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				unifiedResources = append(unifiedResources, ui.MakeServer(site.GetName(), r, logins, enriched.RequiresRequest))
+				unifiedResources = append(unifiedResources, ui.MakeServer(cluster.GetName(), r, logins, enriched.RequiresRequest))
 			case types.KindGitServer:
-				unifiedResources = append(unifiedResources, ui.MakeGitServer(site.GetName(), r, enriched.RequiresRequest))
+				unifiedResources = append(unifiedResources, ui.MakeGitServer(cluster.GetName(), r, enriched.RequiresRequest))
 			}
 		case types.DatabaseServer:
 			db := ui.MakeDatabaseFromDatabaseServer(r, accessChecker, h.cfg.DatabaseREPLRegistry, enriched.RequiresRequest)
@@ -3365,7 +3365,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
 				LocalClusterName:      h.auth.clusterName,
 				LocalProxyDNSName:     proxyDNSName,
-				AppClusterName:        site.GetName(),
+				AppClusterName:        cluster.GetName(),
 				AllowedAWSRolesLookup: allowedAWSRolesLookup,
 				UserGroupLookup:       getUserGroupLookup(),
 				Logger:                h.logger,
@@ -3378,7 +3378,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			app := ui.MakeAppTypeFromSAMLApp(r, ui.MakeAppsConfig{
 				LocalClusterName:  h.auth.clusterName,
 				LocalProxyDNSName: h.proxyDNSName(),
-				AppClusterName:    site.GetName(),
+				AppClusterName:    cluster.GetName(),
 				RequiresRequest:   enriched.RequiresRequest,
 			})
 			unifiedResources = append(unifiedResources, app)
@@ -3403,11 +3403,11 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 	return resp, nil
 }
 
-// clusterNodesGet returns a list of nodes for a given cluster site.
-func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+// clusterNodesGet returns a list of nodes for a given cluster.
+func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of nodes.
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3440,7 +3440,7 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 			return nil, trace.Wrap(err)
 		}
 
-		uiServers = append(uiServers, ui.MakeServer(site.GetName(), server, logins, false /* requiresRequest */))
+		uiServers = append(uiServers, ui.MakeServer(cluster.GetName(), server, logins, false /* requiresRequest */))
 	}
 
 	return listResourcesGetResponse{
@@ -3454,8 +3454,8 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 const iso8601MilliFormat = "2006-01-02T15:04:05.000Z0700"
 
 // notificationsGet returns a paginated list of notifications for a user.
-func (h *Handler) notificationsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
-	clt, err := sctx.GetUserClient(r.Context(), site)
+func (h *Handler) notificationsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3497,8 +3497,8 @@ type GetNotificationsResponse struct {
 }
 
 // notificationsUpsertLastSeenTimestamp upserts a user's last seen notification timestamp.
-func (h *Handler) notificationsUpsertLastSeenTimestamp(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
-	clt, err := sctx.GetUserClient(r.Context(), site)
+func (h *Handler) notificationsUpsertLastSeenTimestamp(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3534,8 +3534,8 @@ type UpsertUserLastSeenNotificationRequest struct {
 }
 
 // notificationsUpsertNotificationState upserts a user notification state.
-func (h *Handler) notificationsUpsertNotificationState(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
-	clt, err := sctx.GetUserClient(r.Context(), site)
+func (h *Handler) notificationsUpsertNotificationState(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3576,10 +3576,10 @@ type getLoginAlertsResponse struct {
 }
 
 // clusterLoginAlertsGet returns a list of on-login alerts for the user.
-func (h *Handler) clusterLoginAlertsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) clusterLoginAlertsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of alerts.
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3603,10 +3603,10 @@ func (h *Handler) getClusterLocks(
 	r *http.Request,
 	p httprouter.Params,
 	sessionCtx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	cluster reversetunnelclient.Cluster,
 ) (any, error) {
 	ctx := r.Context()
-	clt, err := sessionCtx.GetUserClient(ctx, site)
+	clt, err := sessionCtx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3630,7 +3630,7 @@ func (h *Handler) createClusterLock(
 	r *http.Request,
 	p httprouter.Params,
 	sessionCtx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	cluster reversetunnelclient.Cluster,
 ) (any, error) {
 	var req *createLockReq
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
@@ -3638,7 +3638,7 @@ func (h *Handler) createClusterLock(
 	}
 
 	ctx := r.Context()
-	clt, err := sessionCtx.GetUserClient(ctx, site)
+	clt, err := sessionCtx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3678,10 +3678,10 @@ func (h *Handler) deleteClusterLock(
 	r *http.Request,
 	p httprouter.Params,
 	sessionCtx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	cluster reversetunnelclient.Cluster,
 ) (any, error) {
 	ctx := r.Context()
-	clt, err := sessionCtx.GetUserClient(ctx, site)
+	clt, err := sessionCtx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3716,9 +3716,9 @@ func (f SessionControllerFunc) AcquireSessionContext(ctx context.Context, sctx *
 	return ctx, trace.Wrap(err)
 }
 
-// siteNodeConnect connect to the site node
+// openSSHSession connect to the target SSH instance.
 //
-// GET /v1/webapi/sites/:site/namespaces/:namespace/connect?access_token=bearer_token&params=<urlencoded json-structure>
+// GET /v1/webapi/sites/:cluster/namespaces/:namespace/connect?access_token=bearer_token&params=<urlencoded json-structure>
 //
 // Due to the nature of websocket we can't POST parameters as is, so we have
 // to add query parameters. The params query parameter is a URL-encoded JSON structure:
@@ -3726,12 +3726,12 @@ func (f SessionControllerFunc) AcquireSessionContext(ctx context.Context, sctx *
 // {"server_id": "uuid", "login": "admin", "term": {"h": 120, "w": 100}, "sid": "123"}
 //
 // Successful response is a websocket stream that allows read write to the server
-func (h *Handler) siteNodeConnect(
+func (h *Handler) openSSHSession(
 	w http.ResponseWriter,
 	r *http.Request,
 	p httprouter.Params,
 	sessionCtx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	cluster reversetunnelclient.Cluster,
 	ws *websocket.Conn,
 ) (any, error) {
 	q := r.URL.Query()
@@ -3744,7 +3744,7 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sessionCtx.GetUserClient(r.Context(), site)
+	clt, err := sessionCtx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3760,7 +3760,7 @@ func (h *Handler) siteNodeConnect(
 		tracker      types.SessionTracker
 	)
 
-	clusterName := site.GetName()
+	clusterName := cluster.GetName()
 	if req.SessionID.IsZero() {
 		// An existing session ID was not provided so we need to create a new one.
 		sessionData, err = h.generateSession(r.Context(), &req, clusterName, sessionCtx)
@@ -3793,7 +3793,7 @@ func (h *Handler) siteNodeConnect(
 		"websid", sessionCtx.GetSessionID(),
 	)
 
-	authAccessPoint, err := site.CachingAccessPoint()
+	authAccessPoint, err := cluster.CachingAccessPoint()
 	if err != nil {
 		h.logger.DebugContext(r.Context(), "Unable to get auth access point", "error", err)
 		return nil, trace.Wrap(err)
@@ -3814,7 +3814,7 @@ func (h *Handler) siteNodeConnect(
 		keepAliveInterval = req.KeepAliveInterval
 	}
 
-	nw, err := site.NodeWatcher()
+	nw, err := cluster.NodeWatcher()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3908,7 +3908,7 @@ func (h *Handler) podConnect(
 	r *http.Request,
 	p httprouter.Params,
 	sctx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	cluster reversetunnelclient.Cluster,
 	ws *websocket.Conn,
 ) (any, error) {
 	q := r.URL.Query()
@@ -3928,7 +3928,7 @@ func (h *Handler) podConnect(
 			params.SessionID.String(),
 			params.ParticipantMode,
 			sctx,
-			site,
+			cluster,
 			ws,
 		))
 	}
@@ -3955,7 +3955,7 @@ func (h *Handler) podConnect(
 	sess := session.Session{
 		Kind:                  types.KubernetesSessionKind,
 		Login:                 "root",
-		ClusterName:           site.GetName(),
+		ClusterName:           cluster.GetName(),
 		KubernetesClusterName: execReq.KubeCluster,
 		ID:                    session.NewID(),
 		Created:               h.clock.Now().UTC(),
@@ -3973,7 +3973,7 @@ func (h *Handler) podConnect(
 		"websid", sctx.GetSessionID(),
 	)
 
-	authAccessPoint, err := site.CachingAccessPoint()
+	authAccessPoint, err := cluster.CachingAccessPoint()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3996,7 +3996,7 @@ func (h *Handler) podConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4005,7 +4005,7 @@ func (h *Handler) podConnect(
 		req:                 execReq,
 		sess:                sess,
 		sctx:                sctx,
-		teleportCluster:     site.GetName(),
+		teleportCluster:     cluster.GetName(),
 		ws:                  ws,
 		keepAliveInterval:   netConfig.GetKeepAliveInterval(),
 		logger:              h.logger.With(teleport.ComponentKey, "pod"),
@@ -4104,7 +4104,7 @@ func (h *Handler) generateSession(ctx context.Context, req *TerminalRequest, clu
 }
 
 // fetchExistingSession fetches an active or pending SSH session by the SessionID passed in the TerminalRequest.
-func (h *Handler) fetchExistingSession(ctx context.Context, clt authclient.ClientI, req *TerminalRequest, siteName string) (session.Session, types.SessionTracker, error) {
+func (h *Handler) fetchExistingSession(ctx context.Context, clt authclient.ClientI, req *TerminalRequest, clusterName string) (session.Session, types.SessionTracker, error) {
 	sessionID, err := session.ParseID(req.SessionID.String())
 	if err != nil {
 		return session.Session{}, nil, trace.Wrap(err)
@@ -4120,7 +4120,7 @@ func (h *Handler) fetchExistingSession(ctx context.Context, clt authclient.Clien
 		return session.Session{}, nil, trace.NotFound("SSH session %v not found", sessionID)
 	}
 
-	sessionData := trackerToLegacySession(tracker, siteName)
+	sessionData := trackerToLegacySession(tracker, clusterName)
 	// When joining an existing session use the specially handled
 	// `SSHSessionJoinPrincipal` login instead of the provided login so that
 	// users are able to join sessions without having permissions to create
@@ -4131,15 +4131,15 @@ func (h *Handler) fetchExistingSession(ctx context.Context, clt authclient.Clien
 	return sessionData, tracker, nil
 }
 
-type siteSessionGenerateResponse struct {
+type clusterSessionGenerateResponse struct {
 	Session session.Session `json:"session"`
 }
 
-type siteSessionsGetResponse struct {
-	Sessions []siteSessionsGetResponseSession `json:"sessions"`
+type clusterSessionsGetResponse struct {
+	Sessions []clusterSessionsGetResponseSession `json:"sessions"`
 }
 
-type siteSessionsGetResponseSession struct {
+type clusterSessionsGetResponseSession struct {
 	session.Session
 	ParticipantModes []types.SessionParticipantMode `json:"participantModes"`
 }
@@ -4185,11 +4185,11 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 	}
 }
 
-// clusterActiveAndPendingSessionsGet gets the list of active and pending sessions for a site.
+// clusterActiveAndPendingSessionsGet gets the list of active and pending sessions for a cluster.
 //
-// GET /v1/webapi/sites/:site/sessions
-func (h *Handler) clusterActiveAndPendingSessionsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
-	clt, err := sctx.GetUserClient(r.Context(), site)
+// GET /v1/webapi/sites/:cluster/sessions
+func (h *Handler) clusterActiveAndPendingSessionsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4208,19 +4208,19 @@ func (h *Handler) clusterActiveAndPendingSessionsGet(w http.ResponseWriter, r *h
 		Roles:    userRoles,
 	}
 
-	sessions := make([]siteSessionsGetResponseSession, 0, len(trackers))
+	sessions := make([]clusterSessionsGetResponseSession, 0, len(trackers))
 	for _, tracker := range trackers {
 		if tracker.GetState() != types.SessionState_SessionStateTerminated {
-			session := trackerToLegacySession(tracker, p.ByName("site"))
+			session := trackerToLegacySession(tracker, p.ByName("cluster"))
 			// Get the participant modes available to the user from their roles.
 			accessEvaluator := moderation.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), types.SSHSessionKind, tracker.GetHostUser())
 			participantModes := accessEvaluator.CanJoin(accessContext)
 
-			sessions = append(sessions, siteSessionsGetResponseSession{Session: session, ParticipantModes: participantModes})
+			sessions = append(sessions, clusterSessionsGetResponseSession{Session: session, ParticipantModes: participantModes})
 		}
 	}
 
-	return siteSessionsGetResponse{Sessions: sessions}, nil
+	return clusterSessionsGetResponse{Sessions: sessions}, nil
 }
 
 func toFieldsSlice(rawEvents []apievents.AuditEvent) ([]events.EventFields, error) {
@@ -4238,7 +4238,7 @@ func toFieldsSlice(rawEvents []apievents.AuditEvent) ([]events.EventFields, erro
 
 // clusterSearchEvents returns all audit log events matching the provided criteria
 //
-// GET /v1/webapi/sites/:site/events/search
+// GET /v1/webapi/sites/:cluster/events/search
 //
 // Query parameters:
 //
@@ -4252,7 +4252,7 @@ func toFieldsSlice(rawEvents []apievents.AuditEvent) ([]events.EventFields, erro
 //	"order":    optional ordering of events. Can be either "asc" or "desc"
 //	            for ascending and descending respectively.
 //	            If no order is provided it defaults to descending.
-func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	values := r.URL.Query()
 
 	var eventTypes []string
@@ -4270,12 +4270,12 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 			StartKey:   startKey,
 		})
 	}
-	return clusterEventsList(r.Context(), sctx, site, r.URL.Query(), searchEvents)
+	return clusterEventsList(r.Context(), sctx, cluster, r.URL.Query(), searchEvents)
 }
 
 // clusterSearchSessionEvents returns session events matching the criteria.
 //
-// GET /v1/webapi/sites/:site/sessions/search
+// GET /v1/webapi/sites/:cluster/sessions/search
 //
 // Query parameters:
 //
@@ -4287,7 +4287,7 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 //	"order":    optional ordering of events. Can be either "asc" or "desc"
 //	            for ascending and descending respectively.
 //	            If no order is provided it defaults to descending.
-func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	searchSessionEvents := func(clt authclient.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 		return clt.SearchSessionEvents(r.Context(), events.SearchSessionEventsRequest{
 			From:     from,
@@ -4297,12 +4297,12 @@ func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Requ
 			StartKey: startKey,
 		})
 	}
-	return clusterEventsList(r.Context(), sctx, site, r.URL.Query(), searchSessionEvents)
+	return clusterEventsList(r.Context(), sctx, cluster, r.URL.Query(), searchSessionEvents)
 }
 
 // clusterEventsList returns a list of audit events obtained using the provided
 // searchEvents method.
-func clusterEventsList(ctx context.Context, sctx *SessionContext, site reversetunnelclient.RemoteSite, values url.Values, searchEvents func(clt authclient.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)) (any, error) {
+func clusterEventsList(ctx context.Context, sctx *SessionContext, cluster reversetunnelclient.Cluster, values url.Values, searchEvents func(clt authclient.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)) (any, error) {
 	from, err := queryTime(values, "from", time.Now().UTC().AddDate(0, -1, 0))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4325,7 +4325,7 @@ func clusterEventsList(ctx context.Context, sctx *SessionContext, site reversetu
 
 	startKey := values.Get("startKey")
 
-	clt, err := sctx.GetUserClient(ctx, site)
+	clt, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4544,36 +4544,36 @@ func (h *Handler) validateTrustedCluster(w http.ResponseWriter, r *http.Request,
 }
 
 func (h *Handler) String() string {
-	return "multi site"
+	return "multi cluster"
 }
 
-// currentSiteShortcut is a special shortcut that will return the first
-// available site, is helpful when UI works in single site mode to reduce
+// currentClusterShortcut is a special shortcut that will return the first
+// available cluster is helpful when UI works in single cluster mode to reduce
 // the amount of requests
-const currentSiteShortcut = "-current-"
+const currentClusterShortcut = "-current-"
 
 // ContextHandler is a handler called with the auth context, what means it is authenticated and ready to work
 type ContextHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (any, error)
 
 // ClusterHandler is a authenticated handler that is called for some existing remote cluster
-type ClusterHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error)
+type ClusterHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error)
 
 // ClusterWebsocketHandler is a authenticated websocket handler that is called for some existing remote cluster
-type ClusterWebsocketHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite, ws *websocket.Conn) (any, error)
+type ClusterWebsocketHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster, ws *websocket.Conn) (any, error)
 
 // WithClusterAuth wraps a ClusterHandler to ensure that a request is authenticated to this proxy
-// (the same as WithAuth), as well as to grab the remoteSite (which can represent this local cluster
-// or a remote trusted cluster) as specified by the ":site" url parameter.
+// (the same as WithAuth), as well as to grab the cluster (which can represent this local cluster
+// or a leaf cluster) as specified by the ":cluster" url parameter.
 //
 // WithClusterAuth also provides CSRF protection by requiring the bearer token to be present.
 func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-		sctx, site, err := h.authenticateRequestWithCluster(w, r, p)
+		sctx, cluster, err := h.authenticateRequestWithCluster(w, r, p)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		return fn(w, r, p, sctx, site)
+		return fn(w, r, p, sctx, cluster)
 	})
 }
 
@@ -4614,18 +4614,18 @@ var authnWsUpgrader = websocket.Upgrader{
 }
 
 // WithClusterAuthWebSocket wraps a ClusterWebsocketHandler to ensure that a request is authenticated
-// to this proxy via websocket, as well as to grab the remoteSite (which can represent this local
-// cluster or a remote trusted cluster) as specified by the ":site" url parameter.
+// to this proxy via websocket, as well as to grab the cluster (which can represent this local
+// cluster or a leaf cluster) as specified by the ":cluster" url parameter.
 func (h *Handler) WithClusterAuthWebSocket(fn ClusterWebsocketHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-		sctx, ws, site, err := h.authenticateWSRequestWithCluster(w, r, p)
+		sctx, ws, cluster, err := h.authenticateWSRequestWithCluster(w, r, p)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// WS protocol requires the server send a close message
 		// which should be done by downstream users
 		defer ws.Close()
-		if _, err := fn(w, r, p, sctx, site, ws); err != nil {
+		if _, err := fn(w, r, p, sctx, cluster, ws); err != nil {
 			h.writeErrToWebSocket(r.Context(), ws, err)
 		}
 		return nil, nil
@@ -4635,54 +4635,54 @@ func (h *Handler) WithClusterAuthWebSocket(fn ClusterWebsocketHandler) httproute
 // authenticateWSRequestWithCluster ensures that a request is
 // authenticated to this proxy via websocket, returning the
 // *SessionContext (same as AuthenticateRequest), and also grabs the
-// remoteSite (which can represent this local cluster or a remote
-// trusted cluster) as specified by the ":site" url parameter.
-func (h *Handler) authenticateWSRequestWithCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params) (*SessionContext, *websocket.Conn, reversetunnelclient.RemoteSite, error) {
+// cluster (which can represent this local cluster or a leaf cluster)
+// as specified by the ":cluster" url parameter.
+func (h *Handler) authenticateWSRequestWithCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params) (*SessionContext, *websocket.Conn, reversetunnelclient.Cluster, error) {
 	sctx, ws, err := h.AuthenticateRequestWS(w, r)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	site, err := h.getSiteByParams(r.Context(), sctx, p)
+	cluster, err := h.getClusterByParams(r.Context(), sctx, p)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	return sctx, ws, site, nil
+	return sctx, ws, cluster, nil
 }
 
 // authenticateRequestWithCluster ensures that a request is authenticated
 // to this proxy, returning the *SessionContext (same as AuthenticateRequest),
-// and also grabs the remoteSite (which can represent this local cluster or a
-// remote trusted cluster) as specified by the ":site" url parameter.
-func (h *Handler) authenticateRequestWithCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params) (*SessionContext, reversetunnelclient.RemoteSite, error) {
+// and also grabs the cluster (which can represent this local cluster or a
+// leaf cluster) as specified by the ":cluster" url parameter.
+func (h *Handler) authenticateRequestWithCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params) (*SessionContext, reversetunnelclient.Cluster, error) {
 	sctx, err := h.AuthenticateRequest(w, r, true)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	site, err := h.getSiteByParams(r.Context(), sctx, p)
+	cluster, err := h.getClusterByParams(r.Context(), sctx, p)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return sctx, site, nil
+	return sctx, cluster, nil
 }
 
-// getSiteByParams gets the remoteSite (which can represent this local cluster or a
-// remote trusted cluster) as specified by the ":site" url parameter.
-func (h *Handler) getSiteByParams(ctx context.Context, sctx *SessionContext, p httprouter.Params) (reversetunnelclient.RemoteSite, error) {
-	clusterName := p.ByName("site")
-	site, err := h.getSiteByClusterName(ctx, sctx, clusterName)
+// getClusterByParams gets the cluster (which can represent this local cluster or a
+// leaf cluster) as specified by the ":cluster" url parameter.
+func (h *Handler) getClusterByParams(ctx context.Context, sctx *SessionContext, p httprouter.Params) (reversetunnelclient.Cluster, error) {
+	clusterName := p.ByName("cluster")
+	cluster, err := h.getClusterByName(ctx, sctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return site, nil
+	return cluster, nil
 }
 
-func (h *Handler) getSiteByClusterName(ctx context.Context, sctx *SessionContext, clusterName string) (reversetunnelclient.RemoteSite, error) {
-	if clusterName == currentSiteShortcut {
+func (h *Handler) getClusterByName(ctx context.Context, sctx *SessionContext, clusterName string) (reversetunnelclient.Cluster, error) {
+	if clusterName == currentClusterShortcut {
 		res, err := h.cfg.ProxyClient.GetClusterName(ctx)
 		if err != nil {
 			h.logger.WarnContext(ctx, "Failed to query cluster name", "error", err)
@@ -4697,13 +4697,13 @@ func (h *Handler) getSiteByClusterName(ctx context.Context, sctx *SessionContext
 		return nil, trace.Wrap(err)
 	}
 
-	site, err := proxy.GetSite(clusterName)
+	cluster, err := proxy.GetSite(clusterName)
 	if err != nil {
-		h.logger.WarnContext(ctx, "Failed to query site", "error", err, "cluster", clusterName)
+		h.logger.WarnContext(ctx, "Failed to query cluster", "error", err, "cluster", clusterName)
 		return nil, trace.Wrap(err)
 	}
 
-	return site, nil
+	return cluster, nil
 }
 
 // ClusterClientProvider is an interface for a type which can provide
@@ -4723,12 +4723,12 @@ type clusterClientProvider struct {
 // UserClientForCluster returns a client to the local or remote cluster
 // identified by clusterName and is authenticated with the identity of the user.
 func (r clusterClientProvider) UserClientForCluster(ctx context.Context, clusterName string) (authclient.ClientI, error) {
-	site, err := r.h.getSiteByClusterName(ctx, r.ctx, clusterName)
+	cluster, err := r.h.getClusterByName(ctx, r.ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := r.ctx.GetUserClient(ctx, site)
+	clt, err := r.ctx.GetUserClient(ctx, cluster)
 	return clt, trace.Wrap(err)
 }
 
@@ -4756,7 +4756,7 @@ func (h *Handler) WithClusterClientProvider(fn ClusterClientHandler) httprouter.
 }
 
 // ProvisionTokenHandler is a authenticated handler that is called for some existing Token
-type ProvisionTokenHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, site reversetunnelclient.RemoteSite, token types.ProvisionToken) (any, error)
+type ProvisionTokenHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, cluster reversetunnelclient.Cluster, token types.ProvisionToken) (any, error)
 
 // WithProvisionTokenAuth ensures that request is authenticated with a provision token.
 // Provision tokens, when used like this are invalidated as soon as used.
@@ -4775,13 +4775,13 @@ func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenHandler) httprouter.Ha
 			return nil, trace.AccessDenied("need auth")
 		}
 
-		site, err := h.cfg.Proxy.GetSite(h.auth.clusterName)
+		cluster, err := h.cfg.Proxy.GetSite(h.auth.clusterName)
 		if err != nil {
 			h.logger.WarnContext(ctx, "Failed to query cluster", "error", err, "cluster", h.auth.clusterName)
 			return nil, trace.Wrap(err)
 		}
 
-		return fn(w, r, p, site, token)
+		return fn(w, r, p, cluster, token)
 	})
 }
 

@@ -57,7 +57,7 @@ func (h *Handler) desktopConnectHandle(
 	r *http.Request,
 	p httprouter.Params,
 	sctx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	site reversetunnelclient.Cluster,
 	ws *websocket.Conn,
 ) (any, error) {
 	desktopName := p.ByName("desktopName")
@@ -88,7 +88,7 @@ func (h *Handler) createDesktopConnection(
 	clusterName string,
 	log *slog.Logger,
 	sctx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	site reversetunnelclient.Cluster,
 	ws *websocket.Conn,
 ) error {
 	defer ws.Close()
@@ -189,7 +189,7 @@ func (h *Handler) createDesktopConnection(
 	serviceConn, version, err := desktop.ConnectToWindowsService(ctx, &desktop.ConnectionConfig{
 		Log:            log,
 		DesktopsGetter: clt,
-		Site:           site,
+		Cluster:           site,
 		ClientSrcAddr:  clientSrcAddr,
 		ClientDstAddr:  clientDstAddr,
 		DesktopName:    desktopName,
@@ -297,7 +297,7 @@ func createUserCertsRequest(
 func (h *Handler) prepareForCertIssuance(
 	ctx context.Context,
 	sctx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	site reversetunnelclient.Cluster,
 	publicKey crypto.PublicKey,
 	desktopName, username string,
 ) (mfaRequired bool, certsReq *proto.UserCertsRequest, err error) {

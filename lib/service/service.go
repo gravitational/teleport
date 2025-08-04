@@ -4642,7 +4642,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 	streamEmitter := &events.StreamerAndEmitter{
 		Emitter:  asyncEmitter,
-		Streamer: conn.Client,
+		SClusterGetteronn.Client,
 	}
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{

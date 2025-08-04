@@ -193,7 +193,7 @@ func connectToHost(ctx context.Context, cfg connectConfig) (*testTerminal, error
 				return
 			}
 
-			var sessResp siteSessionGenerateResponse
+			var sessResp clusterSessionGenerateResponse
 			if err := json.Unmarshal([]byte(envelope.Payload), &sessResp); err != nil {
 				return
 			}

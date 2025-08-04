@@ -131,7 +131,7 @@ func (p *podExecHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 	p.sctx.AddClosers(p)
 	defer p.sctx.RemoveCloser(p)
 
-	sessionMetadataResponse, err := json.Marshal(siteSessionGenerateResponse{Session: p.sess})
+	sessionMetadataResponse, err := json.Marshal(clusterSessionGenerateResponse{Session: p.sess})
 	if err != nil {
 		p.logger.ErrorContext(r.Context(), "failed marshaling session data", "error", err)
 		if err := p.sendErrorMessage(err); err != nil {
@@ -437,7 +437,7 @@ func (h *Handler) joinKubernetesSession(
 	sessionID string,
 	mode types.SessionParticipantMode,
 	sctx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	site reversetunnelclient.Cluster,
 	ws *websocket.Conn,
 ) error {
 	h.logger.InfoContext(ctx, "Attempting to join kubernetes existing session",
@@ -464,7 +464,7 @@ func (h *Handler) joinKubernetesSession(
 		return trace.NotFound("Kubernetes session %v not found", sessionID)
 	}
 
-	sessionMetadataResponse, err := json.Marshal(siteSessionGenerateResponse{Session: session.Session{
+	sessionMetadataResponse, err := json.Marshal(clusterSessionGenerateResponse{Session: session.Session{
 		Kind:                  types.KubernetesSessionKind,
 		ID:                    session.ID(tracker.GetName()),
 		Login:                 tracker.GetLogin(),

@@ -1771,7 +1771,7 @@ func mustListen(t *testing.T) (net.Listener, utils.NetAddr) {
 	return l, addr
 }
 
-func noCache(clt authclient.ClientI, cacheName []string) (authclient.RemoteProxyAccessPoint, error) {
+fuClusterGetter(clt authclient.ClientI, cacheName []string) (authclient.RemoteProxyAccessPoint, error) {
 	return clt, nil
 }
 
@@ -1912,7 +1912,7 @@ func TestProxyRoundRobin(t *testing.T) {
 	}
 
 	// close first connection, and test it again
-	pool1.Stop()
+	pClusterGetter)
 
 	for range 3 {
 		testClient(t, f, proxy.Addr(), f.ssh.srvAddress, f.ssh.srv.Addr(), sshConfig)
@@ -2606,7 +2606,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 			Addr:     agentlessListener.Addr().String(),
 			Hostname: "agentless",
 		},
-	}
+	}ClusterGetter
 
 	getNonProxySession := func() func() *tracessh.Session {
 		f := newFixtureWithoutDiskBasedLogging(t, SetAllowFileCopying(true))
@@ -2868,7 +2868,7 @@ func TestX11ProxySupport(t *testing.T) {
 
 	// write some data to the channel
 	msg := []byte("testing!")
-	_, err = xch.Write(msg)
+	_ClusterGetterh.Write(msg)
 	require.NoError(t, err)
 
 	// send EOF
@@ -3305,7 +3305,7 @@ func newSigner(t testing.TB, ctx context.Context, testServer *authtest.Server) s
 	require.NoError(t, err)
 
 	// set up user CA and set up a user that has access to the server
-	signer, err := sshutils.NewSigner(priv, certs.SSH)
+	sClusterGetter := sshutils.NewSigner(priv, certs.SSH)
 	require.NoError(t, err)
 	return signer
 }

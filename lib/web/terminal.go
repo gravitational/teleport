@@ -378,7 +378,7 @@ func (t *TerminalHandler) writeSessionData(ctx context.Context) error {
 	// when joining a session to avoid displaying "-teleport-internal-join" as the username.
 	if t.displayLogin != "" {
 		sessionDataTemp.Login = t.displayLogin
-		sessionMetadataResponse, err := json.Marshal(siteSessionGenerateResponse{Session: sessionDataTemp})
+		sessionMetadataResponse, err := json.Marshal(clusterSessionGenerateResponse{Session: sessionDataTemp})
 		if err != nil {
 			t.sendError(ctx, "unable to marshal session response", err, t.stream)
 			return trace.Wrap(err)
@@ -397,7 +397,7 @@ func (t *TerminalHandler) writeSessionData(ctx context.Context) error {
 		}
 		sessionDataTemp.ServerHostname = hostname
 
-		sessionMetadataResponse, err := json.Marshal(siteSessionGenerateResponse{Session: sessionDataTemp})
+		sessionMetadataResponse, err := json.Marshal(clusterSessionGenerateResponse{Session: sessionDataTemp})
 		if err != nil {
 			t.sendError(ctx, "unable to marshal session response", err, t.stream)
 			return trace.Wrap(err)

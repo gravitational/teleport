@@ -83,7 +83,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 		proxyWatcher:     watcher,
 	}
 
-	site, err := newLocalSite(srv, "clustername", nil,
+	site, err := newLocalCluster(srv, "clustername", nil,
 		withPeriodicFunctionInterval(time.Hour),
 		withProxySyncInterval(time.Hour),
 	)
@@ -154,7 +154,7 @@ func TestLocalSiteOverlap(t *testing.T) {
 		localAuthClient: &mockLocalSiteClient{},
 	}
 
-	site, err := newLocalSite(srv, "clustername", nil,
+	site, err := newLocalCluster(srv, "clustername", nil,
 		withPeriodicFunctionInterval(time.Hour),
 	)
 	require.NoError(t, err)
@@ -277,7 +277,7 @@ func TestProxyResync(t *testing.T) {
 		offlineThreshold: 24 * time.Hour,
 		proxyWatcher:     watcher,
 	}
-	site, err := newLocalSite(srv, "clustername", nil,
+	site, err := newLocalCluster(srv, "clustername", nil,
 		withProxySyncInterval(time.Second),
 		withPeriodicFunctionInterval(24*time.Hour),
 	)

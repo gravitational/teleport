@@ -319,9 +319,9 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	testCtx.KubeProxy, err = NewTLSServer(TLSServerConfig{
 		ForwarderConfig: ForwarderConfig{
 			ReverseTunnelSrv: &reversetunnelclient.FakeServer{
-				Sites: []reversetunnelclient.RemoteSite{
+				Clusters: []reversetunnelclient.Cluster{
 					&fakeRemoteSite{
-						FakeRemoteSite: reversetunnelclient.NewFakeRemoteSite(testCtx.ClusterName, client),
+						FakeCluster: reversetunnelclient.NewFakeCluster(testCtx.ClusterName, client),
 						idToAddr: map[string]string{
 							testCtx.HostID: testCtx.kubeServerListener.Addr().String(),
 						},
@@ -691,7 +691,7 @@ func (f *fakeClient) CreateSessionTracker(ctx context.Context, st types.SessionT
 // fakeRemoteSite is a fake remote site that uses a map to map server IDs to
 // addresses to simulate reverse tunneling.
 type fakeRemoteSite struct {
-	*reversetunnelclient.FakeRemoteSite
+	*reversetunnelclient.FakeCluster
 	idToAddr map[string]string
 }
 

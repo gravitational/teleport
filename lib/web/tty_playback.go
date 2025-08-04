@@ -59,7 +59,7 @@ func (h *Handler) sessionLengthHandle(
 	r *http.Request,
 	p httprouter.Params,
 	sctx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	site reversetunnelclient.Cluster,
 ) (any, error) {
 	sID := p.ByName("sid")
 	if sID == "" {
@@ -100,7 +100,7 @@ func (h *Handler) ttyPlaybackHandle(
 	r *http.Request,
 	p httprouter.Params,
 	sctx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	site reversetunnelclient.Cluster,
 ) (any, error) {
 	sID := p.ByName("sid")
 	if sID == "" {

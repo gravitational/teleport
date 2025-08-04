@@ -321,8 +321,8 @@ type Database struct {
 	// a db_server resource. The following endpoints will set this field
 	// since these endpoints query for db_server under the hood and then
 	// extract db from it:
-	// - webapi/sites/:site/databases/:database (singular)
-	// - webapi/sites/:site/resources (unified resources)
+	// - webapi/sites/:cluster/databases/:database (singular)
+	// - webapi/sites/:cluster/resources (unified resources)
 	TargetHealth types.TargetHealth `json:"targetHealth,omitzero"`
 }
 

@@ -208,7 +208,7 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		// we'll need to include their clusterID in the request like we do for apps.
 		appReq := mfaRequiredCheckProto.GetApp()
 		if appReq != nil && appReq.ClusterName != c.cfg.RootClusterName {
-			site, err := h.getSiteByClusterName(ctx, c, appReq.ClusterName)
+			site, err := h.getClusterByName(ctx, c, appReq.ClusterName)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -601,7 +601,7 @@ type isMfaRequiredResponse struct {
 }
 
 // isMFARequired is the [ClusterHandler] implementer for checking if MFA is required for a given target.
-func (h *Handler) isMFARequired(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) isMFARequired(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.Cluster) (any, error) {
 	var httpReq *IsMFARequiredRequest
 	if err := httplib.ReadResourceJSON(r, &httpReq); err != nil {
 		return nil, trace.Wrap(err)
@@ -616,7 +616,7 @@ func (h *Handler) isMFARequired(w http.ResponseWriter, r *http.Request, p httpro
 }
 
 // checkMFARequired checks if MFA is required for the target specified in the [isMFARequiredRequest].
-func (h *Handler) checkMFARequired(ctx context.Context, req *IsMFARequiredRequest, sctx *SessionContext, site reversetunnelclient.RemoteSite) (bool, error) {
+func (h *Handler) checkMFARequired(ctx context.Context, req *IsMFARequiredRequest, sctx *SessionContext, site reversetunnelclient.Cluster) (bool, error) {
 	protoReq, err := h.checkAndGetProtoRequest(ctx, sctx, req)
 	if err != nil {
 		return false, trace.Wrap(err)

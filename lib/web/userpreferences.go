@@ -89,8 +89,8 @@ type UserPreferencesResponse struct {
 	KeyboardLayout              uint32                              `json:"keyboardLayout"`
 }
 
-func (h *Handler) getUserClusterPreferences(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
-	authClient, err := sctx.GetUserClient(r.Context(), site)
+func (h *Handler) getUserClusterPreferences(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	authClient, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -104,14 +104,14 @@ func (h *Handler) getUserClusterPreferences(_ http.ResponseWriter, r *http.Reque
 }
 
 // updateUserClusterPreferences is a handler for PUT /webapi/user/preferences.
-func (h *Handler) updateUserClusterPreferences(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) updateUserClusterPreferences(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	req := UserPreferencesResponse{}
 
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	authClient, err := sctx.GetUserClient(r.Context(), site)
+	authClient, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
