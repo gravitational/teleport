@@ -144,11 +144,7 @@ func TestPortForwardKubeService(t *testing.T) {
 				// ErrLostConnectionToPod is an expected error.
 				// Server allowed to communicate error to client.
 				if err := <-errCh; !errors.Is(err, portforward.ErrLostConnectionToPod) {
-					// ErrLostConnectionToPod is an expected error.
-					// Server allowed to communicate error to client.
-					if !errors.Is(err, portforward.ErrLostConnectionToPod) {
-						require.NoError(t, err)
-					}
+					require.NoError(t, err)
 				}
 			})
 			// stopCh control the port forwarding lifecycle. When it gets closed the
