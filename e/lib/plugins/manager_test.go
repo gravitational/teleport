@@ -15,7 +15,8 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/jamf/testenv"
+	intunetestenv "github.com/gravitational/teleport/e/lib/intune/testenv"
+	jamftestenv "github.com/gravitational/teleport/e/lib/jamf/testenv"
 	"github.com/gravitational/teleport/e/lib/services"
 	storage "github.com/gravitational/teleport/integrations/access/common/auth/storage"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
@@ -283,10 +284,11 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 
 // TestInstanceFactory runs registered plugins instance factory to test start and stop events
 func TestInstanceFactory(t *testing.T) {
-	jamfEnv := testenv.NewUsingT(t, &testenv.Opts{
+	jamfEnv := jamftestenv.NewUsingT(t, &jamftestenv.Opts{
 		DeviceTrustEnv: true,
 	})
 	defer jamfEnv.Close()
+	intuneEnv := intunetestenv.MustNew(t, &intunetestenv.Config{})
 
 	testCases := []struct {
 		name                     string
@@ -391,7 +393,7 @@ func TestInstanceFactory(t *testing.T) {
 				types.PluginSpecV1{
 					Settings: &types.PluginSpecV1_Intune{
 						Intune: &types.PluginIntuneSettings{
-							Tenant: "foo",
+							Tenant: intunetestenv.DefaultApps[0].Tenant,
 						},
 					},
 				},
@@ -462,8 +464,8 @@ func TestInstanceFactory(t *testing.T) {
 							Spec: &types.PluginStaticCredentialsSpecV1{
 								Credentials: &types.PluginStaticCredentialsSpecV1_BasicAuth{
 									BasicAuth: &types.PluginStaticCredentialsBasicAuth{
-										Username: testenv.DefaultUsers[0].Username,
-										Password: testenv.DefaultUsers[0].Password,
+										Username: jamftestenv.DefaultUsers[0].Username,
+										Password: jamftestenv.DefaultUsers[0].Password,
 									},
 								},
 							},
@@ -476,6 +478,7 @@ func TestInstanceFactory(t *testing.T) {
 				factoryFunc, err = intuneInstanceFactory(factoryCtx, tc.plugin, instanceDependencies{
 					lifetime:      pluginLifetime,
 					logger:        slog.Default(),
+					HTTPClient:    intuneEnv.HTTPClient,
 					parentProcess: process,
 					statusSink:    &integration.FakeStatusSink{},
 					staticCredentials: []types.PluginStaticCredentials{
@@ -488,8 +491,8 @@ func TestInstanceFactory(t *testing.T) {
 							Spec: &types.PluginStaticCredentialsSpecV1{
 								Credentials: &types.PluginStaticCredentialsSpecV1_OAuthClientSecret{
 									OAuthClientSecret: &types.PluginStaticCredentialsOAuthClientSecret{
-										ClientId:     "client-id",
-										ClientSecret: "client-secret",
+										ClientId:     intunetestenv.DefaultApps[0].ClientID,
+										ClientSecret: intunetestenv.DefaultApps[0].ClientSecret,
 									},
 								},
 							},
@@ -567,5 +570,8 @@ func testAuthProcess(t *testing.T, opts ...testAuthOption) *service.TeleportProc
 
 	process, err := service.NewTeleport(cfg)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+	})
 	return process
 }

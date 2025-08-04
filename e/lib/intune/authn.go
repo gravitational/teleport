@@ -1,6 +1,13 @@
 package intune
 
 import (
+	"context"
+	"errors"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
 	"github.com/gravitational/trace"
 )
 
@@ -33,4 +40,124 @@ func ValidateAppCredentials(creds AppCredentials) error {
 		return trace.BadParameter("param Tenant required")
 	}
 	return nil
+}
+
+func (c *Client) doAuthnRequest(req *http.Request, jsonResp any) error {
+	allowRetry := true
+	for {
+		token, err := c.createOrRenewCurrentToken(req.Context())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		req.Header.Set("Authorization", "Bearer "+token)
+		err = c.doRequest(req, jsonResp)
+		if err == nil {
+			return nil
+		}
+
+		// If we got a 401, attempt a single token renewal.
+		// This may happen if our existing auth token got invalidated.
+		apiErr := &APIError{}
+		is401 := errors.As(err, &apiErr) && apiErr.StatusCode == 401
+		canRetry := allowRetry && is401
+
+		if !canRetry {
+			return trace.Wrap(err)
+		}
+		c.config.Logger.WarnContext(req.Context(), "Existing auth token invalidated, attempting renewal")
+
+		allowRetry = false
+		c.mu.Lock()
+		c.currentToken = nil
+		c.mu.Unlock()
+	}
+}
+
+// ErrMaxAuthnAttemptsReached is returned when too many authentication failures
+// happen in sequence.
+// Once the client reaches this state it won't recover.
+var ErrMaxAuthnAttemptsReached = errors.New("max authentication attempts reached, are the credentials correct?")
+
+// maxRepeatedAuthnFailures is the maximum number of repeated authn attempts.
+// After this many attempts the client assumes the credentials themselves are
+// invalid and stops trying.
+const maxRepeatedAuthnFailures = 2
+
+func (c *Client) createOrRenewCurrentToken(ctx context.Context) (string, error) {
+	// Hold the lock until we get an access token. This is fine - we don't really expect the client to
+	// be used for loads of concurrent access, plus it's a simple way to avoid bursting authn endpoints.
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.repeatedAuthnFailures >= maxRepeatedAuthnFailures {
+		return "", trace.Wrap(ErrMaxAuthnAttemptsReached)
+	}
+
+	if err := c.renewClientSecretLocked(ctx); err != nil {
+		c.repeatedAuthnFailures++
+		return "", trace.Wrap(err)
+	}
+	c.repeatedAuthnFailures = 0
+
+	// Guaranteed non-nil by the success above.
+	return c.currentToken.AccessToken, nil
+}
+
+func (c *Client) renewClientSecretLocked(ctx context.Context) error {
+	// We want the token to be valid for the next 5 seconds to avoid issues in case of time skew.
+	// Typically these tokens expire in 1h.
+	const minValidFor = 5 * time.Second
+	now := c.config.Clock.Now().UTC()
+	if c.currentToken != nil && c.currentToken.Expires.Sub(now) > minValidFor {
+		return nil
+	}
+
+	newToken, err := c.postOauthToken(ctx)
+	if err != nil {
+		return trace.Wrap(err, "authentication against Microsoft identity platform failed")
+	}
+	c.currentToken = newToken
+	return nil
+}
+
+// AccessToken is the payload from a successful response to the endpoint that exchanges app
+// credentials for an access token.
+type AccessToken struct {
+	// AccessToken is the access token proper.
+	AccessToken string `json:"access_token"`
+	// ExpiresIn is the expiration time of the token, in seconds, counting
+	// from its creation. Typically the token expires in 1 hour.
+	ExpiresIn int `json:"expires_in"`
+	// Expires is the token expiration time, normalized to UTC.
+	// Calculated using [ExpiresIn] and the [Client] clock.
+	// This is not supplied by the Intune API.
+	Expires time.Time `json:"-"`
+}
+
+// https://learn.microsoft.com/en-us/graph/auth-v2-service?tabs=http#token-request
+func (c *Client) postOauthToken(ctx context.Context) (*AccessToken, error) {
+	reqURL := c.loginURL.JoinPath(
+		url.PathEscape(c.config.APIConfig.AppCredentials.Tenant),
+		"oauth2/v2.0/token").String()
+
+	form := url.Values{}
+	form.Set("client_id", c.config.APIConfig.AppCredentials.ClientID)
+	form.Set("client_secret", c.config.APIConfig.AppCredentials.ClientSecret)
+	form.Set("grant_type", "client_credentials")
+	const scope = "https://graph.microsoft.com/.default"
+	form.Set("scope", scope)
+
+	postReq, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return nil, trace.Wrap(err, "constructing token request")
+	}
+	postReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp := &AccessToken{}
+	if err := c.doRequest(postReq, resp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp.Expires = c.config.Clock.Now().UTC().Add(time.Duration(resp.ExpiresIn) * time.Second)
+	return resp, nil
 }

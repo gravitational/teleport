@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/gravitational/trace"
@@ -63,7 +64,10 @@ func startIntuneService(ctx context.Context, process *service.TeleportProcess, h
 	})
 	if err != nil {
 		code := types.PluginStatusCode_OTHER_ERROR
-		// TODO(ravicious): Use a different code depending on the error.
+		if errors.Is(err, intune.ErrIntuneClientInvalidCredentials) ||
+			errors.Is(err, intune.ErrIntuneClientTenantNotFound) {
+			code = types.PluginStatusCode_UNAUTHORIZED
+		}
 		statusSink.Emit(
 			ctx,
 			&types.PluginStatusV1{
