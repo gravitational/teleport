@@ -357,7 +357,7 @@ func deleteResources[T kubeObjectInterface](
 		allowedKubeUsers, allowedKubeGroups = fillDefaultKubePrincipalDetails(allowedKubeUsers, allowedKubeGroups, params.authCtx.User.GetName())
 
 		impersonatedUsers, impersonatedGroups, err := computeImpersonatedPrincipals(
-			utils.StringsSet(allowedKubeUsers), utils.StringsSet(allowedKubeGroups),
+			utils.NewSet(allowedKubeUsers...), utils.NewSet(allowedKubeGroups...),
 			params.header,
 		)
 		if err != nil {

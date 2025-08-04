@@ -714,18 +714,18 @@ func (result *checkDatabaseRolesResult) allowedRoles() []string {
 		return nil
 	}
 
-	rolesMap := make(map[string]struct{})
+	rolesMap := utils.NewSet[string]()
 	for _, role := range result.allowedRoleSet {
 		for _, dbRole := range role.GetDatabaseRoles(types.Allow) {
-			rolesMap[dbRole] = struct{}{}
+			rolesMap.Add(dbRole)
 		}
 	}
 	for _, role := range result.deniedRoleSet {
 		for _, dbRole := range role.GetDatabaseRoles(types.Deny) {
-			delete(rolesMap, dbRole)
+			rolesMap.Remove(dbRole)
 		}
 	}
-	return utils.StringsSliceFromSet(rolesMap)
+	return rolesMap.Elements()
 }
 
 func (a *accessChecker) checkDatabaseRoles(database types.Database) (*checkDatabaseRolesResult, error) {
@@ -1104,7 +1104,7 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 
 // DesktopGroups returns the desktop groups a user is allowed to create or an access denied error if a role disallows desktop user creation
 func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) {
-	groups := make(map[string]struct{})
+	groups := utils.NewSet[string]()
 	for _, role := range a.RoleSet {
 		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, s, false)
 		if err != nil {
@@ -1121,7 +1121,7 @@ func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) 
 			return nil, trace.AccessDenied("user is not allowed to create host users")
 		}
 		for _, group := range role.GetDesktopGroups(types.Allow) {
-			groups[group] = struct{}{}
+			groups.Add(group)
 		}
 	}
 	for _, role := range a.RoleSet {
@@ -1133,11 +1133,11 @@ func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) 
 			continue
 		}
 		for _, group := range role.GetDesktopGroups(types.Deny) {
-			delete(groups, group)
+			groups.Remove(group)
 		}
 	}
 
-	return utils.StringsSliceFromSet(groups), nil
+	return groups.Elements(), nil
 }
 
 func convertHostUserMode(mode types.CreateHostUserMode) decisionpb.HostUserMode {
@@ -1154,7 +1154,7 @@ func convertHostUserMode(mode types.CreateHostUserMode) decisionpb.HostUserMode 
 // HostUsers returns host user information matching a server or nil if
 // a role disallows host user creation
 func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, error) {
-	groups := make(map[string]struct{})
+	groups := utils.NewSet[string]()
 	shellToRoles := make(map[string][]string)
 	var shell string
 	var mode types.CreateHostUserMode
@@ -1201,7 +1201,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, er
 		}
 
 		for _, group := range role.GetHostGroups(types.Allow) {
-			groups[group] = struct{}{}
+			groups.Add(group)
 		}
 	}
 
@@ -1226,7 +1226,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, er
 			continue
 		}
 		for _, group := range role.GetHostGroups(types.Deny) {
-			delete(groups, group)
+			groups.Remove(group)
 		}
 	}
 
@@ -1243,7 +1243,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, er
 	}
 
 	return &decisionpb.HostUsersInfo{
-		Groups: utils.StringsSliceFromSet(groups),
+		Groups: groups.Elements(),
 		Mode:   convertHostUserMode(mode),
 		Uid:    uid,
 		Gid:    gid,

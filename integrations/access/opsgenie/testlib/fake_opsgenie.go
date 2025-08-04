@@ -35,7 +35,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/opsgenie"
-	"github.com/gravitational/teleport/integrations/lib/stringset"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type FakeOpsgenie struct {
@@ -54,12 +54,12 @@ type FakeOpsgenie struct {
 
 type QueryValues url.Values
 
-func (q QueryValues) GetAsSet(name string) stringset.StringSet {
+func (q QueryValues) GetAsSet(name string) utils.Set[string] {
 	values := q[name]
-	result := stringset.NewWithCap(len(values))
+	result := utils.NewSetWithCapacity[string](len(values))
 	for _, v := range values {
 		if v != "" {
-			result[v] = struct{}{}
+			result.Add(v)
 		}
 	}
 	if len(result) == 0 {

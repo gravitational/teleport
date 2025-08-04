@@ -45,6 +45,11 @@ func (s Set[T]) Add(elements ...T) Set[T] {
 	return s
 }
 
+// Len returns the number of elements in the set.
+func (s Set[T]) Len() int {
+	return len(s)
+}
+
 // Union updates the set to be the union of the original set and `other`
 func (s Set[T]) Union(others ...Set[T]) {
 	for _, other := range others {

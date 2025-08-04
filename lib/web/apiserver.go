@@ -3240,14 +3240,11 @@ type loginGetter interface {
 // so we need to ensure that we only present the allowed logins that would
 // result in a successful connection, if any exists.
 func calculateSSHLogins(identity *tlsca.Identity, allowedLogins []string) ([]string, error) {
-	allowed := make(map[string]struct{})
-	for _, login := range allowedLogins {
-		allowed[login] = struct{}{}
-	}
+	allowed := utils.NewSet(allowedLogins...)
 
 	var logins []string
 	for _, local := range identity.Principals {
-		if _, ok := allowed[local]; ok {
+		if allowed.Contains(local) {
 			logins = append(logins, local)
 		}
 	}

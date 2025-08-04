@@ -404,31 +404,24 @@ func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bo
 		traits[t.Name] = t.Values
 	}
 
-	currentLogins := make(map[string]struct{})
+	currentLogins := utils.NewSet[string]()
 	if logins, exists := traits[constants.TraitLogins]; exists {
-		for _, login := range logins {
-			currentLogins[login] = struct{}{}
-		}
+		currentLogins.Add(logins...)
 	}
 
-	var desiredLogins map[string]struct{}
+	var desiredLogins utils.Set[string]
 	if c.setLogins != "" {
-		desiredLogins = make(map[string]struct{})
-		for _, login := range splitEntries(c.setLogins) {
-			desiredLogins[login] = struct{}{}
-		}
+		desiredLogins = utils.NewSet[string](splitEntries(c.setLogins)...)
 	} else {
-		desiredLogins = maps.Clone(currentLogins)
+		desiredLogins = currentLogins.Clone()
 	}
 
 	addLogins := splitEntries(c.addLogins)
 	if len(addLogins) > 0 {
-		for _, login := range addLogins {
-			desiredLogins[login] = struct{}{}
-		}
+		desiredLogins.Add(addLogins...)
 	}
 
-	desiredLoginsArray := utils.StringsSliceFromSet(desiredLogins)
+	desiredLoginsArray := desiredLogins.Elements()
 
 	if maps.Equal(currentLogins, desiredLogins) {
 		slog.InfoContext(ctx, "Logins will be left unchanged", "logins", desiredLoginsArray)
@@ -437,7 +430,7 @@ func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bo
 
 	slog.InfoContext(ctx, "Desired logins for bot", "bot", c.botName, "logins", desiredLoginsArray)
 
-	if len(desiredLogins) == 0 {
+	if desiredLogins.Len() == 0 {
 		delete(traits, constants.TraitLogins)
 		slog.InfoContext(ctx, "Removing logins trait from bot user")
 	} else {
@@ -465,28 +458,20 @@ type clientRoleGetter interface {
 // updateBotRoles applies updates from CLI arguments to a bot's roles, updating
 // the field mask as necessary if any updates were made.
 func (c *BotsCommand) updateBotRoles(ctx context.Context, client clientRoleGetter, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
-	currentRoles := make(map[string]struct{})
-	for _, role := range bot.Spec.Roles {
-		currentRoles[role] = struct{}{}
-	}
+	currentRoles := utils.NewSet[string](bot.Spec.Roles...)
 
-	var desiredRoles map[string]struct{}
+	var desiredRoles utils.Set[string]
 	if c.botRoles != "" {
-		desiredRoles = make(map[string]struct{})
-		for _, role := range splitEntries(c.botRoles) {
-			desiredRoles[role] = struct{}{}
-		}
+		desiredRoles = utils.NewSet(splitEntries(c.botRoles)...)
 	} else {
-		desiredRoles = maps.Clone(currentRoles)
+		desiredRoles = currentRoles.Clone()
 	}
 
 	if c.addRoles != "" {
-		for _, role := range splitEntries(c.addRoles) {
-			desiredRoles[role] = struct{}{}
-		}
+		desiredRoles.Add(splitEntries(c.addRoles)...)
 	}
 
-	desiredRolesArray := utils.StringsSliceFromSet(desiredRoles)
+	desiredRolesArray := desiredRoles.Elements()
 
 	if maps.Equal(currentRoles, desiredRoles) {
 		slog.InfoContext(ctx, "Roles will be left unchanged", "roles", desiredRolesArray)

@@ -129,9 +129,9 @@ func labelsMatching(env labelExpressionEnv, keyExpr string) ([]string, error) {
 
 // containsAny returns true if [list] contains any element of [items].
 func containsAny(list []string, items []string) (bool, error) {
-	s := set(list)
+	s := utils.NewSet(list...)
 	for _, item := range items {
-		if _, ok := s[item]; ok {
+		if s.Contains(item) {
 			return true, nil
 		}
 	}
@@ -145,19 +145,11 @@ func containsAll(list []string, items []string) (bool, error) {
 	if len(items) == 0 {
 		return false, nil
 	}
-	s := set(list)
+	s := utils.NewSet(list...)
 	for _, item := range items {
-		if _, ok := s[item]; !ok {
+		if !s.Contains(item) {
 			return false, nil
 		}
 	}
 	return true, nil
-}
-
-func set(list []string) map[string]struct{} {
-	m := make(map[string]struct{}, len(list))
-	for _, l := range list {
-		m[l] = struct{}{}
-	}
-	return m
 }

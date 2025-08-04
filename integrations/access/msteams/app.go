@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
-	"github.com/gravitational/teleport/integrations/lib/stringset"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -518,7 +517,7 @@ func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.Resolutio
 func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest) []string {
 	// We receive a set from GetRawRecipientsFor but we still might end up with duplicate channel names.
 	// This can happen if this set contains the channel `C` and the email for channel `C`.
-	recipientSet := stringset.New()
+	recipientSet := utils.NewSet[string]()
 	a.log.DebugContext(ctx, "Getting suggested reviewer recipients")
 	accessRuleRecipients := a.accessMonitoringRules.RawRecipientsFromAccessMonitoringRules(ctx, req)
 	if len(accessRuleRecipients) != 0 {
@@ -542,5 +541,5 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 			recipientSet.Add(recipient)
 		}
 	}
-	return recipientSet.ToSlice()
+	return recipientSet.Elements()
 }

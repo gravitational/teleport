@@ -1539,14 +1539,11 @@ func isStubAccountIDError(target awslib.Identity, err error) bool {
 // rolesForTarget returns all AWS roles from cli flags, AWS matchers, and
 // databases that the target identity will need to be able to assume.
 func rolesForTarget(forcedRoles []string, matchers []types.AWSMatcher, databases []*servicecfg.Database, resourceMatchers []services.ResourceMatcher, targetIsAssumeRole bool) []string {
-	roleSet := make(map[string]struct{})
-	for _, roleARN := range forcedRoles {
-		roleSet[roleARN] = struct{}{}
-	}
+	roleSet := utils.NewSet(forcedRoles...)
 	if targetIsAssumeRole {
 		// if target is the same as some assume_role_arn in matchers/databases
 		// config, then it shouldn't assume other roles from config.
-		return utils.StringsSliceFromSet(roleSet)
+		return roleSet.Elements()
 	}
 	for _, matcher := range matchers {
 		assumeRoleARN := ""
@@ -1571,5 +1568,5 @@ func rolesForTarget(forcedRoles []string, matchers []types.AWSMatcher, databases
 		}
 		roleSet[resourceMatcher.AWS.AssumeRoleARN] = struct{}{}
 	}
-	return utils.StringsSliceFromSet(roleSet)
+	return roleSet.Elements()
 }

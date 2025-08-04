@@ -481,8 +481,8 @@ func (c *authContext) eventClusterMeta(req *http.Request) apievents.KubernetesCl
 		kubeUsers = []string{impersonateUser}
 		kubeGroups = impersonateGroups
 	} else {
-		kubeUsers = utils.StringsSliceFromSet(c.kubeUsers)
-		kubeGroups = utils.StringsSliceFromSet(c.kubeGroups)
+		kubeUsers = slices.Collect(maps.Keys(c.kubeUsers))
+		kubeGroups = slices.Collect(maps.Keys(c.kubeGroups))
 	}
 
 	return apievents.KubernetesClusterMetadata{
@@ -1115,8 +1115,8 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	// fillDefaultKubePrincipalDetails fills the default details in order to keep
 	// the correct behavior when forwarding the request to the Kubernetes API.
 	kubeUsers, kubeGroups = fillDefaultKubePrincipalDetails(kubeUsers, kubeGroups, actx.User.GetName())
-	actx.kubeUsers = utils.StringsSet(kubeUsers)
-	actx.kubeGroups = utils.StringsSet(kubeGroups)
+	actx.kubeUsers = utils.NewSet(kubeUsers...)
+	actx.kubeGroups = utils.NewSet(kubeGroups...)
 
 	// Check authz against the first match.
 	//

@@ -125,7 +125,7 @@ func (c *azureFetcherConfig) CheckAndSetDefaults() error {
 	if len(c.Regions) == 0 {
 		return trace.BadParameter("missing parameter Regions")
 	}
-	c.regionSet = utils.StringsSet(c.Regions)
+	c.regionSet = utils.NewSet(c.Regions...)
 	return nil
 }
 
