@@ -41,9 +41,24 @@ queries in a [sandbox](https://serdejsonpath.live/).
 
 #### `jsonpath` Expression Function
 
-The `jsonpath` function will be added as another trait expression function.
-It can only be used in `login_rule` trait maps/expressions to interpolate
-a string(s) from arbitrary JSON claims.
+The `jsonpath` function will be added as a trait expression function, but will
+only be supported for `login_rule` expressions (`traits_map` or `traits_expression`).
+
+It can be used to interpolate a string or strings from arbitrary JSON claims.
+For example, see the JSON object and jsonpath examples below:
+
+```json
+{
+  "a": ["1", "2", "3"],
+  "b": {
+    "c": "d"
+  }
+}
+```
+
+* `jsonpath("$.a")`   -> `["1", "2", "3"]`
+* `jsonpath("$.b.*")` -> `["d"]`
+* `jsonpath("$.*.*")` -> `["1", "2", "3", "d"]`
 
 #### JSONPath Libraries
 
@@ -87,7 +102,7 @@ requiring the use of login rules.
 
 You can use a login rule to map JSON claims to users traits.
 
-In the example below, `$.groups` individual claims are mapped to user traits.
+In the example below, a JSON claim is mapped to individual user traits.
 
 ```json
 {
