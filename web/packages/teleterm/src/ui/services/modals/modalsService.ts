@@ -310,6 +310,10 @@ export interface DialogConfigureSSHClients {
   host?: string;
 }
 
+export interface DialogAppUpdate {
+  kind: 'app-updates';
+}
+
 export type Dialog =
   | DialogClusterConnect
   | DialogClusterLogout
@@ -324,4 +328,5 @@ export type Dialog =
   | DialogHardwareKeyPin
   | DialogHardwareKeyTouch
   | DialogHardwareKeyPinChange
-  | DialogHardwareKeySlotOverwrite;
+  | DialogHardwareKeySlotOverwrite
+  | DialogAppUpdate;
