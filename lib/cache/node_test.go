@@ -139,7 +139,7 @@ func BenchmarkGetMaxNodes(b *testing.B) {
 }
 
 func benchGetNodes(b *testing.B, nodeCount int) {
-	p, err := newPack(b.TempDir(), ForAuth, memoryBackend(true))
+	p, err := newPack(b.TempDir(), ForAuth)
 	require.NoError(b, err)
 	defer p.Close()
 
