@@ -187,7 +187,7 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 	}
 
 	if s.cfg.SSHConfigMode == config.SSHConfigModeOn {
-		clusterNames, err := getClusterNames(ctx, impersonatedClient, id.Get().ClusterName)
+		clusterNames, err := internal.GetClusterNames(ctx, impersonatedClient, id.Get().ClusterName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -421,20 +421,4 @@ func renderSSHConfig(
 	}
 
 	return nil
-}
-
-func getClusterNames(
-	ctx context.Context, client *apiclient.Client, connectedClusterName string,
-) ([]string, error) {
-	allClusterNames := []string{connectedClusterName}
-
-	leafClusters, err := client.GetRemoteClusters(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, lc := range leafClusters {
-		allClusterNames = append(allClusterNames, lc.GetName())
-	}
-
-	return allClusterNames, nil
 }
