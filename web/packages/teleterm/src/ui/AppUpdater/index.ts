@@ -18,3 +18,4 @@
 
 export * from './DetailsView';
 export * from './WidgetView';
+export * from './AppUpdaterContext';
