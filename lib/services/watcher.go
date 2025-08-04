@@ -1070,6 +1070,10 @@ func (p *lockCollector) processEventsAndUpdateCurrent(ctx context.Context, event
 
 		switch event.Type {
 		case types.OpDelete:
+			lockName := event.Resource.GetName()
+			if lock, ok := p.current[lockName]; ok {
+				event.Resource = lock
+			}
 			delete(p.current, event.Resource.GetName())
 			eventsToEmit = append(eventsToEmit, event)
 		case types.OpPut:

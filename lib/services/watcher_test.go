@@ -290,6 +290,7 @@ func TestLockWatcher(t *testing.T) {
 	case event := <-sub.Events():
 		require.Equal(t, types.OpDelete, event.Type)
 		require.Equal(t, event.Resource.GetName(), lock.GetName())
+		require.IsType(t, (*types.LockV2)(nil), event.Resource)
 	case <-sub.Done():
 		t.Fatal("Lock watcher subscription has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
