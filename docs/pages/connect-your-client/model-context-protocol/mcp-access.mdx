@@ -21,10 +21,12 @@ Teleport.
   
 ### Step 1/2. Installation
 
-First, sign in into your Teleport cluster using `tsh login`:
+First, sign in into your Teleport cluster using `tsh login`, assigning 
+<Var name="teleport.example.com" /> to the web address of the Teleport Proxy
+Service in your cluster:
 
 ```code
-$ tsh login --proxy=<Var name="teleport.example.com:443" /> --user=myuser@example.com
+$ tsh login --proxy=<Var name="teleport.example.com" /> --user=myuser@example.com
 ```
 
 You can now list the available MCP servers that you can use:

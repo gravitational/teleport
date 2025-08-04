@@ -12,6 +12,15 @@ works as SSH jumphost.
 In this guide we will configure OpenSSH client to work with Teleport Proxy
 and run a sample ansible playbook.
 
+## How it works
+
+In the setup we describe in this guide, you generate an OpenSSH configuration
+that uses a Teleport-issued SSH certificate to connect to Teleport-protected
+servers. You then provide this OpenSSH configuration to your Ansible host, along
+with an inventory of Teleport-protected servers. Ansible then uses the OpenSSH
+configuration to present the Teleport-issued credentials in order to manage your
+servers.
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
