@@ -29,7 +29,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
@@ -44,11 +44,12 @@ type WorkloadIdentityJWTService struct {
 	cfg            *config.WorkloadIdentityJWTService
 	getBotIdentity getBotIdentityFn
 	log            *slog.Logger
-	resolver       reversetunnelclient.Resolver
 	statusReporter readyz.Reporter
 	// trustBundleCache is the cache of trust bundles. It only needs to be
 	// provided when running in daemon mode.
-	trustBundleCache *workloadidentity.TrustBundleCache
+	trustBundleCache  *workloadidentity.TrustBundleCache
+	identityGenerator *identity.Generator
+	clientBuilder     *client.Builder
 }
 
 // String returns a human-readable description of the service.
@@ -156,32 +157,22 @@ func (s *WorkloadIdentityJWTService) requestJWTSVID(
 	)
 	defer span.End()
 
-	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching roles")
-	}
-
-	id, err := generateIdentity(
-		ctx,
-		s.botAuthClient,
-		s.getBotIdentity(),
-		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
-		nil,
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
+	id, err := s.identityGenerator.GenerateFacade(ctx,
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "generating identity")
 	}
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
-	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
-	impersonatedClient, err := clientForFacade(ctx, s.log, s.botCfg, facade, s.resolver)
+	impersonatedClient, err := s.clientBuilder.Build(ctx, id)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer impersonatedClient.Close()
 
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	credentials, err := workloadidentity.IssueJWTWorkloadIdentity(
 		ctx,
 		s.log,
@@ -194,8 +185,6 @@ func (s *WorkloadIdentityJWTService) requestJWTSVID(
 	if err != nil {
 		return nil, trace.Wrap(err, "generating JWT SVID")
 	}
-
-	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
 
 	var credential *workloadidentityv1pb.Credential
 	switch len(credentials) {
