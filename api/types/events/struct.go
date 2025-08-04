@@ -20,7 +20,7 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
 	"github.com/gogo/protobuf/types"
 	"github.com/gravitational/trace"
 )

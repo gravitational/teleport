@@ -163,8 +163,21 @@ linters:
               desc: use "github.com/gravitational/teleport/lib/msgraph" instead
             - pkg: github.com/cloudflare/cfssl
               desc: use "crypto" or "x/crypto" instead
-            - pkg: "golang.org/x/net/context"
+            - pkg: golang.org/x/net/context
               desc: use "context" instead
+            - pkg: github.com/gogo/protobuf/jsonpb
+              desc: gogoproto jsonpb has inconsistent interactions with any
+                message that directly or indirectly makes use of
+                gogoproto.casttype, and will happily violate the protobuf json
+                encoding spec in those situations. It should only be used for
+                existing marshaling and unmarshaling that can't easily be
+                migrated away from jsonpb, but it should not be used by new
+                code. If you need to encode and decode a gogoproto-generated
+                message in protobuf json, use
+                google.golang.org/protobuf/encoding/protojson together with
+                google.golang.org/protobuf/protoadapt instead, or, better yet,
+                see if you can move the code generation for that message to the
+                modern protoc-gen-go.
         oidc:
           deny:
             - pkg: github.com/coreos/go-oidc
@@ -317,7 +330,7 @@ linters:
         - pattern: ^protojson\.Unmarshal$
           msg: use protojson.UnmarshalOptions and consider enabling DiscardUnknown
         - pattern: ^jsonpb\.(?:Unmarshal|UnmarshalString|UnmarshalNext)$
-          msg: use jsonpb.Unmarshaler and consider enabling AllowUnknownFields
+          msg: use protojson if possible, or use jsonpb.Unmarshaler and consider enabling AllowUnknownFields
     misspell:
       locale: US
     nolintlint:

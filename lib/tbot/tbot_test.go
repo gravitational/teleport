@@ -68,7 +68,12 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
+	"github.com/gravitational/teleport/lib/tbot/services/database"
+	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
+	sshsvc "github.com/gravitational/teleport/lib/tbot/services/ssh"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -316,14 +321,14 @@ func TestBot(t *testing.T) {
 		t, rootClient, "test", defaultRoles...,
 	)
 
-	identityOutput := &config.IdentityOutput{
+	identityOutput := &identitysvc.OutputConfig{
 		Destination: &destination.Memory{},
 	}
-	identityOutputWithRoles := &config.IdentityOutput{
+	identityOutputWithRoles := &identitysvc.OutputConfig{
 		Destination: &destination.Memory{},
 		Roles:       []string{mainRole},
 	}
-	identityOutputWithReissue := &config.IdentityOutput{
+	identityOutputWithReissue := &identitysvc.OutputConfig{
 		Destination:  &destination.Memory{},
 		AllowReissue: true,
 	}
@@ -331,33 +336,33 @@ func TestBot(t *testing.T) {
 		Destination: &destination.Memory{},
 		AppName:     appName,
 	}
-	dbOutput := &config.DatabaseOutput{
+	dbOutput := &database.OutputConfig{
 		Destination: &destination.Memory{},
 		Service:     databaseServiceName,
 		Database:    databaseName,
 		Username:    databaseUsername,
 	}
-	dbDiscoveredNameOutput := &config.DatabaseOutput{
+	dbDiscoveredNameOutput := &database.OutputConfig{
 		Destination: &destination.Memory{},
 		Service:     databaseServiceDiscoveredName,
 		Database:    databaseName,
 		Username:    databaseUsername,
 	}
-	kubeOutput := &config.KubernetesOutput{
+	kubeOutput := &k8s.OutputV1Config{
 		// DestinationDirectory required or output will fail.
 		Destination: &destination.Directory{
 			Path: t.TempDir(),
 		},
 		KubernetesCluster: kubeClusterName,
 	}
-	kubeDiscoveredNameOutput := &config.KubernetesOutput{
+	kubeDiscoveredNameOutput := &k8s.OutputV1Config{
 		// DestinationDirectory required or output will fail.
 		Destination: &destination.Directory{
 			Path: t.TempDir(),
 		},
 		KubernetesCluster: kubeClusterDiscoveredName,
 	}
-	sshHostOutput := &config.SSHHostOutput{
+	sshHostOutput := &sshsvc.HostOutputConfig{
 		Destination: &destination.Memory{},
 		Principals:  []string{hostPrincipal},
 	}
@@ -551,7 +556,7 @@ func tlsIdentFromDest(ctx context.Context, t *testing.T, dest destination.Destin
 	require.NoError(t, err)
 	certBytes, err := dest.Read(ctx, identity.TLSCertKey)
 	require.NoError(t, err)
-	hostCABytes, err := dest.Read(ctx, config.HostCAPath)
+	hostCABytes, err := dest.Read(ctx, internal.HostCAPath)
 	require.NoError(t, err)
 	_, tlsIdent, _, _, _, err := identity.ParseTLSIdentity(keyBytes, certBytes, [][]byte{hostCABytes})
 	require.NoError(t, err)
@@ -686,7 +691,7 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 	botConfig.Oneshot = false
 	outputDest := newWriteNotifier(&destination.Memory{})
 	require.NoError(t, outputDest.CheckAndSetDefaults())
-	botConfig.Services = append(botConfig.Services, &config.IdentityOutput{
+	botConfig.Services = append(botConfig.Services, &identitysvc.OutputConfig{
 		Destination: outputDest,
 	})
 	thirdBot := New(botConfig, log)
@@ -866,111 +871,6 @@ func TestBot_InsecureViaProxy(t *testing.T) {
 	require.NoError(t, firstBot.Run(ctx))
 }
 
-func TestChooseOneResource(t *testing.T) {
-	t.Parallel()
-	t.Run("database", testChooseOneDatabase)
-	t.Run("kube cluster", testChooseOneKubeCluster)
-}
-
-func testChooseOneDatabase(t *testing.T) {
-	t.Parallel()
-	fooDB1 := newMockDiscoveredDB(t, "foo-rds-us-west-1-123456789012", "foo")
-	fooDB2 := newMockDiscoveredDB(t, "foo-rds-us-west-2-123456789012", "foo")
-	barDB := newMockDiscoveredDB(t, "bar-rds-us-west-1-123456789012", "bar")
-	tests := []struct {
-		desc      string
-		databases []types.Database
-		dbSvc     string
-		wantDB    types.Database
-		wantErr   string
-	}{
-		{
-			desc:      "by exact name match",
-			databases: []types.Database{fooDB1, fooDB2, barDB},
-			dbSvc:     "bar-rds-us-west-1-123456789012",
-			wantDB:    barDB,
-		},
-		{
-			desc:      "by unambiguous discovered name match",
-			databases: []types.Database{fooDB1, fooDB2, barDB},
-			dbSvc:     "bar",
-			wantDB:    barDB,
-		},
-		{
-			desc:      "ambiguous discovered name matches is an error",
-			databases: []types.Database{fooDB1, fooDB2, barDB},
-			dbSvc:     "foo",
-			wantErr:   `"foo" matches multiple auto-discovered databases`,
-		},
-		{
-			desc:      "no match is an error",
-			databases: []types.Database{fooDB1, fooDB2, barDB},
-			dbSvc:     "xxx",
-			wantErr:   `database "xxx" not found`,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			gotDB, err := chooseOneDatabase(test.databases, test.dbSvc)
-			if test.wantErr != "" {
-				require.ErrorContains(t, err, test.wantErr)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, test.wantDB, gotDB)
-		})
-	}
-}
-
-func testChooseOneKubeCluster(t *testing.T) {
-	fooKube1 := newMockDiscoveredKubeCluster(t, "foo-eks-us-west-1-123456789012", "foo")
-	fooKube2 := newMockDiscoveredKubeCluster(t, "foo-eks-us-west-2-123456789012", "foo")
-	barKube := newMockDiscoveredKubeCluster(t, "bar-eks-us-west-1-123456789012", "bar")
-	tests := []struct {
-		desc            string
-		clusters        []types.KubeCluster
-		kubeSvc         string
-		wantKubeCluster types.KubeCluster
-		wantErr         string
-	}{
-		{
-			desc:            "by exact name match",
-			clusters:        []types.KubeCluster{fooKube1, fooKube2, barKube},
-			kubeSvc:         "bar-eks-us-west-1-123456789012",
-			wantKubeCluster: barKube,
-		},
-		{
-			desc:            "by unambiguous discovered name match",
-			clusters:        []types.KubeCluster{fooKube1, fooKube2, barKube},
-			kubeSvc:         "bar",
-			wantKubeCluster: barKube,
-		},
-		{
-			desc:     "ambiguous discovered name matches is an error",
-			clusters: []types.KubeCluster{fooKube1, fooKube2, barKube},
-			kubeSvc:  "foo",
-			wantErr:  `"foo" matches multiple auto-discovered kubernetes clusters`,
-		},
-		{
-			desc:     "no match is an error",
-			clusters: []types.KubeCluster{fooKube1, fooKube2, barKube},
-			kubeSvc:  "xxx",
-			wantErr:  `kubernetes cluster "xxx" not found`,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			gotKube, err := chooseOneKubeCluster(test.clusters, test.kubeSvc)
-			if test.wantErr != "" {
-				require.ErrorContains(t, err, test.wantErr)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, test.wantKubeCluster, gotKube)
-		})
-	}
-}
-
 func newMockDiscoveredDB(t *testing.T, name, discoveredName string) *types.DatabaseV3 {
 	t.Helper()
 	db, err := types.NewDatabaseV3(types.Metadata{
@@ -1058,7 +958,7 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
 	botConfig := defaultBotConfig(
 		t, process, onboarding, config.ServiceConfigs{
-			&config.DatabaseTunnelService{
+			&database.TunnelConfig{
 				Listener: botListener,
 				Service:  "test-database",
 				Database: "mydb",
@@ -1152,7 +1052,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
 	botConfig := defaultBotConfig(
 		t, process, onboarding, config.ServiceConfigs{
-			&config.SSHMultiplexerService{
+			&sshsvc.MultiplexerConfig{
 				Destination: &destination.Directory{
 					Path: tmpDir,
 				},
@@ -1269,7 +1169,7 @@ func TestBotDeviceTrust(t *testing.T) {
 	botConfig := defaultBotConfig(
 		t, process, onboarding,
 		config.ServiceConfigs{
-			&config.IdentityOutput{
+			&identitysvc.OutputConfig{
 				Destination: &destination.Memory{},
 			},
 		},
@@ -1328,7 +1228,7 @@ func TestBotJoiningURI(t *testing.T) {
 			Destination: &destination.Memory{},
 		},
 		Services: config.ServiceConfigs{
-			&config.IdentityOutput{
+			&identitysvc.OutputConfig{
 				Destination: &destination.Memory{},
 			},
 		},

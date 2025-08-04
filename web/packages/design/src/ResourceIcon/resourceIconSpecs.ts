@@ -177,6 +177,9 @@ export const resourceIconSpecs = {
   mariadb: { dark: i.mariadbDark, light: i.mariadbLight },
   mattermost: { dark: i.mattermostDark, light: i.mattermostLight },
   maxio: { dark: i.maxioDark, light: i.maxioLight },
+  mcpCursor: { dark: i.mcpCursorDark, light: i.mcpCursorLight },
+  mcpVscode: forAllThemes(i.mcpVscode),
+  mcpVscodeInsiders: forAllThemes(i.mcpVscodeInsiders),
   metabase: forAllThemes(i.metabase),
   microsoft: forAllThemes(i.microsoft),
   microsoftexcel: forAllThemes(i.microsoftexcel),
@@ -252,6 +255,7 @@ export const resourceIconSpecs = {
   snowflake: forAllThemes(i.snowflake),
   spacelift: { dark: i.spaceliftDark, light: i.spaceliftLight },
   sparrow: forAllThemes(i.sparrow),
+  strapi: forAllThemes(i.strapi),
   stripe: { dark: i.stripeDark, light: i.stripeLight },
 
   tableau: forAllThemes(i.tableau),

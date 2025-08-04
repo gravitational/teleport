@@ -83,18 +83,6 @@ func GenSchemaAutoUpdateConfig(ctx context.Context) (github_com_hashicorp_terraf
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"namespace": {
-					Computed:      true,
-					Description:   "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"revision": {
-					Description: "revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
 			}),
 			Computed:      true,
 			Description:   "",
@@ -224,18 +212,6 @@ func GenSchemaAutoUpdateVersion(ctx context.Context) (github_com_hashicorp_terra
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"namespace": {
-					Computed:      true,
-					Description:   "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"revision": {
-					Description: "revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 			}),
 			Computed:      true,
@@ -383,23 +359,6 @@ func CopyAutoUpdateConfigFromTerraform(_ context.Context, tf github_com_hashicor
 						}
 					}
 					{
-						a, ok := tf.Attrs["namespace"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"AutoUpdateConfig.metadata.namespace"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"AutoUpdateConfig.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Namespace = t
-							}
-						}
-					}
-					{
 						a, ok := tf.Attrs["description"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"AutoUpdateConfig.metadata.description"})
@@ -449,23 +408,6 @@ func CopyAutoUpdateConfigFromTerraform(_ context.Context, tf github_com_hashicor
 							diags.Append(attrReadMissingDiag{"AutoUpdateConfig.metadata.expires"})
 						}
 						CopyFromTimestamp(diags, a, &obj.Expires)
-					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"AutoUpdateConfig.metadata.revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"AutoUpdateConfig.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
-							}
-						}
 					}
 				}
 			}
@@ -851,28 +793,6 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 						}
 					}
 					{
-						t, ok := tf.AttrTypes["namespace"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"AutoUpdateConfig.metadata.namespace"})
-						} else {
-							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"AutoUpdateConfig.metadata.namespace", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"AutoUpdateConfig.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								v.Null = string(obj.Namespace) == ""
-							}
-							v.Value = string(obj.Namespace)
-							v.Unknown = false
-							tf.Attrs["namespace"] = v
-						}
-					}
-					{
 						t, ok := tf.AttrTypes["description"]
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"AutoUpdateConfig.metadata.description"})
@@ -951,28 +871,6 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 						} else {
 							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"AutoUpdateConfig.metadata.revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"AutoUpdateConfig.metadata.revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"AutoUpdateConfig.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								v.Null = string(obj.Revision) == ""
-							}
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}
@@ -1472,23 +1370,6 @@ func CopyAutoUpdateVersionFromTerraform(_ context.Context, tf github_com_hashico
 						}
 					}
 					{
-						a, ok := tf.Attrs["namespace"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"AutoUpdateVersion.metadata.namespace"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"AutoUpdateVersion.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Namespace = t
-							}
-						}
-					}
-					{
 						a, ok := tf.Attrs["description"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"AutoUpdateVersion.metadata.description"})
@@ -1538,23 +1419,6 @@ func CopyAutoUpdateVersionFromTerraform(_ context.Context, tf github_com_hashico
 							diags.Append(attrReadMissingDiag{"AutoUpdateVersion.metadata.expires"})
 						}
 						CopyFromTimestamp(diags, a, &obj.Expires)
-					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"AutoUpdateVersion.metadata.revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"AutoUpdateVersion.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
-							}
-						}
 					}
 				}
 			}
@@ -1825,28 +1689,6 @@ func CopyAutoUpdateVersionToTerraform(ctx context.Context, obj *github_com_gravi
 						}
 					}
 					{
-						t, ok := tf.AttrTypes["namespace"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"AutoUpdateVersion.metadata.namespace"})
-						} else {
-							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"AutoUpdateVersion.metadata.namespace", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"AutoUpdateVersion.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								v.Null = string(obj.Namespace) == ""
-							}
-							v.Value = string(obj.Namespace)
-							v.Unknown = false
-							tf.Attrs["namespace"] = v
-						}
-					}
-					{
 						t, ok := tf.AttrTypes["description"]
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"AutoUpdateVersion.metadata.description"})
@@ -1925,28 +1767,6 @@ func CopyAutoUpdateVersionToTerraform(ctx context.Context, obj *github_com_gravi
 						} else {
 							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"AutoUpdateVersion.metadata.revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"AutoUpdateVersion.metadata.revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"AutoUpdateVersion.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								v.Null = string(obj.Revision) == ""
-							}
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}
