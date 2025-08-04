@@ -47,7 +47,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/google/renameio/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -99,8 +98,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/automaticupgrades"
-	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
+	"github.com/gravitational/teleport/lib/autoupdate/adaptor"
 	"github.com/gravitational/teleport/lib/autoupdate/rollout"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
@@ -178,8 +176,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/cert"
 	"github.com/gravitational/teleport/lib/utils/hostid"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
-	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 	"github.com/gravitational/teleport/lib/web"
 	webapp "github.com/gravitational/teleport/lib/web/app"
 )
@@ -1302,7 +1298,19 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		return nil, trace.Wrap(err)
 	}
 
-	upgraderKind, externalUpgrader, upgraderVersion := process.detectUpgrader()
+	detectorConfig := &adaptor.Config{
+		ResolverAddr: resolverAddr,
+		HostUUID:     cfg.HostUUID,
+		Log:          process.logger,
+	}
+	updater, err := adaptor.DetectAndConfigureUpdater(process.GracefulExitContext(), detectorConfig)
+	if err != nil {
+		return nil, trace.Wrap(err, "configuring updater")
+	}
+
+	if updater.Kind() != "" && (process.Config.Auth.Enabled || process.Config.Proxy.Enabled) {
+		process.logger.WarnContext(process.ExitContext(), "Use of external upgraders on control-plane instances is not recommended.")
+	}
 
 	getHello := func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
 		instanceRoles := process.getInstanceRoles()
@@ -1315,23 +1323,21 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 			Version:          teleport.Version,
 			Services:         services,
 			Hostname:         cfg.Hostname,
-			ExternalUpgrader: externalUpgrader,
+			ExternalUpgrader: updater.External(),
 		}
 
-		if upgraderVersion != nil {
+		if updater.Version() != nil {
 			// The UpstreamInventoryHello message wants versions with the leading "v".
-			hello.ExternalUpgraderVersion = "v" + upgraderVersion.String()
+			hello.ExternalUpgraderVersion = "v" + updater.Version().String()
 		}
 
-		if upgraderKind == types.UpgraderKindTeleportUpdate {
-			info, err := autoupdate.ReadHelloUpdaterInfo(supervisor.ExitContext(), cfg.Logger, cfg.HostUUID)
-			if err != nil {
-				// Failing to detect teleport-update info is not fatal, we continue.
-				cfg.Logger.WarnContext(supervisor.ExitContext(), "Error recovering teleport-update status, this might affect automatic update tracking and progress.", "error", err)
-				info = &types.UpdaterV2Info{UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_UNREADABLE}
-			}
-			hello.UpdaterInfo = info
+		hello.UpdaterInfo, err = updater.Info(ctx)
+		if err != nil {
+			// Failing to detect teleport-update info is not fatal, we continue.
+			cfg.Logger.WarnContext(supervisor.ExitContext(), "Error recovering teleport-update status, this might affect automatic update tracking and progress.", "error", err)
+			hello.UpdaterInfo = &types.UpdaterV2Info{UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_UNREADABLE}
 		}
+
 		return hello, nil
 	}
 
@@ -1344,6 +1350,12 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "building inventory handle")
+	}
+
+	// Now that the inventory handle is up and running, we can start the updater routine.
+	err = updater.RegisterRoutines(process.GracefulExitContext(), process, process.upgradeWindowsClient, process.inventoryHandle.Sender())
+	if err != nil {
+		return nil, trace.Wrap(err, "registering updater export routines")
 	}
 
 	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping *proto.DownstreamInventoryPing) {
@@ -1359,53 +1371,6 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 			process.logger.WarnContext(process.ExitContext(), "Failed to respond to inventory ping.", "id", ping.ID, "error", err)
 		}
 	})
-
-	// if an external upgrader is defined, we need to set up an appropriate upgrade window exporter.
-	if upgraderKind != "" {
-		if process.Config.Auth.Enabled || process.Config.Proxy.Enabled {
-			process.logger.WarnContext(process.ExitContext(), "Use of external upgraders on control-plane instances is not recommended.")
-		}
-
-		switch upgraderKind {
-		case types.UpgraderKindTeleportUpdate:
-			// Exports are not required for teleport-update
-		case types.UpgraderKindSystemdUnit:
-			process.RegisterFunc("autoupdates.endpoint.export", func() error {
-				conn, err := waitForInstanceConnector(process, process.logger)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				if conn == nil {
-					return trace.BadParameter("process exiting and Instance connector never became available")
-				}
-
-				resp, err := conn.Client.Ping(process.ExitContext())
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				if !resp.GetServerFeatures().GetCloud() {
-					return nil
-				}
-
-				if err := endpoint.Export(process.ExitContext(), resolverAddr.String()); err != nil {
-					process.logger.WarnContext(process.ExitContext(),
-						"Failed to export and validate autoupdates endpoint.",
-						"addr", resolverAddr.String(),
-						"error", err)
-					return trace.Wrap(err)
-				}
-				process.logger.InfoContext(process.ExitContext(), "Exported autoupdates endpoint.", "addr", resolverAddr.String())
-				return nil
-			})
-			if err := process.configureUpgraderExporter(upgraderKind); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		default:
-			if err := process.configureUpgraderExporter(upgraderKind); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-	}
 
 	serviceStarted := false
 
@@ -1628,63 +1593,6 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	return process, nil
 }
 
-// detectUpgrader returns metadata about auto-upgraders that may be active.
-// Note that kind and externalName are usually the same.
-// However, some unregistered upgraders like the AWS ODIC upgrader are not valid kinds.
-// For these upgraders, kind is empty and externalName is set to a non-kind value.
-func (process *TeleportProcess) detectUpgrader() (kind, externalName string, version *semver.Version) {
-	// Check if the deprecated teleport-upgrader script is being used.
-	kind = os.Getenv(automaticupgrades.EnvUpgrader)
-	version = automaticupgrades.GetUpgraderVersion(process.GracefulExitContext())
-	if version == nil {
-		kind = ""
-	}
-
-	// If the installation is managed by teleport-update, it supersedes the teleport-upgrader script.
-	ok, err := autoupdate.IsManagedByUpdater()
-	if err != nil {
-		process.logger.WarnContext(process.ExitContext(), "Failed to determine if auto-updates are enabled.", "error", err)
-	} else if ok {
-		// If this is a teleport-update managed installation, the version
-		// managed by the timer will always match the installed version of teleport.
-		kind = types.UpgraderKindTeleportUpdate
-		version = teleport.SemVer()
-	}
-
-	// Instances deployed using the AWS OIDC integration are automatically updated
-	// by the proxy. The instance heartbeat should properly reflect that.
-	externalName = kind
-	if externalName == "" && os.Getenv(types.InstallMethodAWSOIDCDeployServiceEnvVar) == "true" {
-		externalName = types.OriginIntegrationAWSOIDC
-	}
-	return kind, externalName, version
-}
-
-// configureUpgraderExporter configures the window exporter for upgraders that export windows.
-func (process *TeleportProcess) configureUpgraderExporter(kind string) error {
-	driver, err := uw.NewDriver(kind)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	exporter, err := uw.NewExporter(uw.ExporterConfig[inventory.DownstreamSender]{
-		Driver:                   driver,
-		ExportFunc:               process.exportUpgradeWindows,
-		AuthConnectivitySentinel: process.inventoryHandle.Sender(),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	process.RegisterCriticalFunc("upgradeewindow.export", exporter.Run)
-	process.OnExit("upgradewindow.export.stop", func(_ any) {
-		exporter.Close()
-	})
-
-	process.logger.InfoContext(process.ExitContext(), "Configured upgrade window exporter for external upgrader.", "kind", kind)
-	return nil
-}
-
 // enterpriseServicesEnabled will return true if any enterprise services are enabled.
 func (process *TeleportProcess) enterpriseServicesEnabled() bool {
 	return modules.GetModules().BuildType() == modules.BuildEnterprise &&
@@ -1809,18 +1717,23 @@ func (process *TeleportProcess) makeInventoryControlStream(ctx context.Context) 
 	return clt.InventoryControlStream(ctx)
 }
 
-// exportUpgradeWindow is a helper for calling ExportUpgradeWindows either on the local in-memory auth server, or via the instance client, depending on
-// which is available.
-func (process *TeleportProcess) exportUpgradeWindows(ctx context.Context, req proto.ExportUpgradeWindowsRequest) (proto.ExportUpgradeWindowsResponse, error) {
+// upgradeWindowsClient get the upgradeWindowsClient.
+// If the client is not yet initialized, the function will block until a valid
+// client is found.
+func (process *TeleportProcess) upgradeWindowsClient() (windowsClient adaptor.UpgradeWindowsClient, err error) {
+	// We we are a local auth, we don't have an instance client, so we return the auth.
 	if auth := process.getLocalAuth(); auth != nil {
-		return auth.ExportUpgradeWindows(ctx, req)
+		return auth, nil
 	}
 
-	clt := process.getInstanceClient()
-	if clt == nil {
-		return proto.ExportUpgradeWindowsResponse{}, trace.Errorf("instance client not yet initialized")
+	connector, err := waitForInstanceConnector(process, process.logger)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return clt.ExportUpgradeWindows(ctx, req)
+	if connector == nil {
+		return nil, trace.Errorf("instance shutting down, instance connector never became available")
+	}
+	return connector.Client, nil
 }
 
 // isGroupMember returns whether currently logged user is a member of a group
@@ -3541,7 +3454,9 @@ func (process *TeleportProcess) RegisterWithAuthServer(role types.SystemRole, ev
 }
 
 // waitForInstanceConnector waits for the instance connector to be ready,
-// logging a warning if this is taking longer than expected.
+// logging a warning if this is taking longer than expected. Returns (nil, nil) when the
+// ExitContext is done, so error checking should happen on the connector rather
+// than the error:
 func waitForInstanceConnector(process *TeleportProcess, log *slog.Logger) (*Connector, error) {
 	type r struct {
 		c   *Connector

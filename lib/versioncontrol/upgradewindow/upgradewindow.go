@@ -316,10 +316,12 @@ type Driver interface {
 }
 
 // NewDriver sets up a new export driver corresponding to the specified upgrader kind.
-func NewDriver(kind string) (Driver, error) {
+func NewDriver(kind string, kubeBackend *kubernetes.Backend) (Driver, error) {
 	switch kind {
 	case types.UpgraderKindKubeController:
-		return NewKubeControllerDriver(KubeControllerDriverConfig{})
+		return NewKubeControllerDriver(KubeControllerDriverConfig{
+			Backend: kubeBackend,
+		})
 	case types.UpgraderKindSystemdUnit:
 		return NewSystemdUnitDriver(SystemdUnitDriverConfig{})
 	default:
