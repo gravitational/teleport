@@ -38,7 +38,9 @@ export function getDownloadHost(event: AppUpdateEvent): string {
     case 'update-available':
     case 'download-progress':
     case 'update-downloaded':
-      return new URL(event.update.files.at(0).url).host;
+    case 'error':
+      const url = event.update?.files?.at(0)?.url;
+      return url && new URL(url).host;
     default:
       return '';
   }

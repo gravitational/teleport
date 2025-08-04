@@ -54,6 +54,7 @@ export function WidgetView(props: {
   updateEvent: AppUpdateEvent;
   platform: Platform;
   clusterGetter: ClusterGetter;
+  mx?: string | number;
   onMore(): void;
   onDownload(): void;
   onInstall(): void;
@@ -62,17 +63,16 @@ export function WidgetView(props: {
   const { updateEvent } = props;
   const { autoUpdatesStatus } = updateEvent;
 
-  const issueRequiringAttention = findAutoUpdatesIssuesRequiringAttention(
-    autoUpdatesStatus,
-    getClusterName
-  );
+  const issueRequiringAttention =
+    autoUpdatesStatus &&
+    findAutoUpdatesIssuesRequiringAttention(autoUpdatesStatus, getClusterName);
 
   if (issueRequiringAttention) {
     return (
       <Alert
         kind="danger"
-        width="100%"
         mb={0}
+        mx={props.mx}
         details={issueRequiringAttention}
         secondaryAction={{
           content: 'Resolve',
@@ -89,8 +89,8 @@ export function WidgetView(props: {
     return (
       <Alert
         kind="danger"
-        width="100%"
         mb={0}
+        mx={props.mx}
         details={updateEvent.error.message}
         secondaryAction={{
           content: 'More',
@@ -134,6 +134,7 @@ export function WidgetView(props: {
       primaryButton={
         button ? { name: button.name, onClick: button.action } : undefined
       }
+      mx={props.mx}
     />
   );
 }
@@ -150,6 +151,7 @@ function AvailableUpdate(props: {
     name: string;
     onClick(): void;
   };
+  mx: string | number | undefined;
 }) {
   const hasUnreachableClusters = !!props.unreachableClusters.length;
   const isNonTeleportServer =
@@ -160,13 +162,14 @@ function AvailableUpdate(props: {
     <Stack
       justifyContent="space-between"
       gap={1}
-      width="100%"
       css={`
         border: 1px solid ${props => props.theme.colors.text.disabled};
         background: ${props => props.theme.colors.interactive.tonal.neutral[0]};
       `}
       borderRadius={3}
       px={3}
+      mx={props.mx}
+      width="100%"
       py="12px"
     >
       <Flex width="100%" alignItems="center" justifyContent="space-between">
