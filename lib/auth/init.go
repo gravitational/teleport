@@ -1306,6 +1306,7 @@ func GetPresetRoles() []types.Role {
 		services.NewSystemOktaRequesterRole(),
 		services.NewPresetTerraformProviderRole(),
 		services.NewSystemIdentityCenterAccessRole(),
+		services.NewAWSIAMRolesAnywhereProfileTemplateRole(),
 		services.NewPresetWildcardWorkloadIdentityIssuerRole(),
 		services.NewPresetAccessPluginRole(),
 		services.NewPresetListAccessRequestResourcesRole(),

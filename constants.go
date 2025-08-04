@@ -746,6 +746,10 @@ const (
 	// Access Requests.
 	SystemIdentityCenterAccessRoleName = "aws-ic-access"
 
+	// SystemAWSIAMRolesAnywhereProfileTemplateRole specifies the name of a system role
+	// that grants a user access to AWS IAM Roles using the AWS IAM Roles Anywhere integration.
+	SystemAWSIAMRolesAnywhereProfileTemplateRole = "aws-iam-roles-anywhere-access-template"
+
 	// PresetWildcardWorkloadIdentityIssuerRoleName is a name of a preset role
 	// that includes the permissions necessary to issue workload identity
 	// credentials using any workload_identity resource. This exists to simplify
