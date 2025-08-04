@@ -22,6 +22,7 @@ import { render, screen } from 'design/utils/testing';
 
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { AppUpdaterContextProvider } from 'teleterm/ui/AppUpdater';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 
@@ -41,12 +42,14 @@ it('keeps the focus on the password field on submission error', async () => {
 
   render(
     <MockAppContextProvider appContext={appContext}>
-      <ClusterLogin
-        clusterUri={cluster.uri}
-        onCancel={() => {}}
-        prefill={{ username: 'alice' }}
-        reason={undefined}
-      />
+      <AppUpdaterContextProvider>
+        <ClusterLogin
+          clusterUri={cluster.uri}
+          onCancel={() => {}}
+          prefill={{ username: 'alice' }}
+          reason={undefined}
+        />
+      </AppUpdaterContextProvider>
     </MockAppContextProvider>
   );
 
