@@ -1129,26 +1129,26 @@ func (c *Controller) handleDatabaseServerHB(handle *upstreamHandle, databaseServ
 
 	dbKey := resourceKey{hostID: databaseServer.GetHostID(), name: databaseServer.GetDatabase().GetName()}
 
-	if _, ok := handle.databaseServers[dbKey]; !ok {
+	srv, ok := handle.databaseServers[dbKey]
+	if !ok {
 		c.onConnectFunc(constants.KeepAliveDatabase)
 		if c.dbHBVariableDuration != nil {
 			c.dbHBVariableDuration.Inc()
 		}
-		hbInfo := &heartBeatInfo[*types.DatabaseServerV3]{}
+		srv = &heartBeatInfo[*types.DatabaseServerV3]{}
 		if handle.Hello().GetCapabilities().GetDatabaseHeartbeatGracefulStop() {
 			// graceful stop for individual heartbeats is necessary to enforce
 			// rate limiting without dropping upserts.
 			// otherwise a client may unregister a single server and delete its
 			// backend heartbeat directly, but a rate limit delayed upsert would
 			// reverse the deletion and keepalive the server indefinitely
-			hbInfo.heartbeatLimiter = c.newServerHBRateLimiter()
+			srv.heartbeatLimiter = c.newServerHBRateLimiter()
 		}
-		handle.databaseServers[dbKey] = hbInfo
+		handle.databaseServers[dbKey] = srv
 		handle.dbKeepAliveDelay.Add(dbKey)
 	}
 
 	now := time.Now()
-	srv := handle.databaseServers[dbKey]
 	if delay := srv.delayUpsertFrom(now); delay > 0 {
 		c.testEvent(dbUpsertRateLimited)
 		slog.DebugContext(c.closeContext, "Database heartbeat rate limit exceeded",
