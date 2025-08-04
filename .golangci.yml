@@ -174,10 +174,10 @@ linters:
                 migrated away from jsonpb, but it should not be used by new
                 code. If you need to encode and decode a gogoproto-generated
                 message in protobuf json, use
-                google.golang.org/protobuf/google.golang.org/protobuf/encoding/protojson
-                together with google.golang.org/protobuf/protoadapt instead, or,
-                better yet, see if you can move the code generation for that
-                message to the modern protoc-gen-go.
+                google.golang.org/protobuf/encoding/protojson together with
+                google.golang.org/protobuf/protoadapt instead, or, better yet,
+                see if you can move the code generation for that message to the
+                modern protoc-gen-go.
         oidc:
           deny:
             - pkg: github.com/coreos/go-oidc
