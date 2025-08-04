@@ -32,6 +32,9 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
+	"github.com/gravitational/teleport/lib/tbot/services/database"
+	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -70,16 +73,16 @@ func TestSendTelemetry(t *testing.T) {
 				JoinMethod: types.JoinMethodGitHub,
 			},
 			Services: config.ServiceConfigs{
-				&config.IdentityOutput{
-					Destination: &destination.Directory{},
+				&identitysvc.OutputConfig{
+					Destination: &destination.Memory{},
 				},
-				&config.KubernetesOutput{
+				&k8s.OutputV1Config{
 					Destination: &destination.Directory{},
 				},
 				&application.OutputConfig{
 					Destination: &destination.Directory{},
 				},
-				&config.DatabaseOutput{
+				&database.OutputConfig{
 					Destination: &destination.Directory{},
 				},
 			},

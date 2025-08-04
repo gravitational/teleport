@@ -20,6 +20,10 @@ import * as styledComponents from 'styled-components';
 import { lightTheme } from 'design/theme';
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
+import {
+  ToastNotificationProvider,
+  useToastNotifications,
+} from 'shared/components/ToastNotification';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import TeleportContext from 'teleport/teleportContext';
@@ -27,23 +31,27 @@ import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserConte
 import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 
 import { ContextProvider } from '..';
-import { NotificationProvider, useNotification } from './NotificationContext';
 import { Preferences } from './Preferences';
 
-jest.mock('./NotificationContext', () => {
-  const originalContext = jest.requireActual('./NotificationContext');
-  return {
-    ...originalContext,
-    useNotification: jest.fn(),
-  };
-});
+jest.mock(
+  '../../../shared/components/ToastNotification/ToastNotificationContext',
+  () => {
+    const originalContext = jest.requireActual(
+      '../../../shared/components/ToastNotification/ToastNotificationContext'
+    );
+    return {
+      ...originalContext,
+      useToastNotifications: jest.fn(),
+    };
+  }
+);
 
 function renderComponent(ctx: TeleportContext, setErrorMessageFn = jest.fn()) {
   render(
     <ContextProvider ctx={ctx}>
-      <NotificationProvider>
+      <ToastNotificationProvider>
         <Preferences setErrorMessage={setErrorMessageFn} />
-      </NotificationProvider>
+      </ToastNotificationProvider>
     </ContextProvider>
   );
 }
@@ -60,8 +68,8 @@ describe('Account/Preferences', () => {
         return { success: true };
       });
 
-    (useNotification as jest.Mock).mockReturnValue({
-      addNotification: jest.fn(),
+    (useToastNotifications as jest.Mock).mockReturnValue({
+      add: jest.fn(),
     });
 
     mockUserContextProviderWith(userContext);
@@ -108,8 +116,8 @@ describe('Account/Preferences', () => {
     mockUserContextProviderWith(userContext);
 
     const addNotification = jest.fn();
-    (useNotification as jest.Mock).mockReturnValue({
-      addNotification,
+    (useToastNotifications as jest.Mock).mockReturnValue({
+      add: addNotification,
     });
 
     renderComponent(createTeleportContext());
@@ -132,9 +140,11 @@ describe('Account/Preferences', () => {
       );
     });
 
-    expect(addNotification).toHaveBeenCalledWith('success', {
-      title: 'Change saved',
-      isAutoRemovable: true,
+    expect(addNotification).toHaveBeenCalledWith({
+      severity: 'success',
+      content: {
+        title: 'Change saved',
+      },
     });
   });
 

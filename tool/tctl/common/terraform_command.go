@@ -43,13 +43,12 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -302,29 +301,36 @@ func (c *TerraformCommand) checkIfRoleExists(ctx context.Context, client roleCli
 // Note: the function also returns the SSH Host CA cert encoded in the known host format.
 // The identity.Identity uses a different format (authorized keys).
 func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr utils.NetAddr, token string, clt *authclient.Client) (*identity.Identity, [][]byte, error) {
-	credential := &config.UnstableClientCredentialOutput{}
-	cfg := &config.BotConfig{
-		Version: "",
+	credential := &clientcredentials.UnstableConfig{}
+	credentialLifetime := bot.CredentialLifetime{
+		TTL:             c.botTTL,
+		RenewalInterval: bot.DefaultCredentialLifetime.RenewalInterval,
+	}
+	cfg := bot.Config{
+		Connection: connection.Config{
+			Address:     addr.String(),
+			AddressKind: connection.AddressKindAuth,
+			// When setting AuthServerAddressMode to ProxyAllowed, tbot will try both joining as an auth and as a proxy.
+			// This allows us to not care about how the user connects to Teleport (auth vs proxy joining).
+			AuthServerAddressMode: connection.AllowProxyAsAuthServer,
+			// If --insecure is passed, the bot will trust the certificate on first use.
+			// This does not truly disable TLS validation, only trusts the certificate on first connection.
+			Insecure: clt.Config().InsecureSkipVerify,
+		},
 		Onboarding: onboarding.Config{
 			TokenValue: token,
 			JoinMethod: types.JoinMethodToken,
 		},
-		Storage:            &config.StorageConfig{Destination: &destination.Memory{}},
-		Services:           config.ServiceConfigs{credential},
-		CredentialLifetime: bot.CredentialLifetime{TTL: c.botTTL},
-		Oneshot:            true,
-		// If --insecure is passed, the bot will trust the certificate on first use.
-		// This does not truly disable TLS validation, only trusts the certificate on first connection.
-		Insecure: clt.Config().InsecureSkipVerify,
+		InternalStorage:    destination.NewMemory(),
+		CredentialLifetime: credentialLifetime,
+		Services: []bot.ServiceBuilder{
+			clientcredentials.ServiceBuilder(credential, credentialLifetime),
+		},
+		Logger: c.log,
 	}
 
-	// When setting AuthServerAddressMode to ProxyAllowed, tbot will try both joining as an auth and as a proxy.
-	// This allows us to not care about how the user connects to Teleport (auth vs proxy joining).
-	cfg.AuthServer = addr.String()
-	cfg.AuthServerAddressMode = connection.AllowProxyAsAuthServer
-
 	// Insecure joining is not compatible with CA pinning
-	if !cfg.Insecure {
+	if !cfg.Connection.Insecure {
 		// We use the client to get the TLS CA and compute its fingerprint.
 		// In case of auth joining, this ensures that tbot connects to the same Teleport auth as we do
 		// (no man in the middle possible between when we build the auth client and when we run tbot).
@@ -345,8 +351,11 @@ func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr util
 	}
 
 	// Run the bot
-	bot := tbot.New(cfg, c.log)
-	err = bot.Run(ctx)
+	bot, err := bot.New(cfg)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "creating the bot")
+	}
+	err = bot.OneShot(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "running the bot")
 	}

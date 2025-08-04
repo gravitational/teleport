@@ -29,17 +29,18 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/tbot"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
-	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 )
 
 // EmbeddedBot is an embedded tBot instance to renew the operator certificates.
 type EmbeddedBot struct {
 	log *slog.Logger
-	cfg *config.BotConfig
+	cfg bot.Config
 
-	credential *config.UnstableClientCredentialOutput
+	credential *clientcredentials.UnstableConfig
 
 	// mutex protects started, cancelCtx and errCh
 	mutex     sync.Mutex
@@ -53,11 +54,26 @@ func New(botConfig *BotConfig, log *slog.Logger) (*EmbeddedBot, error) {
 	if log == nil {
 		return nil, trace.BadParameter("missing log")
 	}
-	credential := &config.UnstableClientCredentialOutput{}
+	credential := &clientcredentials.UnstableConfig{}
 
-	cfg := (*config.BotConfig)(botConfig)
-	cfg.Storage = &config.StorageConfig{Destination: destination.NewMemory()}
-	cfg.Services = config.ServiceConfigs{credential}
+	cfg := bot.Config{
+		Connection: connection.Config{
+			Address:               botConfig.AuthServer,
+			AddressKind:           connection.AddressKindAuth,
+			AuthServerAddressMode: connection.AllowProxyAsAuthServer,
+			Insecure:              botConfig.Insecure,
+		},
+		Onboarding:         botConfig.Onboarding,
+		InternalStorage:    destination.NewMemory(),
+		Logger:             log,
+		CredentialLifetime: botConfig.CredentialLifetime,
+		Services: []bot.ServiceBuilder{
+			clientcredentials.ServiceBuilder(
+				credential,
+				botConfig.CredentialLifetime,
+			),
+		},
+	}
 
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {
@@ -78,12 +94,14 @@ func New(botConfig *BotConfig, log *slog.Logger) (*EmbeddedBot, error) {
 // - return the server features
 // It allows us to fail fast and validate if something is broken before starting the manager.
 func (b *EmbeddedBot) Preflight(ctx context.Context) (*proto.PingResponse, error) {
-	b.cfg.Oneshot = true
-	bot := tbot.New(b.cfg, b.log)
-	err := bot.Run(ctx)
+	bot, err := bot.New(b.cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := bot.OneShot(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	teleportClient, err := b.buildClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -97,11 +115,14 @@ func (b *EmbeddedBot) Preflight(ctx context.Context) (*proto.PingResponse, error
 // to be notified of the bot health there are two ways:
 // - if the bot just started, waitForClient to make sure it obtained its first certificates
 // - when the bot is running, call Start() that will wait for the bot to exit or the context being canceled.
-func (b *EmbeddedBot) start(ctx context.Context) {
+func (b *EmbeddedBot) start(ctx context.Context) error {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-	b.cfg.Oneshot = false
-	bot := tbot.New(b.cfg, b.log)
+
+	bot, err := bot.New(b.cfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	botCtx, cancel := context.WithCancel(ctx)
 	b.cancelCtx = cancel
@@ -117,6 +138,7 @@ func (b *EmbeddedBot) start(ctx context.Context) {
 		}
 		b.errCh <- trace.Wrap(err)
 	}()
+	return nil
 }
 
 // Start is a lie, the bot is already started. DO NOT CALL Start if you want to run the bot, call StartAndWaitForClient.
@@ -160,7 +182,10 @@ func (b *EmbeddedBot) waitForCredentials(ctx context.Context, deadline time.Dura
 // It returns an error if the EmbeddedBot is not able to get a certificate before the deadline.
 // If you need a client.Credentials instead, you can use StartAndWaitForCredentials.
 func (b *EmbeddedBot) StartAndWaitForClient(ctx context.Context, deadline time.Duration) (*client.Client, error) {
-	b.start(ctx)
+	if err := b.start(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	_, err := b.waitForCredentials(ctx, deadline)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -174,7 +199,10 @@ func (b *EmbeddedBot) StartAndWaitForClient(ctx context.Context, deadline time.D
 // It returns an error if the EmbeddedBot is not able to get a certificate before the deadline.
 // If you need a client.Client instead, you can use StartAndWaitForClient.
 func (b *EmbeddedBot) StartAndWaitForCredentials(ctx context.Context, deadline time.Duration) (client.Credentials, error) {
-	b.start(ctx)
+	if err := b.start(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	creds, err := b.waitForCredentials(ctx, deadline)
 	return creds, trace.Wrap(err)
 }
@@ -182,11 +210,11 @@ func (b *EmbeddedBot) StartAndWaitForCredentials(ctx context.Context, deadline t
 // buildClient reads tbot's memory disttination, retrieves the certificates
 // and builds a new Teleport client using those certs.
 func (b *EmbeddedBot) buildClient(ctx context.Context) (*client.Client, error) {
-	slog.InfoContext(ctx, "Building a new client to connect to cluster", "auth_server_address", b.cfg.AuthServer)
+	slog.InfoContext(ctx, "Building a new client to connect to cluster", "auth_server_address", b.cfg.Connection.Address)
 	c, err := client.New(ctx, client.Config{
-		Addrs:                    []string{b.cfg.AuthServer},
+		Addrs:                    []string{b.cfg.Connection.Address},
 		Credentials:              []client.Credentials{b.credential},
-		InsecureAddressDiscovery: b.cfg.Insecure,
+		InsecureAddressDiscovery: b.cfg.Connection.Insecure,
 	})
 	return c, trace.Wrap(err)
 }
