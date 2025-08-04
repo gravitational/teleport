@@ -16,12 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { rmSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import process from 'process';
 
+import { app } from 'electron';
 import {
   autoUpdater,
   AppUpdater as ElectronAppUpdater,
+  MacUpdater,
   ProgressInfo,
+  UpdateCheckResult,
   UpdateInfo,
 } from 'electron-updater';
 import { ProviderRuntimeOptions } from 'electron-updater/out/providers/Provider';
@@ -30,6 +36,7 @@ import type { GetClusterVersionsResponse } from 'gen-proto-ts/teleport/lib/telet
 import { AbortError } from 'shared/utils/error';
 
 import Logger from 'teleterm/logger';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import {
   AutoUpdatesEnabled,
@@ -48,11 +55,16 @@ export class AppUpdater {
   private readonly logger = new Logger('AppUpdater');
   private readonly unregisterEventHandlers: () => void;
   private autoUpdatesStatus: AutoUpdatesStatus | undefined;
+  private updateCheckResult: UpdateCheckResult | undefined;
+  private checkForUpdatesPromise: Promise<void> | undefined;
+  private downloadPromise: Promise<string[]> | undefined;
+  private isUpdateDownloaded = false;
 
   constructor(
-    private storage: AppUpdaterStorage,
-    private getClusterVersions: () => Promise<GetClusterVersionsResponse>,
-    getDownloadBaseUrl: () => Promise<string>
+    private readonly storage: AppUpdaterStorage,
+    private readonly getClusterVersions: () => Promise<GetClusterVersionsResponse>,
+    readonly getDownloadBaseUrl: () => Promise<string>,
+    private readonly emit: (event: AppUpdateEvent) => void
   ) {
     const getClientToolsVersion: ClientToolsVersionGetter = async () => {
       await this.refreshAutoUpdatesStatus();
@@ -81,6 +93,12 @@ export class AppUpdater {
 
     autoUpdater.logger = this.logger;
     autoUpdater.allowDowngrade = true;
+    autoUpdater.autoDownload = false;
+    // Must be set to true before any download starts.
+    // electron-updater registers a listener to install the update when
+    // the app quits, after the download has completed.
+    // It can be then set to false, it the update shouldn't be installed
+    // (except macOS).
     autoUpdater.autoInstallOnAppQuit = true;
     // Enables checking for updates and downloading them in dev mode.
     // It makes testing this feature easier.
@@ -89,13 +107,199 @@ export class AppUpdater {
     autoUpdater.forceDevUpdateConfig = true;
 
     this.unregisterEventHandlers = registerEventHandlers(
-      () => {}, //TODO: send the events to the window.
-      () => this.autoUpdatesStatus
+      this.emit,
+      () => this.autoUpdatesStatus,
+      () => this.shouldAutoDownload()
     );
+
+    // Workaround to prevent installing outdated updates.
+    // electron-updater lacks support for this: once an update is downloaded,
+    // it will be installed on quit—even if subsequent update checks report
+    // no new updates.
+    app.on('will-quit', () => {
+      if (!this.isUpdateDownloaded) {
+        // Workaround for Windows and Linux.
+        autoUpdater.autoInstallOnAppQuit = false;
+
+        // macOS-specific workaround:
+        // On macOS, electron-updater downloads the update file and, if
+        // `autoUpdater.autoInstallOnAppQuit` is true, passes it to the native Electron
+        // autoUpdater via a local server. The update is then handed off to the Squirrel
+        // framework for installation (either on demand or after quitting the app).
+        // Unfortunately, once Squirrel gets the update, it is always installed
+        // on quit, regardless of the `autoInstallOnAppQuit` value.
+        // The only workaround I've found is to manually delete the entire Squirrel
+        // update directory for Connect.
+        if (autoUpdater instanceof MacUpdater && app.isPackaged) {
+          const squirrelMacPath = path.join(
+            os.homedir(),
+            'Library',
+            'Caches',
+            'gravitational.teleport.connect.ShipIt'
+          );
+          try {
+            rmSync(squirrelMacPath, {
+              recursive: true,
+              force: true,
+              maxRetries: 2,
+            });
+          } catch {
+            /* empty */
+          }
+        }
+      }
+    });
   }
 
   dispose(): void {
     this.unregisterEventHandlers();
+  }
+
+  /**
+   * Checks for app updates.
+   *
+   * This method enhances the standard autoUpdater.checkForUpdates() by adding
+   * the following behaviors:
+   * - It allows update checks during an ongoing download process.
+   * If a new update is found (or no update is available), the current download
+   * is canceled.
+   * - If an update is checked after a download has completed, the updater
+   * automatically transitions to the `update-downloaded` state.
+   */
+  async checkForUpdates(): Promise<void> {
+    if (this.checkForUpdatesPromise) {
+      this.logger.info('Check for updates already in progress.');
+      return this.checkForUpdatesPromise;
+    }
+
+    this.checkForUpdatesPromise = this.doCheckForUpdates();
+    try {
+      await this.checkForUpdatesPromise;
+    } catch (error) {
+      this.logger.error('Failed to check for updates.', error);
+    } finally {
+      this.checkForUpdatesPromise = undefined;
+    }
+  }
+
+  /** Not safe for concurrent use. */
+  private async doCheckForUpdates(
+    opts: {
+      /**
+       * Whether this is a retry attempt.
+       * Used as a guard to prevent infinite loops.
+       */
+      hasRetried?: boolean;
+    } = {}
+  ): Promise<void> {
+    const result = await autoUpdater.checkForUpdates();
+
+    const newSha = result.updateInfo?.files[0]?.sha512;
+    const oldSha = this.updateCheckResult?.updateInfo.files[0]?.sha512;
+    const isSameUpdate = newSha && oldSha && newSha === oldSha;
+
+    this.updateCheckResult = result;
+
+    const updateUnavailable = !result.isUpdateAvailable;
+    const updateChanged = !isSameUpdate;
+
+    let downloadCanceled = false;
+    if (updateUnavailable || updateChanged) {
+      downloadCanceled = await this.cancelDownload();
+    }
+
+    if (
+      this.shouldAutoDownload() ||
+      // This can occur if the user manually downloads an update
+      // and then triggers another check for updates.
+      // Since the update is already downloaded, the updater should transition
+      // to the `update-downloaded` state automatically.
+      // The update file will be read from the local cache.
+      this.isUpdateDownloaded
+    ) {
+      void this.download();
+      return;
+    }
+
+    // Retry once more to refresh the state if cancellation happened.
+    if (downloadCanceled && !opts.hasRetried) {
+      await this.doCheckForUpdates({ hasRetried: true });
+    }
+  }
+
+  /** Starts download. */
+  async download(): Promise<string[]> {
+    if (this.downloadPromise) {
+      this.logger.info('Download already in progress.');
+      return this.downloadPromise;
+    }
+
+    this.downloadPromise = autoUpdater.downloadUpdate();
+    try {
+      await this.downloadPromise;
+      this.isUpdateDownloaded = true;
+    } catch (error) {
+      this.logger.error('Failed to download update.', error);
+    } finally {
+      this.downloadPromise = undefined;
+    }
+  }
+
+  /** Cancels download. Returns true if aborted the network request. */
+  async cancelDownload(): Promise<boolean> {
+    if (!this.downloadPromise) {
+      this.isUpdateDownloaded = false;
+      return false;
+    }
+
+    // Due to a bug in electron-updater, we can't cancel downloads using cancellation
+    // token passed to autoUpdater.download().
+    // Repeatedly starting and canceling downloads causes the updater to go
+    // into a broken state where it becomes unresponsive.
+    // To avoid this, we instead close the network connections to abort
+    // the current download.
+    try {
+      await autoUpdater.netSession.closeAllConnections();
+      await this.downloadPromise;
+      return false;
+    } catch {
+      return true;
+    } finally {
+      this.isUpdateDownloaded = false;
+    }
+  }
+
+  /**
+   * Sets given cluster as managing app version.
+   * When `undefined` is passed, the managing cluster is cleared.
+   *
+   * Immediately cancels an in-progress download and then checks for updates.
+   */
+  async changeManagingCluster(
+    clusterUri: RootClusterUri | undefined
+  ): Promise<void> {
+    this.storage.put({ managingClusterUri: clusterUri });
+    await this.cancelDownload();
+    await this.checkForUpdates();
+  }
+
+  /**
+   * Restarts the app and installs the update after it has been downloaded.
+   * It should only be called after update-downloaded has been emitted.
+   */
+  quitAndInstall(): void {
+    try {
+      autoUpdater.quitAndInstall();
+    } catch (error) {
+      this.logger.error('Failed to quit and install update', error);
+    }
+  }
+
+  private shouldAutoDownload(): boolean {
+    return (
+      this.autoUpdatesStatus?.enabled &&
+      shouldAutoDownload(this.autoUpdatesStatus)
+    );
   }
 
   private async refreshAutoUpdatesStatus(): Promise<void> {
@@ -107,9 +311,6 @@ export class AppUpdater {
       managingClusterUri,
       getClusterVersions: this.getClusterVersions,
     });
-    if (this.autoUpdatesStatus.enabled) {
-      autoUpdater.autoDownload = shouldAutoDownload(this.autoUpdatesStatus);
-    }
     this.logger.info('Resolved auto updates status', this.autoUpdatesStatus);
   }
 }
@@ -126,14 +327,14 @@ export interface AppUpdaterStorage<
 
 function registerEventHandlers(
   emit: (event: AppUpdateEvent) => void,
-  getAutoUpdatesStatus: () => AutoUpdatesStatus
+  getAutoUpdatesStatus: () => AutoUpdatesStatus,
+  getAutoDownload: () => boolean
 ): () => void {
   // updateInfo becomes defined when an update is available (see onUpdateAvailable).
   // It is later attached to other events, like 'download-progress' or 'error'.
   let updateInfo: UpdateInfo | undefined;
 
   const onCheckingForUpdate = () => {
-    updateInfo = undefined;
     emit({
       kind: 'checking-for-update',
       autoUpdatesStatus: getAutoUpdatesStatus(),
@@ -144,30 +345,30 @@ function registerEventHandlers(
     emit({
       kind: 'update-available',
       update,
-      autoDownload: autoUpdater.autoDownload,
+      autoDownload: getAutoDownload(),
       autoUpdatesStatus: getAutoUpdatesStatus() as AutoUpdatesEnabled,
     });
   };
-  const onUpdateNotAvailable = () =>
+  const onUpdateNotAvailable = () => {
+    updateInfo = undefined;
     emit({
       kind: 'update-not-available',
       autoUpdatesStatus: getAutoUpdatesStatus(),
     });
-  const onUpdateCancelled = (update: UpdateInfo) => {
-    emit({
-      kind: 'error',
-      error: new AbortError('Update download was canceled'),
-      update,
-      autoUpdatesStatus: getAutoUpdatesStatus() as AutoUpdatesEnabled,
-    });
   };
   const onError = (error: Error) => {
-    // Functions can't be sent through IPC.
-    delete error.toString;
-
+    if (error.message.includes('net::ERR_ABORTED')) {
+      error = new AbortError('Update download was canceled');
+    }
+    const serializedError = {
+      name: error.name,
+      message: error.message,
+      cause: error.cause,
+      stack: error.stack,
+    };
     emit({
       kind: 'error',
-      error: error,
+      error: serializedError,
       update: updateInfo,
       autoUpdatesStatus: getAutoUpdatesStatus() as AutoUpdatesEnabled,
     });
@@ -189,7 +390,6 @@ function registerEventHandlers(
   autoUpdater.on('checking-for-update', onCheckingForUpdate);
   autoUpdater.on('update-available', onUpdateAvailable);
   autoUpdater.on('update-not-available', onUpdateNotAvailable);
-  autoUpdater.on('update-cancelled', onUpdateCancelled);
   autoUpdater.on('error', onError);
   autoUpdater.on('download-progress', onDownloadProgress);
   autoUpdater.on('update-downloaded', onUpdateDownloaded);
@@ -198,7 +398,6 @@ function registerEventHandlers(
     autoUpdater.off('checking-for-update', onCheckingForUpdate);
     autoUpdater.off('update-available', onUpdateAvailable);
     autoUpdater.off('update-not-available', onUpdateNotAvailable);
-    autoUpdater.off('update-cancelled', onUpdateCancelled);
     autoUpdater.off('error', onError);
     autoUpdater.off('download-progress', onDownloadProgress);
     autoUpdater.off('update-downloaded', onUpdateDownloaded);
