@@ -16,6 +16,14 @@ cluster to Teleport.
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
+## How it works
+
+In the setup we describe in this guide, you deploy a DigitalOcean Kubernetes
+cluster, then install the `teleport-cluster` Helm chart, which deploys the
+Teleport Auth Service and Teleport Proxy Service. You can then create a local
+administrative user on your Teleport cluster and enroll infrastructure
+resources by deploying Teleport Agents.
+
 ## Prerequisites
 
 - DigitalOcean account.

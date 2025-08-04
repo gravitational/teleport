@@ -228,23 +228,53 @@ func newMCPServerWithDetails(app types.Application, accessChecker services.Acces
 	return a
 }
 
+type mcpListRBACPrinter struct {
+	showFootnote bool
+}
+
+func (p *mcpListRBACPrinter) formatAllowedTools(mcpServer mcpServerWithDetails) string {
+	allowed := common.FormatAllowedEntities(mcpServer.Permissions.MCP.Tools.Allowed, mcpServer.Permissions.MCP.Tools.Denied)
+	if len(mcpServer.Permissions.MCP.Tools.Allowed) == 0 {
+		allowed += " [!]"
+		p.showFootnote = true
+	}
+	return allowed
+}
+
+func (p *mcpListRBACPrinter) maybePrintFootnote(w io.Writer) error {
+	if !p.showFootnote {
+		return nil
+	}
+	_, err := fmt.Fprintf(w, `[!] Warning: you do not have access to any tools on the MCP server.
+Please contact your Teleport administrator to ensure your Teleport role has
+appropriate 'allow.mcp.tools' set. For details on MCP access RBAC, see:
+https://goteleport.com/docs/enroll-resources/mcp-access/rbac/
+`)
+	return trace.Wrap(err)
+}
+
 func printMCPServersInText(w io.Writer, mcpServers iter.Seq[mcpServerWithDetails]) error {
 	var rows [][]string
+	var rbacPrinter mcpListRBACPrinter
 	for mcpServer := range mcpServers {
 		rows = append(rows, []string{
 			mcpServer.GetName(),
 			mcpServer.GetDescription(),
 			types.GetMCPServerTransportType(mcpServer.GetURI()),
+			rbacPrinter.formatAllowedTools(mcpServer),
 			common.FormatLabels(mcpServer.GetAllLabels(), false),
 		})
 	}
-	t := asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Type", "Labels"}, rows, "Labels")
-	_, err := fmt.Fprintln(w, t.AsBuffer().String())
-	return trace.Wrap(err)
+	t := asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Type", "Allowed Tools", "Labels"}, rows, "Labels")
+	if _, err := fmt.Fprintln(w, t.String()); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(rbacPrinter.maybePrintFootnote(w))
 }
 
 func printMCPServersInVerboseText(w io.Writer, mcpServers iter.Seq[mcpServerWithDetails]) error {
 	t := asciitable.MakeTable([]string{"Name", "Description", "Type", "Labels", "Command", "Args", "Allowed Tools"})
+	var rbacPrinter mcpListRBACPrinter
 	for mcpServer := range mcpServers {
 		mcpSpec := cmp.Or(mcpServer.GetMCP(), &types.MCP{})
 		t.AddRow([]string{
@@ -254,11 +284,13 @@ func printMCPServersInVerboseText(w io.Writer, mcpServers iter.Seq[mcpServerWith
 			common.FormatLabels(mcpServer.GetAllLabels(), true),
 			mcpSpec.Command,
 			strings.Join(mcpSpec.Args, " "),
-			common.FormatAllowedEntities(mcpServer.Permissions.MCP.Tools.Allowed, mcpServer.Permissions.MCP.Tools.Denied),
+			rbacPrinter.formatAllowedTools(mcpServer),
 		})
 	}
-	_, err := fmt.Fprintln(w, t.AsBuffer().String())
-	return trace.Wrap(err)
+	if _, err := fmt.Fprintln(w, t.String()); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(rbacPrinter.maybePrintFootnote(w))
 }
 
 type mcpConfigCommand struct {
