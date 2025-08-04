@@ -313,7 +313,12 @@ initiate a CLI connection inside Teleport Connect:
 </TabItem>
 <TabItem label="Web UI">
 
-The Teleport Web UI cannot provide direct connections to databases, but it will
+Starting from version `17.1`, users can establish database sessions using the
+Teleport Web UI. Currently, it is supported in PostgreSQL databases. 
+
+![New database session connect dialog with custom values](../../img/connect-your-client/webui-db-sessions/connect-dialog-custom.png)
+
+For other databases the Teleport Web UI will
 list those that are accessible to your user under **Databases** and provide
 `tsh` commands to connect from your local terminal environment.
 
