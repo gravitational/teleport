@@ -57,67 +57,59 @@ const uaccPathErrMaxLength = 4096
 // In the meantime, we just try to resolve from these paths instead.
 
 const (
-	utmpFilePath = "/var/run/utmp"
-	wtmpFilePath = "/var/log/wtmp"
+	defaultUtmpFilePath = "/var/run/utmp"
+	defaultWtmpFilePath = "/var/log/wtmp"
 	// wtmpAltFilePath exists only because on some system the path is different.
 	// It's being used when the wtmp path is not provided and the wtmpFilePath doesn't exist.
-	wtmpAltFilePath = "/var/run/wtmp"
-	btmpFilePath    = "/var/log/btmp"
+	wtmpAltFilePath     = "/var/run/wtmp"
+	defaultBtmpFilePath = "/var/log/btmp"
 
-	utmpxFilePath    = "/var/run/utmpx"
-	wtmpxFilePath    = "/var/log/wtmpx"
-	wtmpxAltFilePath = "/var/run/wtmpx"
-	btmpxFilePath    = "/var/log/btmpx"
+	defaultUtmpxFilePath = "/var/run/utmpx"
+	defaultWtmpxFilePath = "/var/log/wtmpx"
+	wtmpxAltFilePath     = "/var/run/wtmpx"
+	defaultBtmpxFilePath = "/var/log/btmpx"
 )
 
-func init() {
-	wtmp := &wtmpBackend{}
-	if utils.FileExists(utmpFilePath) {
-		wtmp.utmpPath = utmpFilePath
-	}
-	for _, wtmpPath := range []string{wtmpFilePath, wtmpAltFilePath} {
-		if utils.FileExists(wtmpPath) {
-			wtmp.wtmpPath = wtmpPath
-			break
-		}
-	}
-	if utils.FileExists(btmpFilePath) {
-		wtmp.btmpPath = btmpFilePath
-	}
-	if wtmp.utmpPath != "" || wtmp.wtmpPath != "" || wtmp.btmpPath != "" {
-		registerBackend(wtmp)
-	}
-
-	wtmpx := &wtmpBackend{useWtmpx: true}
-	if utils.FileExists(utmpxFilePath) {
-		wtmpx.utmpPath = utmpxFilePath
-	}
-	for _, wtmpxPath := range []string{wtmpxFilePath, wtmpxAltFilePath} {
-		if utils.FileExists(wtmpxPath) {
-			wtmpx.wtmpPath = wtmpxPath
-			break
-		}
-	}
-	if utils.FileExists(btmpxFilePath) {
-		wtmpx.btmpPath = btmpxFilePath
-	}
-	if wtmpx.utmpPath != "" || wtmpx.wtmpPath != "" || wtmpx.btmpPath != "" {
-		registerBackend(wtmpx)
-	}
-}
-
-type wtmpBackend struct {
-	useWtmpx bool
+type utmpBackend struct {
 	utmpPath string
 	wtmpPath string
 	btmpPath string
 }
 
-func (w *wtmpBackend) Name() string {
-	return "wtmp"
+func getTargetFile(candidates ...string) (string, error) {
+	for _, candidate := range candidates {
+		if utils.FileExists(candidate) {
+			return candidate, nil
+		}
+	}
+	return "", trace.BadParameter("no target files exist")
 }
 
-func (w *wtmpBackend) Login(ttyName, username string, remote net.Addr, ts time.Time) (string, error) {
+func newUtmpBackend(utmpFile, wtmpFile, btmpFile string) (*utmpBackend, error) {
+	utmp, err := getTargetFile(utmpFile, defaultUtmpxFilePath, defaultUtmpFilePath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	wtmp, err := getTargetFile(wtmpFile, defaultWtmpxFilePath, wtmpxAltFilePath, defaultWtmpFilePath, wtmpAltFilePath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	btmp, err := getTargetFile(btmpFile, defaultBtmpxFilePath, defaultBtmpFilePath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &utmpBackend{
+		utmpPath: utmp,
+		wtmpPath: wtmp,
+		btmpPath: btmp,
+	}, nil
+}
+
+func (w *utmpBackend) Name() string {
+	return "utmp"
+}
+
+func (w *utmpBackend) Login(ttyName, username string, remote net.Addr, ts time.Time) (string, error) {
 	// String parameter validation.
 	if len(username) > userMaxLen {
 		return "", trace.BadParameter("username length exceeds OS limits")
@@ -157,13 +149,7 @@ func (w *wtmpBackend) Login(ttyName, username string, remote net.Addr, ts time.T
 	accountDb.Lock()
 	defer accountDb.Unlock()
 	var uaccPathErr [uaccPathErrMaxLength]C.char
-	var status C.int
-	var errno error
-	if w.useWtmpx {
-		status, errno = C.uaccx_add_utmp_entry(cUtmpPath, cWtmpPath, cUsername, cHostname, &cIP[0], cTtyName, cIDName, secondsElapsed, microsFraction, &uaccPathErr[0])
-	} else {
-		status, errno = C.uacc_add_utmp_entry(cUtmpPath, cWtmpPath, cUsername, cHostname, &cIP[0], cTtyName, cIDName, secondsElapsed, microsFraction, &uaccPathErr[0])
-	}
+	status, errno := C.uacc_add_utmp_entry(cUtmpPath, cWtmpPath, cUsername, cHostname, &cIP[0], cTtyName, cIDName, secondsElapsed, microsFraction, &uaccPathErr[0])
 
 	switch status {
 	case C.UACC_UTMP_MISSING_PERMISSIONS:
@@ -181,7 +167,7 @@ func (w *wtmpBackend) Login(ttyName, username string, remote net.Addr, ts time.T
 	}
 }
 
-func (w *wtmpBackend) Logout(ttyName string, ts time.Time) error {
+func (w *utmpBackend) Logout(ttyName string, ts time.Time) error {
 	// String parameter validation.
 	if len(ttyName) > (int)(C.max_len_tty_name()-1) {
 		return trace.BadParameter("tty name length exceeds OS limits")
@@ -200,13 +186,7 @@ func (w *wtmpBackend) Logout(ttyName string, ts time.Time) error {
 	accountDb.Lock()
 	defer accountDb.Unlock()
 	var uaccPathErr [uaccPathErrMaxLength]C.char
-	var status C.int
-	var errno error
-	if w.useWtmpx {
-		status, errno = C.uaccx_mark_utmp_entry_dead(cUtmpPath, cWtmpPath, cTtyName, secondsElapsed, microsFraction, &uaccPathErr[0])
-	} else {
-		status, errno = C.uacc_mark_utmp_entry_dead(cUtmpPath, cWtmpPath, cTtyName, secondsElapsed, microsFraction, &uaccPathErr[0])
-	}
+	status, errno := C.uacc_mark_utmp_entry_dead(cUtmpPath, cWtmpPath, cTtyName, secondsElapsed, microsFraction, &uaccPathErr[0])
 
 	switch status {
 	case C.UACC_UTMP_MISSING_PERMISSIONS:
@@ -226,7 +206,7 @@ func (w *wtmpBackend) Logout(ttyName string, ts time.Time) error {
 	}
 }
 
-func (w *wtmpBackend) FailedLogin(username string, remote net.Addr, ts time.Time) error {
+func (w *utmpBackend) FailedLogin(username string, remote net.Addr, ts time.Time) error {
 	// String parameter validation.
 	if len(username) > userMaxLen {
 		return trace.BadParameter("username length exceeds OS limits")
@@ -256,13 +236,7 @@ func (w *wtmpBackend) FailedLogin(username string, remote net.Addr, ts time.Time
 	accountDb.Lock()
 	defer accountDb.Unlock()
 	var uaccPathErr [uaccPathErrMaxLength]C.char
-	var status C.int
-	var errno error
-	if w.useWtmpx {
-		status, errno = C.uaccx_add_btmp_entry(cBtmpPath, cUsername, cHostname, &cIP[0], secondsElapsed, microsFraction, &uaccPathErr[0])
-	} else {
-		status, errno = C.uacc_add_btmp_entry(cBtmpPath, cUsername, cHostname, &cIP[0], secondsElapsed, microsFraction, &uaccPathErr[0])
-	}
+	status, errno := C.uacc_add_btmp_entry(cBtmpPath, cUsername, cHostname, &cIP[0], secondsElapsed, microsFraction, &uaccPathErr[0])
 	switch status {
 	case C.UACC_UTMP_MISSING_PERMISSIONS:
 		return trace.AccessDenied("missing permissions to write to btmp")
@@ -279,7 +253,7 @@ func (w *wtmpBackend) FailedLogin(username string, remote net.Addr, ts time.Time
 	}
 }
 
-func (w *wtmpBackend) IsUserLoggedIn(username string) (bool, error) {
+func (w *utmpBackend) IsUserLoggedIn(username string) (bool, error) {
 	if len(username) > userMaxLen {
 		return false, trace.BadParameter("username length exceeds OS limits")
 	}
@@ -296,13 +270,7 @@ func (w *wtmpBackend) IsUserLoggedIn(username string) (bool, error) {
 	accountDb.Lock()
 	defer accountDb.Unlock()
 	var uaccPathErr [uaccPathErrMaxLength]C.char
-	var status C.int
-	var errno error
-	if w.useWtmpx {
-		status, errno = C.uaccx_has_entry_with_user(cUtmpPath, cUsername, &uaccPathErr[0])
-	} else {
-		status, errno = C.uacc_has_entry_with_user(cUtmpPath, cUsername, &uaccPathErr[0])
-	}
+	status, errno := C.uacc_has_entry_with_user(cUtmpPath, cUsername, &uaccPathErr[0])
 
 	switch status {
 	case C.UACC_UTMP_FAILED_OPEN:

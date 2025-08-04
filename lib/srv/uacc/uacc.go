@@ -19,119 +19,148 @@
 package uacc
 
 import (
-	"context"
 	"encoding/binary"
-	"log/slog"
+	"encoding/json"
 	"net"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 )
 
-type userAccountingBackend interface {
-	Name() string
-	Login(ttyName string, username string, remote net.Addr, ts time.Time) (string, error)
-	Logout(id string, ts time.Time) error
-	FailedLogin(username string, remote net.Addr, ts time.Time) error
-	IsUserLoggedIn(username string) (bool, error)
-}
-
-var backends []userAccountingBackend
-
-func registerBackend(backend userAccountingBackend) {
-	backends = append(backends, backend)
-	slog.DebugContext(context.Background(), "registered user accounting backend", "backend", backend.Name())
-}
-
-func tryBackendOp(f func(bk userAccountingBackend) error) error {
-	errors := make([]error, 0, len(backends))
-	var success bool
-	for _, bk := range backends {
-		err := f(bk)
-		if err == nil {
-			success = true
-		} else {
-			errors = append(errors, trace.Wrap(err, "backend %q failed", bk.Name()))
-		}
-	}
-	if success {
-		return nil
-	}
-	return trace.NewAggregate(errors...)
+type userKey struct {
+	Utmp   string
+	Wtmpdb string
 }
 
 type UserAccounting struct {
-	keys map[string]map[string]string
+	utmp         *utmpBackend
+	wtmpdb       *wtmpdbBackend
+	isPAMEnabled bool
 }
 
-func NewUserAccounting() (*UserAccounting, error) {
-	if len(backends) == 0 {
-		return nil, trace.NotImplemented("no user accounting backends available")
+type UaccConfig struct {
+	IsPAMEnabled bool
+	WtmpdbFile   string
+	Utmp         string
+	Wtmp         string
+	Btmp         string
+}
+
+func NewUserAccounting(cfg UaccConfig) (*UserAccounting, error) {
+	uacc := &UserAccounting{
+		isPAMEnabled: cfg.IsPAMEnabled,
 	}
-	return &UserAccounting{
-		keys: make(map[string]map[string]string),
-	}, nil
+	if utmp, err := newUtmpBackend(cfg.Utmp, cfg.Wtmp, cfg.Btmp); err == nil {
+		uacc.utmp = utmp
+	}
+	if wtmpdb, err := newWtmpdb(cfg.WtmpdbFile); err == nil {
+		uacc.wtmpdb = wtmpdb
+	}
+	if uacc.utmp == nil && uacc.wtmpdb == nil {
+		return nil, trace.BadParameter("no valid backends available")
+	}
+	return uacc, nil
 }
 
-func (uacc *UserAccounting) Login(tty *os.File, username string, remote net.Addr, ts time.Time) (string, error) {
+func (uacc *UserAccounting) Login(tty *os.File, username string, remote net.Addr, ts time.Time) ([]byte, error) {
 	ttyName, err := GetTTYName(tty)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	keysPerBackend := make(map[string]string, len(backends))
-	err = tryBackendOp(func(bk userAccountingBackend) error {
-		key, err := bk.Login(ttyName, username, remote, ts)
-		if err != nil {
-			return trace.Wrap(err)
+	var backendKeys userKey
+	var anySucceeded bool
+	errors := make([]error, 0, 2)
+	if uacc.utmp != nil {
+		utmpKey, err := uacc.utmp.Login(ttyName, username, remote, ts)
+		if err == nil {
+			anySucceeded = true
+			backendKeys.Utmp = utmpKey
+		} else {
+			errors = append(errors, err)
 		}
-		keysPerBackend[bk.Name()] = key
-		return nil
-	})
-	if err != nil {
-		return "", trace.Wrap(err)
 	}
-	key := uuid.NewString()
-	uacc.keys[key] = keysPerBackend
-	return key, nil
+	if uacc.wtmpdb != nil && !uacc.isPAMEnabled {
+		wtmpdbKey, err := uacc.wtmpdb.Login(ttyName, username, remote, ts)
+		if err == nil {
+			anySucceeded = true
+			backendKeys.Wtmpdb = wtmpdbKey
+		} else {
+			errors = append(errors, err)
+		}
+	}
+	if !anySucceeded {
+		return nil, trace.NewAggregate(errors...)
+	}
+	key, err := json.Marshal(backendKeys)
+	return key, trace.Wrap(err)
 }
 
-func (uacc *UserAccounting) Logout(key string, ts time.Time) error {
-	keysPerBackend, ok := uacc.keys[key]
-	if !ok {
-		return trace.NotFound("no local user for key %q", key)
-	}
-	err := tryBackendOp(func(bk userAccountingBackend) error {
-		key, ok := keysPerBackend[bk.Name()]
-		if !ok {
-			return trace.NotFound("no local user for backend %q", bk.Name())
-		}
-		return trace.Wrap(bk.Logout(key, ts))
-	})
-	if err != nil {
+func (uacc *UserAccounting) Logout(key []byte, ts time.Time) error {
+	var backendKeys userKey
+	if err := json.Unmarshal(key, &backendKeys); err != nil {
 		return trace.Wrap(err)
 	}
-	delete(uacc.keys, key)
+	var anySucceeded bool
+	errors := make([]error, 0, 2)
+	if backendKeys.Utmp != "" {
+		if uacc.utmp == nil {
+			return trace.BadParameter("utmp not supported")
+		}
+		if err := uacc.utmp.Logout(backendKeys.Utmp, ts); err == nil {
+			anySucceeded = true
+		} else {
+			errors = append(errors, err)
+		}
+	}
+	if backendKeys.Wtmpdb != "" {
+		if uacc.wtmpdb == nil {
+			return trace.BadParameter("wtmpdb not supported")
+		} else if uacc.isPAMEnabled {
+			return trace.BadParameter("wtmpdb login/logout is handled by PAM")
+		}
+		if err := uacc.wtmpdb.Logout(backendKeys.Wtmpdb, ts); err == nil {
+			anySucceeded = true
+		} else {
+			errors = append(errors, err)
+		}
+	}
+	if !anySucceeded {
+		return trace.NewAggregate(errors...)
+	}
 	return nil
 }
 
 func (uacc *UserAccounting) FailedLogin(username string, remote net.Addr, ts time.Time) error {
-	return trace.Wrap(tryBackendOp(func(bk userAccountingBackend) error {
-		return bk.FailedLogin(username, remote, ts)
-	}))
+	if uacc.utmp != nil {
+		if err := uacc.utmp.FailedLogin(username, remote, ts); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	// wtmpdb doesn't log failed logins
+	return nil
 }
 
 func (uacc *UserAccounting) IsUserLoggedIn(username string) (bool, error) {
-	var isUserLoggedIn bool
-	// TODO: too clever?
-	err := tryBackendOp(func(bk userAccountingBackend) error {
-		loggedIn, err := bk.IsUserLoggedIn(username)
-		isUserLoggedIn = isUserLoggedIn || loggedIn
-		return err
-	})
-	return isUserLoggedIn, trace.Wrap(err)
+	errors := make([]error, 0, 2)
+	if uacc.utmp != nil {
+		loggedIn, err := uacc.utmp.IsUserLoggedIn(username)
+		if err != nil {
+			errors = append(errors, err)
+		} else if loggedIn {
+			return true, nil
+		}
+	}
+	if uacc.wtmpdb != nil {
+		loggedIn, err := uacc.wtmpdb.IsUserLoggedIn(username)
+		if err != nil {
+			errors = append(errors, err)
+		} else if loggedIn {
+			return true, nil
+		}
+	}
+	return false, trace.NewAggregate(errors...)
 }
 
 // PrepareAddr parses and transforms a net.Addr into a format usable by other uacc functions.
