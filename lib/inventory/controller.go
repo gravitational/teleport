@@ -1161,6 +1161,9 @@ func (c *Controller) handleDatabaseServerHB(handle *upstreamHandle, databaseServ
 		srv.lease = nil
 		srv.resource = databaseServer
 		return nil
+	} else {
+		// rate limit allows the upsert, blank the reservation now.
+		srv.heartbeatReservation = nil
 	}
 
 	databaseServer.SetExpiry(now.Add(c.serverTTL).UTC())

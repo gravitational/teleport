@@ -765,12 +765,7 @@ func (h *heartBeatInfo[_]) delayUpsertFrom(now time.Time) time.Duration {
 		// a token within a finite duration of time.
 		h.heartbeatReservation = h.heartbeatLimiter.ReserveN(now, 1)
 	}
-	delay := h.heartbeatReservation.DelayFrom(now)
-	if delay == 0 {
-		// rate limit allows the upsert, blank the reservation now.
-		h.heartbeatReservation = nil
-	}
-	return delay
+	return h.heartbeatReservation.DelayFrom(now)
 }
 
 func newUpstreamHandle(stream client.UpstreamInventoryControlStream, hello *proto.UpstreamInventoryHello, now time.Time) *upstreamHandle {
