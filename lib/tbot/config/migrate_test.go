@@ -32,6 +32,8 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
+	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 )
 
 func TestMigrate(t *testing.T) {
@@ -150,7 +152,7 @@ destinations:
 						Destination: &destination.Memory{},
 						AppName:     "my-app",
 					},
-					&KubernetesOutput{
+					&k8s.OutputV1Config{
 						Destination:       &destination.Memory{},
 						KubernetesCluster: "my-kubernetes-cluster",
 					},
@@ -176,7 +178,7 @@ destinations:
 						Service:     "my-db-service",
 						Format:      database.CockroachDatabaseFormat,
 					},
-					&SSHHostOutput{
+					&ssh.HostOutputConfig{
 						Destination: &destination.Memory{},
 						Roles:       []string{"foo"},
 						Principals:  []string{"example.com", "second.example.com"},
@@ -256,7 +258,7 @@ destinations:
 					Destination: &destination.Memory{},
 				},
 				Services: ServiceConfigs{
-					&KubernetesOutput{
+					&k8s.OutputV1Config{
 						Destination: &destination.Directory{
 							Path:     "/path/example",
 							Symlinks: "try-secure",
@@ -593,7 +595,7 @@ oneshot: false
 					},
 				},
 				Services: ServiceConfigs{
-					&SSHHostOutput{
+					&ssh.HostOutputConfig{
 						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
@@ -717,7 +719,7 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&KubernetesOutput{
+					&k8s.OutputV1Config{
 						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
@@ -794,7 +796,7 @@ destinations:
 							ACLs:     botfs.ACLOff,
 						},
 					},
-					&KubernetesOutput{
+					&k8s.OutputV1Config{
 						Destination: &destination.Directory{
 							Path:     "/opt/machine-id/tools",
 							Symlinks: botfs.SymlinksInsecure,
@@ -909,7 +911,7 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&KubernetesOutput{
+					&k8s.OutputV1Config{
 						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
@@ -967,35 +969,35 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&KubernetesOutput{
+					&k8s.OutputV1Config{
 						Destination: &destination.Directory{
 							Path: "/mount/redacted-prod-global",
 							ACLs: botfs.ACLOff,
 						},
 						KubernetesCluster: "redacted-prod-global",
 					},
-					&KubernetesOutput{
+					&k8s.OutputV1Config{
 						Destination: &destination.Directory{
 							Path: "/mount/redacted-prod-au",
 							ACLs: botfs.ACLOff,
 						},
 						KubernetesCluster: "redacted-prod-au",
 					},
-					&KubernetesOutput{
+					&k8s.OutputV1Config{
 						Destination: &destination.Directory{
 							Path: "/mount/redacted-prod-eu2",
 							ACLs: botfs.ACLOff,
 						},
 						KubernetesCluster: "redacted-prod-eu2",
 					},
-					&KubernetesOutput{
+					&k8s.OutputV1Config{
 						Destination: &destination.Directory{
 							Path: "/mount/redacted-prod-ca",
 							ACLs: botfs.ACLOff,
 						},
 						KubernetesCluster: "redacted-prod-ca",
 					},
-					&KubernetesOutput{
+					&k8s.OutputV1Config{
 						Destination: &destination.Directory{
 							Path: "/mount/redacted-prod-us",
 							ACLs: botfs.ACLOff,

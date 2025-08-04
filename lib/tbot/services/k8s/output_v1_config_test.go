@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package k8s
 
 import (
 	"testing"
@@ -24,65 +24,64 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
-	"github.com/gravitational/teleport/lib/tbot/botfs"
 )
 
-func TestSSHMultiplexerService_YAML(t *testing.T) {
-	t.Parallel()
-
-	tests := []testYAMLCase[SSHMultiplexerService]{
+func TestKubernetesOutput_YAML(t *testing.T) {
+	dest := &destination.Memory{}
+	tests := []testYAMLCase[OutputV1Config]{
 		{
 			name: "full",
-			in: SSHMultiplexerService{
-				Destination: &destination.Directory{
-					Path: "/opt/machine-id",
-				},
-				EnableResumption:   ptr[bool](true),
-				ProxyTemplatesPath: "/etc/teleport/templates",
-				ProxyCommand:       []string{"rusty-boi"},
+			in: OutputV1Config{
+				Destination:       dest,
+				Roles:             []string{"access"},
+				KubernetesCluster: "k8s.example.com",
 				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
 				},
 			},
 		},
+		{
+			name: "minimal",
+			in: OutputV1Config{
+				Destination:       dest,
+				KubernetesCluster: "k8s.example.com",
+			},
+		},
 	}
 	testYAML(t, tests)
 }
 
-func TestSSHMultiplexerService_CheckAndSetDefaults(t *testing.T) {
-	t.Parallel()
-
-	tests := []testCheckAndSetDefaultsCase[*SSHMultiplexerService]{
+func TestKubernetesOutput_CheckAndSetDefaults(t *testing.T) {
+	tests := []testCheckAndSetDefaultsCase[*OutputV1Config]{
 		{
 			name: "valid",
-			in: func() *SSHMultiplexerService {
-				return &SSHMultiplexerService{
-					Destination: &destination.Directory{
-						Path:     "/opt/machine-id",
-						ACLs:     botfs.ACLOff,
-						Symlinks: botfs.SymlinksInsecure,
-					},
+			in: func() *OutputV1Config {
+				return &OutputV1Config{
+					Destination:       destination.NewMemory(),
+					Roles:             []string{"access"},
+					KubernetesCluster: "my-cluster",
 				}
 			},
 		},
 		{
 			name: "missing destination",
-			in: func() *SSHMultiplexerService {
-				return &SSHMultiplexerService{
-					Destination: nil,
+			in: func() *OutputV1Config {
+				return &OutputV1Config{
+					Destination:       nil,
+					KubernetesCluster: "my-cluster",
 				}
 			},
-			wantErr: "destination: must be specified",
+			wantErr: "no destination configured for output",
 		},
 		{
-			name: "wrong destination type",
-			in: func() *SSHMultiplexerService {
-				return &SSHMultiplexerService{
-					Destination: &destination.Memory{},
+			name: "missing kubernetes_config",
+			in: func() *OutputV1Config {
+				return &OutputV1Config{
+					Destination: destination.NewMemory(),
 				}
 			},
-			wantErr: "destination: must be of type `directory`",
+			wantErr: "kubernetes_cluster must not be empty",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

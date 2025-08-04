@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package k8s
 
 import (
 	"bytes"
@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -127,13 +126,13 @@ func TestKubernetesV2OutputService_fetch(t *testing.T) {
 
 	tests := []struct {
 		name                 string
-		selectors            []*config.KubernetesSelector
+		selectors            []*KubernetesSelector
 		expectError          require.ErrorAssertionFunc
 		expectedClusterNames []string
 	}{
 		{
 			name: "matches by name",
-			selectors: []*config.KubernetesSelector{
+			selectors: []*KubernetesSelector{
 				{
 					Name: "a",
 				},
@@ -145,7 +144,7 @@ func TestKubernetesV2OutputService_fetch(t *testing.T) {
 		},
 		{
 			name: "errors when direct lookup fails",
-			selectors: []*config.KubernetesSelector{
+			selectors: []*KubernetesSelector{
 				{
 					Name: "nonexistent",
 				},
@@ -156,7 +155,7 @@ func TestKubernetesV2OutputService_fetch(t *testing.T) {
 		},
 		{
 			name: "matches with simple label selector",
-			selectors: []*config.KubernetesSelector{
+			selectors: []*KubernetesSelector{
 				{
 					Labels: map[string]string{
 						"foo": "1",
@@ -167,7 +166,7 @@ func TestKubernetesV2OutputService_fetch(t *testing.T) {
 		},
 		{
 			name: "matches with complex label selector",
-			selectors: []*config.KubernetesSelector{
+			selectors: []*KubernetesSelector{
 				{
 					Labels: map[string]string{
 						"foo": "1",
@@ -179,7 +178,7 @@ func TestKubernetesV2OutputService_fetch(t *testing.T) {
 		},
 		{
 			name: "matches with multiple selectors",
-			selectors: []*config.KubernetesSelector{
+			selectors: []*KubernetesSelector{
 				{
 					Labels: map[string]string{
 						"foo": "1",
@@ -267,8 +266,8 @@ func TestKubernetesV2OutputService_render(t *testing.T) {
 				dest.Path = relativePath
 			}
 
-			svc := KubernetesV2OutputService{
-				cfg: &config.KubernetesV2Output{
+			svc := OutputV2Service{
+				cfg: &OutputV2Config{
 					DisableExecPlugin: tt.disableExecPlugin,
 					Destination:       dest,
 				},
