@@ -1101,11 +1101,6 @@
       "permanent": true
     },
     {
-      "source": "/model-context-preview/",
-      "destination": "/connect-your-client/model-context-protocol/",
-      "permanent": true
-    },
-    {
       "source": "/admin-guides/access-controls/idps/",
       "destination": "/identity-governance/idps/",
       "permanent": true
