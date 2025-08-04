@@ -1169,7 +1169,7 @@ func TestBotDeviceTrust(t *testing.T) {
 	botConfig := defaultBotConfig(
 		t, process, onboarding,
 		config.ServiceConfigs{
-			&config.IdentityOutput{
+			&identitysvc.OutputConfig{
 				Destination: &destination.Memory{},
 			},
 		},
