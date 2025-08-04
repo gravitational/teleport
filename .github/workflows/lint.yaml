@@ -257,7 +257,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport17
+      image: ghcr.io/gravitational/teleport-buildbox:teleport18
 
     steps:
       - name: Checkout
