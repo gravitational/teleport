@@ -59,6 +59,7 @@ export class AppUpdater {
   private checkForUpdatesPromise: Promise<void> | undefined;
   private downloadPromise: Promise<string[]> | undefined;
   private isUpdateDownloaded = false;
+  private forceNoAutoDownload = false;
 
   constructor(
     private readonly storage: AppUpdaterStorage,
@@ -166,13 +167,15 @@ export class AppUpdater {
    * - If an update is checked after a download has completed, the updater
    * automatically transitions to the `update-downloaded` state.
    */
-  async checkForUpdates(): Promise<void> {
+  async checkForUpdates(
+    options: { noAutoDownload?: boolean } = {}
+  ): Promise<void> {
     if (this.checkForUpdatesPromise) {
       this.logger.info('Check for updates already in progress.');
       return this.checkForUpdatesPromise;
     }
 
-    this.checkForUpdatesPromise = this.doCheckForUpdates();
+    this.checkForUpdatesPromise = this.doCheckForUpdates(options);
     try {
       await this.checkForUpdatesPromise;
     } catch (error) {
@@ -185,6 +188,7 @@ export class AppUpdater {
   /** Not safe for concurrent use. */
   private async doCheckForUpdates(
     opts: {
+      noAutoDownload?: boolean;
       /**
        * Whether this is a retry attempt.
        * Used as a guard to prevent infinite loops.
@@ -224,7 +228,7 @@ export class AppUpdater {
     // Retry to refresh the state so that the UI won't be showing
     // a cancellation error.
     if (downloadCanceled && !opts.hasRetried) {
-      await this.doCheckForUpdates({ hasRetried: true });
+      await this.doCheckForUpdates({ ...opts, hasRetried: true });
     }
   }
 
@@ -285,6 +289,26 @@ export class AppUpdater {
   }
 
   /**
+   * Removes the managing cluster if it matches the given cluster URI.
+   * Cancels any in-progress update that was triggered by this cluster.
+   */
+  async maybeRemoveManagingCluster(clusterUri: RootClusterUri): Promise<void> {
+    const { managingClusterUri } = this.storage.get();
+    if (managingClusterUri === clusterUri) {
+      this.storage.put({ managingClusterUri: undefined });
+    }
+
+    // checkForUpdates will discard any update triggered by the removed managing
+    // cluster. If a different update is found, do not download it automatically.
+    // Currently, updates aren't checked in the background, and on Windows and Linux,
+    // users may be surprised by an admin prompt when there is an update to install
+    // after quitting the app.
+    // We may revisit this behavior in the future. For example, if we introduce
+    // a UI notification indicating that there's an update to be installed.
+    await this.checkForUpdates({ noAutoDownload: true });
+  }
+
+  /**
    * Restarts the app and installs the update after it has been downloaded.
    * It should only be called after update-downloaded has been emitted.
    */
@@ -298,6 +322,7 @@ export class AppUpdater {
 
   private shouldAutoDownload(): boolean {
     return (
+      !this.forceNoAutoDownload &&
       this.autoUpdatesStatus?.enabled &&
       shouldAutoDownload(this.autoUpdatesStatus)
     );
