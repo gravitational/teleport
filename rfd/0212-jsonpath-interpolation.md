@@ -41,8 +41,8 @@ queries in a [sandbox](https://serdejsonpath.live/).
 
 #### `jsonpath` Expression Function
 
-The `jsonpath` function will be added as another standard trait expression
-function. It can be used in `login_rule` trait maps/expressions to interpolate
+The `jsonpath` function will be added as another trait expression function.
+It can only be used in `login_rule` trait maps/expressions to interpolate
 a string(s) from arbitrary JSON claims.
 
 #### JSONPath Libraries
@@ -87,7 +87,7 @@ requiring the use of login rules.
 
 You can use a login rule to map JSON claims to users traits.
 
-In the example below, `$.logins` and `$.env` claims are mapped to user traits.
+In the example below, `$.groups` individual claims are mapped to user traits.
 
 ```json
 {
@@ -110,13 +110,13 @@ spec:
   traits_map:
     roles:
       # evaluates to ["template"]
-      - jsonpath(external.groups, "$.roles")
+      - jsonpath("$.groups.roles")
     logins:
       # evaluates to ["alice"]
-      - jsonpath(external.groups, "$.logins")
+      - jsonpath("$.groups.logins")
     env:
       # evaluates to ["staging", "dev"]
-      - jsonpath(external.groups, "$.env")
+      - jsonpath("$.groups.env")
 ```
 
 These traits can then be used in claims to roles mappings, role templates,
@@ -197,22 +197,22 @@ spec:
   traits_map:
     roles:
       # evaluates to ["template"]
-      - jsonpath(external.groups, "$.teleport.roles")
+      - jsonpath("$.groups.teleport.roles")
     logins:
       # evaluates to ["alice"]
-      - jsonpath(external.groups, "$.teleport.node.logins")
+      - jsonpath("$.groups.teleport.node.logins")
     node_labels_*:
       # evaluates to "*"
-      - jsonpath(external.groups, "$.teleport.node.labels[?(@ == '*')]")
+      - jsonpath("$.groups.teleport.node.labels[?(@ == '*')]")
     node_labels_env:
       # evaluates to []
-      - jsonpath(external.groups, "$.teleport.node.labels.env")
+      - jsonpath("$.groups.teleport.node.labels.env")
     app_labels_*:
       # evaluates to []
-      - jsonpath(external.groups, "$.teleport.app.labels[?(@ == '*')]")
+      - jsonpath("$.groups.teleport.app.labels[?(@ == '*')]")
     app_labels_env:
       # evaluates to "staging"
-      - jsonpath(external.groups, "$.teleport.app.labels.env")
+      - jsonpath("$.groups.teleport.app.labels.env")
 ```
 
 Note: without [JSONPath-Plus syntax](#jsonpath-plus), it's not possible to grab
@@ -311,27 +311,27 @@ spec:
   traits_map:
     okta_logins:
       # evaluates to ["alice"]
-      - jsonpath(external.aggregated_claims, "$.okta.logins")
+      - jsonpath("$.aggregated_claims.okta.logins")
     okta_env:
       # evaluates to ["staging", "dev"]
-      - jsonpath(external.aggregated_claims, "$.okta.env")
+      - jsonpath("$.aggregated_claims.okta.env")
     auth0_logins:
       # evaluates to ["devops"]
-      - jsonpath(external.aggregated_claims, "$.auth0.logins")
+      - jsonpath("$.aggregated_claims.auth0.logins")
     auth0_env:
       # evaluates to ["prod"]
-      - jsonpath(external.aggregated_claims, "$.auth0.env")
+      - jsonpath("$.aggregated_claims.auth0.env")
     github_logins:
       # evaluates to []
-      - jsonpath(external.aggregated_claims, "$.github.logins")
+      - jsonpath("$.aggregated_claims.github.logins")
     github_env:
       # evaluates to []
-      - jsonpath(external.aggregated_claims, "$.github.env")
+      - jsonpath("$.aggregated_claims.github.env")
     teams:
       # evaluates to ["okta", "auth0"]
-      - 'ifelse( !isempty( jsonpath(external.aggregated_claims, "$.okta") ), set("okta"), set())'
-      - 'ifelse( !isempty( jsonpath(external.aggregated_claims, "$.auth0") ), set("auth0"), set())'
-      - 'ifelse( !isempty( jsonpath(external.aggregated_claims, "$.github") ), set("github"), set())'
+      - 'ifelse( !isempty( jsonpath("$.aggregated_claims.okta") ), set("okta"), set())'
+      - 'ifelse( !isempty( jsonpath("$.aggregated_claims.auth0") ), set("auth0"), set())'
+      - 'ifelse( !isempty( jsonpath("$.aggregated_claims.github") ), set("github"), set())'
 ```
 
 The mapped traits can now be referenced in the OIDC connector's `claims_to_roles`
@@ -437,7 +437,7 @@ spec:
   # of values. e.g. ["*", "env"] and ["*", ["staging", "dev"]] would get
   # inserted as {"*": "*", "env": ["staging", "dev"]}
   traits_expression: |
-    external.put_many(jsonpath(external.groups, "$.teleport.node.labels~"), jsonpath(external.groups, "$.teleport.node.labels"))
+    external.put_many(jsonpath("$.groups.teleport.node.labels~"), jsonpath("$.groups.teleport.node.labels"))
 ```
 
 If we just need to support property name grabbing, it should be possible to do
@@ -453,7 +453,7 @@ metadata:
 spec:
   priority: 0
   traits_expression: |
-    external.put_many(jsonpathprop(external.groups, "$.teleport.node.labels"), jsonpath(external.groups, "$.teleport.node.labels"))
+    external.put_many(jsonpathprop("$.groups.teleport.node.labels"), jsonpath("$.groups.teleport.node.labels"))
 ```
 
 #### JSON traits
@@ -589,9 +589,9 @@ spec:
   priority: 0
   traits_map:
     logins:
-      - jsonpath(external.aggregated_claims, "$.*.logins")
+      - jsonpath("$.aggregated_claims.*.logins")
     env:
-      - jsonpath(external.aggregated_claims, "$.*.env")
+      - jsonpath("$.aggregated_claims.*.env")
 ```
 
 The resulting traits will be much smaller with no redundancy compared to the
