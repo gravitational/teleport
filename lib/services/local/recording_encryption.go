@@ -24,6 +24,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -31,6 +32,7 @@ import (
 
 const (
 	recordingEncryptionPrefix = "recording_encryption"
+	rotatedKeyPrefix          = recordingEncryptionPrefix + "/rotated_key"
 )
 
 // RecordingEncryptionService exposes backend functionality for working with the
@@ -53,14 +55,17 @@ func NewRecordingEncryptionService(b backend.Backend) (*RecordingEncryptionServi
 		MarshalFunc:   services.MarshalProtoResource[*recordingencryptionv1.RecordingEncryption],
 		UnmarshalFunc: services.UnmarshalProtoResource[*recordingencryptionv1.RecordingEncryption],
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	rotatedKey, err := generic.NewServiceWrapper(generic.ServiceConfig[*recordingencryptionv1.RotatedKey]{
 		Backend:       b,
 		PageLimit:     pageLimit,
 		ResourceKind:  types.KindRotatedKey,
-		BackendPrefix: backend.NewKey(recordingEncryptionPrefix),
-		MarshalFunc:   services.MarshalProtoResource[*recordingencryptionv1.RecordingEncryption],
-		UnmarshalFunc: services.UnmarshalProtoResource[*recordingencryptionv1.RecordingEncryption],
+		BackendPrefix: backend.NewKey(rotatedKeyPrefix),
+		MarshalFunc:   services.MarshalProtoResource[*recordingencryptionv1.RotatedKey],
+		UnmarshalFunc: services.UnmarshalProtoResource[*recordingencryptionv1.RotatedKey],
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -68,6 +73,7 @@ func NewRecordingEncryptionService(b backend.Backend) (*RecordingEncryptionServi
 
 	return &RecordingEncryptionService{
 		encryption: encryption,
+		rotatedKey: rotatedKey,
 	}, nil
 }
 
@@ -102,6 +108,39 @@ func (s *RecordingEncryptionService) DeleteRecordingEncryption(ctx context.Conte
 func (s *RecordingEncryptionService) GetRecordingEncryption(ctx context.Context) (*recordingencryptionv1.RecordingEncryption, error) {
 	encryption, err := s.encryption.GetResource(ctx, types.MetaNameRecordingEncryption)
 	return encryption, trace.Wrap(err)
+}
+
+// CreateRotatedKey creates a new RotatedKey in the backend.
+func (s *RecordingEncryptionService) CreateRotatedKey(ctx context.Context, key *recordingencryptionv1.RotatedKey) (*recordingencryptionv1.RotatedKey, error) {
+	if key.Metadata == nil {
+		key.Metadata = &headerv1.Metadata{}
+	}
+	fp, err := recordingencryption.Fingerprint(key.GetSpec().GetFingerprint())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	key.Metadata.Name = fp
+	key.Kind = types.KindRotatedKey
+	created, err := s.rotatedKey.CreateResource(ctx, key)
+	return created, trace.Wrap(err)
+}
+
+// UpdateRotatedKey replaces a RotatedKey with the given one.
+func (s *RecordingEncryptionService) UpdateRotatedKey(ctx context.Context, key *recordingencryptionv1.RotatedKey) (*recordingencryptionv1.RotatedKey, error) {
+	if key.Metadata == nil {
+		key.Metadata = &headerv1.Metadata{}
+	}
+
+	key.Metadata.Name = key.GetSpec().GetFingerprint()
+	key.Kind = types.KindRecordingEncryption
+	updated, err := s.rotatedKey.ConditionalUpdateResource(ctx, key)
+	return updated, trace.Wrap(err)
+}
+
+// GetRotatedKey retrieves the RotatedKey related to the given fingerprint.
+func (s *RecordingEncryptionService) GetRotatedKey(ctx context.Context, fingerprint string) (*recordingencryptionv1.RotatedKey, error) {
+	rotatedKey, err := s.rotatedKey.GetResource(ctx, fingerprint)
+	return rotatedKey, trace.Wrap(err)
 }
 
 type recordingEncryptionParser struct {

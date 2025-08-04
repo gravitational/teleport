@@ -50,6 +50,7 @@ type KeyStore interface {
 // A Cache fetches a cached [*recordingencryptionv1.RecordingEncryption].
 type Cache interface {
 	GetRecordingEncryption(context.Context) (*recordingencryptionv1.RecordingEncryption, error)
+	GetRotatedKey(ctx context.Context, fingerprint string) (*recordingencryptionv1.RotatedKey, error)
 }
 
 // ManagerConfig captures all of the dependencies required to instantiate a Manager.
@@ -375,7 +376,22 @@ func (m *Manager) UnwrapKey(ctx context.Context, in UnwrapInput) ([]byte, error)
 		return fileKey, nil
 	}
 
-	return nil, trace.NotFound("no accessible decrypter found")
+	rotatedKey, err := m.cache.GetRotatedKey(ctx, in.Fingerprint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	decrypter, err := m.keyStore.GetDecrypter(ctx, rotatedKey.GetSpec().GetPair().GetKeyPair())
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("no accessible decrypter found")
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	fileKey, err = decrypter.Decrypt(in.Rand, in.WrappedKey, in.Opts)
+	return fileKey, trace.Wrap(err)
 }
 
 // Watch for changes in the recording_encryption resource and respond by ensuring access to keys.
