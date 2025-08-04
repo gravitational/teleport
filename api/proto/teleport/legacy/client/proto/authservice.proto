@@ -2725,6 +2725,20 @@ message ListProvisionTokensResponse {
   string NextKey = 2;
 }
 
+// ValidateTrustedClusterRequest is the request for the ValidateTrustedCluster
+// RPC.
+message ValidateTrustedClusterRequest {
+  string Token = 1;
+  repeated types.CertAuthorityV2 CertAuthorities = 2;
+  string TeleportVersion = 3;
+}
+
+// ValidateTrustedClusterResponse is the response for the ValidateTrustedCluster
+// RPC.
+message ValidateTrustedClusterResponse {
+  repeated types.CertAuthorityV2 CertAuthorities = 1;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -3554,4 +3568,9 @@ service AuthService {
 
   // DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
   rpc DeleteClusterMaintenanceConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+  // ValidateTrustedCluster is a bit of a misnomer, this RPC is actually called
+  // by the proxy on behalf of a cluster that wishes to join to this one as a
+  // leaf cluster.
+  rpc ValidateTrustedCluster(ValidateTrustedClusterRequest) returns (ValidateTrustedClusterResponse);
 }
