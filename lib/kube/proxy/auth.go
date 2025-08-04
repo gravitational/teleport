@@ -174,7 +174,10 @@ func extractKubeCreds(ctx context.Context, component string, cluster string, cli
 	// For each loaded cluster, check impersonation permissions. This
 	// check only logs when permissions are not configured, but does not fail startup.
 	if err := checkPermissions(ctx, cluster, client.AuthorizationV1().SelfSubjectAccessReviews()); err != nil {
-		log.WarnContext(ctx, "Failed to test the necessary Kubernetes permissions. The target Kubernetes cluster may be down or have misconfigured RBAC. This teleport instance will still handle Kubernetes requests towards this Kubernetes cluster.",
+		log.WarnContext(ctx,
+			"Failed to test the necessary Kubernetes permissions. "+
+				"The target Kubernetes cluster may be down or have misconfigured RBAC. "+
+				"This teleport instance will still handle Kubernetes requests towards this Kubernetes cluster.",
 			"error", err,
 		)
 	} else {

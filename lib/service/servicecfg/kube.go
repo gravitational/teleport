@@ -48,6 +48,10 @@ type KubeConfig struct {
 	// KubeconfigPath is a path to kubeconfig
 	KubeconfigPath string
 
+	// GroupWildcardMapping is the name of the Kubernetes group
+	// will be used for impersonation when using the special `*` wildcard value.
+	GroupWildcardMapping string
+
 	// Labels are used for RBAC on clusters.
 	StaticLabels  map[string]string
 	DynamicLabels services.CommandLabels
