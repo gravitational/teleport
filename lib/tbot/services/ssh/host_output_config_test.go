@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package ssh
 
 import (
 	"testing"
@@ -24,65 +24,64 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
-	"github.com/gravitational/teleport/lib/tbot/botfs"
 )
 
-func TestSSHMultiplexerService_YAML(t *testing.T) {
-	t.Parallel()
-
-	tests := []testYAMLCase[SSHMultiplexerService]{
+func TestSSHHostOutput_YAML(t *testing.T) {
+	dest := &destination.Memory{}
+	tests := []testYAMLCase[HostOutputConfig]{
 		{
 			name: "full",
-			in: SSHMultiplexerService{
-				Destination: &destination.Directory{
-					Path: "/opt/machine-id",
-				},
-				EnableResumption:   ptr[bool](true),
-				ProxyTemplatesPath: "/etc/teleport/templates",
-				ProxyCommand:       []string{"rusty-boi"},
+			in: HostOutputConfig{
+				Destination: dest,
+				Roles:       []string{"access"},
+				Principals:  []string{"host.example.com"},
 				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
 				},
 			},
 		},
+		{
+			name: "minimal",
+			in: HostOutputConfig{
+				Destination: dest,
+				Principals:  []string{"host.example.com"},
+			},
+		},
 	}
 	testYAML(t, tests)
 }
 
-func TestSSHMultiplexerService_CheckAndSetDefaults(t *testing.T) {
-	t.Parallel()
-
-	tests := []testCheckAndSetDefaultsCase[*SSHMultiplexerService]{
+func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
+	tests := []testCheckAndSetDefaultsCase[*HostOutputConfig]{
 		{
 			name: "valid",
-			in: func() *SSHMultiplexerService {
-				return &SSHMultiplexerService{
-					Destination: &destination.Directory{
-						Path:     "/opt/machine-id",
-						ACLs:     botfs.ACLOff,
-						Symlinks: botfs.SymlinksInsecure,
-					},
+			in: func() *HostOutputConfig {
+				return &HostOutputConfig{
+					Destination: destination.NewMemory(),
+					Roles:       []string{"access"},
+					Principals:  []string{"host.example.com"},
 				}
 			},
 		},
 		{
 			name: "missing destination",
-			in: func() *SSHMultiplexerService {
-				return &SSHMultiplexerService{
+			in: func() *HostOutputConfig {
+				return &HostOutputConfig{
 					Destination: nil,
+					Principals:  []string{"host.example.com"},
 				}
 			},
-			wantErr: "destination: must be specified",
+			wantErr: "no destination configured for output",
 		},
 		{
-			name: "wrong destination type",
-			in: func() *SSHMultiplexerService {
-				return &SSHMultiplexerService{
-					Destination: &destination.Memory{},
+			name: "missing principals",
+			in: func() *HostOutputConfig {
+				return &HostOutputConfig{
+					Destination: destination.NewMemory(),
 				}
 			},
-			wantErr: "destination: must be of type `directory`",
+			wantErr: "at least one principal must be specified",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)
