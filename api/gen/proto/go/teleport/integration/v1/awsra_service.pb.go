@@ -263,7 +263,8 @@ type ListRolesAnywhereProfilesRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Integration is the AWS Roles Anywhere Integration name.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
-	// page_size is the size of the page to request.
+	// page_size is the max size of the page to request.
+	// Depending on the filters, the actual number of profiles returned may be less than this value.
 	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// next_page_token is the page token.
 	NextPageToken string `protobuf:"bytes,3,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
