@@ -309,6 +309,13 @@ Teleport's JSON Web Key Sets (JWKS) used for OIDC IdP integration in order to
 verify request object signatures. This JWKS can be found at the `/.well-known/jwks-oidc`
 path of the Web API.
 
+Additionally, the public key to be used for verifying request object signatures can
+be found via `tctl`.
+
+```code
+$ tctl get cert_authority/oidc_idp/$CLUSTER_NAME --format=json | jq -r .[].spec.active_keys.jwt[].public_key
+```
+
 By default, `request_object_mode` is unset, meaning authorization request parameters
 will be sent in the query string of the authorization endpoint.
 
