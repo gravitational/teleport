@@ -169,3 +169,86 @@ func TestMultiVariable(t *testing.T) {
 	ts = <-multi.Elapsed()
 	require.Equal(t, start.Add(11*time.Minute), ts)
 }
+
+func TestMultiReset(t *testing.T) {
+	t.Parallel()
+	const (
+		// each interval's timer waits this long
+		interval = 60 * time.Minute
+		// initially space the intervals apart by this much
+		step = interval / 10
+		// this many intervals
+		intervals = 3
+	)
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+	start := clock.Now()
+	multi := NewMulti[int](MultiParams{
+		FixedInterval: interval,
+		clock:         clock,
+	})
+	defer multi.Stop()
+
+	// verify that delay is in an initial state that will never fire
+	require.Nil(t, multi.Elapsed())
+
+	for i := range intervals {
+		multi.Add(i)
+		clock.Advance(step)
+	}
+	// initially the interval queue should be: [1 2 0]
+
+	clock.BlockUntilContext(ctx, 1)
+	clock.Advance(clock.Until(start.Add(interval)))
+	now := mustElapse(t, multi)
+	require.Equal(t, start.Add(interval), now)
+	require.Equal(t, 0, multi.Tick(now))
+	// queue should now be: [1 2 0]
+
+	// sift 2 up, ahead of 1
+	multi.Reset(2, time.Millisecond)
+	// queue should now be: [2 1 0]
+	clock.BlockUntilContext(ctx, 1)
+	clock.Advance(time.Millisecond)
+	now = mustElapse(t, multi)
+	require.Equal(t, start.Add(interval+time.Millisecond), now)
+	require.Equal(t, 2, multi.Tick(now))
+	// queue should now be: [1 0 2]
+	// fix up the spacing between 0 and 2
+	multi.Reset(2, interval-time.Millisecond)
+
+	clock.BlockUntilContext(ctx, 1)
+	clock.Advance(clock.Until(start.Add(interval + step)))
+	now = mustElapse(t, multi)
+	require.Equal(t, start.Add(interval+step), now)
+	require.Equal(t, 1, multi.Tick(now))
+	// queue should now be: [0 2 1]
+
+	// sift 0 down, after 1
+	multi.Reset(0, interval)
+	// queue should now be: [2 1 0]
+	clock.BlockUntilContext(ctx, 1)
+	clock.Advance(clock.Until(start.Add(2 * interval)))
+	now = mustElapse(t, multi)
+	require.Equal(t, start.Add(2*interval), now)
+	require.Equal(t, 2, multi.Tick(now))
+	// queue should now be: [1 0 2]
+
+	clock.BlockUntilContext(ctx, 1)
+	clock.Advance(clock.Until(start.Add(2*interval + step)))
+	now = mustElapse(t, multi)
+	require.Equal(t, start.Add(2*interval+step), now)
+	require.Equal(t, 1, multi.Tick(now))
+}
+
+func mustElapse[T comparable](t *testing.T, multi *Multi[T]) time.Time {
+	t.Helper()
+	select {
+	case now := <-multi.Elapsed():
+		return now
+	default:
+		require.FailNow(t, "multi timer did not fire")
+		return time.Time{}
+	}
+}

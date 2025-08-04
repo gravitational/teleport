@@ -153,9 +153,9 @@ func (h *Multi[T]) Reset(key T, delay time.Duration) {
 			tick: h.clock.Now().Add(h.resetJitter(delay)),
 		}
 		h.heap.Fix(i)
-		if i == 0 {
-			// if the adjusted entry was the root of the heap, then our target
-			// has changed and we need to reset the timer to a new target.
+		if i == 0 || h.heap.Slice[0].key == key {
+			// if the adjusted entry was or is the root of the heap, then our
+			// target has changed and we need to reset the timer to a new target.
 			h.reset(h.clock.Now(), false /* fired */)
 		}
 		return
