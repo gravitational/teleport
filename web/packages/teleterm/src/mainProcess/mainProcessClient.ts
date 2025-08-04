@@ -222,6 +222,14 @@ export default function createMainProcessClient(): MainProcessClient {
         }
       );
     },
+    maybeRemoveAppUpdatesManagingCluster(clusterUri) {
+      return ipcRenderer.invoke(
+        MainProcessIpc.MaybeRemoveAppUpdatesManagingCluster,
+        {
+          clusterUri,
+        }
+      );
+    },
     subscribeToAppUpdateEvents: listener => {
       const ipcListener = (_, updateEvent: AppUpdateEvent) => {
         // Deserialize the error.

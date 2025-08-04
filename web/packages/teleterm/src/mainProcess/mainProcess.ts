@@ -658,6 +658,16 @@ export default class MainProcess {
       ) => this.appUpdater.changeManagingCluster(args.clusterUri)
     );
 
+    ipcMain.handle(
+      MainProcessIpc.MaybeRemoveAppUpdatesManagingCluster,
+      (
+        event,
+        args: {
+          clusterUri: RootClusterUri;
+        }
+      ) => this.appUpdater.maybeRemoveManagingCluster(args.clusterUri)
+    );
+
     ipcMain.handle(MainProcessIpc.DownloadAppUpdate, () =>
       this.appUpdater.download()
     );
