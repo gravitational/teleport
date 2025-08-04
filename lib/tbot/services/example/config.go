@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,58 +16,47 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package example
 
 import (
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
-const ExampleServiceType = "example"
+const ServiceType = "example"
 
-// ExampleService is a temporary example service for testing purposes. It is
-// not intended to be used and exists to demonstrate how a user configurable
+// Config is a temporary example service for testing purposes. It is not
+// intended to be used and exists to demonstrate how a user configurable
 // service integrates with the tbot service manager.
-type ExampleService struct {
+type Config struct {
 	// Name of the service for logs and the /readyz endpoint.
-	Name string `yaml:"name,omitempty"`
-
+	Name    string `yaml:"name,omitempty"`
 	Message string `yaml:"message"`
 }
 
-func (s *ExampleService) Type() string {
-	return ExampleServiceType
-}
-
 // GetName returns the user-given name of the service, used for validation purposes.
-func (s *ExampleService) GetName() string {
+func (s *Config) GetName() string {
 	return s.Name
 }
 
-func (s *ExampleService) MarshalYAML() (any, error) {
-	type raw ExampleService
-	return encoding.WithTypeHeader((*raw)(s), ExampleServiceType)
+func (s *Config) Type() string {
+	return ServiceType
 }
 
-func (s *ExampleService) UnmarshalYAML(node *yaml.Node) error {
-	// Alias type to remove UnmarshalYAML to avoid recursion
-	type raw ExampleService
-	if err := node.Decode((*raw)(s)); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+func (s *Config) MarshalYAML() (any, error) {
+	type raw Config
+	return encoding.WithTypeHeader((*raw)(s), ServiceType)
 }
 
-func (s *ExampleService) CheckAndSetDefaults() error {
+func (s *Config) CheckAndSetDefaults() error {
 	if s.Message == "" {
 		return trace.BadParameter("message: should not be empty")
 	}
 	return nil
 }
 
-func (s *ExampleService) GetCredentialLifetime() bot.CredentialLifetime {
+func (s *Config) GetCredentialLifetime() bot.CredentialLifetime {
 	return bot.CredentialLifetime{}
 }
