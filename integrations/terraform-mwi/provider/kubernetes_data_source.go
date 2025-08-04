@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 )
 
 func NewKubernetesDataSource() datasource.DataSource {
@@ -185,9 +186,9 @@ func (d *KubernetesDataSource) Read(
 	dest := destination.NewMemory()
 	botCfg := d.pd.newBotConfig()
 	botCfg.Services = config.ServiceConfigs{
-		&config.KubernetesV2Output{
+		&k8s.OutputV2Config{
 			Destination: dest,
-			Selectors: []*config.KubernetesSelector{
+			Selectors: []*k8s.KubernetesSelector{
 				{
 					Name: data.Selector.Name.ValueString(),
 				},
