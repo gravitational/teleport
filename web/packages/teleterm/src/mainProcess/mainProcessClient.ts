@@ -18,7 +18,10 @@
 
 import { ipcRenderer } from 'electron';
 
+import { ensureError } from 'shared/utils/error';
+
 import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
+import { AppUpdateEvent } from 'teleterm/services/appUpdater';
 import { createFileStorageClient } from 'teleterm/services/fileStorage';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
@@ -198,6 +201,41 @@ export default function createMainProcessClient(): MainProcessClient {
         MainProcessIpc.SelectDirectoryForDesktopSession,
         args
       );
+    },
+    checkForAppUpdates() {
+      return ipcRenderer.invoke(MainProcessIpc.CheckForAppUpdates);
+    },
+    downloadAppUpdate() {
+      return ipcRenderer.invoke(MainProcessIpc.DownloadAppUpdate);
+    },
+    cancelAppUpdateDownload() {
+      return ipcRenderer.invoke(MainProcessIpc.CancelAppUpdateDownload);
+    },
+    quitAndInstallAppUpdate() {
+      return ipcRenderer.invoke(MainProcessIpc.QuiteAndInstallAppUpdate);
+    },
+    changeAppUpdatesManagingCluster(clusterUri) {
+      return ipcRenderer.invoke(
+        MainProcessIpc.ChangeAppUpdatesManagingCluster,
+        {
+          clusterUri,
+        }
+      );
+    },
+    subscribeToAppUpdateEvents: listener => {
+      const ipcListener = (_, updateEvent: AppUpdateEvent) => {
+        // Deserialize the error.
+        if (updateEvent.kind === 'error') {
+          updateEvent.error = ensureError(updateEvent.error);
+        }
+        listener(updateEvent);
+      };
+
+      ipcRenderer.addListener(RendererIpc.AppUpdateEvent, ipcListener);
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(RendererIpc.AppUpdateEvent, ipcListener),
+      };
     },
   };
 }
