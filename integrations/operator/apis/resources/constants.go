@@ -21,4 +21,5 @@ package resources
 const (
 	GroupName      = "resources.teleport.dev"
 	DescriptionKey = "description"
+	ExpiresKey     = "expires"
 )

@@ -21,6 +21,7 @@ package resources_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
@@ -28,9 +29,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/utils/ptr"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources"
 	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
@@ -70,6 +73,7 @@ func newProvisionTokenFromSpecNoExpire(token string, spec types.ProvisionTokenSp
 type tokenTestingPrimitives struct {
 	setup *testSetup
 	reconcilers.ResourceWithoutLabelsAdapter[types.ProvisionToken]
+	tokenExpiration *time.Time
 }
 
 func (g *tokenTestingPrimitives) Init(setup *testSetup) {
@@ -109,6 +113,13 @@ func (g *tokenTestingPrimitives) CreateKubernetesResource(ctx context.Context, n
 		},
 		Spec: resourcesv2.TeleportProvisionTokenSpec(*tokenSpec),
 	}
+
+	if g.tokenExpiration != nil {
+		token.Annotations = map[string]string{
+			resources.ExpiresKey: (*g.tokenExpiration).Format(time.RFC3339),
+		}
+	}
+
 	return trace.Wrap(g.setup.K8sClient.Create(ctx, token))
 }
 
@@ -148,17 +159,21 @@ func (g *tokenTestingPrimitives) CompareTeleportAndKubernetesResource(tResource 
 
 func TestProvisionTokenCreation(t *testing.T) {
 	test := &tokenTestingPrimitives{}
-	testlib.ResourceCreationTest[types.ProvisionToken, *resourcesv2.TeleportProvisionToken](t, test)
+	testlib.ResourceCreationTest(t, test)
+	test.tokenExpiration = ptr.To(time.Now().Add(time.Hour))
+	testlib.ResourceCreationTest(t, test)
 }
 
 func TestProvisionTokenDeletionDrift(t *testing.T) {
 	test := &tokenTestingPrimitives{}
-	testlib.ResourceDeletionDriftTest[types.ProvisionToken, *resourcesv2.TeleportProvisionToken](t, test)
+	testlib.ResourceDeletionDriftTest(t, test)
 }
 
 func TestProvisionTokenUpdate(t *testing.T) {
-	test := &tokenTestingPrimitives{}
-	testlib.ResourceUpdateTest[types.ProvisionToken, *resourcesv2.TeleportProvisionToken](t, test)
+	test := &tokenTestingPrimitives{
+		tokenExpiration: ptr.To(time.Now().Add(time.Hour)),
+	}
+	testlib.ResourceUpdateTest(t, test)
 }
 
 // This test checks the operator can create Token resources in Teleport for a
@@ -191,16 +206,28 @@ github:
 		GitHub:     &types.ProvisionTokenSpecV2GitHub{Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{{Repository: "org/repo"}}},
 	}
 
+	tokenMetadataYAML := `
+annotations:
+  expires: "2050-01-01T00:00:00Z"
+`
+	expectedExpirationTime, err := time.Parse(time.RFC3339, "2050-01-01T00:00:00Z")
+	require.NoError(t, err)
+
 	// Creating the Kubernetes resource. We are using an untyped client to be able to create invalid resources.
-	tokenManifest := map[string]any{}
-	err := yaml.Unmarshal([]byte(tokenSpecYAML), &tokenManifest)
+	tokenSpecManifest := map[string]any{}
+	err = yaml.Unmarshal([]byte(tokenSpecYAML), &tokenSpecManifest)
+	require.NoError(t, err)
+
+	tokenMetadataManifest := map[string]any{}
+	err = yaml.Unmarshal([]byte(tokenMetadataYAML), &tokenMetadataManifest)
 	require.NoError(t, err)
 
 	tokenName := validRandomResourceName("token-")
 
 	obj, err := reconcilers.GetUnstructuredObjectFromGVK(teleportTokenGVK)
 	require.NoError(t, err)
-	obj.Object["spec"] = tokenManifest
+	obj.Object["spec"] = tokenSpecManifest
+	obj.Object["metadata"] = tokenMetadataManifest
 	obj.SetName(tokenName)
 	obj.SetNamespace(setup.Namespace.Name)
 
@@ -220,6 +247,8 @@ github:
 		require.Equal(t, tokenName, tToken.GetName())
 		require.Contains(t, tToken.GetMetadata().Labels, types.OriginLabel)
 		require.Equal(t, types.OriginKubernetes, tToken.GetMetadata().Labels[types.OriginLabel])
+		require.NotNil(t, tToken.GetMetadata().Expires)
+		require.Equal(t, expectedExpirationTime, *tToken.GetMetadata().Expires)
 		expectedToken := &types.ProvisionTokenV2{
 			Metadata: types.Metadata{},
 			Spec:     *expectedSpec,

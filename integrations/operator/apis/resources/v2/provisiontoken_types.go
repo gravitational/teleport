@@ -19,6 +19,8 @@
 package v2
 
 import (
+	"time"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"
@@ -54,7 +56,7 @@ type TeleportProvisionTokenList struct {
 }
 
 func (c TeleportProvisionToken) ToTeleport() types.ProvisionToken {
-	return &types.ProvisionTokenV2{
+	token := &types.ProvisionTokenV2{
 		Kind:    types.KindToken,
 		Version: types.V2,
 		Metadata: types.Metadata{
@@ -64,6 +66,16 @@ func (c TeleportProvisionToken) ToTeleport() types.ProvisionToken {
 		},
 		Spec: types.ProvisionTokenSpecV2(c.Spec),
 	}
+
+	if expirationAnnotationValue, ok := c.Annotations[resources.ExpiresKey]; ok {
+		expirationTime, err := time.Parse(time.RFC3339, expirationAnnotationValue)
+		if err == nil {
+			token.Metadata.Expires = &expirationTime
+		}
+		// TODO something with the error (interface does not allow returning one)
+	}
+
+	return token
 }
 
 // StatusConditions returns a pointer to Status.Conditions slice. This is used
