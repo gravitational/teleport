@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/config/systemd"
 	"github.com/gravitational/teleport/lib/configurators"
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/configurators/configuratorbuilder"
@@ -52,7 +53,7 @@ var awsDatabaseTypes = []string{
 }
 
 type installSystemdFlags struct {
-	config.SystemdFlags
+	systemd.Flags
 	// output is the destination to write the systemd unit file to.
 	output string
 }
@@ -76,7 +77,7 @@ func onDumpSystemdUnitFile(flags installSystemdFlags) error {
 	}
 
 	buf := new(bytes.Buffer)
-	err := config.WriteSystemdUnitFile(flags.SystemdFlags, buf)
+	err := systemd.WriteUnitFile(flags.Flags, buf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
