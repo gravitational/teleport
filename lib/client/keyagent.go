@@ -135,10 +135,10 @@ func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 	}
 
 	if shouldAddKeysToAgent(conf.KeysOption) {
-		a.log.DebugContext(context.Background(), "Connecting to the system agent")
+		a.log.Debug("Connecting to the system agent")
 		systemAgent, err := sshagent.NewSystemAgentClient()
 		if err != nil {
-			a.log.WarnContext(context.Background(), "Unable to connect to system agent", "error", err)
+			a.log.Warnf("Unable to connect to system agent: %v", err)
 		} else {
 			a.systemAgent = systemAgent
 		}
