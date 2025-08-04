@@ -71,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
+	sshsvc "github.com/gravitational/teleport/lib/tbot/services/ssh"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -359,7 +360,7 @@ func TestBot(t *testing.T) {
 		},
 		KubernetesCluster: kubeClusterDiscoveredName,
 	}
-	sshHostOutput := &config.SSHHostOutput{
+	sshHostOutput := &sshsvc.HostOutputConfig{
 		Destination: &destination.Memory{},
 		Principals:  []string{hostPrincipal},
 	}
@@ -1049,7 +1050,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
 	botConfig := defaultBotConfig(
 		t, process, onboarding, config.ServiceConfigs{
-			&config.SSHMultiplexerService{
+			&sshsvc.MultiplexerConfig{
 				Destination: &destination.Directory{
 					Path: tmpDir,
 				},
