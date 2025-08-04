@@ -19,6 +19,7 @@ package local
 import (
 	"context"
 	"iter"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 
@@ -27,11 +28,13 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // SummarizerService implements the [services.Summarizer]
 // interface and manages summarization configuration resources in the backend.
 type SummarizerService struct {
+	backend       backend.Backend
 	modelService  *generic.ServiceWrapper[*summarizerv1.InferenceModel]
 	secretService *generic.ServiceWrapper[*summarizerv1.InferenceSecret]
 	policyService *generic.ServiceWrapper[*summarizerv1.InferencePolicy]
@@ -209,7 +212,35 @@ func (s *SummarizerService) UpsertInferencePolicy(
 func (s *SummarizerService) AllInferencePolicies(
 	ctx context.Context,
 ) iter.Seq2[*summarizerv1.InferencePolicy, error] {
-	return s.policyService.Resources(ctx, "", "")
+	// The v18 implementation of this function is a specialization of the
+	// generic.Service.Resources function from v19. It was copied here directly
+	// to avoid backporting the entire PR that introduced it.
+	backendPrefix := backend.NewKey(inferencePolicyPrefix)
+	params := backend.ItemsParams{
+		StartKey: backendPrefix,
+		EndKey:   backend.RangeEnd(backendPrefix.ExactKey()),
+	}
+	return func(yield func(*summarizerv1.InferencePolicy, error) bool) {
+		for item, err := range s.backend.Items(ctx, params) {
+			if err != nil {
+				yield(nil, trace.Wrap(err))
+				return
+			}
+
+			resource, err := services.UnmarshalProtoResource[*summarizerv1.InferencePolicy](
+				item.Value, services.WithRevision(item.Revision),
+			)
+			if err != nil {
+				// unmarshal errors are logged and skipped
+				slog.WarnContext(ctx, "skipping resource due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
+				return
+			}
+
+			if !yield(resource, nil) {
+				return
+			}
+		}
+	}
 }
 
 const (
@@ -258,6 +289,7 @@ func NewSummarizerService(b backend.Backend) (*SummarizerService, error) {
 	}
 
 	return &SummarizerService{
+		backend:       b,
 		modelService:  modelService,
 		secretService: secretService,
 		policyService: policyService,
