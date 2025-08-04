@@ -22,8 +22,8 @@ When you run `tsh login`, the tsh tool will check if updates are enabled for you
 If your client version differs from the cluster's required version, it will:
 
 1. Download the updated version.
-2. Store it in `~/.tsh/bin` (`$TELEPORT_HOME/bin`).
-3. Validate the binary with a checksum.
+2. Validate the package with a checksum.
+3. Extract the package and store the binaries in `~/.tsh/bin` (`$TELEPORT_HOME/bin`).
 4. Records the client tools version advertised by the cluster in `~/.tsh/bin/.config.json`(`$TELEPORT_HOME/bin/.config.json`).
 5. Re-execute using the updated version (with the same environment variables).
 
@@ -41,7 +41,7 @@ The URL pattern is as follows:
 - `https://cdn.teleport.dev/teleport-{ent-}vX.Y.Z-{linux,darwin,windows}-{amd64,arm64,arm,386}-{fips-}bin.{tar.gz,pkg,zip}`
 - `https://cdn.teleport.dev/teleport-{ent-}vX.Y.Z-{linux,darwin,windows}-{amd64,arm64,arm,386}-{fips-}bin.{tar.gz,pkg,zip}.sha256`
 The base URL of the CDN can be overridden using the `TELEPORT_CDN_BASE_URL` environment variable.
-Allowing to mirror the CDN in a private network or to use a custom build.
+Allows mirroring the CDN in a private network or using custom builds.
 
 **Concurrency**: Tools use a locking mechanism to enable smooth operation during updates.
 Only one process can acquire the lock to update client tools, while other processes wait for the lock to be released.
