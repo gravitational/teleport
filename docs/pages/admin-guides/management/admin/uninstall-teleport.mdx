@@ -180,6 +180,17 @@ Follow the instructions for your Linux distribution:
   $ sudo rm -f /usr/local/bin/teleport
   $ sudo rm -f /usr/local/bin/tsh
   $ sudo rm -f /usr/local/bin/fdpass-teleport
+  $ sudo rm -f /usr/local/bin/teleport-update
+  ```
+
+  </TabItem>
+  <TabItem label="Managed Updates v2">
+
+  The `teleport-update uninstall --force` will remove all Teleport binaries regardless if there is a previous repository install to fall back to.
+  Note that this will not execute the uninstall if Teleport is currently running.
+
+  ```code
+  $ sudo teleport-update uninstall --force
   ```
 
   </TabItem>
