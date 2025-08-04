@@ -127,7 +127,7 @@ If there is no active session, but a versioned binary exists in the tools direct
 (e.g., `~/.tsh/bin/tsh` or `~/.tsh/bin/tctl`), the corresponding tool will be re-executed with that version
 (for backward compatibility with older versions of managed updates).
 
-## Configuring client tool automatic updates
+## Configuring client tool managed updates
 
 ### Using environment variables
 Values:
@@ -178,7 +178,7 @@ $ cat ~/.tsh/bin/.config.json
 
 ### Using `tctl`
 
-To enable or disable client tools automatic updates in the cluster, use the following command:
+To enable or disable client tools managed updates in the cluster, use the following command:
 
 ```code
 $ tctl autoupdate client-tools enable
@@ -220,7 +220,7 @@ $ tctl autoupdate client-tools status --proxy proxy.example.com --format json
 
 ### Using resource definitions
 
-To enable client tools automatic updates in cluster, first create a file named `autoupdate_config.yaml` with the following content:
+To enable client tools managed updates in cluster, first create a file named `autoupdate_config.yaml` with the following content:
 
 ```yaml
 kind: autoupdate_config
@@ -249,7 +249,7 @@ Create the resource using `tctl create -f autoupdate_version.yaml`.
 If the `autoupdate_version` resource hasn't been created yet, the cluster version will be used as the default target version.
 
 <Admonition type="note">
-    - For self-hosted clusters, automatic updates are disabled by default but can be enabled.
+    - For self-hosted clusters, managed updates are disabled by default but can be enabled.
     - Cloud clusters are automatically enrolled in updates, managed by the Teleport Cloud team.
     - For clusters with multiple root versions, use self-managed updates to avoid frequent version switching.
 </Admonition>
@@ -261,7 +261,7 @@ unauthenticated proxy discovery `/v1/webapi/find` endpoint. If `.auto_update.too
 client tools must initiate the installation of the version specified in `.auto_update.tools_version`.
 
 For manual updates, when scheduling updates at specific times or using custom CDN mirrors or with self-build packages,
-you can disable auto-update via configuration. In this case, you can monitor the tool's version separately
+you can disable managed updates via configuration. In this case, you can monitor the tool's version separately
 or pair it with the `TELEPORT_TOOLS_VERSION=off` environment variable.
 
 ```bash
