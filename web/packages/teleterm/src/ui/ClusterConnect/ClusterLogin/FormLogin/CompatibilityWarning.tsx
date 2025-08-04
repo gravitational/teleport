@@ -25,12 +25,15 @@ import {
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 
 import { Platform } from 'teleterm/mainProcess/types';
+import { AutoUpdatesStatus } from 'teleterm/services/appUpdater';
 
 export function CompatibilityWarning(props: {
+  autoUpdatesStatus: AutoUpdatesStatus;
   authSettings: AuthSettings;
   platform: Platform;
   shouldSkipVersionCheck: boolean;
   disableVersionCheck(): void;
+  onSwitchToAppUpdateDetails(): void;
   mx?: number;
 }) {
   if (props.shouldSkipVersionCheck) {
@@ -42,6 +45,12 @@ export function CompatibilityWarning(props: {
   if (!warning) {
     return;
   }
+
+  // No cluster that manages or can manage updates.
+  const canOnlyDownloadInBrowser =
+    props.autoUpdatesStatus.enabled === false &&
+    props.autoUpdatesStatus.reason === 'no-cluster-with-auto-update' &&
+    props.autoUpdatesStatus.options.unreachableClusters.length === 0;
 
   return (
     <Warning
@@ -56,15 +65,22 @@ export function CompatibilityWarning(props: {
               fill="border"
               intent="neutral"
               inputAlignment
-              action={{
-                content: (
-                  <>
-                    Download in Browser
-                    <NewTab size="small" ml={1} />
-                  </>
-                ),
-                href: buildDownloadUrl(props.platform),
-              }}
+              action={
+                canOnlyDownloadInBrowser
+                  ? {
+                      content: (
+                        <>
+                          Download in Browser
+                          <NewTab size="small" ml={1} />
+                        </>
+                      ),
+                      href: buildDownloadUrl(props.platform),
+                    }
+                  : {
+                      content: 'Check Updates Settings',
+                      onClick: props.onSwitchToAppUpdateDetails,
+                    }
+              }
             />
             <ActionButton
               fill="minimal"
