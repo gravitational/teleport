@@ -22,7 +22,7 @@ import { ButtonPrimary, Text } from 'design';
 
 import Validation from '../../components/Validation';
 import { requiredField } from '../Validation/rules';
-import { FieldTextArea } from './FieldTextArea';
+import { FieldTextArea as Component } from './FieldTextArea';
 
 type StoryProps = {
   readonly?: boolean;
@@ -30,8 +30,8 @@ type StoryProps = {
 };
 
 const meta: Meta<StoryProps> = {
-  title: 'Shared/FieldTextArea',
-  component: Controls,
+  title: 'Shared',
+  component: FieldTextArea,
   argTypes: {
     readonly: {
       control: { type: 'boolean' },
@@ -43,12 +43,12 @@ const meta: Meta<StoryProps> = {
 };
 export default meta;
 
-export function Controls(props: StoryProps) {
+export function FieldTextArea(props: StoryProps) {
   return (
     <Validation>
       {({ validator }) => (
         <>
-          <FieldTextArea
+          <Component
             label="Label"
             helperText="Optional helper text"
             name="optional name"
@@ -58,7 +58,7 @@ export function Controls(props: StoryProps) {
             disabled={props.disabled}
             readonly={props.readonly}
           />
-          <FieldTextArea
+          <Component
             label="Label with placeholder"
             name="optional name"
             onChange={() => {}}
@@ -69,7 +69,7 @@ export function Controls(props: StoryProps) {
             disabled={props.disabled}
             readonly={props.readonly}
           />
-          <FieldTextArea
+          <Component
             label="Label with tooltip"
             name="optional name"
             onChange={() => {}}
@@ -79,7 +79,7 @@ export function Controls(props: StoryProps) {
             disabled={props.disabled}
             readonly={props.readonly}
           />
-          <FieldTextArea
+          <Component
             label="Label with helper text and tooltip"
             helperText="Helper text"
             tooltipContent={<Text>Hello world</Text>}
@@ -90,13 +90,13 @@ export function Controls(props: StoryProps) {
             disabled={props.disabled}
             readonly={props.readonly}
           />
-          <FieldTextArea
+          <Component
             placeholder="without label"
             onChange={() => {}}
             disabled={props.disabled}
             readonly={props.readonly}
           />
-          <FieldTextArea
+          <Component
             label="Required"
             required
             rule={requiredField('So required. Much mandatory.')}

@@ -33,12 +33,12 @@ interface FieldRadioProps extends SpaceProps {
   checked?: boolean;
   defaultChecked?: boolean;
   /**
-   * Disables and mutes all controls and values.
+   * Disables and mutes all values.
    */
   disabled?: boolean;
   /**
-   * Like "disabled" field plus hides controls
-   * and does not mute values.
+   * Disables radio but does not mute values
+   * to remain readable.
    */
   readOnly?: boolean;
   size?: RadioButtonSize;
@@ -83,7 +83,7 @@ export const FieldRadio = forwardRef<HTMLInputElement, FieldRadioProps>(
                 checked={checked}
                 defaultChecked={defaultChecked}
                 disabled={disabled}
-                readonly={readOnly}
+                readOnly={readOnly}
                 name={name}
                 value={value}
                 autoFocus={autoFocus}

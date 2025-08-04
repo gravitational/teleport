@@ -21,7 +21,7 @@ import { Meta } from '@storybook/react-vite';
 import Box from 'design/Box';
 import { H1 } from 'design/Text';
 
-import { FieldRadio } from './FieldRadio';
+import { FieldRadio as Component } from './FieldRadio';
 
 type StoryProps = {
   readOnly?: boolean;
@@ -29,8 +29,8 @@ type StoryProps = {
 };
 
 const meta: Meta<StoryProps> = {
-  title: 'Shared/FieldRadio',
-  component: Controls,
+  title: 'Shared',
+  component: FieldRadio,
   argTypes: {
     readOnly: {
       control: { type: 'boolean' },
@@ -42,25 +42,25 @@ const meta: Meta<StoryProps> = {
 };
 export default meta;
 
-export function Controls(props: StoryProps) {
+export function FieldRadio(props: StoryProps) {
   return (
     <Box width={600}>
       <H1 mb={2}>Group 1</H1>
-      <FieldRadio
+      <Component
         name="grp1"
         label="Unchecked radio button"
         defaultChecked={false}
         disabled={props.disabled}
         readOnly={props.readOnly}
       />
-      <FieldRadio
+      <Component
         name="grp1"
         label="Checked radio button"
         defaultChecked={true}
         disabled={props.disabled}
         readOnly={props.readOnly}
       />
-      <FieldRadio
+      <Component
         name="grp1"
         size="small"
         label="Small radio button"
@@ -68,14 +68,14 @@ export function Controls(props: StoryProps) {
         readOnly={props.readOnly}
       />
       <H1 mb={2}>Group 2</H1>
-      <FieldRadio
+      <Component
         name="grp2"
         label="Radio button with helper text"
         helperText="I'm a helpful helper text"
         disabled={props.disabled}
         readOnly={props.readOnly}
       />
-      <FieldRadio
+      <Component
         name="grp2"
         size="small"
         label="Small radio button with helper text"
@@ -83,7 +83,7 @@ export function Controls(props: StoryProps) {
         disabled={props.disabled}
         readOnly={props.readOnly}
       />
-      <FieldRadio
+      <Component
         name="grp2"
         label="You must choose. But choose wisely, for while the true Grail will
       bring you life, the false Grail will take it from you."

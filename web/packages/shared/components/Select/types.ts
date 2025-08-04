@@ -52,8 +52,8 @@ export type CommonProps<Opt, IsMulti extends boolean> = {
   /** Ref to the wrapper element. */
   ref?: Ref<HTMLDivElement>;
   /**
-   * Like "disabled" field plus hides controls
-   * and does not mute values.
+   * Disables inputs and hides controls
+   * but does not mute values.
    */
   readOnly?: boolean;
 };

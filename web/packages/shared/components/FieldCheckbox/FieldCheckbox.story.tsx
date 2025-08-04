@@ -20,7 +20,7 @@ import { Meta } from '@storybook/react-vite';
 
 import Box from 'design/Box';
 
-import { FieldCheckbox } from '.';
+import { FieldCheckbox as Component } from '.';
 
 type StoryProps = {
   readOnly?: boolean;
@@ -28,8 +28,8 @@ type StoryProps = {
 };
 
 const meta: Meta<StoryProps> = {
-  title: 'Shared/FieldCheckbox',
-  component: Controls,
+  title: 'Shared',
+  component: FieldCheckbox,
   argTypes: {
     readOnly: {
       control: { type: 'boolean' },
@@ -41,43 +41,43 @@ const meta: Meta<StoryProps> = {
 };
 export default meta;
 
-export function Controls(props: StoryProps) {
+export function FieldCheckbox(props: StoryProps) {
   return (
     <Box width={600}>
-      <FieldCheckbox
+      <Component
         label="Unchecked checkbox"
         defaultChecked={false}
         disabled={props.disabled}
         readOnly={props.readOnly}
       />
-      <FieldCheckbox
+      <Component
         label="Checked checkbox"
         defaultChecked={true}
         disabled={props.disabled}
         readOnly={props.readOnly}
       />
-      <FieldCheckbox
+      <Component
         size="small"
         label="Small checkbox"
         defaultChecked={true}
         disabled={props.disabled}
         readOnly={props.readOnly}
       />
-      <FieldCheckbox
+      <Component
         label="Checkbox with helper text"
         helperText="I'm a helpful helper text"
         defaultChecked={true}
         disabled={props.disabled}
         readOnly={props.readOnly}
       />
-      <FieldCheckbox
+      <Component
         size="small"
         label="Small checkbox with helper text"
         helperText="Another helpful helper text"
         disabled={props.disabled}
         readOnly={props.readOnly}
       />
-      <FieldCheckbox
+      <Component
         label="To check, or not to check: that is the question:
       Whether 'tis nobler in the mind to suffer
       The slings and arrows of outrageous fortune,

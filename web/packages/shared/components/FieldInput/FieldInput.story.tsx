@@ -23,7 +23,7 @@ import { EmailSolid } from 'design/Icon';
 
 import Validation from '../../components/Validation';
 import { requiredEmailLike, requiredField } from '../Validation/rules';
-import FieldInput from './FieldInput';
+import FieldInputComponent from './FieldInput';
 
 type StoryProps = {
   readOnly?: boolean;
@@ -31,8 +31,8 @@ type StoryProps = {
 };
 
 const meta: Meta<StoryProps> = {
-  title: 'Shared/FieldInput',
-  component: Controls,
+  title: 'Shared',
+  component: FieldInput,
   argTypes: {
     readOnly: {
       control: { type: 'boolean' },
@@ -44,12 +44,12 @@ const meta: Meta<StoryProps> = {
 };
 export default meta;
 
-export function Controls(props: StoryProps) {
+export function FieldInput(props: StoryProps) {
   return (
     <Validation>
       {({ validator }) => (
         <>
-          <FieldInput
+          <FieldInputComponent
             label="Label"
             helperText="Optional bottom helper text"
             name="optional name"
@@ -61,7 +61,7 @@ export function Controls(props: StoryProps) {
             disabled={props.disabled}
             readonly={props.readOnly}
           />
-          <FieldInput
+          <FieldInputComponent
             label="Label with placeholder"
             name="optional name"
             onChange={() => {}}
@@ -70,7 +70,7 @@ export function Controls(props: StoryProps) {
             disabled={props.disabled}
             readonly={props.readOnly}
           />
-          <FieldInput
+          <FieldInputComponent
             label="Label with tooltip"
             name="optional name"
             onChange={() => {}}
@@ -80,7 +80,7 @@ export function Controls(props: StoryProps) {
             disabled={props.disabled}
             readonly={props.readOnly}
           />
-          <FieldInput
+          <FieldInputComponent
             label="Label with helper text and tooltip"
             helperText="Bottom helper text"
             toolTipContent={<Text>Hello world</Text>}
@@ -91,13 +91,13 @@ export function Controls(props: StoryProps) {
             disabled={props.disabled}
             readonly={props.readOnly}
           />
-          <FieldInput
+          <FieldInputComponent
             placeholder="without label"
             onChange={() => {}}
             disabled={props.disabled}
             readonly={props.readOnly}
           />
-          <FieldInput
+          <FieldInputComponent
             label="Required"
             rule={requiredField('So required. Much mandatory.')}
             required

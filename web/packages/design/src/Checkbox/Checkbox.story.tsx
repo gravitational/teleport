@@ -85,7 +85,7 @@ export const Checkbox = () => (
         </td>
       </tr>
       <tr>
-        <th rowSpan={4}>Disabled</th>
+        <th rowSpan={3}>Disabled</th>
         <th>Default</th>
         <td>
           <CheckboxInput disabled />
@@ -118,9 +118,8 @@ export const Checkbox = () => (
           <CheckboxInput size="small" disabled checked />
         </td>
       </tr>
-      <tr></tr>
       <tr>
-        <th rowSpan={4}>Read Only</th>
+        <th rowSpan={3}>Read Only</th>
         <th>Default</th>
         <td>
           <CheckboxInput readOnly />

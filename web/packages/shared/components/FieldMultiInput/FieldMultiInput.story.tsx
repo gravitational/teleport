@@ -24,7 +24,7 @@ import { Button } from 'design/Button';
 import Validation from 'shared/components/Validation';
 
 import { arrayOf, requiredField } from '../Validation/rules';
-import { FieldMultiInput } from './FieldMultiInput';
+import { FieldMultiInput as Component } from './FieldMultiInput';
 
 type StoryProps = {
   readOnly?: boolean;
@@ -32,8 +32,8 @@ type StoryProps = {
 };
 
 const meta: Meta<StoryProps> = {
-  title: 'Shared/FieldMultiInput',
-  component: Controls,
+  title: 'Shared',
+  component: FieldMultiInput,
   argTypes: {
     readOnly: {
       control: { type: 'boolean' },
@@ -45,14 +45,14 @@ const meta: Meta<StoryProps> = {
 };
 export default meta;
 
-export function Controls(props: StoryProps) {
+export function FieldMultiInput(props: StoryProps) {
   const [items, setItems] = useState([]);
   return (
     <Box width="500px">
       <Validation>
         {({ validator }) => (
           <>
-            <FieldMultiInput
+            <Component
               label="Some items"
               value={items}
               onChange={setItems}

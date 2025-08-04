@@ -33,12 +33,12 @@ interface FieldCheckboxProps extends SpaceProps {
   checked?: boolean;
   defaultChecked?: boolean;
   /**
-   * Disables and mutes all controls and values.
+   * Disables and mutes all values.
    */
   disabled?: boolean;
   /**
-   * Like "disabled" field plus hides controls
-   * and does not mute values.
+   * Disables checkbox but does not mute values
+   * to remain readable.
    */
   readOnly?: boolean;
   size?: CheckboxSize;

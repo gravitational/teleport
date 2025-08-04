@@ -53,8 +53,8 @@ export type FieldMultiInputProps = {
    */
   disabled?: boolean;
   /**
-   * Like "disabled" field plus hides controls
-   * and does not mute values.
+   * Disables inputs and hides controls
+   * but does not mute values.
    */
   readOnly?: boolean;
   /** Adds a required field indicator to the label. */

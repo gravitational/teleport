@@ -25,7 +25,10 @@ import Validation from 'shared/components/Validation';
 import { wait } from 'shared/utils/wait';
 
 import { requiredField } from '../Validation/rules';
-import { FieldSelect, FieldSelectAsync } from './FieldSelect';
+import {
+  FieldSelectAsync as FieldSelectAsyncComp,
+  FieldSelect as FieldSelectComp,
+} from './FieldSelect';
 import {
   FieldSelectCreatable,
   FieldSelectCreatableAsync,
@@ -37,8 +40,8 @@ type StoryProps = {
 };
 
 const meta: Meta<StoryProps> = {
-  title: 'Shared/FieldSelect',
-  component: Controls,
+  title: 'Shared',
+  component: FieldSelect,
   argTypes: {
     readOnly: {
       control: { type: 'boolean' },
@@ -64,7 +67,7 @@ function noPenguinsAllowedInArray(opt: Option[]) {
       : { valid: false, message: 'No penguins allowed' };
 }
 
-export function Controls(props: StoryProps) {
+export function FieldSelect(props: StoryProps) {
   const [selectedOption, setSelectedOption] = useState<Option>(OPTIONS[0]);
   const [selectedOptions, setSelectedOptions] = useState<readonly Option[]>([
     OPTIONS[0],
@@ -79,7 +82,7 @@ export function Controls(props: StoryProps) {
         }
         return (
           <Flex flexDirection="column">
-            <FieldSelect
+            <FieldSelectComp
               label="FieldSelect with search"
               onChange={option => setSelectedOption(option)}
               value={selectedOption}
@@ -89,7 +92,7 @@ export function Controls(props: StoryProps) {
               isDisabled={props.isDisabled}
               readOnly={props.readOnly}
             />
-            <FieldSelect
+            <FieldSelectComp
               label="FieldSelect with validation rule"
               onChange={option => setSelectedOption(option)}
               rule={noPenguinsAllowed}
@@ -98,7 +101,7 @@ export function Controls(props: StoryProps) {
               isDisabled={props.isDisabled}
               readOnly={props.readOnly}
             />
-            <FieldSelect
+            <FieldSelectComp
               label="FieldSelect, multi-select"
               isMulti
               options={OPTIONS}
@@ -107,7 +110,7 @@ export function Controls(props: StoryProps) {
               isDisabled={props.isDisabled}
               readOnly={props.readOnly}
             />
-            <FieldSelect
+            <FieldSelectComp
               label="FieldSelect, multi-select, required, with tooltip"
               isMulti
               options={OPTIONS}
@@ -119,7 +122,7 @@ export function Controls(props: StoryProps) {
               isDisabled={props.isDisabled}
               readOnly={props.readOnly}
             />
-            <FieldSelectAsync
+            <FieldSelectAsyncComp
               label="FieldSelectAsync with search"
               onChange={option => setSelectedOption(option)}
               value={selectedOption}
@@ -132,7 +135,7 @@ export function Controls(props: StoryProps) {
               isDisabled={props.isDisabled}
               readOnly={props.readOnly}
             />
-            <FieldSelectAsync
+            <FieldSelectAsyncComp
               label="FieldSelectAsync with search and validation rule"
               onChange={option => setSelectedOption(option)}
               rule={noPenguinsAllowed}
@@ -146,7 +149,7 @@ export function Controls(props: StoryProps) {
               isDisabled={props.isDisabled}
               readOnly={props.readOnly}
             />
-            <FieldSelectAsync
+            <FieldSelectAsyncComp
               label="FieldSelectAsync with error"
               onChange={undefined}
               value={undefined}
@@ -159,7 +162,7 @@ export function Controls(props: StoryProps) {
               isDisabled={props.isDisabled}
               readOnly={props.readOnly}
             />
-            <FieldSelectAsync
+            <FieldSelectAsyncComp
               label="Empty FieldSelectAsync"
               onChange={undefined}
               value={undefined}
