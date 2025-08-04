@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package k8s
 
 import (
 	"bytes"
@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -155,8 +154,8 @@ func TestKubernetesOutputService_render(t *testing.T) {
 				dest.Path = relativePath
 			}
 
-			svc := KubernetesOutputService{
-				cfg: &config.KubernetesOutput{
+			svc := OutputV1Service{
+				cfg: &OutputV1Config{
 					KubernetesCluster: k8sCluster,
 					DisableExecPlugin: tt.disableExecPlugin,
 					Destination:       dest,
@@ -319,4 +318,55 @@ func fakeCA(t *testing.T, caType types.CertAuthType, clusterName string) types.C
 	})
 	require.NoError(t, err)
 	return ca
+}
+
+func TestChooseOneKubeCluster(t *testing.T) {
+	t.Parallel()
+
+	fooKube1 := newMockDiscoveredKubeCluster(t, "foo-eks-us-west-1-123456789012", "foo")
+	fooKube2 := newMockDiscoveredKubeCluster(t, "foo-eks-us-west-2-123456789012", "foo")
+	barKube := newMockDiscoveredKubeCluster(t, "bar-eks-us-west-1-123456789012", "bar")
+	tests := []struct {
+		desc            string
+		clusters        []types.KubeCluster
+		kubeSvc         string
+		wantKubeCluster types.KubeCluster
+		wantErr         string
+	}{
+		{
+			desc:            "by exact name match",
+			clusters:        []types.KubeCluster{fooKube1, fooKube2, barKube},
+			kubeSvc:         "bar-eks-us-west-1-123456789012",
+			wantKubeCluster: barKube,
+		},
+		{
+			desc:            "by unambiguous discovered name match",
+			clusters:        []types.KubeCluster{fooKube1, fooKube2, barKube},
+			kubeSvc:         "bar",
+			wantKubeCluster: barKube,
+		},
+		{
+			desc:     "ambiguous discovered name matches is an error",
+			clusters: []types.KubeCluster{fooKube1, fooKube2, barKube},
+			kubeSvc:  "foo",
+			wantErr:  `"foo" matches multiple auto-discovered kubernetes clusters`,
+		},
+		{
+			desc:     "no match is an error",
+			clusters: []types.KubeCluster{fooKube1, fooKube2, barKube},
+			kubeSvc:  "xxx",
+			wantErr:  `kubernetes cluster "xxx" not found`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			gotKube, err := chooseOneKubeCluster(test.clusters, test.kubeSvc)
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.wantKubeCluster, gotKube)
+		})
+	}
 }
