@@ -35,7 +35,12 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
+	"github.com/gravitational/teleport/lib/tbot/services/example"
+	"github.com/gravitational/teleport/lib/tbot/services/identity"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
+	"github.com/gravitational/teleport/lib/tbot/services/ssh"
+	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
@@ -60,7 +65,7 @@ func TestConfigFile(t *testing.T) {
 
 	require.Len(t, cfg.Services, 1)
 	output := cfg.Services[0]
-	identOutput, ok := output.(*IdentityOutput)
+	identOutput, ok := output.(*identity.OutputConfig)
 	require.True(t, ok)
 
 	destImpl := identOutput.GetDestination()
@@ -159,13 +164,13 @@ func TestDestinationFromURI(t *testing.T) {
 		},
 		{
 			in: "kubernetes-secret:///my-secret",
-			want: &DestinationKubernetesSecret{
+			want: &k8s.SecretDestination{
 				Name: "my-secret",
 			},
 		},
 		{
 			in: "kubernetes-secret://my-secret",
-			want: &DestinationKubernetesSecret{
+			want: &k8s.SecretDestination{
 				Name: "my-secret",
 			},
 			wantErr: true,
@@ -218,18 +223,18 @@ func TestBotConfig_YAML(t *testing.T) {
 					RenewalInterval: time.Second * 30,
 				},
 				Outputs: ServiceConfigs{
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/bot/output",
 						},
 						Roles:   []string{"editor"},
 						Cluster: "example.teleport.sh",
 					},
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Destination: &destination.Memory{},
 					},
-					&IdentityOutput{
-						Destination: &DestinationKubernetesSecret{
+					&identity.OutputConfig{
+						Destination: &k8s.SecretDestination{
 							Name: "my-secret",
 						},
 						CredentialLifetime: bot.CredentialLifetime{
@@ -272,10 +277,10 @@ func TestBotConfig_YAML(t *testing.T) {
 							RenewalInterval: 15 * time.Second,
 						},
 					},
-					&ExampleService{
+					&example.Config{
 						Message: "llama",
 					},
-					&SSHMultiplexerService{
+					&ssh.MultiplexerConfig{
 						Destination: &destination.Directory{
 							Path: "/bot/output",
 						},
@@ -293,7 +298,7 @@ func TestBotConfig_YAML(t *testing.T) {
 							RenewalInterval: 15 * time.Second,
 						},
 					},
-					&WorkloadIdentityX509Service{
+					&workloadidentity.X509OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/an/output/path",
 						},
@@ -305,7 +310,7 @@ func TestBotConfig_YAML(t *testing.T) {
 							RenewalInterval: 15 * time.Second,
 						},
 					},
-					&WorkloadIdentityAPIService{
+					&workloadidentity.WorkloadAPIConfig{
 						Listen: "tcp://127.0.0.1:123",
 						Selector: bot.WorkloadIdentitySelector{
 							Name: "my-workload-identity",
@@ -315,7 +320,7 @@ func TestBotConfig_YAML(t *testing.T) {
 							RenewalInterval: 15 * time.Second,
 						},
 					},
-					&WorkloadIdentityJWTService{
+					&workloadidentity.JWTOutputConfig{
 						Destination: &destination.Directory{
 							Path: "/an/output/path",
 						},
@@ -337,7 +342,7 @@ func TestBotConfig_YAML(t *testing.T) {
 					RenewalInterval: time.Second * 30,
 				},
 				Outputs: ServiceConfigs{
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Destination: &destination.Memory{},
 					},
 				},
@@ -353,7 +358,7 @@ func TestBotConfig_YAML(t *testing.T) {
 					RenewalInterval: time.Second * 30,
 				},
 				Outputs: ServiceConfigs{
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Destination: &destination.Memory{},
 					},
 				},
@@ -435,7 +440,7 @@ func TestBotConfig_ServicePartialCredentialLifetime(t *testing.T) {
 		Version:    V2,
 		AuthServer: "example.teleport.sh:443",
 		Services: []ServiceConfig{
-			&IdentityOutput{
+			&identity.OutputConfig{
 				CredentialLifetime: bot.CredentialLifetime{TTL: 5 * time.Minute},
 				Destination:        &destination.Memory{},
 			},
@@ -449,7 +454,7 @@ func TestBotConfig_ServiceInvalidCredentialLifetime(t *testing.T) {
 		Version:    V2,
 		AuthServer: "example.teleport.sh:443",
 		Services: []ServiceConfig{
-			&IdentityOutput{
+			&identity.OutputConfig{
 				CredentialLifetime: bot.CredentialLifetime{TTL: 5 * time.Minute},
 				Destination:        &destination.Memory{},
 			},
@@ -548,11 +553,11 @@ func TestBotConfig_NameValidation(t *testing.T) {
 			cfg: &BotConfig{
 				Version: V2,
 				Services: ServiceConfigs{
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Name:        "foo",
 						Destination: &destination.Memory{},
 					},
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Name:        "foo",
 						Destination: &destination.Memory{},
 					},
@@ -564,7 +569,7 @@ func TestBotConfig_NameValidation(t *testing.T) {
 			cfg: &BotConfig{
 				Version: V2,
 				Services: ServiceConfigs{
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Name:        "identity",
 						Destination: &destination.Memory{},
 					},
@@ -576,7 +581,7 @@ func TestBotConfig_NameValidation(t *testing.T) {
 			cfg: &BotConfig{
 				Version: V2,
 				Services: ServiceConfigs{
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Name:        "hello, world!",
 						Destination: &destination.Memory{},
 					},

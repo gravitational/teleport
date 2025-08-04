@@ -19,6 +19,17 @@ The full listing of supported parameters can be found in the [Helm chart referen
 Access Graph is a feature of the [Identity Security](https://goteleport.com/platform/policy/) product that is only available
 to Teleport Enterprise customers.
 
+## How it works
+
+Unlike Teleport services like the Auth Service, Proxy Service, and agent
+services, Teleport Access Graph does not run from the `teleport` binary, but as
+a separate piece of software available from Teleport as a container image.
+Teleport Access Graph uses TLS credentials to authenticate to the Teleport Auth
+Service. It must also connect to PostgreSQL for its backing storage. After
+obtaining credentials from your Teleport cluster, you create a configuration
+file for Teleport Access Graph and install the `teleport-access-graph` Helm
+chart.
+
 ## Prerequisites
 
 - Kubernetes >= v1.21

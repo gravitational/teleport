@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/identity"
 )
 
 // TestLegacyCommand tests that the LegacyCommand properly parses its arguments
@@ -69,7 +70,7 @@ func TestLegacyCommand(t *testing.T) {
 
 				// It must configure an identity output with a directory destination.
 				svc := cfg.Services[0]
-				ident, ok := svc.(*config.IdentityOutput)
+				ident, ok := svc.(*identity.OutputConfig)
 				require.True(t, ok)
 
 				dir, ok = ident.Destination.(*destination.Directory)
