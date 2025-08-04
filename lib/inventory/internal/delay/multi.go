@@ -145,19 +145,20 @@ func (h *Multi[T]) Remove(key T) {
 // Reset resets the next tick for the given key to the current time plus a delay.
 func (h *Multi[T]) Reset(key T, delay time.Duration) {
 	for i, item := range h.heap.Slice {
-		if item.key == key {
-			h.heap.Slice[i] = entry[T]{
-				key:  key,
-				tick: h.clock.Now().Add(h.resetJitter(delay)),
-			}
-			h.heap.Fix(i)
-			if i == 0 {
-				// if the adjusted entry was the root of the heap, then our target
-				// has changed and we need to reset the timer to a new target.
-				h.reset(h.clock.Now(), false /* fired */)
-			}
-			return
+		if item.key != key {
+			continue
 		}
+		h.heap.Slice[i] = entry[T]{
+			key:  key,
+			tick: h.clock.Now().Add(h.resetJitter(delay)),
+		}
+		h.heap.Fix(i)
+		if i == 0 {
+			// if the adjusted entry was the root of the heap, then our target
+			// has changed and we need to reset the timer to a new target.
+			h.reset(h.clock.Now(), false /* fired */)
+		}
+		return
 	}
 }
 
