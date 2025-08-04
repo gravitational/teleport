@@ -33,7 +33,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"go.opentelemetry.io/otel"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
