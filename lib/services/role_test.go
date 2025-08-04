@@ -5083,10 +5083,6 @@ func TestCheckDatabaseRoles(t *testing.T) {
 				DatabaseLabelsExpression: `labels["env"] == "prod"`,
 				DatabaseRoles:            []string{"reader"},
 			},
-			Deny: types.RoleConditions{
-				DatabaseLabelsExpression: `labels["env"] == "prod"`,
-				DatabaseRoles:            []string{"writer"},
-			},
 		},
 	}
 
@@ -5137,7 +5133,6 @@ func TestCheckDatabaseRoles(t *testing.T) {
 				},
 			},
 			Deny: types.RoleConditions{
-				DatabaseLabelsExpression: `labels["env"] == "prod"`,
 				DatabasePermissions: []types.DatabasePermission{
 					{
 						Permissions: []string{"UPDATE", "INSERT", "DELETE"},
@@ -5164,6 +5159,19 @@ func TestCheckDatabaseRoles(t *testing.T) {
 						Match:       map[string]apiutils.Strings{"*": []string{"*"}},
 					},
 				},
+			},
+		},
+	}
+
+	// roleG denies usage of `writer` role
+	roleG := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleB", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+			},
+			Deny: types.RoleConditions{
+				DatabaseRoles: []string{"writer"},
 			},
 		},
 	}
@@ -5210,37 +5218,26 @@ func TestCheckDatabaseRoles(t *testing.T) {
 			outRoles:         []string{"reader", "writer"},
 		},
 		{
-			name:             "connect to metrics database, get reader/writer permissions",
+			name:             "connect to metrics database, get reader permissions",
 			roleSet:          RoleSet{roleA, roleE, roleF},
 			inDatabaseLabels: map[string]string{"app": "metrics"},
-			outCreateUser:    true,
-			outRoles:         []string{},
-			outAllowPermissions: types.DatabasePermissions{
-				types.DatabasePermission{Permissions: []string{"SELECT", "UPDATE", "INSERT", "DELETE"}, Match: types.Labels{"*": apiutils.Strings{"*"}}},
-			},
-		},
-		{
-			name:             "connect to prod database, get reader role",
-			roleSet:          RoleSet{roleA, roleB, roleC},
-			inDatabaseLabels: map[string]string{"app": "metrics", "env": "prod"},
-			outCreateUser:    true,
-			outRoles:         []string{"reader"},
-		},
-		{
-			name:             "connect to prod database, get reader permissions",
-			roleSet:          RoleSet{roleA, roleE, roleF},
-			inDatabaseLabels: map[string]string{"app": "metrics", "env": "prod"},
 			outCreateUser:    true,
 			outRoles:         []string{},
 			// the overlap between outAllowPermissions and outDenyPermissions is expected.
 			// the permission arithmetic (e.g. removing denied permissions) will be done ba a downstream function.
 			outAllowPermissions: types.DatabasePermissions{
-				types.DatabasePermission{Permissions: []string{"SELECT"}, Match: types.Labels{"*": apiutils.Strings{"*"}}},
 				types.DatabasePermission{Permissions: []string{"SELECT", "UPDATE", "INSERT", "DELETE"}, Match: types.Labels{"*": apiutils.Strings{"*"}}},
 			},
 			outDenyPermissions: types.DatabasePermissions{
 				types.DatabasePermission{Permissions: []string{"UPDATE", "INSERT", "DELETE"}, Match: types.Labels{"*": apiutils.Strings{"*"}}},
 			},
+		},
+		{
+			name:             "connect to prod database, get reader role",
+			roleSet:          RoleSet{roleA, roleB, roleC, roleG},
+			inDatabaseLabels: map[string]string{"app": "metrics", "env": "prod"},
+			outCreateUser:    true,
+			outRoles:         []string{"reader"},
 		},
 		{
 			name:             "connect to metrics database, requested writer role",
@@ -5252,8 +5249,8 @@ func TestCheckDatabaseRoles(t *testing.T) {
 		},
 		{
 			name:             "requested role denied",
-			roleSet:          RoleSet{roleA, roleB, roleC},
-			inDatabaseLabels: map[string]string{"app": "metrics", "env": "prod"},
+			roleSet:          RoleSet{roleA, roleB, roleC, roleG},
+			inDatabaseLabels: map[string]string{"app": "metrics"},
 			inRequestedRoles: []string{"writer"},
 			outCreateUser:    true,
 			outRolesError:    true,
