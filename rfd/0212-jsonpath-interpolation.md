@@ -104,7 +104,7 @@ You can use a login rule to map JSON claims to users traits.
 
 In the example below, a JSON claim is mapped to individual user traits.
 
-```json
+```js
 {
   // groups is a JSON object rather than a string array.
   "groups": {
@@ -183,7 +183,7 @@ be set for users. Below is an example claim object for user `alice`.
       "node": {
         "logins": "alice",
         "labels": {
-          "*": "*"
+          "host": "*"
         }
       },
       "app": {
@@ -218,13 +218,13 @@ spec:
       - jsonpath("$.groups.teleport.node.logins")
     node_labels_*:
       # evaluates to "*"
-      - jsonpath("$.groups.teleport.node.labels[?(@ == '*')]")
+      - jsonpath("$.groups.teleport.node.labels['*']")
     node_labels_env:
       # evaluates to []
       - jsonpath("$.groups.teleport.node.labels.env")
     app_labels_*:
       # evaluates to []
-      - jsonpath("$.groups.teleport.app.labels[?(@ == '*')]")
+      - jsonpath("$.groups.teleport.app.labels['*']")
     app_labels_env:
       # evaluates to "staging"
       - jsonpath("$.groups.teleport.app.labels.env")
