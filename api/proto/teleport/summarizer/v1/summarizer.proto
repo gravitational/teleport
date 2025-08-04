@@ -119,9 +119,9 @@ enum SummaryState {
 }
 
 // Summary represents a summary of a session recording. This format is used to
-// store the summaries in the session storage and return it to clients.
+// store the summaries in the session storage and return it with gRPC.
 message Summary {
-  // session_id is an ID of the session whose recording got summarized.
+  // sessionId is an ID of the session whose recording got summarized.
   string session_id = 1;
   // State is the state of the summarization process.
   SummaryState state = 2;

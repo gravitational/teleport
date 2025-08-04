@@ -599,10 +599,10 @@ func (x *InferencePolicySpec) GetFilter() string {
 }
 
 // Summary represents a summary of a session recording. This format is used to
-// store the summaries in the session storage and return it to clients.
+// store the summaries in the session storage and return it with gRPC.
 type Summary struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// session_id is an ID of the session whose recording got summarized.
+	// sessionId is an ID of the session whose recording got summarized.
 	SessionId string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	// State is the state of the summarization process.
 	State SummaryState `protobuf:"varint,2,opt,name=state,proto3,enum=teleport.summarizer.v1.SummaryState" json:"state,omitempty"`
