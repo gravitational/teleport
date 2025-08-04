@@ -71,6 +71,11 @@ export default function LoginForm(props: Props) {
     shouldSkipVersionCheck: props.shouldSkipVersionCheck,
     disableVersionCheck: props.disableVersionCheck,
     platform: props.platform,
+    isAnyClusterProvidingUpdates:
+      props.appUpdateEvent.autoUpdatesStatus?.options.clusters.some(
+        c => c.toolsAutoUpdate
+      ),
+    onSwitchToAppUpdateDetails: props.switchToAppUpdateDetails,
   };
   const appUpdateWidgetViewProps = {
     updateEvent: props.appUpdateEvent,
