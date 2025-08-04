@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
+	"github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 )
@@ -137,7 +138,7 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/path/destination",
 						},
@@ -217,7 +218,7 @@ destinations:
 					Destination: &destination.Memory{},
 				},
 				Services: ServiceConfigs{
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Destination: &destination.Directory{
 							Path:     "/path/example",
 							Symlinks: "try-secure",
@@ -342,7 +343,7 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
@@ -789,7 +790,7 @@ destinations:
 				},
 				Debug: true,
 				Services: ServiceConfigs{
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Destination: &destination.Directory{
 							Path:     "/opt/machine-id",
 							Symlinks: botfs.SymlinksInsecure,
@@ -829,7 +830,7 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Destination: &destination.Directory{
 							Path:     "/var/tmp/machine-id",
 							Symlinks: botfs.SymlinksInsecure,
@@ -1049,21 +1050,21 @@ destinations:
 					},
 				},
 				Services: ServiceConfigs{
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/path/to/role1_creds",
 							ACLs: botfs.ACLRequired,
 						},
 						Roles: []string{"role1"},
 					},
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/path/to/role2_creds",
 							ACLs: botfs.ACLRequired,
 						},
 						Roles: []string{"role2"},
 					},
-					&IdentityOutput{
+					&identity.OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/path/to/roleN_creds",
 							ACLs: botfs.ACLRequired,

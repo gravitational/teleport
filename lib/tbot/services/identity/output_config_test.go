@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package identity
 
 import (
 	"testing"
@@ -28,10 +28,10 @@ import (
 
 func TestIdentityOutput_YAML(t *testing.T) {
 	dest := &destination.Memory{}
-	tests := []testYAMLCase[IdentityOutput]{
+	tests := []testYAMLCase[OutputConfig]{
 		{
 			name: "full",
-			in: IdentityOutput{
+			in: OutputConfig{
 				Destination:   dest,
 				Roles:         []string{"access"},
 				Cluster:       "leaf.example.com",
@@ -45,7 +45,7 @@ func TestIdentityOutput_YAML(t *testing.T) {
 		},
 		{
 			name: "minimal",
-			in: IdentityOutput{
+			in: OutputConfig{
 				Destination: dest,
 			},
 		},
@@ -54,11 +54,11 @@ func TestIdentityOutput_YAML(t *testing.T) {
 }
 
 func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*IdentityOutput]{
+	tests := []testCheckAndSetDefaultsCase[*OutputConfig]{
 		{
 			name: "valid",
-			in: func() *IdentityOutput {
-				return &IdentityOutput{
+			in: func() *OutputConfig {
+				return &OutputConfig{
 					Destination:   destination.NewMemory(),
 					Roles:         []string{"access"},
 					SSHConfigMode: SSHConfigModeOn,
@@ -67,20 +67,20 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "ssh config mode defaults",
-			in: func() *IdentityOutput {
-				return &IdentityOutput{
+			in: func() *OutputConfig {
+				return &OutputConfig{
 					Destination: destination.NewMemory(),
 				}
 			},
-			want: &IdentityOutput{
+			want: &OutputConfig{
 				Destination:   destination.NewMemory(),
 				SSHConfigMode: SSHConfigModeOn,
 			},
 		},
 		{
 			name: "missing destination",
-			in: func() *IdentityOutput {
-				return &IdentityOutput{
+			in: func() *OutputConfig {
+				return &OutputConfig{
 					Destination: nil,
 				}
 			},
@@ -88,8 +88,8 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "invalid ssh config mode",
-			in: func() *IdentityOutput {
-				return &IdentityOutput{
+			in: func() *OutputConfig {
+				return &OutputConfig{
 					Destination:   destination.NewMemory(),
 					SSHConfigMode: "invalid",
 				}
