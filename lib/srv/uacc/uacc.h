@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _POSIX_C_SOURCE 200809L
 #ifndef UACC_C
 #define UACC_C
 
@@ -24,14 +23,10 @@
 #include <stdint.h>
 #include <string.h>
 #include <utmp.h>
-#include <utmpx.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <limits.h>
-
-void updwtmpx(const char*, const struct utmpx*);
-int utmpxname(const char*);
 
 int UACC_UTMP_MISSING_PERMISSIONS = 1;
 int UACC_UTMP_WRITE_ERROR = 2;
@@ -139,9 +134,7 @@ static int uacc_add_utmp_entry(const char *utmp_path, const char *wtmp_path, con
         return status;
     }
     updwtmp(wtmp_file, &entry);
-    if (errno != 0) {
-        return status_from_errno();
-    }
+    // updwtmp doesn't report errors, per the c standard we can't trust errno here.
     return 0;
 }
 
@@ -202,9 +195,7 @@ static int uacc_mark_utmp_entry_dead(const char *utmp_path, const char *wtmp_pat
         return status;
     }
     updwtmp(wtmp_file, &log_entry);
-    if (errno != 0) {
-        return status_from_errno();
-    }
+    // updwtmp doesn't report errors, per the c standard we can't trust errno here.
     return 0;
 }
 
@@ -272,200 +263,7 @@ static int uacc_add_btmp_entry(const char *btmp_path, const char *username,
     memcpy(&entry.ut_addr_v6, remote_addr_v6, sizeof(int32_t) * 4);
 
     updwtmp(file, &entry);
-    if (errno != 0) {
-        return status_from_errno();
-    }
-    return 0;
-}
-
-// Low level C function to add a new USER_PROCESS entry to the database.
-// This function does not perform any argument validation.
-static int uaccx_add_utmp_entry(const char *utmpx_path, const char *wtmpx_path, const char *username,
-  const char *hostname, const int32_t remote_addr_v6[4], const char *tty_name, const char *id,
-  int32_t tv_sec, int32_t tv_usec, char* uaccPathErr) {
-
-    if (utmpx_path == NULL || wtmpx_path == NULL) {
-      // Return open failed error if any of the provided paths is NULL.
-      return UACC_UTMP_FAILED_OPEN;
-    }
-
-    char resolved_utmpx_buffer[PATH_MAX];
-    const char* file = realpath(utmpx_path, &resolved_utmpx_buffer[0]);
-
-    int status = check_abs_path_err(file, uaccPathErr);
-    if (status != 0) {
-        return status;
-    }
-    if (utmpxname(file) < 0) {
-        return UACC_UTMP_FAILED_TO_SELECT_FILE;
-    }
-    struct utmpx entry = {
-      .ut_type = USER_PROCESS,
-      .ut_pid = getpid(),
-      .ut_session = getsid(0),
-      .ut_tv.tv_sec = tv_sec,
-      .ut_tv.tv_usec = tv_usec
-    };
-    strncpy((char*) &entry.ut_line, tty_name, UT_LINESIZE);
-    strncpy((char*) &entry.ut_id, id, sizeof(entry.ut_id));
-    strncpy((char*) &entry.ut_host, hostname, sizeof(entry.ut_host));
-    strncpy((char*) &entry.ut_user, username, sizeof(entry.ut_user));
-    memcpy(&entry.ut_addr_v6, remote_addr_v6, sizeof(int32_t) * 4);
-
-    errno = 0;
-    setutxent();
-    if (errno > 0) {
-        endutxent();
-        return UACC_UTMP_FAILED_OPEN;
-    }
-    if (pututxline(&entry) == NULL) {
-        endutxent();
-        return errno == EPERM || errno == EACCES ? UACC_UTMP_MISSING_PERMISSIONS : UACC_UTMP_WRITE_ERROR;
-    }
-    endutxent();
-    char resolved_wtmpx_buffer[PATH_MAX];
-    const char* wtmpx_file = realpath(wtmpx_path, &resolved_wtmpx_buffer[0]);
-    status = check_abs_path_err(wtmpx_file, uaccPathErr);
-    if (status != 0) {
-        return status;
-    }
-    updwtmpx(wtmpx_file, &entry);
-    if (errno != 0) {
-        return status_from_errno();
-    }
-    return 0;
-}
-
-// Low level C function to mark a database entry as DEAD_PROCESS.
-// This function does not perform string argument validation.
-static int uaccx_mark_utmp_entry_dead(const char *utmpx_path, const char *wtmpx_path, const char *tty_name,
-        int32_t tv_sec, int32_t tv_usec, char* uaccPathErr) {
-    if (utmpx_path == NULL || wtmpx_path == NULL) {
-      // Return open failed error if any of the provided paths is NULL.
-      return UACC_UTMP_FAILED_OPEN;
-    }
-
-    char resolved_utmpx_buffer[PATH_MAX];
-    const char* file = realpath(utmpx_path, &resolved_utmpx_buffer[0]);
-    int status = check_abs_path_err(file, uaccPathErr);
-    if (status != 0) {
-        return status;
-    }
-    if (utmpxname(file) < 0) {
-        return UACC_UTMP_FAILED_TO_SELECT_FILE;
-    }
-    errno = 0;
-    setutxent();
-    if (errno > 0) {
-        return UACC_UTMP_FAILED_OPEN;
-    }
-    struct utmpx line;
-    strncpy((char*) &line.ut_line, tty_name, UT_LINESIZE);
-    struct utmpx *entry_t = getutxline(&line);
-    if (entry_t == NULL) {
-        return UACC_UTMP_READ_ERROR;
-    }
-    struct utmpx entry;
-    memcpy(&entry, entry_t, sizeof(struct utmp));
-    entry.ut_type = DEAD_PROCESS;
-    memset(&entry.ut_user, 0, UT_NAMESIZE);
-    struct utmpx log_entry = entry;
-    log_entry.ut_tv.tv_sec = tv_sec;
-    log_entry.ut_tv.tv_usec = tv_usec;
-    memset(&entry.ut_host, 0, UT_HOSTSIZE);
-    memset(&entry.ut_line, 0, UT_LINESIZE);
-    memset(&entry.ut_time, 0, 8);
-    errno = 0;
-    setutxent();
-    if (errno != 0) {
-        endutxent();
-        return UACC_UTMP_FAILED_OPEN;
-    }
-    if (pututxline(&entry) == NULL) {
-        endutxent();
-        return errno == EPERM || errno == EACCES ? UACC_UTMP_MISSING_PERMISSIONS : UACC_UTMP_WRITE_ERROR;
-    }
-    endutxent();
-    char resolved_wtmpx_buffer[PATH_MAX];
-    const char* wtmpx_file = realpath(wtmpx_path, &resolved_wtmpx_buffer[0]);
-    status = check_abs_path_err(wtmpx_file, uaccPathErr);
-    if (status != 0) {
-        return status;
-    }
-    updwtmpx(wtmpx_file, &log_entry);
-    if (errno != 0) {
-        return status_from_errno();
-    }
-    return 0;
-}
-
-// Low level C function to check the database for an entry for a given user.
-// This function does not perform string argument validation.
-static int uaccx_has_entry_with_user(const char *utmpx_path, const char *user, char *uaccPathErr) {
-    if (utmpx_path == NULL) {
-        // Return open failed error if any of the provided paths is NULL.
-        return UACC_UTMP_FAILED_OPEN;
-    }
-
-    char resolved_utmpx_buffer[PATH_MAX];
-    const char* file = realpath(utmpx_path, &resolved_utmpx_buffer[0]);
-    int status = check_abs_path_err(file, uaccPathErr);
-    if (status != 0) {
-        return status;
-    }
-    if (utmpxname(file) < 0) {
-        return UACC_UTMP_FAILED_TO_SELECT_FILE;
-    }
-    errno = 0;
-    setutxent();
-    if (errno != 0) {
-        endutxent();
-        return UACC_UTMP_FAILED_OPEN;
-    }
-    struct utmpx *entry = getutxent();
-    while (entry != NULL) {
-        if (entry->ut_type == USER_PROCESS && strncmp(user, entry->ut_user, sizeof(entry->ut_user)) == 0) {
-            endutxent();
-            return 0;
-        }
-        entry = getutxent();
-    }
-    endutxent();
-    return errno == 0 ? UACC_UTMP_ENTRY_DOES_NOT_EXIST : errno;
-}
-
-// Low level C function to add a new entry to the failed login log.
-// This function does not perform any argument validation.
-static int uaccx_add_btmp_entry(const char *btmpx_path, const char *username,
-  const char *hostname, const int32_t remote_addr_v6[4],
-  int32_t tv_sec, int32_t tv_usec, char *uaccPathErr) {
-
-    if (btmpx_path == NULL) {
-      // Return open failed error if the provided path is NULL.
-      return UACC_UTMP_FAILED_OPEN;
-    }
-
-    char resolved_btmpx_buffer[PATH_MAX];
-    const char* file = realpath(btmpx_path, &resolved_btmpx_buffer[0]);
-
-    int status = check_abs_path_err(file, uaccPathErr);
-    if (status != 0) {
-        return status;
-    }
-
-    struct utmpx entry = {
-        .ut_type = USER_PROCESS,
-        .ut_tv.tv_sec = tv_sec,
-        .ut_tv.tv_usec = tv_usec
-    };
-    strncpy((char*) &entry.ut_host, hostname, sizeof(entry.ut_host));
-    strncpy((char*) &entry.ut_user, username, sizeof(entry.ut_user));
-    memcpy(&entry.ut_addr_v6, remote_addr_v6, sizeof(int32_t) * 4);
-
-    updwtmpx(file, &entry);
-    if (errno != 0) {
-        return status_from_errno();
-    }
+    // updwtmp doesn't report errors, per the c standard we can't trust errno here.
     return 0;
 }
 

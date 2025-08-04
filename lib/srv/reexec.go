@@ -341,7 +341,12 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 	readyfd = nil
-	uaccDB, err := uacc.NewUserAccounting()
+	uaccDB, err := uacc.NewUserAccounting(uacc.UaccConfig{
+		IsPAMEnabled: c.PAMConfig != nil,
+		Utmp:         c.UaccMetadata.UtmpPath,
+		Wtmp:         c.UaccMetadata.WtmpPath,
+		Btmp:         c.UaccMetadata.BtmpPath,
+	})
 	if err != nil {
 		slog.DebugContext(ctx, "uacc unsupported", "error", err)
 	} else {
@@ -359,7 +364,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	var uaccKey string
+	var uaccKey []byte
 	if c.Terminal && uaccEnabled {
 		uaccKey, err = uaccDB.Login(tty, c.Login, &c.UaccMetadata.RemoteAddr, time.Now())
 		// uacc support is best-effort, only enable it if Open is successful.

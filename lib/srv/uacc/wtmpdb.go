@@ -31,13 +31,6 @@ func newWtmpdb(dbPath string) (*wtmpdbBackend, error) {
 	return &wtmpdbBackend{db: db}, nil
 }
 
-func init() {
-	wtmpdb, err := newWtmpdb(wtmpdbLocation)
-	if err == nil {
-		registerBackend(wtmpdb)
-	}
-}
-
 func (w *wtmpdbBackend) Name() string {
 	return "wtmpdb"
 }
