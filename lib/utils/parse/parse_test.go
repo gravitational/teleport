@@ -19,7 +19,6 @@
 package parse
 
 import (
-	"encoding/json"
 	"regexp"
 	"testing"
 
@@ -532,108 +531,6 @@ func TestMatchers(t *testing.T) {
 			require.NoError(t, err)
 			got := matcher.Match(tt.in)
 			require.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestJSONPath(t *testing.T) {
-	t.Parallel()
-
-	errCheckIsBadParameter := func(tt require.TestingT, err error, _ ...any) {
-		require.True(tt, trace.IsBadParameter(err), "expected bad parameter error, got %v", err)
-	}
-	type result struct {
-		values   []string
-		errCheck require.ErrorAssertionFunc
-	}
-	var tests = []struct {
-		title string
-		path  string
-		json  string
-		res   result
-	}{
-		{
-			title: "jsonpath string",
-			path:  "$.claim_name",
-			json:  `{"claim_name": "normal_claim"}`,
-			res:   result{values: []string{"normal_claim"}},
-		},
-		{
-			title: "jsonpath strings",
-			path:  "$.claim_name.*",
-			json:  `{"claim_name": ["normal", "claims"]}`,
-			res:   result{values: []string{"normal", "claims"}},
-		},
-		{
-			title: "jsonpath object selector",
-			path:  "$.claim_name.azure",
-			json:  `{"claim_name":{"azure":"teleport_access","aws":"teleport_admin"}}`,
-			res:   result{values: []string{"teleport_access"}},
-		},
-		{
-			title: "jsonpath object wildcard flatten elements",
-			path:  "$.claim_name.*",
-			json:  `{"claim_name":{"azure":"teleport_access","aws":"teleport_admin"}}`,
-			res:   result{values: []string{"teleport_admin", "teleport_access"}},
-		},
-		{
-			title: "jsonpath array selector",
-			path:  "$.claim_name[1].aws",
-			json:  `{"claim_name":[{"azure":"teleport_access"},{"aws":"teleport_admin"}]}`,
-			res:   result{values: []string{"teleport_admin"}},
-		},
-		{
-			title: "jsonpath array wildcard flatten elements",
-			path:  "$.claim_name.*.*",
-			json:  `{"claim_name":[{"azure":"teleport_access"},{"aws":"teleport_admin"}]}`,
-			res:   result{values: []string{"teleport_access", "teleport_admin"}},
-		},
-		{
-			title: "jsonpath filter",
-			path:  "$.claim_name[?(@.teleport == 'admin')].*",
-			json:  `{"claim_name":{"azure":{"teleport":"access"},"aws":{"teleport":"admin"}}}`,
-			res:   result{values: []string{"admin"}},
-		},
-		{
-			title: "jsonpath regexp",
-			path:  "$.claim_name[?(@ =~ 'teleport_.*')]",
-			json:  `{"claim_name":{"azure":"other_access","aws":"teleport_admin"}}`,
-			res:   result{values: []string{"teleport_admin"}},
-		},
-		{
-			title: "jsonpath parsing error",
-			path:  "$.claim_name[@.azure = teleport_access]",
-			json:  `{"claim_name":{"azure":"teleport_access","aws":"teleport_admin"}}`,
-			res:   result{errCheck: require.Error},
-		},
-		{
-			title: "jsonpath interpolation to non string list error",
-			path:  "$.claim_name",
-			json:  `{"claim_name":{"azure":"teleport_access","aws":"teleport_admin"}}`,
-			res:   result{errCheck: errCheckIsBadParameter},
-		},
-		{
-			title: "jsonpath interpolation to list with non string error",
-			path:  "$.claim_name",
-			json:  `{"claim_name":[{"azure":"teleport_access"},{"aws":"teleport_admin"}]}`,
-			res:   result{errCheck: errCheckIsBadParameter},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.title, func(t *testing.T) {
-			var input map[string]any
-			err := json.Unmarshal([]byte(tt.json), &input)
-			require.NoError(t, err)
-
-			values, err := JSONPath(input, tt.path)
-			if tt.res.errCheck != nil {
-				tt.res.errCheck(t, err)
-				require.Empty(t, values)
-				return
-			}
-			require.NoError(t, err)
-			require.ElementsMatch(t, tt.res.values, values)
 		})
 	}
 }

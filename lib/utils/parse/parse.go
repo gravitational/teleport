@@ -24,14 +24,12 @@
 package parse
 
 import (
-	"encoding/json"
 	"net/mail"
 	"regexp"
 	"strings"
 	"unicode"
 
 	"github.com/gravitational/trace"
-	"github.com/ohler55/ojg/jp"
 
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/typical"
@@ -224,47 +222,6 @@ func RegexpReplace(inputs []string, match string, replacement string) ([]string,
 		}
 		return re.ReplaceAllString(in, replacement), nil
 	})
-}
-
-// JSONPath takes an unmarshaled json blob and uses the provided jsonpath query on it.
-// If the query results in a list of strings, it will be returned. If the query results
-// are empty, an empty list is returned. Any other query results will result in an error.
-func JSONPath(input map[string]any, path string) ([]string, error) {
-	jpExpr, err := jp.ParseString(path)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var out []string
-	results := jpExpr.Get(input)
-	for _, result := range results {
-		switch r := result.(type) {
-		case string:
-			out = append(out, r)
-		case []string:
-			out = append(out, r...)
-		case []any:
-			for _, v := range r {
-				if s, ok := v.(string); ok {
-					out = append(out, s)
-				} else {
-					resultsJSON, err := json.Marshal(results)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-					return nil, trace.BadParameter("jsonpath interpolation must result in a string or list of strings, but resulted in %v", string(resultsJSON))
-				}
-			}
-		default:
-			resultsJSON, err := json.Marshal(results)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return nil, trace.BadParameter("jsonpath interpolation must result in a string or list of strings, but resulted in %v", string(resultsJSON))
-		}
-	}
-
-	return out, nil
 }
 
 // MatchExpression is a match expression.
