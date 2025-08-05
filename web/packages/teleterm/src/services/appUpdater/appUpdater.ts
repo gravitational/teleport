@@ -128,8 +128,10 @@ export class AppUpdater {
    * - It allows update checks during an ongoing download process.
    * If a new update is found (or no update is available), the current download
    * is canceled.
-   * - If an update is checked after a download has completed, the updater
-   * automatically transitions to the `update-downloaded` state.
+   * - If downloading the update requires user confirmation, but the update has
+   * already been downloaded, checking for updates will transition the updater
+   * to the `update-downloaded` state (instead of staying in `update-available`
+   * state).
    */
   async checkForUpdates(
     options: { noAutoDownload?: boolean } = {}
