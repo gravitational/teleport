@@ -19,7 +19,6 @@
 package expression
 
 import (
-	"maps"
 	"strings"
 	"time"
 
@@ -219,28 +218,10 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 	}
 }
 
-// ExpressionParserOpt is an optional argument for [NewTraitsExpressionParser].
-type ExpressionParserOpt[TEnv any] func(*typical.ParserSpec[TEnv]) error
-
-// WithAdditionalFunctions can be used to add custom functions in addition
-// to the default parser functions.
-func WithAdditionalFunctions[TEnv any](functions map[string]typical.Function) ExpressionParserOpt[TEnv] {
-	return func(ps *typical.ParserSpec[TEnv]) error {
-		maps.Copy(ps.Functions, functions)
-		return nil
-	}
-}
-
 // NewTraitsExpressionParser returns new expression parser using evaluation environment and default parser spec.
-func NewTraitsExpressionParser[TEnv any](vars evaluationEnvVar, opts ...ExpressionParserOpt[TEnv]) (*typical.Parser[TEnv, any], error) {
+func NewTraitsExpressionParser[TEnv any](vars evaluationEnvVar) (*typical.Parser[TEnv, any], error) {
 	spec := DefaultParserSpec[TEnv]()
 	spec.Variables = vars
-
-	for _, opt := range opts {
-		if err := opt(&spec); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
 
 	parser, err := typical.NewParser[TEnv, any](spec)
 	if err != nil {
