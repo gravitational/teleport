@@ -44,7 +44,7 @@ type k8sJWKSValidator func(now time.Time, jwksData []byte, clusterName string, t
 type k8sOIDCValidator func(
 	ctx context.Context,
 	issuerURL string,
-	audience string,
+	clusterName string,
 	token string,
 ) (*kubetoken.ValidationResult, error)
 
@@ -86,7 +86,7 @@ func (a *Server) checkKubernetesJoinRequest(
 		result, err = a.k8sOIDCValidator(
 			ctx,
 			token.Spec.Kubernetes.OIDC.Issuer,
-			token.Spec.Kubernetes.OIDC.Audience,
+			clusterName,
 			req.IDToken,
 		)
 		if err != nil {

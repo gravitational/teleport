@@ -1808,10 +1808,6 @@ message ProvisionTokenSpecV2Kubernetes {
     // Issuer is the URI of the OIDC issuer. It must have an accessible and
     // OIDC-compliant `/.well-known/oidc-configuration` endpoint.
     string Issuer = 1 [(gogoproto.jsontag) = "issuer,omitempty"];
-
-    // Audience is the expected audience value. If unset, this will default to
-    // `https://kubernetes.default.svc`, which is the Kubernetes default value.
-    string Audience = 2 [(gogoproto.jsontag) = "audience,omitempty"];
   }
   // Rule is a set of properties the Kubernetes-issued token might have to be
   // allowed to use this ProvisionToken
