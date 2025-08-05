@@ -366,13 +366,13 @@ func ValidateTokenWithJWKS(
 func ValidateTokenWithOIDC(
 	ctx context.Context,
 	issuerURL string,
-	audience string,
+	clusterName string,
 	token string,
 ) (*ValidationResult, error) {
 	claims, err := oidc.ValidateTokenNoAuthorizedPartyCheck[*OIDCServiceAccountClaims](
 		ctx,
 		issuerURL,
-		audience,
+		clusterName,
 		token,
 	)
 	if err != nil {
