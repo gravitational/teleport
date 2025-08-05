@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -134,7 +135,13 @@ func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 	}
 
 	if shouldAddKeysToAgent(conf.KeysOption) {
-		a.systemAgent = connectToSSHAgent()
+		a.log.Debug("Connecting to the system agent")
+		systemAgent, err := sshagent.NewSystemAgentClient()
+		if err != nil {
+			a.log.Warnf("Unable to connect to system agent: %v", err)
+		} else {
+			a.systemAgent = systemAgent
+		}
 	} else {
 		log.Debug("Skipping connection to the local ssh-agent.")
 
