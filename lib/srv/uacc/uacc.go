@@ -35,7 +35,7 @@ type userKey struct {
 }
 
 type UserAccounting struct {
-	utmp         *utmpBackend
+	utmp         *UtmpBackend
 	wtmpdb       *wtmpdbBackend
 	isPAMEnabled bool
 }
@@ -52,7 +52,7 @@ func NewUserAccounting(cfg UaccConfig) (*UserAccounting, error) {
 	uacc := &UserAccounting{
 		isPAMEnabled: cfg.IsPAMEnabled,
 	}
-	if utmp, err := newUtmpBackend(cfg.Utmp, cfg.Wtmp, cfg.Btmp); err == nil {
+	if utmp, err := NewUtmpBackend(cfg.Utmp, cfg.Wtmp, cfg.Btmp); err == nil {
 		uacc.utmp = utmp
 	}
 	if wtmpdb, err := newWtmpdb(cfg.WtmpdbFile); err == nil {

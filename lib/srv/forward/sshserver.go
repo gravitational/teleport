@@ -553,8 +553,8 @@ func (s *Server) GetClock() clockwork.Clock {
 // GetUserAccountingPaths returns the optional override of the utmp, wtmp, and btmp path.
 // These values are never set for the forwarding server because utmp, wtmp, and btmp
 // are updated by the target server and not the forwarding server.
-func (s *Server) GetUserAccountingPaths() (string, string, string) {
-	return "", "", ""
+func (s *Server) GetUserAccountingPaths() (string, string, string, string) {
+	return "", "", "", ""
 }
 
 // GetLockWatcher gets the server's lock watcher.
