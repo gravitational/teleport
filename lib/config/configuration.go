@@ -959,17 +959,24 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// Only override session recording configuration if either field is
 	// specified in file configuration.
 	if fc.Auth.hasCustomSessionRecording() {
-		var encryption *types.SessionRecordingEncryptionConfig
-		if fc.Auth.SessionRecordingEncryption != nil && fc.Auth.SessionRecordingEncryption.Value {
-			encryption = &types.SessionRecordingEncryptionConfig{
-				Enabled: true,
-			}
-		}
-		cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		src := types.SessionRecordingConfigSpecV2{
 			Mode:                fc.Auth.SessionRecording,
 			ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
-			Encryption:          encryption,
-		})
+		}
+
+		if fc.Auth.SessionRecordingConfig != nil {
+			if src.Mode != "" {
+				return trace.BadParameter("cannot set both session_recording and session_recording_config at the same time, prefer session_recording_config.mode")
+			}
+
+			if src.ProxyChecksHostKeys != nil {
+				return trace.BadParameter("cannot set both proxy_checks_host_keys and session_recording_config at the same time, prefer session_recording_config.proxy_checks_host_keys")
+			}
+
+			src = *fc.Auth.SessionRecordingConfig
+		}
+
+		cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(src)
 		if err != nil {
 			return trace.Wrap(err)
 		}

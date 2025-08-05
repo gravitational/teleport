@@ -2155,7 +2155,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
-	recordingEncryptionManager, err := recordingencryption.NewManager(recordingencryption.ManagerConfig{
+	recordingEncryptionManager, err := recordingencryption.NewManager(process.GracefulExitContext(), recordingencryption.ManagerConfig{
 		Backend:       localRecordingEncryption,
 		Cache:         localRecordingEncryption,
 		KeyStore:      keyStore,
