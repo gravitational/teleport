@@ -189,8 +189,15 @@ var ErrRequiresEnterprise = services.ErrRequiresEnterprise
 type ServerOption func(*Server) error
 
 // NewServer creates and configures a new Server instance
-func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
-	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
+func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
+	closeCtx, cancelFunc := context.WithCancel(context.TODO())
+	defer func() {
+		if err != nil {
+			cancelFunc()
+		}
+	}()
+
+	err = metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -257,7 +264,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		recordingEncryptionManager, err := recordingencryption.NewManager(recordingencryption.ManagerConfig{
+		recordingEncryptionManager, err := recordingencryption.NewManager(closeCtx, recordingencryption.ManagerConfig{
 			Backend:       localRecordingEncryption,
 			Cache:         localRecordingEncryption,
 			ClusterConfig: cfg.ClusterConfiguration,
@@ -563,7 +570,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
 		TrustInternal:                   cfg.Trust,
 		PresenceInternal:                cfg.Presence,
@@ -624,7 +630,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Summarizer:                      cfg.Summarizer,
 	}
 
-	as := Server{
+	as = &Server{
 		bk:                        cfg.Backend,
 		clock:                     cfg.Clock,
 		limiter:                   limiter,
@@ -649,7 +655,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		logger:                    cfg.Logger,
 		sessionSummarizerProvider: cfg.SessionSummarizerProvider,
 	}
-	as.inventory = inventory.NewController(&as, services,
+	as.inventory = inventory.NewController(as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
 		inventory.WithClock(cfg.Clock),
 		inventory.WithOnConnect(func(s string) {
@@ -669,7 +675,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	)
 
 	for _, o := range opts {
-		if err := o(&as); err != nil {
+		if err := o(as); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -773,9 +779,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	// Add in a login hook for generating state during user login.
 	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         as.logger,
-		AccessLists: &as,
-		Access:      &as,
-		UsageEvents: &as,
+		AccessLists: as,
+		Access:      as,
+		UsageEvents: as,
 		Clock:       cfg.Clock,
 		Emitter:     as.emitter,
 	})
@@ -797,7 +803,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		as.logger.WarnContext(closeCtx, "Auth server starting without cache (may have negative performance implications)")
 	}
 
-	return &as, nil
+	return as, nil
 }
 
 // Services is a collection of services that are used by the auth server.
