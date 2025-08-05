@@ -67,7 +67,10 @@ export function Instance(props: {
             <Version version={version} />
 
             {hostname ? (
-              <HoverTooltip placement="top" tipContent={'Hostname'}>
+              <HoverTooltip
+                placement="top"
+                tipContent={`Hostname: ${hostname}`}
+              >
                 <SecondaryOutlined borderRadius={2}>
                   <LabelText>{hostname}</LabelText>
                 </SecondaryOutlined>
