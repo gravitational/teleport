@@ -1662,6 +1662,8 @@ manualy testing.
     - [ ] Postgres
 - [ ] Verify database access via Web UI
   - [ ] Postgres
+  - [ ] CockroachDB
+  - [ ] MySQL
 - [ ] Verify database health checks
   - [ ] Dynamic `health_check_config` resource create, read, update, delete operations are supported using `tctl`
   - [ ] Database servers (`$ tctl get db_server`) include `db_server.status.target_health` info
