@@ -6,6 +6,8 @@ labels:
  - mwi
 ---
 
+{/* lint disable page-structure remark-lint */}
+
 GitHub Actions is a popular CI/CD platform that works as a part of the larger
 GitHub ecosystem. Teleport Machine ID allows GitHub Actions to securely interact
 with Teleport protected resources without the need for long-lived credentials.
@@ -195,12 +197,14 @@ jobs:
     - name: Fetch Teleport binaries
       uses: teleport-actions/setup@v1
       with:
-        version: (=teleport.version=)
+        version: auto
+        # Replace with the address of your Teleport Proxy Service.
+        proxy: example.teleport.sh:443
     - name: Fetch credentials using Machine ID
       id: auth
       uses: teleport-actions/auth@v2
       with:
-        # Use the address of the auth/proxy server for your own cluster.
+        # Replace with the address of your Teleport Proxy Service.
         proxy: example.teleport.sh:443
         # Use the name of the join token resource you created in step 1.
         token: example-bot
@@ -313,11 +317,13 @@ jobs:
     - name: Fetch Teleport binaries
       uses: teleport-actions/setup@v1
       with:
-        version: (=teleport.version=)
+        version: auto
+        # Replace with the address of your Teleport Proxy Service.
+        proxy: example.teleport.sh:443
     - name: Fetch credentials using Machine ID
       uses: teleport-actions/auth-k8s@v2
       with:
-        # Use the address of the auth/proxy server for your own cluster.
+        # Replace with the address of your Teleport Proxy Service.
         proxy: example.teleport.sh:443
         # Use the name of the join token resource you created in step 1.
         token: example-bot
@@ -333,8 +339,7 @@ jobs:
 
 Replace:
 
-- `example.teleport.sh:443` with the address of your Teleport Proxy or cloud
-  tenant.
+- `example.teleport.sh:443` with the address of your Teleport Proxy Service.
 - `example-bot` with the name of the token you created in a previous step.
 - `my-kubernetes-cluster` with the name of your Kubernetes cluster.
 
@@ -376,8 +381,7 @@ outputs: []
 
 Replace:
 
-- `example.teleport.sh:443` with the address of your Teleport Proxy or
-  Auth Service. Prefer using the address of a Teleport Proxy.
+- `example.teleport.sh:443` with the address of your Teleport Proxy Service.
 - `example-bot` with the name of the token you created in the first step.
 
 Now you can define a GitHub Actions workflow that will start `tbot` with this
@@ -409,7 +413,9 @@ jobs:
     - name: Fetch Teleport binaries
       uses: teleport-actions/setup@v1
       with:
-        version: (=teleport.version=)
+        version: auto
+        # Replace with the address of your Teleport Proxy Service.
+        proxy: example.teleport.sh:443
     - name: Execute Machine ID
       env:
         # TELEPORT_ANONYMOUS_TELEMETRY enables the submission of anonymous

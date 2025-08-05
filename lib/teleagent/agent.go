@@ -36,6 +36,9 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
+// TODO(Joerger): Move this file to lib/sshagent and replace
+// similar types.
+
 // Agent extends the agent.ExtendedAgent interface.
 // APIs which accept this interface promise to
 // call `Close()` when they are done using the

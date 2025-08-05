@@ -17,3 +17,10 @@
  */
 
 export * from './appUpdater';
+export type {
+  AutoUpdatesStatus,
+  AutoUpdatesEnabled,
+  AutoUpdatesDisabled,
+  Cluster,
+} from './autoUpdatesStatus';
+export type { UpdateInfo } from 'electron-updater';

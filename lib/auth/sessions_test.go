@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package auth
+package auth_test
 
 import (
 	"context"
@@ -27,15 +27,17 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 )
 
 func TestServer_CreateWebSessionFromReq_deviceWebToken(t *testing.T) {
 	t.Parallel()
 
-	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
 	})
-	require.NoError(t, err, "NewTestAuthServer failed")
+	require.NoError(t, err, "NewAuthServer failed")
 	t.Cleanup(func() {
 		assert.NoError(t, testAuthServer.Close(), "testAuthServer.Close() errored")
 	})
@@ -57,7 +59,7 @@ func TestServer_CreateWebSessionFromReq_deviceWebToken(t *testing.T) {
 	})
 
 	const userLlama = "llama"
-	user, _, err := CreateUserAndRole(authServer, userLlama, []string{userLlama} /* logins */, nil /* allowRules */)
+	user, _, err := authtest.CreateUserAndRole(authServer, userLlama, []string{userLlama} /* logins */, nil /* allowRules */)
 	require.NoError(t, err, "CreateUserAndRole failed")
 
 	// Arbitrary, real-looking values.
@@ -65,7 +67,7 @@ func TestServer_CreateWebSessionFromReq_deviceWebToken(t *testing.T) {
 	const loginUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
 
 	t.Run("ok", func(t *testing.T) {
-		session, err := authServer.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
+		session, err := authServer.CreateWebSessionFromReq(ctx, auth.NewWebSessionRequest{
 			User:                 userLlama,
 			LoginIP:              loginIP,
 			LoginUserAgent:       loginUserAgent,

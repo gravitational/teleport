@@ -17,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "17.5.4",
+      "version": "17.5.6",
       "major_version": "17",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -736,6 +736,11 @@
       "permanent": true
     },
     {
+      "source": "/machine-workload-identity/machine-id/deployment/bound-keypair/",
+      "destination": "/reference/machine-id/bound-keypair/getting-started/",
+      "permanent": true
+    },
+    {
       "source": "/enroll-resources/workload-identity/",
       "destination": "/machine-workload-identity/workload-identity/",
       "permanent": true
@@ -1038,6 +1043,41 @@
     {
       "source": "/admin-guides/management/export-audit-events/splunk/",
       "destination": "/zero-trust-access/export-audit-events/splunk/",
+      "permanent": true
+    },
+    {
+      "source": "/model-context-preview/",
+      "destination": "/connect-your-client/model-context-protocol/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/idps/",
+      "destination": "/identity-governance/idps/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/idps/saml-attribute-mapping/",
+      "destination": "/identity-governance/idps/saml-attribute-mapping/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/idps/saml-gcp-workforce-identity-federation/",
+      "destination": "/identity-governance/idps/saml-gcp-workforce-identity-federation/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/idps/saml-grafana/",
+      "destination": "/identity-governance/idps/saml-grafana/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/idps/saml-guide/",
+      "destination": "/identity-governance/idps/saml-guide/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/idps/saml-microsoft-entra-external-id/",
+      "destination": "/identity-governance/idps/saml-microsoft-entra-external-id/",
       "permanent": true
     }
   ]

@@ -49,7 +49,7 @@ spec:
     # clients and servers through the proxy
     permit_x11_forwarding: true
     # device_trust_mode enforces authenticated device access for assigned user of this role.
-    device_trust_mode: optional|required|off
+    device_trust_mode: optional|required|required-for-humans|off
     # require_session_mfa require per-session MFA for any assigned user of this role
     require_session_mfa: true
     # mfa_verification_interval optionally defines the maximum duration that can elapse between successive MFA verifications.
@@ -467,6 +467,22 @@ spec:
       # List of GitHub organizations the user has access to.
     - orgs:
       - my-org
+
+    # mcp: defines MCP servers related permissions.
+    mcp:
+      # tools: list of tools allowed for this role.
+      #
+      # No tools are allowed if not specified.
+      # Each entry can be a literal string, a glob pattern, or a regular
+      # expression (must start with '^' and end with '$'). A wildcard '*' allows
+      # all tools.
+      # This value field also supports variable interpolation.
+      tools:
+      - search-files
+      - slack_*
+      - ^(get|list|read).*$
+      - "{{internal.mcp_tools}}"
+      - "{{external.mcp_tools}}"
 
     # rules allow a user holding this role to modify other resources
     # matching the expressions below

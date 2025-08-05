@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"context"
@@ -72,7 +72,9 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -112,9 +114,9 @@ func TestMFADeviceManagement(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a fake user.
-	user, _, err := CreateUserAndRole(authServer, "mfa-user", []string{"role"}, nil)
+	user, _, err := authtest.CreateUserAndRole(authServer, "mfa-user", []string{"role"}, nil)
 	require.NoError(t, err)
-	userClient, err := testServer.NewClient(TestUser(user.GetName()))
+	userClient, err := testServer.NewClient(authtest.TestUser(user.GetName()))
 	require.NoError(t, err)
 
 	// No MFA devices should exist for a new user.
@@ -306,7 +308,7 @@ func TestMFADeviceManagement(t *testing.T) {
 	// Register an extra device to test allow deletion of other devices and test that
 	// the last device cannot be deleted.
 	const lastDeviceName = "lastDevice"
-	lastDevice, err := RegisterTestDevice(ctx, userClient, lastDeviceName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, devs.WebDev)
+	lastDevice, err := authtest.RegisterTestDevice(ctx, userClient, lastDeviceName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, devs.WebDev)
 	require.NoError(t, err, "RegisterTestDevice failed")
 
 	// Also add a password so we can testing add last non-passkey MFA device. Testing the
@@ -473,9 +475,9 @@ func TestMFADeviceManagement_SSO(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a fake user.
-	user, _, err := CreateUserAndRole(authServer, "mfa-user", []string{"role"}, nil)
+	user, _, err := authtest.CreateUserAndRole(authServer, "mfa-user", []string{"role"}, nil)
 	require.NoError(t, err)
-	userClient, err := testServer.NewClient(TestUser(user.GetName()))
+	userClient, err := testServer.NewClient(authtest.TestUser(user.GetName()))
 	require.NoError(t, err)
 
 	// Create an auth connector.
@@ -493,7 +495,7 @@ func TestMFADeviceManagement_SSO(t *testing.T) {
 	require.NoError(t, err)
 
 	// Convert the user to an SSO user for this auth connector.
-	userCreatedAt := authServer.clock.Now()
+	userCreatedAt := authServer.GetClock().Now()
 	user.SetCreatedBy(types.CreatedBy{
 		Time: userCreatedAt,
 		Connector: &types.ConnectorRef{
@@ -511,7 +513,7 @@ func TestMFADeviceManagement_SSO(t *testing.T) {
 
 	// prepare a passwordless device.
 	passkeyName := "passkey"
-	passkey, err := RegisterTestDevice(ctx, userClient, passkeyName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil, WithPasswordless())
+	passkey, err := authtest.RegisterTestDevice(ctx, userClient, passkeyName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil, authtest.WithPasswordless())
 	require.NoError(t, err, "RegisterTestDevice")
 
 	passkeyWebAuthnHandler := func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
@@ -576,12 +578,12 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		setup    func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice)
+		setup    func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *authtest.Device)
 		checkErr require.ErrorAssertionFunc
 	}{
 		{
 			name:  "NOK no other MFA device",
-			setup: func(*testing.T, string, *authclient.Client, *TestDevice) {},
+			setup: func(*testing.T, string, *authclient.Client, *authtest.Device) {},
 			checkErr: func(t require.TestingT, err error, _ ...any) {
 				require.ErrorContains(t,
 					err,
@@ -592,18 +594,18 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 		},
 		{
 			name: "OK extra passwordless device",
-			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
-				_, err := RegisterTestDevice(ctx, userClient, "another-passkey", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, pwdlessDev, WithPasswordless())
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *authtest.Device) {
+				_, err := authtest.RegisterTestDevice(ctx, userClient, "another-passkey", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, pwdlessDev, authtest.WithPasswordless())
 				require.NoError(t, err, "RegisterTestDevice failed")
 			},
 			checkErr: require.NoError,
 		},
 		{
 			name: "OK password set with other WebAuthn device",
-			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *authtest.Device) {
 				err := authServer.UpsertPassword(username, []byte("living on the edge"))
 				require.NoError(t, err, "UpsertPassword")
-				_, err = RegisterTestDevice(
+				_, err = authtest.RegisterTestDevice(
 					ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, pwdlessDev)
 				require.NoError(t, err, "RegisterTestDevice")
 			},
@@ -611,18 +613,18 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 		},
 		{
 			name: "OK password set with other TOTP device",
-			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *authtest.Device) {
 				err := authServer.UpsertPassword(username, []byte("living on the edge"))
 				require.NoError(t, err, "UpsertPassword")
-				_, err = RegisterTestDevice(
-					ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, WithTestDeviceClock(clock))
+				_, err = authtest.RegisterTestDevice(
+					ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, authtest.WithTestDeviceClock(clock))
 				require.NoError(t, err, "RegisterTestDevice")
 			},
 			checkErr: require.NoError,
 		},
 		{
 			name: "OK SSO user with other device",
-			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *authtest.Device) {
 				user, err := authServer.GetUser(ctx, username, false)
 				require.NoError(t, err, "GetUser")
 				user.SetCreatedBy(types.CreatedBy{
@@ -630,7 +632,7 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 				})
 				_, err = authServer.UpsertUser(ctx, user)
 				require.NoError(t, err, "UpsertUser")
-				_, err = RegisterTestDevice(
+				_, err = authtest.RegisterTestDevice(
 					ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, pwdlessDev)
 				require.NoError(t, err, "RegisterTestDevice")
 			},
@@ -638,7 +640,7 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 		},
 		{
 			name: "NOK password set but no other MFAs",
-			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *authtest.Device) {
 				err := authServer.UpsertPassword(username, []byte("living on the edge"))
 				require.NoError(t, err, "UpsertPassword")
 			},
@@ -652,9 +654,9 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 		},
 		{
 			name: "NOK other MFAs, but no password set",
-			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
-				_, err := RegisterTestDevice(
-					ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, WithTestDeviceClock(clock))
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *authtest.Device) {
+				_, err := authtest.RegisterTestDevice(
+					ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, authtest.WithTestDeviceClock(clock))
 				require.NoError(t, err, "RegisterTestDevice")
 			},
 			checkErr: func(t require.TestingT, err error, _ ...any) {
@@ -667,9 +669,9 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 		},
 		{
 			name: "NOK other MFAs, but no password set, passwordless is off",
-			setup: func(t *testing.T, _ string, userClient *authclient.Client, pwdlessDev *TestDevice) {
+			setup: func(t *testing.T, _ string, userClient *authclient.Client, pwdlessDev *authtest.Device) {
 				// Register a non-passwordless device without adding a password.
-				_, err := RegisterTestDevice(ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, WithTestDeviceClock(clock))
+				_, err := authtest.RegisterTestDevice(ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, authtest.WithTestDeviceClock(clock))
 				require.NoError(t, err, "RegisterTestDevice")
 
 				authPref, err := authServer.GetAuthPreference(ctx)
@@ -709,9 +711,9 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 
 			// Create a fake user.
 			username := fmt.Sprintf("mfa-user-%d", i)
-			user, _, err := CreateUserAndRole(authServer, username, []string{"role"}, nil)
+			user, _, err := authtest.CreateUserAndRole(authServer, username, []string{"role"}, nil)
 			require.NoError(t, err)
-			userClient, err := testServer.NewClient(TestUser(user.GetName()))
+			userClient, err := testServer.NewClient(authtest.TestUser(user.GetName()))
 			require.NoError(t, err)
 
 			// No MFA devices should exist for a new user.
@@ -721,8 +723,8 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 
 			// Add the passwordless device to be deleted.
 			pwdlessDevName := "pwdless-dev"
-			pwdlessDev, err := RegisterTestDevice(
-				ctx, userClient, pwdlessDevName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil, WithPasswordless())
+			pwdlessDev, err := authtest.RegisterTestDevice(
+				ctx, userClient, pwdlessDevName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil, authtest.WithPasswordless())
 			require.NoError(t, err)
 
 			// Case-specific setup.
@@ -750,10 +752,10 @@ type mfaDevices struct {
 	webOrigin string
 
 	TOTPName string
-	TOTPDev  *TestDevice
+	TOTPDev  *authtest.Device
 
 	WebName string
-	WebDev  *TestDevice
+	WebDev  *authtest.Device
 }
 
 func (d *mfaDevices) totpAuthHandler(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
@@ -784,11 +786,11 @@ func addOneOfEachMFADevice(t *testing.T, userClient *authclient.Client, clock cl
 
 	ctx := context.Background()
 
-	totpDev, err := RegisterTestDevice(
-		ctx, userClient, totpName, proto.DeviceType_DEVICE_TYPE_TOTP, nil /* authenticator */, WithTestDeviceClock(clock))
+	totpDev, err := authtest.RegisterTestDevice(
+		ctx, userClient, totpName, proto.DeviceType_DEVICE_TYPE_TOTP, nil /* authenticator */, authtest.WithTestDeviceClock(clock))
 	require.NoError(t, err, "RegisterTestDevice(totp)")
 
-	webDev, err := RegisterTestDevice(
+	webDev, err := authtest.RegisterTestDevice(
 		ctx, userClient, webName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, totpDev /* authenticator */)
 	require.NoError(t, err, "RegisterTestDevice(totp)")
 
@@ -884,7 +886,7 @@ func TestCreateAppSession_deviceExtensions(t *testing.T) {
 	authServer := testServer.Auth()
 
 	// Create an user for testing.
-	user, _, err := CreateUserAndRole(authServer, "llama", []string{"llama"}, nil)
+	user, _, err := authtest.CreateUserAndRole(authServer, "llama", []string{"llama"}, nil)
 	require.NoError(t, err, "CreateUserAndRole failed")
 
 	// Register an application.
@@ -909,7 +911,7 @@ func TestCreateAppSession_deviceExtensions(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		modifyUser func(u *TestIdentity)
+		modifyUser func(u *authtest.TestIdentity)
 		assertCert func(t *testing.T, cert *x509.Certificate)
 	}{
 		{
@@ -919,7 +921,7 @@ func TestCreateAppSession_deviceExtensions(t *testing.T) {
 		},
 		{
 			name: "user with device extensions",
-			modifyUser: func(u *TestIdentity) {
+			modifyUser: func(u *authtest.TestIdentity) {
 				lu := u.I.(authz.LocalUser)
 				lu.Identity.DeviceExtensions = *wantExtensions
 				u.I = lu
@@ -936,7 +938,7 @@ func TestCreateAppSession_deviceExtensions(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			u := TestUser(user.GetName())
+			u := authtest.TestUser(user.GetName())
 			if test.modifyUser != nil {
 				test.modifyUser(&u)
 			}
@@ -968,7 +970,7 @@ func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
 	testServer := newTestTLSServer(t)
 
 	// Create an user for testing.
-	user, _, err := CreateUserAndRole(testServer.Auth(), "llama", []string{"llama"}, nil)
+	user, _, err := authtest.CreateUserAndRole(testServer.Auth(), "llama", []string{"llama"}, nil)
 	require.NoError(t, err, "CreateUserAndRole failed")
 
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
@@ -984,7 +986,7 @@ func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		modifyUser func(u *TestIdentity)
+		modifyUser func(u *authtest.TestIdentity)
 		assertCert func(t *testing.T, cert *x509.Certificate)
 	}{
 		{
@@ -994,7 +996,7 @@ func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
 		},
 		{
 			name: "user with device extensions",
-			modifyUser: func(u *TestIdentity) {
+			modifyUser: func(u *authtest.TestIdentity) {
 				lu := u.I.(authz.LocalUser)
 				lu.Identity.DeviceExtensions = *wantExtensions
 				u.I = lu
@@ -1011,7 +1013,7 @@ func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			u := TestUser(user.GetName())
+			u := authtest.TestUser(user.GetName())
 			if test.modifyUser != nil {
 				test.modifyUser(&u)
 			}
@@ -1056,7 +1058,7 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	authServer := testServer.Auth()
 
 	// Create a user for testing.
-	user, role, err := CreateUserAndRole(testServer.Auth(), "llama", []string{"llama"}, nil)
+	user, role, err := authtest.CreateUserAndRole(testServer.Auth(), "llama", []string{"llama"}, nil)
 	require.NoError(t, err, "CreateUserAndRole failed")
 	username := user.GetName()
 
@@ -1083,16 +1085,31 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create clients with and without device extensions.
-	clientWithoutDevice, err := testServer.NewClient(TestUser(username))
+	clientWithoutDevice, err := testServer.NewClient(authtest.TestUser(username))
 	require.NoError(t, err, "NewClient failed")
 
 	clientWithDevice, err := testServer.NewClient(
-		TestUserWithDeviceExtensions(username, tlsca.DeviceExtensions{
+		authtest.TestUserWithDeviceExtensions(username, tlsca.DeviceExtensions{
 			DeviceID:     "deviceid1",
 			AssetTag:     "assettag1",
 			CredentialID: "credentialid1",
 		}))
 	require.NoError(t, err, "NewClient failed")
+
+	// Create bot user for testing.
+	botUser, _, err := authtest.CreateUserAndRole(testServer.Auth(), "wall-e", []string{"wall-e-role"}, nil)
+	require.NoError(t, err, "CreateUserAndRole failed")
+
+	botMeta := botUser.GetMetadata()
+	botMeta.Labels = map[string]string{
+		types.BotLabel: "wall-e",
+	}
+	botUser.SetMetadata(botMeta)
+	botUser, err = testServer.Auth().UpsertUser(ctx, botUser)
+	require.NoError(t, err)
+
+	botClient, err := testServer.NewClient(authtest.TestUser(botUser.GetName()))
+	require.NoError(t, err)
 
 	// updateAuthPref is a helper used throughout the test.
 	updateAuthPref := func(t *testing.T, modify func(ap types.AuthPreference)) {
@@ -1162,6 +1179,15 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 			WindowsDesktop: "mydesktop",
 			Login:          username,
 		},
+	}
+	botSSHReq := proto.UserCertsRequest{
+		SSHPublicKey:   sshPub,
+		Username:       botUser.GetName(),
+		Expires:        expires,
+		RouteToCluster: clusterName,
+		NodeName:       "mynode",
+		Usage:          proto.UserCertsRequest_SSH,
+		SSHLogin:       "llama",
 	}
 
 	assertSuccess := func(t *testing.T, err error) {
@@ -1255,6 +1281,22 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 			req:               winReq,
 			assertErr:         assertSuccess,
 		},
+		{
+			name:               "nok: mode=required with bot",
+			clusterDeviceMode:  constants.DeviceTrustModeRequired,
+			client:             botClient,
+			req:                botSSHReq,
+			skipSingleUseCerts: true,
+			assertErr:          assertAccessDenied,
+		},
+		{
+			name:               "ok: mode=required-for-humans with bot",
+			clusterDeviceMode:  constants.DeviceTrustModeRequiredForHumans,
+			client:             botClient,
+			req:                botSSHReq,
+			skipSingleUseCerts: true,
+			assertErr:          assertSuccess,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -1293,16 +1335,16 @@ func TestRegisterFirstDevice_deviceAuthz(t *testing.T) {
 	authServer := testServer.Auth()
 
 	// Create a user for testing.
-	user, _, err := CreateUserAndRole(testServer.Auth(), "llama", []string{"llama"}, nil)
+	user, _, err := authtest.CreateUserAndRole(testServer.Auth(), "llama", []string{"llama"}, nil)
 	require.NoError(t, err, "CreateUserAndRole failed")
 	username := user.GetName()
 
 	// Create clients with and without device extensions.
-	clientWithoutDevice, err := testServer.NewClient(TestUser(username))
+	clientWithoutDevice, err := testServer.NewClient(authtest.TestUser(username))
 	require.NoError(t, err, "NewClient failed")
 
 	clientWithDevice, err := testServer.NewClient(
-		TestUserWithDeviceExtensions(username, tlsca.DeviceExtensions{
+		authtest.TestUserWithDeviceExtensions(username, tlsca.DeviceExtensions{
 			DeviceID:     "deviceid1",
 			AssetTag:     "assettag1",
 			CredentialID: "credentialid1",
@@ -1501,7 +1543,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a fake user.
-	user, role, err := CreateUserAndRole(srv.Auth(), "mfa-user", []string{"role"}, nil)
+	user, role, err := authtest.CreateUserAndRole(srv.Auth(), "mfa-user", []string{"role"}, nil)
 	require.NoError(t, err)
 	// Make sure MFA is required for this user.
 	roleOpt := role.GetOptions()
@@ -1514,7 +1556,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 	role.SetOptions(roleOpt)
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
-	testUser := TestUser(user.GetName())
+	testUser := authtest.TestUser(user.GetName())
 	testUser.TTL = userCertTTL
 	cl, err := srv.NewClient(testUser)
 	require.NoError(t, err)
@@ -2036,7 +2078,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 		{
 			desc: "device extensions copied SSH cert",
 			newClient: func() (*authclient.Client, error) {
-				u := TestUser(user.GetName())
+				u := authtest.TestUser(user.GetName())
 				u.TTL = 1 * time.Hour
 
 				// Add device extensions to the fake user's identity.
@@ -2080,7 +2122,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 		{
 			desc: "device extensions copied TLS cert",
 			newClient: func() (*authclient.Client, error) {
-				u := TestUser(user.GetName())
+				u := authtest.TestUser(user.GetName())
 				u.TTL = 1 * time.Hour
 
 				// Add device extensions to the fake user's identity.
@@ -2500,7 +2542,7 @@ func TestIsMFARequired(t *testing.T) {
 						testModules.MockAttestationData.PrivateKeyPolicy = keys.PrivateKeyPolicyHardwareKey
 					}
 
-					cl, err := srv.NewClient(TestUser(user.GetName()))
+					cl, err := srv.NewClient(authtest.TestUser(user.GetName()))
 					require.NoError(t, err)
 
 					resp, err := cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
@@ -2578,7 +2620,7 @@ func TestIsMFARequired_unauthorized(t *testing.T) {
 	_, err = srv.Auth().UpsertNode(ctx, node2)
 	require.NoError(t, err)
 
-	user, role, err := CreateUserAndRole(srv.Auth(), "alice", []string{"alice"}, nil)
+	user, role, err := authtest.CreateUserAndRole(srv.Auth(), "alice", []string{"alice"}, nil)
 	require.NoError(t, err)
 
 	// Require MFA.
@@ -2589,7 +2631,7 @@ func TestIsMFARequired_unauthorized(t *testing.T) {
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	cl, err := srv.NewClient(TestUser(user.GetName()))
+	cl, err := srv.NewClient(authtest.TestUser(user.GetName()))
 	require.NoError(t, err)
 
 	// Call the endpoint for an authorized login. The user is only authorized
@@ -2633,7 +2675,7 @@ func TestIsMFARequired_nodeMatch(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a fake user with per session mfa required for all nodes.
-	role, err := CreateRole(ctx, srv.Auth(), "mfa-user", types.RoleSpecV6{
+	role, err := authtest.CreateRole(ctx, srv.Auth(), "mfa-user", types.RoleSpecV6{
 		Options: types.RoleOptions{
 			RequireMFAType: types.RequireMFAType_SESSION,
 		},
@@ -2644,10 +2686,10 @@ func TestIsMFARequired_nodeMatch(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	user, err := CreateUser(ctx, srv.Auth(), "mfa-user", role)
+	user, err := authtest.CreateUser(ctx, srv.Auth(), "mfa-user", role)
 	require.NoError(t, err)
 
-	cl, err := srv.NewClient(TestUser(user.GetName()))
+	cl, err := srv.NewClient(authtest.TestUser(user.GetName()))
 	require.NoError(t, err)
 
 	for _, tc := range []struct {
@@ -2709,7 +2751,7 @@ func TestIsMFARequired_nodeMatch(t *testing.T) {
 			require.NoError(t, err, "IsMFARequired")
 
 			assert.Equal(t, tc.want, resp.MFARequired, "MFARequired mismatch")
-			assert.Equal(t, MFARequiredToBool(tc.want), resp.Required, "Required mismatch")
+			assert.Equal(t, auth.MFARequiredToBool(tc.want), resp.Required, "Required mismatch")
 		})
 	}
 }
@@ -2820,7 +2862,7 @@ func TestIsMFARequired_App(t *testing.T) {
 		user, err = srv.Auth().UpsertUser(ctx, user)
 		require.NoError(t, err)
 
-		cl, err := srv.NewClient(TestUser(user.GetName()))
+		cl, err := srv.NewClient(authtest.TestUser(user.GetName()))
 		require.NoError(t, err)
 
 		resp, err := cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
@@ -2837,13 +2879,13 @@ func TestIsMFARequired_App(t *testing.T) {
 
 // testOriginDynamicStored tests setting a ResourceWithOrigin via the server
 // API always results in the resource being stored with OriginDynamic.
-func testOriginDynamicStored(t *testing.T, setWithOrigin func(*authclient.Client, string) error, getStored func(*Server) (types.ResourceWithOrigin, error)) {
+func testOriginDynamicStored(t *testing.T, setWithOrigin func(*authclient.Client, string) error, getStored func(*auth.Server) (types.ResourceWithOrigin, error)) {
 	srv := newTestTLSServer(t)
 
 	// Create a fake user.
-	user, _, err := CreateUserAndRole(srv.Auth(), "configurer", []string{}, nil)
+	user, _, err := authtest.CreateUserAndRole(srv.Auth(), "configurer", []string{}, nil)
 	require.NoError(t, err)
-	cl, err := srv.NewClient(TestUser(user.GetName()))
+	cl, err := srv.NewClient(authtest.TestUser(user.GetName()))
 	require.NoError(t, err)
 
 	for _, origin := range types.OriginValues {
@@ -2869,7 +2911,7 @@ func TestAuthPreferenceOriginDynamic(t *testing.T) {
 		return err
 	}
 
-	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
+	getStored := func(asrv *auth.Server) (types.ResourceWithOrigin, error) {
 		return asrv.GetAuthPreference(ctx)
 	}
 
@@ -2887,7 +2929,7 @@ func TestClusterNetworkingConfigOriginDynamic(t *testing.T) {
 		return trace.Wrap(err)
 	}
 
-	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
+	getStored := func(asrv *auth.Server) (types.ResourceWithOrigin, error) {
 		return asrv.GetClusterNetworkingConfig(ctx)
 	}
 
@@ -2905,7 +2947,7 @@ func TestSessionRecordingConfigOriginDynamic(t *testing.T) {
 		return err
 	}
 
-	getStored := func(asrv *Server) (types.ResourceWithOrigin, error) {
+	getStored := func(asrv *auth.Server) (types.ResourceWithOrigin, error) {
 		return asrv.GetSessionRecordingConfig(ctx)
 	}
 
@@ -2917,13 +2959,13 @@ func TestGenerateHostCerts(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	clt, err := srv.NewClient(TestAdmin())
+	clt, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
 	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	pubTLS, err := PrivateKeyToPublicKeyTLS(priv)
+	pubTLS, err := authtest.PrivateKeyToPublicKeyTLS(priv)
 	require.NoError(t, err)
 
 	certs, err := clt.GenerateHostCerts(ctx, &proto.HostCertsRequest{
@@ -2944,7 +2986,7 @@ func TestGenerateDatabaseCerts(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	clt, err := srv.NewClient(TestAdmin())
+	clt, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
 	// Generate CSR once for speed sake.
@@ -2978,14 +3020,14 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 		types.RoleProxy,
 	}
 
-	clt, err := srv.NewClient(TestServerID(types.RoleNode, serverID))
+	clt, err := srv.NewClient(authtest.TestServerID(types.RoleNode, serverID))
 	require.NoError(t, err)
 	defer clt.Close()
 
 	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	pubTLS, err := PrivateKeyToPublicKeyTLS(priv)
+	pubTLS, err := authtest.PrivateKeyToPublicKeyTLS(priv)
 	require.NoError(t, err)
 
 	req := proto.HostCertsRequest{
@@ -3005,7 +3047,7 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	// perform assertions
 	for _, role := range roles {
 		func() {
-			clt, err := srv.NewClient(TestServerID(role, serverID))
+			clt, err := srv.NewClient(authtest.TestServerID(role, serverID))
 			require.NoError(t, err)
 			defer clt.Close()
 
@@ -3028,7 +3070,8 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	// make an instance client
 	instanceCert, err := tls.X509KeyPair(certs.TLS, priv)
 	require.NoError(t, err)
-	instanceClt := srv.NewClientWithCert(instanceCert)
+	instanceClt, err := srv.NewClientWithCert(instanceCert)
+	require.NoError(t, err)
 
 	// instance cert can self-renew without assertions
 	req.SystemRoleAssertionID = ""
@@ -3059,7 +3102,7 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	go func() {
 		defer close(pingErr)
 		// get an admin client so that we can test pings
-		clt, err := srv.NewClient(TestAdmin())
+		clt, err := srv.NewClient(authtest.TestAdmin())
 		if err != nil {
 			pingErr <- err
 			return
@@ -3094,7 +3137,7 @@ func TestGetSSHTargets(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	clt, err := srv.NewClient(TestAdmin())
+	clt, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
 	upper, err := types.NewServerWithLabels(uuid.New().String(), types.KindNode, types.ServerSpecV2{
@@ -3147,7 +3190,7 @@ func TestResolveSSHTarget(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	clt, err := srv.NewClient(TestAdmin())
+	clt, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
 	upper, err := types.NewServerWithLabels(uuid.New().String(), types.KindNode, types.ServerSpecV2{
@@ -3210,7 +3253,7 @@ func TestNodesCRUD(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	clt, err := srv.NewClient(TestAdmin())
+	clt, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
 	// node1 and node2 will be added to default namespace
@@ -3307,7 +3350,7 @@ func TestLocksCRUD(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	clt, err := srv.NewClient(TestAdmin())
+	clt, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
 	now := srv.Clock().Now()
@@ -3426,7 +3469,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	clt, err := srv.NewClient(TestAdmin())
+	clt, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
 	// Create a couple app servers.
@@ -3499,7 +3542,7 @@ func TestAppsCRUD(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	clt, err := srv.NewClient(TestAdmin())
+	clt, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
 	// Create a couple apps.
@@ -3646,7 +3689,7 @@ func TestAppServersCRUD(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create an app server, expected origin dynamic.
-	clt, err := srv.NewClient(TestAdmin())
+	clt, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
 	app1, err := types.NewAppV3(types.Metadata{
@@ -3705,7 +3748,7 @@ func TestAppServersCRUD(t *testing.T) {
 	require.ErrorIs(t, err, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin"))
 
 	// Create an app server with Okta labels using the Okta role.
-	clt, err = srv.NewClient(TestBuiltin(types.RoleOkta))
+	clt, err = srv.NewClient(authtest.TestBuiltin(types.RoleOkta))
 	require.NoError(t, err)
 
 	app2.SetOrigin(types.OriginOkta)
@@ -3743,7 +3786,7 @@ func TestDatabasesCRUD(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	clt, err := srv.NewClient(TestAdmin())
+	clt, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
 	// Create a couple databases.
@@ -3834,7 +3877,7 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	clt, err := srv.NewClient(TestAdmin())
+	clt, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
 	// Create two DatabaseServices.
@@ -3960,7 +4003,7 @@ func TestServerInfoCRUD(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	clt, err := srv.NewClient(TestAdmin())
+	clt, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
 	serverInfo1, err := types.NewServerInfo(types.Metadata{
@@ -4057,7 +4100,7 @@ func TestSAMLIdPServiceProvidersCRUD(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	clt, err := srv.NewClient(TestAdmin())
+	clt, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
 	// Create two SAML IdP service providers.
@@ -4142,7 +4185,7 @@ func TestListResources(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	clt, err := srv.NewClient(TestAdmin())
+	clt, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
 	testCases := map[string]struct {
@@ -4372,7 +4415,7 @@ func TestCustomRateLimiting(t *testing.T) {
 			// specifically failed, otherwise multiple cases can fail from running
 			// cases in parallel.
 			srv := newTestTLSServer(t)
-			clt, err := srv.NewClient(TestNop())
+			clt, err := srv.NewClient(authtest.TestNop())
 			require.NoError(t, err)
 
 			var attempts int
@@ -4430,7 +4473,7 @@ func TestExport(t *testing.T) {
 	validateResource := func(forwardedFor string, resourceSpan *otlptracev1.ResourceSpans) {
 		var forwarded []string
 		for _, attribute := range resourceSpan.Resource.Attributes {
-			if attribute.Key == forwardedTag {
+			if attribute.Key == auth.ForwardedTag {
 				forwarded = append(forwarded, attribute.Value.GetStringValue())
 			}
 		}
@@ -4440,7 +4483,7 @@ func TestExport(t *testing.T) {
 		for _, scopeSpan := range resourceSpan.ScopeSpans {
 			for _, span := range scopeSpan.Spans {
 				for _, attribute := range span.Attributes {
-					if attribute.Key == forwardedTag {
+					if attribute.Key == auth.ForwardedTag {
 						forwarded = append(forwarded, attribute.Value.GetStringValue())
 					}
 				}
@@ -4469,7 +4512,7 @@ func TestExport(t *testing.T) {
 					for _, span := range scopeSpan.Spans {
 						var foundForwardedTag bool
 						for _, attribute := range span.Attributes {
-							if attribute.Key == forwardedTag {
+							if attribute.Key == auth.ForwardedTag {
 								require.False(t, foundForwardedTag)
 								foundForwardedTag = true
 								require.Equal(t, forwardedFor, attribute.Value.GetStringValue())
@@ -4530,7 +4573,7 @@ func TestExport(t *testing.T) {
 						},
 						{
 							Name:       "with-tag",
-							Attributes: []*otlpcommonv1.KeyValue{{Key: forwardedTag, Value: &otlpcommonv1.AnyValue{Value: &otlpcommonv1.AnyValue_StringValue{StringValue: "test"}}}},
+							Attributes: []*otlpcommonv1.KeyValue{{Key: auth.ForwardedTag, Value: &otlpcommonv1.AnyValue{Value: &otlpcommonv1.AnyValue_StringValue{StringValue: "test"}}}},
 						},
 						{
 							Name: "no-attributes",
@@ -4568,7 +4611,7 @@ func TestExport(t *testing.T) {
 							Name: "already-tagged",
 							Attributes: []*otlpcommonv1.KeyValue{
 								{
-									Key: forwardedTag,
+									Key: auth.ForwardedTag,
 									Value: &otlpcommonv1.AnyValue{
 										Value: &otlpcommonv1.AnyValue_StringValue{
 											StringValue: user,
@@ -4593,7 +4636,7 @@ func TestExport(t *testing.T) {
 
 	cases := []struct {
 		name              string
-		identity          TestIdentity
+		identity          authtest.TestIdentity
 		errAssertion      require.ErrorAssertionFunc
 		uploadedAssertion require.ValueAssertionFunc
 		spans             []*otlptracev1.ResourceSpans
@@ -4602,7 +4645,7 @@ func TestExport(t *testing.T) {
 	}{
 		{
 			name:              "error when unauthorized",
-			identity:          TestNop(),
+			identity:          authtest.TestNop(),
 			errAssertion:      require.Error,
 			uploadedAssertion: require.Empty,
 			spans:             make([]*otlptracev1.ResourceSpans, 1),
@@ -4610,13 +4653,13 @@ func TestExport(t *testing.T) {
 		},
 		{
 			name:              "nop for empty spans",
-			identity:          TestBuiltin(types.RoleNode),
+			identity:          authtest.TestBuiltin(types.RoleNode),
 			errAssertion:      require.NoError,
 			uploadedAssertion: require.Empty,
 		},
 		{
 			name:     "failure to forward spans",
-			identity: TestBuiltin(types.RoleNode),
+			identity: authtest.TestBuiltin(types.RoleNode),
 			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.ErrorIs(t, trail.FromGRPC(trace.Unwrap(err)), uploadErr)
@@ -4630,14 +4673,14 @@ func TestExport(t *testing.T) {
 		},
 		{
 			name:              "forwarded spans get tagged for system roles",
-			identity:          TestBuiltin(types.RoleProxy),
+			identity:          authtest.TestBuiltin(types.RoleProxy),
 			errAssertion:      require.NoError,
 			spans:             testSpans,
 			uploadedAssertion: validateTaggedSpans(fmt.Sprintf("%s.localhost:%s", types.RoleProxy, types.RoleProxy)),
 		},
 		{
 			name:              "forwarded spans get tagged for users",
-			identity:          TestUser(user),
+			identity:          authtest.TestUser(user),
 			errAssertion:      require.NoError,
 			spans:             testSpans,
 			uploadedAssertion: validateTaggedSpans(user),
@@ -4649,7 +4692,7 @@ func TestExport(t *testing.T) {
 			t.Parallel()
 
 			ctx := context.Background()
-			as, err := NewTestAuthServer(TestAuthServerConfig{
+			as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir:         t.TempDir(),
 				Clock:       clockwork.NewFakeClock(),
 				TraceClient: &tt.mockTraceClient,
@@ -4662,12 +4705,12 @@ func TestExport(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 			// Create a fake user.
-			_, _, err = CreateUserAndRole(srv.Auth(), user, []string{"role"}, nil)
+			_, _, err = authtest.CreateUserAndRole(srv.Auth(), user, []string{"role"}, nil)
 			require.NoError(t, err)
 
 			// Setup the server
 			if tt.authorizer != nil {
-				srv.TLSServer.grpcServer.Authorizer = tt.authorizer
+				srv.TLSServer.GRPCServer().Authorizer = tt.authorizer
 				require.NoError(t, err)
 			}
 
@@ -4755,9 +4798,9 @@ func TestSAMLValidation(t *testing.T) {
 				require.NoError(t, err)
 			}))
 
-			role, err := CreateRole(ctx, server.Auth(), "test_role", types.RoleSpecV6{Allow: tc.allow})
+			role, err := authtest.CreateRole(ctx, server.Auth(), "test_role", types.RoleSpecV6{Allow: tc.allow})
 			require.NoError(t, err)
-			user, err := CreateUser(ctx, server.Auth(), "test_user", role)
+			user, err := authtest.CreateUser(ctx, server.Auth(), "test_user", role)
 			require.NoError(t, err)
 
 			connector, err := types.NewSAMLConnector("test_connector", types.SAMLConnectorSpecV2{
@@ -4770,7 +4813,7 @@ func TestSAMLValidation(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			client, err := server.NewClient(TestUser(user.GetName()))
+			client, err := server.NewClient(authtest.TestUser(user.GetName()))
 			require.NoError(t, err)
 
 			_, err = client.UpsertSAMLConnector(ctx, connector)
@@ -4810,9 +4853,9 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	server := newTestTLSServer(t)
-	grpc := server.TLSServer.grpcServer
+	grpc := server.TLSServer.GRPCServer()
 
-	user := TestAdmin()
+	user := authtest.TestAdmin()
 	ctx = authz.ContextWithUser(ctx, user.I)
 
 	tests := []struct {
@@ -4959,10 +5002,10 @@ func TestRoleVersions(t *testing.T) {
 		},
 	})
 
-	user, err := CreateUser(context.Background(), srv.Auth(), "user", enabledRole, disabledRole, undefinedRole)
+	user, err := authtest.CreateUser(context.Background(), srv.Auth(), "user", enabledRole, disabledRole, undefinedRole)
 	require.NoError(t, err)
 
-	client, err := srv.NewClient(TestUser(user.GetName()))
+	client, err := srv.NewClient(authtest.TestUser(user.GetName()))
 	require.NoError(t, err)
 
 	for _, tc := range []struct {
@@ -5175,7 +5218,7 @@ func TestUpsertApplicationServerOrigin(t *testing.T) {
 	parentCtx := context.Background()
 	server := newTestTLSServer(t)
 
-	admin := TestAdmin()
+	admin := authtest.TestAdmin()
 
 	client, err := server.NewClient(admin)
 	require.NoError(t, err)
@@ -5206,7 +5249,7 @@ func TestUpsertApplicationServerOrigin(t *testing.T) {
 	require.ErrorContains(t, err, "only the Okta role can create app servers and apps with an Okta origin")
 
 	// Okta origin should not work with instance and node roles.
-	client, err = server.NewClient(TestIdentity{
+	client, err = server.NewClient(authtest.TestIdentity{
 		I: authz.BuiltinRole{
 			Role: types.RoleInstance,
 			AdditionalSystemRoles: []types.SystemRole{
@@ -5223,7 +5266,7 @@ func TestUpsertApplicationServerOrigin(t *testing.T) {
 	require.ErrorContains(t, err, "only the Okta role can create app servers and apps with an Okta origin")
 
 	// Okta origin should work with Okta role in role field.
-	node := TestIdentity{
+	node := authtest.TestIdentity{
 		I: authz.BuiltinRole{
 			Role: types.RoleOkta,
 			AdditionalSystemRoles: []types.SystemRole{
@@ -5240,7 +5283,7 @@ func TestUpsertApplicationServerOrigin(t *testing.T) {
 	require.NoError(t, err)
 
 	// Okta origin should work with Okta role in additional system roles.
-	node = TestIdentity{
+	node = authtest.TestIdentity{
 		I: authz.BuiltinRole{
 			Role: types.RoleInstance,
 			AdditionalSystemRoles: []types.SystemRole{
@@ -5267,13 +5310,13 @@ func TestGetAccessGraphConfig(t *testing.T) {
 		},
 	})
 	server := newTestTLSServer(t,
-		withAccessGraphConfig(AccessGraphConfig{
+		withAccessGraphConfig(auth.AccessGraphConfig{
 			Enabled: true,
 			CA:      []byte("ca"),
 			Address: "addr",
 		}),
 	)
-	user, _, err := CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
+	user, _, err := authtest.CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
 	require.NoError(t, err)
 	positiveResponse := &clusterconfigpb.AccessGraphConfig{
 		Enabled:           true,
@@ -5317,7 +5360,7 @@ func TestGetAccessGraphConfig(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			client, err := server.NewClient(TestIdentity{
+			client, err := server.NewClient(authtest.TestIdentity{
 				I: test.identity,
 			})
 			require.NoError(t, err)
@@ -5330,7 +5373,7 @@ func TestGetAccessGraphConfig(t *testing.T) {
 
 func TestGetVnetConfig(t *testing.T) {
 	server := newTestTLSServer(t)
-	user, _, err := CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
+	user, _, err := authtest.CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
 	require.NoError(t, err)
 
 	// Create newConfig.
@@ -5346,7 +5389,7 @@ func TestGetVnetConfig(t *testing.T) {
 	identity := authz.LocalUser{
 		Username: user.GetName(),
 	}
-	client, err := server.NewClient(TestIdentity{I: identity})
+	client, err := server.NewClient(authtest.TestIdentity{I: identity})
 	require.NoError(t, err)
 	actualConfig, err := client.GetVnetConfig(t.Context())
 	require.NoError(t, err)
@@ -5360,7 +5403,7 @@ func TestCreateAuditStreamLimit(t *testing.T) {
 	ctx := t.Context()
 
 	server := newTestTLSServer(t)
-	clt, err := server.NewClient(TestServerID(types.RoleNode, uuid.NewString()))
+	clt, err := server.NewClient(authtest.TestServerID(types.RoleNode, uuid.NewString()))
 	require.NoError(t, err)
 
 	// HACK(espadolini): we're piggybacking on the prometheus counter which
@@ -5372,7 +5415,7 @@ func TestCreateAuditStreamLimit(t *testing.T) {
 	// server uses a discard emitter which never ends up sending anything
 	getAcceptedTotal := func() int {
 		var m prom_client_model.Metric
-		require.NoError(t, createAuditStreamAcceptedTotalMetric.Write(&m))
+		require.NoError(t, auth.CreateAuditStreamAcceptedTotalMetric.Write(&m))
 		return int(m.Counter.GetValue())
 	}
 	currentAcceptedTotal := getAcceptedTotal()
@@ -5660,7 +5703,7 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 		},
 	})
 
-	user, err := CreateUser(context.Background(), srv.Auth(), "user",
+	user, err := authtest.CreateUser(context.Background(), srv.Auth(), "user",
 		testRole1,
 		downgradev7comptibleK8sResourcesRole,
 		downgradev7incompatibleK8sResourcesRole,
@@ -5674,7 +5717,7 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	client, err := srv.NewClient(TestUser(user.GetName()))
+	client, err := srv.NewClient(authtest.TestUser(user.GetName()))
 	require.NoError(t, err)
 
 	for _, tc := range []struct {

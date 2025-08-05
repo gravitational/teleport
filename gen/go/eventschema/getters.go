@@ -212,7 +212,6 @@ func (field *EventField) TableSchemaDetails(path []string) ([]*ColumnSchemaDetai
 	default:
 		return nil, trace.NotImplemented("field type '%s' not supported", field.Type)
 	}
-	return nil, nil
 }
 
 func (field *EventField) dmlType() string {

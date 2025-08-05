@@ -439,6 +439,7 @@ func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ htt
 			uiInstance.HostNameLatest = heartbeat.Hostname
 			uiInstance.VersionLatest = heartbeat.Version
 			uiInstance.ActiveAtLatest = heartbeat.RecordedAt.AsTime().Format(time.RFC3339)
+			uiInstance.OSLatest = heartbeat.Os
 		}
 
 		return uiInstance
@@ -462,4 +463,5 @@ type BotInstance struct {
 	HostNameLatest   string `json:"host_name_latest,omitempty"`
 	VersionLatest    string `json:"version_latest,omitempty"`
 	ActiveAtLatest   string `json:"active_at_latest,omitempty"`
+	OSLatest         string `json:"os_latest,omitempty"`
 }

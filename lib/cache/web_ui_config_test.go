@@ -51,7 +51,7 @@ func TestWebUIConfig(t *testing.T) {
 
 			return []types.UIConfig{cfg}, nil
 		},
-		cacheList: func(ctx context.Context) ([]types.UIConfig, error) {
+		cacheList: func(ctx context.Context, pageSize int) ([]types.UIConfig, error) {
 			cfg, err := p.cache.GetUIConfig(ctx)
 			if err != nil {
 				if trace.IsNotFound(err) {

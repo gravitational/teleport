@@ -52,8 +52,8 @@ import (
 // onProxyCommandSSH creates a local ssh proxy, dialing a node and transferring
 // data through stdin and stdout, to be used as an OpenSSH and PuTTY proxy
 // command.
-func onProxyCommandSSH(cf *CLIConf) error {
-	tc, err := makeClient(cf)
+func onProxyCommandSSH(cf *CLIConf, initFunc ClientInitFunc) error {
+	tc, err := initFunc(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -516,7 +516,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 	}
 
 	if app.IsMCP() {
-		return trace.BadParameter("MCP applications are not supported. Please see 'tsh mcp login --help' for more details.")
+		return trace.BadParameter("MCP applications are not supported. Please see 'tsh mcp config --help' for more details.")
 	}
 
 	proxyApp, err := newLocalProxyAppWithPortMapping(cf.Context, tc, profile, appInfo.RouteToApp, app, portMapping, cf.InsecureSkipVerify)
@@ -529,7 +529,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 
 	appName := cf.AppName
 	if portMapping.TargetPort != 0 {
-		appName = fmt.Sprintf("%s:%d", appName, portMapping.TargetPort)
+		appName = net.JoinHostPort(appName, strconv.Itoa(portMapping.TargetPort))
 	}
 	fmt.Printf("Proxying connections to %s on %v\n", appName, proxyApp.GetAddr())
 	// If target port is not equal to zero, the user must know about the port flag.

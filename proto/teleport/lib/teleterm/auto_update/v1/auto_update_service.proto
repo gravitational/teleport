@@ -41,15 +41,21 @@ message GetClusterVersionsResponse {
 
 // ClusterVersionInfo contains tool version information for a reachable cluster.
 message ClusterVersionInfo {
+  // URI of the cluster.
   string cluster_uri = 1;
+  // Whether the client should automatically update the tools version.
   bool tools_auto_update = 2;
+  // Tools version required by this cluster.
   string tools_version = 3;
+  // Minimum tools version allowed by this cluster.
   string min_tools_version = 4;
 }
 
 // UnreachableCluster represents a cluster from which version information could not be retrieved.
 message UnreachableCluster {
+  // URI of the cluster.
   string cluster_uri = 1;
+  // Error that occurred while retrieving version information.
   string error_message = 2;
 }
 

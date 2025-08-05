@@ -97,6 +97,8 @@ Optional:
 - `peer_addr` (String) PeerAddr is the address a proxy server is reachable at by its peer proxies.
 - `proxy_ids` (List of String) ProxyIDs is a list of proxy IDs this server is expected to be connected to.
 - `public_addrs` (List of String) PublicAddrs is a list of public addresses where this server can be reached.
+- `relay_group` (String) the name of the Relay group that the server is connected to
+- `relay_ids` (List of String) the list of Relay host IDs that the server is connected to
 - `rotation` (Attributes) Rotation specifies server rotation (see [below for nested schema](#nested-schema-for-specrotation))
 - `use_tunnel` (Boolean) UseTunnel indicates that connections to this server should occur over a reverse tunnel.
 - `version` (String) TeleportVersion is the teleport version that the server is running on

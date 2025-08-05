@@ -110,9 +110,10 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 		}, &types.AWSRAIntegrationSpecV1{
 			TrustAnchorARN: req.Integration.AWSRA.TrustAnchorARN,
 			ProfileSyncConfig: &types.AWSRolesAnywhereProfileSyncConfig{
-				Enabled:    req.Integration.AWSRA.ProfileSyncConfig.Enabled,
-				ProfileARN: req.Integration.AWSRA.ProfileSyncConfig.ProfileARN,
-				RoleARN:    req.Integration.AWSRA.ProfileSyncConfig.RoleARN,
+				Enabled:            req.Integration.AWSRA.ProfileSyncConfig.Enabled,
+				ProfileARN:         req.Integration.AWSRA.ProfileSyncConfig.ProfileARN,
+				RoleARN:            req.Integration.AWSRA.ProfileSyncConfig.RoleARN,
+				ProfileNameFilters: req.Integration.AWSRA.ProfileSyncConfig.ProfileNameFilters,
 			},
 		})
 		if err != nil {
@@ -212,9 +213,10 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 		spec := integration.GetAWSRolesAnywhereIntegrationSpec()
 		spec.TrustAnchorARN = req.AWSRA.TrustAnchorARN
 		spec.ProfileSyncConfig = &types.AWSRolesAnywhereProfileSyncConfig{
-			Enabled:    req.AWSRA.ProfileSyncConfig.Enabled,
-			ProfileARN: req.AWSRA.ProfileSyncConfig.ProfileARN,
-			RoleARN:    req.AWSRA.ProfileSyncConfig.RoleARN,
+			Enabled:            req.AWSRA.ProfileSyncConfig.Enabled,
+			ProfileARN:         req.AWSRA.ProfileSyncConfig.ProfileARN,
+			RoleARN:            req.AWSRA.ProfileSyncConfig.RoleARN,
+			ProfileNameFilters: req.AWSRA.ProfileSyncConfig.ProfileNameFilters,
 
 			ProfileAcceptsRoleSessionName: spec.ProfileSyncConfig.ProfileAcceptsRoleSessionName,
 		}
