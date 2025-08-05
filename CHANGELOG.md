@@ -2,6 +2,7 @@
 
 ## 18.1.2 (08/05/25)
 
+* Fix a bug on Windows where a forwarded SSH agent would become dysfunctional after a single connection using the agent. [#57511](https://github.com/gravitational/teleport/pull/57511)
 * Fixed usage print for global `--help` flag. [#57451](https://github.com/gravitational/teleport/pull/57451)
 * Added Cursor and VSCode install buttons in MCP connect dialog in Web UI. [#57362](https://github.com/gravitational/teleport/pull/57362)
 * Added "Allowed Tools" to "tsh mcp ls" and show a warning if no tools allowed. [#57360](https://github.com/gravitational/teleport/pull/57360)
