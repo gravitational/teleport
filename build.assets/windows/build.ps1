@@ -107,6 +107,7 @@ function Install-Rust
         $Env:CARGO_HOME = "$ToolchainDir/cargo"
         & "$ToolchainDir\rustup-init.exe" --profile minimal -y --default-toolchain "$RustVersion-x86_64-pc-windows-gnu"
         Enable-Rust -ToolchainDir $ToolchainDir
+        & rustup install wasm32-unknown-unknown
         Write-Host "::endgroup::"
     }
 }
