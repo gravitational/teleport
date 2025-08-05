@@ -75,9 +75,44 @@ func TestParseAlloyDBConnectionURI(t *testing.T) {
 			wantErr: `connection URI cannot be empty`,
 		},
 		{
-			name:    "bad fixed parts",
-			uri:     "alloydb://PROJECT/my-project-123456/REGION/europe-west1/clusters/my-cluster/instances/my-instance",
-			wantErr: `invalid connection URI "alloydb://PROJECT/my-project-123456/REGION/europe-west1/clusters/my-cluster/instances/my-instance": incorrect fixed URI elements`,
+			name:    "missing 'projects'",
+			uri:     "alloydb://PROJECTS/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+			wantErr: `invalid connection URI "alloydb://PROJECTS/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance": expected 'projects', got "PROJECTS"`,
+		},
+		{
+			name:    "missing 'locations'",
+			uri:     "alloydb://projects/my-project-123456/LOCATIONS/europe-west1/clusters/my-cluster/instances/my-instance",
+			wantErr: `invalid connection URI "alloydb://projects/my-project-123456/LOCATIONS/europe-west1/clusters/my-cluster/instances/my-instance": expected 'locations', got "LOCATIONS"`,
+		},
+		{
+			name:    "missing 'clusters'",
+			uri:     "alloydb://projects/my-project-123456/locations/europe-west1/CLUSTERS/my-cluster/instances/my-instance",
+			wantErr: `invalid connection URI "alloydb://projects/my-project-123456/locations/europe-west1/CLUSTERS/my-cluster/instances/my-instance": expected 'clusters', got "CLUSTERS"`,
+		},
+		{
+			name:    "missing 'instances'",
+			uri:     "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/INSTANCES/my-instance",
+			wantErr: `invalid connection URI "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/INSTANCES/my-instance": expected 'instances', got "INSTANCES"`,
+		},
+		{
+			name:    "empty project",
+			uri:     "alloydb://projects//locations/europe-west1/clusters/my-cluster/instances/my-instance",
+			wantErr: `invalid connection URI "alloydb://projects//locations/europe-west1/clusters/my-cluster/instances/my-instance": project cannot be empty`,
+		},
+		{
+			name:    "empty location",
+			uri:     "alloydb://projects/my-project-123456/locations//clusters/my-cluster/instances/my-instance",
+			wantErr: `invalid connection URI "alloydb://projects/my-project-123456/locations//clusters/my-cluster/instances/my-instance": location cannot be empty`,
+		},
+		{
+			name:    "empty cluster",
+			uri:     "alloydb://projects/my-project-123456/locations/europe-west1/clusters//instances/my-instance",
+			wantErr: `invalid connection URI "alloydb://projects/my-project-123456/locations/europe-west1/clusters//instances/my-instance": cluster cannot be empty`,
+		},
+		{
+			name:    "empty instance",
+			uri:     "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/",
+			wantErr: `invalid connection URI "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/": instance cannot be empty`,
 		},
 		{
 			name:    "missing scheme",

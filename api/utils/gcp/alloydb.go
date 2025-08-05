@@ -68,17 +68,31 @@ func ParseAlloyDBConnectionURI(connectionURI string) (*AlloyDBFullInstanceName, 
 		return nil, trace.BadParameter("invalid connection URI %q: wrong number of parts", connectionURI)
 	}
 
-	if parts[0] != "projects" || parts[2] != "locations" || parts[4] != "clusters" || parts[6] != "instances" {
-		return nil, trace.BadParameter("invalid connection URI %q: incorrect fixed URI elements", connectionURI)
+	switch {
+	case parts[0] != "projects":
+		return nil, trace.BadParameter("invalid connection URI %q: expected 'projects', got %q", connectionURI, parts[0])
+	case parts[2] != "locations":
+		return nil, trace.BadParameter("invalid connection URI %q: expected 'locations', got %q", connectionURI, parts[2])
+	case parts[4] != "clusters":
+		return nil, trace.BadParameter("invalid connection URI %q: expected 'clusters', got %q", connectionURI, parts[4])
+	case parts[6] != "instances":
+		return nil, trace.BadParameter("invalid connection URI %q: expected 'instances', got %q", connectionURI, parts[6])
 	}
 
 	project, location, cluster, instance := parts[1], parts[3], parts[5], parts[7]
 
-	if project == "" || location == "" || cluster == "" || instance == "" {
-		return nil, trace.BadParameter("invalid connection URI %q: missing mandatory variable parts", connectionURI)
+	switch {
+	case project == "":
+		return nil, trace.BadParameter("invalid connection URI %q: project cannot be empty", connectionURI)
+	case location == "":
+		return nil, trace.BadParameter("invalid connection URI %q: location cannot be empty", connectionURI)
+	case cluster == "":
+		return nil, trace.BadParameter("invalid connection URI %q: cluster cannot be empty", connectionURI)
+	case instance == "":
+		return nil, trace.BadParameter("invalid connection URI %q: instance cannot be empty", connectionURI)
 	}
 
-	// ? cannot be part of valid instance name; this looks like attempt at query param.
+	// '?' cannot be a part of a valid instance name; this looks like attempt at query param.
 	if strings.Contains(instance, "?") {
 		return nil, trace.BadParameter("invalid connection URI %q: query parameters are not accepted", connectionURI)
 	}
