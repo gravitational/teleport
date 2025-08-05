@@ -29,12 +29,6 @@ import (
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 )
 
-const (
-	// kubernetesDefaultOIDCAudience is the default audience used by Kubernetes
-	// for JWTs issued to service accounts.
-	kubernetesDefaultOIDCAudience = "https://kubernetes.default.svc"
-)
-
 type k8sTokenReviewValidator interface {
 	Validate(ctx context.Context, token, clusterName string) (*kubetoken.ValidationResult, error)
 }
