@@ -1344,6 +1344,11 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 		getR, err := funcs.cacheGet(ctx, r.GetName())
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(r, getR, cmpOpts...))
+
+		// Make sure we get a NotFoundError (and not a panic) when the resource
+		// is not found.
+		_, err = funcs.cacheGet(ctx, "no-such-resource")
+		require.ErrorAs(t, err, new(*trace.NotFoundError))
 	}
 
 	// update is optional as not every resource implements it
