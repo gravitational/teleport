@@ -379,6 +379,11 @@ func ValidateTokenWithOIDC(
 		return nil, trace.Wrap(err, "validating OIDC token")
 	}
 
+	// Ensure this is a pod-bound service account token
+	if claims.Kubernetes == nil || claims.Kubernetes.Pod == nil || claims.Kubernetes.Pod.Name == "" {
+		return nil, trace.BadParameter("oidc joining requires the use of projected pod bound service account token")
+	}
+
 	// Note: OIDC library requires valid exp and iat.
 	maxAllowedTTL := time.Minute * 30
 	if claims.GetExpiration().Sub(claims.GetIssuedAt()) > maxAllowedTTL {
