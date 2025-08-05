@@ -19,7 +19,6 @@
 import format from 'date-fns/format';
 import formatDistanceToNowStrict from 'date-fns/formatDistanceToNowStrict';
 import parseISO from 'date-fns/parseISO';
-import { useMemo } from 'react';
 import styled from 'styled-components';
 
 import { Info } from 'design/Alert/Alert';
@@ -69,14 +68,6 @@ export function BotInstancesList({
       : '-',
   }));
 
-  const rowConfig = useMemo(
-    () => ({
-      onClick: onItemSelected,
-      getStyle: () => ({ cursor: 'pointer' }),
-    }),
-    [onItemSelected]
-  );
-
   return (
     <Table<(typeof tableData)[number]>
       data={tableData}
@@ -99,7 +90,10 @@ export function BotInstancesList({
           />
         ),
       }}
-      row={rowConfig}
+      row={{
+        onClick: onItemSelected,
+        getStyle: () => ({ cursor: 'pointer' }),
+      }}
       columns={[
         {
           key: 'bot_name',

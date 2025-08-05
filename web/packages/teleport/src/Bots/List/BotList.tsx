@@ -21,14 +21,14 @@ import { useState } from 'react';
 import Table, { LabelCell } from 'design/DataTable';
 
 import { DeleteBot } from 'teleport/Bots/DeleteBot';
-import { EditBot } from 'teleport/Bots/EditBot';
 import { BotOptionsCell } from 'teleport/Bots/List/ActionCell';
 import { BotListProps } from 'teleport/Bots/types';
 
+import { EditDialog } from '../Edit/EditDialog';
 import { ViewBot } from '../ViewBot';
 
 enum Interaction {
-  VIEW,
+  GITHUB_EXAMPLE,
   EDIT,
   DELETE,
   NONE,
@@ -39,14 +39,12 @@ export function BotList({
   bots,
   disabledEdit,
   disabledDelete,
-  fetchRoles,
   onClose,
   onDelete,
   onEdit,
+  onSelect,
   selectedBot,
   setSelectedBot,
-  selectedRoles,
-  setSelectedRoles,
 }: BotListProps) {
   const [interaction, setInteraction] = useState<Interaction>(Interaction.NONE);
 
@@ -75,13 +73,12 @@ export function BotList({
                 bot={bot}
                 onClickView={() => {
                   setSelectedBot(bot);
-                  setInteraction(Interaction.VIEW);
+                  setInteraction(Interaction.GITHUB_EXAMPLE);
                 }}
                 disabledEdit={disabledEdit}
                 disabledDelete={disabledDelete}
                 onClickEdit={() => {
                   setSelectedBot(bot);
-                  setSelectedRoles(bot.roles);
                   setInteraction(Interaction.EDIT);
                 }}
                 onClickDelete={() => {
@@ -95,6 +92,10 @@ export function BotList({
         emptyText="No Bots Found"
         isSearchable
         pagination={{ pageSize: 20 }}
+        row={{
+          onClick: onSelect,
+          getStyle: () => ({ cursor: 'pointer' }),
+        }}
       />
       {selectedBot && interaction === Interaction.DELETE && (
         <DeleteBot
@@ -105,17 +106,13 @@ export function BotList({
         />
       )}
       {selectedBot && interaction === Interaction.EDIT && (
-        <EditBot
-          fetchRoles={fetchRoles}
-          attempt={attempt}
-          name={selectedBot.name}
-          onClose={onClose}
-          onEdit={onEdit}
-          selectedRoles={selectedRoles}
-          setSelectedRoles={setSelectedRoles}
+        <EditDialog
+          botName={selectedBot.name}
+          onCancel={onClose}
+          onSuccess={onEdit}
         />
       )}
-      {selectedBot && interaction === Interaction.VIEW && (
+      {selectedBot && interaction === Interaction.GITHUB_EXAMPLE && (
         <ViewBot onClose={onClose} bot={selectedBot} />
       )}
     </>
