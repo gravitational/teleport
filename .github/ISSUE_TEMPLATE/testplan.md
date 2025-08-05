@@ -1180,6 +1180,8 @@ tsh ssh node-that-requires-device-trust
     - [ ] K8s Access
     - [ ] App Access NOT enforced in global mode
     - [ ] Desktop Access NOT enforced in global mode
+  - [ ] device_trust.mode="required-for-humans" enforces enrolled devices for
+        humans, but bots (e.g. `tbot`) function on any device
   - [ ] Role-based authz enforces enrolled devices
         (device_trust.mode="optional" and role.spec.options.device_trust_mode="required")
     - [ ] SSH
@@ -2093,6 +2095,7 @@ Verify that SSH works, and that resumable SSH is not interrupted across a contro
   - [ ] New EC2 instances with matching AWS tags are discovered and added to the teleport cluster
     - [ ] Large numbers of EC2 instances (51+) are all successfully added to the cluster
   - [ ] Nodes that have been discovered do not have the install script run on the node multiple times
+  - [ ] EC2 instances can be discovered in multiple accounts
 
 ## Azure Discovery
 

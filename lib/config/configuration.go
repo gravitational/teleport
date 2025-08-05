@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	libslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -617,6 +618,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 	cfg.CachePolicy = *cachePolicy
+
+	cfg.ShutdownDelay = time.Duration(fc.ShutdownDelay)
 
 	// Apply (TLS) cipher suites and (SSH) ciphers, KEX algorithms, and MAC
 	// algorithms.
@@ -2205,6 +2208,11 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 	}
 
+	locateServer := servicecfg.LocateServer{
+		Enabled: fc.WindowsDesktop.LDAP.LocateServer.Enabled,
+		Site:    fc.WindowsDesktop.LDAP.LocateServer.Site,
+	}
+
 	cfg.WindowsDesktop.LDAP = servicecfg.LDAPConfig{
 		Addr:               fc.WindowsDesktop.LDAP.Addr,
 		Username:           fc.WindowsDesktop.LDAP.Username,
@@ -2213,6 +2221,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		InsecureSkipVerify: fc.WindowsDesktop.LDAP.InsecureSkipVerify,
 		ServerName:         fc.WindowsDesktop.LDAP.ServerName,
 		CA:                 cert,
+		LocateServer:       locateServer,
 	}
 
 	cfg.WindowsDesktop.PKIDomain = fc.WindowsDesktop.PKIDomain
@@ -2542,19 +2551,20 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 	// 140-2 compliant.
 	if clf.FIPS {
 		// Make sure all cryptographic primitives are FIPS compliant.
-		err = utils.UintSliceSubset(defaults.FIPSCipherSuites, cfg.CipherSuites)
+		//
+		err = libslices.ContainsAll(defaults.FIPSCipherSuites, cfg.CipherSuites)
 		if err != nil {
 			return trace.BadParameter("non-FIPS compliant TLS cipher suite selected: %v", err)
 		}
-		err = utils.StringSliceSubset(defaults.FIPSCiphers, cfg.Ciphers)
+		err = libslices.ContainsAll(defaults.FIPSCiphers, cfg.Ciphers)
 		if err != nil {
 			return trace.BadParameter("non-FIPS compliant SSH cipher selected: %v", err)
 		}
-		err = utils.StringSliceSubset(defaults.FIPSKEXAlgorithms, cfg.KEXAlgorithms)
+		err = libslices.ContainsAll(defaults.FIPSKEXAlgorithms, cfg.KEXAlgorithms)
 		if err != nil {
 			return trace.BadParameter("non-FIPS compliant SSH kex algorithm selected: %v", err)
 		}
-		err = utils.StringSliceSubset(defaults.FIPSMACAlgorithms, cfg.MACAlgorithms)
+		err = libslices.ContainsAll(defaults.FIPSMACAlgorithms, cfg.MACAlgorithms)
 		if err != nil {
 			return trace.BadParameter("non-FIPS compliant SSH mac algorithm selected: %v", err)
 		}

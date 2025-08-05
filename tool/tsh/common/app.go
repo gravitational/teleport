@@ -22,8 +22,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"text/template"
@@ -80,7 +82,7 @@ func onAppLogin(cf *CLIConf) error {
 	defer clusterClient.Close()
 
 	if app.IsMCP() {
-		return trace.BadParameter("MCP applications are not supported. Please see 'tsh mcp login --help' for more details.")
+		return trace.BadParameter("MCP applications are not supported. Please see 'tsh mcp config --help' for more details.")
 	}
 
 	if err := validateTargetPort(app, int(cf.TargetPort)); err != nil {
@@ -245,7 +247,7 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 	case app.IsTCP():
 		appNameWithOptionalTargetPort := app.GetName()
 		if routeToApp.TargetPort != 0 {
-			appNameWithOptionalTargetPort = fmt.Sprintf("%s:%d", app.GetName(), routeToApp.TargetPort)
+			appNameWithOptionalTargetPort = net.JoinHostPort(app.GetName(), strconv.Itoa(int(routeToApp.GetTargetPort())))
 		}
 
 		return tcpAppLoginTemplate.Execute(output, map[string]string{

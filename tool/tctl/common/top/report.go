@@ -22,17 +22,14 @@ import (
 	"fmt"
 	"iter"
 	"math"
-	"net/url"
 	"os"
 	"slices"
 	"strings"
 	"time"
 
-	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
-	"github.com/prometheus/common/expfmt"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -377,14 +374,8 @@ type Bucket struct {
 	UpperBound float64
 }
 
-func fetchAndGenerateReport(ctx context.Context, client *roundtrip.Client, prev *Report, period time.Duration) (*Report, error) {
-	re, err := client.Get(ctx, client.Endpoint("metrics"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(trace.ConvertSystemError(err))
-	}
-
-	var parser expfmt.TextParser
-	metrics, err := parser.TextToMetricFamilies(re.Reader())
+func fetchAndGenerateReport(ctx context.Context, client MetricsClient, prev *Report, period time.Duration) (*Report, error) {
+	metrics, err := client.GetMetrics(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

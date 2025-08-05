@@ -395,6 +395,8 @@ func (f *fakeAWSKMSService) CreateKey(_ context.Context, input *kms.CreateKeyInp
 	switch input.KeySpec {
 	case kmstypes.KeySpecRsa2048:
 		privKeyPEM = testRSA2048PrivateKeyPEM
+	case kmstypes.KeySpecRsa4096:
+		privKeyPEM = testRSA4096PrivateKeyPEM
 	case kmstypes.KeySpecEccNistP256:
 		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 		if err != nil {

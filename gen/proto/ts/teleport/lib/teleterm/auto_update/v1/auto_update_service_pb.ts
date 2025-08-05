@@ -59,18 +59,26 @@ export interface GetClusterVersionsResponse {
  */
 export interface ClusterVersionInfo {
     /**
+     * URI of the cluster.
+     *
      * @generated from protobuf field: string cluster_uri = 1;
      */
     clusterUri: string;
     /**
+     * Whether the client should automatically update the tools version.
+     *
      * @generated from protobuf field: bool tools_auto_update = 2;
      */
     toolsAutoUpdate: boolean;
     /**
+     * Tools version required by this cluster.
+     *
      * @generated from protobuf field: string tools_version = 3;
      */
     toolsVersion: string;
     /**
+     * Minimum tools version allowed by this cluster.
+     *
      * @generated from protobuf field: string min_tools_version = 4;
      */
     minToolsVersion: string;
@@ -82,10 +90,14 @@ export interface ClusterVersionInfo {
  */
 export interface UnreachableCluster {
     /**
+     * URI of the cluster.
+     *
      * @generated from protobuf field: string cluster_uri = 1;
      */
     clusterUri: string;
     /**
+     * Error that occurred while retrieving version information.
+     *
      * @generated from protobuf field: string error_message = 2;
      */
     errorMessage: string;

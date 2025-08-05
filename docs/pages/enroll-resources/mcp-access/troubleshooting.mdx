@@ -1,0 +1,36 @@
+---
+title: Troubleshooting MCP Access
+description: Describes common issues and solutions for access to MCP servers protected by Teleport.
+---
+
+This section describes common issues that you might encounter in managing access
+to MCP servers with Teleport and how to work around or resolve them.
+
+## Disabled MCP server or tools missing from the MCP server
+
+By default, no MCP tools are allowed by your Teleport roles.
+
+If a user is assigned the `access` preset role, by default the available MCP
+tools are controlled by the `{{internal.mcp_tools}}` source in the role
+definition. This value can be populated through user traits:
+
+```yaml
+kind: role
+metadata:
+  name: access
+spec:
+  allow:
+    mcp:
+      tools:
+      - "{{internal.mcp_tools}}"
+```
+
+You can configure this user trait with `tctl`, assigning it to the Teleport user
+<Var name="my_user" />:
+
+```code
+$ tctl users update <Var name="my_user" /> --set-mcp-tools "*"
+```
+
+Alternatively you can define a custom role that explicitly specifies the allowed
+MCP tools and assigns them to users. See [RBAC](./rbac.mdx) for more details.

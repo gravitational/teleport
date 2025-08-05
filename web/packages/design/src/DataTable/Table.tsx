@@ -349,7 +349,7 @@ function ServersideTable<T>({
   return (
     <>
       <StyledPanel>
-        {serversideProps?.serversideSearchPanel}
+        <Box width="100%">{serversideProps?.serversideSearchPanel}</Box>
         {(showTopPager || showBothPager) && (
           <ServerSidePager
             nextPage={nextPage}

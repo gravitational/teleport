@@ -71,6 +71,18 @@ upgrade from v10 to v11.
 1. Verify the upgrade was successful.
 1. Upgrade the trusted leaf clusters.
 
+## Downgrading major versions
+
+In order to safely downgrade from one major version to another, i.e. from v17 to v16,
+you must restore the Teleport backend to the back up taken prior to upgrading. First,
+roll back all components to the exact version they were running prior to the upgrade in
+reverse order of the upgrade sequence above until only the Auth Service instances are running
+the new major version. Then stop the Auth Service and follow the
+[Backup and Restore](../admin-guides/management/operations/backup-restore.mdx) guidance
+to restore the backend to a point in time prior to the upgrade. Once the backup has been
+restored, downgrade the Auth Service instances to the exact version of Teleport
+they were running prior to the upgrade attempt, then start them again.
+
 ## Next steps
 
 Return to the [Upgrading Introduction](upgrading.mdx) for how to upgrade

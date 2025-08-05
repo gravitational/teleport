@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"io"
+	"maps"
 	"net"
 	"os/user"
 	"slices"
@@ -50,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -835,26 +835,18 @@ func TestSessionRecordingModes(t *testing.T) {
 			require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
 
 			// Wait until server receives all non-print events.
-			checkEventsReceived := func() bool {
-				expectedEventTypes := []string{
-					events.SessionStartEvent,
-					events.SessionLeaveEvent,
-					events.SessionEndEvent,
-				}
-
-				emittedEvents := srv.Events()
-				if len(emittedEvents) != len(expectedEventTypes) {
-					return false
-				}
-
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				// Events can appear in different orders. Use a set to track.
-				eventsNotReceived := utils.StringsSet(expectedEventTypes)
-				for _, e := range emittedEvents {
+				eventsNotReceived := map[string]struct{}{
+					events.SessionStartEvent: {},
+					events.SessionLeaveEvent: {},
+					events.SessionEndEvent:   {},
+				}
+				for _, e := range srv.Events() {
 					delete(eventsNotReceived, e.GetType())
 				}
-				return len(eventsNotReceived) == 0
-			}
-			require.Eventually(t, checkEventsReceived, time.Second*5, time.Millisecond*500, "Some events are not received.")
+				assert.Empty(t, slices.Collect(maps.Keys(eventsNotReceived)))
+			}, time.Second*5, time.Millisecond*500, "Some events not received")
 		})
 	}
 }

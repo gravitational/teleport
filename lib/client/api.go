@@ -98,7 +98,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/agentconn"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -3880,7 +3879,7 @@ func (tc *TeleportClient) directLoginWeb(ctx context.Context, secondFactorType c
 	}
 
 	// authenticate via the web api
-	clt, session, err := SSHAgentLoginWeb(ctx, SSHLoginDirect{
+	clt, session, err := sshAgentLoginWeb(ctx, SSHLoginDirect{
 		SSHLogin: sshLogin,
 		User:     tc.Username,
 		Password: password,
@@ -3901,7 +3900,7 @@ func (tc *TeleportClient) mfaLocalLoginWeb(ctx context.Context, keyRing *KeyRing
 		return nil, nil, trace.Wrap(err)
 	}
 
-	clt, session, err := SSHAgentMFAWebSessionLogin(ctx, SSHLoginMFA{
+	clt, session, err := sshAgentMFAWebSessionLogin(ctx, SSHLoginMFA{
 		SSHLogin:             sshLogin,
 		User:                 tc.Username,
 		Password:             password,
@@ -4909,25 +4908,6 @@ func loopbackPool(proxyAddr string) *x509.CertPool {
 	}
 	logger.DebugContext(ctx, "using local pool for loopback proxy", "error", err)
 	return certPool
-}
-
-// connectToSSHAgent connects to the system SSH agent and returns an agent.Agent.
-func connectToSSHAgent() agent.ExtendedAgent {
-	ctx := context.Background()
-	logger := log.With(teleport.ComponentKey, teleport.ComponentKeyAgent)
-
-	socketPath := os.Getenv(teleport.SSHAuthSock)
-	conn, err := agentconn.Dial(socketPath)
-	if err != nil {
-		logger.WarnContext(ctx, "Unable to connect to SSH agent on socket",
-			"socket_path", socketPath,
-			"error", err,
-		)
-		return nil
-	}
-
-	logger.InfoContext(ctx, "Connected to the system agent", "socket_path", socketPath)
-	return agent.NewClient(conn)
 }
 
 // Username returns the current user's username

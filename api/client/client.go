@@ -95,6 +95,7 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
+	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
@@ -921,6 +922,12 @@ func (c *Client) NotificationServiceClient() notificationsv1pb.NotificationServi
 // VnetConfigServiceClient returns an unadorned client for the VNet config service.
 func (c *Client) VnetConfigServiceClient() vnet.VnetConfigServiceClient {
 	return vnet.NewVnetConfigServiceClient(c.conn)
+}
+
+// SummarizerServiceClient returns an unadorned client for the session
+// recording summarizer service.
+func (c *Client) SummarizerServiceClient() summarizerv1.SummarizerServiceClient {
+	return summarizerv1.NewSummarizerServiceClient(c.conn)
 }
 
 // GetVnetConfig returns the singleton VnetConfig resource.
@@ -2313,6 +2320,27 @@ func (c *Client) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) 
 		tokens[i] = token
 	}
 	return tokens, nil
+}
+
+// ListProvisionTokens retrieves a paginated list of provision tokens.
+func (c *Client) ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error) {
+	resp, err := c.grpc.ListProvisionTokens(ctx, &proto.ListProvisionTokensRequest{
+		Limit:         int32(pageSize),
+		StartKey:      pageToken,
+		FilterRoles:   anyRoles.StringSlice(),
+		FilterBotName: botName,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	// Convert concrete type []*types.ProvisionTokenV2 to interface type []types.ProvisionToken
+	tokens := make([]types.ProvisionToken, len(resp.Tokens))
+	for i, token := range resp.Tokens {
+		tokens[i] = token
+	}
+
+	return tokens, resp.NextKey, nil
 }
 
 // UpsertToken creates or updates a provision token.
