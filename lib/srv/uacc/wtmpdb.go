@@ -2,11 +2,13 @@ package uacc
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
 	"time"
 
+	"github.com/mattn/go-sqlite3"
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -21,6 +23,9 @@ type wtmpdbBackend struct {
 }
 
 func newWtmpdb(dbPath string) (*wtmpdbBackend, error) {
+	if dbPath == "" {
+		dbPath = wtmpdbLocation
+	}
 	if !utils.FileExists(dbPath) {
 		return nil, trace.NotFound("no wtmpdb at %q", dbPath)
 	}
@@ -44,6 +49,9 @@ func (w *wtmpdbBackend) Login(ttyName, username string, remote net.Addr, ts time
 	addr := utils.FromAddr(remote)
 	result, err := stmt.Exec(USER_PROCESS, username, ts.UnixMicro(), ttyName, addr.Host())
 	if err != nil {
+		if errors.Is(err, sqlite3.ErrReadonly) {
+			return "", trace.AccessDenied("cannot write to wtmpdb file, is teleport running as root?")
+		}
 		return "", trace.Wrap(err)
 	}
 	id, err := result.LastInsertId()
