@@ -328,7 +328,6 @@ func TestRootCheckHomeDir(t *testing.T) {
 	notFound := filepath.Join(tmp, "not_found")
 
 	require.NoError(t, os.Mkdir(home, 0700))
-	require.NoError(t, os.Mkdir(noAccess, 0700))
 	_, err := os.Create(file)
 	require.NoError(t, err)
 
