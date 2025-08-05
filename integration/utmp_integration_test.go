@@ -73,6 +73,13 @@ type SrvCtx struct {
 	utmpPath   string
 	wtmpPath   string
 	btmpPath   string
+	wtmpdbPath string
+}
+
+func checkUserInFile(t assert.TestingT, utmp *uacc.UtmpBackend, uaccFile, username string, expectPresent bool) {
+	inFile, err := utmp.IsUserInFile(uaccFile, username)
+	assert.NoError(t, err)
+	assert.Equal(t, expectPresent, inFile)
 }
 
 // TestRootUTMPEntryExists verifies that user accounting is done on supported systems.
@@ -88,6 +95,9 @@ func TestRootUTMPEntryExists(t *testing.T) {
 	ctx := context.Background()
 	s := newSrvCtx(ctx, t)
 	up, err := newUpack(ctx, s, teleportTestUser, []string{teleportTestUser, teleportFakeUser}, wildcardAllow)
+	require.NoError(t, err)
+
+	utmp, err := uacc.NewUtmpBackend(s.utmpPath, s.wtmpPath, s.btmpPath)
 	require.NoError(t, err)
 
 	t.Run("successful login is logged in utmp and wtmp", func(t *testing.T) {
@@ -119,10 +129,10 @@ func TestRootUTMPEntryExists(t *testing.T) {
 		require.NoError(t, err)
 
 		require.EventuallyWithTf(t, func(collect *assert.CollectT) {
-			assert.NoError(collect, uacc.UserWithPtyInDatabase(s.utmpPath, teleportTestUser))
-			assert.NoError(collect, uacc.UserWithPtyInDatabase(s.wtmpPath, teleportTestUser))
+			checkUserInFile(collect, utmp, s.utmpPath, teleportTestUser, true)
+			checkUserInFile(collect, utmp, s.wtmpPath, teleportTestUser, true)
 			// Ensure than an entry was not written to btmp.
-			assert.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.btmpPath, teleportTestUser)), "unexpected error: %v", err)
+			checkUserInFile(collect, utmp, s.btmpPath, teleportTestUser, false)
 		}, 5*time.Minute, time.Second, "did not detect utmp entry within 5 minutes")
 	})
 
@@ -155,10 +165,10 @@ func TestRootUTMPEntryExists(t *testing.T) {
 		require.NoError(t, err)
 
 		require.EventuallyWithT(t, func(collect *assert.CollectT) {
-			assert.NoError(collect, uacc.UserWithPtyInDatabase(s.btmpPath, teleportFakeUser))
+			checkUserInFile(collect, utmp, s.btmpPath, teleportFakeUser, true)
 			// Ensure that entries were not written to utmp and wtmp
-			assert.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.utmpPath, teleportFakeUser)), "unexpected error: %v", err)
-			assert.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.wtmpPath, teleportFakeUser)), "unexpected error: %v", err)
+			checkUserInFile(collect, utmp, s.utmpPath, teleportFakeUser, false)
+			checkUserInFile(collect, utmp, s.wtmpPath, teleportFakeUser, false)
 		}, 5*time.Minute, time.Second, "did not detect btmp entry within 5 minutes")
 	})
 
@@ -173,22 +183,25 @@ func TestRootUsernameLimit(t *testing.T) {
 	dir := t.TempDir()
 	utmpPath := filepath.Join(dir, "utmp")
 	wtmpPath := filepath.Join(dir, "wtmp")
+	btmpPath := filepath.Join(dir, "btmp")
 
 	err := TouchFile(utmpPath)
 	require.NoError(t, err)
 	err = TouchFile(wtmpPath)
 	require.NoError(t, err)
+	err = TouchFile(btmpPath)
+	require.NoError(t, err)
+
+	utmp, err := uacc.NewUtmpBackend(utmpPath, wtmpPath, btmpPath)
 
 	// A 33 character long username.
 	username := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	host := [4]int32{0, 0, 0, 0}
-	tty := os.NewFile(uintptr(0), "/proc/self/fd/0")
-	err = uacc.Open(utmpPath, wtmpPath, username, "localhost", host, tty)
+	_, err = utmp.Login("pts/99", username, &utils.NetAddr{Addr: "0.0.0.0:0"}, time.Now())
 	require.True(t, trace.IsBadParameter(err))
 
 	// A 32 character long username.
 	username = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	err = uacc.Open(utmpPath, wtmpPath, username, "localhost", host, tty)
+	_, err = utmp.Login("pts/99", username, &utils.NetAddr{Addr: "0.0.0.0:0"}, time.Now())
 	require.False(t, trace.IsBadParameter(err))
 }
 
@@ -291,12 +304,15 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	utmpPath := filepath.Join(uaccDir, "utmp")
 	wtmpPath := filepath.Join(uaccDir, "wtmp")
 	btmpPath := filepath.Join(uaccDir, "btmp")
+	wtmpdbPath := filepath.Join(uaccDir, "wtmp.db")
 	require.NoError(t, TouchFile(utmpPath))
 	require.NoError(t, TouchFile(wtmpPath))
 	require.NoError(t, TouchFile(btmpPath))
+	require.NoError(t, TouchFile(wtmpdbPath))
 	s.utmpPath = utmpPath
 	s.wtmpPath = wtmpPath
 	s.btmpPath = btmpPath
+	s.wtmpdbPath = wtmpdbPath
 
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -343,7 +359,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(s.clock),
-		regular.SetUserAccountingPaths(utmpPath, wtmpPath, btmpPath),
+		regular.SetUserAccountingPaths(utmpPath, wtmpPath, btmpPath, wtmpdbPath),
 		regular.SetLockWatcher(lockWatcher),
 		regular.SetSessionController(nodeSessionController),
 		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),

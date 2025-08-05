@@ -194,6 +194,8 @@ type UaccMetadata struct {
 
 	// BtmpPath is the path of the system btmp log.
 	BtmpPath string `json:"btmp_path,omitempty"`
+
+	WtmpdbPath string `json:"wtmpdb_path,omitempty"`
 }
 
 // RunCommand reads in the command to run from the parent process (over a

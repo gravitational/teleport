@@ -70,7 +70,7 @@ const (
 	defaultBtmpxFilePath = "/var/log/btmpx"
 )
 
-type utmpBackend struct {
+type UtmpBackend struct {
 	utmpPath string
 	wtmpPath string
 	btmpPath string
@@ -85,7 +85,7 @@ func getTargetFile(candidates ...string) (string, error) {
 	return "", trace.BadParameter("no target files exist")
 }
 
-func newUtmpBackend(utmpFile, wtmpFile, btmpFile string) (*utmpBackend, error) {
+func NewUtmpBackend(utmpFile, wtmpFile, btmpFile string) (*UtmpBackend, error) {
 	utmp, err := getTargetFile(utmpFile, defaultUtmpxFilePath, defaultUtmpFilePath)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -98,18 +98,14 @@ func newUtmpBackend(utmpFile, wtmpFile, btmpFile string) (*utmpBackend, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &utmpBackend{
+	return &UtmpBackend{
 		utmpPath: utmp,
 		wtmpPath: wtmp,
 		btmpPath: btmp,
 	}, nil
 }
 
-func (w *utmpBackend) Name() string {
-	return "utmp"
-}
-
-func (w *utmpBackend) Login(ttyName, username string, remote net.Addr, ts time.Time) (string, error) {
+func (w *UtmpBackend) Login(ttyName, username string, remote net.Addr, ts time.Time) (string, error) {
 	// String parameter validation.
 	if len(username) > userMaxLen {
 		return "", trace.BadParameter("username length exceeds OS limits")
@@ -167,7 +163,7 @@ func (w *utmpBackend) Login(ttyName, username string, remote net.Addr, ts time.T
 	}
 }
 
-func (w *utmpBackend) Logout(ttyName string, ts time.Time) error {
+func (w *UtmpBackend) Logout(ttyName string, ts time.Time) error {
 	// String parameter validation.
 	if len(ttyName) > (int)(C.max_len_tty_name()-1) {
 		return trace.BadParameter("tty name length exceeds OS limits")
@@ -206,7 +202,7 @@ func (w *utmpBackend) Logout(ttyName string, ts time.Time) error {
 	}
 }
 
-func (w *utmpBackend) FailedLogin(username string, remote net.Addr, ts time.Time) error {
+func (w *UtmpBackend) FailedLogin(username string, remote net.Addr, ts time.Time) error {
 	// String parameter validation.
 	if len(username) > userMaxLen {
 		return trace.BadParameter("username length exceeds OS limits")
@@ -253,15 +249,19 @@ func (w *utmpBackend) FailedLogin(username string, remote net.Addr, ts time.Time
 	}
 }
 
-func (w *utmpBackend) IsUserLoggedIn(username string) (bool, error) {
+func (w *UtmpBackend) IsUserLoggedIn(username string) (bool, error) {
+	return w.IsUserInFile(w.utmpPath, username)
+}
+
+func (w *UtmpBackend) IsUserInFile(utmp string, username string) (bool, error) {
 	if len(username) > userMaxLen {
 		return false, trace.BadParameter("username length exceeds OS limits")
 	}
 
 	// Convert Go strings into C strings that we can pass over ffi.
 	var cUtmpPath *C.char
-	if len(w.utmpPath) > 0 {
-		cUtmpPath = C.CString(w.utmpPath)
+	if len(utmp) > 0 {
+		cUtmpPath = C.CString(utmp)
 		defer C.free(unsafe.Pointer(cUtmpPath))
 	}
 	cUsername := C.CString(username)
@@ -276,7 +276,7 @@ func (w *utmpBackend) IsUserLoggedIn(username string) (bool, error) {
 	case C.UACC_UTMP_FAILED_OPEN:
 		return false, trace.AccessDenied("failed to open user account database, code: %d", errno)
 	case C.UACC_UTMP_ENTRY_DOES_NOT_EXIST:
-		return false, trace.NotFound("user not found")
+		return false, nil
 	case C.UACC_UTMP_FAILED_TO_SELECT_FILE:
 		return false, trace.BadParameter("failed to select file")
 	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:

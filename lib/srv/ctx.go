@@ -167,7 +167,7 @@ type Server interface {
 	Context() context.Context
 
 	// GetUserAccountingPaths returns the path of the user accounting database and log. Returns empty for system defaults.
-	GetUserAccountingPaths() (utmp, wtmp, btmp string)
+	GetUserAccountingPaths() (utmp, wtmp, btmp, wtmpdb string)
 
 	// GetLockWatcher gets the server's lock watcher.
 	GetLockWatcher() *services.LockWatcher
@@ -1174,12 +1174,13 @@ func closeAll(closers ...io.Closer) error {
 }
 
 func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
-	utmpPath, wtmpPath, btmpPath := c.srv.GetUserAccountingPaths()
+	utmpPath, wtmpPath, btmpPath, wtmpdbPath := c.srv.GetUserAccountingPaths()
 	return &UaccMetadata{
 		RemoteAddr: utils.FromAddr(c.ConnectionContext.ServerConn.RemoteAddr()),
 		UtmpPath:   utmpPath,
 		WtmpPath:   wtmpPath,
 		BtmpPath:   btmpPath,
+		WtmpdbPath: wtmpdbPath,
 	}, nil
 }
 

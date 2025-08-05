@@ -3,7 +3,6 @@ package uacc
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"net"
 	"strconv"
 	"time"
@@ -34,10 +33,6 @@ func newWtmpdb(dbPath string) (*wtmpdbBackend, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &wtmpdbBackend{db: db}, nil
-}
-
-func (w *wtmpdbBackend) Name() string {
-	return "wtmpdb"
 }
 
 func (w *wtmpdbBackend) Login(ttyName, username string, remote net.Addr, ts time.Time) (string, error) {
@@ -87,9 +82,7 @@ func (w *wtmpdbBackend) IsUserLoggedIn(username string) (bool, error) {
 	defer stmt.Close()
 	var count int
 	if err := stmt.QueryRow(username).Scan(&count); err != nil {
-		fmt.Println(err)
 		return false, nil
 	}
-	fmt.Println(count)
 	return count != 0, nil
 }
