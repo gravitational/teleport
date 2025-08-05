@@ -222,7 +222,7 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
-			res, err := client.WorkloadIdentityServiceClient().
+			res, err := machineidv1pb.NewWorkloadIdentityServiceClient(client.GetConnection()).
 				SignX509SVIDs(ctx, tt.req)
 			tt.requireError(t, err)
 			if tt.assertResponse != nil {
@@ -393,7 +393,7 @@ func TestWorkloadIdentityService_SignJWTSVIDs(t *testing.T) {
 			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
-			res, err := client.WorkloadIdentityServiceClient().
+			res, err := machineidv1pb.NewWorkloadIdentityServiceClient(client.GetConnection()).
 				SignJWTSVIDs(ctx, tt.req)
 			tt.requireError(t, err)
 			if tt.assertResponse != nil {
