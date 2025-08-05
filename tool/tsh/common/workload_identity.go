@@ -39,9 +39,9 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
+// Based on the default paths listed in
+// https://github.com/spiffe/spiffe-helper/blob/v0.7.0/README.md
 const (
-	// Based on the default paths listed in
-	// https://github.com/spiffe/spiffe-helper/blob/v0.7.0/README.md
 	svidPEMPath            = "svid.pem"
 	svidKeyPEMPath         = "svid_key.pem"
 	svidTrustBundlePEMPath = "svid_bundle.pem"
