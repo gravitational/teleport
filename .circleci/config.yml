@@ -105,7 +105,7 @@ workflows:
             branches:
               ignore:
                 - master
-                - release/*
+                - /^release\/.*/
       - build-distroless:
           name: build-distroless-amd64
           context: org-global
@@ -115,7 +115,7 @@ workflows:
             branches:
               ignore:
                 - master
-                - release/*
+                - /^release\/.*/
 
   build-and-push:
     jobs:
