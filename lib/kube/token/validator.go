@@ -369,7 +369,7 @@ func ValidateTokenWithOIDC(
 	clusterName string,
 	token string,
 ) (*ValidationResult, error) {
-	claims, err := oidc.ValidateTokenNoAuthorizedPartyCheck[*OIDCServiceAccountClaims](
+	claims, err := oidc.ValidateToken[*OIDCServiceAccountClaims](
 		ctx,
 		issuerURL,
 		clusterName,
