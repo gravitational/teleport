@@ -610,13 +610,16 @@ type Summary struct {
 	InferenceStartedAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=inference_started_at,json=inferenceStartedAt,proto3" json:"inference_started_at,omitempty"`
 	// InferenceFinishedAt is the time when the summarization process finished.
 	InferenceFinishedAt *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=inference_finished_at,json=inferenceFinishedAt,proto3" json:"inference_finished_at,omitempty"`
-	// Content is the main text content of the summary. Available if the state is
-	// SUMMARY_STATE_SUCCESS.
+	// Content is the main text content of the summary, stored in Markdown
+	// format. Available if the state is SUMMARY_STATE_SUCCESS.
 	Content string `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`
 	// ModelName is the name of the `InferenceModel` resource that was used to
 	// generate this summary.
 	ModelName string `protobuf:"bytes,6,opt,name=model_name,json=modelName,proto3" json:"model_name,omitempty"`
-	// SessionEndEvent is the event that ended the summarized session.
+	// SessionEndEvent is the event that ended the summarized session. Session
+	// end events carry the most complete set of data that Teleport has about a
+	// given session. Used for checking access based on RBAC rule "where"
+	// filters.
 	SessionEndEvent *events.OneOf `protobuf:"bytes,7,opt,name=session_end_event,json=sessionEndEvent,proto3" json:"session_end_event,omitempty"`
 	// ErrorMessage is an error message if the summarization failed. Available if
 	// the state is SUMMARY_STATE_ERROR.

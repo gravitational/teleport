@@ -129,13 +129,16 @@ message Summary {
   google.protobuf.Timestamp inference_started_at = 3;
   // InferenceFinishedAt is the time when the summarization process finished.
   google.protobuf.Timestamp inference_finished_at = 4;
-  // Content is the main text content of the summary. Available if the state is
-  // SUMMARY_STATE_SUCCESS.
+  // Content is the main text content of the summary, stored in Markdown
+  // format. Available if the state is SUMMARY_STATE_SUCCESS.
   string content = 5;
   // ModelName is the name of the `InferenceModel` resource that was used to
   // generate this summary.
   string model_name = 6;
-  // SessionEndEvent is the event that ended the summarized session.
+  // SessionEndEvent is the event that ended the summarized session. Session
+  // end events carry the most complete set of data that Teleport has about a
+  // given session. Used for checking access based on RBAC rule "where"
+  // filters.
   events.OneOf session_end_event = 7;
   // ErrorMessage is an error message if the summarization failed. Available if
   // the state is SUMMARY_STATE_ERROR.
