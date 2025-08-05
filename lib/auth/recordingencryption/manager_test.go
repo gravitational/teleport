@@ -73,15 +73,16 @@ func (d oaepDecrypter) Decrypt(rand io.Reader, msg []byte, opts crypto.Decrypter
 }
 
 type fakeKeyStore struct {
-	keyType types.PrivateKeyType // abusing this field as a way to simulate different auth servers
-	keys    map[string]crypto.Decrypter
+	keyType   types.PrivateKeyType // abusing this field as a way to simulate different auth servers
+	keys      map[string][]crypto.Decrypter
+	currLabel types.KeyLabel
 
 	cacheIdx int
 }
 
 func newFakeKeyStore(keyType types.PrivateKeyType) *fakeKeyStore {
 	return &fakeKeyStore{
-		keys:    make(map[string]crypto.Decrypter),
+		keys:    make(map[string][]crypto.Decrypter),
 		keyType: keyType,
 	}
 }
@@ -112,7 +113,11 @@ func (f *fakeKeyStore) createKey() (crypto.Decrypter, []byte, error) {
 		return nil, nil, err
 	}
 
-	f.keys[fp] = decrypter
+	if f.keys == nil {
+		f.keys = make(map[string][]crypto.Decrypter)
+	}
+
+	f.keys[fp] = []crypto.Decrypter{decrypter}
 
 	return decrypter, publicKey, nil
 }
@@ -132,6 +137,9 @@ func (f *fakeKeyStore) NewEncryptionKeyPair(ctx context.Context, purpose cryptos
 	if err != nil {
 		return nil, err
 	}
+
+	label := f.currLabel.Type + ":" + f.currLabel.Label
+	f.keys[label] = append(f.keys[label], private)
 
 	return &types.EncryptionKeyPair{
 		PrivateKey:     privatePEM,
@@ -164,12 +172,22 @@ func (f *fakeKeyStore) UnwrapKey(ctx context.Context, in recordingencryption.Unw
 		return nil, trace.NotFound("no accessible decryption key found")
 	}
 
-	fileKey, err := decrypter.Decrypt(in.Rand, in.WrappedKey, in.Opts)
+	fileKey, err := decrypter[0].Decrypt(in.Rand, in.WrappedKey, in.Opts)
 	if err != nil {
 		return nil, err
 	}
 
 	return fileKey, nil
+}
+
+func (f *fakeKeyStore) FindDecryptersByLabels(ctx context.Context, labels ...*types.KeyLabel) ([]crypto.Decrypter, error) {
+	var decrypters []crypto.Decrypter
+	for _, label := range labels {
+		lookup := label.Type + ":" + label.Label
+		decrypters = append(decrypters, f.keys[lookup]...)
+	}
+
+	return decrypters, nil
 }
 
 func newLocalBackend(
@@ -247,7 +265,7 @@ func TestCreateUpdateSessionRecordingConfig(t *testing.T) {
 	ctx, bk := newLocalBackend(t)
 
 	config := newManagerConfig(t, bk, types.PrivateKeyType_RAW)
-	manager, err := recordingencryption.NewManager(config)
+	manager, err := recordingencryption.NewManager(ctx, config)
 	require.NoError(t, err)
 
 	req := &types.SessionRecordingConfigV2{}
@@ -294,13 +312,13 @@ func TestResolveRecordingEncryption(t *testing.T) {
 	configC := configA
 	configC.KeyStore = newFakeKeyStore(managerCType)
 
-	managerA, err := recordingencryption.NewManager(configA)
+	managerA, err := recordingencryption.NewManager(ctx, configA)
 	require.NoError(t, err)
 
-	managerB, err := recordingencryption.NewManager(configB)
+	managerB, err := recordingencryption.NewManager(ctx, configB)
 	require.NoError(t, err)
 
-	managerC, err := recordingencryption.NewManager(configC)
+	managerC, err := recordingencryption.NewManager(ctx, configC)
 	require.NoError(t, err)
 
 	service := configA.Backend
@@ -336,13 +354,13 @@ func TestResolveRecordingEncryptionConcurrent(t *testing.T) {
 	ctx, bk := newLocalBackend(t)
 
 	config := newManagerConfig(t, bk, types.PrivateKeyType_RAW)
-	managerA, err := recordingencryption.NewManager(config)
+	managerA, err := recordingencryption.NewManager(ctx, config)
 	require.NoError(t, err)
 
-	managerB, err := recordingencryption.NewManager(config)
+	managerB, err := recordingencryption.NewManager(ctx, config)
 	require.NoError(t, err)
 
-	serviceC, err := recordingencryption.NewManager(config)
+	serviceC, err := recordingencryption.NewManager(ctx, config)
 	require.NoError(t, err)
 
 	service := config.Backend
@@ -380,7 +398,7 @@ func TestUnwrapKey(t *testing.T) {
 	keyType := types.PrivateKeyType_RAW
 
 	config := newManagerConfig(t, bk, keyType)
-	manager, err := recordingencryption.NewManager(config)
+	manager, err := recordingencryption.NewManager(ctx, config)
 	require.NoError(t, err)
 
 	service := config.Backend

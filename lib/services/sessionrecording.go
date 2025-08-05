@@ -19,6 +19,9 @@
 package services
 
 import (
+	"slices"
+	"strings"
+
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -85,4 +88,50 @@ func MarshalSessionRecordingConfig(recConfig types.SessionRecordingConfig, opts 
 	default:
 		return nil, trace.BadParameter("unrecognized session recording config version %T", recConfig)
 	}
+}
+
+const (
+	KeyTypeAWS      = "aws_kms"
+	KeyTypeGCP      = "gcp_kms"
+	KeyTypePKCS11   = "pkcs11"
+	KeyTypeSoftware = "software"
+)
+
+// ValidateSessionRecordingConfig checks that the state of a [SessionRecordingConfig] meets constraints.
+func ValidateSessionRecordingConfig(cfg types.SessionRecordingConfig) error {
+	if !slices.Contains(types.SessionRecordingModes, cfg.GetMode()) {
+		return trace.BadParameter("session recording mode must be one of %v; got %q", strings.Join(types.SessionRecordingModes, ","), cfg.GetMode())
+	}
+
+	encryptionCfg := cfg.GetEncryptionConfig()
+	if encryptionCfg == nil || !encryptionCfg.Enabled {
+		return nil
+	}
+
+	manualKeyManagement := encryptionCfg.ManualKeyManagement
+	if manualKeyManagement == nil || !manualKeyManagement.Enabled {
+		return nil
+	}
+
+	if len(manualKeyManagement.ActiveKeys) == 0 {
+		return trace.BadParameter("at least one active key must be configured when using manually managed encryption keys")
+	}
+
+	for _, label := range manualKeyManagement.ActiveKeys {
+		switch strings.ToLower(label.Type) {
+		case KeyTypeAWS, KeyTypeGCP, KeyTypePKCS11, KeyTypeSoftware:
+		default:
+			return trace.BadParameter("invalid key type %q found for active manually managed key", label.Type)
+		}
+	}
+
+	for _, label := range manualKeyManagement.RotatedKeys {
+		switch strings.ToLower(label.Type) {
+		case KeyTypeAWS, KeyTypeGCP, KeyTypePKCS11, KeyTypeSoftware:
+		default:
+			return trace.BadParameter("invalid key type %q found for rotated manually managed key", label.Type)
+		}
+	}
+
+	return nil
 }
