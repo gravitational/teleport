@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"log/slog"
 	"net"
 
 	"github.com/gravitational/trace"
@@ -24,6 +25,12 @@ import (
 // It must be provided a path to a Teleport identity file produced by tbot
 // with reissue enabled, as, the Proxy will automagically reissue the identity
 // as needed.
+//
+// Right now, Teleport MCP proxying is effectively STDIO over TCP. Eventually,
+// we'd maybe need to implement code here to talk to a Streaming HTTP MCP server
+// over the TCP connection on behalf of a STDIO. Or, this may end up being
+// implemented in the Teleport App access handler instead and we'd just pass
+// the STDIO onwards as we currently do.
 //
 // WARNING: This is a hacky implementation to PoC. Frankly, presenting a
 // reissuable identity file to `tsh mcp connect` would probably work as well?
@@ -46,12 +53,16 @@ func STDIOProxy(
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	botCert, err := botTLSConfig.GetCertificate(nil)
+	botCert, err := botTLSConfig.GetClientCertificate(nil)
 	if err != nil {
 		return trace.Wrap(err, "failed to get certificate from TLS config")
 	}
+	parsedCert, err := x509.ParseCertificate(botCert.Certificate[0])
+	if err != nil {
+		return trace.Wrap(err, "failed to parse certificate")
+	}
 	identity, err := tlsca.FromSubject(
-		botCert.Leaf.Subject, botCert.Leaf.NotAfter,
+		parsedCert.Subject, parsedCert.NotAfter,
 	)
 	if err != nil {
 		return trace.Wrap(err, "failed to parse identity from certificate")
@@ -76,7 +87,7 @@ func STDIOProxy(
 	routeToApp := proto.RouteToApp{
 		Name:        app.GetName(),
 		PublicAddr:  app.GetPublicAddr(),
-		ClusterName: mcpServerName,
+		ClusterName: identity.RouteToCluster,
 	}
 	// Now issue a cert for the app
 	// TODO: In prod, this would definitely just use lib/tbot/identity/generator
@@ -84,6 +95,7 @@ func STDIOProxy(
 		Username:       identity.Username,
 		RouteToCluster: identity.RouteToCluster,
 		RouteToApp:     routeToApp,
+		Expires:        identity.Expires,
 	}
 	key, err := cryptosuites.GenerateKey(
 		ctx,
@@ -149,6 +161,7 @@ func STDIOProxy(
 	if err != nil {
 		return trace.Wrap(err, "failed to dial ALPN connection")
 	}
+	slog.Info("Proxying conn")
 	return trace.Wrap(utils.ProxyConn(ctx, utils.CombinedStdio{}, conn))
 }
 
