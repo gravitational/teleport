@@ -26,6 +26,9 @@ type EvaluationInput struct {
 	// or the internal static traits (for local users) which will be input to
 	// the login rule evaluation.
 	Traits map[string][]string
+	// Claims holds the original, unparsed provider claims. Each claim may be
+	// a standard string/list, or an arbitrary json object.
+	Claims map[string]any
 }
 
 // EvaluationOutput holds the output of a login rule evaluation.
