@@ -119,6 +119,7 @@ endef
 NOTARIZE_TELEPORT_PKG = $(if $(SHOULD_NOTARIZE),$(notarize_teleport_pkg),$(not_notarizing_cmd))
 define notarize_teleport_pkg
 	$(call notarize_pkg,$(TELEPORT_PKG_UNSIGNED),$(TELEPORT_PKG_SIGNED))
+	$(call notarize_pkg,$(TELEPORT_TOOLS_PKG_UNSIGNED),$(TELEPORT_TOOLS_PKG_SIGNED))
 endef
 
 define notarize_app_bundle
