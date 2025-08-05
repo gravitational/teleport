@@ -1729,11 +1729,11 @@ pkg: | $(RELEASE_DIR)
 
 	@echo Combining teleport-bin-$(VERSION).pkg and tsh-$(VERSION).pkg into teleport-$(VERSION).pkg
 	productbuild --package $(BUILDDIR)/tsh*.pkg --package $(BUILDDIR)/tctl*.pkg --package $(BUILDDIR)/teleport-bin*.pkg $(TELEPORT_PKG_UNSIGNED)
+	$(NOTARIZE_TELEPORT_PKG)
 
 	@echo Combining tsh-$(VERSION).pkg and tctl-$(VERSION).pkg into teleport-tools-$(VERSION).pkg
 	productbuild --package $(BUILDDIR)/tsh*.pkg --package $(BUILDDIR)/tctl*.pkg $(TELEPORT_TOOLS_PKG_UNSIGNED)
-
-	$(NOTARIZE_TELEPORT_PKG)
+	$(NOTARIZE_TELEPORT_TOOLS_PKG)
 
 	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
 
