@@ -1822,6 +1822,7 @@ docker-ui:
 rustup-set-version: RUST_VERSION := $(shell $(MAKE) --no-print-directory -C build.assets print-rust-version)
 rustup-set-version:
 	rustup override set $(RUST_VERSION)
+	rustup target add wasm32-unknown-unknown
 
 # rustup-install-target-toolchain ensures the required rust compiler is
 # installed to build for $(ARCH)/$(OS) for the version of rust we use, as
