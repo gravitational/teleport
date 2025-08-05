@@ -9,8 +9,8 @@ The Entra ID integration enables the following features in Teleport:
 
 1. **Single Sign-On (SSO):** Configures Teleport authentication with Entra ID as an
    identity provider.
-2. **User sync:** Periodic import of the Entra ID users as Teleport users.
-3. **Group sync:** Periodic import of the Entra ID groups as Teleport
+2. **User sync:** Periodic import of Entra ID users as Teleport users.
+3. **Group sync:** Periodic import of Entra ID groups as Teleport
    Access Lists. 
 4. **Integration with Teleport Identity Security (Optional):** Lets you analyze user access 
 paths and policies from the Teleport Identity Security product. If enabled, Teleport imports 
@@ -21,7 +21,7 @@ enterprise applications as well.
 To configure SSO, Teleport uses an Entra ID enterprise application where 
 Teleport must be set up as an SAML service provider. 
 
-To import users and groups from the Entra ID, Teleport must be configured with 
+To import users and groups from Entra ID, Teleport must be configured with 
 a credential to authenticate with the Microsoft Graph API. 
 
 ### Choosing the Microsoft Graph API authentication method
@@ -32,13 +32,13 @@ Microsoft Graph API: OIDC IdP and system credentials.
 #### Teleport as an OIDC Provider for Entra ID 
 
 In this setup, Teleport is configured as an OpenID Connect (OIDC) identity provider 
-for the Entra ID enterprise application, which is created during the setup. 
+for the Entra ID enterprise application. 
 Teleport OIDC IdP then generates a short-lived credential for the Microsoft Graph API
-client configured for the Entra ID. Authorization is limited to the API permission 
+client configured for Entra ID. Authorization is limited to the API permission 
 configured in the Entra ID enterprise application. 
 
 Direct bidirectional connectivity between Teleport and Entra ID is necessary for 
-the Entra ID to validate the OIDC tokens issued by Teleport.
+Entra ID to validate the OIDC tokens issued by Teleport.
 
 For a Teleport cloud cluster, OIDC IdP based authentication is the only supported
 authentication method. 
@@ -48,7 +48,7 @@ authentication method.
 Designed for air-gapped Teleport clusters that are not publicly accessible, this setup 
 accommodates environments where Entra ID cannot validate OIDC tokens issued by Teleport. 
 
-Instead, Teleport relies on API credentials available where Teleport 
+Instead, Teleport relies on API credentials available where the Teleport 
 Auth Service is running.
 
 ### Choosing guided or manual Entra ID configuration method
@@ -57,7 +57,7 @@ In the guided Entra ID configuration process, Teleport generates a configuration
 script, which configures your Entra ID tenant with the properties that are required
 for the Teleport Entra ID integration. 
 
-But if you want to have more control over the Entra ID configuration, a manual
+If you want to have more control over the Entra ID configuration, a manual
 Entra ID configuration may be suitable for you. In this case, you update the Entra ID
 tenant with the properties that are required for Teleport Entra ID integration. 
 

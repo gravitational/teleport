@@ -1,5 +1,5 @@
 ---
-title: Getting started with the Entra ID integration
+title: Getting started with Entra ID integration
 description: Describes how to set up the Teleport Entra ID integration in Teleport.
 labels:
  - how-to
@@ -14,8 +14,6 @@ properties required for the Teleport Entra ID integration.
 
 ## Prerequisites
 
-- Teleport Identity Governance enabled for your Teleport cluster. Optionally, Identity Security should
-also be enabled if you choose to enable Identity Security integration.
 - Your user must have privileged administrator permissions in the Microsoft Entra ID tenant.
 - Choose Microsoft Graph API [authentication method](entra-id.mdx#choosing-the-microsoft-graph-api-authentication-method). 
 
@@ -178,46 +176,9 @@ and enter it in the `tctl` to finish the integration.
 The integration is now configured and the Teleport Entra ID service will start 
 importing resources from Entra ID to Teleport.
 
-## FAQ
-
-### What resources are imported to Teleport?
-
-Teleport imports all the users, user groups and its members from the Entra ID directory.
-There is no filter available to control custom import rules.
-
-If Teleport Identity Security integration is enabled, Teleport will import 
-applications and policies as well. 
-
-### How does it work with nested Access Lists?
-
-If an Entra ID group is assigned as a member to another group, Teleport preserves this assignment 
-as a nested Access List. 
-
-However, note that Teleport does not support recursive groups where group A is a member of group B
-and group B is also a member of group A.
-
-### What permissions does Teleport need to authenticate with the Microsoft Graph API?
-
-At minimum, Teleport needs read access to users, groups and the main enterprise application 
-for which the integration is configured.
-```code 
-- Application.ReadWrite.OwnedBy
-- Group.Read.All
-- User.Read.All
-```
-
-If you enable the Identity Security integration, you will need a broader set of permissions.
-```code
-- Application.Read.All # instead of Application.ReadWrite.OwnedBy
-- Directory.Read.All # instead of User.Read.All and Group.Read.All
-- Policy.Read.All
-```
-
-By default, the guided configuration script sets up a broader scoped permission, which 
-is required by the Identity Security product to perform policy and access path analysis.
-
 ## Next steps
 
 - Take a deeper look into setting up [Entra ID auth connector](../../zero-trust-access/sso/azuread.mdx). 
 - Learn more about [Access List](../access-lists/access-lists.mdx) management.
 - Learn how the [Identity Security integration with Entra ID](../../identity-security/integrations/entra-id.mdx) works. 
+- See [FAQs](faq.mdx) related to the Teleport Entra ID integration. 
