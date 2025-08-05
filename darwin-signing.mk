@@ -98,11 +98,11 @@ define notarize_binaries_cmd
 	mkdir $(notary_dir)
 	ditto $(BINARIES) $(notary_dir)
 	ditto -c -k $(notary_dir) $(notary_file)
-	xcrun notarytool submit $(notary_file) \
-		--team-id="$(TEAMID)" \
-		--apple-id="$(APPLE_USERNAME)" \
-		--password="$(APPLE_PASSWORD)" \
-		--wait
+#	xcrun notarytool submit $(notary_file) \
+#		--team-id="$(TEAMID)" \
+#		--apple-id="$(APPLE_USERNAME)" \
+#		--password="$(APPLE_PASSWORD)" \
+#		--wait
 	rm -rf $(notary_dir) $(notary_file)
 endef
 
@@ -137,11 +137,11 @@ define notarize_app_bundle
 		"$($@_BUNDLE)"
 
 	ditto -c -k --keepParent $($@_BUNDLE) $(notary_file)
-	xcrun notarytool submit $(notary_file) \
-		--team-id="$(TEAMID)" \
-		--apple-id="$(APPLE_USERNAME)" \
-		--password="$(APPLE_PASSWORD)" \
-		--wait
+#	xcrun notarytool submit $(notary_file) \
+#		--team-id="$(TEAMID)" \
+#		--apple-id="$(APPLE_USERNAME)" \
+#		--password="$(APPLE_PASSWORD)" \
+#		--wait
 	rm $(notary_file)
 endef
 
@@ -153,12 +153,12 @@ define notarize_pkg
 		--timestamp \
 		$($@_IN_PKG) \
 		$($@_OUT_PKG)
-	xcrun notarytool submit $($@_OUT_PKG) \
-		--team-id="$(TEAMID)" \
-		--apple-id="$(APPLE_USERNAME)" \
-		--password="$(APPLE_PASSWORD)" \
-		--wait
-	xcrun stapler staple $($@_OUT_PKG)
+#	xcrun notarytool submit $($@_OUT_PKG) \
+#		--team-id="$(TEAMID)" \
+#		--apple-id="$(APPLE_USERNAME)" \
+#		--password="$(APPLE_PASSWORD)" \
+#		--wait
+#	xcrun stapler staple $($@_OUT_PKG)
 endef
 
 echo_var = @echo $(1)=\''$($(1))'\'

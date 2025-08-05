@@ -69,6 +69,7 @@ notarize() {
   local target="$1"
   local teamid="$2"
   local bundleid="$3"
+  return
 
   # XCode 13+.
   if xcrun notarytool --version 1>/dev/null 2>&1; then
