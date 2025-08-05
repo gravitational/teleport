@@ -17,9 +17,9 @@
  */
 
 import { ComponentProps } from 'react';
-import { useTheme } from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
-import { Image } from 'design';
+import { Flex, Image } from 'design';
 import { IconProps } from 'design/Icon/Icon';
 
 import {
@@ -51,18 +51,31 @@ export const ResourceIcon = ({ name, ...props }: ResourceIconProps) => {
   if (!icon) {
     return null;
   }
-  const width = props.size ? sizetoPx(props.size) : props.width;
-  const height = props.size ? sizetoPx(props.size) : props.height;
-  return (
-    <Image
-      src={icon}
-      data-testid={`res-icon-${name}`}
-      {...props}
-      width={width}
-      height={height}
-    />
-  );
+  if (props.size) {
+    const width = sizetoInnerPx(props.size);
+    const height = sizetoInnerPx(props.size);
+    return (
+      <Container $size={props.size}>
+        <Image
+          src={icon}
+          data-testid={`res-icon-${name}`}
+          {...props}
+          width={width}
+          height={height}
+        />
+      </Container>
+    );
+  }
+
+  return <Image src={icon} data-testid={`res-icon-${name}`} {...props} />;
 };
+
+const Container = styled(Flex)<{ $size: IconProps['size'] }>`
+  width: ${props => sizetoOuterPx(props.$size)};
+  height: ${props => sizetoOuterPx(props.$size)};
+  align-items: center;
+  justify-content: center;
+`;
 
 /**
  * Convert a standard size to a pixel width/height. This is different to the
@@ -71,12 +84,20 @@ export const ResourceIcon = ({ name, ...props }: ResourceIconProps) => {
  * @param size the standard size to convert.
  * @returns the pixel size
  */
-function sizetoPx(size: IconProps['size']) {
+function sizetoInnerPx(size: IconProps['size']) {
   if (size === 'small') return '14px';
   if (size === 'medium') return '16px';
   if (size === 'large') return '20px';
   if (size === 'extra-large') return '24px';
   return '24px';
+}
+
+function sizetoOuterPx(size: IconProps['size']) {
+  if (size === 'small') return '16px';
+  if (size === 'medium') return '20px';
+  if (size === 'large') return '24px';
+  if (size === 'extra-large') return '32px';
+  return '32px';
 }
 
 export { type ResourceIconName, resourceIconSpecs, iconNames };
