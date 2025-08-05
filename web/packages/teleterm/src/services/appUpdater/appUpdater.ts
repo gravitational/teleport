@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { rmSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'process';
@@ -112,48 +112,12 @@ export class AppUpdater {
       () => this.autoUpdatesStatus,
       () => this.shouldAutoDownload()
     );
-
-    // Workaround to prevent installing outdated updates.
-    // electron-updater lacks support for this: once an update is downloaded,
-    // it will be installed on quit—even if subsequent update checks report
-    // no new updates.
-    app.on('will-quit', () => {
-      if (!this.isUpdateDownloaded) {
-        // Workaround for Windows and Linux.
-        autoUpdater.autoInstallOnAppQuit = false;
-
-        // macOS-specific workaround:
-        // On macOS, electron-updater downloads the update file and, if
-        // `autoUpdater.autoInstallOnAppQuit` is true, passes it to the native Electron
-        // autoUpdater via a local server. The update is then handed off to the Squirrel
-        // framework for installation (either on demand or after quitting the app).
-        // Unfortunately, once Squirrel gets the update, it is always installed
-        // on quit, regardless of the `autoInstallOnAppQuit` value.
-        // The only workaround I've found is to manually delete the entire Squirrel
-        // update directory for Connect.
-        if (autoUpdater instanceof MacUpdater && app.isPackaged) {
-          const squirrelMacPath = path.join(
-            os.homedir(),
-            'Library',
-            'Caches',
-            'gravitational.teleport.connect.ShipIt'
-          );
-          try {
-            rmSync(squirrelMacPath, {
-              recursive: true,
-              force: true,
-              maxRetries: 2,
-            });
-          } catch {
-            /* empty */
-          }
-        }
-      }
-    });
   }
 
-  dispose(): void {
+  /** Must be called before `quit` event is emitted. */
+  async dispose(): Promise<void> {
     this.unregisterEventHandlers();
+    await this.preventInstallingOutdatedUpdates();
   }
 
   /**
@@ -339,6 +303,46 @@ export class AppUpdater {
       getClusterVersions: this.getClusterVersions,
     });
     this.logger.info('Resolved auto updates status', this.autoUpdatesStatus);
+  }
+
+  /**
+   * Workaround to prevent installing outdated updates.
+   * electron-updater lacks support for this: once an update is downloaded,
+   * it will be installed on quit—even if subsequent update checks report
+   * no new updates.
+   */
+  private async preventInstallingOutdatedUpdates(): Promise<void> {
+    if (!this.isUpdateDownloaded) {
+      // Workaround for Windows and Linux.
+      autoUpdater.autoInstallOnAppQuit = false;
+
+      // macOS-specific workaround:
+      // On macOS, electron-updater downloads the update file and, if
+      // `autoUpdater.autoInstallOnAppQuit` is true, passes it to the native Electron
+      // autoUpdater via a local server. The update is then handed off to the Squirrel
+      // framework for installation (either on demand or after quitting the app).
+      // Unfortunately, once Squirrel gets the update, it is always installed
+      // on quit, regardless of the `autoInstallOnAppQuit` value.
+      // The only workaround I've found is to manually delete the ShipItState.plist
+      // file so Squirrel cannot apply the update.
+      // The downloaded update will be overwritten with the next update.
+      if (autoUpdater instanceof MacUpdater && app.isPackaged) {
+        const squirrelMacPath = path.join(
+          os.homedir(),
+          'Library',
+          'Caches',
+          'gravitational.teleport.connect.ShipIt',
+          'ShipItState.plist'
+        );
+        try {
+          await rm(squirrelMacPath, {
+            force: true,
+          });
+        } catch (error) {
+          this.logger.error(error);
+        }
+      }
+    }
   }
 }
 
