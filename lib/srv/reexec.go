@@ -358,6 +358,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		if uaccEnabled {
 			uaccErr := uaccDB.FailedLogin(c.Login, &c.UaccMetadata.RemoteAddr, time.Now())
 			if uaccErr != nil {
+				uaccEnabled = false
 				slog.DebugContext(ctx, "uacc unsupported", "error", uaccErr)
 			}
 		}
@@ -372,6 +373,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		// command output, so for now we essentially ignore it.
 		if err != nil {
 			slog.DebugContext(ctx, "uacc unsupported", "error", err)
+			uaccEnabled = false
 		}
 	}
 
