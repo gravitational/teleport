@@ -1,5 +1,19 @@
 # Changelog
 
+## 18.1.2 (08/05/25)
+
+* Fix a bug on Windows where a forwarded SSH agent would become dysfunctional after a single connection using the agent. [#57511](https://github.com/gravitational/teleport/pull/57511)
+* Fixed usage print for global `--help` flag. [#57451](https://github.com/gravitational/teleport/pull/57451)
+* Added Cursor and VSCode install buttons in MCP connect dialog in Web UI. [#57362](https://github.com/gravitational/teleport/pull/57362)
+* Added "Allowed Tools" to "tsh mcp ls" and show a warning if no tools allowed. [#57360](https://github.com/gravitational/teleport/pull/57360)
+* Tctl top respects local teleport config file. [#57354](https://github.com/gravitational/teleport/pull/57354)
+* Fixed an issue backfilling CRLs during startup for long-standing clusters. [#57321](https://github.com/gravitational/teleport/pull/57321)
+* Disable NLA in FIPS mode. [#57307](https://github.com/gravitational/teleport/pull/57307)
+* Added a configurable delay between receiving a termination signal and shutting down. [#57211](https://github.com/gravitational/teleport/pull/57211)
+
+Enterprise:
+* Slightly optimized access token refresh logic for Jamf integration when using API credentials.
+
 ## 18.1.1 (07/29/25)
 
 * Fix CRL publication for Active Directory Windows desktop access. [#57264](https://github.com/gravitational/teleport/pull/57264)
