@@ -43,7 +43,7 @@ func TestSSHAgentClient(t *testing.T) {
 		require.NoError(t, err)
 
 		// create a context to close existing connections on server shutdown.
-		serveCtx, serveCancel := context.WithCancel(t.Context())
+		serveCtx, serveCancel := context.WithCancel(context.Background())
 
 		// Track open connections.
 		var connWg sync.WaitGroup
