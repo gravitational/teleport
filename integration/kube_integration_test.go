@@ -611,7 +611,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 
 	username := suite.me.Username
 	kubeGroups := []string{kube.TestImpersonationGroup}
-	role, err := types.NewRole("kubemaster", types.RoleSpecV6{
+	role, err := types.NewRoleWithVersion("kubemaster", types.V7, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: kubeGroups,
@@ -620,7 +620,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
+					Kind: "pod", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 		},
