@@ -34,7 +34,7 @@ import {
   useIntegrationOperation,
 } from 'teleport/Integrations/Operations';
 import type { EditableIntegrationFields } from 'teleport/Integrations/Operations/useIntegrationOperation';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { IntegrationAwsOidc } from 'teleport/services/integrations';
 
 import { DashboardGuide, Ec2Guide, EksGuide, RdsGuide } from './guides';

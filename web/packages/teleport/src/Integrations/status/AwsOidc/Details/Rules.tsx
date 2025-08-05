@@ -25,7 +25,7 @@ import Table, { LabelCell } from 'design/DataTable';
 
 import { useServerSidePagination } from 'teleport/components/hooks';
 import cfg from 'teleport/config';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import {
   IntegrationDiscoveryRule,
   IntegrationKind,

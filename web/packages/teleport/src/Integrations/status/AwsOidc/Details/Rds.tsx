@@ -26,9 +26,9 @@ import {
 } from 'design/Tabs';
 
 import cfg from 'teleport/config';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { Agents } from 'teleport/Integrations/status/AwsOidc/Details/Agents';
 import { Rules } from 'teleport/Integrations/status/AwsOidc/Details/Rules';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import { IntegrationKind } from 'teleport/services/integrations';
 
 export enum RdsTab {
