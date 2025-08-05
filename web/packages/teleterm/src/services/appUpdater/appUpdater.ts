@@ -213,13 +213,14 @@ export class AppUpdater {
     }
 
     if (
-      this.shouldAutoDownload() ||
-      // This can occur if the user manually downloads an update
-      // and then triggers another check for updates.
-      // Since the update is already downloaded, the updater should transition
-      // to the `update-downloaded` state automatically.
-      // The update file will be read from the local cache.
-      this.isUpdateDownloaded
+      result.isUpdateAvailable &&
+      (this.shouldAutoDownload() ||
+        // This can occur if the user manually downloads an update
+        // and then triggers another check for updates.
+        // Since the update is already downloaded, the updater should transition
+        // to the `update-downloaded` state automatically.
+        // The update file will be read from the local cache.
+        this.isUpdateDownloaded)
     ) {
       void this.download();
       return;
