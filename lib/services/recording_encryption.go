@@ -20,6 +20,7 @@ import (
 	"context"
 
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // RecordingEncryption handles CRUD operations for the RecordingEncryption resource.
@@ -33,4 +34,11 @@ type RecordingEncryption interface {
 	DeleteRecordingEncryption(ctx context.Context) error
 	// GetRecordingEncryption retrieves the RecordingEncryption for the cluster.
 	GetRecordingEncryption(ctx context.Context) (*recordingencryptionv1.RecordingEncryption, error)
+
+	// CreateRotatedKey creates a new RotatedKey in the backend.
+	CreateRotatedKey(ctx context.Context, key *types.EncryptionKeyPair) (*recordingencryptionv1.RotatedKey, error)
+	// GetRotatedKey retrieves the RotatedKey related to the given fingerprint.
+	GetRotatedKey(ctx context.Context, fingerprint string) (*recordingencryptionv1.RotatedKey, error)
+	// DeleteRotatedKey retrieves the RotatedKey related to the given fingerprint.
+	DeleteRotatedKey(ctx context.Context, fingerprint string) error
 }

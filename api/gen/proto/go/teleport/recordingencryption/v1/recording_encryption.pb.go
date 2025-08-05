@@ -323,11 +323,11 @@ func (x *RecordingEncryption) GetStatus() *RecordingEncryptionStatus {
 
 // A rotated keypair with its fingerprint.
 type RotatedKeySpec struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Fingerprint   string                 `protobuf:"bytes,1,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
-	Pair          *KeyPair               `protobuf:"bytes,2,opt,name=pair,proto3" json:"pair,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState   `protogen:"open.v1"`
+	Fingerprint       string                   `protobuf:"bytes,1,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	EncryptionKeyPair *types.EncryptionKeyPair `protobuf:"bytes,2,opt,name=encryption_key_pair,json=encryptionKeyPair,proto3" json:"encryption_key_pair,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *RotatedKeySpec) Reset() {
@@ -367,9 +367,9 @@ func (x *RotatedKeySpec) GetFingerprint() string {
 	return ""
 }
 
-func (x *RotatedKeySpec) GetPair() *KeyPair {
+func (x *RotatedKeySpec) GetEncryptionKeyPair() *types.EncryptionKeyPair {
 	if x != nil {
-		return x.Pair
+		return x.EncryptionKeyPair
 	}
 	return nil
 }
@@ -513,10 +513,10 @@ const file_teleport_recordingencryption_v1_recording_encryption_proto_rawDesc = 
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12L\n" +
 	"\x04spec\x18\x05 \x01(\v28.teleport.recordingencryption.v1.RecordingEncryptionSpecR\x04spec\x12R\n" +
-	"\x06status\x18\x06 \x01(\v2:.teleport.recordingencryption.v1.RecordingEncryptionStatusR\x06status\"p\n" +
+	"\x06status\x18\x06 \x01(\v2:.teleport.recordingencryption.v1.RecordingEncryptionStatusR\x06status\"|\n" +
 	"\x0eRotatedKeySpec\x12 \n" +
-	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12<\n" +
-	"\x04pair\x18\x02 \x01(\v2(.teleport.recordingencryption.v1.KeyPairR\x04pair\"\x12\n" +
+	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12H\n" +
+	"\x13encryption_key_pair\x18\x02 \x01(\v2\x18.types.EncryptionKeyPairR\x11encryptionKeyPair\"\x12\n" +
 	"\x10RotatedKeyStatus\"\x9f\x02\n" +
 	"\n" +
 	"RotatedKey\x12\x12\n" +
@@ -565,7 +565,7 @@ var file_teleport_recordingencryption_v1_recording_encryption_proto_depIdxs = []
 	9,  // 3: teleport.recordingencryption.v1.RecordingEncryption.metadata:type_name -> teleport.header.v1.Metadata
 	2,  // 4: teleport.recordingencryption.v1.RecordingEncryption.spec:type_name -> teleport.recordingencryption.v1.RecordingEncryptionSpec
 	3,  // 5: teleport.recordingencryption.v1.RecordingEncryption.status:type_name -> teleport.recordingencryption.v1.RecordingEncryptionStatus
-	1,  // 6: teleport.recordingencryption.v1.RotatedKeySpec.pair:type_name -> teleport.recordingencryption.v1.KeyPair
+	8,  // 6: teleport.recordingencryption.v1.RotatedKeySpec.encryption_key_pair:type_name -> types.EncryptionKeyPair
 	9,  // 7: teleport.recordingencryption.v1.RotatedKey.metadata:type_name -> teleport.header.v1.Metadata
 	5,  // 8: teleport.recordingencryption.v1.RotatedKey.spec:type_name -> teleport.recordingencryption.v1.RotatedKeySpec
 	6,  // 9: teleport.recordingencryption.v1.RotatedKey.status:type_name -> teleport.recordingencryption.v1.RotatedKeyStatus

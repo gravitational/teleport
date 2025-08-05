@@ -24,6 +24,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -32,7 +33,7 @@ import (
 
 const (
 	recordingEncryptionPrefix = "recording_encryption"
-	rotatedKeyPrefix          = recordingEncryptionPrefix + "/rotated_key"
+	rotatedKeyPrefix          = "rotated_key"
 )
 
 // RecordingEncryptionService exposes backend functionality for working with the
@@ -63,7 +64,7 @@ func NewRecordingEncryptionService(b backend.Backend) (*RecordingEncryptionServi
 		Backend:       b,
 		PageLimit:     pageLimit,
 		ResourceKind:  types.KindRotatedKey,
-		BackendPrefix: backend.NewKey(rotatedKeyPrefix),
+		BackendPrefix: backend.NewKey(recordingEncryptionPrefix, rotatedKeyPrefix),
 		MarshalFunc:   services.MarshalProtoResource[*recordingencryptionv1.RotatedKey],
 		UnmarshalFunc: services.UnmarshalProtoResource[*recordingencryptionv1.RotatedKey],
 	})
@@ -111,36 +112,38 @@ func (s *RecordingEncryptionService) GetRecordingEncryption(ctx context.Context)
 }
 
 // CreateRotatedKey creates a new RotatedKey in the backend.
-func (s *RecordingEncryptionService) CreateRotatedKey(ctx context.Context, key *recordingencryptionv1.RotatedKey) (*recordingencryptionv1.RotatedKey, error) {
-	if key.Metadata == nil {
-		key.Metadata = &headerv1.Metadata{}
-	}
-	fp, err := recordingencryption.Fingerprint(key.GetSpec().GetFingerprint())
+func (s *RecordingEncryptionService) CreateRotatedKey(ctx context.Context, key *types.EncryptionKeyPair) (*recordingencryptionv1.RotatedKey, error) {
+	parsed, err := keys.ParsePublicKey(key.PublicKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	key.Metadata.Name = fp
-	key.Kind = types.KindRotatedKey
-	created, err := s.rotatedKey.CreateResource(ctx, key)
-	return created, trace.Wrap(err)
-}
 
-// UpdateRotatedKey replaces a RotatedKey with the given one.
-func (s *RecordingEncryptionService) UpdateRotatedKey(ctx context.Context, key *recordingencryptionv1.RotatedKey) (*recordingencryptionv1.RotatedKey, error) {
-	if key.Metadata == nil {
-		key.Metadata = &headerv1.Metadata{}
+	fp, err := recordingencryption.Fingerprint(parsed)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-
-	key.Metadata.Name = key.GetSpec().GetFingerprint()
-	key.Kind = types.KindRecordingEncryption
-	updated, err := s.rotatedKey.ConditionalUpdateResource(ctx, key)
-	return updated, trace.Wrap(err)
+	created, err := s.rotatedKey.CreateResource(ctx, &recordingencryptionv1.RotatedKey{
+		Metadata: &headerv1.Metadata{
+			Name: fp,
+		},
+		Kind: types.KindRotatedKey,
+		Spec: &recordingencryptionv1.RotatedKeySpec{
+			Fingerprint:       fp,
+			EncryptionKeyPair: key,
+		},
+	})
+	return created, trace.Wrap(err)
 }
 
 // GetRotatedKey retrieves the RotatedKey related to the given fingerprint.
 func (s *RecordingEncryptionService) GetRotatedKey(ctx context.Context, fingerprint string) (*recordingencryptionv1.RotatedKey, error) {
 	rotatedKey, err := s.rotatedKey.GetResource(ctx, fingerprint)
 	return rotatedKey, trace.Wrap(err)
+}
+
+// DeleteRotatedKey removes a RotatedKey from the backend.
+func (s *RecordingEncryptionService) DeleteRotatedKey(ctx context.Context, fingerprint string) error {
+	return trace.Wrap(s.rotatedKey.DeleteResource(ctx, fingerprint))
 }
 
 type recordingEncryptionParser struct {
