@@ -63,7 +63,7 @@ export function Instance(props: {
       </TopRow>
       {hasHeartbeatData ? (
         <BottomRow>
-          <Flex gap={2} flex={1}>
+          <Flex gap={2} flex={1} overflow={'hidden'}>
             <Version version={version} />
 
             {hostname ? (
@@ -180,19 +180,24 @@ function Version(props: { version: string | undefined }) {
   }
 
   return version ? (
-    <HoverTooltip placement="top" tipContent={tooltip}>
-      <Wrapper borderRadius={2}>
-        <Flex gap={1}>
-          {icon}
-          <LabelText>v{version}</LabelText>
-        </Flex>
-      </Wrapper>
-    </HoverTooltip>
+    <VersionContainer>
+      <HoverTooltip placement="top" tipContent={tooltip}>
+        <Wrapper borderRadius={2}>
+          <Flex gap={1}>
+            {icon}
+            <Text typography="body3">v{version}</Text>
+          </Flex>
+        </Wrapper>
+      </HoverTooltip>
+    </VersionContainer>
   ) : undefined;
 }
+
+const VersionContainer = styled.div`
+  flex-shrink: 0;
+`;
 
 const LabelText = styled(Text)`
   font-size: ${({ theme }) => theme.fontSizes[1]}px;
   white-space: nowrap;
-  max-width: 96px;
 `;
