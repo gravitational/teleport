@@ -445,11 +445,16 @@ function JoinTokens(props: { botName: string; onViewAllClicked: () => void }) {
                         placement="top"
                         tipContent={t.method}
                       >
-                        <SecondaryOutlined>
-                          <Flex alignItems={'center'} gap={1}>
+                        <SecondaryOutlined padding={0}>
+                          <Flex
+                            alignItems={'center'}
+                            gap={1}
+                            padding={1}
+                            paddingRight={2}
+                          >
                             <JoinMethodIcon
                               method={t.method}
-                              size={'small'}
+                              size={'large'}
                               includeTooltip={false}
                             />
                             <LabelText>{t.safeName}</LabelText>

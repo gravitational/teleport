@@ -76,22 +76,20 @@ export function Instance(props: {
           </Flex>
           <Flex gap={2}>
             {method ? (
-              <JoinMethodIcon method={method} size={'medium'} />
+              <JoinMethodIcon method={method} size={'large'} />
             ) : undefined}
 
             {os ? (
               <HoverTooltip placement="top" tipContent={os}>
-                <OsIconContainer>
-                  {os === 'darwin' ? (
-                    <ResourceIcon name={'apple'} width={'16px'} />
-                  ) : os === 'windows' ? (
-                    <ResourceIcon name={'windows'} width={'16px'} />
-                  ) : os === 'linux' ? (
-                    <ResourceIcon name={'linux'} width={'16px'} />
-                  ) : (
-                    <ResourceIcon name={'server'} width={'16px'} />
-                  )}
-                </OsIconContainer>
+                {os === 'darwin' ? (
+                  <ResourceIcon name={'apple'} size={'large'} />
+                ) : os === 'windows' ? (
+                  <ResourceIcon name={'windows'} size={'large'} />
+                ) : os === 'linux' ? (
+                  <ResourceIcon name={'linux'} size={'large'} />
+                ) : (
+                  <ResourceIcon name={'server'} size={'large'} />
+                )}
               </HoverTooltip>
             ) : undefined}
           </Flex>
@@ -124,13 +122,6 @@ const BottomRow = styled(Flex)`
   align-items: flex-end;
   gap: ${p => p.theme.space[2]}px;
   overflow: hidden;
-`;
-
-const OsIconContainer = styled(Flex)`
-  width: 20px; // Intentionally not a theme value
-  height: 20px; // Intentionally not a theme value
-  align-items: center;
-  justify-content: center;
 `;
 
 const EmptyText = styled(Text)`
