@@ -130,7 +130,7 @@ func (f *FluentdClient) Send(ctx context.Context, url string, b []byte) error {
 	}
 	defer r.Body.Close()
 
-	if r.StatusCode != http.StatusOK {
+	if r.StatusCode != http.StatusOK && r.StatusCode != http.StatusNoContent {
 		return trace.Errorf("Failed to send event to fluentd (HTTP %v)", r.StatusCode)
 	}
 
