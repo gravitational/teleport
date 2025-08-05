@@ -21,7 +21,7 @@ import (
 	"crypto"
 	"crypto/sha256"
 	"crypto/x509"
-	"encoding/base64"
+	"encoding/hex"
 	"iter"
 	"log/slog"
 	"slices"
@@ -531,7 +531,7 @@ func Fingerprint(pubKey crypto.PublicKey) (string, error) {
 	}
 
 	fp := sha256.Sum256(derPub)
-	return base64.StdEncoding.EncodeToString(fp[:]), nil
+	return hex.EncodeToString(fp[:]), nil
 }
 
 // fingerprints a public RSA key encoded as PEM-wrapped PKIX.
