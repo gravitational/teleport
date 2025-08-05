@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
@@ -249,8 +249,16 @@ func TestAccessListReminders_NoneForNonReviewable(t *testing.T) {
 		accesslist.Static,
 	} {
 		t.Run(string(typ), func(t *testing.T) {
-			nonDynamicAccessList, err := accesslist.NewAccessList(header.Metadata{
-				Name: "test-non-dynamnic-access-list",
+			const testAccessListName = "test-non-reviewable-access-list"
+
+			// Clean up the AccessList. A single one has to be reused, otherwise:
+			// cluster has reached its limit for creating access lists, please contact
+			// the cluster administrator
+			err := as.DeleteAccessList(ctx, testAccessListName)
+			require.True(t, err == nil || trace.IsNotFound(err), "err = %s", err)
+
+			nonReviewableAccessList, err := accesslist.NewAccessList(header.Metadata{
+				Name: testAccessListName,
 			}, accesslist.Spec{
 				Type:   typ,
 				Title:  "test static access list",
@@ -262,7 +270,7 @@ func TestAccessListReminders_NoneForNonReviewable(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			accessLists := []*accesslist.AccessList{nonDynamicAccessList}
+			accessLists := []*accesslist.AccessList{nonReviewableAccessList}
 
 			// No notifications for today
 			advanceAndLookForRecipients(t, bot, as, clock, 0, accessLists)
@@ -451,9 +459,9 @@ func advanceAndLookForRecipients(t *testing.T,
 	require.ElementsMatch(t, expectedRecipients, bot.getLastRecipients())
 }
 
-func newTestAuth(t *testing.T) *auth.TestServer {
-	server, err := auth.NewTestServer(auth.TestServerConfig{
-		Auth: auth.TestAuthServerConfig{
+func newTestAuth(t *testing.T) *authtest.Server {
+	server, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
 			Dir:   t.TempDir(),
 			Clock: clockwork.NewFakeClock(),
 			AuthPreferenceSpec: &types.AuthPreferenceSpecV2{

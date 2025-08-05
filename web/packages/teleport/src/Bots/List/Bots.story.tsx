@@ -25,7 +25,7 @@ import { TeleportProviderBasic } from 'teleport/mocks/providers';
 import { EmptyState } from './EmptyState/EmptyState';
 
 export default {
-  title: 'Teleport/Bots',
+  title: 'Teleport/Bots/List',
 };
 
 export const Empty = () => {
@@ -48,11 +48,9 @@ export const List = () => {
       onClose={() => {}}
       onDelete={() => {}}
       onEdit={() => {}}
-      fetchRoles={async () => []}
+      onSelect={() => {}}
       selectedBot={null}
-      selectedRoles={[]}
       setSelectedBot={() => {}}
-      setSelectedRoles={() => {}}
     />
   );
 };

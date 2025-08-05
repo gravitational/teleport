@@ -33,6 +33,7 @@ import (
 	"net"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -365,7 +366,8 @@ type fakeClientApp struct {
 	teleportHostCA ssh.Signer
 	teleportUserCA ssh.Signer
 
-	onNewConnectionCallCount    atomic.Uint32
+	onNewSSHSessionCallCount    atomic.Uint32
+	onNewAppConnectionCallCount atomic.Uint32
 	onInvalidLocalPortCallCount atomic.Uint32
 	// requestedRouteToApps indexed by public address.
 	requestedRouteToApps   map[string][]*proto.RouteToApp
@@ -565,8 +567,12 @@ func (p *fakeClientApp) GetVnetConfig(ctx context.Context, profileName, leafClus
 	return cfg, nil
 }
 
-func (p *fakeClientApp) OnNewConnection(_ context.Context, _ *vnetv1.AppKey) error {
-	p.onNewConnectionCallCount.Add(1)
+func (p *fakeClientApp) OnNewSSHSession(ctx context.Context, profileName, rootClusterName string) {
+	p.onNewSSHSessionCallCount.Add(1)
+}
+
+func (p *fakeClientApp) OnNewAppConnection(_ context.Context, _ *vnetv1.AppKey) error {
+	p.onNewAppConnectionCallCount.Add(1)
 	return nil
 }
 
@@ -1037,9 +1043,9 @@ func testEchoConnection(t *testing.T, conn net.Conn) {
 	}
 }
 
-// TestOnNewConnection tests that the client applications OnNewConnection method
+// TestOnNewAppConnection tests that the client applications OnNewAppConnection method
 // is called when a user connects to a valid TCP app.
-func TestOnNewConnection(t *testing.T) {
+func TestOnNewAppConnection(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -1067,19 +1073,19 @@ func TestOnNewConnection(t *testing.T) {
 		fakeClientApp: clientApp,
 	})
 
-	// Attempt to establish a connection to an invalid app and verify that OnNewConnection was not
+	// Attempt to establish a connection to an invalid app and verify that OnNewAppConnection was not
 	// called.
 	lookupCtx, lookupCtxCancel := context.WithTimeout(ctx, 200*time.Millisecond)
 	defer lookupCtxCancel()
 	_, err := p.lookupHost(lookupCtx, invalidAppName)
 	require.Error(t, err, "Expected lookup of an invalid app to fail")
-	require.Equal(t, uint32(0), clientApp.onNewConnectionCallCount.Load())
+	require.Equal(t, uint32(0), clientApp.onNewAppConnectionCallCount.Load())
 
-	// Establish a connection to a valid app and verify that OnNewConnection was called.
+	// Establish a connection to a valid app and verify that OnNewAppConnection was called.
 	conn, err := p.dialHost(ctx, validAppName, 80 /* bogus port */)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, conn.Close()) })
-	require.Equal(t, uint32(1), clientApp.onNewConnectionCallCount.Load())
+	require.Equal(t, uint32(1), clientApp.onNewAppConnectionCallCount.Load())
 }
 
 // TestWithAlgorithmSuites tests basic VNet functionality with each signature
@@ -1230,6 +1236,15 @@ func TestSSH(t *testing.T) {
 	badUserSigner, err := ssh.NewSignerFromSigner(badUserKey)
 	require.NoError(t, err)
 
+	// Check that each successful SSH session is reported to the client
+	// application, do this in a t.Cleanup func so that the check runs after
+	// all parallel subtests have completed.
+	var expectReportedSSHSessions atomic.Uint32
+	t.Cleanup(func() {
+		assert.Equal(t, expectReportedSSHSessions.Load(), clientApp.onNewSSHSessionCallCount.Load(),
+			"OnNewSSHSession call count does not match the expected number of reported SSH sessions")
+	})
+
 	for _, tc := range []struct {
 		dialAddr                 string
 		dialPort                 int
@@ -1240,22 +1255,25 @@ func TestSSH(t *testing.T) {
 		sshUserSigner            ssh.Signer
 		expectSSHHandshakeToFail bool
 		expectBannerMessages     []string
+		expectSSHSessionReported bool
 	}{
 		{
 			// Connection to node in root cluster should work.
-			dialAddr:      "node.root1.example.com",
-			dialPort:      22,
-			expectCIDR:    root1CIDR,
-			sshUser:       "testuser",
-			sshUserSigner: sshUserSigner,
+			dialAddr:                 "node.root1.example.com",
+			dialPort:                 22,
+			expectCIDR:               root1CIDR,
+			sshUser:                  "testuser",
+			sshUserSigner:            sshUserSigner,
+			expectSSHSessionReported: true,
 		},
 		{
 			// Fully-qualified hostname should also work.
-			dialAddr:      "node.root1.example.com.",
-			dialPort:      22,
-			expectCIDR:    root1CIDR,
-			sshUser:       "testuser",
-			sshUserSigner: sshUserSigner,
+			dialAddr:                 "node.root1.example.com.",
+			dialPort:                 22,
+			expectCIDR:               root1CIDR,
+			sshUser:                  "testuser",
+			sshUserSigner:            sshUserSigner,
+			expectSSHSessionReported: true,
 		},
 		{
 			// Dial should fail on non-standard SSH port.
@@ -1297,32 +1315,40 @@ func TestSSH(t *testing.T) {
 				"VNet: access denied to denyuser connecting to node\n",
 			},
 			expectSSHHandshakeToFail: true,
+			// The session should be reported because VNet successfully got a
+			// Teleport user SSH cert for this session and made the SSH dial to
+			// the target, only then the target SSH server rejected the
+			// connection.
+			expectSSHSessionReported: true,
 		},
 		{
 			// Connection to node in leaf cluster should work.
-			dialAddr:      "node.leaf1.example.com",
-			dialPort:      22,
-			expectCIDR:    leaf1CIDR,
-			sshUser:       "testuser",
-			sshUserSigner: sshUserSigner,
+			dialAddr:                 "node.leaf1.example.com",
+			dialPort:                 22,
+			expectCIDR:               leaf1CIDR,
+			sshUser:                  "testuser",
+			sshUserSigner:            sshUserSigner,
+			expectSSHSessionReported: true,
 		},
 		{
 			// Connection to node in root cluster in alternate profile should
 			// work.
-			dialAddr:      "node.root2.example.com",
-			dialPort:      22,
-			expectCIDR:    root2CIDR,
-			sshUser:       "testuser",
-			sshUserSigner: sshUserSigner,
+			dialAddr:                 "node.root2.example.com",
+			dialPort:                 22,
+			expectCIDR:               root2CIDR,
+			sshUser:                  "testuser",
+			sshUserSigner:            sshUserSigner,
+			expectSSHSessionReported: true,
 		},
 		{
 			// Connection to node in leaf cluster in alternate profile should
 			// work.
-			dialAddr:      "node.leaf2.example.com",
-			dialPort:      22,
-			expectCIDR:    leaf2CIDR,
-			sshUser:       "testuser",
-			sshUserSigner: sshUserSigner,
+			dialAddr:                 "node.leaf2.example.com",
+			dialPort:                 22,
+			expectCIDR:               leaf2CIDR,
+			sshUser:                  "testuser",
+			sshUserSigner:            sshUserSigner,
+			expectSSHSessionReported: true,
 		},
 		{
 			// DNS lookup should fail if the FQDN doesn't match any cluster.
@@ -1341,6 +1367,10 @@ func TestSSH(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%s@%s:%d", tc.sshUser, tc.dialAddr, tc.dialPort), func(t *testing.T) {
 			t.Parallel()
+
+			if tc.expectSSHSessionReported {
+				expectReportedSSHSessions.Add(1)
+			}
 
 			if tc.expectLookupToFail {
 				// In these cases the DNS lookup is expected to fail, just run the DNS lookup.
@@ -1400,7 +1430,8 @@ func TestSSH(t *testing.T) {
 					return nil
 				},
 			}
-			sshConn, chans, reqs, err := ssh.NewClientConn(conn, fmt.Sprintf("%s:%d", tc.dialAddr, tc.dialPort), clientConfig)
+
+			sshConn, chans, reqs, err := ssh.NewClientConn(conn, net.JoinHostPort(tc.dialAddr, strconv.Itoa(tc.dialPort)), clientConfig)
 			assert.Equal(t, tc.expectBannerMessages, bannerMessages, "actual banner messages did not match the expected")
 			if tc.expectSSHHandshakeToFail {
 				assert.Error(t, err, "expected SSH handshake to fail")
@@ -1433,6 +1464,7 @@ func TestSSH(t *testing.T) {
 			sshConn, _, _, err := ssh.NewClientConn(conn, "node.root1.example.com:22", clientConfig)
 			require.NoError(t, err)
 			sshConn.Close()
+			expectReportedSSHSessions.Add(1)
 		}
 		require.Len(t, checkedHostCerts, connections)
 		for i := range connections - 1 {

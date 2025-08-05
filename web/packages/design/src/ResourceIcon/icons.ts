@@ -189,6 +189,10 @@ import mattermostDark from './assets/mattermost-dark.svg?no-inline';
 import mattermostLight from './assets/mattermost-light.svg?no-inline';
 import maxioDark from './assets/maxio-dark.svg?no-inline';
 import maxioLight from './assets/maxio-light.svg?no-inline';
+import mcpCursorDark from './assets/mcpcursor-dark.svg';
+import mcpCursorLight from './assets/mcpcursor-dark.svg';
+import mcpVscode from './assets/mcpvscode.svg';
+import mcpVscodeInsiders from './assets/mcpvscodeinsiders.svg';
 import metabase from './assets/metabase.svg?no-inline';
 import microsoft from './assets/microsoft.svg?no-inline';
 import microsoftexcel from './assets/microsoftexcel.svg?no-inline';
@@ -272,6 +276,7 @@ import snowflake from './assets/snowflake.svg?no-inline';
 import spaceliftDark from './assets/spacelift-dark.svg?no-inline';
 import spaceliftLight from './assets/spacelift-light.svg?no-inline';
 import sparrow from './assets/sparrow.svg?no-inline';
+import strapi from './assets/strapi.svg?no-inline';
 import stripeDark from './assets/stripe-dark.svg?no-inline';
 import stripeLight from './assets/stripe-light.svg?no-inline';
 import tableau from './assets/tableau.svg?no-inline';
@@ -480,6 +485,10 @@ export {
   mattermostLight,
   maxioDark,
   maxioLight,
+  mcpCursorDark,
+  mcpCursorLight,
+  mcpVscode,
+  mcpVscodeInsiders,
   metabase,
   microsoft,
   microsoftexcel,
@@ -563,6 +572,7 @@ export {
   spaceliftDark,
   spaceliftLight,
   sparrow,
+  strapi,
   stripeDark,
   stripeLight,
   tableau,

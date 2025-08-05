@@ -38,8 +38,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -415,10 +415,10 @@ func TestPasswordlessProhibitedForSSO(t *testing.T) {
 	ctx := context.Background()
 
 	// Register a passwordless device.
-	userClient, err := testServer.NewClient(auth.TestUser(user))
+	userClient, err := testServer.NewClient(authtest.TestUser(user))
 	require.NoError(t, err, "NewClient failed")
-	pwdlessDev, err := auth.RegisterTestDevice(
-		ctx, userClient, "pwdless", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, mfa.WebDev, auth.WithPasswordless())
+	pwdlessDev, err := authtest.RegisterTestDevice(
+		ctx, userClient, "pwdless", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, mfa.WebDev, authtest.WithPasswordless())
 	require.NoError(t, err, "RegisterTestDevice failed")
 
 	// Update the user so it looks like an SSO user.
@@ -604,7 +604,7 @@ func TestAuthenticate_deviceWebToken(t *testing.T) {
 
 type configureMFAResp struct {
 	User, Password string
-	WebDev         *auth.TestDevice
+	WebDev         *authtest.Device
 }
 
 func configureClusterForMFA(t *testing.T, env *webPack, spec *types.AuthPreferenceSpecV2) *configureMFAResp {
@@ -624,9 +624,9 @@ func configureClusterForMFA(t *testing.T, env *webPack, spec *types.AuthPreferen
 	env.proxies[0].createUser(ctx, t, user, "root", "password1234", "" /* otpSecret */, nil /* roles */)
 
 	// Register device.
-	clt, err := env.server.NewClient(auth.TestUser(user))
+	clt, err := env.server.NewClient(authtest.TestUser(user))
 	require.NoError(t, err)
-	webDev, err := auth.RegisterTestDevice(ctx, clt, "webauthn", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
+	webDev, err := authtest.RegisterTestDevice(ctx, clt, "webauthn", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
 	require.NoError(t, err)
 
 	return &configureMFAResp{
