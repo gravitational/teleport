@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/http2"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
@@ -117,6 +118,12 @@ const (
 
 	// HTTPRequestTimeout is a default timeout for HTTP requests
 	HTTPRequestTimeout = 30 * time.Second
+
+	// HTTP2ReadIdleTimeout is the amount of time to wait before sending a ping on idle connection
+	HTTP2ReadIdleTimeout = 30 * time.Second
+
+	// HTTP2PingTimeout is the amount of time to wait for ping response
+	HTTP2PingTimeout = 15 * time.Second
 
 	// WebHeadersTimeout is a timeout that is set for web requests
 	// before browsers raise "Timeout waiting web headers" error in
@@ -844,6 +851,16 @@ func Transport() (*http.Transport, error) {
 	// connections open forever and will cause memory leaks in a long-running
 	// process.
 	tr.IdleConnTimeout = HTTPIdleTimeout
+
+	// Set HTTP2 health check to make sure connection is still good otherwise the client
+	// will happily try to send requests on a broken connection
+	// issue: https://github.com/golang/go/issues/36026
+	tr2, err := http2.ConfigureTransports(tr)
+	if err != nil {
+		return tr, trace.Wrap(err, "configuring http2 transport")
+	}
+	tr2.ReadIdleTimeout = HTTP2ReadIdleTimeout
+	tr2.PingTimeout = HTTP2PingTimeout
 
 	return tr, nil
 }
