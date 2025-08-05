@@ -2679,7 +2679,7 @@ func serverWithAllowRules(t *testing.T, srv *authtest.AuthServer, allowRules []t
 	_, err = srv.AuthServer.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	localUser := authz.LocalUser{Username: username, Identity: tlsca.Identity{Username: username}}
+	localUser := authz.LocalUser{Username: username, Identity: tlsca.Identity{Username: username, Groups: []string{role.GetName()}}}
 	authContext, err := authz.ContextForLocalUser(ctx, localUser, srv.AuthServer.Services, srv.ClusterName, true /* disableDeviceAuthz */)
 	require.NoError(t, err)
 	authContext.AdminActionAuthState = authz.AdminActionAuthMFAVerified
@@ -3589,7 +3589,7 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
-	user, _, err := authtest.CreateUserAndRole(srv.AuthServer, "test-user", []string{}, nil)
+	user, role, err := authtest.CreateUserAndRole(srv.AuthServer, "test-user", []string{}, nil)
 	require.NoError(t, err)
 
 	targetCluster := "cluster"
@@ -3600,7 +3600,7 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 	}{
 		{
 			desc:     "users may not replace remote locks",
-			identity: authtest.TestUser(user.GetName()),
+			identity: authtest.TestUserWithRoles(user.GetName(), []string{role.GetName()}),
 			checkErr: trace.IsAccessDenied,
 		},
 		{
@@ -3830,7 +3830,7 @@ func TestKindClusterConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	getClusterConfigResources := func(ctx context.Context, user types.User) []error {
-		authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestUser(user.GetName()).I))
+		authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I))
 		require.NoError(t, err, trace.DebugReport(err))
 		s := auth.NewServerWithRoles(
 			srv.AuthServer,
@@ -3844,7 +3844,9 @@ func TestKindClusterConfig(t *testing.T) {
 	}
 
 	t.Run("without KindClusterConfig privilege", func(t *testing.T) {
-		user, err := authtest.CreateUser(ctx, srv.AuthServer, "test-user")
+		role, err := types.NewRole("test-role", types.RoleSpecV6{})
+		require.NoError(t, err)
+		user, err := authtest.CreateUser(ctx, srv.AuthServer, "test-user", role)
 		require.NoError(t, err)
 		for _, err := range getClusterConfigResources(ctx, user) {
 			require.Error(t, err)
@@ -4756,7 +4758,7 @@ func TestListResources_KindUserGroup(t *testing.T) {
 	testUg2 := createUserGroup(t, srv.AuthServer, "a", map[string]string{"label": "value"})
 	testUg3 := createUserGroup(t, srv.AuthServer, "b", map[string]string{"label": "value"})
 
-	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestUser(user.GetName()).I))
+	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestUserWithRoles(user.GetName(), []string{role.GetName()}).I))
 	require.NoError(t, err)
 
 	s := auth.NewServerWithRoles(
@@ -8693,6 +8695,9 @@ func TestGenerateCertAuthorityCRL(t *testing.T) {
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
+	_, err = authtest.CreateRole(ctx, srv.AuthServer.Services, "rolename", types.RoleSpecV6{})
+	require.NoError(t, err)
+
 	// Create a test user.
 	_, err = authtest.CreateUser(ctx, srv.AuthServer.Services, "username")
 	require.NoError(t, err)
@@ -8709,7 +8714,7 @@ func TestGenerateCertAuthorityCRL(t *testing.T) {
 		},
 		{
 			desc:      "User",
-			identity:  authtest.TestUser("username"),
+			identity:  authtest.TestUserWithRoles("username", []string{"rolename"}),
 			assertErr: require.NoError,
 		},
 		{
