@@ -51,7 +51,7 @@ type Evaluator interface {
 type NullEvaluator struct{}
 
 // Evaluate returns the input traits unmodified.
-func (NullEvaluator) Evaluate(_ context.Context, input *EvaluationInput) (*EvaluationOutput, error) {
+func (NullEvaluator) Evaluate(ctx context.Context, input *EvaluationInput) (*EvaluationOutput, error) {
 	return &EvaluationOutput{
 		Traits: input.Traits,
 	}, nil

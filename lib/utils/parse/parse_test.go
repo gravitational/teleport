@@ -303,7 +303,7 @@ func TestInterpolate(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.ElementsMatch(t, tt.res.values, values)
+			require.Equal(t, tt.res.values, values)
 		})
 	}
 }

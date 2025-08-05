@@ -220,10 +220,9 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 
 // NewTraitsExpressionParser returns new expression parser using evaluation environment and default parser spec.
 func NewTraitsExpressionParser[TEnv any](vars evaluationEnvVar) (*typical.Parser[TEnv, any], error) {
-	spec := DefaultParserSpec[TEnv]()
-	spec.Variables = vars
-
-	parser, err := typical.NewParser[TEnv, any](spec)
+	defParserSpec := DefaultParserSpec[TEnv]()
+	defParserSpec.Variables = vars
+	parser, err := typical.NewParser[TEnv, any](defParserSpec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
