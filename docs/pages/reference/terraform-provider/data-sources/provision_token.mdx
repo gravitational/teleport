@@ -240,14 +240,22 @@ Optional:
 Optional:
 
 - `allow` (Attributes List) Allow is a list of Rules, nodes using this token must match one allow rule to use this token. (see [below for nested schema](#nested-schema-for-speckubernetesallow))
+- `oidc` (Attributes) OIDCConfig configures the `oidc` type. (see [below for nested schema](#nested-schema-for-speckubernetesoidc))
 - `static_jwks` (Attributes) StaticJWKS is the configuration specific to the `static_jwks` type. (see [below for nested schema](#nested-schema-for-speckubernetesstatic_jwks))
-- `type` (String) Type controls which behavior should be used for validating the Kubernetes Service Account token. Support values: - `in_cluster` - `static_jwks` If unset, this defaults to `in_cluster`.
+- `type` (String) Type controls which behavior should be used for validating the Kubernetes Service Account token. Support values: - `in_cluster` - `static_jwks` - `oidc` If unset, this defaults to `in_cluster`.
 
 ### Nested Schema for `spec.kubernetes.allow`
 
 Optional:
 
 - `service_account` (String) ServiceAccount is the namespaced name of the Kubernetes service account. Its format is "namespace:service-account".
+
+
+### Nested Schema for `spec.kubernetes.oidc`
+
+Optional:
+
+- `issuer` (String) Issuer is the URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/oidc-configuration` endpoint.
 
 
 ### Nested Schema for `spec.kubernetes.static_jwks`

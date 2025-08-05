@@ -1607,6 +1607,15 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 							Description: "Allow is a list of Rules, nodes using this token must match one allow rule to use this token.",
 							Optional:    true,
 						},
+						"oidc": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"issuer": {
+								Description: "Issuer is the URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/oidc-configuration` endpoint.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							}}),
+							Description: "OIDCConfig configures the `oidc` type.",
+							Optional:    true,
+						},
 						"static_jwks": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"jwks": {
 								Description: "JWKS should be the JSON Web Key Set formatted public keys of that the Kubernetes Cluster uses to sign service account tokens. This can be fetched from /openid/v1/jwks on the Kubernetes API Server.",
@@ -1617,7 +1626,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 							Optional:    true,
 						},
 						"type": {
-							Description: "Type controls which behavior should be used for validating the Kubernetes Service Account token. Support values: - `in_cluster` - `static_jwks` If unset, this defaults to `in_cluster`.",
+							Description: "Type controls which behavior should be used for validating the Kubernetes Service Account token. Support values: - `in_cluster` - `static_jwks` - `oidc` If unset, this defaults to `in_cluster`.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -14923,6 +14932,41 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["oidc"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.OIDC = nil
+												if !v.Null && !v.Unknown {
+													tf := v
+													obj.OIDC = &github_com_gravitational_teleport_api_types.ProvisionTokenSpecV2Kubernetes_OIDCConfig{}
+													obj := obj.OIDC
+													{
+														a, ok := tf.Attrs["issuer"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC.Issuer"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC.Issuer", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.Issuer = t
+															}
+														}
+													}
+												}
+											}
+										}
+									}
 								}
 							}
 						}
@@ -17999,6 +18043,60 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 												}
 												v.Unknown = false
 												tf.Attrs["static_jwks"] = v
+											}
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["oidc"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["oidc"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+												if !ok {
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
+												}
+												if obj.OIDC == nil {
+													v.Null = true
+												} else {
+													obj := obj.OIDC
+													tf := &v
+													{
+														t, ok := tf.AttrTypes["issuer"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC.Issuer"})
+														} else {
+															v, ok := tf.Attrs["issuer"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.Kubernetes.OIDC.Issuer", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC.Issuer", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.Issuer) == ""
+															}
+															v.Value = string(obj.Issuer)
+															v.Unknown = false
+															tf.Attrs["issuer"] = v
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["oidc"] = v
 											}
 										}
 									}
