@@ -68,7 +68,7 @@ GCP relies heavily on [Health Checks](https://cloud.google.com/load-balancing/do
 this is helpful when adding new instances to an instance group.
 
 To enable health checks in Teleport start with `teleport start --diag-addr=0.0.0.0:3000`
-see  [Admin Guide: Troubleshooting](../../../admin-guides/management/admin/troubleshooting.mdx) for more information.
+see  [Admin Guide: Troubleshooting](../../management/admin/troubleshooting.mdx) for more information.
 
 ### Storage: Cloud Firestore
 
@@ -224,7 +224,7 @@ We recommend configuring Teleport as per the below steps:
 <Tabs>
 	<TabItem label="Teleport Community Edition" scope="oss">
 **1. Configure Teleport Auth Service** using the below example `teleport.yaml`, and start it
-using [systemd](../../../admin-guides/management/admin/daemon.mdx). The DEB/RPM installations will
+using [systemd](../../management/admin/daemon.mdx). The DEB/RPM installations will
 automatically include the `systemd` configuration.
 
 ```yaml
@@ -259,7 +259,7 @@ ssh_service:
 	</TabItem>
 	<TabItem label="Enterprise" label="Enterprise" scope={["enterprise"]}>
 **1. Configure Teleport Auth Service** using the below example `teleport.yaml`, and start it
-using [systemd](../../../admin-guides/management/admin/daemon.mdx). The DEB/RPM installations will
+using [systemd](../../management/admin/daemon.mdx). The DEB/RPM installations will
 automatically include the `systemd` configuration.
 
 ```yaml
@@ -350,6 +350,6 @@ proxy_service:
 
 **4. Add Users**
 
-Follow our [Local Users](../../../admin-guides/management/admin/users.mdx) guide or integrate
+Follow our [Local Users](../../management/admin/users.mdx) guide or integrate
 with [Google Workspace](../../../zero-trust-access/sso/google-workspace.mdx) to
 provide SSO access.
