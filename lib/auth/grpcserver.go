@@ -1212,11 +1212,9 @@ func (g *GRPCServer) ListResetPasswordTokens(ctx context.Context, req *authpb.Li
 		}
 	}
 	return &authpb.ListResetPasswordTokenResponse{
-		UserTokens:  userTokensV3,
-		NextKey: nextKey,
+		UserTokens: userTokensV3,
+		NextKey:    nextKey,
 	}, nil
-}
-
 }
 
 // GetPluginData loads all plugin data matching the supplied filter.
