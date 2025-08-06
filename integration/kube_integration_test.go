@@ -734,10 +734,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 				// Wait for pod deletion.
 				require.Eventually(t, func() bool {
 					if _, err := suite.CoreV1().Pods(testNamespace).Get(context.Background(), testPod, metav1.GetOptions{}); err != nil {
-						if kubeerrors.IsNotFound(err) {
-							return true
-						}
-						return false
+						return kubeerrors.IsNotFound(err)
 					}
 					return false
 				}, 60*time.Second, 500*time.Millisecond)
