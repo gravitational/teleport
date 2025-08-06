@@ -93,6 +93,54 @@ func (LabelUpdateKind) EnumDescriptor() ([]byte, []int) {
 	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{0}
 }
 
+// StopHeartbeatKind is the type of heartbeat to stop.
+type StopHeartbeatKind int32
+
+const (
+	StopHeartbeatKind_STOP_HEARTBEAT_KIND_UNSPECIFIED StopHeartbeatKind = 0
+	// STOP_HEARTBEAT_KIND_DATABASE_SERVER means stop a database server heartbeat.
+	StopHeartbeatKind_STOP_HEARTBEAT_KIND_DATABASE_SERVER StopHeartbeatKind = 1
+)
+
+// Enum value maps for StopHeartbeatKind.
+var (
+	StopHeartbeatKind_name = map[int32]string{
+		0: "STOP_HEARTBEAT_KIND_UNSPECIFIED",
+		1: "STOP_HEARTBEAT_KIND_DATABASE_SERVER",
+	}
+	StopHeartbeatKind_value = map[string]int32{
+		"STOP_HEARTBEAT_KIND_UNSPECIFIED":     0,
+		"STOP_HEARTBEAT_KIND_DATABASE_SERVER": 1,
+	}
+)
+
+func (x StopHeartbeatKind) Enum() *StopHeartbeatKind {
+	p := new(StopHeartbeatKind)
+	*p = x
+	return p
+}
+
+func (x StopHeartbeatKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (StopHeartbeatKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_legacy_client_proto_inventory_proto_enumTypes[1].Descriptor()
+}
+
+func (StopHeartbeatKind) Type() protoreflect.EnumType {
+	return &file_teleport_legacy_client_proto_inventory_proto_enumTypes[1]
+}
+
+func (x StopHeartbeatKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use StopHeartbeatKind.Descriptor instead.
+func (StopHeartbeatKind) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{1}
+}
+
 // UpstreamInventoryOneOf is the upstream message for the inventory control stream,
 // sent from teleport instances to the auth server.
 type UpstreamInventoryOneOf struct {
@@ -106,6 +154,7 @@ type UpstreamInventoryOneOf struct {
 	//	*UpstreamInventoryOneOf_Pong
 	//	*UpstreamInventoryOneOf_AgentMetadata
 	//	*UpstreamInventoryOneOf_Goodbye
+	//	*UpstreamInventoryOneOf_StopHeartbeat
 	Msg           isUpstreamInventoryOneOf_Msg `protobuf_oneof:"Msg"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -193,6 +242,15 @@ func (x *UpstreamInventoryOneOf) GetGoodbye() *UpstreamInventoryGoodbye {
 	return nil
 }
 
+func (x *UpstreamInventoryOneOf) GetStopHeartbeat() *UpstreamInventoryStopHeartbeat {
+	if x != nil {
+		if x, ok := x.Msg.(*UpstreamInventoryOneOf_StopHeartbeat); ok {
+			return x.StopHeartbeat
+		}
+	}
+	return nil
+}
+
 type isUpstreamInventoryOneOf_Msg interface {
 	isUpstreamInventoryOneOf_Msg()
 }
@@ -222,6 +280,12 @@ type UpstreamInventoryOneOf_Goodbye struct {
 	Goodbye *UpstreamInventoryGoodbye `protobuf:"bytes,5,opt,name=Goodbye,proto3,oneof"`
 }
 
+type UpstreamInventoryOneOf_StopHeartbeat struct {
+	// UpstreamInventoryStopHeartbeat informs the upstream service that a
+	// heartbeat is stopping.
+	StopHeartbeat *UpstreamInventoryStopHeartbeat `protobuf:"bytes,6,opt,name=stop_heartbeat,json=stopHeartbeat,proto3,oneof"`
+}
+
 func (*UpstreamInventoryOneOf_Hello) isUpstreamInventoryOneOf_Msg() {}
 
 func (*UpstreamInventoryOneOf_Heartbeat) isUpstreamInventoryOneOf_Msg() {}
@@ -231,6 +295,8 @@ func (*UpstreamInventoryOneOf_Pong) isUpstreamInventoryOneOf_Msg() {}
 func (*UpstreamInventoryOneOf_AgentMetadata) isUpstreamInventoryOneOf_Msg() {}
 
 func (*UpstreamInventoryOneOf_Goodbye) isUpstreamInventoryOneOf_Msg() {}
+
+func (*UpstreamInventoryOneOf_StopHeartbeat) isUpstreamInventoryOneOf_Msg() {}
 
 // DownstreamInventoryOneOf is the downstream message for the inventory control stream,
 // sent from auth servers to teleport instances.
@@ -1105,6 +1171,62 @@ func (x *InventoryStatusSummary) GetServiceCounts() map[string]uint32 {
 	return nil
 }
 
+// UpstreamInventoryStopHeartbeat informs the upstream service that the
+// heartbeat is stopping.
+type UpstreamInventoryStopHeartbeat struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Kind is the kind of heartbeat to stop.
+	Kind StopHeartbeatKind `protobuf:"varint,1,opt,name=kind,proto3,enum=proto.StopHeartbeatKind" json:"kind,omitempty"`
+	// Name is the name of the heatbeat to stop.
+	Name          string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpstreamInventoryStopHeartbeat) Reset() {
+	*x = UpstreamInventoryStopHeartbeat{}
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpstreamInventoryStopHeartbeat) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpstreamInventoryStopHeartbeat) ProtoMessage() {}
+
+func (x *UpstreamInventoryStopHeartbeat) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpstreamInventoryStopHeartbeat.ProtoReflect.Descriptor instead.
+func (*UpstreamInventoryStopHeartbeat) Descriptor() ([]byte, []int) {
+	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *UpstreamInventoryStopHeartbeat) GetKind() StopHeartbeatKind {
+	if x != nil {
+		return x.Kind
+	}
+	return StopHeartbeatKind_STOP_HEARTBEAT_KIND_UNSPECIFIED
+}
+
+func (x *UpstreamInventoryStopHeartbeat) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
 // SupportedCapabilities indicate which features of the ICS that
 // the connect auth server supports. This allows agents to determine
 // how they should interact with the auth server to maintain compatibility.
@@ -1146,13 +1268,15 @@ type DownstreamInventoryHello_SupportedCapabilities struct {
 	KubernetesHeartbeats bool `protobuf:"varint,17,opt,name=KubernetesHeartbeats,proto3" json:"KubernetesHeartbeats,omitempty"`
 	// KubernetesCleanup indicates the ICS supports deleting kubernetes clusters when UpstreamInventoryGoodbye.DeleteResources is set.
 	KubernetesCleanup bool `protobuf:"varint,18,opt,name=KubernetesCleanup,proto3" json:"KubernetesCleanup,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// DatabaseHeartbeatGracefulStop indicates the ICS supports stopping an individual database heartbeat.
+	DatabaseHeartbeatGracefulStop bool `protobuf:"varint,20,opt,name=database_heartbeat_graceful_stop,json=databaseHeartbeatGracefulStop,proto3" json:"database_heartbeat_graceful_stop,omitempty"`
+	unknownFields                 protoimpl.UnknownFields
+	sizeCache                     protoimpl.SizeCache
 }
 
 func (x *DownstreamInventoryHello_SupportedCapabilities) Reset() {
 	*x = DownstreamInventoryHello_SupportedCapabilities{}
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[13]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1164,7 +1288,7 @@ func (x *DownstreamInventoryHello_SupportedCapabilities) String() string {
 func (*DownstreamInventoryHello_SupportedCapabilities) ProtoMessage() {}
 
 func (x *DownstreamInventoryHello_SupportedCapabilities) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[13]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1306,17 +1430,25 @@ func (x *DownstreamInventoryHello_SupportedCapabilities) GetKubernetesCleanup() 
 	return false
 }
 
+func (x *DownstreamInventoryHello_SupportedCapabilities) GetDatabaseHeartbeatGracefulStop() bool {
+	if x != nil {
+		return x.DatabaseHeartbeatGracefulStop
+	}
+	return false
+}
+
 var File_teleport_legacy_client_proto_inventory_proto protoreflect.FileDescriptor
 
 const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\n" +
-	",teleport/legacy/client/proto/inventory.proto\x12\x05proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/legacy/types/types.proto\"\xd1\x02\n" +
+	",teleport/legacy/client/proto/inventory.proto\x12\x05proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/legacy/types/types.proto\"\xa1\x03\n" +
 	"\x16UpstreamInventoryOneOf\x125\n" +
 	"\x05Hello\x18\x01 \x01(\v2\x1d.proto.UpstreamInventoryHelloH\x00R\x05Hello\x129\n" +
 	"\tHeartbeat\x18\x02 \x01(\v2\x19.proto.InventoryHeartbeatH\x00R\tHeartbeat\x122\n" +
 	"\x04Pong\x18\x03 \x01(\v2\x1c.proto.UpstreamInventoryPongH\x00R\x04Pong\x12M\n" +
 	"\rAgentMetadata\x18\x04 \x01(\v2%.proto.UpstreamInventoryAgentMetadataH\x00R\rAgentMetadata\x12;\n" +
-	"\aGoodbye\x18\x05 \x01(\v2\x1f.proto.UpstreamInventoryGoodbyeH\x00R\aGoodbyeB\x05\n" +
+	"\aGoodbye\x18\x05 \x01(\v2\x1f.proto.UpstreamInventoryGoodbyeH\x00R\aGoodbye\x12N\n" +
+	"\x0estop_heartbeat\x18\x06 \x01(\v2%.proto.UpstreamInventoryStopHeartbeatH\x00R\rstopHeartbeatB\x05\n" +
 	"\x03Msg\"\xde\x01\n" +
 	"\x18DownstreamInventoryOneOf\x127\n" +
 	"\x05Hello\x18\x01 \x01(\v2\x1f.proto.DownstreamInventoryHelloH\x00R\x05Hello\x124\n" +
@@ -1344,11 +1476,11 @@ const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\x0eInstallMethods\x18\x05 \x03(\tR\x0eInstallMethods\x12*\n" +
 	"\x10ContainerRuntime\x18\x06 \x01(\tR\x10ContainerRuntime\x124\n" +
 	"\x15ContainerOrchestrator\x18\a \x01(\tR\x15ContainerOrchestrator\x12*\n" +
-	"\x10CloudEnvironment\x18\b \x01(\tR\x10CloudEnvironment\"\x9f\b\n" +
+	"\x10CloudEnvironment\x18\b \x01(\tR\x10CloudEnvironment\"\xe8\b\n" +
 	"\x18DownstreamInventoryHello\x12\x18\n" +
 	"\aVersion\x18\x01 \x01(\tR\aVersion\x12\x1a\n" +
 	"\bServerID\x18\x02 \x01(\tR\bServerID\x12Y\n" +
-	"\fCapabilities\x18\x03 \x01(\v25.proto.DownstreamInventoryHello.SupportedCapabilitiesR\fCapabilities\x1a\xf1\x06\n" +
+	"\fCapabilities\x18\x03 \x01(\v25.proto.DownstreamInventoryHello.SupportedCapabilitiesR\fCapabilities\x1a\xba\a\n" +
 	"\x15SupportedCapabilities\x12(\n" +
 	"\x0fProxyHeartbeats\x18\x01 \x01(\bR\x0fProxyHeartbeats\x12\"\n" +
 	"\fProxyCleanup\x18\x02 \x01(\bR\fProxyCleanup\x12&\n" +
@@ -1370,7 +1502,8 @@ const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\x1fWindowsDesktopServiceHeartbeats\x18\x0f \x01(\bR\x1fWindowsDesktopServiceHeartbeats\x12B\n" +
 	"\x1cWindowsDesktopServiceCleanup\x18\x10 \x01(\bR\x1cWindowsDesktopServiceCleanup\x122\n" +
 	"\x14KubernetesHeartbeats\x18\x11 \x01(\bR\x14KubernetesHeartbeats\x12,\n" +
-	"\x11KubernetesCleanup\x18\x12 \x01(\bR\x11KubernetesCleanup\"\xea\x01\n" +
+	"\x11KubernetesCleanup\x18\x12 \x01(\bR\x11KubernetesCleanup\x12G\n" +
+	" database_heartbeat_graceful_stop\x18\x14 \x01(\bR\x1ddatabaseHeartbeatGracefulStop\"\xea\x01\n" +
 	"\x1cInventoryUpdateLabelsRequest\x12\x1a\n" +
 	"\bServerID\x18\x01 \x01(\tR\bServerID\x12*\n" +
 	"\x04Kind\x18\x02 \x01(\x0e2\x16.proto.LabelUpdateKindR\x04Kind\x12G\n" +
@@ -1410,10 +1543,16 @@ const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\rR\x05value:\x028\x01\x1a@\n" +
 	"\x12ServiceCountsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\rR\x05value:\x028\x01*:\n" +
+	"\x05value\x18\x02 \x01(\rR\x05value:\x028\x01\"b\n" +
+	"\x1eUpstreamInventoryStopHeartbeat\x12,\n" +
+	"\x04kind\x18\x01 \x01(\x0e2\x18.proto.StopHeartbeatKindR\x04kind\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name*:\n" +
 	"\x0fLabelUpdateKind\x12\r\n" +
 	"\tSSHServer\x10\x00\x12\x18\n" +
-	"\x14SSHServerCloudLabels\x10\x01B4Z2github.com/gravitational/teleport/api/client/protob\x06proto3"
+	"\x14SSHServerCloudLabels\x10\x01*a\n" +
+	"\x11StopHeartbeatKind\x12#\n" +
+	"\x1fSTOP_HEARTBEAT_KIND_UNSPECIFIED\x10\x00\x12'\n" +
+	"#STOP_HEARTBEAT_KIND_DATABASE_SERVER\x10\x01B4Z2github.com/gravitational/teleport/api/client/protob\x06proto3"
 
 var (
 	file_teleport_legacy_client_proto_inventory_proto_rawDescOnce sync.Once
@@ -1427,65 +1566,69 @@ func file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP() []byte {
 	return file_teleport_legacy_client_proto_inventory_proto_rawDescData
 }
 
-var file_teleport_legacy_client_proto_inventory_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_teleport_legacy_client_proto_inventory_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_teleport_legacy_client_proto_inventory_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_teleport_legacy_client_proto_inventory_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_teleport_legacy_client_proto_inventory_proto_goTypes = []any{
 	(LabelUpdateKind)(0),                                   // 0: proto.LabelUpdateKind
-	(*UpstreamInventoryOneOf)(nil),                         // 1: proto.UpstreamInventoryOneOf
-	(*DownstreamInventoryOneOf)(nil),                       // 2: proto.DownstreamInventoryOneOf
-	(*DownstreamInventoryPing)(nil),                        // 3: proto.DownstreamInventoryPing
-	(*UpstreamInventoryPong)(nil),                          // 4: proto.UpstreamInventoryPong
-	(*UpstreamInventoryHello)(nil),                         // 5: proto.UpstreamInventoryHello
-	(*UpstreamInventoryAgentMetadata)(nil),                 // 6: proto.UpstreamInventoryAgentMetadata
-	(*DownstreamInventoryHello)(nil),                       // 7: proto.DownstreamInventoryHello
-	(*InventoryUpdateLabelsRequest)(nil),                   // 8: proto.InventoryUpdateLabelsRequest
-	(*DownstreamInventoryUpdateLabels)(nil),                // 9: proto.DownstreamInventoryUpdateLabels
-	(*InventoryHeartbeat)(nil),                             // 10: proto.InventoryHeartbeat
-	(*UpstreamInventoryGoodbye)(nil),                       // 11: proto.UpstreamInventoryGoodbye
-	(*InventoryStatusRequest)(nil),                         // 12: proto.InventoryStatusRequest
-	(*InventoryStatusSummary)(nil),                         // 13: proto.InventoryStatusSummary
-	(*DownstreamInventoryHello_SupportedCapabilities)(nil), // 14: proto.DownstreamInventoryHello.SupportedCapabilities
-	nil,                              // 15: proto.InventoryUpdateLabelsRequest.LabelsEntry
-	nil,                              // 16: proto.DownstreamInventoryUpdateLabels.LabelsEntry
-	nil,                              // 17: proto.InventoryStatusSummary.VersionCountsEntry
-	nil,                              // 18: proto.InventoryStatusSummary.UpgraderCountsEntry
-	nil,                              // 19: proto.InventoryStatusSummary.ServiceCountsEntry
-	(*timestamppb.Timestamp)(nil),    // 20: google.protobuf.Timestamp
-	(*types.UpdaterV2Info)(nil),      // 21: types.UpdaterV2Info
-	(*types.ServerV2)(nil),           // 22: types.ServerV2
-	(*types.AppServerV3)(nil),        // 23: types.AppServerV3
-	(*types.DatabaseServerV3)(nil),   // 24: types.DatabaseServerV3
-	(*types.KubernetesServerV3)(nil), // 25: types.KubernetesServerV3
+	(StopHeartbeatKind)(0),                                 // 1: proto.StopHeartbeatKind
+	(*UpstreamInventoryOneOf)(nil),                         // 2: proto.UpstreamInventoryOneOf
+	(*DownstreamInventoryOneOf)(nil),                       // 3: proto.DownstreamInventoryOneOf
+	(*DownstreamInventoryPing)(nil),                        // 4: proto.DownstreamInventoryPing
+	(*UpstreamInventoryPong)(nil),                          // 5: proto.UpstreamInventoryPong
+	(*UpstreamInventoryHello)(nil),                         // 6: proto.UpstreamInventoryHello
+	(*UpstreamInventoryAgentMetadata)(nil),                 // 7: proto.UpstreamInventoryAgentMetadata
+	(*DownstreamInventoryHello)(nil),                       // 8: proto.DownstreamInventoryHello
+	(*InventoryUpdateLabelsRequest)(nil),                   // 9: proto.InventoryUpdateLabelsRequest
+	(*DownstreamInventoryUpdateLabels)(nil),                // 10: proto.DownstreamInventoryUpdateLabels
+	(*InventoryHeartbeat)(nil),                             // 11: proto.InventoryHeartbeat
+	(*UpstreamInventoryGoodbye)(nil),                       // 12: proto.UpstreamInventoryGoodbye
+	(*InventoryStatusRequest)(nil),                         // 13: proto.InventoryStatusRequest
+	(*InventoryStatusSummary)(nil),                         // 14: proto.InventoryStatusSummary
+	(*UpstreamInventoryStopHeartbeat)(nil),                 // 15: proto.UpstreamInventoryStopHeartbeat
+	(*DownstreamInventoryHello_SupportedCapabilities)(nil), // 16: proto.DownstreamInventoryHello.SupportedCapabilities
+	nil,                              // 17: proto.InventoryUpdateLabelsRequest.LabelsEntry
+	nil,                              // 18: proto.DownstreamInventoryUpdateLabels.LabelsEntry
+	nil,                              // 19: proto.InventoryStatusSummary.VersionCountsEntry
+	nil,                              // 20: proto.InventoryStatusSummary.UpgraderCountsEntry
+	nil,                              // 21: proto.InventoryStatusSummary.ServiceCountsEntry
+	(*timestamppb.Timestamp)(nil),    // 22: google.protobuf.Timestamp
+	(*types.UpdaterV2Info)(nil),      // 23: types.UpdaterV2Info
+	(*types.ServerV2)(nil),           // 24: types.ServerV2
+	(*types.AppServerV3)(nil),        // 25: types.AppServerV3
+	(*types.DatabaseServerV3)(nil),   // 26: types.DatabaseServerV3
+	(*types.KubernetesServerV3)(nil), // 27: types.KubernetesServerV3
 }
 var file_teleport_legacy_client_proto_inventory_proto_depIdxs = []int32{
-	5,  // 0: proto.UpstreamInventoryOneOf.Hello:type_name -> proto.UpstreamInventoryHello
-	10, // 1: proto.UpstreamInventoryOneOf.Heartbeat:type_name -> proto.InventoryHeartbeat
-	4,  // 2: proto.UpstreamInventoryOneOf.Pong:type_name -> proto.UpstreamInventoryPong
-	6,  // 3: proto.UpstreamInventoryOneOf.AgentMetadata:type_name -> proto.UpstreamInventoryAgentMetadata
-	11, // 4: proto.UpstreamInventoryOneOf.Goodbye:type_name -> proto.UpstreamInventoryGoodbye
-	7,  // 5: proto.DownstreamInventoryOneOf.Hello:type_name -> proto.DownstreamInventoryHello
-	3,  // 6: proto.DownstreamInventoryOneOf.Ping:type_name -> proto.DownstreamInventoryPing
-	9,  // 7: proto.DownstreamInventoryOneOf.UpdateLabels:type_name -> proto.DownstreamInventoryUpdateLabels
-	20, // 8: proto.UpstreamInventoryPong.SystemClock:type_name -> google.protobuf.Timestamp
-	21, // 9: proto.UpstreamInventoryHello.UpdaterInfo:type_name -> types.UpdaterV2Info
-	14, // 10: proto.DownstreamInventoryHello.Capabilities:type_name -> proto.DownstreamInventoryHello.SupportedCapabilities
-	0,  // 11: proto.InventoryUpdateLabelsRequest.Kind:type_name -> proto.LabelUpdateKind
-	15, // 12: proto.InventoryUpdateLabelsRequest.Labels:type_name -> proto.InventoryUpdateLabelsRequest.LabelsEntry
-	0,  // 13: proto.DownstreamInventoryUpdateLabels.Kind:type_name -> proto.LabelUpdateKind
-	16, // 14: proto.DownstreamInventoryUpdateLabels.Labels:type_name -> proto.DownstreamInventoryUpdateLabels.LabelsEntry
-	22, // 15: proto.InventoryHeartbeat.SSHServer:type_name -> types.ServerV2
-	23, // 16: proto.InventoryHeartbeat.AppServer:type_name -> types.AppServerV3
-	24, // 17: proto.InventoryHeartbeat.DatabaseServer:type_name -> types.DatabaseServerV3
-	25, // 18: proto.InventoryHeartbeat.KubernetesServer:type_name -> types.KubernetesServerV3
-	5,  // 19: proto.InventoryStatusSummary.Connected:type_name -> proto.UpstreamInventoryHello
-	17, // 20: proto.InventoryStatusSummary.VersionCounts:type_name -> proto.InventoryStatusSummary.VersionCountsEntry
-	18, // 21: proto.InventoryStatusSummary.UpgraderCounts:type_name -> proto.InventoryStatusSummary.UpgraderCountsEntry
-	19, // 22: proto.InventoryStatusSummary.ServiceCounts:type_name -> proto.InventoryStatusSummary.ServiceCountsEntry
-	23, // [23:23] is the sub-list for method output_type
-	23, // [23:23] is the sub-list for method input_type
-	23, // [23:23] is the sub-list for extension type_name
-	23, // [23:23] is the sub-list for extension extendee
-	0,  // [0:23] is the sub-list for field type_name
+	6,  // 0: proto.UpstreamInventoryOneOf.Hello:type_name -> proto.UpstreamInventoryHello
+	11, // 1: proto.UpstreamInventoryOneOf.Heartbeat:type_name -> proto.InventoryHeartbeat
+	5,  // 2: proto.UpstreamInventoryOneOf.Pong:type_name -> proto.UpstreamInventoryPong
+	7,  // 3: proto.UpstreamInventoryOneOf.AgentMetadata:type_name -> proto.UpstreamInventoryAgentMetadata
+	12, // 4: proto.UpstreamInventoryOneOf.Goodbye:type_name -> proto.UpstreamInventoryGoodbye
+	15, // 5: proto.UpstreamInventoryOneOf.stop_heartbeat:type_name -> proto.UpstreamInventoryStopHeartbeat
+	8,  // 6: proto.DownstreamInventoryOneOf.Hello:type_name -> proto.DownstreamInventoryHello
+	4,  // 7: proto.DownstreamInventoryOneOf.Ping:type_name -> proto.DownstreamInventoryPing
+	10, // 8: proto.DownstreamInventoryOneOf.UpdateLabels:type_name -> proto.DownstreamInventoryUpdateLabels
+	22, // 9: proto.UpstreamInventoryPong.SystemClock:type_name -> google.protobuf.Timestamp
+	23, // 10: proto.UpstreamInventoryHello.UpdaterInfo:type_name -> types.UpdaterV2Info
+	16, // 11: proto.DownstreamInventoryHello.Capabilities:type_name -> proto.DownstreamInventoryHello.SupportedCapabilities
+	0,  // 12: proto.InventoryUpdateLabelsRequest.Kind:type_name -> proto.LabelUpdateKind
+	17, // 13: proto.InventoryUpdateLabelsRequest.Labels:type_name -> proto.InventoryUpdateLabelsRequest.LabelsEntry
+	0,  // 14: proto.DownstreamInventoryUpdateLabels.Kind:type_name -> proto.LabelUpdateKind
+	18, // 15: proto.DownstreamInventoryUpdateLabels.Labels:type_name -> proto.DownstreamInventoryUpdateLabels.LabelsEntry
+	24, // 16: proto.InventoryHeartbeat.SSHServer:type_name -> types.ServerV2
+	25, // 17: proto.InventoryHeartbeat.AppServer:type_name -> types.AppServerV3
+	26, // 18: proto.InventoryHeartbeat.DatabaseServer:type_name -> types.DatabaseServerV3
+	27, // 19: proto.InventoryHeartbeat.KubernetesServer:type_name -> types.KubernetesServerV3
+	6,  // 20: proto.InventoryStatusSummary.Connected:type_name -> proto.UpstreamInventoryHello
+	19, // 21: proto.InventoryStatusSummary.VersionCounts:type_name -> proto.InventoryStatusSummary.VersionCountsEntry
+	20, // 22: proto.InventoryStatusSummary.UpgraderCounts:type_name -> proto.InventoryStatusSummary.UpgraderCountsEntry
+	21, // 23: proto.InventoryStatusSummary.ServiceCounts:type_name -> proto.InventoryStatusSummary.ServiceCountsEntry
+	1,  // 24: proto.UpstreamInventoryStopHeartbeat.kind:type_name -> proto.StopHeartbeatKind
+	25, // [25:25] is the sub-list for method output_type
+	25, // [25:25] is the sub-list for method input_type
+	25, // [25:25] is the sub-list for extension type_name
+	25, // [25:25] is the sub-list for extension extendee
+	0,  // [0:25] is the sub-list for field type_name
 }
 
 func init() { file_teleport_legacy_client_proto_inventory_proto_init() }
@@ -1499,6 +1642,7 @@ func file_teleport_legacy_client_proto_inventory_proto_init() {
 		(*UpstreamInventoryOneOf_Pong)(nil),
 		(*UpstreamInventoryOneOf_AgentMetadata)(nil),
 		(*UpstreamInventoryOneOf_Goodbye)(nil),
+		(*UpstreamInventoryOneOf_StopHeartbeat)(nil),
 	}
 	file_teleport_legacy_client_proto_inventory_proto_msgTypes[1].OneofWrappers = []any{
 		(*DownstreamInventoryOneOf_Hello)(nil),
@@ -1510,8 +1654,8 @@ func file_teleport_legacy_client_proto_inventory_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_legacy_client_proto_inventory_proto_rawDesc), len(file_teleport_legacy_client_proto_inventory_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   19,
+			NumEnums:      2,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

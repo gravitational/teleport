@@ -35,6 +35,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -673,8 +674,8 @@ func (s *Server) stopDynamicLabels(name string) {
 func (s *Server) registerDatabase(ctx context.Context, database types.Database) error {
 	if err := s.startDatabase(ctx, database); err != nil {
 		// Cleanup in case database was initialized only partially.
-		if errStop := s.stopDatabase(ctx, database); errStop != nil {
-			return trace.NewAggregate(err, errStop)
+		if errUnregister := s.unregisterDatabase(ctx, database); errUnregister != nil {
+			return trace.NewAggregate(err, errUnregister)
 		}
 		return trace.Wrap(err)
 	}
@@ -691,10 +692,6 @@ func (s *Server) updateDatabase(ctx context.Context, database types.Database) er
 		return trace.Wrap(err)
 	}
 	if err := s.registerDatabase(ctx, database); err != nil {
-		// If we failed to re-register, don't keep proxying the old database.
-		if errUnregister := s.unregisterDatabase(ctx, database); errUnregister != nil {
-			return trace.NewAggregate(err, errUnregister)
-		}
 		return trace.Wrap(err)
 	}
 	return nil
@@ -721,10 +718,14 @@ func (s *Server) stopProxyingAndDeleteDatabase(ctx context.Context, database typ
 	if err := s.stopDatabase(ctx, database); err != nil {
 		return trace.Wrap(err)
 	}
-	// Heartbeat is stopped but if we don't remove this database server,
-	// it can linger for up to ~10m until its TTL expires.
-	if err := s.deleteDatabaseServer(ctx, database.GetName()); err != nil {
-		return trace.Wrap(err)
+	// stopping the upstream inventory heartbeat may incur a backend write
+	// to delete the heartbeat, which is unnecessary when updating a DB,
+	// since we will upsert a new heartbeat
+	if err := s.stopUpstreamInventoryHeartbeat(ctx, database); err != nil {
+		s.log.WarnContext(ctx, "Failed to stop upstream inventory database heartbeat",
+			"db", log.StringerAttr(database),
+			"error", err,
+		)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -781,7 +782,6 @@ func (s *Server) copyDatabaseWithUpdatedLabelsLocked(database types.Database) *t
 func (s *Server) startHeartbeat(ctx context.Context, database types.Database) error {
 	heartbeat, err := srv.NewDatabaseServerHeartbeat(srv.HeartbeatV2Config[*types.DatabaseServerV3]{
 		InventoryHandle: s.cfg.InventoryHandle,
-		Announcer:       s.cfg.AccessPoint,
 		GetResource:     s.getServerInfoFunc(database),
 		OnHeartbeat:     s.cfg.OnHeartbeat,
 	})
@@ -805,6 +805,34 @@ func (s *Server) stopHeartbeat(name string) error {
 	}
 	delete(s.heartbeats, name)
 	return heartbeat.Close()
+}
+
+// stopUpstreamInventoryHeartbeat stops the upstream inventory control stream
+// heartbeat for a single database.
+// https://github.com/gravitational/teleport/issues/50237
+func (s *Server) stopUpstreamInventoryHeartbeat(ctx context.Context, db types.Database) error {
+	if _, ok := s.cfg.InventoryHandle.GetSender(); ok {
+		select {
+		// get latest sender
+		case sender := <-s.cfg.InventoryHandle.Sender():
+			if sender.Hello().Capabilities.DatabaseHeartbeatGracefulStop {
+				err := sender.Send(ctx, &proto.UpstreamInventoryStopHeartbeat{
+					Kind: proto.StopHeartbeatKind_STOP_HEARTBEAT_KIND_DATABASE_SERVER,
+					Name: db.GetName(),
+				})
+				return trace.Wrap(err)
+			}
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		}
+	}
+	// if upstream doesn't support graceful stop and we don't remove this
+	// database server, it can linger for up to ~10m until its TTL expires.
+	// TODO(gavin): DELETE IN 20.0.0
+	if err := s.deleteDatabaseServer(ctx, db.GetName()); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // getServerInfoFunc returns function that the heartbeater uses to report the

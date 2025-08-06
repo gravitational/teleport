@@ -39,8 +39,10 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -119,6 +121,25 @@ func TestWatcher(t *testing.T) {
 	// Both should be registered now.
 	assertReconciledResource(t, reconcileCh, types.Databases{db0, db1, db2})
 
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		servers, err := testCtx.authServer.GetDatabaseServers(ctx, apidefaults.Namespace)
+		if !assert.NoError(t, err) {
+			return
+		}
+		if !assert.Len(t, servers, 3) {
+			return
+		}
+		if !assert.Equal(t, "db0", servers[0].GetName()) {
+			return
+		}
+		wantDBs := types.Databases(types.DatabaseServers(servers).ToDatabases()).ToMap()
+		for _, db := range []types.Database{db0, db1, db2} {
+			if !assert.Contains(t, wantDBs, db.GetName()) {
+				return
+			}
+		}
+	}, 10*time.Second, 100*time.Millisecond, "waiting for database heartbeats to be registered")
+
 	// Update db2 URI so it gets re-registered.
 	db2.SetURI("localhost:2345")
 	err = testCtx.authServer.UpdateDatabase(ctx, db2)
@@ -142,6 +163,19 @@ func TestWatcher(t *testing.T) {
 
 	// Only static database should remain.
 	assertReconciledResource(t, reconcileCh, types.Databases{db0})
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		servers, err := testCtx.authServer.GetDatabaseServers(ctx, apidefaults.Namespace)
+		if !assert.NoError(t, err) {
+			return
+		}
+		if !assert.Len(t, servers, 1) {
+			return
+		}
+		if !assert.Equal(t, "db0", servers[0].GetName()) {
+			return
+		}
+	}, 10*time.Second, 100*time.Millisecond, "waiting for database heartbeats to be cleaned up")
 }
 
 // TestWatcherDynamicResource tests dynamic resource registration where the
