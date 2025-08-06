@@ -20,6 +20,7 @@ import styled, { useTheme } from 'styled-components';
 
 import { Box, Flex, H2, Indicator, Subtitle2 } from 'design';
 import * as Icon from 'design/Icon';
+import { useToastNotifications } from 'shared/components/ToastNotification';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { useStore } from 'shared/libs/stores';
 
@@ -34,7 +35,6 @@ import {
   AddAuthDeviceWizard,
   DeleteAuthDeviceWizard,
 } from './ManageDevices/wizards';
-import { useNotification } from './NotificationContext';
 import { PasswordBox } from './PasswordBox';
 import { Headings } from './SideNav';
 import { StatePill } from './StatePill';
@@ -81,7 +81,7 @@ export function SecuritySettings({
   passwordState,
   onPasswordChange: onPasswordChangeCb,
 }: SecuritySettingsProps) {
-  const { addNotification } = useNotification();
+  const toastNotification = useToastNotifications();
 
   const passkeys = devices.filter(d => d.usage === 'passwordless');
   const mfaDevices = devices.filter(d => d.usage === 'mfa');
@@ -99,14 +99,19 @@ export function SecuritySettings({
   if (prevFetchStatus !== fetchDevicesAttempt.status) {
     setPrevFetchStatus(fetchDevicesAttempt.status);
     if (fetchDevicesAttempt.status === 'failed') {
-      addNotification('error', fetchDevicesAttempt.statusText);
+      toastNotification.add({
+        severity: 'error',
+        content: fetchDevicesAttempt.statusText,
+      });
     }
   }
 
   function onPasswordChange() {
-    addNotification('info', {
-      title: 'Your password has been changed.',
-      isAutoRemovable: true,
+    toastNotification.add({
+      severity: 'info',
+      content: {
+        title: 'Your password has been changed.',
+      },
     });
     onPasswordChangeCb();
   }
@@ -116,7 +121,7 @@ export function SecuritySettings({
       newDeviceUsage === 'passwordless'
         ? 'Passkey successfully saved.'
         : 'MFA method successfully saved.';
-    addNotification('info', { title: message, isAutoRemovable: true });
+    toastNotification.add({ severity: 'info', content: { title: message } });
     onDeviceAdded();
   }
 
@@ -125,7 +130,10 @@ export function SecuritySettings({
       deviceToRemove.usage === 'passwordless'
         ? 'Passkey successfully deleted.'
         : 'MFA method successfully deleted.';
-    addNotification('info', { title: message, isAutoRemovable: true });
+    toastNotification.add({
+      severity: 'info',
+      content: { title: message },
+    });
     onDeviceRemoved();
   }
   return (
@@ -196,7 +204,7 @@ export function SecuritySettings({
       </Box>
       {EnterpriseComponent && (
         <div id="recovery-code">
-          <EnterpriseComponent addNotification={addNotification} />
+          <EnterpriseComponent addNotification={toastNotification.add} />
         </div>
       )}
       {TrustedDeviceListComponent && (

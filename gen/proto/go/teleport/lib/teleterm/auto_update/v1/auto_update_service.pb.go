@@ -129,11 +129,15 @@ func (x *GetClusterVersionsResponse) GetUnreachableClusters() []*UnreachableClus
 
 // ClusterVersionInfo contains tool version information for a reachable cluster.
 type ClusterVersionInfo struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	ClusterUri      string                 `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
-	ToolsAutoUpdate bool                   `protobuf:"varint,2,opt,name=tools_auto_update,json=toolsAutoUpdate,proto3" json:"tools_auto_update,omitempty"`
-	ToolsVersion    string                 `protobuf:"bytes,3,opt,name=tools_version,json=toolsVersion,proto3" json:"tools_version,omitempty"`
-	MinToolsVersion string                 `protobuf:"bytes,4,opt,name=min_tools_version,json=minToolsVersion,proto3" json:"min_tools_version,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// URI of the cluster.
+	ClusterUri string `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
+	// Whether the client should automatically update the tools version.
+	ToolsAutoUpdate bool `protobuf:"varint,2,opt,name=tools_auto_update,json=toolsAutoUpdate,proto3" json:"tools_auto_update,omitempty"`
+	// Tools version required by this cluster.
+	ToolsVersion string `protobuf:"bytes,3,opt,name=tools_version,json=toolsVersion,proto3" json:"tools_version,omitempty"`
+	// Minimum tools version allowed by this cluster.
+	MinToolsVersion string `protobuf:"bytes,4,opt,name=min_tools_version,json=minToolsVersion,proto3" json:"min_tools_version,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -198,9 +202,11 @@ func (x *ClusterVersionInfo) GetMinToolsVersion() string {
 
 // UnreachableCluster represents a cluster from which version information could not be retrieved.
 type UnreachableCluster struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ClusterUri    string                 `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
-	ErrorMessage  string                 `protobuf:"bytes,2,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// URI of the cluster.
+	ClusterUri string `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
+	// Error that occurred while retrieving version information.
+	ErrorMessage  string `protobuf:"bytes,2,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

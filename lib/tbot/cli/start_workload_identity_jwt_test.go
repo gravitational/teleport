@@ -21,7 +21,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 )
 
 func TestWorkloadIdentityJWTCommand(t *testing.T) {
@@ -42,10 +44,10 @@ func TestWorkloadIdentityJWTCommand(t *testing.T) {
 				require.Len(t, cfg.Services, 1)
 
 				svc := cfg.Services[0]
-				wis, ok := svc.(*config.WorkloadIdentityJWTService)
+				wis, ok := svc.(*workloadidentity.JWTOutputConfig)
 				require.True(t, ok)
 
-				dir, ok := wis.Destination.(*config.DestinationDirectory)
+				dir, ok := wis.Destination.(*destination.Directory)
 				require.True(t, ok)
 				require.Equal(t, "/bar", dir.Path)
 
@@ -74,10 +76,10 @@ func TestWorkloadIdentityJWTCommand(t *testing.T) {
 				require.Len(t, cfg.Services, 1)
 
 				svc := cfg.Services[0]
-				wis, ok := svc.(*config.WorkloadIdentityJWTService)
+				wis, ok := svc.(*workloadidentity.JWTOutputConfig)
 				require.True(t, ok)
 
-				dir, ok := wis.Destination.(*config.DestinationDirectory)
+				dir, ok := wis.Destination.(*destination.Directory)
 				require.True(t, ok)
 				require.Equal(t, "/bar", dir.Path)
 

@@ -14,7 +14,7 @@ We recommend that you try out a Teleport [demo
 cluster](../linux-demo.mdx) with Teleport Community Edition,
 migrate to [Teleport Enterprise (Cloud)](../get-started.mdx) to roll out
 Teleport across your organization, and deploy a
-[self-hosted](deploy-a-cluster/deploy-a-cluster.mdx) Teleport Enterprise cluster
+[self-hosted](../zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx) Teleport Enterprise cluster
 if you have security and compliance requirements that Teleport Enterprise
 (Cloud) cannot address.  
 
@@ -72,7 +72,7 @@ migrating from Teleport Enterprise to Teleport Community Edition.
 1. If you are migrating to a self-hosted Teleport Enterprise account, plan and
    execute the deployment with the help of your Account Management team. To
    assist with this, read the the documentation on [Self-Hosting
-   Teleport](deploy-a-cluster/deploy-a-cluster.mdx).
+   Teleport](../zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx).
 
 1. Ensure you are running Teleport Enterprise agents with versions that are
    the same major or just one major version lower than the new Teleport
@@ -240,7 +240,7 @@ To migrate Teleport Agents:
    upgrades the `stable/rolling` channel has all released versions.
 
 
-1. If you are using Teleport Community Edition, [uninstall Teleport](./management/admin/uninstall-teleport.mdx)
+1. If you are using Teleport Community Edition, [uninstall Teleport](../zero-trust-access/management/admin/uninstall-teleport.mdx)
    and install the enterprise edition of the `teleport` binary. You can confirm if the binary
    is correct by running `teleport version`. The output will contain the words
    `Teleport Enterprise`. The enterprise edition of the `teleport`
@@ -402,4 +402,4 @@ documentation on [signing up for a cloud-hosted Teleport Enterprise
 account](../get-started.mdx).
 
 Read the documentation on [Self-Hosting Teleport
-Enterprise](deploy-a-cluster/deploy-a-cluster.mdx).
+Enterprise](../zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx).

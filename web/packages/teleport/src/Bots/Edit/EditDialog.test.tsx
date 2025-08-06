@@ -69,7 +69,7 @@ describe('EditDialog', () => {
     renderComponent();
     await waitForLoading();
 
-    expect(screen.getByText('Error: something went wrong')).toBeInTheDocument();
+    expect(screen.getByText('something went wrong')).toBeInTheDocument();
   });
 
   it('should show a read unauthorised error state', async () => {
@@ -270,7 +270,7 @@ describe('EditDialog', () => {
     fireEvent.click(saveButton);
     await waitForSaveButton();
 
-    expect(screen.getByText('Error: something went wrong')).toBeInTheDocument();
+    expect(screen.getByText('something went wrong')).toBeInTheDocument();
 
     expect(onSuccess).not.toHaveBeenCalled();
   });
@@ -297,7 +297,7 @@ describe('EditDialog', () => {
 
     expect(
       screen.getByText(
-        'Error: We could not complete your request. Your proxy (v18.0.0) may be behind the minimum required version (v19.0.0) to support this request. Ensure all proxies are upgraded and try again.'
+        'We could not complete your request. Your proxy (v18.0.0) may be behind the minimum required version (v19.0.0) to support this request. Ensure all proxies are upgraded and try again.'
       )
     ).toBeInTheDocument();
   });

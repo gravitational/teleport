@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -152,9 +153,125 @@ func TestAccessListHierarchyDepthCheck(t *testing.T) {
 	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", acls[accesslist.MaxAllowedDepth+1].Spec.Title, acls[accesslist.MaxAllowedDepth].Spec.Title, accesslist.MaxAllowedDepth))
 }
 
-func TestAccessListValidateWithMembers(t *testing.T) {
-	clock := clockwork.NewFakeClock()
+func TestAccessListValidateWithMembers_basic(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	t.Run("type is validated", func(t *testing.T) {
+		accessList := newAccessList(t, "test_access_list", clock)
+		accessList.Spec.Type = "test_unknown_type"
+
+		err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+		require.Error(t, err)
+		require.ErrorContains(t, err, `unknown access list type "test_unknown_type"`)
+	})
+
+	for _, typ := range accesslist.AllTypes {
+		t.Run("for type: "+string(typ), func(t *testing.T) {
+			if typ == accesslist.DeprecatedDynamic {
+				t.Skip("DeprecatedDynamic type can be skipped because it's defaulted to Default in CheckAndSetDefaults")
+			}
+
+			t.Run("valid", func(t *testing.T) {
+				accessList := newAccessList(t, "test_access_list", clock)
+
+				err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+				require.NoError(t, err)
+			})
+
+			t.Run("owners are required", func(t *testing.T) {
+				accessList := newAccessList(t, "test_access_list", clock)
+				accessList.Spec.Type = typ
+				accessList.Spec.Owners = []accesslist.Owner{}
+
+				err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+				require.Error(t, err)
+				require.ErrorContains(t, err, "owners")
+			})
+
+			if typ.IsReviewable() {
+				t.Run("audit is required", func(t *testing.T) {
+					accessList := newAccessList(t, "test_access_list", clock)
+					accessList.Spec.Type = typ
+					accessList.Spec.Audit = accesslist.Audit{}
+
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+					require.Error(t, err)
+					require.ErrorContains(t, err, "audit")
+				})
+				t.Run("audit.recurrence.frequency is required", func(t *testing.T) {
+					accessList := newAccessList(t, "test_access_list", clock)
+					accessList.Spec.Type = typ
+					accessList.Spec.Audit.Recurrence.Frequency = 0
+
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+					require.Error(t, err)
+					require.ErrorContains(t, err, "audit recurrence frequency")
+				})
+				t.Run("audit.recurrence.day_of_month is required", func(t *testing.T) {
+					accessList := newAccessList(t, "test_access_list", clock)
+					accessList.Spec.Type = typ
+					accessList.Spec.Audit.Recurrence.DayOfMonth = 0
+
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+					require.Error(t, err)
+					require.ErrorContains(t, err, "audit recurrence day of month")
+				})
+				t.Run("audit.recurrence.next_audit_date is required", func(t *testing.T) {
+					accessList := newAccessList(t, "test_access_list", clock)
+					accessList.Spec.Type = typ
+					accessList.Spec.Audit.NextAuditDate = time.Time{}
+
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+					require.Error(t, err)
+					require.ErrorContains(t, err, "next audit date")
+				})
+				t.Run("audit.notifications.start is required", func(t *testing.T) {
+					accessList := newAccessList(t, "test_access_list", clock)
+					accessList.Spec.Type = typ
+					accessList.Spec.Audit.Notifications.Start = 0
+
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+					require.Error(t, err)
+					require.ErrorContains(t, err, "audit notifications start")
+				})
+			} else {
+				t.Run("audit is not required", func(t *testing.T) {
+					accessList := newAccessList(t, "test_access_list", clock)
+					accessList.Spec.Type = typ
+					accessList.Spec.Audit = accesslist.Audit{}
+
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+					require.NoError(t, err)
+				})
+				t.Run("audit can be set", func(t *testing.T) {
+					accessList := newAccessList(t, "test_access_list", clock)
+					accessList.Spec.Type = typ
+
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+					require.NoError(t, err)
+				})
+				t.Run("audit can be partially set", func(t *testing.T) {
+					accessList := newAccessList(t, "test_access_list", clock)
+					accessList.Spec.Type = typ
+					accessList.Spec.Audit = accesslist.Audit{}
+					accessList.Spec.Audit.Recurrence.DayOfMonth = accesslist.FifteenthDayOfMonth
+					accessList.Spec.Audit.Notifications.Start = 3 * time.Hour
+
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+					require.NoError(t, err)
+				})
+			}
+		})
+	}
+
+}
+
+func TestAccessListValidateWithMembers_members(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
 
 	// We're creating a hierarchy with a depth of 10, and then trying to add it as a Member of a 'root' Access List. This should fail.
 	rootAcl := newAccessList(t, "root", clock)

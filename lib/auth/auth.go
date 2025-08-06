@@ -92,6 +92,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
+	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -188,8 +189,15 @@ var ErrRequiresEnterprise = services.ErrRequiresEnterprise
 type ServerOption func(*Server) error
 
 // NewServer creates and configures a new Server instance
-func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
-	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
+func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
+	closeCtx, cancelFunc := context.WithCancel(context.TODO())
+	defer func() {
+		if err != nil {
+			cancelFunc()
+		}
+	}()
+
+	err = metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -256,7 +264,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		recordingEncryptionManager, err := recordingencryption.NewManager(recordingencryption.ManagerConfig{
+		recordingEncryptionManager, err := recordingencryption.NewManager(closeCtx, recordingencryption.ManagerConfig{
 			Backend:       localRecordingEncryption,
 			Cache:         localRecordingEncryption,
 			ClusterConfig: cfg.ClusterConfiguration,
@@ -472,6 +480,16 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 		cfg.WorkloadIdentity = workloadIdentity
 	}
+	if cfg.Summarizer == nil {
+		summarizer, err := local.NewSummarizerService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating Summarizer service")
+		}
+		cfg.Summarizer = summarizer
+	}
+	if cfg.SessionSummarizerProvider == nil {
+		cfg.SessionSummarizerProvider = summarizer.NewSessionSummarizerProvider()
+	}
 	if cfg.WorkloadIdentityX509Revocations == nil {
 		cfg.WorkloadIdentityX509Revocations, err = local.NewWorkloadIdentityX509RevocationService(cfg.Backend)
 		if err != nil {
@@ -552,7 +570,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
 		TrustInternal:                   cfg.Trust,
 		PresenceInternal:                cfg.Presence,
@@ -610,33 +627,35 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		VnetConfigService:               cfg.VnetConfigService,
 		RecordingEncryptionManager:      cfg.RecordingEncryption,
 		MultipartHandler:                cfg.MultipartHandler,
+		Summarizer:                      cfg.Summarizer,
 	}
 
-	as := Server{
-		bk:                      cfg.Backend,
-		clock:                   cfg.Clock,
-		limiter:                 limiter,
-		Authority:               cfg.Authority,
-		AuthServiceName:         cfg.AuthServiceName,
-		ServerID:                cfg.HostUUID,
-		cancelFunc:              cancelFunc,
-		closeCtx:                closeCtx,
-		emitter:                 cfg.Emitter,
-		Streamer:                cfg.Streamer,
-		Unstable:                local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
-		Services:                services,
-		Cache:                   services,
-		scopedAccessBackend:     cfg.ScopedAccess,
-		scopedAccessCache:       scopedAccessCache,
-		keyStore:                cfg.KeyStore,
-		traceClient:             cfg.TraceClient,
-		fips:                    cfg.FIPS,
-		loadAllCAs:              cfg.LoadAllCAs,
-		httpClientForAWSSTS:     cfg.HTTPClientForAWSSTS,
-		accessMonitoringEnabled: cfg.AccessMonitoringEnabled,
-		logger:                  cfg.Logger,
+	as = &Server{
+		bk:                        cfg.Backend,
+		clock:                     cfg.Clock,
+		limiter:                   limiter,
+		Authority:                 cfg.Authority,
+		AuthServiceName:           cfg.AuthServiceName,
+		ServerID:                  cfg.HostUUID,
+		cancelFunc:                cancelFunc,
+		closeCtx:                  closeCtx,
+		emitter:                   cfg.Emitter,
+		Streamer:                  cfg.Streamer,
+		Unstable:                  local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
+		Services:                  services,
+		Cache:                     services,
+		scopedAccessBackend:       cfg.ScopedAccess,
+		scopedAccessCache:         scopedAccessCache,
+		keyStore:                  cfg.KeyStore,
+		traceClient:               cfg.TraceClient,
+		fips:                      cfg.FIPS,
+		loadAllCAs:                cfg.LoadAllCAs,
+		httpClientForAWSSTS:       cfg.HTTPClientForAWSSTS,
+		accessMonitoringEnabled:   cfg.AccessMonitoringEnabled,
+		logger:                    cfg.Logger,
+		sessionSummarizerProvider: cfg.SessionSummarizerProvider,
 	}
-	as.inventory = inventory.NewController(&as, services,
+	as.inventory = inventory.NewController(as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
 		inventory.WithClock(cfg.Clock),
 		inventory.WithOnConnect(func(s string) {
@@ -656,7 +675,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	)
 
 	for _, o := range opts {
-		if err := o(&as); err != nil {
+		if err := o(as); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -760,9 +779,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	// Add in a login hook for generating state during user login.
 	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         as.logger,
-		AccessLists: &as,
-		Access:      &as,
-		UsageEvents: &as,
+		AccessLists: as,
+		Access:      as,
+		UsageEvents: as,
 		Clock:       cfg.Clock,
 		Emitter:     as.emitter,
 	})
@@ -784,7 +803,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		as.logger.WarnContext(closeCtx, "Auth server starting without cache (may have negative performance implications)")
 	}
 
-	return &as, nil
+	return as, nil
 }
 
 // Services is a collection of services that are used by the auth server.
@@ -853,6 +872,7 @@ type Services struct {
 	services.VnetConfigService
 	RecordingEncryptionManager
 	events.MultipartHandler
+	services.Summarizer
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1270,6 +1290,11 @@ type Server struct {
 
 	// logger is the logger used by the auth server.
 	logger *slog.Logger
+
+	// sessionSummarizerProvider is a provider of the session summarizer service.
+	// It allows for late initialization of the summarizer in the enterprise
+	// plugin. The summarizer itself summarizes session recordings.
+	sessionSummarizerProvider *summarizer.SessionSummarizerProvider
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1358,6 +1383,12 @@ func (a *Server) ResetLoginHooks() {
 	a.loginHooksMu.Lock()
 	a.loginHooks = nil
 	a.loginHooksMu.Unlock()
+}
+
+// SetSummarizerService sets an implementation of the summarizer service used
+// by this server and its underlying services.
+func (a *Server) SetSummarizerService(s summarizer.SessionSummarizer) {
+	a.sessionSummarizerProvider.SetSummarizer(s)
 }
 
 // CloseContext returns the close context
@@ -2151,6 +2182,13 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 	a.clock = clock
 }
 
+// SetBcryptCost sets bcryptCostOverride, used in tests
+func (a *Server) SetBcryptCost(cost int) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.bcryptCostOverride = &cost
+}
+
 func (a *Server) SetSCIMService(scim services.SCIM) {
 	a.Services.SCIM = scim
 }
@@ -2582,6 +2620,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 }
 
 // GenerateUserTestCertsRequest is a request to generate test certificates.
+// TODO(tross): Figure out how to move this into test only code.
 type GenerateUserTestCertsRequest struct {
 	SSHPubKey               []byte
 	TLSPubKey               []byte
@@ -2595,11 +2634,23 @@ type GenerateUserTestCertsRequest struct {
 	TLSAttestationStatement *hardwarekey.AttestationStatement
 	AppName                 string
 	AppSessionID            string
+	DeviceExtensions        DeviceExtensions
+	Renewable               bool
+	Generation              uint64
+	ActiveRequests          []string
+	KubernetesCluster       string
+	Usage                   []string
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
+// TODO(tross): Figure out how to move this into test only code.
 func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte, []byte, error) {
-	ctx := context.Background()
+	return a.GenerateUserTestCertsWithContext(context.TODO(), req)
+}
+
+// GenerateUserTestCertsWithContext is used to generate user certificate, used internally for tests
+// TODO(tross): Figure out how to move this into test only code.
+func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req GenerateUserTestCertsRequest) ([]byte, []byte, error) {
 	userState, err := a.GetUserOrLoginState(ctx, req.Username)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -2614,7 +2665,7 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		return nil, nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateUserCert(ctx, certRequest{
+	certReq := certRequest{
 		user:                             userState,
 		ttl:                              req.TTL,
 		compatibility:                    req.Compatibility,
@@ -2630,7 +2681,20 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
 		appName:                          req.AppName,
 		appSessionID:                     req.AppSessionID,
-	})
+		deviceExtensions:                 req.DeviceExtensions,
+		generation:                       req.Generation,
+		renewable:                        req.Renewable,
+		activeRequests:                   req.ActiveRequests,
+		kubernetesCluster:                req.KubernetesCluster,
+		usage:                            req.Usage,
+	}
+
+	if botName, isBot := userState.GetLabel(types.BotLabel); isBot {
+		certReq.botName = botName
+		certReq.botInstanceID = uuid.NewString()
+	}
+
+	certs, err := a.generateUserCert(ctx, certReq)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

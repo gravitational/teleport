@@ -55,6 +55,10 @@ func TestPluginStaticCredentials(t *testing.T) {
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
+				if len(creds) == 0 {
+					// testResources expects the getter to return a NotFound error for unknown names.
+					return nil, trace.NotFound("no plugin static credentials found")
+				}
 				if len(creds) != 1 {
 					return nil, trace.CompareFailed("expecting one creds for this test but got %v", len(creds))
 				}

@@ -613,6 +613,10 @@ type Global struct {
 	AdvertiseIP string           `yaml:"advertise_ip,omitempty"`
 	CachePolicy CachePolicy      `yaml:"cache,omitempty"`
 
+	// ShutdownDelay is a fixed delay between receiving a termination signal and
+	// the beginning of the shutdown procedures.
+	ShutdownDelay types.Duration `yaml:"shutdown_delay,omitempty"`
+
 	// CipherSuites is a list of TLS ciphersuites that Teleport supports. If
 	// omitted, a Teleport selected list of defaults will be used.
 	CipherSuites []string `yaml:"ciphersuites,omitempty"`
@@ -741,8 +745,9 @@ type Auth struct {
 	// determines if the proxy will check the host key of the client or not.
 	ProxyChecksHostKeys *types.BoolOption `yaml:"proxy_checks_host_keys,omitempty"`
 
-	// SessionRecordingEncryption enables or disables encryption of session recordings.
-	SessionRecordingEncryption *types.BoolOption `yaml:"session_recording_encryption,omitempty"`
+	// SessionRecordingConfig configures how session recording should be handled including things like
+	// encryption and key management.
+	SessionRecordingConfig *types.SessionRecordingConfigSpecV2 `yaml:"session_recording_config,omitempty"`
 
 	// LicenseFile is a path to the license file. The path can be either absolute or
 	// relative to the global data dir
@@ -886,7 +891,7 @@ func (a *Auth) hasCustomSessionRecording() bool {
 	empty := Auth{}
 	return a.SessionRecording != empty.SessionRecording ||
 		a.ProxyChecksHostKeys != empty.ProxyChecksHostKeys ||
-		a.SessionRecordingEncryption != empty.SessionRecordingEncryption
+		a.SessionRecordingConfig != empty.SessionRecordingConfig
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -2574,12 +2579,14 @@ func (wds *WindowsDesktopService) Check() error {
 		return host.AD
 	})
 
-	if hasAD && wds.LDAP.Addr == "" {
+	ldapConfigOK := wds.LDAP.Domain != "" && (wds.LDAP.Addr != "" || wds.LDAP.LocateServer.Enabled)
+
+	if hasAD && !ldapConfigOK {
 		return trace.BadParameter("if Active Directory hosts are specified in the windows_desktop_service, " +
 			"the ldap configuration must also be specified")
 	}
 
-	if wds.Discovery.BaseDN != "" && wds.LDAP.Addr == "" {
+	if (wds.Discovery.BaseDN != "" || len(wds.DiscoveryConfigs) > 0) && !ldapConfigOK {
 		return trace.BadParameter("if discovery is specified in the windows_desktop_service, " +
 			"ldap configuration must also be specified")
 	}
@@ -2610,10 +2617,22 @@ type WindowsHost struct {
 	AD bool `yaml:"ad"`
 }
 
+// LocateServer contains parameters for locating LDAP servers
+// from the AD Domain
+type LocateServer struct {
+	// Enabled will automatically locate the LDAP server using DNS SRV records.
+	// When enabled, Domain must be set, Addr will be ignored
+	// https://ldap.com/dns-srv-records-for-ldap/
+	Enabled bool `yaml:"enabled,omitempty"`
+	// Site is an LDAP site to locate servers from a specific logical site.
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/b645c125-a7da-4097-84a1-2fa7cea07714#gt_8abdc986-5679-42d9-ad76-b11eb5a0daba
+	Site string `yaml:"site,omitempty"`
+}
+
 // LDAPConfig is the LDAP connection parameters.
 type LDAPConfig struct {
 	// Addr is the host:port of the LDAP server (typically port 389).
-	Addr string `yaml:"addr"`
+	Addr string `yaml:"addr,omitempty"`
 	// Domain is the ActiveDirectory domain name.
 	Domain string `yaml:"domain"`
 	// Username for LDAP authentication.
@@ -2628,6 +2647,8 @@ type LDAPConfig struct {
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
 	// PEMEncodedCACert is an optional PEM encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	PEMEncodedCACert string `yaml:"ldap_ca_cert,omitempty"`
+	// LocateServer is the config that enables LDAP server location using DNS SRV records.
+	LocateServer `yaml:"locate_server"`
 }
 
 // LDAPDiscoveryConfig is LDAP discovery configuration for windows desktop discovery service.

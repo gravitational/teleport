@@ -174,12 +174,6 @@ type AuthorizerAccessPoint interface {
 	// GetCertAuthority returns cert authority by id.
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
-	// GetCertAuthorities returns a list of cert authorities.
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
-
-	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
-
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
@@ -365,6 +359,7 @@ func (c *Context) GetAccessState(authPref readonly.AuthPreference) services.Acce
 
 	state.EnableDeviceVerification = !c.disableDeviceRoleMode
 	state.DeviceVerified = isService || dtauthz.IsTLSDeviceVerified(&identity.DeviceExtensions)
+	state.IsBot = identity.IsBot()
 
 	return state
 }

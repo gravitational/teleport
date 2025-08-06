@@ -7748,7 +7748,7 @@ func getRemoteAddrString(sshClientString string) string {
 	if len(parts) != 3 {
 		return ""
 	}
-	return fmt.Sprintf("%s:%s", parts[0], parts[1])
+	return net.JoinHostPort(parts[0], parts[1])
 }
 
 func isNilOrEOFErr(t *testing.T, err error) {
