@@ -72,8 +72,8 @@ joinParams:
   # Common join-methods for the `teleport-kube-agent` are:
   # - `token`: the most basic one, with regular ephemeral secret tokens
   # - `kubernetes`: either the `in-cluster` variant (if the agent runs in the
-  #   same Kubernetes cluster as the `teleport-cluster` chart) or the `JWKS`
-  #   variant (works in every Kubernetes cluster, regardless of the Teleport Auth
+  #   same Kubernetes cluster as the `teleport-cluster` chart) or the `JWKS/OIDC`
+  #   variants (work in every Kubernetes cluster, regardless of the Teleport Auth
   #   Service location).
   method: "token"
 
@@ -91,7 +91,17 @@ joinParams:
   # If method is `token`, `joinParams.tokenName` can be empty if the token
   # is provided through an existing Kubernetes Secret, see
   # [`joinTokenSecret`](#joinTokenSecret) for more details and instructions.
+  #
+  # If method is `kubernetes`, you must set [`teleportClusterName`](#teleportClusterName).
   tokenName: ""
+
+# teleportClusterName(string) -- is the name of the joined Teleport cluster.
+# Setting this value is required when joining via the
+# [Kubernetes JWKS or OIDC](../../reference/join-methods.mdx#kubernetes-jwks) join method.
+#
+# When this value is set, the chart mounts a kubernetes service account token
+# via a projected volume and configures Teleport to use it for joining.
+teleportClusterName: ""
 
 ################################################################
 # Values that must be provided if Kubernetes access is enabled.
