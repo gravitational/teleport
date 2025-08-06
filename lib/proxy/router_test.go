@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services/readonly"
-	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -719,7 +719,7 @@ func TestRouter_DialHost(t *testing.T) {
 		},
 	}
 
-	agentGetter := func() (teleagent.Agent, error) {
+	agentGetter := func() (sshagent.Client, error) {
 		return nil, nil
 	}
 	createSigner := func(_ context.Context, _ agentless.LocalAccessPoint, _ agentless.CertGenerator) (ssh.Signer, error) {
