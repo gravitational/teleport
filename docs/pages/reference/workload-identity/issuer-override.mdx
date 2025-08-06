@@ -58,6 +58,8 @@ SERIALNUMBER=234567890123456789012345678901234567890,CN=clustername,O=clusternam
 
 Use of this command requires `create` permissions for the `workload_identity_x509_issuer_override_csr` resource kind in one of the roles associated with the identity running the command.
 
+In clusters that make use of Hardware Security Modules (HSMs) it's possible that no single Teleport Auth Service instance is capable of generating signatures for all the keys that make up the SPIFFE certificate authority at once. In such situations, it's possible to use the `--force` option with the `sign-csrs` command on each machine running the Auth Service, to gather CSRs for keys managed by the different HSMs.
+
 ## Using `tctl` to create a `workload_identity_x509_issuer_override` from certificate chain PEM files
 
 The `tctl workload-identity x509-issuer-overrides create` command can be used to build a `workload_identity_x509_issuer_override` resource out of one or more PEM files containing a certificate chain each, and to create or forcibly overwrite an existing resource in the cluster. The command will check that the first certificates in the specified chains have different public keys, and that they match 1:1 with the trusted X.509 certificates in the SPIFFE certificate authority in the Teleport cluster.
