@@ -19,7 +19,7 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { space, SpaceProps } from '../system';
+import { border, BorderProps, space, SpaceProps } from '../system';
 import { Theme } from '../theme';
 
 const kind = ({ kind, theme }: { kind?: LabelKind; theme: Theme }) => {
@@ -102,23 +102,26 @@ export type LabelKind =
   | 'outline-warning'
   | 'outline-danger';
 
-interface LabelProps extends SpaceProps {
+type LabelProps = {
   kind?: LabelKind;
   children?: React.ReactNode;
-}
+} & SpaceProps &
+  BorderProps;
 
 const Label = styled.div<LabelProps>`
   box-sizing: border-box;
-  border-radius: 10px;
+  border-radius: 999px;
   display: inline-block;
   font-size: 10px;
   font-weight: 500;
   padding: 0 8px;
   margin: 1px 0;
   vertical-align: middle;
+  overflow: hidden;
 
   ${kind}
   ${space}
+  ${border}
 `;
 
 export default Label;

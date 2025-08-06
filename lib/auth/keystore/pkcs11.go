@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/elliptic"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -251,6 +252,81 @@ func (p *pkcs11KeyStore) getDecrypter(ctx context.Context, rawKey []byte, public
 	}
 
 	return nil, trace.BadParameter("pkcs11 key does not support decryption")
+}
+
+func attrValToUint(value []byte) uint64 {
+	if len(value) == 4 {
+		return uint64(binary.BigEndian.Uint32(value))
+	}
+
+	if len(value) == 8 {
+		return binary.BigEndian.Uint64(value)
+	}
+
+	return 0
+}
+
+func (p *pkcs11KeyStore) getKeyBitLen(signer crypto.Signer) (uint64, error) {
+	keyBitsAttr, bitsErr := p.ctx.GetAttribute(signer, crypto11.CkaModulusBits)
+	if bitsErr == nil {
+		return attrValToUint(keyBitsAttr.Value), nil
+	}
+
+	keyModAttr, modErr := p.ctx.GetAttribute(signer, crypto11.CkaModulus)
+	if modErr == nil {
+		return uint64(len(keyModAttr.Value) * 8), nil
+	}
+
+	return 0, trace.NewAggregate(bitsErr, modErr)
+}
+
+func (p *pkcs11KeyStore) validateKeyForDecryption(signer crypto.Signer) error {
+	keyTypeAttr, err := p.ctx.GetAttribute(signer, crypto11.CkaKeyType)
+	if err != nil {
+		return trace.Wrap(err, "looking up key type")
+	}
+
+	if attrValToUint(keyTypeAttr.Value) != pkcs11.CKK_RSA {
+		return trace.Errorf("invalid key algorithm, expected RSA")
+	}
+
+	bitLen, err := p.getKeyBitLen(signer)
+	if err != nil {
+		return trace.Wrap(err, "looking up key bit length")
+	}
+
+	if bitLen != 4096 {
+		return trace.Errorf("expected 4096-bit key, found %d-bit key", bitLen)
+	}
+
+	return nil
+}
+
+func (p *pkcs11KeyStore) findDecryptersByLabel(ctx context.Context, label *types.KeyLabel) ([]crypto.Decrypter, error) {
+	if label == nil || label.Type != storePKCS11 {
+		return nil, nil
+	}
+
+	signers, err := p.ctx.FindKeyPairs(nil, []byte(label.Label))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var decrypters []crypto.Decrypter
+	for _, signer := range signers {
+		if err := p.validateKeyForDecryption(signer); err != nil {
+			p.log.DebugContext(ctx, "key found but could not be used for decryption", "label_type", label.Type, "label", label.Label)
+			continue
+		}
+
+		decrypter, ok := signer.(crypto.Decrypter)
+		if !ok {
+			continue
+		}
+		decrypters = append(decrypters, decrypter)
+	}
+
+	return decrypters, nil
 }
 
 func (p *pkcs11KeyStore) getSignerWithoutPublicKey(ctx context.Context, rawKey []byte) (crypto.Signer, error) {

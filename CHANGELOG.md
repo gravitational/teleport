@@ -625,7 +625,7 @@ By default, Teleport will accept the PROXY line but will prevent connections
 with IP pinning enabled. IP pinning users will need to explicitly enable/disable
 proxy protocol like explained above.
 
-See more details in our [documentation](docs/pages/admin-guides/management/security/proxy-protocol.mdx).
+See more details in our [documentation](docs/pages/zero-trust-access/management/security/proxy-protocol.mdx).
 
 #### Legacy deb/rpm package repositories are deprecated
 
@@ -1750,7 +1750,7 @@ material on Yubikey devices instead of filesystem which helps prevent
 credentials exfiltration attacks.
 
 See how to enable it in the
-[documentation](docs/pages/admin-guides/access-controls/guides/hardware-key-support.mdx):
+[documentation](docs/pages/zero-trust-access/access-controls/guides/hardware-key-support.mdx):
 
 Hardware-backed private keys is an enterprise only feature, and is currently
 supported for server access only.
@@ -1930,7 +1930,7 @@ Teleport 10 introduces passwordless support to your clusters. To use passwordles
 users may register a security key with resident credentials or use a built-in
 authenticator, like Touch ID.
 
-See the [documentation](docs/pages/admin-guides/access-controls/guides/passwordless.mdx).
+See the [documentation](docs/pages/zero-trust-access/access-controls/guides/passwordless.mdx).
 
 ### Resource Access Requests (Preview)
 
@@ -2085,7 +2085,7 @@ sessions remains deny-by-default but now only `join_sessions` statements are
 checked for session join RBAC.
 
 See the [Moderated Sessions
-guide](docs/pages/admin-guides/access-controls/guides/joining-sessions.mdx) for more
+guide](docs/pages/zero-trust-access/access-controls/guides/joining-sessions.mdx) for more
 details.
 
 #### GitHub connectors
@@ -2544,7 +2544,7 @@ With Moderated Sessions, Teleport administrators can define policies that allow
 users to invite other users to participate in SSH or Kubernetes sessions as
 observers, moderators or peers.
 
-[Moderated Sessions guide](docs/pages/admin-guides/access-controls/guides/joining-sessions.mdx)
+[Moderated Sessions guide](docs/pages/zero-trust-access/access-controls/guides/joining-sessions.mdx)
 
 ### Breaking Changes
 
@@ -2884,7 +2884,7 @@ Teleport 6.1 contains multiple new features, improvements, and bug fixes.
 Added support for U2F authentication on every SSH and Kubernetes "connection" (a single `tsh ssh` or `kubectl` call). This is an advanced security feature that protects users against compromises of their on-disk Teleport certificates. Per-session MFA can be enforced cluster-wide or only for some specific roles.
 
 For more details see [Per-Session
-MFA](docs/pages/admin-guides/access-controls/guides/per-session-mfa.mdx) documentation or
+MFA](docs/pages/zero-trust-access/access-controls/guides/per-session-mfa.mdx) documentation or
 [RFD
 14](https://github.com/gravitational/teleport/blob/master/rfd/0014-session-2FA.md)
 and [RFD
@@ -3036,7 +3036,7 @@ if err = clt.CreateAccessRequest(ctx, accessRequest); err != nil {
 
 ### Upgrade Notes
 
-Please follow our [standard upgrade procedure](docs/pages/admin-guides/management/admin/admin.mdx) to upgrade your cluster.
+Please follow our [standard upgrade procedure](docs/pages/zero-trust-access/management/admin/admin.mdx) to upgrade your cluster.
 
 Note, for clusters using GitHub SSO and Trusted Clusters, when upgrading SSO users will lose connectivity to leaf clusters. Local users will not be affected.
 
@@ -3256,11 +3256,11 @@ We've added two new RBAC resources; these provide the ability to limit token cre
   verbs: [list,create,read,update,delete]
 ```
 
-Learn more about [Teleport's RBAC Resources](docs/pages/admin-guides/access-controls/access-controls.mdx)
+Learn more about [Teleport's RBAC Resources](docs/pages/zero-trust-access/access-controls/access-controls.mdx)
 
 ##### Cluster Labels
 
-Teleport 5.0 also adds the ability to set labels on Trusted Clusters. The labels are set when creating a trusted cluster invite token. This lets teams use the same RBAC controls used on nodes to approve or deny access to clusters. This can be especially useful for MSPs that connect hundreds of customers' clusters - when combined with access workflows, cluster access can be delegated. Learn more by reviewing our [Truster Cluster Setup & RBAC Docs](docs/pages/admin-guides/management/admin/trustedclusters.mdx)
+Teleport 5.0 also adds the ability to set labels on Trusted Clusters. The labels are set when creating a trusted cluster invite token. This lets teams use the same RBAC controls used on nodes to approve or deny access to clusters. This can be especially useful for MSPs that connect hundreds of customers' clusters - when combined with access workflows, cluster access can be delegated. Learn more by reviewing our [Truster Cluster Setup & RBAC Docs](docs/pages/zero-trust-access/management/admin/trustedclusters.mdx)
 
 Creating a trusted cluster join token for a production environment:
 
@@ -3751,7 +3751,7 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 
 * Alpha: Enhanced Session Recording lets you know what's really happening during a Teleport Session. [#2948](https://github.com/gravitational/teleport/issues/2948)
 * Alpha: Workflows API lets admins escalate RBAC roles in response to user requests. [Read the docs](docs/pages/identity-governance/access-requests/access-requests.mdx). [#3006](https://github.com/gravitational/teleport/issues/3006)
-* Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](docs/pages/admin-guides/deploy-a-cluster/deployments/gcp.mdx). [#2821](https://github.com/gravitational/teleport/pull/2821)
+* Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](docs/pages/zero-trust-access/deploy-a-cluster/deployments/gcp.mdx). [#2821](https://github.com/gravitational/teleport/pull/2821)
 * Remote tctl execution is now possible. [Read the docs](./docs/pages/reference/cli/tctl.mdx). [#1525](https://github.com/gravitational/teleport/issues/1525) [#2991](https://github.com/gravitational/teleport/issues/2991)
 
 ### Fixes
@@ -3760,7 +3760,7 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 
 ### Documentation
 
-* Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](docs/pages/admin-guides/management/admin/trustedclusters.mdx).
+* Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](docs/pages/zero-trust-access/management/admin/trustedclusters.mdx).
 * Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](docs/pages/zero-trust-access/compliance-frameworks/fedramp.mdx).
 
 ## 4.1.11
@@ -4476,7 +4476,7 @@ available Teleport clusters with ease.
 #### Configuration Changes
 
 * Role templates (depreciated in Teleport 2.3) were fully removed. We recommend
-  migrating to role variables which are documented [here](docs/pages/admin-guides/access-controls/guides/role-templates.mdx)
+  migrating to role variables which are documented [here](docs/pages/zero-trust-access/access-controls/guides/role-templates.mdx)
 
 * Resource names (like roles, connectors, trusted clusters) can no longer
   contain unicode or other special characters. Update the names of all user
