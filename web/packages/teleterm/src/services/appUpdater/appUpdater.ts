@@ -397,15 +397,9 @@ function registerEventHandlers(
     if (error.message.includes('net::ERR_ABORTED')) {
       error = new AbortError('Update download was canceled');
     }
-    const serializedError = {
-      name: error.name,
-      message: error.message,
-      cause: error.cause,
-      stack: error.stack,
-    };
     emit({
       kind: 'error',
-      error: serializedError,
+      error,
       update: updateInfo,
       autoUpdatesStatus: getAutoUpdatesStatus() as AutoUpdatesEnabled,
     });

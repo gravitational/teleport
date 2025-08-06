@@ -83,6 +83,7 @@ import {
   removeAgentDirectory,
   type CreateAgentConfigFileArgs,
 } from './createAgentConfigFile';
+import { serializeError } from './ipcSerializer';
 import { ResolveError, resolveNetworkAddress } from './resolveNetworkAddress';
 import { terminateWithTimeout } from './terminateWithTimeout';
 import { WindowsManager } from './windowsManager';
@@ -163,6 +164,9 @@ export default class MainProcess {
       getClusterVersions,
       getDownloadBaseUrl,
       event => {
+        if (event.kind === 'error') {
+          event.error = serializeError(event.error);
+        }
         this.windowsManager
           .getWindow()
           .webContents.send(RendererIpc.AppUpdateEvent, event);

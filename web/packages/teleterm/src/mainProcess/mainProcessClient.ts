@@ -18,8 +18,6 @@
 
 import { ipcRenderer } from 'electron';
 
-import { ensureError } from 'shared/utils/error';
-
 import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
 import { AppUpdateEvent } from 'teleterm/services/appUpdater';
 import { createFileStorageClient } from 'teleterm/services/fileStorage';
@@ -28,6 +26,7 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 import { createConfigServiceClient } from '../services/config';
 import { openTabContextMenu } from './contextMenus/tabContextMenu';
 import { openTerminalContextMenu } from './contextMenus/terminalContextMenu';
+import { deserializeError } from './ipcSerializer';
 import {
   AgentProcessState,
   ChildProcessAddresses,
@@ -232,9 +231,8 @@ export default function createMainProcessClient(): MainProcessClient {
     },
     subscribeToAppUpdateEvents: listener => {
       const ipcListener = (_, updateEvent: AppUpdateEvent) => {
-        // Deserialize the error.
         if (updateEvent.kind === 'error') {
-          updateEvent.error = ensureError(updateEvent.error);
+          updateEvent.error = deserializeError(updateEvent.error);
         }
         listener(updateEvent);
       };
