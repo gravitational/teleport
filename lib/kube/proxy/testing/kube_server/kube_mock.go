@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -149,6 +150,13 @@ func WithPortForwardError(status metav1.Status) Option {
 	}
 }
 
+// WithPortForwardConcurrent enables concurrent port forwarding.
+func WithPortForwardConcurrent() Option {
+	return func(s *KubeMockServer) {
+		s.concurrentPortForward = true
+	}
+}
+
 // WithVersion sets the version of the server
 func WithVersion(version *apimachineryversion.Info) Option {
 	return func(s *KubeMockServer) {
@@ -189,6 +197,8 @@ type KubeMockServer struct {
 	nsList *corev1.NamespaceList
 
 	crds map[GVP]*CRD
+
+	concurrentPortForward bool
 }
 
 // NewKubeAPIMock creates Kubernetes API server for handling exec calls.
@@ -892,7 +902,6 @@ func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p
 		}
 		upgrader := spdystream.NewResponseUpgraderWithPings(defaults.HighResPollingPeriod)
 		conn = upgrader.UpgradeResponse(w, req, httpStreamReceived(req.Context(), streamChan))
-
 	}
 
 	if conn == nil {
@@ -900,35 +909,77 @@ func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p
 		return nil, err
 	}
 	defer conn.Close()
-	var (
-		data      httpstream.Stream
-		errStream httpstream.Stream
-	)
 
-	for {
-		select {
-		case <-conn.CloseChan():
-			return nil, nil
-		case stream := <-streamChan:
-			switch stream.Headers().Get(StreamType) {
-			case StreamTypeError:
-				errStream = stream
-			case StreamTypeData:
-				data = stream
+	// Handle multiple ports concurrently
+	type portStream struct {
+		data  httpstream.Stream
+		error httpstream.Stream
+	}
+
+	portStreams := make(map[string]*portStream)
+	streamsMu := sync.Mutex{}
+
+	// Process streams in a goroutine
+	go func() {
+		for {
+			select {
+			case <-conn.CloseChan():
+				return
+			case stream := <-streamChan:
+				port := stream.Headers().Get(portHeader)
+				if port == "" {
+					continue
+				}
+
+				streamsMu.Lock()
+				if _, ok := portStreams[port]; !ok {
+					portStreams[port] = &portStream{}
+				}
+
+				switch stream.Headers().Get(StreamType) {
+				case StreamTypeError:
+					portStreams[port].error = stream
+				case StreamTypeData:
+					portStreams[port].data = stream
+				}
+
+				// Check if this port is ready to process
+				ps := portStreams[port]
+				if ps.data != nil && ps.error != nil {
+					// Process this port in a new goroutine for concurrency
+					go func(portNum string, streams *portStream) {
+						// Read from client
+						buf := make([]byte, 1024)
+						n, err := streams.data.Read(buf)
+						if err != nil {
+							streams.error.Write([]byte(err.Error()))
+							return
+						}
+
+						// Add small delay to increase chance of race conditions
+						if s.concurrentPortForward {
+							time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
+						}
+
+						// Send response
+						response := fmt.Sprintf("%s%s%s",
+							PortForwardPayload,
+							p.ByName("name"),
+							string(buf[:n]))
+
+						_, writeErr := streams.data.Write([]byte(response))
+						if writeErr != nil {
+							s.log.ErrorContext(req.Context(), "Failed to write response", "error", writeErr)
+						}
+					}(port, ps)
+				}
+				streamsMu.Unlock()
 			}
 		}
-		if errStream != nil && data != nil {
-			break
-		}
-	}
+	}()
 
-	buf := make([]byte, 1024)
-	n, err := data.Read(buf)
-	if err != nil {
-		errStream.Write([]byte(err.Error()))
-		return nil, nil
-	}
-	fmt.Fprint(data, PortForwardPayload, p.ByName("name"), string(buf[:n]))
+	// Keep the connection alive until it's closed
+	<-conn.CloseChan()
 	return nil, nil
 }
 
