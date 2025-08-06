@@ -58,7 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -138,7 +138,7 @@ func ExternalSSHCommand(o CommandOptions) (*exec.Cmd, error) {
 // CreateAgent creates a SSH agent with the passed in private key and
 // certificate that can be used in tests. This is useful so tests don't
 // clobber your system agent.
-func CreateAgent(me *user.User, key *client.Key) (*teleagent.AgentServer, string, string, error) {
+func CreateAgent(me *user.User, key *client.Key) (*sshagent.Server, string, string, error) {
 	// create a path to the unix socket
 	sockDirName := "int-test"
 	sockName := "agent.sock"
@@ -158,22 +158,20 @@ func CreateAgent(me *user.User, key *client.Key) (*teleagent.AgentServer, string
 		return nil, "", "", trace.Wrap(err)
 	}
 
-	teleAgent := teleagent.NewServer(func() (teleagent.Agent, error) {
-		return teleagent.NopCloser(keyring), nil
-	})
+	agentServer := sshagent.NewServer(sshagent.NewStaticClientGetter(keyring))
 
 	// start the SSH agent
-	err = teleAgent.ListenUnixSocket(sockDirName, sockName, me)
+	err = agentServer.ListenUnixSocket(sockDirName, sockName, me)
 	if err != nil {
 		return nil, "", "", trace.Wrap(err)
 	}
-	go teleAgent.Serve()
+	go agentServer.Serve()
 
-	return teleAgent, teleAgent.Dir, teleAgent.Path, nil
+	return agentServer, agentServer.Dir, agentServer.Path, nil
 }
 
-func CloseAgent(teleAgent *teleagent.AgentServer, socketDirPath string) error {
-	err := teleAgent.Close()
+func CloseAgent(agent *sshagent.Server, socketDirPath string) error {
+	err := agent.Close()
 	if err != nil {
 		return trace.Wrap(err)
 	}

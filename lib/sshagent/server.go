@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package teleagent
+package sshagent
 
 import (
 	"errors"
@@ -36,38 +36,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// TODO(Joerger): Move this file to lib/sshagent and replace
-// similar types.
-
-// Agent extends the agent.ExtendedAgent interface.
-// APIs which accept this interface promise to
-// call `Close()` when they are done using the
-// supplied agent.
-type Agent interface {
-	agent.ExtendedAgent
-	io.Closer
-}
-
-// nopCloser wraps an agent.Agent in the extended
-// Agent interface by adding a NOP closer.
-type nopCloser struct {
-	agent.ExtendedAgent
-}
-
-func (n nopCloser) Close() error { return nil }
-
-// NopCloser wraps an agent.Agent with a NOP closer, allowing it
-// to be passed to APIs which expect the extended agent interface.
-func NopCloser(std agent.ExtendedAgent) Agent {
-	return nopCloser{std}
-}
-
-// Getter is a function used to get an agent instance.
-type Getter func() (Agent, error)
-
-// AgentServer is implementation of SSH agent server
-type AgentServer struct {
-	getAgent Getter
+// Server is an SSH agent server implementation.
+type Server struct {
+	getAgent ClientGetter
 	listener net.Listener
 	Path     string
 	Dir      string
@@ -77,13 +48,13 @@ type AgentServer struct {
 	testPermissions func()
 }
 
-// NewServer returns new instance of agent server
-func NewServer(getter Getter) *AgentServer {
-	return &AgentServer{getAgent: getter}
+// NewServer returns a new [Server].
+func NewServer(agentClient ClientGetter) *Server {
+	return &Server{getAgent: agentClient}
 }
 
 // ListenUnixSocket starts listening on a new unix socket.
-func (a *AgentServer) ListenUnixSocket(sockDir, sockName string, user *user.User) error {
+func (a *Server) ListenUnixSocket(sockDir, sockName string, user *user.User) error {
 	// Create a temp directory to hold the agent socket.
 	sockDir, err := os.MkdirTemp(os.TempDir(), sockDir+"-")
 	if err != nil {
@@ -111,7 +82,7 @@ func (a *AgentServer) ListenUnixSocket(sockDir, sockName string, user *user.User
 
 // Update the agent server permissions to give the user sole ownership
 // of the socket path and prevent other users from accessing or seeing it.
-func (a *AgentServer) updatePermissions(user *user.User) error {
+func (a *Server) updatePermissions(user *user.User) error {
 	// Tests may provide a testPermissions function to test potentially
 	// vulnerable moments during permission updating.
 	testPermissions := func() {
@@ -155,12 +126,12 @@ func (a *AgentServer) updatePermissions(user *user.User) error {
 }
 
 // SetTestPermissions can be used by tests to test agent socket permissions.
-func (a *AgentServer) SetTestPermissions(testPermissions func()) {
+func (a *Server) SetTestPermissions(testPermissions func()) {
 	a.testPermissions = testPermissions
 }
 
 // Serve starts serving on the listener, assumes that Listen was called before
-func (a *AgentServer) Serve() error {
+func (a *Server) Serve() error {
 	if a.listener == nil {
 		return trace.BadParameter("Serve needs a Listen call first")
 	}
@@ -213,18 +184,8 @@ func (a *AgentServer) Serve() error {
 	}
 }
 
-// ListenAndServe is similar http.ListenAndServe
-func (a *AgentServer) ListenAndServe(addr utils.NetAddr) error {
-	l, err := net.Listen(addr.AddrNetwork, addr.Addr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	a.listener = l
-	return a.Serve()
-}
-
 // Close closes listener and stops serving agent
-func (a *AgentServer) Close() error {
+func (a *Server) Close() error {
 	var errors []error
 	if a.listener != nil {
 		log.Debugf("AgentServer(%v) is closing", a.listener.Addr())
