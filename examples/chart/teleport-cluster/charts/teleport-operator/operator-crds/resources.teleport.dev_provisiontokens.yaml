@@ -402,6 +402,8 @@ spec:
                     description: OIDCConfig configures the `oidc` type.
                     nullable: true
                     properties:
+                      insecure_allow_http_issuer:
+                        type: boolean
                       issuer:
                         type: string
                     type: object

@@ -1608,11 +1608,18 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 							Optional:    true,
 						},
 						"oidc": {
-							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"issuer": {
-								Description: "Issuer is the URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/oidc-configuration` endpoint.",
-								Optional:    true,
-								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-							}}),
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"insecure_allow_http_issuer": {
+									Description: "InsecureAllowHTTPIssuer is a flag that, if set, disables the requirement that the issuer must use HTTPS.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+								"issuer": {
+									Description: "Issuer is the URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/oidc-configuration` endpoint. This should be a valid URL and must exactly match the `issuer` field in a service account JWT. For example: https://oidc.eks.us-west-2.amazonaws.com/id/12345...",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
 							Description: "OIDCConfig configures the `oidc` type.",
 							Optional:    true,
 						},
@@ -15008,6 +15015,23 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 															}
 														}
 													}
+													{
+														a, ok := tf.Attrs["insecure_allow_http_issuer"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC.InsecureAllowHTTPIssuer"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC.InsecureAllowHTTPIssuer", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+															} else {
+																var t bool
+																if !v.Null && !v.Unknown {
+																	t = bool(v.Value)
+																}
+																obj.InsecureAllowHTTPIssuer = t
+															}
+														}
+													}
 												}
 											}
 										}
@@ -18137,6 +18161,28 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 															v.Value = string(obj.Issuer)
 															v.Unknown = false
 															tf.Attrs["issuer"] = v
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["insecure_allow_http_issuer"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC.InsecureAllowHTTPIssuer"})
+														} else {
+															v, ok := tf.Attrs["insecure_allow_http_issuer"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.Kubernetes.OIDC.InsecureAllowHTTPIssuer", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC.InsecureAllowHTTPIssuer", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																}
+																v.Null = bool(obj.InsecureAllowHTTPIssuer) == false
+															}
+															v.Value = bool(obj.InsecureAllowHTTPIssuer)
+															v.Unknown = false
+															tf.Attrs["insecure_allow_http_issuer"] = v
 														}
 													}
 												}

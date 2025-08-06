@@ -294,7 +294,8 @@ Optional:
 
 Optional:
 
-- `issuer` (String) Issuer is the URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/oidc-configuration` endpoint.
+- `insecure_allow_http_issuer` (Boolean) InsecureAllowHTTPIssuer is a flag that, if set, disables the requirement that the issuer must use HTTPS.
+- `issuer` (String) Issuer is the URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/oidc-configuration` endpoint. This should be a valid URL and must exactly match the `issuer` field in a service account JWT. For example: https://oidc.eks.us-west-2.amazonaws.com/id/12345...
 
 
 ### Nested Schema for `spec.kubernetes.static_jwks`
