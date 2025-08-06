@@ -129,53 +129,6 @@ If there is no active session, but a versioned binary exists in the tools direct
 
 ## Configuring client tool managed updates
 
-### On a per-client basis using environment variables
-Values:
-- `X.Y.Z`: Use a specific version.
-- `off`: Disable updates.
-
-An environment variable `TELEPORT_TOOLS_VERSION` can be used as an emergency workaround for a known issue,
-pinning to a specific version in CI/CD, for debugging, or for manual updates.
-
-During re-execution, child process will inherit all environment variables and flags. To prevent infinite loops
-only version environment variable will be overridden to `TELEPORT_TOOLS_VERSION=off`.
-
-Example of self-managed update by setting the version with environment variable:
-```bash
-$ TELEPORT_TOOLS_VERSION=18.1.0 tctl version
-Update progress: [▒▒▒▒▒▒▒▒▒▒] (Ctrl-C to cancel update)
-Teleport v18.1.0 git:v18.1.0-0-g8cdb161 go1.24.5
-
-# If the environment variable is not set, the currently installed version is used.
-$ tctl version
-Teleport v17.6.0 git:v17.6.0-0-g4c3b13b go1.23.11
-````
-
-To use the version specified by the environment variable, it must always be set.
-If the variable is set during the login command, we prioritize this version over the one
-provided by the cluster configuration. Even if the cluster indicates that client tools
-managed updates are disabled, setting the environment variable will force them to be enabled.
-Any tsh or tctl command executed with an active profile for this cluster will be re-executed
-using the recorded version.
-
-```bash
-$ TELEPORT_TOOLS_VERSION=18.1.0 tsh login --proxy proxy.example.com
-Update progress: [▒▒▒▒▒▒▒▒▒▒] (Ctrl-C to cancel update)
-...
-
-# The session is still active, and the profile at ~/.tsh/current-profile is set to proxy.example.com.
-$ tctl version
-Teleport v18.1.0 git:v18.1.0-0-g8cdb161 go1.24.5
-
-$ cat ~/.tsh/bin/.config.json
-{
-  "version": "v1",
-  "configs": {
-    "proxy.example.com": {"version": "18.1.0","disabled": false}
-  }
-}
-````
-
 ### Cluster-wide using `tctl`
 
 To enable or disable client tools managed updates in the cluster, use the following command:
@@ -217,6 +170,52 @@ $ tctl autoupdate client-tools status --proxy proxy.example.com --format json
     "target_version": "X.Y.Z"
 }
 ```
+
+### On a per-client basis using environment variables
+Values:
+- `X.Y.Z`: Use a specific version.
+- `off`: Disable updates.
+
+The `TELEPORT_TOOLS_VERSION` environment variable can be used for pinning a specific version, for debugging, or for manual updates.
+
+During re-execution, child process will inherit all environment variables and flags. To prevent infinite loops
+only version environment variable will be overridden to `TELEPORT_TOOLS_VERSION=off`.
+
+Example of self-managed update by setting the version with environment variable:
+```bash
+$ TELEPORT_TOOLS_VERSION=18.1.0 tctl version
+Update progress: [▒▒▒▒▒▒▒▒▒▒] (Ctrl-C to cancel update)
+Teleport v18.1.0 git:v18.1.0-0-g8cdb161 go1.24.5
+
+# If the environment variable is not set, the currently installed version is used.
+$ tctl version
+Teleport v17.6.0 git:v17.6.0-0-g4c3b13b go1.23.11
+````
+
+To use the version specified by the environment variable, it must always be set.
+If the variable is set during the login command, we prioritize this version over the one
+provided by the cluster configuration. Even if the cluster indicates that client tools
+managed updates are disabled, setting the environment variable will force them to be enabled.
+Any tsh or tctl command executed with an active profile for this cluster will be re-executed
+using the recorded version.
+
+```bash
+$ TELEPORT_TOOLS_VERSION=18.1.0 tsh login --proxy proxy.example.com
+Update progress: [▒▒▒▒▒▒▒▒▒▒] (Ctrl-C to cancel update)
+...
+
+# The session is still active, and the profile at ~/.tsh/current-profile is set to proxy.example.com.
+$ tctl version
+Teleport v18.1.0 git:v18.1.0-0-g8cdb161 go1.24.5
+
+$ cat ~/.tsh/bin/.config.json
+{
+  "version": "v1",
+  "configs": {
+    "proxy.example.com": {"version": "18.1.0","disabled": false}
+  }
+}
+````
 
 ### Using resource definitions
 
