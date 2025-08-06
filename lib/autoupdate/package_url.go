@@ -42,7 +42,7 @@ const (
 	// DefaultBaseURL is CDN URL for downloading official Teleport packages.
 	DefaultBaseURL = "https://cdn.teleport.dev"
 	// DefaultPackage is the name of Teleport package.
-	DefaultPackage = "teleport"
+	DefaultPackage = "teleport-tools"
 	// DefaultCDNURITemplate is the default template for the Teleport CDN download URL.
 	DefaultCDNURITemplate = `{{ .BaseURL }}/
 	{{- if eq .OS "darwin" }}
