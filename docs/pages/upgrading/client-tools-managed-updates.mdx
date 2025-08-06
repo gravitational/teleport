@@ -104,7 +104,7 @@ will be removed during the next update.
 To reduce the need for repeated downloads, you can increase the number of stored versions by
 manually setting the max_tools value to the desired limit.
 
-### Managed updates initiation
+### Managed updates version checks
 
 Client tools make a request to the Teleport Proxy Service discovery endpoint `/v1/webapi/find` during every login
 in order to retrieve the required version of Teleport client tools and check the update mode for the target cluster.
@@ -129,7 +129,7 @@ If there is no active session, but a versioned binary exists in the tools direct
 
 ## Configuring client tool managed updates
 
-### Using environment variables
+### On a per-client basis using environment variables
 Values:
 - `X.Y.Z`: Use a specific version.
 - `off`: Disable updates.
@@ -176,7 +176,7 @@ $ cat ~/.tsh/bin/.config.json
 }
 ````
 
-### Using `tctl`
+### Cluster-wide using `tctl`
 
 To enable or disable client tools managed updates in the cluster, use the following command:
 
