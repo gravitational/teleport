@@ -38,6 +38,12 @@ type UploadHandler interface {
 	UploadSummary(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
 	// DownloadSummary downloads a session summary and writes it to a writer.
 	DownloadSummary(ctx context.Context, sessionID session.ID, writer RandomAccessWriter) error
+
+	UploadThumbnail(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
+	DownloadThumbnail(ctx context.Context, sessionID session.ID, writer RandomAccessWriter) error
+
+	UploadDetails(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
+	DownloadDetails(ctx context.Context, sessionID session.ID, writer RandomAccessWriter) error
 }
 
 type RandomAccessWriter interface {

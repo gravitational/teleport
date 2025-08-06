@@ -19,11 +19,9 @@
 package ttyplayback
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -64,12 +62,8 @@ const (
 	EventTypeResize byte = 7
 	// EventTypeScreen contains terminal screen state
 	EventTypeScreen byte = 8
-	// EventTypeLineChange indicates a line change event
-	EventTypeLineChange byte = 9
-	// EventTypeResizeWithChanges indicates a resize event with line changes
-	EventTypeResizeWithChanges byte = 10
-	// EventTypeScreenWithChanges indicates a full screen state with all lines
-	EventTypeScreenWithChanges byte = 11
+	// EventTypeBatch indicates a batch of events
+	EventTypeBatch byte = 9
 
 	requestHeaderSize  = 21
 	responseHeaderSize = 21
@@ -98,65 +92,6 @@ type SessionEventsHandler struct {
 
 	// wsMu protects websocket writes
 	wsMu sync.Mutex
-}
-
-type screenCapture struct {
-	primaryBuf  bytes.Buffer
-	altBuf      bytes.Buffer
-	inAltScreen bool
-	writer      io.Writer
-}
-
-func newScreenCapture(w io.Writer) *screenCapture {
-	return &screenCapture{
-		writer: w,
-	}
-}
-
-func (sc *screenCapture) Write(p []byte) (n int, err error) {
-	// Always pass through to original writer
-	n, err = sc.writer.Write(p)
-	if err != nil {
-		return n, err
-	}
-
-	// Capture to appropriate buffer
-	buf := &sc.primaryBuf
-	if sc.inAltScreen {
-		buf = &sc.altBuf
-	}
-
-	// Parse for mode changes
-	remaining := p
-	for len(remaining) > 0 {
-		if idx := bytes.Index(remaining, []byte("\x1b[")); idx != -1 {
-			// Write everything before escape sequence
-			if idx > 0 {
-				buf.Write(remaining[:idx])
-			}
-
-			// Check if this is a mode change
-			if bytes.HasPrefix(remaining[idx:], []byte("\x1b[?1049h")) {
-				sc.inAltScreen = true
-				buf = &sc.altBuf
-				remaining = remaining[idx+8:]
-			} else if bytes.HasPrefix(remaining[idx:], []byte("\x1b[?1049l")) {
-				sc.inAltScreen = false
-				buf = &sc.primaryBuf
-				remaining = remaining[idx+8:]
-			} else {
-				// Not a mode change, write the escape char and continue
-				buf.WriteByte(remaining[idx])
-				remaining = remaining[idx+1:]
-			}
-		} else {
-			// No more escape sequences
-			buf.Write(remaining)
-			break
-		}
-	}
-
-	return n, nil
 }
 
 // NewSessionEventsHandler creates a new session events handler
@@ -222,54 +157,6 @@ func (s *SessionEventsHandler) readLoop() {
 	}
 }
 
-type lineSegments struct {
-	Line     int
-	Segments []vt10x.Segment
-}
-
-func encodeTerminalChanges(lines []lineSegments, cursorVisible bool, cursorX, cursorY int) []byte {
-	return encodeTerminalChangesInternal(lines, cursorVisible, cursorX, cursorY, nil)
-}
-
-func encodeResizeWithChanges(lines []lineSegments, cursorVisible bool, cursorX, cursorY, cols, rows int) []byte {
-	size := &terminalSize{cols: cols, rows: rows}
-	return encodeTerminalChangesInternal(lines, cursorVisible, cursorX, cursorY, size)
-}
-
-func encodeScreenWithChanges(vt vt10x.Terminal) []byte {
-	cols, rows := vt.Size()
-	cursor := vt.Cursor()
-	cursorVisible := vt.CursorVisible()
-
-	// Get all lines
-	lines := make([]lineSegments, 0, rows)
-	for i := 0; i < rows; i++ {
-		segments := vt.Line(i)
-		if len(segments) > 0 {
-			lines = append(lines, lineSegments{
-				Line:     i,
-				Segments: segments,
-			})
-		}
-	}
-
-	size := &terminalSize{cols: cols, rows: rows}
-	return encodeTerminalChangesInternal(lines, cursorVisible, cursor.X, cursor.Y, size)
-}
-
-//export interface ScreenEvent extends BaseSessionEvent {
-//  screen: SerializedTerminal;
-//  type: EventType.Screen;
-//}
-//
-//export interface SerializedTerminal {
-//  cols: number;
-//  cursorX: number;
-//  cursorY: number;
-//  data: Uint8Array;
-//  rows: number;
-//}
-
 func encodeScreenEvent(vt vt10x.Terminal) []byte {
 	screen := terminal.Serialize(vt)
 	data := vt.ANSI()
@@ -288,160 +175,7 @@ func encodeScreenEvent(vt vt10x.Terminal) []byte {
 	return eventData
 }
 
-type terminalSize struct {
-	cols, rows int
-}
-
-func encodeTerminalChangesInternal(lines []lineSegments, cursorVisible bool, cursorX, cursorY int, size *terminalSize) []byte {
-	totalSize := 4 + 1 + 4 + 4 // line count + cursor visible + cursor X + cursor Y
-
-	if size != nil {
-		totalSize += 8 // cols + rows
-	}
-
-	for _, ls := range lines {
-		totalSize += 8
-		for _, seg := range ls.Segments {
-			textBytes := []byte(seg.Text)
-			totalSize += 4 + len(textBytes)
-			totalSize += 1
-			totalSize += 8
-			totalSize += 12
-			totalSize += 1
-
-			if seg.ExtraClass != nil {
-				extraBytes := []byte(*seg.ExtraClass)
-				totalSize += 4 + len(extraBytes)
-			}
-		}
-	}
-
-	buf := make([]byte, totalSize)
-	offset := 0
-
-	binary.BigEndian.PutUint32(buf[offset:], uint32(len(lines)))
-	offset += 4
-
-	// Add cursor information
-	if cursorVisible {
-		buf[offset] = 1
-	} else {
-		buf[offset] = 0
-	}
-	offset += 1
-
-	binary.BigEndian.PutUint32(buf[offset:], uint32(cursorX))
-	offset += 4
-
-	binary.BigEndian.PutUint32(buf[offset:], uint32(cursorY))
-	offset += 4
-
-	// Add terminal size if provided
-	if size != nil {
-		binary.BigEndian.PutUint32(buf[offset:], uint32(size.cols))
-		offset += 4
-		binary.BigEndian.PutUint32(buf[offset:], uint32(size.rows))
-		offset += 4
-	}
-
-	for _, ls := range lines {
-		offset = encodeLineSegments(buf, offset, ls.Line, ls.Segments)
-	}
-
-	return buf[:offset]
-}
-
-func encodeLineSegments(buf []byte, offset int, line int, segments []vt10x.Segment) int {
-	binary.BigEndian.PutUint32(buf[offset:], uint32(line))
-	offset += 4
-	binary.BigEndian.PutUint32(buf[offset:], uint32(len(segments)))
-	offset += 4
-
-	for _, seg := range segments {
-		textBytes := []byte(seg.Text)
-
-		binary.BigEndian.PutUint32(buf[offset:], uint32(len(textBytes)))
-		offset += 4
-		copy(buf[offset:], textBytes)
-		offset += len(textBytes)
-
-		penFlags := byte(0)
-		if seg.Pen.IsBold {
-			penFlags |= 1 << 0
-		}
-		if seg.Pen.IsItalic {
-			penFlags |= 1 << 1
-		}
-		if seg.Pen.IsUnderline {
-			penFlags |= 1 << 2
-		}
-		if seg.Pen.IsBlink {
-			penFlags |= 1 << 3
-		}
-		if seg.Pen.IsInverse {
-			penFlags |= 1 << 4
-		}
-		buf[offset] = penFlags
-		offset++
-
-		offset += writePenColor(buf[offset:], seg.Pen.Background)
-		offset += writePenColor(buf[offset:], seg.Pen.Foreground)
-
-		binary.BigEndian.PutUint32(buf[offset:], uint32(seg.Offset))
-		offset += 4
-		binary.BigEndian.PutUint32(buf[offset:], uint32(seg.CellCount))
-		offset += 4
-		binary.BigEndian.PutUint32(buf[offset:], uint32(seg.CharWidth))
-		offset += 4
-
-		if seg.ExtraClass != nil {
-			buf[offset] = 1
-			offset++
-			extraBytes := []byte(*seg.ExtraClass)
-			binary.BigEndian.PutUint32(buf[offset:], uint32(len(extraBytes)))
-			offset += 4
-			copy(buf[offset:], extraBytes)
-			offset += len(extraBytes)
-		} else {
-			buf[offset] = 0
-			offset++
-		}
-	}
-
-	return offset
-}
-
-func writePenColor(buf []byte, color *vt10x.PenColor) int {
-	if color == nil {
-		buf[0] = 0
-		return 1
-	}
-
-	switch color.Type {
-	case "Indexed":
-		buf[0] = 1
-		buf[1] = color.Value
-		return 2
-	case "RGB":
-		buf[0] = 2
-		if color.RGB != nil {
-			buf[1] = color.RGB.R
-			buf[2] = color.RGB.G
-			buf[3] = color.RGB.B
-		} else {
-			buf[1] = 0
-			buf[2] = 0
-			buf[3] = 0
-		}
-		return 4
-	default:
-		buf[0] = 0
-		return 1
-	}
-}
-
 func (s *SessionEventsHandler) handleFetchRequest(req *BinaryRequest) {
-	// Cancel any active streaming task
 	s.mu.Lock()
 	if s.activeTask != nil {
 		s.activeTask()
@@ -462,7 +196,8 @@ func (s *SessionEventsHandler) streamEvents(ctx context.Context, req *BinaryRequ
 
 	s.sendEvent(EventTypeStart, req.StartTime, nil, 0, req.RequestID)
 
-	// Always start streaming from the beginning
+	fmt.Println("Streaming session events for session ID:", s.sessionID)
+
 	events, errors := s.clt.StreamSessionEvents(
 		metadata.WithSessionRecordingFormatContext(ctx, teleport.PTY),
 		session.ID(s.sessionID),
@@ -473,16 +208,46 @@ func (s *SessionEventsHandler) streamEvents(ctx context.Context, req *BinaryRequ
 	currentTime := int64(0)
 	index := 0
 	screenSent := false
-	inTimeRange := false
+	inTimeRange := req.StartTime == 0 // If starting from beginning, we're already in range
 	var streamStartTime time.Time
 
-	// Stream events
+	const maxBatchSize = 200
+	eventBatch := make([]struct {
+		eventType byte
+		timestamp int64
+		data      []byte
+		index     int
+	}, 0, maxBatchSize)
+
+	flushBatch := func() {
+		if len(eventBatch) == 0 {
+			return
+		}
+		s.sendEventBatch(eventBatch, req.RequestID)
+		eventBatch = eventBatch[:0]
+	}
+
+	addToBatch := func(eventType byte, timestamp int64, data []byte, idx int) {
+		eventBatch = append(eventBatch, struct {
+			eventType byte
+			timestamp int64
+			data      []byte
+			index     int
+		}{eventType, timestamp, data, idx})
+
+		if len(eventBatch) >= maxBatchSize {
+			flushBatch()
+		}
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
+			flushBatch()
 			s.sendEvent(EventTypeStop, 0, encodeTime(req.StartTime, req.EndTime), 0, req.RequestID)
 			return
 		case err := <-errors:
+			flushBatch()
 			if err != nil {
 				s.sendError(err, req.RequestID)
 			}
@@ -490,6 +255,7 @@ func (s *SessionEventsHandler) streamEvents(ctx context.Context, req *BinaryRequ
 			return
 		case evt, ok := <-events:
 			if !ok {
+				flushBatch()
 				if req.RequestCurrentScreen && !screenSent && inTimeRange {
 					s.sendScreenState(vt, currentTime, req.RequestID)
 				}
@@ -503,53 +269,36 @@ func (s *SessionEventsHandler) streamEvents(ctx context.Context, req *BinaryRequ
 
 			eventTime := getEventTime(evt)
 
-			// Check if we've entered the requested time range
-			if !inTimeRange && eventTime >= req.StartTime {
-				inTimeRange = true
-				// Send screen state when entering the time range
-				if req.RequestCurrentScreen && !screenSent {
-					s.sendScreenState(vt, eventTime, req.RequestID)
-					screenSent = true
-				}
-			}
-
-			// Process the event
+			// Process all events with vt10x to maintain terminal state
 			switch evt := evt.(type) {
 			case *apievents.SessionStart:
 				resizeTerminal(vt, evt.TerminalSize)
 				if inTimeRange {
-					s.sendEvent(EventTypeSessionStart, 0, []byte(evt.TerminalSize), index, req.RequestID)
+					addToBatch(EventTypeSessionStart, 0, []byte(evt.TerminalSize), index)
 					index++
 				}
 
 			case *apievents.SessionPrint:
-				// Always update terminal state
+				// Always write to vt to maintain terminal state
 				_, _ = vt.Write(evt.Data)
-
 				currentTime = evt.DelayMilliseconds
 
-				// Only send events within the requested time range
-				if evt.DelayMilliseconds >= req.StartTime && evt.DelayMilliseconds <= req.EndTime {
-					//lines := make([]lineSegments, 0, len(linesChanged))
-					//
-					//for _, line := range linesChanged {
-					//	segments := vt.Line(line)
-					//
-					//	lines = append(lines, lineSegments{
-					//		Line:     line,
-					//		Segments: segments,
-					//	})
-					//}
+				// Check if we've entered the time range
+				if !inTimeRange && evt.DelayMilliseconds >= req.StartTime {
+					inTimeRange = true
+					if req.RequestCurrentScreen && !screenSent {
+						flushBatch()
+						s.sendScreenState(vt, evt.DelayMilliseconds, req.RequestID)
+						screenSent = true
+					}
+				}
 
-					// Get cursor information
-					//cursor := vt.Cursor()
-					//cursorVisible := vt.CursorVisible()
-
-					//s.sendEvent(EventTypeLineChange, evt.DelayMilliseconds, encodeTerminalChanges(lines, cursorVisible, cursor.X, cursor.Y), index, req.RequestID)
-					s.sendEvent(EventTypeSessionPrint, evt.DelayMilliseconds, evt.Data, index, req.RequestID)
+				// Only send events within the time range
+				if inTimeRange && evt.DelayMilliseconds <= req.EndTime {
+					addToBatch(EventTypeSessionPrint, evt.DelayMilliseconds, evt.Data, index)
 					index++
 				} else if evt.DelayMilliseconds > req.EndTime {
-					// We've passed the end time, stop streaming
+					flushBatch()
 					s.sendEvent(EventTypeStop, 0, encodeTime(req.StartTime, req.EndTime), 0, req.RequestID)
 					return
 				}
@@ -557,38 +306,18 @@ func (s *SessionEventsHandler) streamEvents(ctx context.Context, req *BinaryRequ
 			case *apievents.SessionEnd:
 				endTime := int64(evt.EndTime.Sub(evt.StartTime) / time.Millisecond)
 				if endTime >= req.StartTime && endTime <= req.EndTime {
-					s.sendEvent(EventTypeSessionEnd, endTime, []byte(evt.EndTime.Format(time.RFC3339)), index, req.RequestID)
+					addToBatch(EventTypeSessionEnd, endTime, []byte(evt.EndTime.Format(time.RFC3339)), index)
 				}
+				flushBatch()
 				s.sendEvent(EventTypeStop, 0, encodeTime(req.StartTime, req.EndTime), 0, req.RequestID)
 				return
 
 			case *apievents.Resize:
+				// Always resize vt to maintain terminal state
 				resizeTerminal(vt, evt.TerminalSize)
 
 				if inTimeRange {
-					//lines := make([]lineSegments, 0, len(linesChanged))
-					//for _, line := range linesChanged {
-					//	segments := vt.Line(line)
-					//	lines = append(lines, lineSegments{
-					//		Line:     line,
-					//		Segments: segments,
-					//	})
-					//}
-
-					//cols, rows := vt.Size()
-					//cursor := vt.Cursor()
-					//cursorVisible := vt.CursorVisible()
-					//
-					//// use the start timestamp to get the resize time
-					//var timestamp int64
-					//if !streamStartTime.IsZero() {
-					//	timestamp = evt.Time.Sub(streamStartTime).Milliseconds()
-					//}
-
-					// Send resize event with changes
-					//s.sendEvent(EventTypeResizeWithChanges, timestamp, encodeResizeWithChanges(lines, cursorVisible, cursor.X, cursor.Y, cols, rows), index, req.RequestID)
-
-					s.sendEvent(EventTypeResize, 0, []byte(evt.TerminalSize), index, req.RequestID)
+					addToBatch(EventTypeResize, 0, []byte(evt.TerminalSize), index)
 					index++
 				}
 			}
@@ -614,12 +343,53 @@ func (s *SessionEventsHandler) sendEvent(eventType byte, timestamp int64, data [
 	}
 }
 
+func (s *SessionEventsHandler) sendEventBatch(batch []struct {
+	eventType byte
+	timestamp int64
+	data      []byte
+	index     int
+}, requestID int) {
+	eventsSize := 0
+	for _, evt := range batch {
+		eventsSize += responseHeaderSize + len(evt.data)
+	}
+
+	buf := make([]byte, responseHeaderSize+eventsSize)
+
+	buf[0] = EventTypeBatch
+	binary.BigEndian.PutUint32(buf[1:5], uint32(len(batch)))
+	binary.BigEndian.PutUint32(buf[5:9], uint32(requestID))
+
+	// keep the header size the same for all events
+	offset := responseHeaderSize
+
+	for _, evt := range batch {
+		buf[offset] = evt.eventType
+
+		binary.BigEndian.PutUint64(buf[offset+1:offset+9], uint64(evt.timestamp))
+		binary.BigEndian.PutUint32(buf[offset+9:offset+13], uint32(len(evt.data)))
+		binary.BigEndian.PutUint32(buf[offset+13:offset+17], uint32(evt.index))
+		binary.BigEndian.PutUint32(buf[offset+17:offset+21], uint32(requestID))
+
+		copy(buf[offset+21:], evt.data)
+
+		offset += responseHeaderSize + len(evt.data)
+	}
+
+	s.wsMu.Lock()
+	err := s.ws.WriteMessage(websocket.BinaryMessage, buf)
+	s.wsMu.Unlock()
+
+	if err != nil {
+		s.logger.WarnContext(s.ctx, "failed to send event batch", "error", err, "batch_size", len(batch))
+	}
+}
+
 func (s *SessionEventsHandler) sendError(err error, requestID int) {
 	s.sendEvent(EventTypeError, 0, []byte(err.Error()), 0, requestID)
 }
 
 func (s *SessionEventsHandler) sendScreenState(vt vt10x.Terminal, currentTime int64, requestID int) {
-	// Send the new screen with changes event
 	data := encodeScreenEvent(vt)
 	s.sendEvent(EventTypeScreen, currentTime, data, 0, requestID)
 }
@@ -648,20 +418,6 @@ func decodeBinaryRequest(data []byte) (*BinaryRequest, error) {
 	}
 
 	return req, nil
-}
-
-func encodeSerializedTerminal(screen *terminal.SerializedTerminal) []byte {
-	dataBytes := []byte(screen.Data)
-	buf := make([]byte, 20+len(dataBytes))
-
-	binary.BigEndian.PutUint32(buf[0:4], uint32(screen.Cols))
-	binary.BigEndian.PutUint32(buf[4:8], uint32(screen.Rows))
-	binary.BigEndian.PutUint32(buf[8:12], uint32(screen.CursorX))
-	binary.BigEndian.PutUint32(buf[12:16], uint32(screen.CursorY))
-	binary.BigEndian.PutUint32(buf[16:20], uint32(len(dataBytes)))
-	copy(buf[20:], dataBytes)
-
-	return buf
 }
 
 func getEventTime(evt apievents.AuditEvent) int64 {

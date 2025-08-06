@@ -68,6 +68,7 @@ import (
 	mfav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	recordingdetailsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingdetails/v1"
 	recordingencryptionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
@@ -108,6 +109,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
+	"github.com/gravitational/teleport/lib/auth/recordingdetails/recordingdetailsv1"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption/recordingencryptionv1"
 	scopedaccess "github.com/gravitational/teleport/lib/auth/scopes/access"
 	scopedjoining "github.com/gravitational/teleport/lib/auth/scopes/joining"
@@ -5858,6 +5860,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		workloadidentityv1pb.RegisterSigstorePolicyResourceServiceServer(server, workloadidentityv1.NewSigstorePolicyResourceService())
 
 		summarizerv1pb.RegisterSummarizerServiceServer(server, summarizerv1.NewService())
+		recordingdetailsv1pb.RegisterRecordingDetailsServiceServer(server, recordingdetailsv1.NewService())
 	}
 
 	decisionService, err := decisionv1.NewService(decisionv1.ServiceConfig{

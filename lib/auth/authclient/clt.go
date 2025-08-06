@@ -49,6 +49,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	recordingdetailsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingdetails/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
@@ -1733,6 +1734,10 @@ type ClientI interface {
 	// SummarizerServiceClient returns a client for the session recording
 	// summarizer service.
 	SummarizerServiceClient() summarizerv1.SummarizerServiceClient
+
+	// RecordingDetailsServiceClient returns a client for the session recording
+	// details service.
+	RecordingDetailsServiceClient() recordingdetailsv1.RecordingDetailsServiceClient
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)

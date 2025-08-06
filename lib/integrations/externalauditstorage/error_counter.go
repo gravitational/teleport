@@ -386,6 +386,20 @@ func (c *ErrorCountingSessionHandler) UploadSummary(ctx context.Context, session
 	return res, err
 }
 
+// UploadDetails calls [c.wrapped.UploadDetails] and counts the error or success.
+func (c *ErrorCountingSessionHandler) UploadDetails(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	res, err := c.wrapped.UploadDetails(ctx, sessionID, reader)
+	c.uploads.observe(err)
+	return res, err
+}
+
+// UploadThumbnail calls [c.wrapped.UploadThumbnail] and counts the error or success.
+func (c *ErrorCountingSessionHandler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	res, err := c.wrapped.UploadThumbnail(ctx, sessionID, reader)
+	c.uploads.observe(err)
+	return res, err
+}
+
 // Download calls [c.wrapped.Download] and counts the error or success.
 func (c *ErrorCountingSessionHandler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	err := c.wrapped.Download(ctx, sessionID, writer)
@@ -396,6 +410,20 @@ func (c *ErrorCountingSessionHandler) Download(ctx context.Context, sessionID se
 // DownloadSummary calls [c.wrapped.DownloadSummary] and counts the error or success.
 func (c *ErrorCountingSessionHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	err := c.wrapped.DownloadSummary(ctx, sessionID, writer)
+	c.downloads.observe(err)
+	return err
+}
+
+// DownloadDetails calls [c.wrapped.DownloadDetails] and counts the error or success.
+func (c *ErrorCountingSessionHandler) DownloadDetails(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	err := c.wrapped.DownloadDetails(ctx, sessionID, writer)
+	c.downloads.observe(err)
+	return err
+}
+
+// DownloadThumbnail calls [c.wrapped.DownloadThumbnail()] and counts the error or success.
+func (c *ErrorCountingSessionHandler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	err := c.wrapped.DownloadThumbnail(ctx, sessionID, writer)
 	c.downloads.observe(err)
 	return err
 }

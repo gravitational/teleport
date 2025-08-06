@@ -416,6 +416,10 @@ const (
 	tarExt = ".tar"
 	// summaryExt is a suffix for summary files
 	summaryExt = ".summary.json"
+	// detailsExt is a suffix for session details files
+	detailsExt = ".details.json"
+	// thumbnailExt is a suffix for session thumbnails
+	thumbnailExt = ".thumbnail.json"
 	// checkpointExt is a suffix for checkpoint extensions
 	checkpointExt = ".checkpoint"
 	// errorExt is a suffix for files storing session errors

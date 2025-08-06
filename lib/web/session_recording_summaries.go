@@ -3,11 +3,12 @@ package web
 import (
 	"net/http"
 
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/web/ui"
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
 )
 
 func (h *Handler) getSessionRecordingSummary(

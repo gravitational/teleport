@@ -867,9 +867,6 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/events/search/sessions", h.WithClusterAuth(h.clusterSearchSessionEvents)) // search site session events
 	h.GET("/webapi/sites/:site/ttyplayback/:sid", h.WithClusterAuth(h.ttyPlaybackHandle))
 	h.GET("/webapi/sites/:site/sessioneventsws/:sid", h.WithClusterAuth(h.sessionEventsWs))
-	h.GET("/webapi/sites/:site/sessiondetails/:sid", h.WithClusterAuth(h.sessionDetails))
-	h.GET("/webapi/sites/:site/sessionframe/:sid", h.WithClusterAuth(h.sessionFrame))
-	h.GET("/webapi/sites/:site/sessionevents/:sid", h.WithClusterAuth(h.sessionEvents))
 	h.GET("/webapi/sites/:site/sessionlength/:sid", h.WithClusterAuth(h.sessionLengthHandle))
 
 	// scp file transfer
@@ -1174,6 +1171,8 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Session recording summaries
 	h.GET("/webapi/sites/:site/session-summaries/:session_id", h.WithClusterAuth(h.getSessionRecordingSummary)) // search site session events
+	h.GET("/webapi/sites/:site/session-details/:session_id", h.WithClusterAuth(h.getSessionRecordingDetails))
+	h.GET("/webapi/sites/:site/session-thumbnail/:session_id", h.WithClusterAuth(h.getSessionRecordingThumbnail))
 }
 
 // GetProxyClient returns authenticated auth server client

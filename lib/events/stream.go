@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"sort"
@@ -36,6 +37,7 @@ import (
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/auth/recordingdetails"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -131,6 +133,8 @@ type ProtoStreamerConfig struct {
 	// It can be nil or provide a nil summarizer if summarization is not needed.
 	// The summarizer itself summarizes session recordings.
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
+	// RecordingDetailsProvider is a provider of the session details service.
+	RecordingDetailsProvider *recordingdetails.RecordingDetailsProvider
 }
 
 // CheckAndSetDefaults checks and sets streamer defaults
@@ -183,6 +187,7 @@ func (s *ProtoStreamer) CreateAuditStreamForUpload(ctx context.Context, sid sess
 		RetryConfig:               s.cfg.RetryConfig,
 		Encrypter:                 s.cfg.Encrypter,
 		SessionSummarizerProvider: s.cfg.SessionSummarizerProvider,
+		RecordingDetailsProvider:  s.cfg.RecordingDetailsProvider,
 	})
 }
 
@@ -214,6 +219,7 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 		RetryConfig:               s.cfg.RetryConfig,
 		Encrypter:                 s.cfg.Encrypter,
 		SessionSummarizerProvider: s.cfg.SessionSummarizerProvider,
+		RecordingDetailsProvider:  s.cfg.RecordingDetailsProvider,
 	})
 }
 
@@ -252,6 +258,8 @@ type ProtoStreamConfig struct {
 	// It can be nil or provide a nil summarizer if summarization is not needed.
 	// The summarizer itself summarizes session recordings.
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
+	// RecordingDetailsProvider is a provider of the recording details service.
+	RecordingDetailsProvider *recordingdetails.RecordingDetailsProvider
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -802,6 +810,17 @@ func (w *sliceWriter) completeStream() {
 		w.proto.setCompleteResult(err)
 		if err != nil {
 			slog.WarnContext(w.proto.cancelCtx, "Failed to complete upload", "error", err)
+			return
+		}
+
+		fmt.Println("HELLO THEREEERE")
+
+		recordingdetails := w.proto.cfg.RecordingDetailsProvider.RecordingDetails()
+
+		fmt.Printf("recordingdetails: %v\n", recordingdetails)
+
+		if err := recordingdetails.ProcessSessionRecording(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID); err != nil {
+			slog.WarnContext(w.proto.cancelCtx, "Failed to process session recording details", "error", err)
 			return
 		}
 

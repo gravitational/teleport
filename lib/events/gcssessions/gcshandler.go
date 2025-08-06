@@ -248,6 +248,18 @@ func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reade
 	return h.uploadFile(ctx, h.summaryPath(sessionID), reader)
 }
 
+// UploadDetails reads the session details from a reader and uploads it to a GCS
+// bucket. If successful, it returns URL of the uploaded object.
+func (h *Handler) UploadDetails(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return h.uploadFile(ctx, h.detailsPath(sessionID), reader)
+}
+
+// UploadThumbnail reads the session thumbnail from a reader and uploads it to a GCS
+// bucket. If successful, it returns URL of the uploaded object.
+func (h *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return h.uploadFile(ctx, h.thumbnailPath(sessionID), reader)
+}
+
 func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader) (string, error) {
 	h.logger.DebugContext(ctx, "Uploading object to GCS", "path", path)
 
@@ -290,6 +302,20 @@ func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, wri
 	return h.downloadFile(ctx, h.summaryPath(sessionID), writer)
 }
 
+// DownloadDetails downloads a session's details from a GCS bucket and writes the
+// result into a writer. Returns trace.NotFound error if the recording is not
+// found.
+func (h *Handler) DownloadDetails(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return h.downloadFile(ctx, h.detailsPath(sessionID), writer)
+}
+
+// DownloadThumbnail downloads a session's details from a GCS bucket and writes the
+// result into a writer. Returns trace.NotFound error if the recording is not
+// found.
+func (h *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return h.downloadFile(ctx, h.thumbnailPath(sessionID), writer)
+}
+
 func (h *Handler) downloadFile(ctx context.Context, path string, writer events.RandomAccessWriter) error {
 	h.logger.DebugContext(ctx, "Downloading object from GCS.", "path", path)
 	reader, err := h.gcsClient.Bucket(h.Config.Bucket).Object(path).NewReader(ctx)
@@ -322,6 +348,20 @@ func (h *Handler) summaryPath(sessionID session.ID) string {
 		return string(sessionID) + ".summary.json"
 	}
 	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".summary.json"), slash)
+}
+
+func (h *Handler) detailsPath(sessionID session.ID) string {
+	if h.Path == "" {
+		return string(sessionID) + ".details.json"
+	}
+	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".details.json"), slash)
+}
+
+func (h *Handler) thumbnailPath(sessionID session.ID) string {
+	if h.Path == "" {
+		return string(sessionID) + ".thumbnail.json"
+	}
+	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".thumbnail.json"), slash)
 }
 
 // ensureBucket makes sure bucket exists, and if it does not, creates it

@@ -120,6 +120,16 @@ func (l *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, wri
 	return downloadFile(l.summaryPath(sessionID), writer)
 }
 
+// DownloadDetails reads a session summary from a local directory.
+func (l *Handler) DownloadDetails(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return downloadFile(l.detailsPath(sessionID), writer)
+}
+
+// DownloadThumbnail reads a session summary from a local directory.
+func (l *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return downloadFile(l.thumbnailPath(sessionID), writer)
+}
+
 func downloadFile(path string, writer events.RandomAccessWriter) error {
 	f, err := os.Open(path)
 	if err != nil {
@@ -143,6 +153,16 @@ func (l *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reade
 	return uploadFile(l.summaryPath(sessionID), reader)
 }
 
+// UploadDetails writes a session summary to a local directory.
+func (l *Handler) UploadDetails(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return uploadFile(l.detailsPath(sessionID), reader)
+}
+
+// UploadThumbnail writes a session summary to a local directory.
+func (l *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return uploadFile(l.thumbnailPath(sessionID), reader)
+}
+
 func uploadFile(path string, reader io.Reader) (string, error) {
 	f, err := os.Create(path)
 	if err != nil {
@@ -161,6 +181,14 @@ func (l *Handler) recordingPath(sessionID session.ID) string {
 
 func (l *Handler) summaryPath(sessionID session.ID) string {
 	return filepath.Join(l.Directory, string(sessionID)+summaryExt)
+}
+
+func (l *Handler) thumbnailPath(sessionID session.ID) string {
+	return filepath.Join(l.Directory, string(sessionID)+thumbnailExt)
+}
+
+func (l *Handler) detailsPath(sessionID session.ID) string {
+	return filepath.Join(l.Directory, string(sessionID)+detailsExt)
 }
 
 // sessionIDFromPath extracts session ID from the filename
