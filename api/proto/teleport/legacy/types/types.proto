@@ -6117,6 +6117,14 @@ message LockTarget {
   string JoinToken = 11 [(gogoproto.jsontag) = "join_token,omitempty"];
 }
 
+message LocksFilter {
+  // targets is a list of targets. Every returned lock must match at least
+  // one of the targets.
+  repeated LockTarget targets = 1 [(gogoproto.jsontag) = "targets"];
+  // in_force_only specifies whether to return only those locks that are in force.
+  bool in_force_only = 2 [(gogoproto.jsontag) = "in_force_only"];
+}
+
 // AddressCondition represents a set of addresses. Presently the addresses are specified
 // exclusively in terms of IPv4/IPv6 ranges.
 message AddressCondition {

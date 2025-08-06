@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestLocks tests that CRUD operations on lock resources are
@@ -30,7 +31,6 @@ func TestLocks(t *testing.T) {
 
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
-
 	testResources(t, p, testFuncs[types.Lock]{
 		newResource: func(name string) (types.Lock, error) {
 			return types.NewLock(
@@ -44,13 +44,11 @@ func TestLocks(t *testing.T) {
 		},
 		create: p.accessS.UpsertLock,
 		list: func(ctx context.Context) ([]types.Lock, error) {
-			results, err := p.accessS.GetLocks(ctx, false)
-			return results, err
+			return stream.Collect(p.accessS.Locks(ctx, "", ""))
 		},
 		cacheGet: p.cache.GetLock,
 		cacheList: func(ctx context.Context, pageSize int) ([]types.Lock, error) {
-			results, err := p.cache.GetLocks(ctx, false)
-			return results, err
+			return stream.Collect(p.cache.Locks(ctx, "", ""))
 		},
 		update:    p.accessS.UpsertLock,
 		deleteAll: p.accessS.DeleteAllLocks,

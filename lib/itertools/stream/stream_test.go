@@ -884,3 +884,85 @@ func TestMergeStreams(t *testing.T) {
 		require.Equal(t, []int{1, 2, 3, 4, 5, 6}, out)
 	})
 }
+
+func TestOnLast(t *testing.T) {
+	t.Parallel()
+
+	out, err := Collect(OnLast(Slice([]int{1, 2, 3, 4, 5, 6}),
+		func(last int) {
+			require.Equal(t, 6, last)
+		},
+	))
+
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3, 4, 5, 6}, out)
+
+	out, err = Collect(OnLast(Empty[int](),
+		func(last int) {
+			panic("unexpected call on empty stream")
+		},
+	))
+
+	require.NoError(t, err)
+	require.Empty(t, out)
+}
+
+func TestLimitWithCallBack(t *testing.T) {
+	t.Parallel()
+
+	// Normal usecase
+	testLast := -1
+	out, err := Collect(LimitWithCallBack(Slice([]int{1, 2, 3, 4, 5, 6}),
+		3,
+		func(last int) {
+			testLast = last
+		},
+	))
+
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3}, out)
+	require.Equal(t, 4, testLast)
+
+	// No limit hit
+	out, err = Collect(LimitWithCallBack(Slice([]int{1, 2, 3, 4, 5, 6}),
+		10,
+		func(last int) {
+			panic("unexpected callback")
+		},
+	))
+
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3, 4, 5, 6}, out)
+
+	// Bad limit
+	out, err = Collect(LimitWithCallBack(Slice([]int{1, 2, 3, 4, 5, 6}),
+		-1,
+		func(last int) {
+			panic("unexpected callback")
+		},
+	))
+
+	require.Error(t, err)
+	require.Empty(t, out)
+
+	// No callback on empty
+	out, err = Collect(LimitWithCallBack(Empty[int](),
+		1,
+		func(last int) {
+			panic("unexpected callback")
+		},
+	))
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	// No callback on fail
+	out, err = Collect(LimitWithCallBack(
+		Fail[int](fmt.Errorf("unexpected error")),
+		1,
+		func(last int) {
+			panic("unexpected callback")
+		},
+	))
+	require.ErrorContains(t, err, "unexpected")
+	require.Empty(t, out)
+}

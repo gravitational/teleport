@@ -18,11 +18,13 @@ package cache
 
 import (
 	"context"
+	"iter"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -43,7 +45,12 @@ func newLockCollection(upstream services.Access, w types.WatchKind) (*collection
 				lockNameIndex: types.Lock.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Lock, error) {
-			locks, err := upstream.GetLocks(ctx, false)
+			locks, err := stream.Collect(upstream.Locks(ctx, "", ""))
+			// TODO(lokraszewski): DELETE IN v21.0.0
+			if trace.IsNotImplemented(err) {
+				locks, err := upstream.GetLocks(ctx, false)
+				return locks, trace.Wrap(err)
+			}
 			return locks, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Lock {
@@ -86,8 +93,101 @@ func (c *Cache) GetLock(ctx context.Context, name string) (types.Lock, error) {
 	return out, trace.Wrap(err)
 }
 
+// Locks returns lock resources within the range [start, end).
+func (c *Cache) Locks(ctx context.Context, start, end string) iter.Seq2[types.Lock, error] {
+	return func(yield func(types.Lock, error) bool) {
+		ctx, span := c.Tracer.Start(ctx, "cache/Locks")
+		defer span.End()
+
+		rg, err := acquireReadGuard(c, c.collections.locks)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		defer rg.Release()
+
+		if rg.ReadCache() {
+			for a := range rg.store.resources(lockNameIndex, start, end) {
+				if !yield(a, nil) {
+					return
+				}
+			}
+			return
+		}
+
+		rg.Release()
+
+		for lock, err := range c.Config.Access.Locks(ctx, start, end) {
+			if err != nil {
+				// TODO(lokraszewski): DELETE IN v21.0.0
+				if trace.IsNotImplemented(err) {
+					locks, err := c.Config.Access.GetLocks(ctx, false)
+					if err != nil {
+						yield(nil, err)
+						return
+					}
+
+					for _, lock := range locks {
+						if !yield(lock, nil) {
+							return
+						}
+					}
+
+					return
+				}
+
+				yield(nil, err)
+				return
+			}
+
+			if !yield(lock, nil) {
+				return
+			}
+		}
+
+	}
+}
+
+// SearchLocks returns a page of lock resources that match the given filter.
+func (c *Cache) SearchLocks(ctx context.Context, limit int, startKey string, filter *types.LocksFilter) ([]types.Lock, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/SearchLocks")
+	defer span.End()
+
+	filterFn := func(lock types.Lock) bool {
+		if filter.InForceOnly && !lock.IsInForce(time.Now()) {
+			return false
+		}
+		// If no targets specified, return all of the found/in-force locks.
+		if len(filter.Targets) == 0 {
+			return true
+		}
+		// Otherwise, use the targets as filters.
+		for _, target := range filter.Targets {
+			if target.Match(lock) {
+				return true
+			}
+		}
+		return false
+	}
+
+	var next string
+	out, err := stream.Collect(
+		stream.LimitWithCallBack(
+			stream.Filter(
+				c.Locks(ctx, startKey, ""),
+				filterFn,
+			),
+			limit, func(lock types.Lock) {
+				next = lock.GetMetadata().Name
+			},
+		),
+	)
+	return out, next, trace.Wrap(err)
+}
+
 // GetLocks gets all/in-force locks that match at least one of the targets
 // when specified.
+// Deprecated: Prefer using paginated [SearchLocks]
 func (c *Cache) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetLocks")
 	defer span.End()

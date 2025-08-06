@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"iter"
 	"log/slog"
 	"strings"
 	"time"
@@ -28,8 +29,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -277,7 +280,73 @@ func (s *AccessService) GetLock(ctx context.Context, name string) (types.Lock, e
 	return services.UnmarshalLock(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
+func (s *AccessService) Locks(ctx context.Context, start, end string) iter.Seq2[types.Lock, error] {
+	mapFn := func(item backend.Item) (types.Lock, error) {
+		lock, err := services.UnmarshalLock(item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return lock, nil
+	}
+
+	lockKey := backend.NewKey(locksPrefix)
+	startKey := lockKey.AppendKey(backend.KeyFromString(start))
+	endKey := backend.RangeEnd(lockKey)
+	if end != "" {
+		endKey = lockKey.AppendKey(backend.KeyFromString(end)).ExactKey()
+	}
+
+	return stream.Map(
+		s.Backend.Items(ctx, backend.ItemsParams{
+			StartKey: startKey,
+			EndKey:   endKey,
+		}),
+		mapFn,
+	)
+}
+
+func (s *AccessService) SearchLocks(ctx context.Context, limit int, startKey string, filter *types.LocksFilter) ([]types.Lock, string, error) {
+	if limit <= 0 || limit > defaults.DefaultChunkSize {
+		limit = defaults.DefaultChunkSize
+	}
+
+	filterFn := func(lock types.Lock) bool {
+		if filter.InForceOnly && !lock.IsInForce(s.Clock().Now()) {
+			return false
+		}
+		// If no targets specified, return all of the found/in-force locks.
+		if len(filter.Targets) == 0 {
+			return true
+		}
+		// Otherwise, use the targets as filters.
+		for _, target := range filter.Targets {
+			if target.Match(lock) {
+				return true
+			}
+		}
+		return false
+	}
+
+	var next string
+
+	out, err := stream.Collect(
+		stream.LimitWithCallBack(
+			stream.Filter(s.Locks(ctx, startKey, ""), filterFn),
+			limit, func(lock types.Lock) {
+				next = lock.GetName()
+			},
+		),
+	)
+
+	return out, next, trace.Wrap(err)
+}
+
 // GetLocks gets all/in-force locks that match at least one of the targets when specified.
+// Deprecated: Prefer using paginated [SearchLocks]
 func (s *AccessService) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
 	startKey := backend.ExactKey(locksPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)

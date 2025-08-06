@@ -3164,12 +3164,64 @@ func (c *Client) GetLock(ctx context.Context, name string) (types.Lock, error) {
 	return resp, nil
 }
 
-// GetLocks gets all/in-force locks that match at least one of the targets when specified.
+// Locks returns lock resources within the range [start, end).
+func (c *Client) Locks(ctx context.Context, start, end string) iter.Seq2[types.Lock, error] {
+	return func(yield func(types.Lock, error) bool) {
+		filter := types.NewLocksFilter(false)
+		for {
+			locks, next, err := c.SearchLocks(ctx, 0, start, filter)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			for _, lock := range locks {
+				if end != "" && lock.GetName() >= end {
+					return
+				}
+
+				if !yield(lock, nil) {
+					return
+				}
+			}
+
+			if next == "" {
+				return
+			}
+
+			start = next
+		}
+	}
+}
+
+// SearchLocks returns a page of lock resources that match the given filter.
+func (c *Client) SearchLocks(ctx context.Context, limit int, start string, filter *types.LocksFilter) ([]types.Lock, string, error) {
+	rsp, err := c.grpc.SearchLocks(ctx, &proto.SearchLocksRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+		Filter:    filter,
+	})
+
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	locks := make([]types.Lock, 0, len(rsp.Locks))
+	for _, lock := range rsp.Locks {
+		locks = append(locks, lock)
+	}
+	return locks, rsp.NextPageToken, nil
+}
+
+// GetLocks gets all/in-force locks that match at least one of the targets when specified without pagination.
+// Deprecated: Prefer using [SearchLocks] or [Locks] instead.
 func (c *Client) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
 	targetPtrs := make([]*types.LockTarget, len(targets))
 	for i := range targets {
 		targetPtrs[i] = &targets[i]
 	}
+
+	//nolint:staticcheck // TODO(okraport): deprecated, to be removed in v21
 	resp, err := c.grpc.GetLocks(ctx, &proto.GetLocksRequest{
 		InForceOnly: inForceOnly,
 		Targets:     targetPtrs,

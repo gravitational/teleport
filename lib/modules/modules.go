@@ -248,6 +248,8 @@ type AccessResourcesGetter interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 
 	GetLock(ctx context.Context, name string) (types.Lock, error)
+	SearchLocks(ctx context.Context, limit int, startKey string, filter *types.LocksFilter) ([]types.Lock, string, error)
+	// Deprecated: Prefer using paginated [SearchLocks]
 	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
 }
 

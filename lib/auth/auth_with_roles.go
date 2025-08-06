@@ -6002,7 +6002,20 @@ func (a *ServerWithRoles) GetLock(ctx context.Context, name string) (types.Lock,
 	return a.authServer.GetLock(ctx, name)
 }
 
+func (a *ServerWithRoles) SearchLocks(ctx context.Context, limit int, startKey string, filter *types.LocksFilter) ([]types.Lock, string, error) {
+	if err := a.authorizeAction(types.KindLock, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	return a.authServer.SearchLocks(ctx, limit, startKey, filter)
+}
+
 // GetLocks gets all/in-force locks that match at least one of the targets when specified.
+// Deprecated: Prefer using paginated [SearchLocks]
 func (a *ServerWithRoles) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
 	if err := a.authorizeAction(types.KindLock, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)

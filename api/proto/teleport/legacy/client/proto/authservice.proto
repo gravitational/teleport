@@ -1585,6 +1585,7 @@ message Events {
 }
 
 message GetLocksRequest {
+  option deprecated = true;
   // Targets is a list of targets. Every returned lock must match at least
   // one of the targets.
   repeated types.LockTarget Targets = 1;
@@ -1593,8 +1594,26 @@ message GetLocksRequest {
 }
 
 message GetLocksResponse {
+  option deprecated = true;
   // Locks is a list of locks.
   repeated types.LockV2 Locks = 1;
+}
+
+message SearchLocksRequest {
+  types.LocksFilter filter = 1;
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 3;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 4;
+}
+
+message SearchLocksResponse {
+  // Locks is a list of locks.
+  repeated types.LockV2 Locks = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
 }
 
 message GetLockRequest {
@@ -3297,7 +3316,11 @@ service AuthService {
   // GetLock gets a lock by name.
   rpc GetLock(GetLockRequest) returns (types.LockV2);
   // GetLocks gets all/in-force locks that match at least one of the targets when specified.
-  rpc GetLocks(GetLocksRequest) returns (GetLocksResponse);
+  rpc GetLocks(GetLocksRequest) returns (GetLocksResponse) {
+    option deprecated = true;
+  }
+  // SearchLocks returns locks that match a given filter and returns paginated results.
+  rpc SearchLocks(SearchLocksRequest) returns (SearchLocksResponse);
   // UpsertLock upserts a lock.
   rpc UpsertLock(types.LockV2) returns (google.protobuf.Empty);
   // DeleteLock deletes a lock.

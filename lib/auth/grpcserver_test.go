@@ -3380,6 +3380,10 @@ func TestLocksCRUD(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, locks)
 
+		locks, _, err = clt.SearchLocks(ctx, 5, "", types.NewLocksFilter(false))
+		require.NoError(t, err)
+		require.Empty(t, locks)
+
 		// Create locks.
 		err = clt.UpsertLock(ctx, lock1)
 		require.NoError(t, err)
@@ -3394,6 +3398,15 @@ func TestLocksCRUD(t *testing.T) {
 			t.Parallel()
 			locks, err := clt.GetLocks(ctx, false)
 			require.NoError(t, err)
+			require.Len(t, locks, 2)
+			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+		})
+		t.Run("SearchLocks", func(t *testing.T) {
+			t.Parallel()
+			locks, next, err := clt.SearchLocks(ctx, 5, "", types.NewLocksFilter(false))
+			require.NoError(t, err)
+			require.Equal(t, next, "")
 			require.Len(t, locks, 2)
 			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
 				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))

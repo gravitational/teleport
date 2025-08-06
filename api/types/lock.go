@@ -313,3 +313,16 @@ func (t LockTarget) Equals(t2 LockTarget) bool {
 		t.BotInstanceID == t2.BotInstanceID &&
 		t.JoinToken == t2.JoinToken
 }
+
+func NewLocksFilter(inForceOnly bool, targets ...LockTarget) *LocksFilter {
+	filter := &LocksFilter{
+		InForceOnly: inForceOnly,
+		Targets:     make([]*LockTarget, len(targets)),
+	}
+
+	for i := range targets {
+		filter.Targets[i] = &targets[i]
+	}
+
+	return filter
+}

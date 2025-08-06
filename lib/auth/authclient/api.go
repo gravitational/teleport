@@ -898,7 +898,14 @@ type ReadOktaAccessPoint interface {
 	// ListResources returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 
+	// Locks returns lock resources within the range [start, end).
+	Locks(ctx context.Context, start, end string) iter.Seq2[types.Lock, error]
+
+	// SearchLocks returns a page of lock resources that match the given filter.
+	SearchLocks(ctx context.Context, limit int, startKey string, filter *types.LocksFilter) ([]types.Lock, string, error)
+
 	// GetLocks lists the locks that target a given set of resources.
+	// Deprecated: Prefer using paginated [SearchLocks]
 	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
 }
 
@@ -1138,11 +1145,18 @@ type Cache interface {
 	// services.LockWatcher that provides the necessary freshness guarantees.
 	GetLock(ctx context.Context, name string) (types.Lock, error)
 
+	// Locks returns lock resources within the range [start, end).
+	Locks(ctx context.Context, start, end string) iter.Seq2[types.Lock, error]
+
+	// SearchLocks returns a page of lock resources that match the given filter.
+	SearchLocks(ctx context.Context, limit int, startKey string, filter *types.LocksFilter) ([]types.Lock, string, error)
+
 	// GetLocks gets all/in-force locks that match at least one of the targets
 	// when specified.
 	// NOTE: This method is intentionally available only for the auth server
 	// cache, the other Teleport components should make use of
 	// services.LockWatcher that provides the necessary freshness guarantees.
+	// Deprecated: Prefer using paginated [SearchLocks]
 	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
 
 	// ListResources returns a paginated list of resources.
@@ -1640,6 +1654,7 @@ func (w *OktaWrapper) DeleteApplicationServer(ctx context.Context, namespace, ho
 }
 
 // GetLocks fetches locks that target a given set of resources
+// Deprecated: Prefer using paginated [SearchLocks]
 func (w *OktaWrapper) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
 	return w.NoCache.GetLocks(ctx, inForceOnly, targets...)
 }

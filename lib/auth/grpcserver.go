@@ -3749,7 +3749,33 @@ func (g *GRPCServer) GetLock(ctx context.Context, req *authpb.GetLockRequest) (*
 	return lockV2, nil
 }
 
+func (g *GRPCServer) SearchLocks(ctx context.Context, req *authpb.SearchLocksRequest) (*authpb.SearchLocksResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	locks, next, err := auth.SearchLocks(ctx, int(req.PageSize), req.PageToken, req.Filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp := &authpb.SearchLocksResponse{
+		Locks:         make([]*types.LockV2, 0, len(locks)),
+		NextPageToken: next,
+	}
+
+	for _, lock := range locks {
+		lockV2, ok := lock.(*types.LockV2)
+		if !ok {
+			return nil, trace.BadParameter("unexpected lock type %T", lock)
+		}
+		resp.Locks = append(resp.Locks, lockV2)
+	}
+	return resp, nil
+}
+
 // GetLocks gets all/in-force locks that match at least one of the targets when specified.
+// Deprecated: Prefer using paginated [SearchLocks]
 func (g *GRPCServer) GetLocks(ctx context.Context, req *authpb.GetLocksRequest) (*authpb.GetLocksResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {

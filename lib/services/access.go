@@ -21,6 +21,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"iter"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -33,7 +34,10 @@ import (
 type LockGetter interface {
 	// GetLock gets a lock by name.
 	GetLock(ctx context.Context, name string) (types.Lock, error)
+	Locks(ctx context.Context, start, end string) iter.Seq2[types.Lock, error]
+	SearchLocks(ctx context.Context, limit int, startKey string, filter *types.LocksFilter) ([]types.Lock, string, error)
 	// GetLocks gets all/in-force locks that match at least one of the targets when specified.
+	// Deprecated: Prefer using paginated [SearchLocks]
 	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
 }
 

@@ -20,6 +20,7 @@ package accesslists
 
 import (
 	"context"
+	"iter"
 	"sort"
 	"testing"
 	"time"
@@ -61,6 +62,14 @@ type mockLocksGetter struct {
 }
 
 func (m *mockLocksGetter) GetLock(ctx context.Context, name string) (types.Lock, error) {
+	panic("not implemented")
+}
+
+func (c *mockLocksGetter) Locks(ctx context.Context, start, end string) iter.Seq2[types.Lock, error] {
+	panic("not implemented")
+}
+
+func (c *mockLocksGetter) SearchLocks(ctx context.Context, limit int, startKey string, filter *types.LocksFilter) ([]types.Lock, string, error) {
 	panic("not implemented")
 }
 
