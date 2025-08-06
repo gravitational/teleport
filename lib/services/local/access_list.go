@@ -826,6 +826,13 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 	return accessList, membersIn, nil
 }
 
+// UpsertAccessListWithMembersV2 creates or updates an access list resource and its members.
+// Replica of UpsertAccessListWithMembers.
+// TODO(kimlisa): delete once UpsertAccessListWithMembers signature gets updated and is consumed by enterprise.
+func (a *AccessListService) UpsertAccessListWithMembersV2(ctx context.Context, req accesslist.UpsertAccessListWithMembersRequest) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	return a.UpsertAccessListWithMembers(ctx, req.AccessList, req.Members)
+}
+
 func (a *AccessListService) AccessRequestPromote(_ context.Context, _ *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error) {
 	return nil, trace.NotImplemented("AccessRequestPromote should not be called")
 }
