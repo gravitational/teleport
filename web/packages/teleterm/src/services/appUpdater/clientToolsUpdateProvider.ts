@@ -18,6 +18,7 @@
 
 import { app } from 'electron';
 import {
+  AppImageUpdater,
   AppUpdater,
   DebUpdater,
   MacUpdater,
@@ -123,6 +124,9 @@ function makeDownloadFilename(updater: AppUpdater, version: string): string {
   }
   if (updater instanceof DebUpdater) {
     return `teleport-connect_${version}_amd64.deb`;
+  }
+  if (updater instanceof AppImageUpdater) {
+    return `teleport-connect-${version}-x64.tar.gz`;
   }
 
   throw new Error(`Unsupported app updater: ${updater?.constructor?.name}`);
