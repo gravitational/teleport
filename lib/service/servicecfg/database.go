@@ -19,6 +19,8 @@
 package servicecfg
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
@@ -114,6 +116,11 @@ func (d *Database) CheckAndSetDefaults() error {
 
 // ToDatabase converts Database to types.Database.
 func (d *Database) ToDatabase() (types.Database, error) {
+	tlsMode, err := d.TLS.Mode.ToProto()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return types.NewDatabaseV3(types.Metadata{
 		Name:        d.Name,
 		Description: d.Description,
@@ -125,7 +132,7 @@ func (d *Database) ToDatabase() (types.Database, error) {
 		TLS: types.DatabaseTLS{
 			CACert:              string(d.TLS.CACert),
 			ServerName:          d.TLS.ServerName,
-			Mode:                d.TLS.Mode.ToProto(),
+			Mode:                tlsMode,
 			TrustSystemCertPool: d.TLS.TrustSystemCertPool,
 		},
 		MySQL: types.MySQLOptions{
