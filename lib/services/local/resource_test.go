@@ -34,7 +34,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/suite"
 )
 
 func TestCreateResourcesProvisionToken(t *testing.T) {
@@ -145,8 +144,8 @@ func TestCertAuthorityResource(t *testing.T) {
 	ctx := context.Background()
 	tt := setupServicesContext(ctx, t)
 
-	userCA := suite.NewTestCA(types.UserCA, "example.com")
-	hostCA := suite.NewTestCA(types.HostCA, "example.com")
+	userCA := NewTestCA(types.UserCA, "example.com")
+	hostCA := NewTestCA(types.HostCA, "example.com")
 
 	// Check basic dynamic item creation
 	err := CreateResources(ctx, tt.bk, userCA, hostCA)
