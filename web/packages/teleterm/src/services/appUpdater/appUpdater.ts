@@ -314,35 +314,37 @@ export class AppUpdater {
    * no new updates.
    */
   private async preventInstallingOutdatedUpdates(): Promise<void> {
-    if (!this.isUpdateDownloaded) {
-      // Workaround for Windows and Linux.
-      autoUpdater.autoInstallOnAppQuit = false;
+    if (this.isUpdateDownloaded) {
+      return;
+    }
 
-      // macOS-specific workaround:
-      // On macOS, electron-updater downloads the update file and, if
-      // `autoUpdater.autoInstallOnAppQuit` is true, passes it to the native Electron
-      // autoUpdater via a local server. The update is then handed off to the Squirrel
-      // framework for installation (either on demand or after quitting the app).
-      // Unfortunately, once Squirrel gets the update, it is always installed
-      // on quit, regardless of the `autoInstallOnAppQuit` value.
-      // The only workaround I've found is to manually delete the ShipItState.plist
-      // file so Squirrel cannot apply the update.
-      // The downloaded update will be overwritten with the next update.
-      if (autoUpdater instanceof MacUpdater && app.isPackaged) {
-        const squirrelMacPath = path.join(
-          os.homedir(),
-          'Library',
-          'Caches',
-          'gravitational.teleport.connect.ShipIt',
-          'ShipItState.plist'
-        );
-        try {
-          await rm(squirrelMacPath, {
-            force: true,
-          });
-        } catch (error) {
-          this.logger.error(error);
-        }
+    // Workaround for Windows and Linux.
+    autoUpdater.autoInstallOnAppQuit = false;
+
+    // macOS-specific workaround:
+    // On macOS, electron-updater downloads the update file and, if
+    // `autoUpdater.autoInstallOnAppQuit` is true, passes it to the native Electron
+    // autoUpdater via a local server. The update is then handed off to the Squirrel
+    // framework for installation (either on demand or after quitting the app).
+    // Unfortunately, once Squirrel gets the update, it is always installed
+    // on quit, regardless of the `autoInstallOnAppQuit` value.
+    // The only workaround I've found is to manually delete the ShipItState.plist
+    // file so Squirrel cannot apply the update.
+    // The downloaded update will be overwritten with the next update.
+    if (autoUpdater instanceof MacUpdater && app.isPackaged) {
+      const squirrelPlistFilePath = path.join(
+        os.homedir(),
+        'Library',
+        'Caches',
+        'gravitational.teleport.connect.ShipIt',
+        'ShipItState.plist'
+      );
+      try {
+        await rm(squirrelPlistFilePath, {
+          force: true,
+        });
+      } catch (error) {
+        this.logger.error(error);
       }
     }
   }
