@@ -261,6 +261,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	// Wrap backend in sanitizer like in production.
 	srv.Backend = backend.NewSanitizer(b)
 
+	uploadHandler := eventstest.NewMemoryUploader()
 	if cfg.AuditLog != nil {
 		srv.AuditLog = cfg.AuditLog
 	} else {
@@ -268,7 +269,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 			DataDir:       cfg.Dir,
 			ServerID:      cfg.ClusterName,
 			Clock:         cfg.Clock,
-			UploadHandler: eventstest.NewMemoryUploader(),
+			UploadHandler: uploadHandler,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -321,6 +322,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		AccessLists:            accessLists,
 		FIPS:                   cfg.FIPS,
 		KeyStoreConfig:         cfg.KeystoreConfig,
+		MultipartHandler:       uploadHandler,
 	},
 		WithClock(cfg.Clock),
 		// Reduce auth.Server bcrypt costs when testing.
