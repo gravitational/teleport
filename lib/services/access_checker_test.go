@@ -19,6 +19,7 @@
 package services
 
 import (
+	"context"
 	"sort"
 	"testing"
 
@@ -1064,4 +1065,294 @@ func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
 			))
 		})
 	}
+}
+
+func TestExtendAccessCheckerRoles(t *testing.T) {
+	localCluster := "cluster"
+	const rickyRequester = "rickyRequester"
+	roles := map[string]types.Role{
+		"cloud-dev-ops":      mustRole(t, "cloud-dev-ops"),
+		"cloud-dev-admin":    mustRole(t, "cloud-dev-admin"),
+		"cloud-stage-secops": mustRole(t, "cloud-stage-secops"),
+		"dev":                mustRole(t, "dev"),
+		"infra-ops":          mustRole(t, "infra-ops"),
+	}
+
+	type userRoles struct {
+		allowedSearch, denySearch, allowPreview, denyPreview, denyRequest []string
+	}
+
+	tests := []struct {
+		name          string
+		userRoles     userRoles
+		params        ExtendAccessCheckerParam
+		expectedRoles []string
+	}{
+		{
+			name: "matching search roles",
+			userRoles: userRoles{
+				allowedSearch: []string{"cloud-dev-ops", "infra-ops"},
+			},
+			params: ExtendAccessCheckerParam{
+				UseSearchAsRoles: true,
+			},
+			expectedRoles: []string{"cloud-dev-ops", "infra-ops"},
+		},
+		{
+			name: "search with allow regexp",
+			userRoles: userRoles{
+				allowedSearch: []string{"cloud-*"},
+			},
+			params: ExtendAccessCheckerParam{
+				UseSearchAsRoles: true,
+			},
+			expectedRoles: []string{"cloud-dev-ops", "cloud-dev-admin", "cloud-stage-secops"},
+		},
+		{
+			name: "search with allow regexp narrowed",
+			userRoles: userRoles{
+				allowedSearch: []string{"cloud-dev-*"},
+			},
+			params: ExtendAccessCheckerParam{
+				UseSearchAsRoles: true,
+			},
+			expectedRoles: []string{"cloud-dev-ops", "cloud-dev-admin"},
+		},
+		{
+			name: "search with matching deny",
+			userRoles: userRoles{
+				allowedSearch: []string{"infra-ops", "dev"},
+				denySearch:    []string{"dev"},
+			},
+			params: ExtendAccessCheckerParam{
+				UseSearchAsRoles: true,
+			},
+			expectedRoles: []string{"infra-ops"},
+		},
+		{
+			name: "search denied with deny request role",
+			userRoles: userRoles{
+				allowedSearch: []string{"infra-ops", "dev"},
+				denyRequest:   []string{"dev"},
+			},
+			params: ExtendAccessCheckerParam{
+				UseSearchAsRoles: true,
+			},
+			expectedRoles: []string{"infra-ops"},
+		},
+		{
+			name: "search with deny regexp",
+			userRoles: userRoles{
+				allowedSearch: []string{"cloud-*", "dev"},
+				denySearch:    []string{"cloud-*"},
+			},
+			params: ExtendAccessCheckerParam{
+				UseSearchAsRoles: true,
+			},
+			expectedRoles: []string{"dev"},
+		},
+		// preview roles
+		{
+			name: "matching preview roles",
+			userRoles: userRoles{
+				allowPreview: []string{"cloud-dev-ops", "infra-ops"},
+			},
+			params: ExtendAccessCheckerParam{
+				UsePreviewAsRoles: true,
+			},
+			expectedRoles: []string{"cloud-dev-ops", "infra-ops"},
+		},
+		{
+			name: "preview with allow regexp",
+			userRoles: userRoles{
+				allowPreview: []string{"cloud-*"},
+			},
+			params: ExtendAccessCheckerParam{
+				UsePreviewAsRoles: true,
+			},
+			expectedRoles: []string{"cloud-dev-ops", "cloud-dev-admin", "cloud-stage-secops"},
+		},
+		{
+			name: "preview with allow regexp narrowed",
+			userRoles: userRoles{
+				allowPreview: []string{"cloud-dev-*"},
+			},
+			params: ExtendAccessCheckerParam{
+				UsePreviewAsRoles: true,
+			},
+			expectedRoles: []string{"cloud-dev-ops", "cloud-dev-admin"},
+		},
+		{
+			name: "preview with matching deny",
+			userRoles: userRoles{
+				allowPreview: []string{"infra-ops", "dev"},
+				denyPreview:  []string{"dev"},
+			},
+			params: ExtendAccessCheckerParam{
+				UsePreviewAsRoles: true,
+			},
+			expectedRoles: []string{"infra-ops"},
+		},
+		{
+			name: "preview with deny regexp",
+			userRoles: userRoles{
+				allowPreview: []string{"cloud-*", "dev"},
+				denyPreview:  []string{"cloud-*"},
+			},
+			params: ExtendAccessCheckerParam{
+				UsePreviewAsRoles: true,
+			},
+			expectedRoles: []string{"dev"},
+		},
+		// search and preview roles
+		{
+			name: "matching search and preview",
+			userRoles: userRoles{
+				allowPreview:  []string{"dev"},
+				allowedSearch: []string{"cloud-dev-ops"},
+			},
+			params: ExtendAccessCheckerParam{
+				UseSearchAsRoles:  true,
+				UsePreviewAsRoles: true,
+			},
+			expectedRoles: []string{"dev", "cloud-dev-ops"},
+		},
+		{
+			name: "matching search and preview with only UseSearchAsRoles ",
+			userRoles: userRoles{
+				allowedSearch: []string{"cloud-dev-ops"},
+				allowPreview:  []string{"dev"},
+			},
+			params: ExtendAccessCheckerParam{
+				UseSearchAsRoles: true,
+			},
+			expectedRoles: []string{"cloud-dev-ops"},
+		},
+		{
+			name: "deny preview does not supersede allowed search",
+			userRoles: userRoles{
+				allowedSearch: []string{"dev", "cloud-dev-ops"},
+				denyPreview:   []string{"dev"},
+			},
+			params: ExtendAccessCheckerParam{
+				UseSearchAsRoles:  true,
+				UsePreviewAsRoles: true,
+			},
+			expectedRoles: []string{"dev", "cloud-dev-ops"},
+		},
+		{
+			name: "deny search does not supersede allowed preview",
+			userRoles: userRoles{
+				allowPreview: []string{"dev", "cloud-dev-ops"},
+				denySearch:   []string{"cloud-dev-ops"},
+			},
+			params: ExtendAccessCheckerParam{
+				UseSearchAsRoles:  true,
+				UsePreviewAsRoles: true,
+			},
+			expectedRoles: []string{"dev", "cloud-dev-ops"},
+		},
+		{
+			name: "multiple matching search and preview role should be deduplicated",
+			userRoles: userRoles{
+				allowPreview:  []string{"dev", "cloud-dev-ops"},
+				allowedSearch: []string{"dev", "cloud-dev-ops"},
+			},
+			params: ExtendAccessCheckerParam{
+				UseSearchAsRoles:  true,
+				UsePreviewAsRoles: true,
+			},
+			expectedRoles: []string{"dev", "cloud-dev-ops"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := &mockGetter{
+				roles: func() map[string]types.Role {
+					roles["req"] = mustRequestRole(t, "req", tt.userRoles.allowedSearch, tt.userRoles.denySearch, tt.userRoles.denyRequest)
+					roles["rev"] = mustReviewRole(t, "rev", tt.userRoles.allowPreview, tt.userRoles.denyPreview)
+					return roles
+				}(),
+				users: map[string]types.User{
+					rickyRequester: mustUser(t, rickyRequester, []string{"req", "rev"}),
+				},
+			}
+
+			roleNames := []string{"req", "rev"}
+			originalAccessChecker, err := NewAccessChecker(&AccessInfo{
+				Roles:    roleNames,
+				Username: rickyRequester,
+			}, localCluster, g)
+			require.NoError(t, err)
+
+			extendedChecker, err := ExtendAccessCheckerRoles(context.Background(), originalAccessChecker, g, tt.params)
+			require.NoError(t, err)
+
+			expected := append(tt.expectedRoles, roleNames...)
+			require.ElementsMatch(t, expected, extendedChecker.AccessInfo().Roles)
+		})
+	}
+}
+
+func mustUser(t *testing.T, name string, roles []string) types.User {
+	t.Helper()
+	user, err := types.NewUser(name)
+	require.NoError(t, err)
+	user.SetRoles(roles)
+	require.NoError(t, err)
+	return user
+}
+
+func mustRole(t *testing.T, name string) types.Role {
+	t.Helper()
+	role, err := types.NewRole(name, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+	return role
+}
+
+func mustRequestRole(t *testing.T, name string, allowSearch, denySearch, denyRequest []string) types.Role {
+	t.Helper()
+	role, err := createRole(name, allowSearch, denySearch, denyRequest)
+	require.NoError(t, err)
+	return role
+}
+
+func createRole(name string, allowSearch, denySearch, denyRequest []string) (types.Role, error) {
+	return types.NewRole(name, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: allowSearch,
+			},
+		},
+		Deny: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles:         denyRequest,
+				SearchAsRoles: denySearch,
+			},
+		},
+	})
+}
+
+func mustReviewRole(t *testing.T, name string, allowed, denied []string) types.Role {
+	t.Helper()
+	role, err := types.NewRole(name, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			ReviewRequests: &types.AccessReviewConditions{
+				Roles:          allowed,
+				PreviewAsRoles: allowed,
+			},
+		},
+		Deny: types.RoleConditions{
+			ReviewRequests: &types.AccessReviewConditions{
+				Roles:          denied,
+				PreviewAsRoles: denied,
+			},
+		},
+	})
+	require.NoError(t, err)
+	return role
 }
