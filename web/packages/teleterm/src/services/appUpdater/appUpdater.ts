@@ -232,8 +232,8 @@ export class AppUpdater {
     // into a broken state where it becomes unresponsive.
     // To avoid this, we instead close the network connections to abort
     // the current download.
+    await autoUpdater.netSession.closeAllConnections();
     try {
-      await autoUpdater.netSession.closeAllConnections();
       await this.downloadPromise;
       return false;
     } catch {
