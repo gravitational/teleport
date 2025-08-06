@@ -611,7 +611,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 
 	username := suite.me.Username
 	kubeGroups := []string{kube.TestImpersonationGroup}
-	role, err := types.NewRoleWithVersion("kubemaster", types.V7, types.RoleSpecV6{
+	role, err := types.NewRole("kubemaster", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			KubeGroups: kubeGroups,
@@ -620,7 +620,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: "pod", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
 				},
 			},
 		},
@@ -688,9 +688,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 							t.Logf("Get pod error: %s", err)
 							return false
 						}
-						t.Logf("Get pod %q: Status: %s", testPod, rsp.Status.Phase)
 						if rsp.Status.Phase == v1.PodRunning {
-							t.Logf("Pod %q is running", testPod)
 							return true
 						}
 						return false
@@ -717,49 +715,35 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 				go func() { forwarderCh <- forwarder.ForwardPorts() }()
 
 				// Wait for port-forwarding to be ready.
-				start := time.Now()
 				select {
 				case <-time.After(5 * time.Second):
-					t.Fatalf("Timeout waiting for port forwarding after %s", time.Since(start))
-				case err := <-forwarderCh:
-					require.NoError(t, err)
+					t.Fatal("Timed out waiting for port forward start")
 				case <-forwarder.readyC:
-					t.Logf("Port forwarding ready after %s", time.Since(start))
 				}
 
 				// Validate that port-forwarding is working.
-				t.Log("Checking port forwarding")
 				resp, err := http.Get(fmt.Sprintf("http://localhost:%d", localPort))
 				require.NoError(t, err)
 				require.Equal(t, http.StatusOK, resp.StatusCode)
 				require.NoError(t, resp.Body.Close())
-				t.Log("Port forward working")
 
 				// Delete the pod.
-				t.Log("Requesting pod deletion")
 				err = suite.CoreV1().Pods(testNamespace).Delete(context.Background(), testPod, metav1.DeleteOptions{})
 				require.NoError(t, err)
 
 				// Wait for pod deletion.
 				require.Eventually(t, func() bool {
-					t.Log("Checking pod deletion")
-
 					if _, err := suite.CoreV1().Pods(testNamespace).Get(context.Background(), testPod, metav1.GetOptions{}); err != nil {
 						if kubeerrors.IsNotFound(err) {
-							t.Log("Pod successfully deleted")
 							return true
 						}
-						t.Logf("Get pod error: %v", err)
 						return false
 					}
-
-					t.Log("Pod still exists, waiting for deletion...")
 					return false
 				}, 60*time.Second, 500*time.Millisecond)
 
 				// Attempt an http GET after pod deletion.
 				// This enables error reporting from KubeAPI back to client.
-				t.Log("Checking for port-forward disconnection")
 				//nolint:bodyclose // http response is expected to be nil and return an error
 				_, err = http.Get(fmt.Sprintf("http://localhost:%d", localPort))
 				require.Error(t, err)
@@ -769,7 +753,6 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 				case <-time.After(5 * time.Second):
 					t.Fatal("Timed out waiting for port forward exit")
 				case err := <-forwarderCh:
-					t.Log("Exited port forwarding after pod deletion")
 					require.Equal(t, err, portforward.ErrLostConnectionToPod)
 				}
 			},

@@ -201,6 +201,9 @@ func (h *portForwardProxy) forwardStreamPair(p *httpStreamPair, remotePort int64
 	go func() {
 		defer wg.Done()
 		// Use a unidirectional copy from Kube API to client.
+		if err := targetErrorStream.Close(); err != nil {
+			h.logger.DebugContext(h.context, "Unable to close target error stream", "error", err)
+		}
 		// Enables error propagation from Kube API server to kubectl client.
 		if _, err := io.Copy(p.errorStream, targetErrorStream); err != nil {
 			h.logger.DebugContext(h.context, "Unable to proxy portforward error-stream", "error", err)
