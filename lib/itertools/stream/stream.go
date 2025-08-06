@@ -317,6 +317,44 @@ func MapErr[T any](stream Stream[T], fn func(error) error) Stream[T] {
 	}
 }
 
+// WithFallback iterates over a given stream until an error is encountered at which point a fallback handler is invoked.
+// The handler consumes the error and can optionally return an alterantive stream to iterate.
+func WithFallback[T any](
+	stream Stream[T],
+	handler func(err error) (Stream[T], error),
+) Stream[T] {
+	return func(yield func(T, error) bool) {
+		for item, err := range stream {
+			if err != nil {
+				fallback, handlerErr := handler(err)
+				if handlerErr != nil {
+					_ = yield(*new(T), trace.Wrap(handlerErr))
+					return
+				}
+				if fallback == nil {
+					_ = yield(*new(T), trace.Errorf("unexpected nil fallback handler"))
+					return
+				}
+
+				for item, err := range fallback {
+					if err != nil {
+						_ = yield(*new(T), trace.Wrap(err))
+						return
+					}
+					if !yield(item, nil) {
+						return
+					}
+				}
+				return
+			}
+
+			if !yield(item, nil) {
+				return
+			}
+		}
+	}
+}
+
 // RateLimit applies a rate-limiting function to a stream before each attempt to get the
 // next item. If the wait function returns a non-nil error, the stream is halted. The wait
 // function may return io.EOF to indicate a graceful/expected halting condition.

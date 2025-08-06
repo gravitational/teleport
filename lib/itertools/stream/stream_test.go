@@ -884,3 +884,57 @@ func TestMergeStreams(t *testing.T) {
 		require.Equal(t, []int{1, 2, 3, 4, 5, 6}, out)
 	})
 }
+
+func TestWithFallback(t *testing.T) {
+	t.Parallel()
+
+	// No error operation
+	err := Drain(WithFallback(Slice([]int{1, 2, 3}), func(err error) (Stream[int], error) {
+		require.NoError(t, err)
+		return nil, err
+	}))
+	require.NoError(t, err)
+
+	err = Drain(WithFallback(Fail[int](fmt.Errorf("unexpected error")), func(err error) (Stream[int], error) {
+		require.Error(t, err)
+		// Pass through error here
+		return nil, err
+	}))
+	require.Error(t, err)
+
+	err = Drain(WithFallback(Fail[int](fmt.Errorf("root cause")), func(err error) (Stream[int], error) {
+		require.ErrorContains(t, err, "root cause")
+		return nil, nil // nil handler
+	}))
+	require.ErrorContains(t, err, "unexpected nil fallback handler")
+
+	// Recovery
+	out, err := Collect(WithFallback(Fail[int](fmt.Errorf("root cause")), func(err error) (Stream[int], error) {
+		require.ErrorContains(t, err, "root cause")
+		return Slice([]int{1, 2, 3}), nil
+	}))
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3}, out)
+
+	// Mid fail
+	out, err = Collect(WithFallback(Chain(
+		Slice([]int{1, 2, 3}),
+		Fail[int](fmt.Errorf("unexpected error")),
+		Slice([]int{4, 5, 6}),
+	), func(err error) (Stream[int], error) {
+		require.Error(t, err)
+		return Slice([]int{1, 2, 3}), nil
+	}))
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3, 1, 2, 3}, out)
+
+	// Nested fallbacks
+	err = Drain(WithFallback(Fail[int](fmt.Errorf("root cause")), func(err error) (Stream[int], error) {
+		require.ErrorContains(t, err, "root cause")
+		return WithFallback(Fail[int](fmt.Errorf("fallback fail 1")), func(err error) (Stream[int], error) {
+			require.ErrorContains(t, err, "fallback fail 1")
+			return Fail[int](fmt.Errorf("fallback fail 2")), nil
+		}), nil
+	}))
+	require.ErrorContains(t, err, "fallback fail 2")
+}
