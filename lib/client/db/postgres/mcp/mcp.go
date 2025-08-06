@@ -82,7 +82,7 @@ func NewServer(ctx context.Context, cfg *dbmcp.NewServerConfig) (dbmcp.Server, e
 //
 // Teleport differentiates CockroachDB and PostgreSQL as different protocols but
 // uses the same db engine under the hood. Here we use the same PostgreSQL
-// MCP server implementation as well just provides a slightly different tool
+// MCP server implementation as well, except for a slightly different tool
 // name and description.
 func NewServerForCockroachDB(ctx context.Context, cfg *dbmcp.NewServerConfig) (dbmcp.Server, error) {
 	return newServer(ctx, queryToolForCockroachDB, cfg)
