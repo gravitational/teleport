@@ -41,6 +41,11 @@ func TestStaticTokens(t *testing.T) {
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 
+	// Make sure we get a NotFoundError (and not a panic) when there are no
+	// static tokens.
+	_, err := p.cache.GetStaticTokens()
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
+
 	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{
 			{
