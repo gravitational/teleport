@@ -1806,8 +1806,15 @@ message ProvisionTokenSpecV2Kubernetes {
   }
   message OIDCConfig {
     // Issuer is the URI of the OIDC issuer. It must have an accessible and
-    // OIDC-compliant `/.well-known/oidc-configuration` endpoint.
+    // OIDC-compliant `/.well-known/oidc-configuration` endpoint. This should
+    // be a valid URL and must exactly match the `issuer` field in a service
+    // account JWT. For example:
+    // https://oidc.eks.us-west-2.amazonaws.com/id/12345...
     string Issuer = 1 [(gogoproto.jsontag) = "issuer,omitempty"];
+
+    // InsecureAllowHTTPIssuer is a flag that, if set, disables the requirement
+    // that the issuer must use HTTPS.
+    bool InsecureAllowHTTPIssuer = 2 [(gogoproto.jsontag) = "insecure_allow_http_issuer"];
   }
   // Rule is a set of properties the Kubernetes-issued token might have to be
   // allowed to use this ProvisionToken
