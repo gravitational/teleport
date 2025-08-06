@@ -1159,6 +1159,21 @@
       "source": "/admin-guides/access-controls/login-rules/",
       "destination": "/zero-trust-access/access-controls/login-rules/",
       "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/guides/aws-iam-identity-center/",
+      "destination": "/identity-governance/aws-iam-identity-center/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/guides/aws-iam-identity-center/guide/",
+      "destination": "/identity-governance/aws-iam-identity-center/guide/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/guides/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/",
+      "destination": "/identity-governance/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/",
+      "permanent": true
     }
   ]
 }
