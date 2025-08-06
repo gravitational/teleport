@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"log/slog"
 	"net"
+	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -38,6 +39,7 @@ import (
 // for a customer with an imminent use-case.
 func STDIOProxy(
 	ctx context.Context,
+	log *slog.Logger,
 	mcpServerName string,
 	proxyServerAddr string,
 	identityFilePath string,
@@ -46,7 +48,19 @@ func STDIOProxy(
 	if err != nil {
 		return trace.Wrap(err, "failed to create dynamic identity file credentials")
 	}
-	// TODO: reload creds every so often lol.
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(time.Minute * 1):
+				log.DebugContext(ctx, "Refreshing Teleport identity credentials")
+				if err := creds.Reload(); err != nil {
+					log.ErrorContext(ctx, "Failed to reload Teleport identity credentials, retrying.")
+				}
+			}
+		}
+	}()
 
 	// Do some gnarly stuff to extract the TLS identity
 	botTLSConfig, err := creds.TLSConfig()
