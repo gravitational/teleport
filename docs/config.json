@@ -1048,6 +1048,11 @@
       "source": "/model-context-preview/",
       "destination": "/connect-your-client/model-context-protocol/",
       "permanent": true
+    },
+    {
+      "source": "/upgrading/client-tools-autoupdate/",
+      "destination": "/upgrading/client-tools-managed-updates/",
+      "permanent": true
     }
   ]
 }
