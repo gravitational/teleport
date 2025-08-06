@@ -51,6 +51,7 @@ import (
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 	"github.com/gravitational/teleport/lib/utils/aws/dynamodbutils"
 	"github.com/gravitational/teleport/lib/utils/aws/endpoint"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func init() {
@@ -518,9 +519,11 @@ func (b *Backend) Create(ctx context.Context, item backend.Item) (*backend.Lease
 		err = trace.AlreadyExists("%s", err)
 	}
 	if err != nil {
+		b.logger.LogAttrs(ctx, logutils.TraceLevel, "dynamodb Create fail", slog.String("key", item.Key.String()))
 		return nil, trace.Wrap(err)
 	}
 	item.Revision = rev
+	b.logger.LogAttrs(ctx, logutils.TraceLevel, "dynamodb Create ok", slog.String("key", item.Key.String()))
 	return backend.NewLease(item), nil
 }
 
@@ -529,9 +532,11 @@ func (b *Backend) Create(ctx context.Context, item backend.Item) (*backend.Lease
 func (b *Backend) Put(ctx context.Context, item backend.Item) (*backend.Lease, error) {
 	rev, err := b.create(ctx, item, modePut)
 	if err != nil {
+		b.logger.LogAttrs(ctx, logutils.TraceLevel, "dynamodb Put fail", slog.String("key", item.Key.String()))
 		return nil, trace.Wrap(err)
 	}
 	item.Revision = rev
+	b.logger.LogAttrs(ctx, logutils.TraceLevel, "dynamodb Put ok", slog.String("key", item.Key.String()))
 	return backend.NewLease(item), nil
 }
 
@@ -542,9 +547,11 @@ func (b *Backend) Update(ctx context.Context, item backend.Item) (*backend.Lease
 		err = trace.NotFound("%s", err)
 	}
 	if err != nil {
+		b.logger.LogAttrs(ctx, logutils.TraceLevel, "dynamodb Update fail", slog.String("key", item.Key.String()))
 		return nil, trace.Wrap(err)
 	}
 	item.Revision = rev
+	b.logger.LogAttrs(ctx, logutils.TraceLevel, "dynamodb Update ok", slog.String("key", item.Key.String()))
 	return backend.NewLease(item), nil
 }
 
@@ -686,6 +693,7 @@ const (
 
 // DeleteRange deletes range of items with keys between startKey and endKey
 func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key) error {
+	b.logger.LogAttrs(ctx, logutils.TraceLevel, "dynamodb DeleteRange", slog.String("start_key", startKey.String()))
 	// Attempt to pull all existing items and delete them in batches
 	// in accordance with the BatchWriteItem limits. There is a hard
 	// cap on the total number of items that can be deleted in a single
@@ -811,12 +819,14 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 	_, err = b.svc.PutItem(ctx, &input)
 	err = convertError(err)
 	if err != nil {
+		b.logger.LogAttrs(ctx, logutils.TraceLevel, "dynamodb CompareAndSwap fail", slog.String("key", replaceWith.Key.String()))
 		// in this case let's use more specific compare failed error
 		if trace.IsAlreadyExists(err) {
 			return nil, trace.CompareFailed("%s", err)
 		}
 		return nil, trace.Wrap(err)
 	}
+	b.logger.LogAttrs(ctx, logutils.TraceLevel, "dynamodb CompareAndSwap ok", slog.String("key", replaceWith.Key.String()))
 	return backend.NewLease(replaceWith), nil
 }
 
@@ -841,10 +851,12 @@ func (b *Backend) ConditionalUpdate(ctx context.Context, item backend.Item) (*ba
 
 	rev, err := b.create(ctx, item, modeConditionalUpdate)
 	if err != nil {
+		b.logger.LogAttrs(ctx, logutils.TraceLevel, "dynamodb ConditionalUpdate fail", slog.String("key", item.Key.String()))
 		return nil, trace.Wrap(err)
 	}
 
 	item.Revision = rev
+	b.logger.LogAttrs(ctx, logutils.TraceLevel, "dynamodb ConditionalUpdate ok", slog.String("key", item.Key.String()))
 	return backend.NewLease(item), nil
 }
 
@@ -876,12 +888,14 @@ func (b *Backend) ConditionalDelete(ctx context.Context, key backend.Key, rev st
 	}
 
 	if _, err = b.svc.DeleteItem(ctx, &input); err != nil {
+		b.logger.LogAttrs(ctx, logutils.TraceLevel, "dynamodb ConditionalDelete fail", slog.String("key", key.String()))
 		err = convertError(err)
 		if trace.IsCompareFailed(err) {
 			return trace.Wrap(backend.ErrIncorrectRevision)
 		}
 		return trace.Wrap(err)
 	}
+	b.logger.LogAttrs(ctx, logutils.TraceLevel, "dynamodb ConditionalDelete ok", slog.String("key", key.String()))
 	return nil
 }
 
@@ -915,6 +929,11 @@ func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 	err = convertError(err)
 	if trace.IsCompareFailed(err) {
 		err = trace.NotFound("%s", err)
+	}
+	if err != nil {
+		b.logger.LogAttrs(ctx, logutils.TraceLevel, "dynamodb KeepAlive fail", slog.String("key", lease.Key.String()))
+	} else {
+		b.logger.LogAttrs(ctx, logutils.TraceLevel, "dynamodb KeepAlive ok", slog.String("key", lease.Key.String()))
 	}
 	return err
 }
@@ -1142,8 +1161,10 @@ func (b *Backend) deleteKey(ctx context.Context, key backend.Key) error {
 	}
 	input := dynamodb.DeleteItemInput{Key: av, TableName: aws.String(b.TableName)}
 	if _, err = b.svc.DeleteItem(ctx, &input); err != nil {
+		b.logger.LogAttrs(ctx, logutils.TraceLevel, "dynamodb Delete fail", slog.String("key", key.String()))
 		return trace.Wrap(err)
 	}
+	b.logger.LogAttrs(ctx, logutils.TraceLevel, "dynamodb Delete ok", slog.String("key", key.String()))
 	return nil
 }
 

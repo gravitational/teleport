@@ -21,6 +21,7 @@ package dynamo
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"slices"
 	"strings"
 	"time"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/backendmetrics"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -226,6 +228,13 @@ TxnLoop:
 
 			switch {
 			case conditionFailed:
+				if b.logger.Enabled(ctx, logutils.TraceLevel) {
+					keys := make([]string, 0, len(condacts))
+					for _, ca := range condacts {
+						keys = append(keys, ca.Key.String())
+					}
+					b.logger.LogAttrs(ctx, logutils.TraceLevel, "dynamodb AtomicWrite fail", slog.Any("keys", keys))
+				}
 				return "", trace.Wrap(backend.ErrConditionFailed)
 			case txnConflict:
 				// dynamodb cancels transactions that overlap even if their conditions/actions don't conflict, so we need to retry
@@ -260,6 +269,7 @@ TxnLoop:
 			b.logger.WarnContext(ctx, "AtomicWrite retried due to dynamodb transaction conflicts. Some conflict is expected, but persistent conflict warnings may indicate an unhealthy state.", "retry_attempts", n)
 		}
 
+		b.logger.LogAttrs(ctx, logutils.TraceLevel, "dynamodb AtomicWrite ok")
 		if !includesPut {
 			// revision is only meaningful in the context of put operations
 			return "", nil
