@@ -3472,9 +3472,19 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 		})
 		require.Error(t, err)
 
-		tokens, err := testSrv.Auth().GetUserTokens(ctx)
-		require.NoError(t, err)
-		require.Empty(t, tokens)
+		var userTokens []types.UserToken
+		startKey := ""
+		for {
+			resp, key, err := testSrv.Auth().ListUserTokens(ctx, 0, startKey)
+			require.NoError(t, err)
+
+			userTokens = append(userTokens, resp...)
+			if key == "" {
+				break
+			}
+			startKey = key
+		}
+		require.Empty(t, userTokens)
 	})
 }
 

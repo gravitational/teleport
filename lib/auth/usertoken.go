@@ -288,17 +288,26 @@ func formatUserTokenURL(proxyHost string, tokenID string, reqType string) (strin
 
 // deleteUserTokens deletes all user tokens for the specified user.
 func (a *Server) deleteUserTokens(ctx context.Context, username string) error {
-	tokens, err := a.GetUserTokens(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	var userTokens []types.UserToken
+	var startKey string
+	for {
+		resp, key, err := a.ListUserTokens(ctx, 0, startKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	for _, token := range tokens {
+		userTokens = append(userTokens, resp...)
+		if key == "" {
+			break
+		}
+		startKey = key
+	}
+	for _, token := range userTokens {
 		if token.GetUser() != username {
 			continue
 		}
 
-		err = a.DeleteUserToken(ctx, token.GetName())
+		err := a.DeleteUserToken(ctx, token.GetName())
 		if err != nil {
 			return trace.Wrap(err)
 		}

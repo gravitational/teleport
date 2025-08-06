@@ -602,8 +602,17 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, s.ProvisioningS.UpsertToken(ctx, tok))
 
-	tokens, err := s.ProvisioningS.GetTokens(ctx)
-	require.NoError(t, err)
+	var tokens []types.ProvisionToken
+	var startKey string
+	for {
+		resp, key, err := s.ProvisioningS.ListProvisionTokens(ctx, 0, startKey, nil, "")
+		require.NoError(t, err)
+		tokens = append(tokens, resp...)
+		if key == "" {
+			break
+		}
+		startKey = key
+	}
 	require.Len(t, tokens, 2)
 
 	err = s.ProvisioningS.DeleteToken(ctx, tokens[0].GetName())
@@ -612,7 +621,17 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 	err = s.ProvisioningS.DeleteToken(ctx, tokens[1].GetName())
 	require.NoError(t, err)
 
-	tokens, err = s.ProvisioningS.GetTokens(ctx)
+	tokens = make([]types.ProvisionToken, 0)
+	startKey = ""
+	for {
+		resp, key, err := s.ProvisioningS.ListProvisionTokens(ctx, 0, startKey, nil, "")
+		require.NoError(t, err)
+		tokens = append(tokens, resp...)
+		if key == "" {
+			break
+		}
+		startKey = key
+	}
 	require.NoError(t, err)
 	require.Empty(t, tokens)
 }

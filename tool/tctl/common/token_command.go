@@ -393,9 +393,27 @@ func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) err
 		return trace.Wrap(err)
 	}
 
-	tokens, err := client.GetTokens(ctx)
-	if err != nil {
-		return trace.Wrap(err)
+	var tokens []types.ProvisionToken
+	var startKey string
+	for {
+		resp, key, err := client.ListProvisionTokens(ctx, 0, startKey, nil, "")
+		if err != nil {
+			// TODO(hugoShaka) DELETE IN v21.0.0
+			if trace.IsNotImplemented(err) {
+				tokens, err = client.GetTokens(ctx)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				break
+			}
+			return trace.Wrap(err)
+		}
+		tokens = append(tokens, resp...)
+		if key == "" {
+			break
+		}
+		startKey = key
 	}
 
 	tokens = slices.DeleteFunc(tokens, func(token types.ProvisionToken) bool {

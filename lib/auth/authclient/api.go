@@ -1099,9 +1099,6 @@ type Cache interface {
 	// GetStaticTokens gets the list of static tokens used to provision nodes.
 	GetStaticTokens() (types.StaticTokens, error)
 
-	// GetTokens returns all active (non-expired) provisioning tokens
-	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
-
 	// GetToken finds and returns token by ID
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
 

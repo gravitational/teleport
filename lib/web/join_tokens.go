@@ -99,9 +99,28 @@ func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httpr
 		return nil, trace.Wrap(err)
 	}
 
-	tokens, err := clt.GetTokens(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var tokens []types.ProvisionToken
+	var startKey string
+	for {
+		resp, key, err := clt.ListProvisionTokens(r.Context(), 0, startKey, nil, "")
+		if err != nil {
+			// TODO(hugoShaka) DELETE IN v21.0.0
+			if trace.IsNotImplemented(err) {
+				tokens, err = clt.GetTokens(r.Context())
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				break
+			}
+			return nil, trace.Wrap(err)
+		}
+
+		tokens = append(tokens, resp...)
+		if key == "" {
+			break
+		}
+		startKey = key
 	}
 
 	uiTokens, err := webui.MakeJoinTokens(tokens)

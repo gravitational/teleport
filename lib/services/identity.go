@@ -266,8 +266,8 @@ type Identity interface {
 	// DeleteUserToken deletes a user token.
 	DeleteUserToken(ctx context.Context, tokenID string) error
 
-	// GetUserTokens returns all user tokens.
-	GetUserTokens(ctx context.Context) ([]types.UserToken, error)
+	// ListUserTokens returns a page of user tokens.
+	ListUserTokens(ctx context.Context, limit int, startKey string) ([]types.UserToken, string, error)
 
 	// GetUserToken returns a user token by id.
 	GetUserToken(ctx context.Context, tokenID string) (types.UserToken, error)

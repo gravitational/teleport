@@ -252,8 +252,17 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 	ctx := context.Background()
 	client := testenv.MakeDefaultAuthClient(t, process)
 
-	tokens, err := client.GetTokens(ctx)
-	require.NoError(t, err)
+	var tokens []types.ProvisionToken
+	var startKey string
+	for {
+		resp, key, err := client.ListProvisionTokens(ctx, 0, startKey, nil, "")
+		require.NoError(t, err)
+		tokens = append(tokens, resp...)
+		if key == "" {
+			break
+		}
+		startKey = key
+	}
 	require.Empty(t, tokens)
 
 	// Create an initial bot

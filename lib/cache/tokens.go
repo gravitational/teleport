@@ -103,8 +103,21 @@ func newProvisionTokensCollection(p services.Provisioner, w types.WatchKind) (*c
 				provisionTokenStoreNameIndex: types.ProvisionToken.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.ProvisionToken, error) {
-			tokens, err := p.GetTokens(ctx)
-			return tokens, trace.Wrap(err)
+			var tokens []types.ProvisionToken
+			var startKey string
+			for {
+				resp, key, err := p.ListProvisionTokens(ctx, 0, startKey, nil, "")
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				tokens = append(tokens, resp...)
+				if key == "" {
+					break
+				}
+				startKey = key
+			}
+			return tokens, nil
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.ProvisionToken {
 			return &types.ProvisionTokenV2{
@@ -120,6 +133,7 @@ func newProvisionTokensCollection(p services.Provisioner, w types.WatchKind) (*c
 }
 
 // GetTokens returns all active (non-expired) provisioning tokens
+// Deprecated: Use [ListProvisionTokens] instead.
 func (c *Cache) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetTokens")
 	defer span.End()
@@ -131,8 +145,21 @@ func (c *Cache) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		tokens, err := c.Config.Provisioner.GetTokens(ctx)
-		return tokens, trace.Wrap(err)
+		var tokens []types.ProvisionToken
+		var startKey string
+		for {
+			resp, key, err := c.Config.Provisioner.ListProvisionTokens(ctx, 0, startKey, nil, "")
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			tokens = append(tokens, resp...)
+			if key == "" {
+				break
+			}
+			startKey = key
+		}
+		return tokens, nil
 	}
 
 	tokens := make([]types.ProvisionToken, 0, rg.store.len())

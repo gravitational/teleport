@@ -2948,9 +2948,27 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &dynamicWindowsDesktopCollection{desktops}, nil
 	case types.KindToken:
 		if rc.ref.Name == "" {
-			tokens, err := client.GetTokens(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
+			var tokens []types.ProvisionToken
+			var startKey string
+			for {
+				resp, key, err := client.ListProvisionTokens(ctx, 0, startKey, nil, "")
+				if err != nil {
+					// TODO(hugoShaka) DELETE IN v21.0.0
+					if trace.IsNotImplemented(err) {
+						tokens, err = client.GetTokens(ctx)
+						if err != nil {
+							return nil, trace.Wrap(err)
+						}
+
+						break
+					}
+					return nil, trace.Wrap(err)
+				}
+				tokens = append(tokens, resp...)
+				if key == "" {
+					break
+				}
+				startKey = key
 			}
 			return &tokenCollection{tokens: tokens}, nil
 		}

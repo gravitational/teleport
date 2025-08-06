@@ -569,11 +569,31 @@ new Application Service instance with the token.
 <details>
 <summary>Looking up tokens</summary>
 
-Client applications can look up tokens they have created by calling the
-following function:
+Client applications can look up tokens they have created with the following code:
 
 ```go
-func (c *Client) GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
+    var tokens []types.ProvisionToken
+    var startKey string
+    for {
+        resp, key, err := client.ListProvisionTokens(ctx, 0, startKey, nil, "")
+        if err != nil {
+            if trace.IsNotImplemented(err) {
+                // Backward compatibility code, for Teleport version not supporting paginated APIs
+                // This is not needed for versions >= 19.
+                tokens, err = client.GetTokens(ctx)
+                if err != nil {
+                    return nil, trace.Wrap(err)
+                }
+                break
+            }
+            return nil, trace.Wrap(err)
+        }
+        tokens = append(tokens, resp...)
+        if key == "" {
+            break
+        }
+        startKey = key
+    }
 ```
 
 To do this, your client application will need the following permissions in its
@@ -979,4 +999,3 @@ the program you wrote. For production usage, we recommend provisioning
 short-lived credentials via Machine ID, which reduces the risk of these
 credentials becoming stolen. View our [Machine ID
 documentation](../../machine-workload-identity/machine-id/introduction.mdx) to learn more.
-

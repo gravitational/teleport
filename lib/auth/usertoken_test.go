@@ -87,10 +87,20 @@ func TestCreateResetPasswordToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// previous token must be deleted
-	tokens, err := srv.Auth().GetUserTokens(ctx)
-	require.NoError(t, err)
-	require.Len(t, tokens, 1)
-	require.Equal(t, tokens[0].GetName(), token.GetName())
+	var userTokens []types.UserToken
+	startKey := ""
+	for {
+		resp, key, err := srv.Auth().ListUserTokens(ctx, 0, startKey)
+		require.NoError(t, err)
+
+		userTokens = append(userTokens, resp...)
+		if key == "" {
+			break
+		}
+		startKey = key
+	}
+	require.Len(t, userTokens, 1)
+	require.Equal(t, userTokens[0].GetName(), token.GetName())
 }
 
 func TestCreateResetPasswordTokenErrors(t *testing.T) {
