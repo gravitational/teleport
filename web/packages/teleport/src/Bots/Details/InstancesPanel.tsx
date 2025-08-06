@@ -34,6 +34,7 @@ import { listBotInstances } from 'teleport/services/bot/bot';
 import useTeleport from 'teleport/useTeleport';
 
 import { Instance } from './Instance';
+import { PanelTitleText } from './Panel';
 
 export function InstancesPanel(props: { botName: string }) {
   const { botName } = props;
@@ -89,7 +90,7 @@ export function InstancesPanel(props: { botName: string }) {
   return (
     <Container>
       <TitleContainer>
-        <H2 fontWeight={fontWeights.bold}>Active Instances</H2>
+        <PanelTitleText>Active Instances</PanelTitleText>
         {isSuccess ? (
           <ActionButton onClick={handleToggleSort}>
             Recent

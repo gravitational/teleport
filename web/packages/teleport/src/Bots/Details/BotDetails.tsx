@@ -348,18 +348,14 @@ function Trait(props: { traitName: string }) {
 
   const description = traitDescriptions[props.traitName];
 
-  const help = (
-    <Question
-      size={'small'}
-      color={theme.colors.interactive.tonal.neutral[3]}
-    />
-  );
-
   return description ? (
     <Flex gap={1}>
       {props.traitName}
       <HoverTooltip placement="top" tipContent={description}>
-        {help}
+        <Question
+          size={'small'}
+          color={theme.colors.interactive.tonal.neutral[3]}
+        />
       </HoverTooltip>
     </Flex>
   ) : (
