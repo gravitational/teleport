@@ -44,9 +44,9 @@ import (
 	"github.com/gravitational/teleport"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils/networking"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
-	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils/host"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 )
@@ -315,18 +315,16 @@ func testAgentForward(ctx context.Context, t *testing.T, proc *networking.Proces
 	err = keyring.Add(testKey)
 	require.NoError(t, err)
 
-	teleAgent := teleagent.NewServer(func() (teleagent.Agent, error) {
-		return teleagent.NopCloser(keyring), nil
-	})
+	agentServer := sshagent.NewServer(sshagent.NewStaticClientGetter(keyring))
 
 	// Forward the agent over the networking process.
 	listener, err := proc.ListenAgent(ctx)
 	require.NoError(t, err)
-	teleAgent.SetListener(listener)
+	agentServer.SetListener(listener)
 
-	go teleAgent.Serve()
+	go agentServer.Serve()
 	t.Cleanup(func() {
-		teleAgent.Close()
+		agentServer.Close()
 	})
 
 	agentConn, err := net.Dial(listener.Addr().Network(), listener.Addr().String())
