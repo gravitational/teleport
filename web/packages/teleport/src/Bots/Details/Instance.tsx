@@ -63,7 +63,7 @@ export function Instance(props: {
       </TopRow>
       {hasHeartbeatData ? (
         <BottomRow>
-          <Flex gap={2} flex={1} overflow={'hidden'}>
+          <Flex gap={2} flex={1} overflow={'hidden'} alignItems={'flex-end'}>
             <Version version={version} />
 
             {hostname ? (
@@ -72,7 +72,7 @@ export function Instance(props: {
                 tipContent={`Hostname: ${hostname}`}
               >
                 <SecondaryOutlined borderRadius={2}>
-                  <LabelText>{hostname}</LabelText>
+                  <HostnameText>{hostname}</HostnameText>
                 </SecondaryOutlined>
               </HoverTooltip>
             ) : undefined}
@@ -142,6 +142,12 @@ const IdText = styled(Text)`
   white-space: nowrap;
 `;
 
+const HostnameText = styled(Text).attrs({
+  typography: 'body3',
+})`
+  white-space: nowrap;
+`;
+
 function Version(props: { version: string | undefined }) {
   const { version } = props;
   const { checkCompatibility } = useClusterVersion();
@@ -195,9 +201,4 @@ function Version(props: { version: string | undefined }) {
 
 const VersionContainer = styled.div`
   flex-shrink: 0;
-`;
-
-const LabelText = styled(Text)`
-  font-size: ${({ theme }) => theme.fontSizes[1]}px;
-  white-space: nowrap;
 `;

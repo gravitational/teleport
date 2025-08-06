@@ -146,7 +146,7 @@ export const HappyWithTypical: Story = {
       handlers: [
         getBotSuccess({
           name: 'ansible-worker',
-          roles: [],
+          roles: ['access'],
           traits: [],
           max_session_ttl: {
             seconds: 43200,
