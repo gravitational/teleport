@@ -1,0 +1,302 @@
+---
+title: Request Access to Roles and Resources
+description: Explains how to request access to resources that your Teleport user does not have permissions to access.
+---
+
+If you cannot access a Teleport role or resource with your current Teleport
+permissions, you can create an Access Request to obtain elevated permissions for
+a limited time.
+
+This guide explains you how to use `tsh` to create Teleport Access Requests. 
+
+<Admonition type="tip">
+
+In Teleport Enterprise accounts with Identity Governance enabled, it is possible
+to create Access Requests in the Teleport Web UI and Teleport Connect.
+
+Access Requests can also be created in the Teleport Web UI and Teleport Connect.
+In the Teleport Web UI, navigate from the left sidebar to **Identity Governance > 
+Access Requests > New Request**. In Teleport Connect, either open a new tab
+with cluster resources by clicking on the new tab button or click the **Access
+Requests** button in the top right.
+
+</Admonition>
+
+## Requesting access to roles
+
+You can request access to one or more Teleport roles using the `tsh request
+create` command and the `--roles` flag, e.g.:
+
+```code
+$ tsh request create --roles "dev,analyst"
+```
+
+The command above creates an Access Request for the `dev` and `analyst` roles.
+
+## Requesting access to Teleport cluster resources
+
+In addition to Teleport roles, you can request access to individual Teleport
+resources, including resources within a Teleport-protected Kubernetes cluster. 
+
+To request access to a Teleport-protected infrastructure resource, you can
+search for possible resources, retrieve the ID of a resource to request access
+to, then create an Access Request for that resource ID.
+
+<Admonition type="tip">
+
+In the Teleport Web UI, you can view the resources you can request access to by
+navigating to **Resources** in the sidebar. 
+
+</Admonition>
+
+1. Search for a resource to request access to:
+
+   ```code
+   $ tsh request search --kind=<KIND>
+   ```
+
+   Substitute `--kind` with the kind of Teleport resource you would like to
+   request access to. This can be one of the following:
+
+   - `node`
+   - `kube_cluster`
+   - `kube_resource`
+   - `db`
+   - `app`
+   - `windows_desktop`
+
+1. Determine the ID of the resource to request access to. Resource IDs have the
+   following format:
+
+   ```
+   /CLUSTER_ADDRESS/TYPE/RESOURCE_NAME
+   ```
+
+   For example, assume that you have found the following Teleport-protected
+   server to request access to:
+
+   ```code
+   $ tsh request search --kind=node
+   Name                                 Hostname Labels Resource ID
+   ------------------------------------ -------- ------ ----------------------------------------------
+   00000000-0000-0000-0000-000000000000 myhost          /teleport.example.com/node/00000000-0000-00...
+   ```
+
+   While the resource ID on the right is clipped, you can use the format above
+   to infer that it is the following:
+
+   ```
+   /teleport.example.com/node/00000000-0000-0000-0000-000000000000
+   ```
+
+1. Request access to the resource by running the following command, inputting
+   the resource ID you found in the previous step:
+
+   ```code
+   $ tsh request create --resource RESOURCE_ID
+   ```
+
+## Requesting access to Kubernetes resources
+
+As with Teleport cluster resources, users can request access to a Kubernetes
+resources by running the following command, where <Var name="resource-id" /> is
+the ID of the resource:
+
+```code
+$ tsh request create <Var name="resource-id" />
+```
+
+### Namespace-scoped resources
+
+For Kubernetes namespaced resources, the `resource-id` is in the following format:
+
+```
+/TELEPORT_CLUSTER/kube:ns:NAMESPACED_PLURAL_KIND[.API_GROUP]/KUBE_CLUSTER/NAMESPACE/RESOURCE_NAME
+```
+
+The `API_GROUP` part is only required for resources that are part of the core
+Kubernetes group.
+
+<Admonition type="tip">
+You can run this command to list the namespaced Kubernetes resources,
+including their API groups:
+
+```code
+$ kubectl api-resources --namespaced=true -o name --sort-by=name
+```
+</Admonition>
+
+For example, to request access to a pod called `nginx-1` in the `dev`
+namespace, run the following command:
+
+```code
+$ tsh request create --resource /teleport.example.com/kube:ns:pods/mycluster/dev/nginx-1
+```
+
+And to request access to a deployment called `website` in the `prod`
+namespace, run the following command:
+
+```code
+$ tsh request create --resource /teleport.example.com/kube:ns:deployments.apps/mycluster/prod/website
+```
+
+For the `NAMESPACED_PLURAL_KIND` value you can use `*` to match all.
+For the `API_GROUP`, `NAMESPACE` and `RESOURCE_NAME`
+values, you can match ranges of characters by supplying a wildcard (`*`) or
+regular expression. Regular expressions must begin with `^` and end with `$`.
+
+For example, to create a request to access all pods in all namespaces that
+match the regular expression `/^nginx-[a-z0-9-]+$/`, run the following command:
+
+```code
+$ tsh request create --resource '/teleport.example.com/kube:ns:pods/mycluster/*/^nginx-[a-z0-9-]+$'
+```
+
+### Cluster-scoped resources
+
+For Kubernetes cluster-scoped resources, the `resource-id` is in the following
+format:
+
+```
+/TELEPORT_CLUSTER/kube:cw:CLUSTER_WIDE_PLURAL_KIND[.API_GROUP]/KUBE_CLUSTER/RESOURCE_NAME
+```
+
+The `API_GROUP` part is only required for resources that are part of the core
+kubernetes group.
+
+<Admonition type="tip">
+You can run this command to list the cluster-wide Kubernetes resources,
+including their API groups:
+
+```code
+$ kubectl api-resources --namespaced=false -o name --sort-by=name
+```
+</Admonition>
+
+For example, to request access to a namespace called `prod`, run the
+following command:
+
+```code
+$ tsh request create --resource /teleport.example.com/kube:cw:namespaces/mycluster/prod
+```
+
+Note that this will only grant access to the namespace resource itself, not to
+any namespaced resources within it.
+
+For the `CLUSTER_WIDE_PLURAL_KIND` value you can use `*` to match all.
+For the `API_GROUP` and `RESOURCE_NAME` value, you
+can match ranges of characters by supplying a wildcard (`*`) or regular
+expression. Regular expressions must begin with `^` and end with `$`.
+
+For example, to create a request to access all namespaces prefixed with `dev` match
+the regular expression `/^dev-[a-z0-9-]+$/`, run the following command:
+
+```code
+$ tsh request create --resource '/teleport.example.com/kube:cw:namespaces/mycluster/^dev-[a-z0-9-]+$'
+```
+
+Using cluster-scoped resource requests requires the role under `search_as_roles` to have the correct
+permissions for the cluster-scoped resource.  This is an example of the required permissions to
+request access only to the namespace `prod` (does not include any resources within it):
+
+```yaml
+kind: role
+version: v8
+spec:
+  allow:
+    kubernetes_resources:
+    - kind: namespaces
+      api_group: ''
+      name: prod
+      verbs:
+      - '*'
+```
+
+### Wildcard requests
+
+You can request access to a namespace and all resources within it, as well as to all cluster-wide resources. To do so, you can use wildcards in the resource ID.
+
+For cluster-wide resources, the `kind` format as described above is
+`kube:cw:CLUSTER_WIDE_PLURAL_KIND[.API_GROUP]`.
+To request access to all cluster-wide resources you can request access to
+`kube:cw:*.*`. Where the first `*` represents the kind, and the second `*`
+represents the `api group`.
+
+For namespaced resources, the `kind` format is
+`kube:ns:NAMESPACED_PLURAL_KIND[.API_GROUP]`.
+To request access to all namespaced resources within a specific namespace, you
+can request access to `kube:ns:*.*`, where the first `*` represents the kind,
+and the second `*` represents the `api group`.
+
+For example, to request access to the `prod` namespace (cluster-wide) all
+resources within it (i.e., namespaced), you can run the following command:
+
+```code
+$ tsh request create \
+  --resource /teleport.example.com/kube:cw:namespaces/mycluster/prod \
+  --resource '/teleport.example.com/kube:ns:*.*/mycluster/prod/*'
+```
+
+Similarly, to request access to everything within a cluster, you can use the
+following command:
+
+```code
+$ tsh request create \
+  --resource '/teleport.example.com/kube:cw:*.*/mycluster/*' \
+  --resource '/teleport.example.com/kube:ns:*.*/mycluster/*/*'
+```
+
+which is equivalent to:
+
+```code
+$ tsh request create \
+  --resource /teleport.example.com/kube_cluster/mycluster
+```
+
+### Search for Kubernetes resources
+
+If a user has no access to a Kubernetes cluster, they can search the list of
+resources in the cluster by running the following command, replacing
+<Var name="kube-cluster" /> with the name of the Kubernetes cluster and
+<Var name="namespace" /> with the name of a Kubernetes namespace:
+
+```code
+$ tsh request search \
+    --kind=kube_resource --kube-kind=pods --kube-api-group='' \
+    --kube-cluster=<Var name="kube-cluster" /> \
+    [--kube-namespace=<Var name="namespace" />|--all-kube-namespaces]
+Name               Namespace Labels    Resource ID
+-----------------  --------- --------- ----------------------------------------------------------
+nginx-deployment-0 default   app=nginx /teleport.example.com/kube:ns:pods/local/default/nginx-deployment-0
+nginx-deployment-1 default   app=nginx /teleport.example.com/kube:ns:pods/local/default/nginx-deployment-1
+
+To request access to these resources, run
+> tsh request create \
+    --resource /teleport.example.com/kube:ns:pods/local/default/nginx-deployment-0 \
+    --resource /teleport.example.com/kube:ns:pods/local/default/nginx-deployment-1 \
+    --reason <request reason>
+```
+
+The list returned includes the name of the resource, the namespace it is in if
+applicable, its labels, and the resource ID.
+Resources included in the list are those that match the `kubernetes_resources`
+field in the user's `search_as_roles`. The user can then:
+
+- Request access to the resources by running the command provided by the `tsh request
+search` command.
+- Edit the command to request access to a subset of the resources.
+- Use a custom request with wildcards or regular expressions.
+
+`tsh request search --kind=kube_resource --kube-kind=<kind>
+--kube-api-group=<api_group>` works even if the user has no permissions to
+interact with the desired Kubernetes cluster, but the user's `search_as_roles`
+values must allow access to the cluster. If the user is unsure of the name of
+the cluster, they can run the following command to search it:
+
+```code
+$ tsh request search --kind=kube_cluster
+Name  Hostname Labels Resource ID
+----- -------- ------ ----------------------------------------
+local                 /teleport.example.com/kube_cluster/local
+
+```
