@@ -15,11 +15,13 @@
 package proxy
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/asn1"
 	"net"
+	"os"
 	"slices"
 	"sync/atomic"
 	"time"
@@ -184,6 +186,9 @@ type Client struct {
 	// clusterName as determined by inspecting the certificate presented by
 	// the Proxy during the connection handshake.
 	clusterName *clusterName
+
+	relayCC        *grpc.ClientConn
+	relayTransport *transportv1.Client
 }
 
 // protocolProxySSHGRPC is TLS ALPN protocol value used to indicate gRPC
@@ -332,11 +337,53 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 		return nil, trace.Wrap(err)
 	}
 
+	var relayCC *grpc.ClientConn
+	var relayTransport *transportv1.Client
+	if relayAddr := os.Getenv("TELEPORT_UNSTABLE_RELAY_ADDR"); relayAddr != "" {
+		const localCluster = ""
+		tc, err := cfg.TLSConfigFunc(localCluster)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// the [credentials.NewTLS] transport credentials will take care of SNI
+		// and ALPN
+		tc.NextProtos = nil
+		tc.ServerName = ""
+
+		cc, err := grpc.NewClient(relayAddr,
+			grpc.WithTransportCredentials(credentials.NewTLS(tc)),
+			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+			grpc.WithChainUnaryInterceptor(
+				metadata.UnaryClientInterceptor,
+				interceptors.GRPCClientUnaryErrorInterceptor,
+			),
+			grpc.WithChainStreamInterceptor(
+				metadata.StreamClientInterceptor,
+				interceptors.GRPCClientStreamErrorInterceptor,
+			),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		r, err := transportv1.NewClient(transportv1pb.NewTransportServiceClient(cc))
+		if err != nil {
+			_ = cc.Close()
+			return nil, trace.Wrap(err)
+		}
+
+		relayCC = cc
+		relayTransport = r
+	}
+
 	return &Client{
 		cfg:         cfg,
 		grpcConn:    conn,
 		transport:   transport,
 		clusterName: c,
+
+		relayCC:        relayCC,
+		relayTransport: relayTransport,
 	}, nil
 }
 
@@ -357,6 +404,9 @@ func (c *Client) ClusterName() string {
 
 // Close attempts to close both the gRPC and SSH connections.
 func (c *Client) Close() error {
+	if c.relayCC != nil {
+		_ = c.relayCC.Close()
+	}
 	return trace.Wrap(c.grpcConn.Close())
 }
 
@@ -424,7 +474,7 @@ func (c *Client) ClientConfig(ctx context.Context, cluster string) (client.Confi
 // DialHost establishes a connection to the `target` in cluster named `cluster`. If a keyring
 // is provided it will only be forwarded if proxy recording mode is enabled in the cluster.
 func (c *Client) DialHost(ctx context.Context, target, cluster string, keyring agent.ExtendedAgent) (net.Conn, ClusterDetails, error) {
-	conn, details, err := c.transport.DialHost(ctx, target, cluster, nil, keyring)
+	conn, details, err := cmp.Or(c.relayTransport, c.transport).DialHost(ctx, target, cluster, nil, keyring)
 	if err != nil {
 		return nil, ClusterDetails{}, trace.ConnectionProblem(err, "failed connecting to host %s: %v", target, err)
 	}
@@ -434,7 +484,7 @@ func (c *Client) DialHost(ctx context.Context, target, cluster string, keyring a
 
 // ClusterDetails retrieves cluster information as seen by the Proxy.
 func (c *Client) ClusterDetails(ctx context.Context) (ClusterDetails, error) {
-	details, err := c.transport.ClusterDetails(ctx)
+	details, err := cmp.Or(c.relayTransport, c.transport).ClusterDetails(ctx)
 	if err != nil {
 		return ClusterDetails{}, trace.Wrap(err)
 	}
@@ -458,7 +508,7 @@ func (c *Client) Ping(ctx context.Context) error {
 	// TODO(tross): Update to call Ping when it is added to the transport service.
 	// For now we don't really care what method is used we just want to measure
 	// how long it takes to get a reply.
-	_, _ = c.transport.ClusterDetails(ctx)
+	_, _ = cmp.Or(c.relayTransport, c.transport).ClusterDetails(ctx)
 	return nil
 }
 

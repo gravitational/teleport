@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/proxy"
+	"github.com/gravitational/teleport/lib/relaytunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	authorizedkeysreporter "github.com/gravitational/teleport/lib/secretsscanner/authorizedkeys"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -200,6 +201,10 @@ type Server struct {
 
 	// connectedProxyGetter gets the proxies teleport is connected to.
 	connectedProxyGetter reversetunnelclient.ConnectedProxyGetter
+
+	// relayInfoGetter gets the Relay group and Relay host IDs that this
+	// Teleport instance is connected to.
+	relayInfoGetter relaytunnel.GetRelayInfoFunc
 
 	// createHostUser configures whether a host should allow host user
 	// creation
@@ -679,6 +684,13 @@ func SetConnectedProxyGetter(getter reversetunnelclient.ConnectedProxyGetter) Se
 	}
 }
 
+func SetRelayInfoGetter(getter relaytunnel.GetRelayInfoFunc) ServerOption {
+	return func(s *Server) error {
+		s.relayInfoGetter = getter
+		return nil
+	}
+}
+
 // SetInventoryControlHandle sets the server's downstream inventory control
 // handle.
 func SetInventoryControlHandle(handle inventory.DownstreamHandle) ServerOption {
@@ -1094,6 +1106,11 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 		addr = s.AdvertiseAddr()
 	}
 
+	var relayGroup string
+	var relayIDs []string
+	if s.relayInfoGetter != nil {
+		relayGroup, relayIDs = s.relayInfoGetter()
+	}
 	srv := &types.ServerV2{
 		Kind:    types.KindNode,
 		Version: types.V2,
@@ -1109,6 +1126,9 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 			UseTunnel: s.useTunnel,
 			Version:   teleport.Version,
 			ProxyIDs:  s.connectedProxyGetter.GetProxyIDs(),
+
+			RelayGroup: relayGroup,
+			RelayIds:   relayIDs,
 		},
 	}
 	srv.SetPublicAddrs(utils.NetAddrsToStrings(s.publicAddrs))

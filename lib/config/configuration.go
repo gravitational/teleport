@@ -568,6 +568,15 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 
+	if fc.RelayServer != "" {
+		addr, err := utils.ParseHostPortAddr(fc.RelayServer, -1)
+		if err != nil {
+			return trace.Wrap(err, "parsing teleport.relay_server")
+		}
+
+		cfg.RelayServer = addr.Addr
+	}
+
 	if err := applyTokenConfig(fc, cfg); err != nil {
 		return trace.Wrap(err)
 	}
