@@ -200,7 +200,7 @@ func (h *portForwardProxy) forwardStreamPair(p *httpStreamPair, remotePort int64
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		// Use a unidirectional copy from Kube API to client.
+		// Close the target error stream to indicate no more writes.
 		if err := targetErrorStream.Close(); err != nil {
 			h.logger.DebugContext(h.context, "Unable to close target error stream", "error", err)
 		}
