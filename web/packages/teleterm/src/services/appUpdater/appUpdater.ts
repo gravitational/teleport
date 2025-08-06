@@ -145,6 +145,7 @@ export class AppUpdater {
     try {
       await this.checkForUpdatesPromise;
     } catch (error) {
+      // The error from autoUpdater.checkForUpdates is surfaced to the UI through error event.
       this.logger.error('Failed to check for updates.', error);
     } finally {
       this.checkForUpdatesPromise = undefined;
@@ -211,6 +212,7 @@ export class AppUpdater {
       await this.downloadPromise;
       this.isUpdateDownloaded = true;
     } catch (error) {
+      // The error from autoUpdater.download is surfaced to the UI through error event.
       this.logger.error('Failed to download update.', error);
     } finally {
       this.downloadPromise = undefined;
