@@ -827,7 +827,7 @@
     },
     {
       "source": "/admin-guides/teleport-policy/",
-      "destination": "/identity-security/teleport-policy/",
+      "destination": "/identity-security/",
       "permanent": true
     },
     {
@@ -1158,6 +1158,11 @@
     {
       "source": "/admin-guides/access-controls/login-rules/",
       "destination": "/zero-trust-access/access-controls/login-rules/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-security/teleport-policy/",
+      "destination": "/identity-security/",
       "permanent": true
     }
   ]
