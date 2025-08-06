@@ -1,6 +1,6 @@
 ---
 authors: Brian Joerger (bjoerger@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 212 - JSONPath Interpolation
