@@ -16,11 +16,22 @@
 
 package main
 
-import "net/http"
+import (
+	"fmt"
+	"net/http"
+)
 
 func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello, world!"))
 	})
-	http.ListenAndServe(":80", nil)
+
+	// Listen on five ports.
+	for p := 80; p < 85; p++ {
+		go func(port int) {
+			http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
+		}(p)
+	}
+	// Block indefinitely.
+	select {}
 }

@@ -669,14 +669,12 @@ func testKubePortForwardConcurrent(t *testing.T, suite *KubeSuite) {
 	t.Logf("Ports forwarded %v", portPairs)
 
 	// Exercise each port forward for a single pod.
-	// It's fine that there isn't a response from each container port.
-	// It's understood that the container responds on a single remote port 80.
 	// The focus is on exercising multiple port forwards for concurrency testing.
 	g, groupCtx := errgroup.WithContext(t.Context())
 	for _, portPair := range portPairs {
 		portPair := portPair
 		g.Go(func() error {
-			ctx, cancel := context.WithTimeout(groupCtx, 30*time.Second)
+			ctx, cancel := context.WithTimeout(groupCtx, 10*time.Second)
 			defer cancel()
 
 			url := fmt.Sprintf("http://localhost:%d", portPair.Local)
@@ -686,28 +684,14 @@ func testKubePortForwardConcurrent(t *testing.T, suite *KubeSuite) {
 			}
 
 			resp, errDoReq := http.DefaultClient.Do(req)
-			if portPair.Remote == 80 {
-				// Expect port 80 to succeed. Container is listening.
-				if errDoReq != nil {
-					return fmt.Errorf("http GET on port %v: %w", portPair, errDoReq)
-				}
-				if resp.StatusCode != http.StatusOK {
-					return fmt.Errorf("unexpected http GET status %d on port %v", resp.StatusCode, portPair)
-				}
-				io.Copy(io.Discard, resp.Body)
-				resp.Body.Close()
-			} else {
-				// Expect port != 80 to error EOF. Container is not listening.
-				if errDoReq == nil {
-					io.Copy(io.Discard, resp.Body)
-					resp.Body.Close()
-					return fmt.Errorf("expected io.EOF error on non-listening port %v", portPair)
-				}
-				if !errors.Is(errDoReq, io.EOF) {
-					// Response is expected to be nil. No need to close a response body.
-					return fmt.Errorf("non-listening port error (expected io.EOF): %w", errDoReq)
-				}
+			if errDoReq != nil {
+				return fmt.Errorf("http GET on port %v: %w", portPair, errDoReq)
 			}
+			if resp.StatusCode != http.StatusOK {
+				return fmt.Errorf("unexpected http GET status %d on port %v", resp.StatusCode, portPair)
+			}
+			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
 
 			return nil
 		})
