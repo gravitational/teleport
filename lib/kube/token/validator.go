@@ -381,7 +381,7 @@ func ValidateTokenWithOIDC(
 
 	// Ensure this is a pod-bound service account token
 	if claims.Kubernetes == nil || claims.Kubernetes.Pod == nil || claims.Kubernetes.Pod.Name == "" {
-		return nil, trace.BadParameter("oidc joining requires the use of projected pod bound service account token")
+		return nil, trace.BadParameter("oidc joining requires the use of a projected pod bound service account token")
 	}
 
 	// Note: OIDC library requires valid exp and iat.
