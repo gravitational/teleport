@@ -85,6 +85,26 @@ func CollectPages[T any, S ~[]T](stream Stream[S]) ([]T, error) {
 	return c, nil
 }
 
+// CollectWithNotImplementedFallback aggregates a stream into a slice. If an error returns [NotImplementedError]
+// a user suplied callback is called instead and the items are discarded.
+func CollectWithNotImplementedFallback[T any](
+	stream Stream[T],
+	fallback func() ([]T, error),
+) ([]T, error) {
+	var c []T
+	for item, err := range stream {
+		if trace.IsNotImplemented(err) {
+			return fallback()
+		}
+
+		if err != nil {
+			return c, trace.Wrap(err)
+		}
+		c = append(c, item)
+	}
+	return c, nil
+}
+
 // FilterMap maps a stream of type A into a stream of type B, filtering out
 // items when fn returns false.
 func FilterMap[A, B any](stream Stream[A], fn func(A) (B, bool)) Stream[B] {

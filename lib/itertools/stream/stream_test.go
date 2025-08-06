@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -883,4 +884,33 @@ func TestMergeStreams(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []int{1, 2, 3, 4, 5, 6}, out)
 	})
+}
+
+func TestCollectWithNotImplementedFallback(t *testing.T) {
+	t.Parallel()
+
+	out, err := CollectWithNotImplementedFallback(Slice([]int{1, 2, 3}), func() ([]int, error) {
+		panic("unexpected fallback")
+	})
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3}, out)
+
+	// error propagation
+	_, err = CollectWithNotImplementedFallback(Fail[int](fmt.Errorf("unexpected error")), func() ([]int, error) {
+		return []int{}, nil
+	})
+	require.Error(t, err)
+
+	// fallback correctly
+	out, err = CollectWithNotImplementedFallback(Fail[int](trace.NotImplemented("not implemented")), func() ([]int, error) {
+		return []int{3, 4, 5}, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, []int{3, 4, 5}, out)
+
+	// fail in fallback
+	_, err = CollectWithNotImplementedFallback(Fail[int](trace.NotImplemented("not implemented")), func() ([]int, error) {
+		return nil, fmt.Errorf("unexpected error")
+	})
+	require.Error(t, err)
 }
