@@ -1359,6 +1359,11 @@
       "source": "/admin-guides/management/security/selinux/",
       "destination": "/zero-trust-access/management/security/selinux/",
       "permanent": true
+    },
+    {
+      "source": "/upgrading/client-tools-autoupdate/",
+      "destination": "/upgrading/client-tools-managed-updates/",
+      "permanent": true
     }
   ]
 }
