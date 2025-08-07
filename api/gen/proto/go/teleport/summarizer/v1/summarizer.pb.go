@@ -22,9 +22,9 @@ package summarizerv1
 
 import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	events "github.com/gravitational/teleport/api/types/events"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
@@ -620,7 +620,12 @@ type Summary struct {
 	// end events carry the most complete set of data that Teleport has about a
 	// given session. Used for checking access based on RBAC rule "where"
 	// filters.
-	SessionEndEvent *events.OneOf `protobuf:"bytes,7,opt,name=session_end_event,json=sessionEndEvent,proto3" json:"session_end_event,omitempty"`
+	//
+	// The event is stored in an unstructured form, as storing an instance of
+	// events.OneOf posed a number of technical challenges with JSON
+	// serialization as a subcomponent of this message. These challenges stem
+	// from the fact that audit events have gogoproto extensions.
+	SessionEndEvent *structpb.Struct `protobuf:"bytes,7,opt,name=session_end_event,json=sessionEndEvent,proto3" json:"session_end_event,omitempty"`
 	// ErrorMessage is an error message if the summarization failed. Available if
 	// the state is SUMMARY_STATE_ERROR.
 	ErrorMessage  string `protobuf:"bytes,8,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
@@ -700,7 +705,7 @@ func (x *Summary) GetModelName() string {
 	return ""
 }
 
-func (x *Summary) GetSessionEndEvent() *events.OneOf {
+func (x *Summary) GetSessionEndEvent() *structpb.Struct {
 	if x != nil {
 		return x.SessionEndEvent
 	}
@@ -718,7 +723,7 @@ var File_teleport_summarizer_v1_summarizer_proto protoreflect.FileDescriptor
 
 const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\n" +
-	"'teleport/summarizer/v1/summarizer.proto\x12\x16teleport.summarizer.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/header/v1/metadata.proto\x1a)teleport/legacy/types/events/events.proto\"\xd3\x01\n" +
+	"'teleport/summarizer/v1/summarizer.proto\x12\x16teleport.summarizer.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/header/v1/metadata.proto\"\xd3\x01\n" +
 	"\x0eInferenceModel\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
@@ -751,7 +756,7 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x13InferencePolicySpec\x12\x14\n" +
 	"\x05kinds\x18\x01 \x03(\tR\x05kinds\x12\x14\n" +
 	"\x05model\x18\x02 \x01(\tR\x05model\x12\x16\n" +
-	"\x06filter\x18\x03 \x01(\tR\x06filter\"\x9b\x03\n" +
+	"\x06filter\x18\x03 \x01(\tR\x06filter\"\xa5\x03\n" +
 	"\aSummary\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12:\n" +
@@ -760,8 +765,8 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x15inference_finished_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\x13inferenceFinishedAt\x12\x18\n" +
 	"\acontent\x18\x05 \x01(\tR\acontent\x12\x1d\n" +
 	"\n" +
-	"model_name\x18\x06 \x01(\tR\tmodelName\x129\n" +
-	"\x11session_end_event\x18\a \x01(\v2\r.events.OneOfR\x0fsessionEndEvent\x12#\n" +
+	"model_name\x18\x06 \x01(\tR\tmodelName\x12C\n" +
+	"\x11session_end_event\x18\a \x01(\v2\x17.google.protobuf.StructR\x0fsessionEndEvent\x12#\n" +
 	"\rerror_message\x18\b \x01(\tR\ferrorMessage*|\n" +
 	"\fSummaryState\x12\x1d\n" +
 	"\x19SUMMARY_STATE_UNSPECIFIED\x10\x00\x12\x19\n" +
@@ -795,7 +800,7 @@ var file_teleport_summarizer_v1_summarizer_proto_goTypes = []any{
 	(*Summary)(nil),               // 8: teleport.summarizer.v1.Summary
 	(*v1.Metadata)(nil),           // 9: teleport.header.v1.Metadata
 	(*timestamppb.Timestamp)(nil), // 10: google.protobuf.Timestamp
-	(*events.OneOf)(nil),          // 11: events.OneOf
+	(*structpb.Struct)(nil),       // 11: google.protobuf.Struct
 }
 var file_teleport_summarizer_v1_summarizer_proto_depIdxs = []int32{
 	9,  // 0: teleport.summarizer.v1.InferenceModel.metadata:type_name -> teleport.header.v1.Metadata
@@ -808,7 +813,7 @@ var file_teleport_summarizer_v1_summarizer_proto_depIdxs = []int32{
 	0,  // 7: teleport.summarizer.v1.Summary.state:type_name -> teleport.summarizer.v1.SummaryState
 	10, // 8: teleport.summarizer.v1.Summary.inference_started_at:type_name -> google.protobuf.Timestamp
 	10, // 9: teleport.summarizer.v1.Summary.inference_finished_at:type_name -> google.protobuf.Timestamp
-	11, // 10: teleport.summarizer.v1.Summary.session_end_event:type_name -> events.OneOf
+	11, // 10: teleport.summarizer.v1.Summary.session_end_event:type_name -> google.protobuf.Struct
 	11, // [11:11] is the sub-list for method output_type
 	11, // [11:11] is the sub-list for method input_type
 	11, // [11:11] is the sub-list for extension type_name

@@ -16,9 +16,9 @@ syntax = "proto3";
 
 package teleport.summarizer.v1;
 
+import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/metadata.proto";
-import "teleport/legacy/types/events/events.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1";
 
@@ -139,7 +139,12 @@ message Summary {
   // end events carry the most complete set of data that Teleport has about a
   // given session. Used for checking access based on RBAC rule "where"
   // filters.
-  events.OneOf session_end_event = 7;
+  //
+  // The event is stored in an unstructured form, as storing an instance of
+  // events.OneOf posed a number of technical challenges with JSON
+  // serialization as a subcomponent of this message. These challenges stem
+  // from the fact that audit events have gogoproto extensions.
+  google.protobuf.Struct session_end_event = 7;
   // ErrorMessage is an error message if the summarization failed. Available if
   // the state is SUMMARY_STATE_ERROR.
   string error_message = 8;
