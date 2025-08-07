@@ -18,7 +18,6 @@ package top
 
 import (
 	"cmp"
-	"context"
 	"fmt"
 	"math"
 	"os"
@@ -26,7 +25,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 
@@ -369,14 +367,6 @@ type Bucket struct {
 	Count int64
 	// UpperBound is an upper bound of the bucket
 	UpperBound float64
-}
-
-func fetchAndGenerateReport(ctx context.Context, client MetricsClient, prev *Report, period time.Duration) (*Report, error) {
-	metrics, err := client.GetMetrics(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return generateReport(metrics, prev, period)
 }
 
 func generateReport(metrics map[string]*dto.MetricFamily, prev *Report, period time.Duration) (*Report, error) {
