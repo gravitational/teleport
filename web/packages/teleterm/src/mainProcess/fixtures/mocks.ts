@@ -178,6 +178,9 @@ export class MockMainProcessClient implements MainProcessClient {
     return '';
   }
 
+  supportsAppUpdates() {
+    return true;
+  }
   async changeAppUpdatesManagingCluster() {}
   async maybeRemoveAppUpdatesManagingCluster() {}
   async checkForAppUpdates() {}
