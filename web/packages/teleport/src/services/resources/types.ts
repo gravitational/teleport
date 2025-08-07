@@ -42,6 +42,12 @@ export type Kind =
 /** Teleport role in a resource format. */
 export type RoleResource = Resource<KindRole>;
 
+/** Teleport role with only the role name and description, used for displaying requestable roles. */
+export type RequestableRole = {
+  name: string;
+  description?: string;
+};
+
 /**
  * Teleport role in full format, as returned from Teleport API.
  * TODO(bl-nero): Add all fields supported on the UI side.
