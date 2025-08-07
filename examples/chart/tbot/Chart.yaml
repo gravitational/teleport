@@ -1,4 +1,4 @@
-.version: &version "17.7.1-dev.signedjar.3"
+.version: &version "17.7.1-dev.signedjar.4"
 
 name: tbot
 apiVersion: v2
