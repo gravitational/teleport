@@ -2384,7 +2384,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	testCtx.fakeCluster = reversetunnelclient.NewFakeCluster(testCtx.clusterName, proxyAuthClient)
 	t.Cleanup(func() { require.NoError(t, testCtx.fakeCluster.Close()) })
 	tunnel := &reversetunnelclient.FakeServer{
-		Clusters: []reversetunnelclient.Cluster{
+		FakeClusters: []reversetunnelclient.Cluster{
 			testCtx.fakeCluster,
 		},
 	}
