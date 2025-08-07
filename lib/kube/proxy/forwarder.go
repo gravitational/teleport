@@ -1813,21 +1813,11 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 	}
 
 	auditSent := map[string]bool{} // Set of `addr`. Can be multiple ports on single call. Using bool to simplify the check.
-	var auditSentMu sync.Mutex
 	onPortForward := func(addr string, success bool) {
-		if !sess.isLocalKubernetesCluster {
+		if !sess.isLocalKubernetesCluster || auditSent[addr] {
 			return
 		}
-
-		auditSentMu.Lock()
-		isAuditSent := auditSent[addr]
-		if !isAuditSent {
-			auditSent[addr] = true
-		}
-		auditSentMu.Unlock()
-		if isAuditSent {
-			return
-		}
+		auditSent[addr] = true
 
 		portForward := &apievents.PortForward{
 			Metadata: apievents.Metadata{
