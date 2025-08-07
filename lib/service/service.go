@@ -1776,7 +1776,7 @@ func (process *TeleportProcess) getInstanceClient() *authclient.Client {
 
 // waitForInstanceConnector waits for the instance connector to become
 // available. Returns nil if if this is an auth-only instance or ctx is
-// cancelled. Auth-only instances cannot use the instance client because auth
+// canceled. Auth-only instances cannot use the instance client because auth
 // servers need to be able to fully initialize without a valid CA in order to
 // support HSMs.
 func (process *TeleportProcess) waitForInstanceConnector(ctx context.Context) *Connector {
