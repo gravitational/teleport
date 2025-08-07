@@ -3274,10 +3274,13 @@ type AWSKMSKeyV1 struct {
 	// last_sync_time is the time when the resource was last synced.
 	LastSyncTime *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
 	// aliases is the list of aliases that are attached to the key.
+	// they are prefixed with "alias/", for example "alias/my-key-alias".
 	Aliases []string `protobuf:"bytes,6,rep,name=aliases,proto3" json:"aliases,omitempty"`
-	// policy_document is the JSON document that defines the policy.
+	// policy_document is the JSON document that defines the Key Policy. Every KMS
+	// key must have exactly one key policy.
 	PolicyDocument []byte `protobuf:"bytes,7,opt,name=policy_document,json=policyDocument,proto3" json:"policy_document,omitempty"`
-	// region is the AWS region that the key belongs to.
+	// region is the AWS region that the key belongs to. For multi-region keys,
+	// this is the region where the current key, primary or replica, is located.
 	Region string `protobuf:"bytes,8,opt,name=region,proto3" json:"region,omitempty"`
 	// multi_region_key_type is the type of the multi-region key.
 	// It is set to "PRIMARY", "REPLICA" or left empty for single region keys.
