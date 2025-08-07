@@ -67,7 +67,7 @@ type AccessListMemberSpec struct {
 	MembershipKind string `json:"membership_kind" yaml:"membership_kind"`
 }
 
-// NewAccessListMember will create a new access listm member.
+// NewAccessListMember will create a new AccessListMember.
 func NewAccessListMember(metadata header.Metadata, spec AccessListMemberSpec) (*AccessListMember, error) {
 	member := &AccessListMember{
 		ResourceHeader: header.ResourceHeaderFromMetadata(metadata),
@@ -81,35 +81,16 @@ func NewAccessListMember(metadata header.Metadata, spec AccessListMemberSpec) (*
 	return member, nil
 }
 
-// CheckAndSetDefaults validates fields and populates empty fields with default values.
+// CheckAndSetDefaults defaults empty fields and performs metadata validation.
 func (a *AccessListMember) CheckAndSetDefaults() error {
 	a.SetKind(types.KindAccessListMember)
 	a.SetVersion(types.V1)
-
 	if err := a.ResourceHeader.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-
 	if a.Spec.MembershipKind == "" {
 		a.Spec.MembershipKind = MembershipKindUser
 	}
-
-	if a.Spec.AccessList == "" {
-		return trace.BadParameter("access list is missing")
-	}
-
-	if a.Spec.Name == "" {
-		return trace.BadParameter("member name is missing")
-	}
-
-	if a.Spec.Joined.IsZero() || a.Spec.Joined.Unix() == 0 {
-		return trace.BadParameter("member %s: joined field empty or missing", a.Spec.Name)
-	}
-
-	if a.Spec.AddedBy == "" {
-		return trace.BadParameter("member %s: added_by field is empty", a.Spec.Name)
-	}
-
 	return nil
 }
 
