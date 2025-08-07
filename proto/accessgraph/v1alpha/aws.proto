@@ -606,21 +606,8 @@ message AWSKMSKeyV1 {
   // region is the AWS region that the key belongs to.
   string region = 8;
   // multi_region_key_type is the type of the multi-region key.
-  MultiRegionKeyType multi_region_key_type = 9;
+  // It is set to "PRIMARY", "REPLICA" or left empty for single region keys.
+  string multi_region_key_type = 9;
   // hsm_cluster_id is the ID of the HSM cluster that the key belongs to, if any.
   string hsm_cluster_id = 10;
-}
-
-// MultiRegionKeyType is the type of a multi-region key type (primary, replica,
-// none for single region).
-enum MultiRegionKeyType {
-  // MULTI_REGION_KEY_TYPE_UNSPECIFIED is a unspecified multi region key type
-  MULTI_REGION_KEY_TYPE_UNSPECIFIED = 0;
-  // MULTI_REGION_KEY_TYPE_NONE is not a multi region key type but a local or
-  // single region key.
-  MULTI_REGION_KEY_TYPE_NONE = 1;
-  // MULTI_REGION_KEY_TYPE_PRIMARY is a primary multi region key type
-  MULTI_REGION_KEY_TYPE_PRIMARY = 2;
-  // MULTI_REGION_KEY_TYPE_REPLICA is a replica multi region key type
-  MULTI_REGION_KEY_TYPE_REPLICA = 3;
 }

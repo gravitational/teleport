@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -24,7 +24,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
-	"github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -40,29 +39,31 @@ type kmsClient interface {
 	GetKeyPolicy(ctx context.Context, params *kms.GetKeyPolicyInput, optFns ...func(*kms.Options)) (*kms.GetKeyPolicyOutput, error)
 }
 
-// pollAWSKMSKeys is a function that returns a function that fetches
-// AWS KMS keys and their inline and attached policies.
+// pollAWSKMSKeys returns a function that fetches AWS KMS keys, their aliases,
+// tags, and their inline key policy.
 func (a *Fetcher) pollAWSKMSKeys(ctx context.Context, result *Resources, collectErr func(error)) func() error {
 	return func() error {
 		var err error
 		result.KMSKeys, err = a.fetchKMSKeys(ctx)
 		if err != nil {
-			collectErr(trace.Wrap(err, "failed to fetch kms"))
+			collectErr(trace.Wrap(err, "failed to fetch KMS keys"))
 		}
 		return nil
 	}
 }
 
+// fetchKMSKeys fetches AWS KMS keys, their aliases, tags, and their inline key
+// policy. Up to five regions are fetched concurrently.
 func (a *Fetcher) fetchKMSKeys(ctx context.Context) ([]*pb.AWSKMSKeyV1, error) {
 	var keys []*pb.AWSKMSKeyV1
 	var errs []error
 	var mu sync.Mutex
 
-	collectKeys := func(nextKeys []*pb.AWSKMSKeyV1, nextErrs ...error) {
+	collectKeys := func(nextKeys []*pb.AWSKMSKeyV1, err error) {
 		mu.Lock()
 		defer mu.Unlock()
-		if len(nextErrs) > 0 {
-			errs = append(errs, nextErrs...)
+		if err != nil {
+			errs = append(errs, err)
 		}
 		if nextKeys != nil {
 			keys = append(keys, nextKeys...)
@@ -83,7 +84,8 @@ func (a *Fetcher) fetchKMSKeys(ctx context.Context) ([]*pb.AWSKMSKeyV1, error) {
 				return nil
 			}
 			client := a.awsClients.getKMSClient(awsCfg)
-			a.collectKMSKeys(ctx, client, collectKeys, region)
+			keys, err := a.fetchKMSKeysForRegion(ctx, client, region)
+			collectKeys(keys, err)
 			return nil
 		})
 	}
@@ -92,9 +94,12 @@ func (a *Fetcher) fetchKMSKeys(ctx context.Context) ([]*pb.AWSKMSKeyV1, error) {
 	return keys, trace.NewAggregate(append(errs, err)...)
 }
 
-type kmsKeyCollector func(newKeys []*pb.AWSKMSKeyV1, errs ...error)
-
-func (a *Fetcher) collectKMSKeys(ctx context.Context, client kmsClient, collectKeys kmsKeyCollector, region string) {
+// fetchKMSKeysForRegion fetches all AWS KMS keys for a given region and
+// converts them to the Teleport protobuf representation. It is lenient with
+// errors on individual keys in order to continue fetching other keys. All
+// errors encountered are aggregated into a single error, except for pager
+// errors which cause an immediate return to avoid an endless loop.
+func (a *Fetcher) fetchKMSKeysForRegion(ctx context.Context, client kmsClient, region string) ([]*pb.AWSKMSKeyV1, error) {
 	input := &kms.ListKeysInput{}
 	opt := func(opt *kms.ListKeysPaginatorOptions) { opt.StopOnDuplicateToken = true }
 	pager := kms.NewListKeysPaginator(client, input, opt)
@@ -104,22 +109,28 @@ func (a *Fetcher) collectKMSKeys(ctx context.Context, client kmsClient, collectK
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			collectKeys(nil, trace.Wrap(err))
-			return
+			return nil, trace.Wrap(err)
 		}
 		for _, key := range page.Keys {
 			key, err := a.fetchKMSKey(ctx, client, key.KeyId, region)
 			if err != nil {
-				collectKeys(nil, err)
+				errs = append(errs, err)
 			}
 			if key != nil {
 				keys = append(keys, key)
 			}
 		}
 	}
-	collectKeys(keys, errs...)
+	if len(errs) > 0 {
+		return keys, trace.NewAggregate(errs...)
+	}
+	return keys, nil
 }
 
+// fetchKMSKey fetches a single AWS KMS key and converts it to the Teleport
+// protobuf representation. It is lenient with errors on subqueries to fetch
+// tags, aliases and policies and aggregates them into a single error. This is
+// useful if permissions don't allow any of the subqueries.
 func (a *Fetcher) fetchKMSKey(ctx context.Context, client kmsClient, keyID *string, region string) (*pb.AWSKMSKeyV1, error) {
 	input := &kms.DescribeKeyInput{KeyId: keyID}
 	output, err := client.DescribeKey(ctx, input)
@@ -146,16 +157,12 @@ func (a *Fetcher) fetchKMSKey(ctx context.Context, client kmsClient, keyID *stri
 	return result, nil
 }
 
+// awsToProtoKMSKey converts an AWS KMS key as represented in the AWS client
+// library to the Teleport protobuf representation.
 func awsToProtoKMSKey(output *kms.DescribeKeyOutput, accountID, region string) *pb.AWSKMSKeyV1 {
-	var multiRegionType pb.MultiRegionKeyType
-	cfg := output.KeyMetadata.MultiRegionConfiguration
-	switch {
-	case cfg == nil:
-		multiRegionType = pb.MultiRegionKeyType_MULTI_REGION_KEY_TYPE_NONE // single region
-	case cfg.MultiRegionKeyType == types.MultiRegionKeyTypePrimary:
-		multiRegionType = pb.MultiRegionKeyType_MULTI_REGION_KEY_TYPE_PRIMARY
-	case cfg.MultiRegionKeyType == types.MultiRegionKeyTypeReplica:
-		multiRegionType = pb.MultiRegionKeyType_MULTI_REGION_KEY_TYPE_REPLICA
+	var multiRegionType string
+	if cfg := output.KeyMetadata.MultiRegionConfiguration; cfg != nil {
+		multiRegionType = string(cfg.MultiRegionKeyType)
 	}
 	return &pb.AWSKMSKeyV1{
 		Arn:                aws.ToString(output.KeyMetadata.Arn),
@@ -168,6 +175,9 @@ func awsToProtoKMSKey(output *kms.DescribeKeyOutput, accountID, region string) *
 	}
 }
 
+// getTags fetches tags for a KMS key. Potentially access rights to tags differ
+// to the key access rights as tags are sensitive when used for access control
+// via ABAC.
 func getTags(ctx context.Context, client kmsClient, keyID *string) ([]*pb.AWSTag, error) {
 	input := &kms.ListResourceTagsInput{KeyId: keyID}
 	pager := kms.NewListResourceTagsPaginator(client, input)
@@ -188,6 +198,9 @@ func getTags(ctx context.Context, client kmsClient, keyID *string) ([]*pb.AWSTag
 	return tags, nil
 }
 
+// getAliases fetches aliases for a KMS key. Potentially access rights to
+// aliases differ to the key access rights as aliases are sensitive when used
+// for access control via ABAC.
 func getAliases(ctx context.Context, client kmsClient, keyID *string) ([]string, error) {
 	input := &kms.ListAliasesInput{KeyId: keyID}
 	pager := kms.NewListAliasesPaginator(client, input)
@@ -204,6 +217,8 @@ func getAliases(ctx context.Context, client kmsClient, keyID *string) ([]string,
 	return aliases, nil
 }
 
+// getPolicy fetches the attached key policy for a KMS key. There is always
+// exactly one key policy per KMS key called default.
 func getPolicy(ctx context.Context, client kmsClient, keyID *string) ([]byte, error) {
 	input := &kms.GetKeyPolicyInput{KeyId: keyID}
 	output, err := client.GetKeyPolicy(ctx, input)

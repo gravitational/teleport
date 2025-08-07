@@ -180,6 +180,11 @@ func requireAggregateErrorEqual(t *testing.T, want, got error) {
 	var wantAggregate, gotAggregate trace.Aggregate
 	require.ErrorAs(t, want, &wantAggregate)
 	require.ErrorAs(t, got, &gotAggregate)
+	require.Len(t, gotAggregate.Errors(), 1)
+	if !errors.As(wantAggregate.Errors()[0], &wantAggregate) {
+		return
+	}
+	require.ErrorAs(t, gotAggregate.Errors()[0], &gotAggregate)
 	wantLen := len(wantAggregate.Errors())
 	require.Len(t, gotAggregate.Errors(), wantLen)
 }
@@ -209,14 +214,6 @@ func kmsMockToProto(c *mocks.KMSClient, accountID, region string) (*Resources, e
 			tag := &pb.AWSTag{Key: key, Value: wrapperspb.String(val)}
 			tags = append(tags, tag)
 		}
-		multiRegionKeyType := pb.MultiRegionKeyType_MULTI_REGION_KEY_TYPE_NONE
-		switch k.MultiType {
-		case types.MultiRegionKeyTypePrimary:
-			multiRegionKeyType = pb.MultiRegionKeyType_MULTI_REGION_KEY_TYPE_PRIMARY
-		case types.MultiRegionKeyTypeReplica:
-			multiRegionKeyType = pb.MultiRegionKeyType_MULTI_REGION_KEY_TYPE_REPLICA
-		}
-
 		key := &pb.AWSKMSKeyV1{
 			Arn:                k.ARN,
 			CreatedAt:          timestamppb.New(k.CreationDate),
@@ -226,10 +223,14 @@ func kmsMockToProto(c *mocks.KMSClient, accountID, region string) (*Resources, e
 			PolicyDocument:     []byte(k.Policy),
 			Aliases:            k.Aliases,
 			Tags:               tags,
-			MultiRegionKeyType: multiRegionKeyType,
+			MultiRegionKeyType: string(k.MultiType),
 		}
 		keys = append(keys, key)
 		errs = append(errs, k.DescribeKeyErr, k.TagsErr, k.AliasesErr, k.PolicyErr)
 	}
-	return &Resources{KMSKeys: keys}, trace.NewAggregate(errs...)
+	err := trace.NewAggregate(errs...)
+	if err != nil {
+		err = trace.NewAggregate(err)
+	}
+	return &Resources{KMSKeys: keys}, err
 }

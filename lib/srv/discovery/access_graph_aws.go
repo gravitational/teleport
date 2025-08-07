@@ -530,7 +530,7 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 				// We will wait for the config to change and re-evaluate the fetchers
 				// before starting the sync.
 				if len(allFetchers) == 0 {
-					s.Log.DebugContext(ctx, "No AWS sync fetchers with trail enabled configured. Access graph sync will not be enabled.")
+					s.Log.DebugContext(ctx, "No AWS sync fetchers with CloudTrail configured. Access graph sync will not be enabled.")
 					select {
 					case <-ctx.Done():
 						return
