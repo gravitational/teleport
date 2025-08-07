@@ -40,6 +40,8 @@ func TestLockTargetsFromTLSIdentity(t *testing.T) {
 			DeviceExtensions: tlsca.DeviceExtensions{
 				DeviceID: "trusted-device-id",
 			},
+			JoinToken:     "example",
+			BotInstanceID: "a-b-c-d",
 		}
 
 		// Test.
@@ -49,6 +51,8 @@ func TestLockTargetsFromTLSIdentity(t *testing.T) {
 			{User: identity.Username},
 			{MFADevice: identity.MFAVerified},
 			{Device: identity.DeviceExtensions.DeviceID},
+			{JoinToken: "example"},
+			{BotInstanceID: "a-b-c-d"},
 		}
 		// Insert roles at the start to match `got`s order.
 		// The test itself doesn't care about the order, it's just easier to test
@@ -71,6 +75,8 @@ func TestSSHAccessLockTargets(t *testing.T) {
 		const trustedDevice = "my-trusted-device-1"
 		const osLogin = "camel"
 		const teleportUser = "llama"
+		const joinToken = "some-join-token"
+		const botInstanceID = "a-b-c-d"
 		mappedRoles := []string{"access", "editor"}
 		unmappedRoles := []string{"unmapped-role-1", "unmapped-role-2", "access"}
 		accessRequests := []string{"access-request-1", "access-request-2"}
@@ -81,6 +87,8 @@ func TestSSHAccessLockTargets(t *testing.T) {
 			DeviceID:       trustedDevice,
 			Roles:          unmappedRoles,
 			ActiveRequests: accessRequests,
+			JoinToken:      joinToken,
+			BotInstanceID:  botInstanceID,
 		}
 
 		accessInfo := &services.AccessInfo{
@@ -95,6 +103,8 @@ func TestSSHAccessLockTargets(t *testing.T) {
 			{ServerID: serverID + "." + clusterName},
 			{MFADevice: mfaDevice},
 			{Device: trustedDevice},
+			{JoinToken: joinToken},
+			{BotInstanceID: botInstanceID},
 		}
 		for _, role := range mappedRoles {
 			want = append(want, types.LockTarget{Role: role})

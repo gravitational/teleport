@@ -37,7 +37,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -58,7 +58,7 @@ func runWorkloadIdentityCommand(
 func TestWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 
-	process := testenv.MakeTestServer(t, testenv.WithLogger(utils.NewSlogLoggerForTests()))
+	process := testenv.MakeTestServer(t, testenv.WithLogger(logtest.NewLogger()))
 	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
 	yamlData := `kind: workload_identity
@@ -172,7 +172,7 @@ spec:
 func TestWorkloadIdentityRevocation(t *testing.T) {
 	t.Parallel()
 
-	process := testenv.MakeTestServer(t, testenv.WithLogger(utils.NewSlogLoggerForTests()))
+	process := testenv.MakeTestServer(t, testenv.WithLogger(logtest.NewLogger()))
 	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
 	t.Run("workload-identity revocations ls empty", func(t *testing.T) {

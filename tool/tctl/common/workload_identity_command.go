@@ -75,10 +75,12 @@ type WorkloadIdentityCommand struct {
 	overridesCreateName       string
 	overridesCreateForce      bool
 	overridesCreateFullchains []string
+	overridesCreateDryRun     bool
 
 	now func() time.Time
 
 	stdout io.Writer
+	stderr io.Writer
 }
 
 // Initialize sets up the "tctl workload-identity" command.
@@ -180,6 +182,9 @@ func (c *WorkloadIdentityCommand) Initialize(
 		Short('f').
 		BoolVar(&c.overridesCreateForce)
 	c.overridesCreateCmd.
+		Flag("dry-run", "Print the workload_identity_x509_issuer_override that would have been created, without actually creating it.").
+		BoolVar(&c.overridesCreateDryRun)
+	c.overridesCreateCmd.
 		Flag("name", "The name of the override resource to write.").
 		Default("default").
 		StringVar(&c.overridesCreateName)
@@ -190,6 +195,9 @@ func (c *WorkloadIdentityCommand) Initialize(
 
 	if c.stdout == nil {
 		c.stdout = os.Stdout
+	}
+	if c.stderr == nil {
+		c.stderr = os.Stderr
 	}
 	if c.now == nil {
 		c.now = time.Now
@@ -518,6 +526,24 @@ func (c *WorkloadIdentityCommand) runOverridesCreate(ctx context.Context, client
 		overrides = append(overrides, certs)
 	}
 
+	// Ensure that the user has not provided the Root CA - we only want them to
+	// provide the intermediates that chain to the root CA. If they provide the
+	// root CA, then workloads will end up needlessly distributing the root CA
+	// to validators.
+	for _, chain := range overrides {
+		for _, cert := range chain {
+			// If the issuer and subject are the same, then this is a
+			// "self-signed" certificate.
+			if bytes.Equal(cert.RawSubject, cert.RawIssuer) {
+				slog.WarnContext(
+					ctx,
+					"The provided certificate chain contains a root certificate when it should only contain the issuing CA and the intermediate CAs necessary to chain the issuing CA to the root CA. Remove the root certificate from the certificate file.",
+					"cert_subject", cert.Subject.String(),
+				)
+			}
+		}
+	}
+
 	clusterName, err := client.GetDomainName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -576,6 +602,14 @@ func (c *WorkloadIdentityCommand) runOverridesCreate(ctx context.Context, client
 		Spec: &workloadidentityv1pb.X509IssuerOverrideSpec{
 			Overrides: pbOverrides,
 		},
+	}
+
+	if c.overridesCreateDryRun {
+		fmt.Fprintln(c.stderr, "Dry run mode enabled, the following override would have been created:")
+		if err := utils.WriteYAML(c.stdout, types.ProtoResource153ToLegacy(override)); err != nil {
+			return trace.Wrap(err, "failed to marshal override")
+		}
+		return nil
 	}
 
 	if c.overridesCreateForce {

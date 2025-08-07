@@ -198,7 +198,8 @@ export interface FeatureFlags {
   deviceTrust: boolean;
   locks: boolean;
   newLocks: boolean;
-  tokens: boolean;
+  createTokens: boolean;
+  listTokens: boolean;
   accessMonitoring: boolean;
   accessGraph: boolean;
   accessGraphIntegrations: boolean;
@@ -235,4 +236,10 @@ export type WebsocketStatus = {
   type: string;
   status: string;
   message?: string;
+};
+
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonArray = JsonPrimitive[];
+export type JsonObject = {
+  [key: string]: JsonPrimitive | JsonArray | JsonObject;
 };

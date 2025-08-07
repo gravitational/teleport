@@ -21,9 +21,13 @@ package awsra
 import (
 	"context"
 	"crypto/x509/pkix"
+	"maps"
+	"net/url"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -89,7 +93,7 @@ type mockCache struct {
 	domainName   string
 	ca           types.CertAuthority
 	appServers   []types.AppServer
-	integrations []types.Integration
+	integrations map[string]types.Integration
 }
 
 func (m *mockCache) GetAuthPreference(context.Context) (types.AuthPreference, error) {
@@ -115,6 +119,13 @@ func (m *mockCache) UpsertApplicationServer(ctx context.Context, server types.Ap
 	if m.appServers == nil {
 		m.appServers = []types.AppServer{}
 	}
+
+	// Ensure the public address is a valid URL.
+	appURL := "https://" + server.GetApp().GetPublicAddr()
+	if _, err := url.Parse(appURL); err != nil {
+		return nil, trace.BadParameter("invalid public address %q for app server %q: %v", server.GetApp().GetPublicAddr(), server.GetName(), err)
+	}
+
 	m.appServers = append(m.appServers, server)
 	return nil, nil
 }
@@ -129,9 +140,21 @@ func (m *mockCache) GetProxies() ([]types.Server, error) {
 
 func (m *mockCache) ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error) {
 	if m.integrations == nil {
-		m.integrations = []types.Integration{}
+		m.integrations = map[string]types.Integration{}
 	}
-	return m.integrations, "", nil
+	return slices.Collect(maps.Values(m.integrations)), "", nil
+}
+
+func (m *mockCache) UpdateIntegration(ctx context.Context, integration types.Integration) (types.Integration, error) {
+	if m.integrations == nil {
+		m.integrations = map[string]types.Integration{}
+	}
+	if _, exists := m.integrations[integration.GetName()]; !exists {
+		return nil, trace.NotFound("integration %q not found", integration.GetName())
+	}
+
+	m.integrations[integration.GetName()] = integration
+	return integration, nil
 }
 
 func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) types.CertAuthority {

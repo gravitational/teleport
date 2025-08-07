@@ -72,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/touchid"
@@ -96,7 +97,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/agentconn"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -746,7 +746,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 		return trace.Wrap(err)
 	}
 
-	// Save profile to record proxy credentials
+	// Save profile to record proxy credentials.
 	if err := tc.SaveProfile(opt.makeCurrentProfile); err != nil {
 		log.WarnContext(ctx, "Failed to save profile", "error", err)
 		return trace.Wrap(err)
@@ -3883,7 +3883,7 @@ func (tc *TeleportClient) directLoginWeb(ctx context.Context, secondFactorType c
 	}
 
 	// authenticate via the web api
-	clt, session, err := SSHAgentLoginWeb(ctx, SSHLoginDirect{
+	clt, session, err := sshAgentLoginWeb(ctx, SSHLoginDirect{
 		SSHLogin: sshLogin,
 		User:     tc.Username,
 		Password: password,
@@ -3904,7 +3904,7 @@ func (tc *TeleportClient) mfaLocalLoginWeb(ctx context.Context, keyRing *KeyRing
 		return nil, nil, trace.Wrap(err)
 	}
 
-	clt, session, err := SSHAgentMFAWebSessionLogin(ctx, SSHLoginMFA{
+	clt, session, err := sshAgentMFAWebSessionLogin(ctx, SSHLoginMFA{
 		SSHLogin:             sshLogin,
 		User:                 tc.Username,
 		Password:             password,
@@ -4914,25 +4914,6 @@ func loopbackPool(proxyAddr string) *x509.CertPool {
 	return certPool
 }
 
-// connectToSSHAgent connects to the system SSH agent and returns an agent.Agent.
-func connectToSSHAgent() agent.ExtendedAgent {
-	ctx := context.Background()
-	logger := log.With(teleport.ComponentKey, teleport.ComponentKeyAgent)
-
-	socketPath := os.Getenv(teleport.SSHAuthSock)
-	conn, err := agentconn.Dial(socketPath)
-	if err != nil {
-		logger.WarnContext(ctx, "Unable to connect to SSH agent on socket",
-			"socket_path", socketPath,
-			"error", err,
-		)
-		return nil
-	}
-
-	logger.InfoContext(ctx, "Connected to the system agent", "socket_path", socketPath)
-	return agent.NewClient(conn)
-}
-
 // Username returns the current user's username
 func Username() (string, error) {
 	u, err := user.Current()
@@ -5489,4 +5470,141 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 
 	err = rootClient.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, mfaResp)
 	return trace.Wrap(err)
+}
+
+// DialALPN dials the Proxy with provided client certificate and ALPN protocol.
+func (tc *TeleportClient) DialALPN(ctx context.Context, clientCert tls.Certificate, protocol alpncommon.Protocol) (net.Conn, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/DialALPN",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("protocol", string(protocol)),
+		),
+	)
+	defer span.End()
+
+	dialConfig := client.ALPNDialerConfig{
+		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
+		TLSConfig: &tls.Config{
+			NextProtos:         alpncommon.ProtocolToStringsWithPing(protocol),
+			InsecureSkipVerify: tc.InsecureSkipVerify,
+			Certificates:       []tls.Certificate{clientCert},
+		},
+		GetClusterCAs: tc.RootClusterCACertPool,
+	}
+
+	tlsConn, err := client.DialALPN(ctx, tc.WebProxyAddr, dialConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if alpncommon.IsPingProtocol(alpncommon.Protocol(tlsConn.ConnectionState().NegotiatedProtocol)) {
+		return pingconn.NewTLS(tlsConn), nil
+	}
+	return tlsConn, nil
+}
+
+// DialMCPServer makes a connection to the remote MCP server.
+func (tc *TeleportClient) DialMCPServer(ctx context.Context, appName string) (net.Conn, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/DialMCPServer",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("app", appName),
+		),
+	)
+	defer span.End()
+
+	apps, err := tc.ListApps(ctx, &proto.ListResourcesRequest{
+		ResourceType:        types.KindAppServer,
+		Namespace:           apidefaults.Namespace,
+		PredicateExpression: fmt.Sprintf("name == %q", strings.TrimSpace(appName)),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch len(apps) {
+	case 0:
+		return nil, trace.NotFound("no MCP servers found")
+	case 1:
+	default:
+		log.WarnContext(ctx, "multiple apps found, using the first one")
+	}
+	if !apps[0].IsMCP() {
+		return nil, trace.BadParameter("app %q is not a MCP server", appName)
+	}
+
+	cert, err := tc.issueMCPCertWithMFA(ctx, apps[0])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return tc.DialALPN(ctx, cert, alpncommon.ProtocolMCP)
+}
+
+func (tc *TeleportClient) issueMCPCertWithMFA(ctx context.Context, mcpServer types.Application) (tls.Certificate, error) {
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	appCertParams := ReissueParams{
+		RouteToCluster: tc.SiteName,
+		RouteToApp: proto.RouteToApp{
+			Name:        mcpServer.GetName(),
+			PublicAddr:  mcpServer.GetPublicAddr(),
+			ClusterName: tc.SiteName,
+			URI:         mcpServer.GetURI(),
+		},
+		AccessRequests: profile.ActiveRequests,
+	}
+
+	// Do NOT write the keyring to avoid race condition when AI clients run
+	// multiple tsh at the same time.
+	keyRing, err := tc.IssueUserCertsWithMFA(ctx, appCertParams)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	cert, err := keyRing.AppTLSCert(mcpServer.GetName())
+	return cert, trace.Wrap(err)
+}
+
+// DialDatabase makes a remote connection to the database.
+//
+// TODO(gabrielcorado): support acccess requests connections.
+func (tc *TeleportClient) DialDatabase(ctx context.Context, route proto.RouteToDatabase) (net.Conn, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/DialDatabase",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("db", route.GetServiceName()),
+			attribute.String("protocol", route.GetProtocol()),
+		),
+	)
+	defer span.End()
+
+	dbCertParams := ReissueParams{
+		RouteToCluster:  tc.SiteName,
+		RouteToDatabase: route,
+		TTL:             tc.KeyTTL,
+	}
+
+	alpnProtocol, err := alpncommon.ToALPNProtocol(route.GetProtocol())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keyRing, err := tc.IssueUserCertsWithMFA(ctx, dbCertParams)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, err := keyRing.DBTLSCert(route.GetServiceName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return tc.DialALPN(ctx, cert, alpnProtocol)
 }

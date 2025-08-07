@@ -44,7 +44,7 @@ import (
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestServeConfigureError(t *testing.T) {
@@ -113,7 +113,7 @@ func TestMTLSClientCAs(t *testing.T) {
 	userCert := genCert(t, "user")
 	srv := &TLSServer{
 		TLSServerConfig: TLSServerConfig{
-			Log: utils.NewSlogLoggerForTests(),
+			Log: logtest.NewLogger(),
 			ForwarderConfig: ForwarderConfig{
 				ClusterName: mainClusterName,
 			},
@@ -124,7 +124,7 @@ func TestMTLSClientCAs(t *testing.T) {
 			},
 			GetRotation: func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
 		},
-		log: utils.NewSlogLoggerForTests(),
+		log: logtest.NewLogger(),
 	}
 
 	lis, err := net.Listen("tcp", "localhost:0")
@@ -206,7 +206,7 @@ func TestGetServerInfo(t *testing.T) {
 
 	srv := &TLSServer{
 		TLSServerConfig: TLSServerConfig{
-			Log: utils.NewSlogLoggerForTests(),
+			Log: logtest.NewLogger(),
 			ForwarderConfig: ForwarderConfig{
 				Clock:       clockwork.NewFakeClock(),
 				ClusterName: "kube-cluster",

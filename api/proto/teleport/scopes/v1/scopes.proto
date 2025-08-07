@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package teleport.scopes.v1;
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1;scopes";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1;scopesv1";
 
 // Mode determines the mode of scoping when a query specifies a scope. When a query specifies a scope,
 // one of two questions is typically trying to be answered.  Either, what resources are "in" and/or "subject to"

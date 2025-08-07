@@ -26,22 +26,28 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
+	apiproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
+// make sure our test client implements the Client interface.
+var _ Client = &testifyMockClient{}
+
 type mockClientStubs struct {
-	configAnswers        []callAnswer[*autoupdate.AutoUpdateConfig]
-	versionAnswers       []callAnswer[*autoupdate.AutoUpdateVersion]
-	rolloutAnswers       []callAnswer[*autoupdate.AutoUpdateAgentRollout]
-	createRolloutAnswers []callAnswer[*autoupdate.AutoUpdateAgentRollout]
-	createRolloutExpects []require.ValueAssertionFunc
-	updateRolloutAnswers []callAnswer[*autoupdate.AutoUpdateAgentRollout]
-	updateRolloutExpects []require.ValueAssertionFunc
-	deleteRolloutAnswers []error
-	cmcAnswers           []callAnswer[*types.ClusterMaintenanceConfigV1]
-	reportsAnswers       []callAnswer[[]*autoupdate.AutoUpdateAgentReport]
+	configAnswers         []callAnswer[*autoupdate.AutoUpdateConfig]
+	versionAnswers        []callAnswer[*autoupdate.AutoUpdateVersion]
+	rolloutAnswers        []callAnswer[*autoupdate.AutoUpdateAgentRollout]
+	createRolloutAnswers  []callAnswer[*autoupdate.AutoUpdateAgentRollout]
+	createRolloutExpects  []require.ValueAssertionFunc
+	updateRolloutAnswers  []callAnswer[*autoupdate.AutoUpdateAgentRollout]
+	updateRolloutExpects  []require.ValueAssertionFunc
+	deleteRolloutAnswers  []error
+	cmcAnswers            []callAnswer[*types.ClusterMaintenanceConfigV1]
+	reportsAnswers        []callAnswer[[]*autoupdate.AutoUpdateAgentReport]
+	agentSamples          []callAnswer[[]*autoupdate.Canary]
+	inventoryAgentLookups map[string][]callAnswer[[]*apiproto.UpstreamInventoryHello]
 }
 
 type callAnswer[T any] struct {
@@ -83,6 +89,14 @@ func newMockClient(t *testing.T, stubs mockClientStubs) *testifyMockClient {
 	for _, answer := range stubs.reportsAnswers {
 		clt.On("ListAutoUpdateAgentReports", mock.Anything, mock.Anything, mock.Anything).Return(answer.result, answer.err).Once()
 	}
+	for _, answer := range stubs.agentSamples {
+		clt.On("SampleAgentsFromAutoUpdateGroup", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(answer.result, answer.err).Once()
+	}
+	for host := range stubs.inventoryAgentLookups {
+		for _, answer := range stubs.inventoryAgentLookups[host] {
+			clt.On("LookupAgentInInventory", mock.Anything, host).Return(answer.result, answer.err).Once()
+		}
+	}
 
 	return clt
 }
@@ -91,6 +105,20 @@ type testifyMockClient struct {
 	mock.Mock
 	t     *testing.T
 	stubs mockClientStubs
+}
+
+func (n *testifyMockClient) SampleAgentsFromAutoUpdateGroup(ctx context.Context, groupName string, sampleSize int, groups []string) ([]*autoupdate.Canary, error) {
+	args := n.Called(ctx, groupName, sampleSize, groups)
+	var canaries []*autoupdate.Canary
+	for _, canary := range args.Get(0).([]*autoupdate.Canary) {
+		canaries = append(canaries, proto.CloneOf(canary))
+	}
+	return canaries, args.Error(1)
+}
+
+func (n *testifyMockClient) LookupAgentInInventory(ctx context.Context, hostID string) ([]*apiproto.UpstreamInventoryHello, error) {
+	args := n.Called(ctx, hostID)
+	return args.Get(0).([]*apiproto.UpstreamInventoryHello), args.Error(1)
 }
 
 func (n *testifyMockClient) GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error) {
@@ -153,4 +181,10 @@ func (n *testifyMockClient) checkIfCallsWereDone(t *testing.T) {
 	n.AssertNumberOfCalls(t, "DeleteAutoUpdateAgentRollout", len(n.stubs.deleteRolloutAnswers))
 	n.AssertNumberOfCalls(t, "GetClusterMaintenanceConfig", len(n.stubs.cmcAnswers))
 	n.AssertNumberOfCalls(t, "ListAutoUpdateAgentReports", len(n.stubs.reportsAnswers))
+	n.AssertNumberOfCalls(t, "SampleAgentsFromAutoUpdateGroup", len(n.stubs.agentSamples))
+	var agentLookupCount int
+	for _, answers := range n.stubs.inventoryAgentLookups {
+		agentLookupCount += len(answers)
+	}
+	n.AssertNumberOfCalls(t, "LookupAgentInInventory", agentLookupCount)
 }

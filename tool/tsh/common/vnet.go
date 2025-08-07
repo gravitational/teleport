@@ -23,6 +23,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/vnet"
 )
 
@@ -77,6 +78,22 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 	return trace.Wrap(vnetProcess.Wait())
 }
 
+type vnetSSHAutoConfigCommand struct {
+	*kingpin.CmdClause
+}
+
+func newVnetSSHAutoConfigCommand(app *kingpin.Application) *vnetSSHAutoConfigCommand {
+	cmd := &vnetSSHAutoConfigCommand{
+		CmdClause: app.Command("vnet-ssh-autoconfig", "Automatically include VNet's generated OpenSSH-compatible config file in ~/.ssh/config."),
+	}
+	return cmd
+}
+
+func (c *vnetSSHAutoConfigCommand) run(cf *CLIConf) error {
+	err := vnet.AutoConfigureOpenSSH(cf.Context, profile.FullProfilePath(cf.HomePath))
+	return trace.Wrap(err)
+}
+
 func newVnetAdminSetupCommand(app *kingpin.Application) vnetCLICommand {
 	return newPlatformVnetAdminSetupCommand(app)
 }
@@ -104,6 +121,7 @@ type vnetCommandNotSupported struct{}
 func (vnetCommandNotSupported) FullCommand() string {
 	return ""
 }
+
 func (vnetCommandNotSupported) run(*CLIConf) error {
 	panic("vnetCommandNotSupported.run should never be called, this is a bug")
 }

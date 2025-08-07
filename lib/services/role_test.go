@@ -2965,6 +2965,8 @@ func TestApplyTraits(t *testing.T) {
 		outKubeResources        []types.KubernetesResource
 		inGitHubPermissions     []types.GitHubPermission
 		outGitHubPermissions    []types.GitHubPermission
+		inMCPPermissions        *types.MCPPermissions
+		outMCPPermissions       *types.MCPPermissions
 	}
 	tests := []struct {
 		comment  string
@@ -3761,6 +3763,34 @@ func TestApplyTraits(t *testing.T) {
 				}},
 			},
 		},
+		{
+			comment: "MCP permissions in allow rule",
+			inTraits: map[string][]string{
+				"mcp_tools": {"get_*", "search_files"},
+			},
+			allow: rule{
+				inMCPPermissions: &types.MCPPermissions{
+					Tools: []string{"{{internal.mcp_tools}}"},
+				},
+				outMCPPermissions: &types.MCPPermissions{
+					Tools: []string{"get_*", "search_files"},
+				},
+			},
+		},
+		{
+			comment: "MCP permissions in deny rule",
+			inTraits: map[string][]string{
+				"mcp_tools": {"get_*", "search_files"},
+			},
+			deny: rule{
+				inMCPPermissions: &types.MCPPermissions{
+					Tools: []string{"{{internal.mcp_tools}}"},
+				},
+				outMCPPermissions: &types.MCPPermissions{
+					Tools: []string{"get_*", "search_files"},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
@@ -3793,6 +3823,7 @@ func TestApplyTraits(t *testing.T) {
 						HostSudoers:          tt.allow.inSudoers,
 						KubernetesResources:  tt.allow.inKubeResources,
 						GitHubPermissions:    tt.allow.inGitHubPermissions,
+						MCP:                  tt.allow.inMCPPermissions,
 					},
 					Deny: types.RoleConditions{
 						Logins:               tt.deny.inLogins,
@@ -3815,6 +3846,7 @@ func TestApplyTraits(t *testing.T) {
 						HostSudoers:          tt.deny.outSudoers,
 						KubernetesResources:  tt.deny.inKubeResources,
 						GitHubPermissions:    tt.deny.inGitHubPermissions,
+						MCP:                  tt.deny.inMCPPermissions,
 					},
 				},
 			}
@@ -4562,9 +4594,10 @@ func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 		Metadata: types.Metadata{Name: "allow_deny_same", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
-				Namespaces:    []string{apidefaults.Namespace},
-				DatabaseUsers: []string{"root"},
-				DatabaseNames: []string{"root"},
+				DatabaseLabels: types.Labels{"env": []string{"stage"}},
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseUsers:  []string{"root"},
+				DatabaseNames:  []string{"root"},
 			},
 			Deny: types.RoleConditions{
 				Namespaces:    []string{apidefaults.Namespace},
@@ -10124,4 +10157,145 @@ func TestMatchRequestKubernetesResource(t *testing.T) {
 		})
 	}
 
+}
+
+func TestMCPToolMatcher(t *testing.T) {
+	roleWithSpecificAllow := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:      "ai_user",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				MCP: &types.MCPPermissions{
+					Tools: []string{
+						"allow_literal",
+						"^allow(_regex)+$",
+						"allow_glob*",
+					},
+				},
+			},
+		},
+	}
+
+	roleWithWildcardAllow := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:      "ai_user",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				MCP: &types.MCPPermissions{
+					Tools: []string{"*"},
+				},
+			},
+			Deny: types.RoleConditions{
+				MCP: &types.MCPPermissions{
+					Tools: []string{"deny_literal"},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		testToolName  string
+		testRole      types.Role
+		testCondition types.RoleConditionType
+		requireMatch  require.BoolAssertionFunc
+	}{
+		{
+			testToolName:  "deny_empty",
+			testRole:      roleWithSpecificAllow,
+			testCondition: types.Deny,
+			requireMatch:  require.False,
+		},
+		{
+			testToolName:  "allow_literal",
+			testRole:      roleWithSpecificAllow,
+			testCondition: types.Allow,
+			requireMatch:  require.True,
+		},
+		{
+			testToolName:  "allow_regex_regex",
+			testRole:      roleWithSpecificAllow,
+			testCondition: types.Allow,
+			requireMatch:  require.True,
+		},
+		{
+			testToolName:  "allow_globbb",
+			testRole:      roleWithSpecificAllow,
+			testCondition: types.Allow,
+			requireMatch:  require.True,
+		},
+		{
+			testToolName:  "allow_wildcard",
+			testRole:      roleWithWildcardAllow,
+			testCondition: types.Allow,
+			requireMatch:  require.True,
+		},
+		{
+			testToolName:  "deny_literal",
+			testRole:      roleWithWildcardAllow,
+			testCondition: types.Deny,
+			requireMatch:  require.True,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.testToolName, func(t *testing.T) {
+			matcher := MCPToolMatcher{
+				Name: tt.testToolName,
+			}
+			match, err := matcher.Match(tt.testRole, tt.testCondition)
+			require.NoError(t, err)
+			tt.requireMatch(t, match)
+		})
+	}
+}
+
+func TestNewEnumerationResultFromEntities(t *testing.T) {
+	tests := []struct {
+		name         string
+		inputAllowed []string
+		inputDenied  []string
+		wantAllowed  []string
+		wantDenied   []string
+	}{
+		{
+			name: "empty",
+		},
+		{
+			name:         "wildcard denied",
+			inputAllowed: []string{"allow_entry"},
+			inputDenied:  []string{"deny_entry", "*"},
+			wantDenied:   []string{"*"},
+		},
+		{
+			name:         "wildcard allowed",
+			inputAllowed: []string{"allow_entry", "*", "deny_overwrite"},
+			inputDenied:  []string{"deny_overwrite"},
+			wantAllowed:  []string{"*", "allow_entry"},
+			wantDenied:   []string{"deny_overwrite"},
+		},
+		{
+			name:         "no wildcard",
+			inputAllowed: []string{"allow_entry_1", "deny_overwrite", "allow_entry_2"},
+			inputDenied:  []string{"deny_overwrite", "deny_entry"},
+			wantAllowed:  []string{"allow_entry_1", "allow_entry_2"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := NewEnumerationResultFromEntities(test.inputAllowed, test.inputDenied)
+
+			actualAllowed, actualDenied := result.ToEntities()
+			require.Equal(t, test.wantAllowed, actualAllowed)
+			require.Equal(t, test.wantDenied, actualDenied)
+		})
+	}
 }

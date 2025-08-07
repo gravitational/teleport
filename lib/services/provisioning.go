@@ -54,6 +54,9 @@ type Provisioner interface {
 		token string,
 		updateFn func(types.ProvisionToken) (types.ProvisionToken, error),
 	) (types.ProvisionToken, error)
+
+	// ListProvisionTokens retrieves a paginated list of provision tokens.
+	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
 }
 
 // MustCreateProvisionToken returns a new valid provision token

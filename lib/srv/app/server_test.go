@@ -56,10 +56,12 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -70,20 +72,24 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
-	cryptosuites.PrecomputeRSATestKeys(m)
+	logtest.InitLogger(testing.Verbose)
+	ctx, cancel := context.WithCancel(context.Background())
+	cryptosuitestest.PrecomputeRSAKeys(ctx)
 	modules.SetInsecureTestMode(true)
-	os.Exit(m.Run())
+	exitCode := m.Run()
+	cancel()
+	os.Exit(exitCode)
 }
 
 type Suite struct {
 	clock        *clockwork.FakeClock
 	dataDir      string
-	authServer   *auth.TestAuthServer
-	tlsServer    *auth.TestTLSServer
+	authServer   *authtest.AuthServer
+	tlsServer    *authtest.TLSServer
 	authClient   *authclient.Client
 	appServer    *Server
 	hostCertPool *x509.CertPool
@@ -173,7 +179,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 
 	var err error
 	// Create Auth Server.
-	s.authServer, err = auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	s.authServer, err = authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "root.example.com",
 		Dir:         s.dataDir,
 		Clock:       s.clock,
@@ -229,7 +235,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		},
 	}
 	// Create user for regular tests.
-	s.user, err = auth.CreateUser(context.Background(), s.tlsServer.Auth(), "foo", s.role)
+	s.user, err = authtest.CreateUser(context.Background(), s.tlsServer.Auth(), "foo", s.role)
 	require.NoError(t, err)
 
 	s.closeContext, s.closeFunc = context.WithCancel(context.Background())
@@ -311,14 +317,14 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 
 	// Create a client with a machine role of RoleApp.
-	s.authClient, err = s.tlsServer.NewClient(auth.TestServerID(types.RoleApp, s.hostUUID))
+	s.authClient, err = s.tlsServer.NewClient(authtest.TestServerID(types.RoleApp, s.hostUUID))
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
 		s.authClient.Close()
 	})
 
-	serverIdentity, err := auth.NewServerIdentity(s.authServer.AuthServer, s.hostUUID, types.RoleApp)
+	serverIdentity, err := authtest.NewServerIdentity(s.authServer.AuthServer, s.hostUUID, types.RoleApp)
 	require.NoError(t, err)
 	tlsConfig, err := serverIdentity.TLSConfig(nil)
 	require.NoError(t, err)

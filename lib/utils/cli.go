@@ -23,7 +23,6 @@ import (
 	"context"
 	"crypto/x509"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -31,8 +30,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
-	"testing"
 	"unicode"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -54,6 +51,8 @@ const (
 	LoggingForDaemon LoggingPurpose = iota
 	// LoggingForCLI configures logging for user face utilities (tctl, tsh).
 	LoggingForCLI
+	// LoggingForMCP configures logging for MCP servers.
+	LoggingForMCP
 )
 
 // LoggingFormat defines the possible logging output formats.
@@ -100,7 +99,7 @@ func IsTerminal(w io.Writer) bool {
 }
 
 // InitLogger configures the global logger for a given purpose / verbosity level
-func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) error {
+func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) (*slog.Logger, error) {
 	var o logOpts
 
 	for _, opt := range opts {
@@ -110,51 +109,28 @@ func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) 
 	// If debug or trace logging is not enabled for CLIs,
 	// then discard all log output.
 	if purpose == LoggingForCLI && level > slog.LevelDebug {
-		slog.SetDefault(slog.New(slog.DiscardHandler))
-		return nil
+		logger := slog.New(slog.DiscardHandler)
+		slog.SetDefault(logger)
+		return logger, nil
 	}
 
 	var output string
-	if o.osLogSubsystem != "" {
+	switch {
+	case o.osLogSubsystem != "":
 		output = logutils.LogOutputOSLog
+	case purpose == LoggingForMCP:
+		output = logutils.LogOutputMCP
+		o.format = LogFormatJSON
 	}
 
-	_, _, err := logutils.Initialize(logutils.Config{
+	logger, _, err := logutils.Initialize(logutils.Config{
 		Severity:       level.String(),
 		Format:         o.format,
 		EnableColors:   IsTerminal(os.Stderr),
 		Output:         output,
 		OSLogSubsystem: o.osLogSubsystem,
 	})
-	return trace.Wrap(err)
-}
-
-var initTestLoggerOnce = sync.Once{}
-
-// InitLoggerForTests initializes the standard logger for tests.
-func InitLoggerForTests() {
-	initTestLoggerOnce.Do(func() {
-		if !flag.Parsed() {
-			// Parse flags to check testing.Verbose().
-			flag.Parse()
-		}
-
-		if !testing.Verbose() {
-			slog.SetDefault(slog.New(slog.DiscardHandler))
-			return
-		}
-
-		logutils.Initialize(logutils.Config{
-			Severity: slog.LevelDebug.String(),
-			Format:   LogFormatJSON,
-		})
-	})
-}
-
-// NewSlogLoggerForTests creates a new slog logger for test environments.
-func NewSlogLoggerForTests() *slog.Logger {
-	InitLoggerForTests()
-	return slog.Default()
+	return logger, trace.Wrap(err)
 }
 
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging
@@ -317,6 +293,18 @@ func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 
 	// set our own help template
 	return app.UsageTemplate(createUsageTemplate())
+}
+
+// InitHiddenCLIParser initializes a `kingpin.Application` that does not terminate the application
+// or write any usage information to os.Stdout. Can be used in scenarios where multiple `kingpin.Application`
+// instances are needed without interfering with subsequent parsing. Usage output is completely suppressed,
+// and the default global `--help` flag is ignored to prevent the application from exiting.
+func InitHiddenCLIParser() (app *kingpin.Application) {
+	app = kingpin.New("", "")
+	app.UsageWriter(io.Discard)
+	app.Terminate(func(i int) {})
+
+	return app
 }
 
 // createUsageTemplate creates an usage template for kingpin applications.
@@ -507,4 +495,28 @@ func FormatAlert(alert types.ClusterAlert) string {
 		}
 	}
 	return buf.String()
+}
+
+// FilterArguments filters the input arguments, keeping only those defined in the provided `kingpin.ApplicationModel`.
+// For example, if the model defines only one boolean flag `--insecure`, all other arguments in `args`
+// will be excluded, and only the `--insecure` flag will remain.
+func FilterArguments(args []string, model *kingpin.ApplicationModel) []string {
+	var result []string
+	for _, flag := range model.Flags {
+		for i := range args {
+			if strings.HasPrefix(args[i], fmt.Sprint("--", flag.Name, "=")) {
+				result = append(result, args[i])
+				break
+			}
+			if args[i] == fmt.Sprint("--", flag.Name) {
+				if flag.IsBoolFlag() {
+					result = append(result, args[i])
+				} else if i+2 <= len(args) {
+					result = append(result, args[i], args[i+1])
+				}
+				break
+			}
+		}
+	}
+	return result
 }

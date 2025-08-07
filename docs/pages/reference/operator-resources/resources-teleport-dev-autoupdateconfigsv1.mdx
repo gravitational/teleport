@@ -2,6 +2,9 @@
 title: TeleportAutoupdateConfigV1
 description: Provides a comprehensive list of fields in the TeleportAutoupdateConfigV1 resource available through the Teleport Kubernetes operator
 tocDepth: 3
+labels:
+ - reference
+ - platform-wide
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -48,6 +51,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
+|canary_count|integer|canary_count is the number of canary agents that will be updated before the whole group is updated. when set to 0, the group does not enter the canary phase. This number is capped to 5. This number must always be lower than the total number of agents in the group, else the rollout will be stuck.|
 |days|[]string|days when the update can run. Supported values are "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" and "*"|
 |name|string|name of the group|
 |start_hour|integer|start_hour to initiate update|

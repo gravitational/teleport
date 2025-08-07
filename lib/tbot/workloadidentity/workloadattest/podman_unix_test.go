@@ -33,6 +33,7 @@ import (
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/podman"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestPodmanAttestor(t *testing.T) {
@@ -67,7 +68,7 @@ func TestPodmanAttestor(t *testing.T) {
 			Enabled: true,
 			Addr:    server.Addr(),
 		},
-		utils.NewSlogLoggerForTests(),
+		logtest.NewLogger(),
 	)
 
 	attestor.rootPath = t.TempDir()

@@ -1,6 +1,9 @@
 ---
 title: Running Teleport with a Custom Configuration using Helm
 description: Install and configure a Teleport cluster with a custom configuration using Helm
+labels:
+ - how-to
+ - platform-wide
 ---
 
 In this guide, we'll explain how to set up a Teleport cluster in Kubernetes
@@ -18,13 +21,16 @@ existing Teleport deployment to access your Kubernetes cluster. [Follow our
 guide](../../../enroll-resources/kubernetes-access/getting-started.mdx) to connect your Kubernetes
 cluster to Teleport.
 
-## Prerequisites
+## How it works
 
-<Admonition type="warning">
-Those instructions are both for v12+ Teleport and the v12+ `teleport-cluster` chart.
-If you are running an older Teleport version, use the version selector at the top
-of this page to choose the correct version.
-</Admonition>
+The `teleport-cluster` Helm chart deploys the Teleport Auth Service and Proxy
+Service. You can modify the chart's values file to include a custom
+configuration for each service. The Helm chart applies Auth Service and Proxy
+Service configurations to their respective pods, which load each configuration
+as a ConfigMap. The chart applies Teleport-recommended defaults for any field
+not included in your custom configurations.
+
+## Prerequisites
 
 (!docs/pages/includes/kubernetes-access/helm/teleport-cluster-prereqs.mdx!)
 

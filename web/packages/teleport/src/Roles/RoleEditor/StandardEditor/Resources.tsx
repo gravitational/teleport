@@ -84,10 +84,16 @@ export const ResourcesTab = memo(function ResourcesTab({
   isProcessing,
   validation,
   dispatch,
+  customDescription,
 }: SectionPropsWithDispatch<
   ResourceAccess[],
   ResourceAccessValidationResult[]
->) {
+> & {
+  /**
+   * Custom description describing this section.
+   */
+  customDescription?: React.ReactNode;
+}) {
   /** All resource access kinds except those that are already in the role. */
   const allowedResourceAccessKinds = allResourceAccessKinds.filter(k =>
     value.every(as => as.kind !== k)
@@ -98,9 +104,13 @@ export const ResourcesTab = memo(function ResourcesTab({
 
   return (
     <Flex flexDirection="column" gap={3}>
-      <SectionPadding>
-        Rules that allow connecting to resources controlled by Teleport
-      </SectionPadding>
+      {customDescription ? (
+        <>{customDescription}</>
+      ) : (
+        <SectionPadding>
+          Rules that allow connecting to resources controlled by Teleport
+        </SectionPadding>
+      )}
       {value.map((res, i) => {
         return (
           <ResourceAccessSection
@@ -574,6 +584,13 @@ export function AppAccessSection({
         value={value.gcpServiceAccounts}
         onChange={accts => onChange?.({ ...value, gcpServiceAccounts: accts })}
         rule={precomputed(validation.fields.gcpServiceAccounts)}
+      />
+      <FieldMultiInput
+        label="MCP Tools"
+        disabled={isProcessing}
+        value={value.mcpTools}
+        onChange={mcpTools => onChange?.({ ...value, mcpTools: mcpTools })}
+        rule={precomputed(validation.fields.mcpTools)}
       />
     </Flex>
   );

@@ -98,58 +98,32 @@ func (s *IdentityService) listSessions(ctx context.Context, pageSize int, pageTo
 		pageSize = maxSessionPageSize
 	}
 
-	// Increment pageSize to allow for the extra item represented by nextKey.
-	// We skip this item in the results below.
-	limit := pageSize + 1
 	var out []types.WebSession
-
-	if user == "" {
-		// no filter provided get the range directly
-		result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
+	for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
+		StartKey: rangeStart,
+		EndKey:   rangeEnd,
+	}) {
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 
-		out = make([]types.WebSession, 0, len(result.Items))
-		for _, item := range result.Items {
-			session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
-			if err != nil {
-				return nil, "", trace.Wrap(err)
-			}
-			out = append(out, session)
+		session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
+		if err != nil {
+			continue
 		}
-	} else {
-		// iterate over the sessions to filter only those matching the provided user
-		if err := backend.IterateRange(ctx, s.Backend, rangeStart, rangeEnd, limit, func(items []backend.Item) (stop bool, err error) {
-			for _, item := range items {
-				if len(out) == limit {
-					break
-				}
 
-				session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
-				if err != nil {
-					return false, trace.Wrap(err)
-				}
-
-				if session.GetUser() == user {
-					out = append(out, session)
-				}
-			}
-
-			return len(out) == limit, nil
-		}); err != nil {
-			return nil, "", trace.Wrap(err)
+		if user != "" && session.GetUser() != user {
+			continue
 		}
+
+		if len(out) >= pageSize {
+			return out, session.GetName(), nil
+		}
+
+		out = append(out, session)
 	}
 
-	var nextKey string
-	if len(out) > pageSize {
-		nextKey = backend.GetPaginationKey(out[len(out)-1])
-		// Truncate the last item that was used to determine next row existence.
-		out = out[:pageSize]
-	}
-
-	return out, nextKey, nil
+	return out, "", nil
 }
 
 // UpsertAppSession creates an application web session.

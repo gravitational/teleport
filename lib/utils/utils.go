@@ -304,6 +304,16 @@ func Host(hostname string) (string, error) {
 	return host, nil
 }
 
+// TryHost is a utility function that extracts host from the host:port pair,
+// in case of any error returns the original value.
+func TryHost(in string) string {
+	out, err := Host(in)
+	if err != nil {
+		return in
+	}
+	return out
+}
+
 // SplitHostPort splits host and port and checks that host is not empty
 func SplitHostPort(hostname string) (string, string, error) {
 	host, port, err := net.SplitHostPort(hostname)

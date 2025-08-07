@@ -37,9 +37,10 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	VnetService_Start_FullMethodName                   = "/teleport.lib.teleterm.vnet.v1.VnetService/Start"
 	VnetService_Stop_FullMethodName                    = "/teleport.lib.teleterm.vnet.v1.VnetService/Stop"
-	VnetService_ListDNSZones_FullMethodName            = "/teleport.lib.teleterm.vnet.v1.VnetService/ListDNSZones"
+	VnetService_GetServiceInfo_FullMethodName          = "/teleport.lib.teleterm.vnet.v1.VnetService/GetServiceInfo"
 	VnetService_GetBackgroundItemStatus_FullMethodName = "/teleport.lib.teleterm.vnet.v1.VnetService/GetBackgroundItemStatus"
 	VnetService_RunDiagnostics_FullMethodName          = "/teleport.lib.teleterm.vnet.v1.VnetService/RunDiagnostics"
+	VnetService_AutoConfigureSSH_FullMethodName        = "/teleport.lib.teleterm.vnet.v1.VnetService/AutoConfigureSSH"
 )
 
 // VnetServiceClient is the client API for VnetService service.
@@ -52,22 +53,17 @@ type VnetServiceClient interface {
 	Start(ctx context.Context, in *StartRequest, opts ...grpc.CallOption) (*StartResponse, error)
 	// Stop stops VNet.
 	Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopResponse, error)
-	// ListDNSZones returns DNS zones of all root and leaf clusters with non-expired user certs. This
-	// includes the proxy service hostnames and custom DNS zones configured in vnet_config.
-	//
-	// This is fetched independently of what the Electron app thinks the current state of the cluster
-	// looks like, since the VNet admin process also fetches this data independently of the Electron
-	// app.
-	//
-	// Just like the admin process, it skips root and leaf clusters for which the vnet_config couldn't
-	// be fetched (due to e.g., a network error or an expired cert).
-	ListDNSZones(ctx context.Context, in *ListDNSZonesRequest, opts ...grpc.CallOption) (*ListDNSZonesResponse, error)
+	// GetServiceInfo returns info about the running VNet service.
+	GetServiceInfo(ctx context.Context, in *GetServiceInfoRequest, opts ...grpc.CallOption) (*GetServiceInfoResponse, error)
 	// GetBackgroundItemStatus returns the status of the background item responsible for launching
 	// VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
 	GetBackgroundItemStatus(ctx context.Context, in *GetBackgroundItemStatusRequest, opts ...grpc.CallOption) (*GetBackgroundItemStatusResponse, error)
 	// RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
 	// is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
 	RunDiagnostics(ctx context.Context, in *RunDiagnosticsRequest, opts ...grpc.CallOption) (*RunDiagnosticsResponse, error)
+	// AutoConfigureSSH automatically configures OpenSSH-compatible clients for
+	// connections to Teleport SSH hosts.
+	AutoConfigureSSH(ctx context.Context, in *AutoConfigureSSHRequest, opts ...grpc.CallOption) (*AutoConfigureSSHResponse, error)
 }
 
 type vnetServiceClient struct {
@@ -98,10 +94,10 @@ func (c *vnetServiceClient) Stop(ctx context.Context, in *StopRequest, opts ...g
 	return out, nil
 }
 
-func (c *vnetServiceClient) ListDNSZones(ctx context.Context, in *ListDNSZonesRequest, opts ...grpc.CallOption) (*ListDNSZonesResponse, error) {
+func (c *vnetServiceClient) GetServiceInfo(ctx context.Context, in *GetServiceInfoRequest, opts ...grpc.CallOption) (*GetServiceInfoResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListDNSZonesResponse)
-	err := c.cc.Invoke(ctx, VnetService_ListDNSZones_FullMethodName, in, out, cOpts...)
+	out := new(GetServiceInfoResponse)
+	err := c.cc.Invoke(ctx, VnetService_GetServiceInfo_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -128,6 +124,16 @@ func (c *vnetServiceClient) RunDiagnostics(ctx context.Context, in *RunDiagnosti
 	return out, nil
 }
 
+func (c *vnetServiceClient) AutoConfigureSSH(ctx context.Context, in *AutoConfigureSSHRequest, opts ...grpc.CallOption) (*AutoConfigureSSHResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AutoConfigureSSHResponse)
+	err := c.cc.Invoke(ctx, VnetService_AutoConfigureSSH_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // VnetServiceServer is the server API for VnetService service.
 // All implementations must embed UnimplementedVnetServiceServer
 // for forward compatibility.
@@ -138,22 +144,17 @@ type VnetServiceServer interface {
 	Start(context.Context, *StartRequest) (*StartResponse, error)
 	// Stop stops VNet.
 	Stop(context.Context, *StopRequest) (*StopResponse, error)
-	// ListDNSZones returns DNS zones of all root and leaf clusters with non-expired user certs. This
-	// includes the proxy service hostnames and custom DNS zones configured in vnet_config.
-	//
-	// This is fetched independently of what the Electron app thinks the current state of the cluster
-	// looks like, since the VNet admin process also fetches this data independently of the Electron
-	// app.
-	//
-	// Just like the admin process, it skips root and leaf clusters for which the vnet_config couldn't
-	// be fetched (due to e.g., a network error or an expired cert).
-	ListDNSZones(context.Context, *ListDNSZonesRequest) (*ListDNSZonesResponse, error)
+	// GetServiceInfo returns info about the running VNet service.
+	GetServiceInfo(context.Context, *GetServiceInfoRequest) (*GetServiceInfoResponse, error)
 	// GetBackgroundItemStatus returns the status of the background item responsible for launching
 	// VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
 	GetBackgroundItemStatus(context.Context, *GetBackgroundItemStatusRequest) (*GetBackgroundItemStatusResponse, error)
 	// RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
 	// is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
 	RunDiagnostics(context.Context, *RunDiagnosticsRequest) (*RunDiagnosticsResponse, error)
+	// AutoConfigureSSH automatically configures OpenSSH-compatible clients for
+	// connections to Teleport SSH hosts.
+	AutoConfigureSSH(context.Context, *AutoConfigureSSHRequest) (*AutoConfigureSSHResponse, error)
 	mustEmbedUnimplementedVnetServiceServer()
 }
 
@@ -170,14 +171,17 @@ func (UnimplementedVnetServiceServer) Start(context.Context, *StartRequest) (*St
 func (UnimplementedVnetServiceServer) Stop(context.Context, *StopRequest) (*StopResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Stop not implemented")
 }
-func (UnimplementedVnetServiceServer) ListDNSZones(context.Context, *ListDNSZonesRequest) (*ListDNSZonesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListDNSZones not implemented")
+func (UnimplementedVnetServiceServer) GetServiceInfo(context.Context, *GetServiceInfoRequest) (*GetServiceInfoResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetServiceInfo not implemented")
 }
 func (UnimplementedVnetServiceServer) GetBackgroundItemStatus(context.Context, *GetBackgroundItemStatusRequest) (*GetBackgroundItemStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBackgroundItemStatus not implemented")
 }
 func (UnimplementedVnetServiceServer) RunDiagnostics(context.Context, *RunDiagnosticsRequest) (*RunDiagnosticsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RunDiagnostics not implemented")
+}
+func (UnimplementedVnetServiceServer) AutoConfigureSSH(context.Context, *AutoConfigureSSHRequest) (*AutoConfigureSSHResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AutoConfigureSSH not implemented")
 }
 func (UnimplementedVnetServiceServer) mustEmbedUnimplementedVnetServiceServer() {}
 func (UnimplementedVnetServiceServer) testEmbeddedByValue()                     {}
@@ -236,20 +240,20 @@ func _VnetService_Stop_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
-func _VnetService_ListDNSZones_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListDNSZonesRequest)
+func _VnetService_GetServiceInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetServiceInfoRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(VnetServiceServer).ListDNSZones(ctx, in)
+		return srv.(VnetServiceServer).GetServiceInfo(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: VnetService_ListDNSZones_FullMethodName,
+		FullMethod: VnetService_GetServiceInfo_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(VnetServiceServer).ListDNSZones(ctx, req.(*ListDNSZonesRequest))
+		return srv.(VnetServiceServer).GetServiceInfo(ctx, req.(*GetServiceInfoRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -290,6 +294,24 @@ func _VnetService_RunDiagnostics_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _VnetService_AutoConfigureSSH_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AutoConfigureSSHRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VnetServiceServer).AutoConfigureSSH(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VnetService_AutoConfigureSSH_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VnetServiceServer).AutoConfigureSSH(ctx, req.(*AutoConfigureSSHRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // VnetService_ServiceDesc is the grpc.ServiceDesc for VnetService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -306,8 +328,8 @@ var VnetService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _VnetService_Stop_Handler,
 		},
 		{
-			MethodName: "ListDNSZones",
-			Handler:    _VnetService_ListDNSZones_Handler,
+			MethodName: "GetServiceInfo",
+			Handler:    _VnetService_GetServiceInfo_Handler,
 		},
 		{
 			MethodName: "GetBackgroundItemStatus",
@@ -316,6 +338,10 @@ var VnetService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RunDiagnostics",
 			Handler:    _VnetService_RunDiagnostics_Handler,
+		},
+		{
+			MethodName: "AutoConfigureSSH",
+			Handler:    _VnetService_AutoConfigureSSH_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

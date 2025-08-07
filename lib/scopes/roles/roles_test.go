@@ -23,8 +23,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	headerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	srpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopedrole/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -34,19 +34,19 @@ func TestValidateRole(t *testing.T) {
 
 	tts := []struct {
 		name     string
-		role     *srpb.ScopedRole
+		role     *accessv1.ScopedRole
 		strongOk bool
 		weakOk   bool
 	}{
 		{
 			name: "basic",
-			role: &srpb.ScopedRole{
+			role: &accessv1.ScopedRole{
 				Kind: KindScopedRole,
-				Metadata: &headerpb.Metadata{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
 				},
 				Scope: "/",
-				Spec: &srpb.ScopedRoleSpec{
+				Spec: &accessv1.ScopedRoleSpec{
 					AssignableScopes: []string{"/foo"},
 				},
 				Version: types.V1,
@@ -56,14 +56,14 @@ func TestValidateRole(t *testing.T) {
 		},
 		{
 			name: "unknown sub_kind",
-			role: &srpb.ScopedRole{
+			role: &accessv1.ScopedRole{
 				Kind:    KindScopedRole,
 				SubKind: "unknown",
-				Metadata: &headerpb.Metadata{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
 				},
 				Scope: "/",
-				Spec: &srpb.ScopedRoleSpec{
+				Spec: &accessv1.ScopedRoleSpec{
 					AssignableScopes: []string{"/foo"},
 				},
 				Version: types.V1,
@@ -73,11 +73,11 @@ func TestValidateRole(t *testing.T) {
 		},
 		{
 			name: "missing name",
-			role: &srpb.ScopedRole{
+			role: &accessv1.ScopedRole{
 				Kind:     KindScopedRole,
-				Metadata: &headerpb.Metadata{},
+				Metadata: &headerv1.Metadata{},
 				Scope:    "/",
-				Spec: &srpb.ScopedRoleSpec{
+				Spec: &accessv1.ScopedRoleSpec{
 					AssignableScopes: []string{"/foo"},
 				},
 				Version: types.V1,
@@ -87,12 +87,12 @@ func TestValidateRole(t *testing.T) {
 		},
 		{
 			name: "missing kind",
-			role: &srpb.ScopedRole{
-				Metadata: &headerpb.Metadata{
+			role: &accessv1.ScopedRole{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
 				},
 				Scope: "/",
-				Spec: &srpb.ScopedRoleSpec{
+				Spec: &accessv1.ScopedRoleSpec{
 					AssignableScopes: []string{"/foo"},
 				},
 				Version: types.V1,
@@ -102,12 +102,12 @@ func TestValidateRole(t *testing.T) {
 		},
 		{
 			name: "missing scope",
-			role: &srpb.ScopedRole{
+			role: &accessv1.ScopedRole{
 				Kind: KindScopedRole,
-				Metadata: &headerpb.Metadata{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
 				},
-				Spec: &srpb.ScopedRoleSpec{
+				Spec: &accessv1.ScopedRoleSpec{
 					AssignableScopes: []string{"/foo"},
 				},
 				Version: types.V1,
@@ -117,13 +117,13 @@ func TestValidateRole(t *testing.T) {
 		},
 		{
 			name: "missing version",
-			role: &srpb.ScopedRole{
+			role: &accessv1.ScopedRole{
 				Kind: KindScopedRole,
-				Metadata: &headerpb.Metadata{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
 				},
 				Scope: "/",
-				Spec: &srpb.ScopedRoleSpec{
+				Spec: &accessv1.ScopedRoleSpec{
 					AssignableScopes: []string{"/foo"},
 				},
 			},
@@ -132,13 +132,13 @@ func TestValidateRole(t *testing.T) {
 		},
 		{
 			name: "malformed name",
-			role: &srpb.ScopedRole{
+			role: &accessv1.ScopedRole{
 				Kind: KindScopedRole,
-				Metadata: &headerpb.Metadata{
+				Metadata: &headerv1.Metadata{
 					Name: "foo/bar",
 				},
 				Scope: "/",
-				Spec: &srpb.ScopedRoleSpec{
+				Spec: &accessv1.ScopedRoleSpec{
 					AssignableScopes: []string{"/foo"},
 				},
 				Version: types.V1,
@@ -148,13 +148,13 @@ func TestValidateRole(t *testing.T) {
 		},
 		{
 			name: "malformed kind",
-			role: &srpb.ScopedRole{
+			role: &accessv1.ScopedRole{
 				Kind: "role",
-				Metadata: &headerpb.Metadata{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
 				},
 				Scope: "/",
-				Spec: &srpb.ScopedRoleSpec{
+				Spec: &accessv1.ScopedRoleSpec{
 					AssignableScopes: []string{"/foo"},
 				},
 				Version: types.V1,
@@ -164,13 +164,13 @@ func TestValidateRole(t *testing.T) {
 		},
 		{
 			name: "slightly malformed scope",
-			role: &srpb.ScopedRole{
+			role: &accessv1.ScopedRole{
 				Kind: KindScopedRole,
-				Metadata: &headerpb.Metadata{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
 				},
 				Scope: "foo/bar",
-				Spec: &srpb.ScopedRoleSpec{
+				Spec: &accessv1.ScopedRoleSpec{
 					AssignableScopes: []string{"/foo/bar"},
 				},
 				Version: types.V1,
@@ -180,13 +180,13 @@ func TestValidateRole(t *testing.T) {
 		},
 		{
 			name: "siginifcantly malformed scope",
-			role: &srpb.ScopedRole{
+			role: &accessv1.ScopedRole{
 				Kind: KindScopedRole,
-				Metadata: &headerpb.Metadata{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
 				},
 				Scope: "foo@bar",
-				Spec: &srpb.ScopedRoleSpec{
+				Spec: &accessv1.ScopedRoleSpec{
 					AssignableScopes: []string{"/foo/bar"},
 				},
 				Version: types.V1,
@@ -196,13 +196,13 @@ func TestValidateRole(t *testing.T) {
 		},
 		{
 			name: "missing assignable scopes",
-			role: &srpb.ScopedRole{
+			role: &accessv1.ScopedRole{
 				Kind: KindScopedRole,
-				Metadata: &headerpb.Metadata{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
 				},
 				Scope:   "/",
-				Spec:    &srpb.ScopedRoleSpec{},
+				Spec:    &accessv1.ScopedRoleSpec{},
 				Version: types.V1,
 			},
 			strongOk: false,
@@ -210,13 +210,13 @@ func TestValidateRole(t *testing.T) {
 		},
 		{
 			name: "slightly malformed assignable scope",
-			role: &srpb.ScopedRole{
+			role: &accessv1.ScopedRole{
 				Kind: KindScopedRole,
-				Metadata: &headerpb.Metadata{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
 				},
 				Scope: "/",
-				Spec: &srpb.ScopedRoleSpec{
+				Spec: &accessv1.ScopedRoleSpec{
 					AssignableScopes: []string{"foo/bar"},
 				},
 				Version: types.V1,
@@ -226,13 +226,13 @@ func TestValidateRole(t *testing.T) {
 		},
 		{
 			name: "siginifcantly malformed assignable scope",
-			role: &srpb.ScopedRole{
+			role: &accessv1.ScopedRole{
 				Kind: KindScopedRole,
-				Metadata: &headerpb.Metadata{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
 				},
 				Scope: "/",
-				Spec: &srpb.ScopedRoleSpec{
+				Spec: &accessv1.ScopedRoleSpec{
 					AssignableScopes: []string{"foo@bar"},
 				},
 				Version: types.V1,
@@ -242,13 +242,13 @@ func TestValidateRole(t *testing.T) {
 		},
 		{
 			name: "impermissable assignable scope",
-			role: &srpb.ScopedRole{
+			role: &accessv1.ScopedRole{
 				Kind: KindScopedRole,
-				Metadata: &headerpb.Metadata{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
 				},
 				Scope: "/foo/bar",
-				Spec: &srpb.ScopedRoleSpec{
+				Spec: &accessv1.ScopedRoleSpec{
 					AssignableScopes: []string{"/foo"},
 				},
 				Version: types.V1,
@@ -282,21 +282,21 @@ func TestValidateAsssignment(t *testing.T) {
 
 	tts := []struct {
 		name       string
-		assignment *srpb.ScopedRoleAssignment
+		assignment *accessv1.ScopedRoleAssignment
 		strongOk   bool
 		weakOk     bool
 	}{
 		{
 			name: "basic",
-			assignment: &srpb.ScopedRoleAssignment{
+			assignment: &accessv1.ScopedRoleAssignment{
 				Kind: KindScopedRoleAssignment,
-				Metadata: &headerpb.Metadata{
+				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
 				Scope: "/",
-				Spec: &srpb.ScopedRoleAssignmentSpec{
+				Spec: &accessv1.ScopedRoleAssignmentSpec{
 					User: "alice",
-					Assignments: []*srpb.Assignment{
+					Assignments: []*accessv1.Assignment{
 						{
 							Role:  "test",
 							Scope: "/foo",
@@ -310,16 +310,16 @@ func TestValidateAsssignment(t *testing.T) {
 		},
 		{
 			name: "unknown sub_kind",
-			assignment: &srpb.ScopedRoleAssignment{
+			assignment: &accessv1.ScopedRoleAssignment{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: "unknown",
-				Metadata: &headerpb.Metadata{
+				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
 				Scope: "/",
-				Spec: &srpb.ScopedRoleAssignmentSpec{
+				Spec: &accessv1.ScopedRoleAssignmentSpec{
 					User: "alice",
-					Assignments: []*srpb.Assignment{
+					Assignments: []*accessv1.Assignment{
 						{
 							Role:  "test",
 							Scope: "/foo",
@@ -333,13 +333,13 @@ func TestValidateAsssignment(t *testing.T) {
 		},
 		{
 			name: "missing name",
-			assignment: &srpb.ScopedRoleAssignment{
+			assignment: &accessv1.ScopedRoleAssignment{
 				Kind:     KindScopedRoleAssignment,
-				Metadata: &headerpb.Metadata{},
+				Metadata: &headerv1.Metadata{},
 				Scope:    "/",
-				Spec: &srpb.ScopedRoleAssignmentSpec{
+				Spec: &accessv1.ScopedRoleAssignmentSpec{
 					User: "alice",
-					Assignments: []*srpb.Assignment{
+					Assignments: []*accessv1.Assignment{
 						{
 							Role:  "test",
 							Scope: "/foo",
@@ -353,14 +353,14 @@ func TestValidateAsssignment(t *testing.T) {
 		},
 		{
 			name: "missing kind",
-			assignment: &srpb.ScopedRoleAssignment{
-				Metadata: &headerpb.Metadata{
+			assignment: &accessv1.ScopedRoleAssignment{
+				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
 				Scope: "/",
-				Spec: &srpb.ScopedRoleAssignmentSpec{
+				Spec: &accessv1.ScopedRoleAssignmentSpec{
 					User: "alice",
-					Assignments: []*srpb.Assignment{
+					Assignments: []*accessv1.Assignment{
 						{
 							Role:  "test",
 							Scope: "/foo",
@@ -374,14 +374,14 @@ func TestValidateAsssignment(t *testing.T) {
 		},
 		{
 			name: "missing scope",
-			assignment: &srpb.ScopedRoleAssignment{
+			assignment: &accessv1.ScopedRoleAssignment{
 				Kind: KindScopedRoleAssignment,
-				Metadata: &headerpb.Metadata{
+				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
-				Spec: &srpb.ScopedRoleAssignmentSpec{
+				Spec: &accessv1.ScopedRoleAssignmentSpec{
 					User: "alice",
-					Assignments: []*srpb.Assignment{
+					Assignments: []*accessv1.Assignment{
 						{
 							Role:  "test",
 							Scope: "/foo",
@@ -395,15 +395,15 @@ func TestValidateAsssignment(t *testing.T) {
 		},
 		{
 			name: "missing version",
-			assignment: &srpb.ScopedRoleAssignment{
+			assignment: &accessv1.ScopedRoleAssignment{
 				Kind: KindScopedRoleAssignment,
-				Metadata: &headerpb.Metadata{
+				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
 				Scope: "/",
-				Spec: &srpb.ScopedRoleAssignmentSpec{
+				Spec: &accessv1.ScopedRoleAssignmentSpec{
 					User: "alice",
-					Assignments: []*srpb.Assignment{
+					Assignments: []*accessv1.Assignment{
 						{
 							Role:  "test",
 							Scope: "/foo",
@@ -416,15 +416,15 @@ func TestValidateAsssignment(t *testing.T) {
 		},
 		{
 			name: "malformed name",
-			assignment: &srpb.ScopedRoleAssignment{
+			assignment: &accessv1.ScopedRoleAssignment{
 				Kind: KindScopedRoleAssignment,
-				Metadata: &headerpb.Metadata{
+				Metadata: &headerv1.Metadata{
 					Name: "not-a-uuid",
 				},
 				Scope: "/",
-				Spec: &srpb.ScopedRoleAssignmentSpec{
+				Spec: &accessv1.ScopedRoleAssignmentSpec{
 					User: "alice",
-					Assignments: []*srpb.Assignment{
+					Assignments: []*accessv1.Assignment{
 						{
 							Role:  "test",
 							Scope: "/foo",
@@ -438,15 +438,15 @@ func TestValidateAsssignment(t *testing.T) {
 		},
 		{
 			name: "malformed kind",
-			assignment: &srpb.ScopedRoleAssignment{
+			assignment: &accessv1.ScopedRoleAssignment{
 				Kind: "not_scoped_role_assignment",
-				Metadata: &headerpb.Metadata{
+				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
 				Scope: "/",
-				Spec: &srpb.ScopedRoleAssignmentSpec{
+				Spec: &accessv1.ScopedRoleAssignmentSpec{
 					User: "alice",
-					Assignments: []*srpb.Assignment{
+					Assignments: []*accessv1.Assignment{
 						{
 							Role:  "test",
 							Scope: "/foo",
@@ -460,15 +460,15 @@ func TestValidateAsssignment(t *testing.T) {
 		},
 		{
 			name: "slightly malformed scope",
-			assignment: &srpb.ScopedRoleAssignment{
+			assignment: &accessv1.ScopedRoleAssignment{
 				Kind: KindScopedRoleAssignment,
-				Metadata: &headerpb.Metadata{
+				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
 				Scope: "foo",
-				Spec: &srpb.ScopedRoleAssignmentSpec{
+				Spec: &accessv1.ScopedRoleAssignmentSpec{
 					User: "alice",
-					Assignments: []*srpb.Assignment{
+					Assignments: []*accessv1.Assignment{
 						{
 							Role:  "test",
 							Scope: "/foo",
@@ -482,15 +482,15 @@ func TestValidateAsssignment(t *testing.T) {
 		},
 		{
 			name: "significantly malformed scope",
-			assignment: &srpb.ScopedRoleAssignment{
+			assignment: &accessv1.ScopedRoleAssignment{
 				Kind: KindScopedRoleAssignment,
-				Metadata: &headerpb.Metadata{
+				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
 				Scope: "foo@bar",
-				Spec: &srpb.ScopedRoleAssignmentSpec{
+				Spec: &accessv1.ScopedRoleAssignmentSpec{
 					User: "alice",
-					Assignments: []*srpb.Assignment{
+					Assignments: []*accessv1.Assignment{
 						{
 							Role:  "test",
 							Scope: "/foo",
@@ -504,15 +504,15 @@ func TestValidateAsssignment(t *testing.T) {
 		},
 		{
 			name: "impermissable assigned scope",
-			assignment: &srpb.ScopedRoleAssignment{
+			assignment: &accessv1.ScopedRoleAssignment{
 				Kind: KindScopedRoleAssignment,
-				Metadata: &headerpb.Metadata{
+				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
 				Scope: "/foo/bar",
-				Spec: &srpb.ScopedRoleAssignmentSpec{
+				Spec: &accessv1.ScopedRoleAssignmentSpec{
 					User: "alice",
-					Assignments: []*srpb.Assignment{
+					Assignments: []*accessv1.Assignment{
 						{
 							Role:  "test",
 							Scope: "/foo",
@@ -526,15 +526,15 @@ func TestValidateAsssignment(t *testing.T) {
 		},
 		{
 			name: "malformed assigned scope",
-			assignment: &srpb.ScopedRoleAssignment{
+			assignment: &accessv1.ScopedRoleAssignment{
 				Kind: KindScopedRoleAssignment,
-				Metadata: &headerpb.Metadata{
+				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
 				Scope: "/",
-				Spec: &srpb.ScopedRoleAssignmentSpec{
+				Spec: &accessv1.ScopedRoleAssignmentSpec{
 					User: "alice",
-					Assignments: []*srpb.Assignment{
+					Assignments: []*accessv1.Assignment{
 						{
 							Role:  "test",
 							Scope: "foo",
@@ -548,15 +548,15 @@ func TestValidateAsssignment(t *testing.T) {
 		},
 		{
 			name: "basic",
-			assignment: &srpb.ScopedRoleAssignment{
+			assignment: &accessv1.ScopedRoleAssignment{
 				Kind: KindScopedRoleAssignment,
-				Metadata: &headerpb.Metadata{
+				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
 				Scope: "/",
-				Spec: &srpb.ScopedRoleAssignmentSpec{
+				Spec: &accessv1.ScopedRoleAssignmentSpec{
 					User: "alice",
-					Assignments: []*srpb.Assignment{
+					Assignments: []*accessv1.Assignment{
 						{
 							Role:  "test",
 							Scope: "/foo",
@@ -632,9 +632,9 @@ func TestWeakValidatedAssignableScopes(t *testing.T) {
 
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
-			result := slices.Collect(WeakValidatedAssignableScopes(&srpb.ScopedRole{
+			result := slices.Collect(WeakValidatedAssignableScopes(&accessv1.ScopedRole{
 				Scope: tt.scope,
-				Spec: &srpb.ScopedRoleSpec{
+				Spec: &accessv1.ScopedRoleSpec{
 					AssignableScopes: tt.assignableScopes,
 				},
 			}))
@@ -649,13 +649,13 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 	tts := []struct {
 		name        string
 		scope       string
-		assignments []*srpb.Assignment
-		expect      []*srpb.Assignment
+		assignments []*accessv1.Assignment
+		expect      []*accessv1.Assignment
 	}{
 		{
 			name:  "basic",
 			scope: "/foo",
-			assignments: []*srpb.Assignment{
+			assignments: []*accessv1.Assignment{
 				{
 					Role:  "test",
 					Scope: "/foo/bar",
@@ -665,7 +665,7 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 					Scope: "/foo/baz",
 				},
 			},
-			expect: []*srpb.Assignment{
+			expect: []*accessv1.Assignment{
 				{
 					Role:  "test",
 					Scope: "/foo/bar",
@@ -679,7 +679,7 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 		{
 			name:  "mildly malformed scope",
 			scope: "/foo",
-			assignments: []*srpb.Assignment{
+			assignments: []*accessv1.Assignment{
 				{
 					Role:  "test",
 					Scope: "foo/bar",
@@ -689,7 +689,7 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 					Scope: "/foo/baz",
 				},
 			},
-			expect: []*srpb.Assignment{
+			expect: []*accessv1.Assignment{
 				{
 					Role:  "test",
 					Scope: "foo/bar",
@@ -703,7 +703,7 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 		{
 			name:  "significantly malformed scope",
 			scope: "/foo",
-			assignments: []*srpb.Assignment{
+			assignments: []*accessv1.Assignment{
 				{
 					Role:  "test",
 					Scope: "foo@bar",
@@ -713,7 +713,7 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 					Scope: "/foo/baz",
 				},
 			},
-			expect: []*srpb.Assignment{
+			expect: []*accessv1.Assignment{
 				{
 					Role:  "test",
 					Scope: "/foo/baz",
@@ -723,7 +723,7 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 		{
 			name:  "impermissible scope",
 			scope: "/foo/bar",
-			assignments: []*srpb.Assignment{
+			assignments: []*accessv1.Assignment{
 				{
 					Role:  "test",
 					Scope: "/foo/bar",
@@ -733,7 +733,7 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 					Scope: "/foo/baz",
 				},
 			},
-			expect: []*srpb.Assignment{
+			expect: []*accessv1.Assignment{
 				{
 					Role:  "test",
 					Scope: "/foo/bar",
@@ -743,7 +743,7 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 		{
 			name:  "missing scope",
 			scope: "/foo",
-			assignments: []*srpb.Assignment{
+			assignments: []*accessv1.Assignment{
 				{
 					Role:  "test",
 					Scope: "",
@@ -753,7 +753,7 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 					Scope: "/foo/baz",
 				},
 			},
-			expect: []*srpb.Assignment{
+			expect: []*accessv1.Assignment{
 				{
 					Role:  "test",
 					Scope: "/foo/baz",
@@ -763,7 +763,7 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 		{
 			name:  "missing role",
 			scope: "/foo",
-			assignments: []*srpb.Assignment{
+			assignments: []*accessv1.Assignment{
 				{
 					Role:  "test",
 					Scope: "/foo/bar",
@@ -773,7 +773,7 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 					Scope: "/foo/baz",
 				},
 			},
-			expect: []*srpb.Assignment{
+			expect: []*accessv1.Assignment{
 				{
 					Role:  "test",
 					Scope: "/foo/bar",
@@ -784,9 +784,9 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
-			result := slices.Collect(WeakValidatedSubAssignments(&srpb.ScopedRoleAssignment{
+			result := slices.Collect(WeakValidatedSubAssignments(&accessv1.ScopedRoleAssignment{
 				Scope: tt.scope,
-				Spec: &srpb.ScopedRoleAssignmentSpec{
+				Spec: &accessv1.ScopedRoleAssignmentSpec{
 					Assignments: tt.assignments,
 				},
 			}))

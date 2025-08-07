@@ -42,7 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestCheckImpersonationPermissions(t *testing.T) {
@@ -337,7 +337,7 @@ current-context: foo
 					CheckImpersonationPermissions: tt.impersonationCheck,
 					Clock:                         clockwork.NewFakeClock(),
 				},
-				log: utils.NewSlogLoggerForTests(),
+				log: logtest.NewLogger(),
 			}
 			err := fwd.getKubeDetails(ctx)
 			tt.assertErr(t, err)

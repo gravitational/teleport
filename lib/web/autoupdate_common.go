@@ -125,9 +125,26 @@ func getVersionFromRollout(
 	case autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:
 		return version.EnsureSemver(rollout.GetSpec().GetTargetVersion())
+	case autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY:
+		if updaterIsCanary(group, updaterUUID) {
+			return version.EnsureSemver(rollout.GetSpec().GetTargetVersion())
+		}
+		return version.EnsureSemver(rollout.GetSpec().GetStartVersion())
 	default:
 		return nil, trace.NotImplemented("unsupported group state %q", group.GetState())
 	}
+}
+
+func updaterIsCanary(group *autoupdatepb.AutoUpdateAgentRolloutStatusGroup, updaterUUID string) bool {
+	if updaterUUID == "" {
+		return false
+	}
+	for _, canary := range group.GetCanaries() {
+		if canary.UpdaterId == updaterUUID {
+			return true
+		}
+	}
+	return false
 }
 
 // getTriggerFromRollout returns the version we should serve to the agent based
@@ -166,6 +183,8 @@ func getTriggerFromRollout(rollout *autoupdatepb.AutoUpdateAgentRollout, groupNa
 		return true, nil
 	case autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:
 		return rollout.GetSpec().GetStrategy() == autoupdate.AgentsStrategyHaltOnError, nil
+	case autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY:
+		return updaterIsCanary(group, updaterUUID), nil
 	default:
 		return false, trace.NotImplemented("Unsupported group state %q", group.GetState())
 	}

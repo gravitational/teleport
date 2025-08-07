@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 func TestUnmarshal(t *testing.T) {
@@ -117,7 +118,7 @@ func TestMarshal(t *testing.T) {
 	})
 
 	t.Run("enterprise", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+		modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 		marshaled, err := MarshalGithubConnector(connectorWithPrivateEndpoint)
 		require.NoError(t, err)

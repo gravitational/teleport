@@ -21,9 +21,7 @@ import {
   ResourceIconName,
   resourceIconSpecs,
 } from 'design/ResourceIcon';
-
-// eslint-disable-next-line no-restricted-imports -- FIXME
-import { AppSubKind } from 'teleport/services/apps';
+import { AppSubKind } from 'shared/services';
 
 import { UnifiedResourceApp } from '../types';
 

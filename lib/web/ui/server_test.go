@@ -622,6 +622,7 @@ func TestMakeDatabaseConnectOptions(t *testing.T) {
 		roles        services.RoleSet
 		db           *types.DatabaseV3
 		assertResult require.ValueAssertionFunc
+		username     string
 	}{
 		"names wildcard": {
 			db: makeTestDatabase(t, map[string]string{"env": "dev"}, false),
@@ -698,12 +699,14 @@ func TestMakeDatabaseConnectOptions(t *testing.T) {
 			},
 		},
 		"auto-user provisioning enabled": {
-			db: makeTestDatabase(t, map[string]string{"env": "dev"}, true),
+			db:       makeTestDatabase(t, map[string]string{"env": "dev"}, true),
+			username: "alice",
 			roles: services.NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
 						Namespaces:     []string{apidefaults.Namespace},
 						DatabaseLabels: types.Labels{"*": []string{"*"}},
+						DatabaseUsers:  []string{"otheruser"},
 						DatabaseRoles:  []string{"myrole"},
 					},
 					Options: types.RoleOptions{
@@ -713,13 +716,35 @@ func TestMakeDatabaseConnectOptions(t *testing.T) {
 			}),
 			assertResult: func(t require.TestingT, v interface{}, _ ...interface{}) {
 				db, _ := v.(Database)
-				require.ElementsMatch(t, []string{"myrole"}, db.DatabaseRoles)
 				require.True(t, db.AutoUsersEnabled)
+				require.ElementsMatch(t, []string{"alice"}, db.DatabaseUsers)
+				require.ElementsMatch(t, []string{"myrole"}, db.DatabaseRoles)
+			},
+		},
+		"auto-user provisioning at database but disabled on role": {
+			db:       makeTestDatabase(t, map[string]string{"env": "dev"}, true),
+			username: "alice",
+			roles: services.NewRoleSet(&types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces:     []string{apidefaults.Namespace},
+						DatabaseLabels: types.Labels{"*": []string{"*"}},
+						DatabaseUsers:  []string{"*", "myuser"},
+					},
+					Options: types.RoleOptions{
+						CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
+					},
+				},
+			}),
+			assertResult: func(t require.TestingT, v interface{}, _ ...interface{}) {
+				db, _ := v.(Database)
+				require.False(t, db.AutoUsersEnabled)
+				require.ElementsMatch(t, []string{"*", "myuser"}, db.DatabaseUsers)
 			},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clusterName", tc.roles)
+			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{Username: tc.username}, "clusterName", tc.roles)
 			single := MakeDatabase(tc.db, accessChecker, interactiveChecker, false)
 			tc.assertResult(t, single)
 

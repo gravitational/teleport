@@ -826,13 +826,8 @@ type CreateWebSessionResponse struct {
 	SessionInactiveTimeoutMS int `json:"sessionInactiveTimeout"`
 }
 
-// SSHAgentLoginWeb is used by tsh to fetch local user credentials via the web api.
-func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, types.WebSession, error) {
-	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
+// sshAgentLoginWebCreateSession takes an existing client and login details and attempts to create a web session using OTP token
+func sshAgentLoginWebCreateSession(ctx context.Context, clt *WebClient, login SSHLoginDirect) (types.WebSession, error) {
 	resp, err := httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
 		var buf bytes.Buffer
 		if err := json.NewEncoder(&buf).Encode(&CreateWebSessionReq{
@@ -852,10 +847,25 @@ func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, ty
 		return clt.HTTPClient().Do(req)
 	}))
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	session, err := GetSessionFromResponse(resp)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return session, nil
+}
+
+// sshAgentLoginWeb is used by tsh to fetch local user credentials via the web api.
+func sshAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, types.WebSession, error) {
+	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	session, err := sshAgentLoginWebCreateSession(ctx, clt, login)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -863,10 +873,10 @@ func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, ty
 	return clt, session, nil
 }
 
-// SSHAgentMFAWebSessionLogin requests a MFA challenge via the proxy web api.
+// sshAgentMFAWebSessionLogin requests a MFA challenge via the proxy web api.
 // If the credentials are valid, the proxy will return a challenge. We then
 // prompt the user to provide 2nd factor and pass the response to the proxy.
-func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebClient, types.WebSession, error) {
+func sshAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebClient, types.WebSession, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -880,23 +890,35 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebCli
 	challengeResp := AuthenticateWebUserRequest{
 		User: login.User,
 	}
+
+	var session types.WebSession
 	// Convert back from auth gRPC proto response.
 	switch r := mfaResp.Response.(type) {
+	case *proto.MFAAuthenticateResponse_TOTP:
+		// If TOTP is configured we have to fallback on direct login
+		session, err = sshAgentLoginWebCreateSession(ctx, clt, SSHLoginDirect{
+			User:     login.User,
+			Password: login.Password,
+			OTPToken: r.TOTP.Code,
+		})
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
 	case *proto.MFAAuthenticateResponse_Webauthn:
 		challengeResp.WebauthnAssertionResponse = wantypes.CredentialAssertionResponseFromProto(r.Webauthn)
+		loginRespJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "finishsession"), challengeResp)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		session, err = GetSessionFromResponse(loginRespJSON)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
 	default:
-		// No challenge was sent, so we send back just username/password.
+		return nil, nil, trace.NotImplemented("unsupported MFA challenge for web session login (%T)", r)
 	}
 
-	loginRespJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "finishsession"), challengeResp)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	session, err := GetSessionFromResponse(loginRespJSON)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
 	return clt, session, nil
 }
 

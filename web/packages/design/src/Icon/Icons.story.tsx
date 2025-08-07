@@ -164,6 +164,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Memory} text="Memory" />
     <IconBox IconCmpt={Icon.Minus} text="Minus" />
     <IconBox IconCmpt={Icon.MinusCircle} text="MinusCircle" />
+    <IconBox IconCmpt={Icon.ModelContextProtocol} text="ModelContextProtocol" />
     <IconBox IconCmpt={Icon.Moon} text="Moon" />
     <IconBox IconCmpt={Icon.MoreHoriz} text="MoreHoriz" />
     <IconBox IconCmpt={Icon.MoreVert} text="MoreVert" />
@@ -198,6 +199,8 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.ShieldWarning} text="ShieldWarning" />
     <IconBox IconCmpt={Icon.Sliders} text="Sliders" />
     <IconBox IconCmpt={Icon.SlidersVertical} text="SlidersVertical" />
+    <IconBox IconCmpt={Icon.SortAscending} text="SortAscending" />
+    <IconBox IconCmpt={Icon.SortDescending} text="SortDescending" />
     <IconBox IconCmpt={Icon.Speed} text="Speed" />
     <IconBox IconCmpt={Icon.Spinner} text="Spinner" />
     <IconBox IconCmpt={Icon.SquaresFour} text="SquaresFour" />

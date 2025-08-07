@@ -1,6 +1,9 @@
 ---
 title: tctl CLI reference
 description: Comprehensive reference of subcommands, flags, and arguments for the tctl CLI tool.
+labels:
+ - reference
+ - platform-wide
 ---
 
 `tctl` is a CLI tool that allows a cluster administrator to manage all resources
@@ -1105,7 +1108,7 @@ $ tctl lock [<flags>]
 | `--server-id` | none | string | Target a specific node by name or UUID. |
 | `--mfa-device` | none | string | Target a specific MFA device by UUID. |
 | `--windows-desktop` | none | string | Target a specific Windows desktop by name. |
-| `--access-request` | none | string | Target a specific access request by ID. |
+| `--access-request` | none | string | Target a specific Access Request by ID. |
 | `--device` | none | string | Target a specific trusted device by ID. |
 | `--message` | none | string | Optional message explaining the reason for the lock. |
 | `--expires` | never | timestamp | When the lock should automatically expire (RFC3339). |
@@ -1353,7 +1356,7 @@ $ tctl rm saml/okta
 # Delete a local user called "admin":
 $ tctl rm users/admin
 
-# Delete a lock 
+# Delete a lock
 $ tctl rm lock/ed7038cb-a3cc-4f59-8063-09553665b773
 ```
 
@@ -1488,7 +1491,7 @@ The following flags are specific to Google Workspace:
 | `--google-acc-uri` | URI of your service account credentials file. Example: `file:///var/lib/teleport/gworkspace-creds.json`.|
 | `--google-acc`      | String containing Google service account credentials.                                                  |
 | `--google-admin`   | Email of a Google admin to impersonate.                                                                |
-| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](../../admin-guides/access-controls/sso/google-workspace.mdx) |
+| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](../../zero-trust-access/sso/google-workspace.mdx) |
 | `--google-id`      | Shorthand for setting the `--id` flag to `<GOOGLE_WORKSPACE_CLIENT_ID>.apps.googleusercontent.com`     |
 
 ### Global flags
@@ -1847,11 +1850,17 @@ $ tctl tokens rm [<token>]
 
 Reports diagnostic information.
 
-The diagnostic metrics endpoint must be enabled with `teleport start --diag-addr=<bind-addr>` for `tctl top` to work.
+`tctl top` can consume metrics from a HTTP diagnostic endpoint.
 
 ```code
 $ tctl top [<diag-addr>] [<refresh>]
 ```
+
+When a specific endpoint is provided, `tctl top` will always attempt to connect to it.
+The endpoint should be a valid HTTP URL, corresponding to a matching
+diagnostic metrics service configuration such as `teleport start --diag-addr=<bind-addr>`.
+
+When no endpoint is specified, `tctl top` will attempt to connect via the debug UNIX socket endpoint, falling back to localhost.
 
 ### Argument
 
@@ -1864,6 +1873,8 @@ $ tctl top [<diag-addr>] [<refresh>]
 $ sudo teleport start --diag-addr=127.0.0.1:3000
 # View stats with a refresh period of 5 seconds
 $ tctl top http://127.0.0.1:3000 5s
+# Use configured defaults
+$ tctl top
 ```
 
 ## tctl users add
@@ -2156,7 +2167,7 @@ the two user filter flags imply that if a user
 - was provisioned into Teleport by Okta (from `--user-origin okta`), OR
 - has the label values `role=aws-admin` AND `dept=engineering` (from `--user-label "role=aws-admin,dept=engineering"`)
 
-then they will be provisioned into AWS Identity Center by Teleport. 
+then they will be provisioned into AWS Identity Center by Teleport.
 
 ## tctl plugins install okta
 
@@ -2173,7 +2184,7 @@ Install the Okta integration.
 | `--api-token` | none | string | Optional. Okta API token for the plugin to use. |
 | `--[no-]scim` | `--no-scim` | boolean | Optional. Enable SCIM Okta integration. |
 | `--[no-]users-sync` | `--users-sync` | none | Optional. Enable user synchronization. |
-| `-o`, `--owner` | none | string | Optional. Add a default owner for synced Access Lists. | 
+| `-o`, `--owner` | none | string | Optional. Add a default owner for synced Access Lists. |
 | `--[no-]accesslist-sync` | `--accesslist-sync` | none | Optional. Enable or disable group to Access List synchronization. |
 | `--[no-]appgroup-sync` | `--appgroup-sync` | none | Optional. Enable or disable Okta Applications and Groups sync. |
 | `-g`, `--group-filter` | none | string | Optional. Add a group filter. Supports globbing by default. Enclose in `^pattern$` for full regex support. |

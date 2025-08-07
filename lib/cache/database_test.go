@@ -22,9 +22,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -42,7 +40,7 @@ func TestDatabaseServices(t *testing.T) {
 	testResources(t, p, testFuncs[types.DatabaseService]{
 		newResource: func(name string) (types.DatabaseService, error) {
 			return types.NewDatabaseServiceV1(types.Metadata{
-				Name: uuid.NewString(),
+				Name: name,
 			}, types.DatabaseServiceSpecV1{
 				ResourceMatchers: []*types.DatabaseResourceMatcher{
 					{Labels: &types.Labels{"env": []string{"prod"}}},
@@ -51,20 +49,18 @@ func TestDatabaseServices(t *testing.T) {
 		},
 		create: withKeepalive(p.databaseServices.UpsertDatabaseService),
 		list: func(ctx context.Context) ([]types.DatabaseService, error) {
-			listServicesResp, err := p.presenceS.ListResources(ctx, proto.ListResourcesRequest{
-				ResourceType: types.KindDatabaseService,
-				Limit:        apidefaults.DefaultChunkSize,
-			})
-			require.NoError(t, err)
-			return types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+			resources, err := listAllResource(t, p.presenceS, types.KindDatabaseService, apidefaults.DefaultChunkSize)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return types.ResourcesWithLabels(resources).AsDatabaseServices()
 		},
-		cacheList: func(ctx context.Context) ([]types.DatabaseService, error) {
-			listServicesResp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
-				ResourceType: types.KindDatabaseService,
-				Limit:        apidefaults.DefaultChunkSize,
-			})
-			require.NoError(t, err)
-			return types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+		cacheList: func(ctx context.Context, pageSize int) ([]types.DatabaseService, error) {
+			resources, err := listAllResource(t, p.cache, types.KindDatabaseService, pageSize)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return types.ResourcesWithLabels(resources).AsDatabaseServices()
 		},
 		update:    withKeepalive(p.databaseServices.UpsertDatabaseService),
 		deleteAll: p.databaseServices.DeleteAllDatabaseServices,
@@ -88,10 +84,12 @@ func TestDatabases(t *testing.T) {
 				URI:      "localhost:5432",
 			})
 		},
-		create:    p.databases.CreateDatabase,
-		list:      p.databases.GetDatabases,
-		cacheGet:  p.cache.GetDatabase,
-		cacheList: p.cache.GetDatabases,
+		create:   p.databases.CreateDatabase,
+		list:     p.databases.GetDatabases,
+		cacheGet: p.cache.GetDatabase,
+		cacheList: func(ctx context.Context, pageSize int) ([]types.Database, error) {
+			return p.cache.GetDatabases(ctx)
+		},
 		update:    p.databases.UpdateDatabase,
 		deleteAll: p.databases.DeleteAllDatabases,
 	})
@@ -120,7 +118,7 @@ func TestDatabaseServers(t *testing.T) {
 			list: func(ctx context.Context) ([]types.DatabaseServer, error) {
 				return p.presenceS.GetDatabaseServers(ctx, apidefaults.Namespace)
 			},
-			cacheList: func(ctx context.Context) ([]types.DatabaseServer, error) {
+			cacheList: func(ctx context.Context, pageSize int) ([]types.DatabaseServer, error) {
 				return p.cache.GetDatabaseServers(ctx, apidefaults.Namespace)
 			},
 			update: withKeepalive(p.presenceS.UpsertDatabaseServer),
@@ -143,54 +141,18 @@ func TestDatabaseServers(t *testing.T) {
 			},
 			create: withKeepalive(p.presenceS.UpsertDatabaseServer),
 			list: func(ctx context.Context) ([]types.DatabaseServer, error) {
-				req := proto.ListResourcesRequest{
-					ResourceType: types.KindDatabaseServer,
+				resources, err := listAllResource(t, p.presenceS, types.KindDatabaseServer, apidefaults.DefaultChunkSize)
+				if err != nil {
+					return nil, trace.Wrap(err)
 				}
-
-				var out []types.DatabaseServer
-				for {
-					resp, err := p.presenceS.ListResources(ctx, req)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-
-					for _, s := range resp.Resources {
-						out = append(out, s.(types.DatabaseServer))
-					}
-
-					req.StartKey = resp.NextKey
-
-					if req.StartKey == "" {
-						break
-					}
-				}
-
-				return out, nil
+				return types.ResourcesWithLabels(resources).AsDatabaseServers()
 			},
-			cacheList: func(ctx context.Context) ([]types.DatabaseServer, error) {
-				req := proto.ListResourcesRequest{
-					ResourceType: types.KindDatabaseServer,
+			cacheList: func(ctx context.Context, pageSize int) ([]types.DatabaseServer, error) {
+				resources, err := listAllResource(t, p.cache, types.KindDatabaseServer, pageSize)
+				if err != nil {
+					return nil, trace.Wrap(err)
 				}
-
-				var out []types.DatabaseServer
-				for {
-					resp, err := p.cache.ListResources(ctx, req)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-
-					for _, s := range resp.Resources {
-						out = append(out, s.(types.DatabaseServer))
-					}
-
-					req.StartKey = resp.NextKey
-
-					if req.StartKey == "" {
-						break
-					}
-				}
-
-				return out, nil
+				return types.ResourcesWithLabels(resources).AsDatabaseServers()
 			},
 			update: withKeepalive(p.presenceS.UpsertDatabaseServer),
 			deleteAll: func(ctx context.Context) error {
@@ -198,7 +160,6 @@ func TestDatabaseServers(t *testing.T) {
 			},
 		})
 	})
-
 }
 
 func TestDatabaseObjects(t *testing.T) {

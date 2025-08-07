@@ -7,9 +7,9 @@ state: draft
 
 ## Required Approvers
 
-* Engineering: @espadolini && @rosstimothy
-* Security: doyensec
-* Product: @klizhentas
+- Engineering: @espadolini && @rosstimothy
+- Security: doyensec
+- Product: @klizhentas
 
 ## What
 
@@ -24,7 +24,7 @@ Advanced Teleport features like per-session MFA and hardware keys will be fully
 supported.
 
 Here's a demo with a proof-of-concept of the feature in action:
-https://goteleport.zoom.us/clips/share/3xSvI4taSD6YgM1C0l12nQ
+<https://goteleport.zoom.us/clips/share/3xSvI4taSD6YgM1C0l12nQ>
 
 ## Why
 
@@ -197,13 +197,11 @@ we already have an SSH forwarding server implemented in `lib/srv/forward/sshserv
 VNet SSH will support SSH connections to DNS names matching any of the following:
 
 - `<hostname>.<cluster name>`
-- `<hostname>.<leaf cluster name>.<root cluster name>`
 - `<host ID>.<cluster name>`
-- `<host ID>.<leaf cluster name>.<root cluster name>`
 
 These are the same patterns supported by our existing OpenSSH client
 integration, which will offer a seamless transition for users switching to VNet SSH
-https://goteleport.com/docs/enroll-resources/server-access/openssh/openssh-agentless/#step-23-generate-an-ssh-client-configuration
+<https://goteleport.com/docs/enroll-resources/server-access/openssh/openssh-agentless/#step-23-generate-an-ssh-client-configuration>
 
 If users prefer to use a shorter name to connect to SSH hosts, they can add
 a `CanonicalDomains` option to their `~/.ssh/config` file, e.g.
@@ -236,7 +234,7 @@ If the user runs `tsh vnet` instead of Connect, we won't add anything to
 `vnet_ssh_config` will include the following:
 
 ```
-Host *.teleport.example.com *.leaf.teleport.example.com
+Host *.root.example.com *.leaf.example.com
     IdentityFile "/Users/nic/Library/Application Support/tsh/id_vnet"
     GlobalKnownHostsFile "/Users/nic/Library/Application Support/tsh/vnet_known_hosts"
     UserKnownHostsFile /dev/null
@@ -299,9 +297,8 @@ When the VNet process receives a DNS query this is how it will be resolved:
    1. If it matches a web app the DNS request will be forwarded to upstream DNS
       servers (this is also as it implicitly works today, now we'll do it
       explicitly to skip assigning a VNet IP for web apps).
-1. If the name does not match `*.<cluster name>` or
-   `*.<leaf cluster name>.<root cluster name>` for any profile, the request will
-   be forwarded to upstream DNS servers.
+1. If the name does not match `*.<cluster name>` or for any cluster, the
+   request will be forwarded to upstream DNS servers.
 1. VNet will assign a free IP address to the FQDN, but at this point it will not
    know if this IP will later resolve to an SSH host or an app or neither.
 1. VNet will return the IP address in an authoritative DNS answer.
@@ -310,6 +307,7 @@ When the VNet process receives a DNS query this is how it will be resolved:
 
 When the VNet process receives a TCP connection at an address that has been
 assigned to an FQDN but does not yet know if there is a matching app or SSH host:
+
 1. An app lookup will run first in case an app has been added since the DNS
    query that assigned this IP.
    If the queried FQDN matches a TCP app then the IP will be permanently

@@ -2,6 +2,9 @@
 title: Dual Authorization
 description: Dual Authorization for SSH and Kubernetes.
 videoBanner: b_iqJm_o15I
+labels:
+ - how-to
+ - identity-governance
 ---
 
 You can set up Teleport to require the approval of multiple team members to perform some critical actions.
@@ -18,9 +21,24 @@ The steps below describe how to use Teleport with Mattermost. You can also
 
 <Admonition type="warning">
 
-Dual Authorization requires Teleport Enterprise.
+Dual Authorization requires Teleport Identity Governance.
 
 </Admonition>
+
+## How it works
+
+Teleport administrators can configure a role that allows elevated privileges as
+long as multiple additional users approve a request for that role. When a user
+requests access to the elevated role, they create an Access Request resource on
+the Teleport Auth Service backend. 
+
+A Teleport Access Request plugin connects to the Teleport Auth Service and
+receives a gRPC message whenever a Teleport user creates or updates an Access
+Request. The plugin then manages updates in a third-party communication
+platform, in this case, Mattermost. Users can then approve and deny Access
+Requests by following a message link.
+
+![The Mattermost Access Request plugin](../../../../img/enterprise/plugins/mattermost/diagram.png)
 
 ## Prerequisites
 

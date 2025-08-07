@@ -18,6 +18,7 @@ package vnet
 
 import (
 	"context"
+	"net"
 	"net/netip"
 	"os/exec"
 	"strings"
@@ -29,6 +30,7 @@ import (
 type osConfig struct {
 	tunName    string
 	tunIPv4    string
+	tunIPv4Net *net.IPNet
 	tunIPv6    string
 	cidrRanges []string
 	dnsAddrs   []string
@@ -44,11 +46,11 @@ func configureOS(ctx context.Context, osConfig *osConfig, osConfigState *osConfi
 }
 
 type osConfigurator struct {
-	remoteOSConfigProvider *remoteOSConfigProvider
+	remoteOSConfigProvider *osConfigProvider
 	osConfigState          osConfigState
 }
 
-func newOSConfigurator(remoteOSConfigProvider *remoteOSConfigProvider) *osConfigurator {
+func newOSConfigurator(remoteOSConfigProvider *osConfigProvider) *osConfigurator {
 	return &osConfigurator{
 		remoteOSConfigProvider: remoteOSConfigProvider,
 	}

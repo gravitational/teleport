@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestSignersWithSHA1Fallback(t *testing.T) {
@@ -219,7 +219,7 @@ func TestDirectTCPIP(t *testing.T) {
 			t.Parallel()
 
 			s := Server{
-				logger:          utils.NewSlogLoggerForTests(),
+				logger:          logtest.NewLogger(),
 				identityContext: srv.IdentityContext{Login: tt.login},
 			}
 
@@ -255,7 +255,7 @@ func TestCheckTCPIPForward(t *testing.T) {
 			t.Parallel()
 
 			s := Server{
-				logger:          utils.NewSlogLoggerForTests(),
+				logger:          logtest.NewLogger(),
 				identityContext: srv.IdentityContext{Login: tt.login},
 			}
 			err := s.checkTCPIPForwardRequest(context.Background(),

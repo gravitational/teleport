@@ -45,12 +45,13 @@ import {
   UnifiedResourcesQueryParams,
   useUnifiedResourcesFetch,
 } from 'shared/components/UnifiedResources';
+import { buildPredicateExpression } from 'shared/components/UnifiedResources/shared/predicateExpression';
 import {
   getResourceId,
   openStatusInfoPanel,
 } from 'shared/components/UnifiedResources/shared/StatusInfo';
 import { Attempt } from 'shared/hooks/useAsync';
-import { NodeSubKind } from 'shared/services';
+import { AppSubKind, NodeSubKind } from 'shared/services';
 import {
   DbProtocol,
   DbType,
@@ -128,12 +129,14 @@ export function UnifiedResources(props: {
       query: props.queryParams.advancedSearchEnabled
         ? props.queryParams.search
         : '',
+      statuses: props.queryParams.statuses,
     }),
     [
       props.queryParams.advancedSearchEnabled,
       props.queryParams.resourceKinds,
       props.queryParams.search,
       props.queryParams.sort,
+      props.queryParams.statuses,
       unifiedResourcePreferences.defaultTab,
     ]
   );
@@ -190,6 +193,7 @@ export function UnifiedResources(props: {
           newParams.kinds as DocumentClusterResourceKind[];
         queryParams.search = newParams.search || newParams.query;
         queryParams.advancedSearchEnabled = !!newParams.query;
+        queryParams.statuses = newParams.statuses;
       });
     },
     [documentsService, props.docUri]
@@ -308,7 +312,10 @@ const Resources = memo(
                   },
                   search: props.queryParams.search,
                   kinds: props.queryParams.kinds,
-                  query: props.queryParams.query,
+                  query: buildPredicateExpression(
+                    props.queryParams.statuses,
+                    props.queryParams.query
+                  ),
                   pinnedOnly: props.queryParams.pinnedOnly,
                   startKey: paginationParams.startKey,
                   limit: paginationParams.limit,
@@ -332,6 +339,7 @@ const Resources = memo(
           props.queryParams.search,
           props.queryParams.sort.dir,
           props.queryParams.sort.fieldName,
+          props.queryParams.statuses,
           props.clusterUri,
           props.integratedAccessRequests,
         ]
@@ -566,6 +574,8 @@ const mapToSharedResource = (
     }
     case 'app': {
       const { resource: app } = resource;
+      const addrWithProtocol = getAppAddrWithProtocol(app);
+      const isMCP = addrWithProtocol.startsWith('mcp+');
 
       return {
         resource: {
@@ -573,15 +583,19 @@ const mapToSharedResource = (
           labels: app.labels,
           name: app.name,
           id: app.name,
-          addrWithProtocol: getAppAddrWithProtocol(app),
+          addrWithProtocol: addrWithProtocol,
           awsConsole: app.awsConsole,
           description: app.desc,
           friendlyName: app.friendlyName,
           samlApp: app.samlApp,
           requiresRequest: resource.requiresRequest,
+          subKind: isMCP ? AppSubKind.MCP : undefined,
         },
         ui: {
-          ActionButton: <ConnectAppActionButton app={app} />,
+          // TODO(greedy52) decide what to do with MCP servers.
+          ActionButton: isMCP ? undefined : (
+            <ConnectAppActionButton app={app} />
+          ),
         },
       };
     }

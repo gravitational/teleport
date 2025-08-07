@@ -1,6 +1,9 @@
 ---
 title: Impersonating Teleport Users
 description: How to issue short-lived certs on behalf of Teleport users using impersonation.
+labels:
+ - how-to
+ - zero-trust
 ---
 
 Sometimes users need to create short-lived certificates for non-interactive
@@ -10,6 +13,16 @@ users and robots to create short-lived certs for other users and roles.
 
 Let's explore how interactive user Alice can create credentials for a
 non-interactive CI/CD user Jenkins and a security scanner.
+
+## How it works
+
+A Teleport role allows a Teleport user to impersonate other roles or users. When
+a Teleport user authenticates with a role that allows impersonation, they can
+execute the `tctl auth sign` command to instruct the Teleport Auth Service to
+sign a certificate for another Teleport user. As with all Teleport user
+certificates, the certificate written by `tctl auth sign` includes the names of
+a Teleport user and that user's roles. TLS or SSH clients can then load the
+certificate in order to authenticate to Teleport as the impersonated user.
 
 ## Prerequisites
 

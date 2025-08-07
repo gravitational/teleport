@@ -103,6 +103,7 @@ func (r resourceTeleportStaticHostUser) Create(ctx context.Context, req tfsdk.Cr
 		return
 	}
 		var staticHostUserI *userprovisioningv2.StaticHostUser
+	// Try getting the resource until it exists.
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
@@ -110,12 +111,13 @@ func (r resourceTeleportStaticHostUser) Create(ctx context.Context, req tfsdk.Cr
 		staticHostUserI, err = r.p.Client.StaticHostUserClient().GetStaticHostUser(ctx, id)
 		if trace.IsNotFound(err) {
 			if bErr := backoff.Do(ctx); bErr != nil {
-				resp.Diagnostics.Append(diagFromWrappedErr("Error reading StaticHostUser", trace.Wrap(bErr), "static_host_user"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading StaticHostUser", trace.Wrap(err), "static_host_user"))
 				return
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading StaticHostUser (tried %d times) - state outdated, please import resource", tries)
 				resp.Diagnostics.AddError(diagMessage, "static_host_user")
+				return
 			}
 			continue
 		}

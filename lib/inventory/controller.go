@@ -20,6 +20,7 @@ package inventory
 
 import (
 	"context"
+	"iter"
 	"log/slog"
 	"math/rand/v2"
 	"os"
@@ -93,6 +94,11 @@ const (
 
 	dbUpsertRetryOk  testEvent = "db-upsert-retry-ok"
 	dbUpsertRetryErr testEvent = "db-upsert-retry-err"
+
+	dbDelOk  testEvent = "db-del-ok"
+	dbDelErr testEvent = "db-del-err"
+
+	dbStopErr testEvent = "db-stop-err"
 
 	kubeKeepAliveOk  testEvent = "kube-keep-alive-ok"
 	kubeKeepAliveErr testEvent = "kube-keep-alive-err"
@@ -360,6 +366,11 @@ func (c *Controller) GetControlStream(serverID string) (handle UpstreamHandle, o
 	return
 }
 
+// Handles gets the handles for the given server ID if they exist.
+func (c *Controller) Handles(serverID string) iter.Seq[UpstreamHandle] {
+	return c.store.Handles(serverID)
+}
+
 // UniqueHandles iterates across unique handles registered with this controller.
 // If multiple handles are registered for a given server, only
 // one handle is selected pseudorandomly to be observed.
@@ -554,6 +565,20 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				c.handlePong(handle, m)
 			case *proto.UpstreamInventoryGoodbye:
 				handle.setGoodbye(m)
+			case *proto.UpstreamInventoryStopHeartbeat:
+				switch m.Kind {
+				case proto.StopHeartbeatKind_STOP_HEARTBEAT_KIND_DATABASE_SERVER:
+					if err := c.handleStopDatabaseServerHB(handle, m.Name); err != nil {
+						handle.CloseWithError(err)
+						return
+					}
+				default:
+					slog.WarnContext(c.closeContext, "Unexpected upstream stop heartbeat kind on control stream",
+						"server_id", handle.Hello().ServerID,
+						"kind", logutils.StringerAttr(m.Kind),
+					)
+				}
+
 			default:
 				slog.WarnContext(c.closeContext, "Unexpected upstream message type on control stream",
 					"message_type", logutils.TypeAttr(m),
@@ -1291,6 +1316,48 @@ func (c *Controller) keepAliveSSHServer(handle *upstreamHandle, now time.Time) e
 		}
 	}
 
+	return nil
+}
+
+func (c *Controller) handleStopDatabaseServerHB(handle *upstreamHandle, name string) error {
+	// the auth layer verifies that a stream's hello message matches the identity and capabilities of the
+	// client cert. after that point it is our responsibility to ensure that heartbeated information is
+	// consistent with the identity and capabilities claimed in the initial hello.
+	if !handle.HasService(types.RoleDatabase) {
+		return trace.AccessDenied("control stream not configured to support database server heartbeats")
+	}
+	key := resourceKey{hostID: handle.Hello().ServerID, name: name}
+
+	if _, ok := handle.databaseServers[key]; !ok {
+		c.testEvent(dbStopErr)
+		slog.DebugContext(c.closeContext, "Unexpected stop database heartbeat message on control stream",
+			"database_name", key.name,
+			"server_id", handle.Hello().ServerID,
+		)
+		return nil
+	}
+
+	c.testEvent(dbKeepAliveDel)
+	c.onDisconnectFunc(constants.KeepAliveDatabase, 1)
+	if c.dbHBVariableDuration != nil {
+		c.dbHBVariableDuration.Dec()
+	}
+	delete(handle.databaseServers, key)
+	handle.dbKeepAliveDelay.Remove(key)
+
+	err := c.auth.DeleteDatabaseServer(c.closeContext, apidefaults.Namespace, key.hostID, key.name)
+	if err == nil {
+		c.testEvent(dbDelOk)
+	} else {
+		c.testEvent(dbDelErr)
+		if !trace.IsNotFound(err) {
+			slog.WarnContext(c.closeContext, "Failed to delete database server heartbeat",
+				"database_name", key.name,
+				"server_id", handle.Hello().ServerID,
+				"error", err,
+			)
+		}
+	}
 	return nil
 }
 

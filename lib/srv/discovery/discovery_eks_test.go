@@ -48,7 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/services/local"
-	libutils "github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func discoveryConfigWithAWSMatchers(t *testing.T, discoveryGroup string, m ...types.AWSMatcher) *discoveryconfig.DiscoveryConfig {
@@ -278,7 +278,7 @@ func TestDiscoveryServerEKS(t *testing.T) {
 					Matchers:        Matchers{},
 					Emitter:         tt.emitter,
 					DiscoveryGroup:  defaultDiscoveryGroup,
-					Log:             libutils.NewSlogLoggerForTests(),
+					Log:             logtest.NewLogger(),
 				})
 				require.NoError(t, err)
 

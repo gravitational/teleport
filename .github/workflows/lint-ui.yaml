@@ -4,6 +4,7 @@ run-name: Lint UI - ${{ github.run_id }} - @${{ github.actor }}
 on:
   pull_request:
     paths:
+      - '.github/workflows/lint-ui.yaml'
       - 'web/**'
       - 'gen/proto/js/**'
       - 'gen/proto/ts/**'
@@ -15,6 +16,7 @@ on:
       - 'tsconfig.node.json'
   merge_group:
     paths:
+      - '.github/workflows/lint-ui.yaml'
       - 'web/**'
       - 'gen/proto/js/**'
       - 'gen/proto/ts/**'
@@ -42,6 +44,9 @@ jobs:
       - name: Install JS dependencies
         run: |
           pnpm install --frozen-lockfile
+
+      - name: Install WASM deps
+        run: make ensure-wasm-deps
 
       - name: Build WASM
         run: pnpm build-wasm

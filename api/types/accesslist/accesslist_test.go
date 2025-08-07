@@ -18,6 +18,7 @@ package accesslist
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -280,12 +281,12 @@ func TestAccessListDefaults(t *testing.T) {
 		require.ErrorContains(t, err, `unknown access_list type "test_unknown_type"`)
 	})
 }
-
 func TestSelectNextReviewDate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name              string
+		accessListTypes   []Type
 		frequency         ReviewFrequency
 		dayOfMonth        ReviewDayOfMonth
 		currentReviewDate time.Time
@@ -293,6 +294,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 	}{
 		{
 			name:              "one month, first day",
+			accessListTypes:   []Type{Default, DeprecatedDynamic},
 			frequency:         OneMonth,
 			dayOfMonth:        FirstDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -300,6 +302,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "one month, fifteenth day",
+			accessListTypes:   []Type{Default, DeprecatedDynamic},
 			frequency:         OneMonth,
 			dayOfMonth:        FifteenthDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -307,6 +310,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "one month, last day",
+			accessListTypes:   []Type{Default, DeprecatedDynamic},
 			frequency:         OneMonth,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -314,6 +318,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "six months, last day",
+			accessListTypes:   []Type{Default, DeprecatedDynamic},
 			frequency:         SixMonths,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -324,14 +329,18 @@ func TestSelectNextReviewDate(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			accessList := AccessList{}
-			accessList.Spec.Audit.NextAuditDate = test.currentReviewDate
-			accessList.Spec.Audit.Recurrence = Recurrence{
-				Frequency:  test.frequency,
-				DayOfMonth: test.dayOfMonth,
+			for _, typ := range test.accessListTypes {
+				t.Run(fmt.Sprintf("type=%q", typ), func(t *testing.T) {
+					accessList := AccessList{}
+					accessList.Spec.Type = typ
+					accessList.Spec.Audit.NextAuditDate = test.currentReviewDate
+					accessList.Spec.Audit.Recurrence = Recurrence{
+						Frequency:  test.frequency,
+						DayOfMonth: test.dayOfMonth,
+					}
+					require.Equal(t, test.expected, accessList.SelectNextReviewDate())
+				})
 			}
-			require.Equal(t, test.expected, accessList.SelectNextReviewDate())
 		})
 	}
 }

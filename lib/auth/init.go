@@ -738,6 +738,44 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 		}
 	}
 
+	// Add [empty] CRLs to any issuers that are missing them.
+	// These are valid for 10 years and regenerated on CA rotation.
+	updated := false
+	for _, kp := range ca.GetActiveKeys().TLS {
+		if kp.CRL != nil {
+			continue
+		}
+		certBytes, signer, err := asrv.keyStore.GetTLSCertAndSigner(ctx, ca)
+		if err != nil {
+			asrv.logger.WarnContext(ctx, "Couldn't get CA certificate", "ca_type", caID.Type, "error", err)
+			continue
+		}
+		cert, err := tlsca.ParseCertificatePEM(certBytes)
+		if err != nil {
+			asrv.logger.WarnContext(ctx, "Couldn't parse CA certificate", "ca_type", caID.Type, "error", err)
+			continue
+		}
+
+		if cert.KeyUsage&x509.KeyUsageCRLSign == 0 {
+			asrv.logger.WarnContext(ctx, "Certificate authority can't sign CRLs, some Active Directory integrations will require a CA rotation", "ca_type", caID.Type)
+			continue
+		}
+
+		crl, err := keystore.GenerateCRL(cert, signer)
+		if err != nil {
+			asrv.logger.WarnContext(ctx, "Failed to generate CRL", "ca_type", caID.Type, "error", err)
+			continue
+		}
+		kp.CRL = crl
+		updated = true
+	}
+
+	if updated {
+		if ca, err = asrv.UpdateCertAuthority(ctx, ca); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
 	// Make sure the keystore has usable keys. This is a bit redundant if the CA
 	// was just generated above, but cheap relative to generating the CA, and
 	// it's nice to get the usableKeysResult.
@@ -1231,6 +1269,8 @@ func GetPresetRoles() []types.Role {
 		services.NewPresetTerraformProviderRole(),
 		services.NewSystemIdentityCenterAccessRole(),
 		services.NewPresetWildcardWorkloadIdentityIssuerRole(),
+		services.NewPresetAccessPluginRole(),
+		services.NewPresetListAccessRequestResourcesRole(),
 	}
 
 	// Certain `New$FooRole()` functions will return a nil role if the

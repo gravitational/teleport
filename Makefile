@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=18.0.1
+VERSION=18.1.4
 
 DOCKER_IMAGE ?= teleport
 
@@ -775,13 +775,16 @@ release-connect: | $(RELEASE_DIR)
 	pnpm build-term
 	pnpm package-term -c.extraMetadata.version=$(VERSION) --$(ELECTRON_BUILDER_ARCH)
 	# Only copy proper builds with tsh.app to $(RELEASE_DIR)
-	# Drop -universal "arch" from dmg name when copying to $(RELEASE_DIR)
+	# Drop -universal "arch" from dmg and zip name when copying to $(RELEASE_DIR)
 	if [ -n "$$CONNECT_TSH_APP_PATH" ]; then \
-		TARGET_NAME="Teleport Connect-$(VERSION)-$(ARCH).dmg"; \
+		DMG_TARGET_NAME="Teleport Connect-$(VERSION)-$(ARCH).dmg"; \
+		ZIP_TARGET_NAME="Teleport Connect-$(VERSION)-$(ARCH)-mac.zip"; \
 		if [ "$(ARCH)" = 'universal' ]; then \
-			TARGET_NAME="$${TARGET_NAME/-universal/}"; \
+			DMG_TARGET_NAME="$${DMG_TARGET_NAME/-universal/}"; \
+			ZIP_TARGET_NAME="$${ZIP_TARGET_NAME/-universal/}"; \
 		fi; \
-		cp web/packages/teleterm/build/release/"Teleport Connect-$(VERSION)-$(ELECTRON_BUILDER_ARCH).dmg" "$(RELEASE_DIR)/$${TARGET_NAME}"; \
+		cp web/packages/teleterm/build/release/"Teleport Connect-$(VERSION)-$(ELECTRON_BUILDER_ARCH).dmg" "$(RELEASE_DIR)/$${DMG_TARGET_NAME}"; \
+		cp web/packages/teleterm/build/release/"Teleport Connect-$(VERSION)-$(ELECTRON_BUILDER_ARCH)-mac.zip" "$(RELEASE_DIR)/$${ZIP_TARGET_NAME}"; \
 	fi
 
 #

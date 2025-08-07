@@ -263,6 +263,9 @@ var eventsMap = map[string]apievents.AuditEvent{
 	HealthCheckConfigCreateEvent:                  &apievents.HealthCheckConfigCreate{},
 	HealthCheckConfigUpdateEvent:                  &apievents.HealthCheckConfigUpdate{},
 	HealthCheckConfigDeleteEvent:                  &apievents.HealthCheckConfigDelete{},
+	BoundKeypairRecovery:                          &apievents.BoundKeypairRecovery{},
+	BoundKeypairRotation:                          &apievents.BoundKeypairRotation{},
+	BoundKeypairJoinStateVerificationFailed:       &apievents.BoundKeypairJoinStateVerificationFailed{},
 }
 
 // TestJSON tests JSON marshal events

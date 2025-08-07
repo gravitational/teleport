@@ -183,6 +183,8 @@ type SampleFlags struct {
 	AppName string
 	// AppURI is the internal address of the application to proxy
 	AppURI string
+	// MCPDemoServer enables the "Teleport Demo" MCP server.
+	MCPDemoServer bool
 	// NodeLabels is list of labels in the format `foo=bar,baz=bax` to add to newly created nodes.
 	NodeLabels string
 	// CAPin is the SKPI hash of the CA used to verify the Auth Server. Can be
@@ -409,17 +411,24 @@ func makeSampleProxyConfig(conf *servicecfg.Config, flags SampleFlags, enabled b
 func makeSampleAppsConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) (Apps, error) {
 	var apps Apps
 	// assume users want app role if they added app name and/or uri but didn't add app role
-	if enabled || flags.AppURI != "" || flags.AppName != "" {
-		if flags.AppURI == "" || flags.AppName == "" {
-			return Apps{}, trace.BadParameter("please provide both --app-name and --app-uri")
-		}
-
+	if enabled || flags.AppURI != "" || flags.AppName != "" || flags.MCPDemoServer {
 		apps.EnabledFlag = "yes"
-		apps.Apps = []*App{
-			{
-				Name: flags.AppName,
-				URI:  flags.AppURI,
-			},
+		apps.MCPDemoServer = flags.MCPDemoServer
+
+		switch {
+		case flags.AppURI != "" && flags.AppName != "":
+			apps.Apps = []*App{
+				{
+					Name: flags.AppName,
+					URI:  flags.AppURI,
+				},
+			}
+
+		case flags.MCPDemoServer && flags.AppURI == "" && flags.AppName == "":
+			// This is ok if only MCPDemoServer is set.
+
+		default:
+			return Apps{}, trace.BadParameter("please provide both --app-name and --app-uri")
 		}
 	}
 
@@ -602,6 +611,10 @@ type Global struct {
 	Storage     backend.Config   `yaml:"storage,omitempty"`
 	AdvertiseIP string           `yaml:"advertise_ip,omitempty"`
 	CachePolicy CachePolicy      `yaml:"cache,omitempty"`
+
+	// ShutdownDelay is a fixed delay between receiving a termination signal and
+	// the beginning of the shutdown procedures.
+	ShutdownDelay types.Duration `yaml:"shutdown_delay,omitempty"`
 
 	// CipherSuites is a list of TLS ciphersuites that Teleport supports. If
 	// omitted, a Teleport selected list of defaults will be used.
@@ -2082,6 +2095,9 @@ type Apps struct {
 	// DebugApp turns on a header debugging application.
 	DebugApp bool `yaml:"debug_app"`
 
+	// MCPDemoServer enables the "Teleport Demo" MCP server.
+	MCPDemoServer bool `yaml:"mcp_demo_server"`
+
 	// Apps is a list of applications that will be run by this service.
 	Apps []*App `yaml:"apps"`
 
@@ -2143,6 +2159,9 @@ type App struct {
 	// If this field is not empty, URI is expected to contain no port number and start with the tcp
 	// protocol.
 	TCPPorts []PortRange `yaml:"tcp_ports,omitempty"`
+
+	// MCP contains MCP server-related configurations.
+	MCP *MCP `yaml:"mcp,omitempty"`
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -2199,6 +2218,17 @@ type PortRange struct {
 	// greater than Port and less than or equal to 65535. When describing a single port, it must be
 	// set to 0.
 	EndPort int `yaml:"end_port,omitempty"`
+}
+
+// MCP contains MCP server-related configurations.
+type MCP struct {
+	// Command to launch stdio-based MCP servers.
+	Command string `yaml:"command,omitempty"`
+	// Args to execute with the command.
+	Args []string `yaml:"args,omitempty"`
+	// RunAsHostUser is the host user account under which the command will be
+	// executed. Required for stdio-based MCP servers.
+	RunAsHostUser string `yaml:"run_as_host_user,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:
@@ -2547,12 +2577,14 @@ func (wds *WindowsDesktopService) Check() error {
 		return host.AD
 	})
 
-	if hasAD && wds.LDAP.Addr == "" {
+	ldapConfigOK := wds.LDAP.Domain != "" && (wds.LDAP.Addr != "" || wds.LDAP.LocateServer.Enabled)
+
+	if hasAD && !ldapConfigOK {
 		return trace.BadParameter("if Active Directory hosts are specified in the windows_desktop_service, " +
 			"the ldap configuration must also be specified")
 	}
 
-	if wds.Discovery.BaseDN != "" && wds.LDAP.Addr == "" {
+	if (wds.Discovery.BaseDN != "" || len(wds.DiscoveryConfigs) > 0) && !ldapConfigOK {
 		return trace.BadParameter("if discovery is specified in the windows_desktop_service, " +
 			"ldap configuration must also be specified")
 	}
@@ -2583,10 +2615,22 @@ type WindowsHost struct {
 	AD bool `yaml:"ad"`
 }
 
+// LocateServer contains parameters for locating LDAP servers
+// from the AD Domain
+type LocateServer struct {
+	// Enabled will automatically locate the LDAP server using DNS SRV records.
+	// When enabled, Domain must be set, Addr will be ignored
+	// https://ldap.com/dns-srv-records-for-ldap/
+	Enabled bool `yaml:"enabled,omitempty"`
+	// Site is an LDAP site to locate servers from a specific logical site.
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/b645c125-a7da-4097-84a1-2fa7cea07714#gt_8abdc986-5679-42d9-ad76-b11eb5a0daba
+	Site string `yaml:"site,omitempty"`
+}
+
 // LDAPConfig is the LDAP connection parameters.
 type LDAPConfig struct {
 	// Addr is the host:port of the LDAP server (typically port 389).
-	Addr string `yaml:"addr"`
+	Addr string `yaml:"addr,omitempty"`
 	// Domain is the ActiveDirectory domain name.
 	Domain string `yaml:"domain"`
 	// Username for LDAP authentication.
@@ -2601,6 +2645,8 @@ type LDAPConfig struct {
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
 	// PEMEncodedCACert is an optional PEM encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	PEMEncodedCACert string `yaml:"ldap_ca_cert,omitempty"`
+	// LocateServer is the config that enables LDAP server location using DNS SRV records.
+	LocateServer `yaml:"locate_server"`
 }
 
 // LDAPDiscoveryConfig is LDAP discovery configuration for windows desktop discovery service.

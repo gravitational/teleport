@@ -16,20 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback } from 'react';
+import React, { useState } from 'react';
 import { useHistory, useParams } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
 import { Alert } from 'design/Alert/Alert';
 import Box from 'design/Box/Box';
+import { ButtonSecondary } from 'design/Button/Button';
 import ButtonIcon from 'design/ButtonIcon/ButtonIcon';
-import Flex from 'design/Flex/Flex';
+import { CardTile } from 'design/CardTile/CardTile';
+import Flex, { Stack } from 'design/Flex/Flex';
 import { ArrowLeft } from 'design/Icon/Icons/ArrowLeft';
+import { FingerprintSimple } from 'design/Icon/Icons/FingerprintSimple';
+import { NewTab } from 'design/Icon/Icons/NewTab';
+import { Pencil } from 'design/Icon/Icons/Pencil';
 import { Question } from 'design/Icon/Icons/Question';
 import { Indicator } from 'design/Indicator/Indicator';
-import { Outline } from 'design/Label/Label';
+import { SecondaryOutlined } from 'design/Label/Label';
 import Text from 'design/Text';
-import { fontWeights } from 'design/theme/typography';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
 import { traitsPreset } from 'shared/components/TraitsEditor/TraitsEditor';
@@ -40,33 +44,50 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout/Layout';
+import cfg from 'teleport/config';
+import { isAdminActionRequiresMfaError } from 'teleport/services/api/api';
 import useTeleport from 'teleport/useTeleport';
 
+import { EditDialog } from '../Edit/EditDialog';
 import { formatDuration } from '../formatDuration';
-import { useGetBot } from '../hooks';
+import { useGetBot, useListBotTokens } from '../hooks';
 import { InfoGuide } from '../InfoGuide';
+import { InstancesPanel } from './InstancesPanel';
+import { JoinMethodIcon } from './JoinMethodIcon';
 import { Panel } from './Panel';
-
-const botNameLabel = 'Bot name';
-const maxSessionDurationLabel = 'Max session duration';
 
 export function BotDetails() {
   const ctx = useTeleport();
   const history = useHistory();
   const params = useParams<{
-    name: string;
+    botName: string;
   }>();
+  const [isEditing, setEditing] = useState(false);
+
   const flags = ctx.getFeatureFlags();
   const hasReadPermission = flags.readBots;
+  const hasEditPermission = flags.editBots;
 
   const { data, error, isSuccess, isError, isLoading } = useGetBot(params, {
     enabled: hasReadPermission,
     staleTime: 30_000, // Keep data in the cache for 30 seconds
   });
 
-  const handleBackPress = useCallback(() => {
+  const handleBackPress = () => {
     history.goBack();
-  }, [history]);
+  };
+
+  const handleEdit = () => {
+    setEditing(true);
+  };
+
+  const handleEditSuccess = () => {
+    setEditing(false);
+  };
+
+  const handleViewAllTokensClicked = () => {
+    history.push(cfg.getJoinTokensRoute());
+  };
 
   return (
     <FeatureBox>
@@ -78,7 +99,13 @@ export function BotDetails() {
         </HoverTooltip>
         <Flex flex={1} gap={2} justifyContent="space-between">
           {isSuccess && data ? (
-            <FeatureHeaderTitle>{data.name}</FeatureHeaderTitle>
+            <>
+              <FeatureHeaderTitle>{data.name}</FeatureHeaderTitle>
+
+              <EditButton onClick={handleEdit} disabled={!hasEditPermission}>
+                <Pencil size="medium" /> Edit Bot
+              </EditButton>
+            </>
           ) : (
             <FeatureHeaderTitle>Bot details</FeatureHeaderTitle>
           )}
@@ -87,119 +114,158 @@ export function BotDetails() {
       </FeatureHeader>
 
       {isLoading ? (
-        <Box data-testid="loading" textAlign="center" m={10}>
+        <Box data-testid="loading-bot" textAlign="center" m={10}>
           <Indicator />
         </Box>
       ) : undefined}
 
       {isError ? (
-        <Alert kind="danger">Error: {error.message}</Alert>
+        <Alert kind="danger" details={error.message}>
+          Failed to fetch bot
+        </Alert>
       ) : undefined}
 
-      {data === null && (
-        <Alert kind="warning">Bot {params.name} does not exist</Alert>
-      )}
+      {isSuccess && data === null ? (
+        <Alert kind="warning">Bot {params.botName} does not exist</Alert>
+      ) : undefined}
 
-      {!hasReadPermission && (
-        <Alert kind="warning">
-          You do not have permission to view this bot.
+      {!hasReadPermission ? (
+        <Alert kind="info">
+          You do not have permission to view this bot. Missing role permissions:{' '}
+          <code>bots.read</code>
         </Alert>
-      )}
+      ) : undefined}
 
       {hasReadPermission && isSuccess && data ? (
         <Container>
           <ColumnContainer>
-            <Panel title="Bot Details" />
+            <Panel
+              title="Bot Details"
+              action={{
+                label: 'Edit',
+                onClick: handleEdit,
+                iconLeft: <Pencil size={'medium'} />,
+                disabled: !hasEditPermission,
+              }}
+            />
             <Divider />
 
             <Panel title="Metadata" isSubPanel>
-              <TransposedTable>
-                <tbody>
-                  <tr>
-                    <th scope="row">{botNameLabel}</th>
-                    <td>
-                      <Flex inline alignItems={'center'} gap={1} mr={0}>
-                        <MonoText>{data.name}</MonoText>
-                        <CopyButton name={data.name} />
-                      </Flex>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th scope="row">{maxSessionDurationLabel}</th>
-                    <td>
-                      {data.max_session_ttl?.seconds
-                        ? formatDuration(data.max_session_ttl)
-                        : '-'}
-                    </td>
-                  </tr>
-                </tbody>
-              </TransposedTable>
+              <PanelContentContainer>
+                <Grid>
+                  <GridLabel>Bot name</GridLabel>
+                  <Flex inline alignItems={'center'} gap={1}>
+                    <MonoText>{data.name}</MonoText>
+                    <CopyButton name={data.name} />
+                  </Flex>
+                  <GridLabel>Max session duration</GridLabel>
+                  {data.max_session_ttl
+                    ? formatDuration(data.max_session_ttl, {
+                        separator: ' ',
+                      })
+                    : '-'}
+                </Grid>
+              </PanelContentContainer>
             </Panel>
 
             <PaddedDivider />
 
             <Panel title="Roles" isSubPanel>
-              <Flex>
-                {data.roles.toSorted().map(r => (
-                  <Outline mr="1" key={r}>
-                    {r}
-                  </Outline>
-                ))}
-              </Flex>
+              <PanelContentContainer>
+                {data.roles.length ? (
+                  <RolesContainer>
+                    {data.roles.toSorted().map(r => (
+                      <SecondaryOutlined mr="1" key={r}>
+                        {r}
+                      </SecondaryOutlined>
+                    ))}
+                  </RolesContainer>
+                ) : (
+                  'No roles assigned'
+                )}
+              </PanelContentContainer>
             </Panel>
 
             <PaddedDivider />
 
             <Panel title="Traits" isSubPanel>
-              <TransposedTable>
-                <tbody>
-                  {data.traits
-                    .toSorted((a, b) => a.name.localeCompare(b.name))
-                    .map(r => (
-                      <tr key={r.name}>
-                        <th scope="row">
-                          <Trait traitName={r.name} />
-                        </th>
-                        <td>
-                          {r.values.length > 0
-                            ? r.values.toSorted().map(v => (
-                                <Outline mr="1" key={v}>
-                                  {v}
-                                </Outline>
-                              ))
-                            : 'no values'}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </TransposedTable>
+              <PanelContentContainer>
+                {data.traits.length ? (
+                  <Grid>
+                    {data.traits
+                      .toSorted((a, b) => a.name.localeCompare(b.name))
+                      .map(r => (
+                        <React.Fragment key={r.name}>
+                          <GridLabel>
+                            <Trait traitName={r.name} />
+                          </GridLabel>
+                          <div>
+                            {r.values.length > 0
+                              ? r.values.toSorted().map(v => (
+                                  <SecondaryOutlined mr="1" key={v}>
+                                    {v}
+                                  </SecondaryOutlined>
+                                ))
+                              : 'no values'}
+                          </div>
+                        </React.Fragment>
+                      ))}
+                  </Grid>
+                ) : (
+                  'No traits set'
+                )}
+              </PanelContentContainer>
             </Panel>
 
             <Divider />
 
-            <Panel title="Join Tokens">Coming soon</Panel>
+            <JoinTokens
+              botName={data.name}
+              onViewAllClicked={handleViewAllTokensClicked}
+            />
           </ColumnContainer>
-          <ColumnContainer>
-            <Panel title="Active Instances">Coming soon</Panel>
+          <ColumnContainer maxWidth={400}>
+            <InstancesPanel botName={params.botName} />
           </ColumnContainer>
+
+          {isEditing ? (
+            <EditDialog
+              botName={data.name}
+              onCancel={() => setEditing(false)}
+              onSuccess={handleEditSuccess}
+            />
+          ) : undefined}
         </Container>
       ) : undefined}
     </FeatureBox>
   );
 }
 
-const Container = styled(Flex).attrs({ gap: 3 })``;
-
-const ColumnContainer = styled(Flex)`
+const Container = styled(Flex).attrs({ gap: 2 })`
   flex: 1;
-  flex-direction: column;
-  background-color: ${p => p.theme.colors.levels.surface};
-  border-radius: ${props => props.theme.space[1]}px;
+  overflow: auto;
 `;
+
+const ColumnContainer = styled(CardTile)`
+  flex-direction: column;
+  overflow: auto;
+  padding: 0;
+  gap: 0;
+  margin: ${props => props.theme.space[1]}px;
+`;
+
+const PanelContentContainer = styled(Flex)`
+  flex-direction: column;
+  padding: ${props => props.theme.space[3]}px;
+  padding-top: 0;
+`;
+
+const RolesContainer = styled.div``;
 
 const Divider = styled.div`
   height: 1px;
   background-color: ${p => p.theme.colors.interactive.tonal.neutral[0]};
+  flex-shrink: 0;
 `;
 
 const PaddedDivider = styled(Divider)`
@@ -207,18 +273,25 @@ const PaddedDivider = styled(Divider)`
   margin-right: ${props => props.theme.space[3]}px;
 `;
 
-const TransposedTable = styled.table`
-  th {
-    text-align: start;
-    padding-right: ${props => props.theme.space[3]}px;
-    width: 1%; // Minimum width to fit content
-    color: ${({ theme }) => theme.colors.text.muted};
-    font-weight: ${fontWeights.regular};
-  }
+const Grid = styled(Box)`
+  align-self: flex-start;
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: ${({ theme }) => theme.space[2]}px;
+`;
+
+const GridLabel = styled(Text)`
+  color: ${({ theme }) => theme.colors.text.muted};
+  font-weight: ${({ theme }) => theme.fontWeights.regular};
+  padding-right: ${({ theme }) => theme.space[2]}px;
 `;
 
 const MonoText = styled(Text)`
   font-family: ${({ theme }) => theme.fonts.mono};
+`;
+
+const EditButton = styled(ButtonSecondary)`
+  gap: ${props => props.theme.space[2]}px;
 `;
 
 const traitDescriptions: { [key in (typeof traitsPreset)[number]]: string } = {
@@ -260,3 +333,120 @@ function Trait(props: { traitName: string }) {
     props.traitName
   );
 }
+
+function JoinTokens(props: { botName: string; onViewAllClicked: () => void }) {
+  const { botName, onViewAllClicked } = props;
+
+  const ctx = useTeleport();
+  const flags = ctx.getFeatureFlags();
+  const hasListPermission = flags.listTokens;
+
+  const [skipAuthnRetry, setSkipAuthnRetry] = useState(true);
+
+  const { data, error, isSuccess, isError, isLoading } = useListBotTokens(
+    { botName, skipAuthnRetry },
+    {
+      enabled: hasListPermission,
+      staleTime: 30_000, // Keep data in the cache for 30 seconds
+    }
+  );
+
+  const requiresMfa = isError && isAdminActionRequiresMfaError(error);
+
+  const handleVerifyClick = () => {
+    setSkipAuthnRetry(false);
+  };
+
+  return (
+    <Panel
+      title="Join Tokens"
+      isSubPanel
+      action={{
+        label: 'View All',
+        onClick: onViewAllClicked,
+        iconRight: <NewTab size={'medium'} />,
+        disabled: !hasListPermission,
+      }}
+    >
+      <PanelContentContainer>
+        {isLoading ? (
+          <Box data-testid="loading-tokens" textAlign="center" m={10}>
+            <Indicator />
+          </Box>
+        ) : undefined}
+
+        {!hasListPermission ? (
+          <Alert kind="info">
+            You do not have permission to view join tokens. Missing role
+            permissions: <code>tokens.list</code>
+          </Alert>
+        ) : undefined}
+
+        {requiresMfa ? (
+          <MfaContainer>
+            <MfaText fontWeight={'regular'}>
+              Multi-factor authentication is required to view join tokens
+            </MfaText>
+            <MfaVerifyButton onClick={handleVerifyClick}>
+              <FingerprintSimple size="medium" /> Authenticate
+            </MfaVerifyButton>
+          </MfaContainer>
+        ) : undefined}
+
+        {isError && !requiresMfa ? (
+          <Alert kind="danger" details={error.message}>
+            Failed to fetch join tokens
+          </Alert>
+        ) : undefined}
+
+        {isSuccess ? (
+          <>
+            {data.items.length ? (
+              <Flex gap={1} flexWrap={'wrap'}>
+                {data.items
+                  .toSorted((a, b) => a.safeName.localeCompare(b.safeName))
+                  .map(t => {
+                    return (
+                      <SecondaryOutlined key={t.id}>
+                        <HoverTooltip placement="top" tipContent={t.method}>
+                          <Flex alignItems={'center'} gap={1}>
+                            <JoinMethodIcon
+                              method={t.method}
+                              size={'small'}
+                              includeTooltip={false}
+                            />
+                            {t.safeName}
+                          </Flex>
+                        </HoverTooltip>
+                      </SecondaryOutlined>
+                    );
+                  })}
+              </Flex>
+            ) : (
+              'No join tokens'
+            )}
+          </>
+        ) : undefined}
+      </PanelContentContainer>
+    </Panel>
+  );
+}
+
+const MfaContainer = styled(Stack)`
+  align-items: center;
+  gap: ${props => props.theme.space[2]}px;
+  background-color: ${props => props.theme.colors.interactive.tonal.neutral[0]};
+  padding: ${props => props.theme.space[4]}px;
+  border: ${props => props.theme.borders[1]}
+    ${props => props.theme.colors.interactive.tonal.neutral[0]};
+  border-radius: ${props => props.theme.radii[2]}px;
+`;
+
+const MfaText = styled(Text)`
+  max-width: 216px;
+  text-align: center;
+`;
+
+const MfaVerifyButton = styled(ButtonSecondary)`
+  gap: ${props => props.theme.space[2]}px;
+`;

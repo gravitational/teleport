@@ -57,6 +57,10 @@ const (
 	LogOutputSyslog = "syslog"
 	// LogOutputOSLog represents os_log, the unified logging system on macOS, as the destination for logs.
 	LogOutputOSLog = "os_log"
+	// LogOutputMCP defines to where the MCP command logs will be directed to.
+	// The stdout is exclusively used as the MCP server transport, leaving only
+	// stderr available.
+	LogOutputMCP = "stderr"
 )
 
 // Initialize configures the default global logger based on the

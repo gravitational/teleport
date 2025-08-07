@@ -19,17 +19,19 @@
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 import {
+  canUseV1Edit,
   makeBot,
-  parseGetBotInstanceResponse,
-  parseListBotInstancesResponse,
   toApiGitHubTokenSpec,
+  validateGetBotInstanceResponse,
+  validateListBotInstancesResponse,
 } from 'teleport/services/bot/consts';
 import ResourceService, { RoleResource } from 'teleport/services/resources';
 import { FeatureFlags } from 'teleport/types';
 
+import { validateListJoinTokensResponse } from '../joinToken/consts';
 import { MfaChallengeResponse } from '../mfa';
+import { withGenericUnsupportedError } from '../version/unsupported';
 import {
-  BotList,
   BotResponse,
   CreateBotJoinTokenRequest,
   CreateBotRequest,
@@ -42,7 +44,7 @@ export function createBot(
   mfaResponse?: MfaChallengeResponse
 ): Promise<void> {
   return api.post(
-    cfg.getBotsUrl(),
+    cfg.getBotUrl({ action: 'create' }),
     config,
     undefined /* abort signal */,
     mfaResponse
@@ -51,13 +53,13 @@ export function createBot(
 
 export async function getBot(
   variables: {
-    name: string;
+    botName: string;
   },
   signal?: AbortSignal
 ): Promise<FlatBot | null> {
   try {
     return await api
-      .get(cfg.getBotUrlWithName(variables.name), signal)
+      .get(cfg.getBotUrl({ action: 'read', ...variables }), signal)
       .then(makeBot);
   } catch (err) {
     // capture the not found error response and return null instead of throwing
@@ -85,52 +87,92 @@ export function createBotToken(
   );
 }
 
-export function fetchBots(
-  signal: AbortSignal,
-  flags: FeatureFlags
-): Promise<BotList> {
+export async function listBotTokens(
+  variables: { botName: string; skipAuthnRetry: boolean },
+  signal: AbortSignal
+) {
+  const path = cfg.getJoinTokenUrl({ action: 'listV2' });
+  const qs = new URLSearchParams();
+  qs.set('bot_name', variables.botName);
+  qs.set('role', 'bot');
+
+  try {
+    const data = await api.get(`${path}?${qs.toString()}`, signal, undefined, {
+      skipAuthnRetry: variables.skipAuthnRetry,
+    });
+
+    if (!validateListJoinTokensResponse(data)) {
+      throw new Error('failed to validate list join tokens response');
+    }
+
+    return data;
+  } catch (err) {
+    // TODO(nicholasmarais1158) DELETE IN v20.0.0
+    withGenericUnsupportedError(err, '18.1.0');
+  }
+}
+
+export async function fetchBots(signal: AbortSignal, flags: FeatureFlags) {
   if (!flags.listBots) {
-    return;
+    throw new Error('cannot fetch bots: bots.list permission required');
   }
 
-  return api.get(cfg.getBotsUrl(), signal).then((json: BotResponse) => {
-    const items = json?.items || [];
-    return { bots: items.map(makeBot) };
-  });
+  return api
+    .get(cfg.getBotUrl({ action: 'list' }), signal)
+    .then((json: BotResponse) => {
+      const items = json?.items || [];
+      return { bots: items.map(makeBot) };
+    });
 }
 
 export async function fetchRoles(
-  search: string,
-  flags: FeatureFlags
+  variables: { search: string; flags: FeatureFlags },
+  signal?: AbortSignal
 ): Promise<{ startKey: string; items: RoleResource[] }> {
-  if (!flags.roles) {
+  if (!variables.flags.roles) {
     return { startKey: '', items: [] };
   }
 
   const resourceSvc = new ResourceService();
-  return resourceSvc.fetchRoles({ limit: 50, search });
+  return resourceSvc.fetchRoles(
+    { limit: 50, search: variables.search },
+    signal
+  );
 }
 
-export function editBot(
+export async function editBot(
   flags: FeatureFlags,
-  name: string,
+  botName: string,
   req: EditBotRequest
-): Promise<FlatBot> {
-  if (!flags.editBots || !flags.roles) {
-    return;
+) {
+  if (!flags.editBots) {
+    throw new Error('cannot edit bot: bots.edit permission required');
+  }
+  if (!flags.roles) {
+    throw new Error('cannot edit bot: roles.list permission required');
   }
 
-  return api.put(cfg.getBotUrlWithName(name), req).then(res => {
+  // TODO(nicholasmarais1158) DELETE IN v20.0.0
+  const useV1 = canUseV1Edit(req);
+  const path = useV1
+    ? cfg.getBotUrl({ action: 'update', botName })
+    : cfg.getBotUrl({ action: 'update-v2', botName });
+
+  try {
+    const res = await api.put(path, req);
     return makeBot(res);
-  });
+  } catch (err: unknown) {
+    // TODO(nicholasmarais1158) DELETE IN v20.0.0
+    withGenericUnsupportedError(err, '18.1.0');
+  }
 }
 
 export function deleteBot(flags: FeatureFlags, name: string) {
   if (!flags.removeBots) {
-    return;
+    throw new Error('cannot delete bot: bots.remove permission required');
   }
 
-  return api.delete(cfg.getBotUrlWithName(name));
+  return api.delete(cfg.getBotUrl({ action: 'delete', botName: name }));
 }
 
 export async function listBotInstances(
@@ -145,7 +187,7 @@ export async function listBotInstances(
 ) {
   const { pageToken, pageSize, searchTerm, sort, botName } = variables;
 
-  const path = cfg.listBotInstancesUrl();
+  const path = cfg.getBotInstanceUrl({ action: 'list' });
   const qs = new URLSearchParams();
 
   qs.set('page_size', pageSize.toFixed());
@@ -162,8 +204,8 @@ export async function listBotInstances(
 
   const data = await api.get(`${path}?${qs.toString()}`, signal);
 
-  if (!parseListBotInstancesResponse(data)) {
-    throw new Error('failed to parse list bot instances response');
+  if (!validateListBotInstancesResponse(data)) {
+    throw new Error('failed to validate list bot instances response');
   }
 
   return data;
@@ -176,12 +218,12 @@ export async function getBotInstance(
   },
   signal?: AbortSignal
 ) {
-  const path = cfg.getBotInstanceUrl(variables.botName, variables.instanceId);
+  const path = cfg.getBotInstanceUrl({ action: 'read', ...variables });
 
   const data = await api.get(path, signal);
 
-  if (!parseGetBotInstanceResponse(data)) {
-    throw new Error('failed to parse get bot instance response');
+  if (!validateGetBotInstanceResponse(data)) {
+    throw new Error('failed to validate get bot instance response');
   }
 
   return data;

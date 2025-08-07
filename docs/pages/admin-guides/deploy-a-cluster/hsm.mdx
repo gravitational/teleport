@@ -2,14 +2,26 @@
 title: HSM Support
 description: How to configure Hardware Security Modules to manage your Teleport CA private keys
 h1: Teleport HSM Support
+labels:
+ - how-to
+ - platform-wide
 ---
 
 This guide will show you how to set up the Teleport Auth Service to use a
 hardware security module (HSM) to store and handle private keys.
 
+## How it works
+
+The Teleport Auth Service maintains several [certificate
+authorities](../management/operations/ca-rotation.mdx) that it uses for critical
+cluster operations, such as issuing certificates to users to authenticate to
+Teleport-protected resources. Each certificate authority uses a private key to
+sign certificates. On self-hosted clusters, you can instruct the Teleport Auth
+Service to sign certificates with private keys that it obtains from your HSM. 
+
 ## Prerequisites
 
-- Teleport v(=teleport.version=) Enterprise (self-hosted).
+- Teleport Enterprise (self-hosted).
 - (!docs/pages/includes/tctl.mdx!)
 - An HSM reachable from your Teleport Auth Service.
 - The PKCS#11 module for your HSM.

@@ -2,6 +2,9 @@
 title: Machine ID Configuration Reference
 description: Configuration reference for Teleport Machine ID.
 tocDepth: 4
+labels:
+ - reference
+ - mwi
 ---
 
 This reference documents the various options that can be configured in the `tbot`
@@ -119,6 +122,11 @@ onboarding:
     # multiple Teleport clusters from a single GitLab CI job.
     token_env_var_name: "MY_GITLAB_ID_TOKEN"
 
+  # bound_keypair holds parameters specific to the "bound_keypair" join method
+  bound_keypair:
+    # registration_secret is an optional secret to use on first join in lieu of
+    # a preregistered keypair.
+    registration_secret: "secret"
 
 # storage specifies the destination that `tbot` should use to store its
 # internal state. This state is sensitive, and you should ensure that the
@@ -214,7 +222,7 @@ output used in context.
 # always be `identity`.
 type: identity
 # ssh_config controls whether the identity output will attempt to generate an
-# OpenSSH configuration file. This requires that `tbot` can connect to the 
+# OpenSSH configuration file. This requires that `tbot` can connect to the
 # Teleport Proxy Service. Must be "on" or "off". If unspecified, this defaults to
 # "on".
 ssh_config: on

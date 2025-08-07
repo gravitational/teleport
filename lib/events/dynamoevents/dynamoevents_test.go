@@ -46,15 +46,16 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
-	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 const dynamoDBLargeQueryRetries int = 10
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -642,7 +643,7 @@ func TestEndpoints(t *testing.T) {
 			fips := types.ClusterAuditConfigSpecV2_FIPS_DISABLED
 			if tt.fips {
 				fips = types.ClusterAuditConfigSpecV2_FIPS_ENABLED
-				modules.SetTestModules(t, &modules.TestModules{
+				modulestest.SetTestModules(t, modulestest.Modules{
 					FIPS: true,
 				})
 			}

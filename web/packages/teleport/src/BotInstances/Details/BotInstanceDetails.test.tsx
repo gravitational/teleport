@@ -58,7 +58,7 @@ jest.mock('design/utils/copyToClipboard', () => {
 
 const server = setupServer();
 
-beforeEach(() => {
+beforeAll(() => {
   server.listen();
 });
 

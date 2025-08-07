@@ -18,11 +18,8 @@ package vnet
 
 import (
 	"context"
-	"crypto"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
-	"io"
 
 	"github.com/gravitational/trace"
 
@@ -59,64 +56,27 @@ func (p *appProvider) ReissueAppCert(ctx context.Context, appInfo *vnetv1.AppInf
 	return tlsCert, nil
 }
 
-func (p *appProvider) newAppCertSigner(cert []byte, appKey *vnetv1.AppKey, targetPort uint16) (*rpcAppCertSigner, error) {
+func (p *appProvider) newAppCertSigner(cert []byte, appKey *vnetv1.AppKey, targetPort uint16) (*rpcSigner, error) {
 	x509Cert, err := x509.ParseCertificate(cert)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing x509 certificate")
 	}
-	return &rpcAppCertSigner{
-		clt:        p.clt,
-		pub:        x509Cert.PublicKey,
-		appKey:     appKey,
-		targetPort: targetPort,
+	pub := x509Cert.PublicKey
+	return &rpcSigner{
+		pub: pub,
+		sendRequest: func(req *vnetv1.SignRequest) ([]byte, error) {
+			return p.clt.SignForApp(context.TODO(), &vnetv1.SignForAppRequest{
+				AppKey:     appKey,
+				TargetPort: uint32(targetPort),
+				Sign:       req,
+			})
+		},
 	}, nil
 }
 
-// rpcAppCertSigner implements [crypto.Signer] for app TLS signatures that are
-// issued by the client application over gRPC.
-type rpcAppCertSigner struct {
-	clt        *clientApplicationServiceClient
-	pub        crypto.PublicKey
-	appKey     *vnetv1.AppKey
-	targetPort uint16
-}
-
-// Public implements [crypto.Signer.Public] and returns the public key
-// associated with the signer.
-func (s *rpcAppCertSigner) Public() crypto.PublicKey {
-	return s.pub
-}
-
-// Sign implements [crypto.Signer.Sign] and issues a signature over digest for
-// the associated app.
-func (s *rpcAppCertSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	req := &vnetv1.SignForAppRequest{
-		AppKey:     s.appKey,
-		TargetPort: uint32(s.targetPort),
-		Digest:     digest,
-	}
-	switch opts.HashFunc() {
-	case 0:
-		req.Hash = vnetv1.Hash_HASH_NONE
-	case crypto.SHA256:
-		req.Hash = vnetv1.Hash_HASH_SHA256
-	default:
-		return nil, trace.BadParameter("unsupported signature hash func %v", opts.HashFunc())
-	}
-	if pssOpts, ok := opts.(*rsa.PSSOptions); ok {
-		saltLen := int32(pssOpts.SaltLength)
-		req.PssSaltLength = &saltLen
-	}
-	signature, err := s.clt.SignForApp(context.TODO(), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return signature, nil
-}
-
-// OnNewConnection reports a new TCP connection to the target app.
-func (p *appProvider) OnNewConnection(ctx context.Context, appKey *vnetv1.AppKey) error {
-	if err := p.clt.OnNewConnection(ctx, appKey); err != nil {
+// OnNewAppConnection reports a new TCP connection to the target app.
+func (p *appProvider) OnNewAppConnection(ctx context.Context, appKey *vnetv1.AppKey) error {
+	if err := p.clt.OnNewAppConnection(ctx, appKey); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

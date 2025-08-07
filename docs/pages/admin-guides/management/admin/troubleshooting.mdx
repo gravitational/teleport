@@ -1,6 +1,9 @@
 ---
 title: Troubleshooting
 description: Troubleshooting and Collecting Metrics of Teleport Processes
+labels:
+ - how-to
+ - platform-wide
 ---
 
 In this guide, we will explain how to address issues or unexpected behavior in your
@@ -9,6 +12,22 @@ Teleport cluster.
 You can use these steps to get more visibility into the `teleport` process so
 you can troubleshoot the Auth Service, Proxy Service, and Teleport Agent
 services such as the Application Service and Database Service.
+
+## How it works
+
+A Teleport process exposes several methods that you can use to collect data
+about its internal operations:
+
+- **Debug Service:** A service that runs within a Teleport process and allows
+  users to change the log level of the Teleport instance without restarting it.
+- **Verbose logging:** It is possible to change the log level of a Teleport
+  process using its configuration file.
+- **Debug dump:** Teleport is a Go program. The Go runtime schedules operations
+  within CPU threads using an abstraction called a goroutine, and you can
+  generate a file containing information about each running goroutine.
+
+For further information, you can [ask for help](#step-33-ask-for-help) from the
+Teleport team or community.
 
 ## Prerequisites
 

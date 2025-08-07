@@ -1005,12 +1005,16 @@ func (d *databaseInfo) getChecker(ctx context.Context, tc *client.TeleportClient
 	}
 	defer clusterClient.Close()
 
+	return makeAccessChecker(ctx, tc, clusterClient.AuthClient)
+}
+
+func makeAccessChecker(ctx context.Context, tc *client.TeleportClient, auth services.CurrentUserRoleGetter) (services.AccessChecker, error) {
 	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	checker, err := services.NewAccessCheckerForRemoteCluster(ctx, profile.AccessInfo(), tc.SiteName, clusterClient.AuthClient)
+	checker, err := services.NewAccessCheckerForRemoteCluster(ctx, profile.AccessInfo(), tc.SiteName, auth)
 	return checker, trace.Wrap(err)
 }
 

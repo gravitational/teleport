@@ -69,7 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
@@ -394,7 +394,7 @@ func TestWithRsync(t *testing.T) {
 					if !assert.NoError(t, err) {
 						return
 					}
-					sshCert, tlsCert, err := asrv.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+					sshCert, tlsCert, err := asrv.GenerateUserTestCertsWithContext(ctx, auth.GenerateUserTestCertsRequest{
 						SSHPubKey:      sshPubKey,
 						TLSPubKey:      tlsPubKey,
 						Username:       accessUser.GetName(),
@@ -986,21 +986,19 @@ func createAgent(t *testing.T) (agent.ExtendedAgent, string) {
 	keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
 	require.True(t, ok)
 
-	teleAgent := teleagent.NewServer(func() (teleagent.Agent, error) {
-		return teleagent.NopCloser(keyring), nil
-	})
+	agentServer := sshagent.NewServer(sshagent.NewStaticClientGetter(keyring))
 
 	// Start the SSH agent.
-	err := teleAgent.ListenUnixSocket(sockDir, sockName, nil)
+	err := agentServer.ListenUnixSocket(sockDir, sockName, nil)
 	require.NoError(t, err)
-	go teleAgent.Serve()
+	go agentServer.Serve()
 	t.Cleanup(func() {
-		teleAgent.Close()
+		agentServer.Close()
 	})
 
-	t.Setenv(teleport.SSHAuthSock, teleAgent.Path)
+	t.Setenv(teleport.SSHAuthSock, agentServer.Path)
 
-	return keyring, teleAgent.Path
+	return keyring, agentServer.Path
 }
 
 func disableAgent(t *testing.T) {
@@ -1530,7 +1528,7 @@ func TestProxyAppWithIdentity(t *testing.T) {
 	// make other auth API calls beyond just accessing the app.
 	tlsPub, err := privateKey.MarshalTLSPublicKey()
 	require.NoError(t, err)
-	sshCert, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+	sshCert, tlsCert, err := authServer.GenerateUserTestCertsWithContext(ctx, auth.GenerateUserTestCertsRequest{
 		SSHPubKey:      privateKey.MarshalSSHPublicKey(),
 		TLSPubKey:      tlsPub,
 		Username:       userName,

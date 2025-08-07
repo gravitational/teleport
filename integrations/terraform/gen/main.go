@@ -21,7 +21,10 @@ import (
 	"log"
 	"os"
 	"path"
+	"strings"
 	"text/template"
+
+	"github.com/gravitational/teleport/integrations/terraform/gen/strcase"
 )
 
 // payload represents template payload
@@ -50,6 +53,8 @@ type payload struct {
 	WithSecrets string
 	// ID id value on create and import
 	ID string
+	// IDPrefix is optional for resources which are stored with an prefix in the backend.
+	IDPrefix string
 	// RandomMetadataName indicates that Metadata.Name must be generated (supported by plural resources only)
 	RandomMetadataName bool
 	// UUIDMetadataName functions similar to RandomMetadataName but generates UUID instead of
@@ -90,6 +95,12 @@ type payload struct {
 	WithNonce bool
 	// ConvertPackagePath is the path of the package doing the conversion between protobuf and the go types.
 	ConvertPackagePath string
+	// ConvertToProtoFunc is the function converting the internal struct to the protobuf
+	// struct. Defaults to "ToProto" if empty.
+	ConvertToProtoFunc string
+	// ConvertFromProtoFunc is the function converting the protobuf struct to the internal
+	// struct. Defaults to "FromProto" if empty.
+	ConvertFromProtoFunc string
 	// PropagatedFields is a list of fields that must be copied from the
 	// existing resource when we're updating it. For example:
 	// "Spec.Audit.NextAuditDate" in AccessList resource
@@ -706,6 +717,9 @@ func generate(p payload, tpl, outFile string) {
 	}
 
 	funcs := template.FuncMap{
+		"join":    strings.Join,
+		"split":   strings.Split,
+		"toSnake": toSnake,
 		"schemaImport": func(p payload) string {
 			if p.SchemaPackage == "tfschema" {
 				return `"` + p.SchemaPackagePath + `"`
@@ -737,4 +751,9 @@ func generate(p payload, tpl, outFile string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+// ToSnake converts a string to snake_case ignoring "." characters.
+func toSnake(s string) string {
+	return strcase.ToScreamingDelimited(s, '_', ".", false)
 }

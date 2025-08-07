@@ -1,6 +1,9 @@
 ---
 title: Database Access CLI Reference
 description: CLI reference for Teleport database access.
+labels:
+ - reference
+ - zero-trust
 ---
 
 This reference shows you how to run common commands for managing Teleport
@@ -391,6 +394,8 @@ $ tsh db exec "select 1" --db-user mysql --labels env=dev --parallel=5 --output-
   database CLI clients (`psql`, `mysql`) should be available in PATH.
 </Admonition>
 
+{/* vale messaging.capitalization = NO */}
+
 | Flag | Description |
 | - | - |
 | `--db-user` | The database user to log in as. |
@@ -401,6 +406,8 @@ $ tsh db exec "select 1" --db-user mysql --labels env=dev --parallel=5 --output-
 | `--labels` | List of comma separated labels to filter by labels (e.g. `key1=value1,key2=value2`). |
 | `--output-dir` | Directory to store command output per target database service. A summary is saved as "summary.json". |
 | `--[no-]confirm` | Confirm selected database services before executing command. |
+
+{/* vale messaging.capitalization = YES */}
 
 ## tsh db env
 

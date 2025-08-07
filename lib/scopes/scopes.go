@@ -61,6 +61,12 @@ const (
 	breakingChars = "\\@(){}\"'%*?#$!+=|<>,;~`&[]/"
 )
 
+// Root is the root scope. Non-policy resources being grandfathered into scoping should use this
+// as their default scope value, which will exclude the resource from administration by any policy
+// other than non-scoped policies and root-scoped policies. Note that there is no sane default scoping
+// for a policy. Policy resources should never use this or any other default scope value.
+const Root = separator
+
 // StrongValidate checks if the scope is valid according to all scope formatting rules. This function
 // *must* be called on all scope values received from user input and/or cluster-external sources (e.g.
 // an identity provider). Use of this function should be avoided when checking the validity of scopes

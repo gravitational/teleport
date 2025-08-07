@@ -50,7 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // TestHandleAWSAccessSigVerification tests if LocalProxy verifies the AWS SigV4 signature of incoming request.
@@ -614,7 +614,7 @@ func TestKubeMiddleware(t *testing.T) {
 			km := NewKubeMiddleware(KubeMiddlewareConfig{
 				Certs:        tt.startCerts,
 				CertReissuer: certReissuer,
-				Logger:       utils.NewSlogLoggerForTests(),
+				Logger:       logtest.NewLogger(),
 				Clock:        tt.clock,
 				CloseContext: context.Background(),
 			})

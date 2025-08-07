@@ -63,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 var (
@@ -130,7 +131,7 @@ func TestAuthenticate(t *testing.T) {
 		},
 	}
 	f := &Forwarder{
-		log: utils.NewSlogLoggerForTests(),
+		log: logtest.NewLogger(),
 		cfg: ForwarderConfig{
 			ClusterName:       "local",
 			CachingAuthClient: ap,
@@ -1110,7 +1111,7 @@ func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
 	require.NoError(t, err)
 
 	return &Forwarder{
-		log:    utils.NewSlogLoggerForTests(),
+		log:    logtest.NewLogger(),
 		router: httprouter.New(),
 		cfg: ForwarderConfig{
 			Keygen:            testauthority.New(),
@@ -1275,7 +1276,7 @@ func (m *mockWatcher) Done() <-chan struct{} {
 
 func newTestForwarder(ctx context.Context, cfg ForwarderConfig) *Forwarder {
 	return &Forwarder{
-		log:            utils.NewSlogLoggerForTests(),
+		log:            logtest.NewLogger(),
 		router:         httprouter.New(),
 		cfg:            cfg,
 		activeRequests: make(map[string]context.Context),
@@ -1634,7 +1635,7 @@ func TestForwarderTLSConfigCAs(t *testing.T) {
 				return x509.NewCertPool(), nil
 			},
 		},
-		log: utils.NewSlogLoggerForTests(),
+		log: logtest.NewLogger(),
 		ctx: context.Background(),
 	}
 

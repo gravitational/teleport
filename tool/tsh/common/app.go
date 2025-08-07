@@ -79,6 +79,10 @@ func onAppLogin(cf *CLIConf) error {
 	}
 	defer clusterClient.Close()
 
+	if app.IsMCP() {
+		return trace.BadParameter("MCP applications are not supported. Please see 'tsh mcp config --help' for more details.")
+	}
+
 	if err := validateTargetPort(app, int(cf.TargetPort)); err != nil {
 		return trace.Wrap(err)
 	}

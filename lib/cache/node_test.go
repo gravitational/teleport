@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services/suite"
 )
 
 // TestNodes tests nodes cache
@@ -43,7 +42,7 @@ func TestNodes(t *testing.T) {
 
 		testResources(t, p, testFuncs[types.Server]{
 			newResource: func(name string) (types.Server, error) {
-				return suite.NewServer(types.KindNode, name, "127.0.0.1:2022", apidefaults.Namespace), nil
+				return NewServer(types.KindNode, name, "127.0.0.1:2022", apidefaults.Namespace), nil
 			},
 			create: withKeepalive(p.presenceS.UpsertNode),
 			list: func(ctx context.Context) ([]types.Server, error) {
@@ -52,7 +51,7 @@ func TestNodes(t *testing.T) {
 			cacheGet: func(ctx context.Context, name string) (types.Server, error) {
 				return p.cache.GetNode(ctx, apidefaults.Namespace, name)
 			},
-			cacheList: func(ctx context.Context) ([]types.Server, error) {
+			cacheList: func(ctx context.Context, pageSize int) ([]types.Server, error) {
 				return p.cache.GetNodes(ctx, apidefaults.Namespace)
 			},
 			update: withKeepalive(p.presenceS.UpsertNode),
@@ -70,7 +69,7 @@ func TestNodes(t *testing.T) {
 
 		testResources(t, p, testFuncs[types.Server]{
 			newResource: func(name string) (types.Server, error) {
-				return suite.NewServer(types.KindNode, name, "127.0.0.1:2022", apidefaults.Namespace), nil
+				return NewServer(types.KindNode, name, "127.0.0.1:2022", apidefaults.Namespace), nil
 			},
 			create: withKeepalive(p.presenceS.UpsertNode),
 			list: func(ctx context.Context) ([]types.Server, error) {
@@ -101,9 +100,10 @@ func TestNodes(t *testing.T) {
 			cacheGet: func(ctx context.Context, name string) (types.Server, error) {
 				return p.cache.GetNode(ctx, apidefaults.Namespace, name)
 			},
-			cacheList: func(ctx context.Context) ([]types.Server, error) {
+			cacheList: func(ctx context.Context, pageSize int) ([]types.Server, error) {
 				req := proto.ListResourcesRequest{
 					ResourceType: types.KindNode,
+					Limit:        int32(pageSize),
 				}
 
 				var out []types.Server
@@ -150,7 +150,7 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 
 	go func() {
 		for i := 0; i < nodeCount; i++ {
-			server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+			server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 			_, err := p.presenceS.UpsertNode(ctx, server)
 			if err != nil {
 				createErr <- err

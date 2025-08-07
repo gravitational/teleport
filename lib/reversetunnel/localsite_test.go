@@ -40,10 +40,11 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 
 	os.Exit(m.Run())
 }
@@ -62,7 +63,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 	watcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: "test",
-			Logger:    utils.NewSlogLoggerForTests(),
+			Logger:    logtest.NewLogger(),
 			Clock:     clock,
 			Client:    clt,
 		},
@@ -77,7 +78,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 		ctx:              ctx,
 		Config:           Config{Clock: clock},
 		localAuthClient:  &mockLocalSiteClient{},
-		logger:           utils.NewSlogLoggerForTests(),
+		logger:           logtest.NewLogger(),
 		offlineThreshold: time.Second,
 		proxyWatcher:     watcher,
 	}
@@ -258,7 +259,7 @@ func TestProxyResync(t *testing.T) {
 	watcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: "test",
-			Logger:    utils.NewSlogLoggerForTests(),
+			Logger:    logtest.NewLogger(),
 			Clock:     clock,
 			Client:    clt,
 		},
@@ -273,7 +274,7 @@ func TestProxyResync(t *testing.T) {
 		ctx:              ctx,
 		Config:           Config{Clock: clock},
 		localAuthClient:  &mockLocalSiteClient{},
-		logger:           utils.NewSlogLoggerForTests(),
+		logger:           logtest.NewLogger(),
 		offlineThreshold: 24 * time.Hour,
 		proxyWatcher:     watcher,
 	}

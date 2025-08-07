@@ -42,6 +42,7 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		{"TeleportRole", NewRoleReconciler},
 		{"TeleportRoleV6", NewRoleV6Reconciler},
 		{"TeleportRoleV7", NewRoleV7Reconciler},
+		{"TeleportRoleV8", NewRoleV8Reconciler},
 		{"TeleportUser", NewUserReconciler},
 		{"TeleportGithubConnector", NewGithubConnectorReconciler},
 		{"TeleportProvisionToken", NewProvisionTokenReconciler},

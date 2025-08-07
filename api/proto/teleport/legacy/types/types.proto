@@ -437,7 +437,7 @@ message AWS {
   ];
   // AccountID is the AWS account ID this database belongs to.
   string AccountID = 4 [(gogoproto.jsontag) = "account_id,omitempty"];
-  // ElastiCache contains AWS ElastiCache Redis specific metadata.
+  // ElastiCache contains Amazon ElastiCache Redis-specific metadata.
   ElastiCache ElastiCache = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "elasticache,omitempty"
@@ -457,7 +457,7 @@ message AWS {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "rdsproxy,omitempty"
   ];
-  // RedshiftServerless contains AWS Redshift Serverless specific metadata.
+  // RedshiftServerless contains Amazon Redshift Serverless-specific metadata.
   RedshiftServerless RedshiftServerless = 9 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "redshift_serverless,omitempty"
@@ -483,7 +483,7 @@ message AWS {
   // SessionTags is a list of AWS STS session tags.
   map<string, string> SessionTags = 15 [(gogoproto.jsontag) = "session_tags,omitempty"];
 
-  // DocumentDB contains AWS DocumentDB specific metadata.
+  // DocumentDB contains Amazon DocumentDB-specific metadata.
   DocumentDB DocumentDB = 16 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "docdb,omitempty"
@@ -532,7 +532,7 @@ message RDSProxy {
   string ResourceID = 3 [(gogoproto.jsontag) = "resource_id,omitempty"];
 }
 
-// ElastiCache contains AWS ElastiCache Redis specific metadata.
+// ElastiCache contains Amazon ElastiCache Redis-specific metadata.
 message ElastiCache {
   // ReplicationGroupID is the Redis replication group ID.
   string ReplicationGroupID = 1 [(gogoproto.jsontag) = "replication_group_id,omitempty"];
@@ -556,7 +556,7 @@ message MemoryDB {
   string EndpointType = 4 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
 }
 
-// RedshiftServerless contains AWS Redshift Serverless specific metadata.
+// RedshiftServerless contains Amazon Redshift Serverless-specific metadata.
 message RedshiftServerless {
   // WorkgroupName is the workgroup name.
   string WorkgroupName = 1 [(gogoproto.jsontag) = "workgroup_name,omitempty"];
@@ -576,7 +576,7 @@ message OpenSearch {
   string EndpointType = 3 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
 }
 
-// DocumentDB contains AWS DocumentDB specific metadata.
+// DocumentDB contains Amazon DocumentDB-specific metadata.
 message DocumentDB {
   // ClusterID is the cluster identifier.
   string ClusterID = 1 [(gogoproto.jsontag) = "cluster_id,omitempty"];
@@ -1122,6 +1122,19 @@ message AppSpecV3 {
   // want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec,
   // setting this value to true will overwrite that public address in the web UI.
   bool UseAnyProxyPublicAddr = 14 [(gogoproto.jsontag) = "use_any_proxy_public_addr,omitempty"];
+  // MCP contains MCP server related configurations.
+  MCP MCP = 15 [(gogoproto.jsontag) = "mcp,omitempty"];
+}
+
+// MCP contains MCP server-related configurations.
+message MCP {
+  // Command to launch stdio-based MCP servers.
+  string command = 1;
+  // Args to execute with the command.
+  repeated string args = 2;
+  // RunAsHostUser is the host user account under which the command will be
+  // executed. Required for stdio-based MCP servers.
+  string run_as_host_user = 3;
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
@@ -1224,6 +1237,8 @@ message TLSKeyPair {
   bytes Key = 2 [(gogoproto.jsontag) = "key,omitempty"];
   // KeyType is the type of the Key.
   PrivateKeyType KeyType = 3 [(gogoproto.jsontag) = "key_type,omitempty"];
+  // CRL is an empty DER-encoded revocation list.
+  bytes CRL = 4 [(gogoproto.jsontag) = "crl"];
 }
 
 // JWTKeyPair is a PEM encoded keypair used for signing JWT tokens.
@@ -1726,9 +1741,17 @@ message ProvisionTokenSpecV2Spacelift {
   message Rule {
     // SpaceID is the ID of the space in which the run that owns the token was
     // executed.
+    //
+    // This field supports "glob-style" matching when enable_glob_matching is true:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string SpaceID = 1 [(gogoproto.jsontag) = "space_id,omitempty"];
     // CallerID is the ID of the caller, ie. the stack or module that generated
     // the run.
+    //
+    // This field supports "glob-style" matching when enable_glob_matching is true:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string CallerID = 2 [(gogoproto.jsontag) = "caller_id,omitempty"];
     // CallerType is the type of the caller, ie. the entity that owns the run -
     // either `stack` or `module`.
@@ -1743,6 +1766,9 @@ message ProvisionTokenSpecV2Spacelift {
   // Hostname is the hostname of the Spacelift tenant that tokens
   // will originate from. E.g `example.app.spacelift.io`
   string Hostname = 2 [(gogoproto.jsontag) = "hostname,omitempty"];
+  // EnableGlobMatching enables glob-style matching for the space_id and
+  // caller_id fields in the rules.
+  bool EnableGlobMatching = 3 [(gogoproto.jsontag) = "enable_glob_matching,omitempty"];
 }
 
 // ProvisionTokenSpecV2Kubernetes contains the Kubernetes-specific part of the
@@ -1953,12 +1979,12 @@ message ProvisionTokenSpecV2BoundKeypair {
     // public key on first join, which may be used instead of preregistering a
     // public key with `initial_public_key`. If `initial_public_key` is set,
     // this value is ignored. Otherwise, if set, this value will be used to
-    // populate `.status.bound_keypair.intitial_join_secret`. If unset and no
+    // populate `.status.bound_keypair.registration_secret`. If unset and no
     // `initial_public_key` is provided, a random secure value will be generated
     // server-side to populate the status field.
     string RegistrationSecret = 2 [(gogoproto.jsontag) = "registration_secret,omitempty"];
 
-    // MustRegisterBefore is an optional time before which registeration via
+    // MustRegisterBefore is an optional time before which registration via
     // initial join secret must be performed. Attempts to register using an
     // initial join secret after this timestamp will not be allowed. This may be
     // modified after creation if necessary to allow the initial registration to
@@ -2032,7 +2058,7 @@ message ProvisionTokenStatusV2BoundKeypair {
   // RegistrationSecret contains a secret value that may be used for public key
   // registration during the initial join process if no public key is
   // preregistered. If `.spec.bound_keypair.onboarding.initial_public_key`
-  // is set, †his field will remain empty. Otherwise, if
+  // is set, this field will remain empty. Otherwise, if
   // `.spec.bound_keypair.onboarding.registration_secret` is set, that value
   // will be copied here. If that field is unset, a value will be randomly
   // generated.
@@ -2059,9 +2085,9 @@ message ProvisionTokenStatusV2BoundKeypair {
   uint32 RecoveryCount = 4 [(gogoproto.jsontag) = "recovery_count"];
 
   // LastRecoveredAt contains a timestamp of the last successful recovery
-  // attempt. Note that normal renewals do not count as a recovery attempt,
-  // however onboarding does,  either with a preregistered key or registration
-  // secret. This corresponds with the last time `bound_bot_instance_id` was
+  // attempt. Note that normal renewals with valid client certificates do not
+  // count as a recovery attempt, however the initial join during onboarding
+  // does. This corresponds with the last time `bound_bot_instance_id` was
   // updated.
   google.protobuf.Timestamp LastRecoveredAt = 5 [
     (gogoproto.stdtime) = true,
@@ -2264,9 +2290,9 @@ message ClusterNetworkingConfigSpecV2 {
   // missed before the server disconnects the connection to the client.
   int64 KeepAliveCountMax = 3 [(gogoproto.jsontag) = "keep_alive_count_max"];
 
-  // SessionControlTimeout is the session control lease expiry and defines
-  // the upper limit of how long a node may be out of contact with the auth
-  // server before it begins terminating controlled sessions.
+  // SessionControlTimeout is the session control lease expiry and defines the
+  // upper limit of how long a node may be out of contact with the Auth Service
+  // before it begins terminating controlled sessions.
   int64 SessionControlTimeout = 4 [
     (gogoproto.jsontag) = "session_control_timeout",
     (gogoproto.casttype) = "Duration"
@@ -3789,6 +3815,9 @@ message RoleConditions {
   // WorkloadIdentityLabelsExpression is a predicate expression used to
   // allow/deny access to issuing a WorkloadIdentity.
   string WorkloadIdentityLabelsExpression = 45 [(gogoproto.jsontag) = "workload_identity_labels_expression,omitempty"];
+
+  // MCPPermissions defines MCP servers related permissions.
+  MCPPermissions MCP = 46 [(gogoproto.jsontag) = "mcp,omitempty"];
 }
 
 // IdentityCenterAccountAssignment captures an AWS Identity Center account
@@ -3801,6 +3830,15 @@ message IdentityCenterAccountAssignment {
 // GitHubPermission defines GitHub integration related permissions.
 message GitHubPermission {
   repeated string organizations = 1 [(gogoproto.jsontag) = "orgs,omitempty"];
+}
+
+// MCPPermissions defines MCP servers related permissions.
+message MCPPermissions {
+  // Tools defines the list of tools allowed or denied for this role. Each entry
+  // can be a literal string, a glob pattern (e.g. "prefix_*"), or a regular
+  // expression (must start with '^' and end with '$'). If the list is empty, no
+  // tools are allowed.
+  repeated string tools = 1;
 }
 
 // SPIFFERoleCondition sets out which SPIFFE identities this role is allowed or
@@ -5161,6 +5199,9 @@ message OIDCConnectorSpecV3 {
   OIDCConnectorMFASettings MFASettings = 19 [(gogoproto.jsontag) = "mfa,omitempty"];
   // PKCEMode represents the configuration state for PKCE (Proof Key for Code Exchange). It can be "enabled" or "disabled"
   string PKCEMode = 20 [(gogoproto.jsontag) = "pkce_mode,omitempty"];
+  // UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should
+  // match for identifier-first login.
+  repeated string UserMatchers = 21 [(gogoproto.jsontag) = "user_matchers,omitempty"];
 }
 
 // MaxAge allows the max_age parameter to be nullable to preserve backwards
@@ -5374,6 +5415,9 @@ message SAMLConnectorSpecV2 {
   // binding as a default. Setting up PreferredRequestBinding value lets us preserve existing
   // auth connector behavior and only use http-post binding if it is explicitly configured.
   string PreferredRequestBinding = 19 [(gogoproto.jsontag) = "preferred_request_binding,omitempty"];
+  // UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should
+  // match for identifier-first login.
+  repeated string UserMatchers = 20 [(gogoproto.jsontag) = "user_matchers,omitempty"];
 }
 
 // SAMLConnectorMFASettings contains SAML MFA settings.
@@ -5566,6 +5610,9 @@ message GithubConnectorSpecV3 {
   // ClientRedirectSettings defines which client redirect URLs are allowed for
   // non-browser SSO logins other than the standard localhost ones.
   SSOClientRedirectSettings ClientRedirectSettings = 9 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
+  // UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should
+  // match for identifier-first login.
+  repeated string UserMatchers = 10 [(gogoproto.jsontag) = "user_matchers,omitempty"];
 }
 
 // GithubAuthRequest is the request to start Github OAuth2 flow.
@@ -5967,6 +6014,15 @@ message LockTarget {
 
   // ServerID is the host id of the Teleport instance.
   string ServerID = 9 [(gogoproto.jsontag) = "server_id,omitempty"];
+
+  // BotInstanceID is the bot instance ID if this is a bot identity and is
+  // ignored otherwise.
+  string BotInstanceID = 10 [(gogoproto.jsontag) = "bot_instance_id,omitempty"];
+
+  // JoinToken is the name of the join token used when this identity originally
+  // joined. This is only valid for bot identities, and cannot be used to target
+  // `token`-joined bots.
+  string JoinToken = 11 [(gogoproto.jsontag) = "join_token,omitempty"];
 }
 
 // AddressCondition represents a set of addresses. Presently the addresses are specified

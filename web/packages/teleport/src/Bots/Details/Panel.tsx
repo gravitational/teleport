@@ -31,7 +31,9 @@ export function Panel(
     action?: {
       label: string;
       onClick: () => void;
-      icon?: ReactNode;
+      iconLeft?: ReactNode;
+      iconRight?: ReactNode;
+      disabled?: boolean;
     };
     testId?: string;
   }
@@ -49,9 +51,10 @@ export function Panel(
             {title}
           </Text>
           {action ? (
-            <ActionButton onClick={action.onClick}>
-              {action.icon}
+            <ActionButton onClick={action.onClick} disabled={action.disabled}>
+              {action.iconLeft}
               {action.label}
+              {action.iconRight}
             </ActionButton>
           ) : undefined}
         </TitleContainer>
@@ -63,13 +66,12 @@ export function Panel(
 
 const Container = styled(Flex)`
   flex-direction: column;
-  gap: 16px;
-  padding: 16px;
 `;
 
 const TitleContainer = styled(Flex)`
   align-items: center;
   justify-content: space-between;
+  padding: ${p => p.theme.space[3]}px;
   gap: 8px;
 `;
 

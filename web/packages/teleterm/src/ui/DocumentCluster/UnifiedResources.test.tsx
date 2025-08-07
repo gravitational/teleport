@@ -52,7 +52,9 @@ import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvi
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
+import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 import * as uri from 'teleterm/ui/uri';
+import { VnetContextProvider } from 'teleterm/ui/Vnet';
 
 const mio = mockIntersectionObserver();
 
@@ -318,12 +320,16 @@ test.each([
       <MockWorkspaceContextProvider>
         <ResourcesContextProvider>
           <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
-            <Refresher ref={ref} rootClusterUri={rootCluster.uri} />
-            <UnifiedResources
-              clusterUri={doc.clusterUri}
-              docUri={doc.uri}
-              queryParams={doc.queryParams}
-            />
+            <ConnectionsContextProvider>
+              <VnetContextProvider>
+                <Refresher ref={ref} rootClusterUri={rootCluster.uri} />
+                <UnifiedResources
+                  clusterUri={doc.clusterUri}
+                  docUri={doc.uri}
+                  queryParams={doc.queryParams}
+                />
+              </VnetContextProvider>
+            </ConnectionsContextProvider>
           </ConnectMyComputerContextProvider>
         </ResourcesContextProvider>
       </MockWorkspaceContextProvider>
@@ -398,7 +404,9 @@ it('passes props with stable identity to <Resources>', async () => {
         <MockWorkspaceContextProvider>
           <ResourcesContextProvider>
             <ConnectMyComputerContextProvider rootClusterUri={doc.clusterUri}>
-              {children}
+              <ConnectionsContextProvider>
+                <VnetContextProvider>{children}</VnetContextProvider>
+              </ConnectionsContextProvider>
             </ConnectMyComputerContextProvider>
           </ResourcesContextProvider>
         </MockWorkspaceContextProvider>

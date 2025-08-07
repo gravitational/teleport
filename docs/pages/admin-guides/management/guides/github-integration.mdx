@@ -1,6 +1,9 @@
 ---
 title: Proxy Git Commands with Teleport for GitHub
 description:  How to use Teleport's short-lived SSH certificates with the GitHub Certificate Authority.
+labels:
+ - how-to
+ - zero-trust
 ---
 
 Teleport can proxy Git commands and use short-lived SSH certificates to
@@ -37,9 +40,14 @@ continue to access GitHub through their browsers.
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx version="17.2" edition="Teleport Enterprise"!)
-- Access to GitHub Enterprise and permissions to modify GitHub's SSH certificate
-  authorities and configure OAuth applications.
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise (v17.2 or higher)"!)
+- Access to GitHub Enterprise Cloud and permissions to modify GitHub's SSH
+  certificate authorities and configure OAuth applications.
+  <Admonition type="info" title="GitHub Enterprise compatibility">
+  GitHub integration requires a GitHub Enterprise plan and is currently
+  supported for **GitHub Enterprise Cloud**. Support for **GitHub Enterprise
+  Server (self-hosted)** is not available as of the current release.
+  </Admonition>
 - (!docs/pages/includes/tctl.mdx!)
 - Git locally installed
 

@@ -1,0 +1,22 @@
+To enable dynamic registration, include a `resources` section in your Application
+Service configuration with a list of resource label selectors you'd like this
+service to monitor for registering:
+
+```yaml
+app_service:
+  enabled: true
+  resources:
+  - labels:
+      "*": "*"
+```
+
+You can use a wildcard selector to register all dynamic app resources in the cluster
+on the Application Service or provide a specific set of labels for a subset:
+
+```yaml
+resources:
+- labels:
+    "env": "prod"
+- labels:
+    "env": "test"
+```

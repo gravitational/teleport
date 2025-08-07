@@ -50,8 +50,8 @@ export function Bots() {
   const canListBots = flags.listBots;
 
   const [bots, setBots] = useState<FlatBot[]>([]);
-  const [selectedBot, setSelectedBot] = useState<FlatBot>();
-  const [selectedRoles, setSelectedRoles] = useState<string[]>();
+  const [selectedBot, setSelectedBot] = useState<FlatBot | null>();
+  const [selectedRoles, setSelectedRoles] = useState<string[] | null>();
   const { attempt: crudAttempt, run: crudRun } = useAttemptNext();
   const { attempt: fetchAttempt, run: fetchRun } = useAttemptNext(
     canListBots ? 'processing' : 'success'
@@ -79,7 +79,7 @@ export function Bots() {
 
   async function fetchRoleNames(search: string): Promise<string[]> {
     const flags = ctx.getFeatureFlags();
-    const roles = await fetchRoles(search, flags);
+    const roles = await fetchRoles({ search, flags });
     return roles.items.map(r => r.name);
   }
 

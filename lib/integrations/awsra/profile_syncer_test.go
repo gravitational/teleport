@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 /*
@@ -62,6 +62,7 @@ func TestProfileSyncerTestAndSetDefaults(t *testing.T) {
 		return &AWSRolesAnywherProfileSyncerParams{
 			KeyStoreManager:   keyStoreManager,
 			Cache:             &mockCache{},
+			StatusReporter:    &mockCache{},
 			AppServerUpserter: &mockCache{},
 		}
 	}
@@ -186,9 +187,9 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 	baseServerClient := func(t *testing.T) *mockCache {
 		t.Helper()
 		return &mockCache{
-			integrations: []types.Integration{
-				integrationWithProfileSync,
-				integrationWithoutProfileSync,
+			integrations: map[string]types.Integration{
+				integrationWithProfileSync.GetName():    integrationWithProfileSync,
+				integrationWithoutProfileSync.GetName(): integrationWithoutProfileSync,
 			},
 			ca: newCertAuthority(t, types.AWSRACA, "cluster-name"),
 		}
@@ -204,8 +205,9 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 		return AWSRolesAnywherProfileSyncerParams{
 			KeyStoreManager:   keyStoreManager,
 			Cache:             serverClient,
+			StatusReporter:    serverClient,
 			AppServerUpserter: serverClient,
-			Logger:            utils.NewSlogLoggerForTests(),
+			Logger:            logtest.NewLogger(),
 			createSession:     mockCreateSession,
 		}
 	}
@@ -274,6 +276,17 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 				"teleport.dev/aws-roles-anywhere-profile-arn": "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid1",
 				"teleport.dev/integration":                    "test-integration",
 			}, appServer.GetAllLabels())
+
+			t.Run("integration status is updated", func(t *testing.T) {
+				status := serverClient.integrations[integrationWithProfileSync.GetName()].GetStatus()
+				require.NotNil(t, status)
+				lastSyncSummary := status.AWSRolesAnywhere.LastProfileSync
+				require.Equal(t, types.IntegrationAWSRolesAnywhereProfileSyncStatusSuccess, lastSyncSummary.Status)
+				require.NotEmpty(t, lastSyncSummary.StartTime)
+				require.NotEmpty(t, lastSyncSummary.EndTime)
+				require.Equal(t, int32(1), lastSyncSummary.SyncedProfiles)
+				require.Empty(t, lastSyncSummary.ErrorMessage)
+			})
 		})
 	})
 
@@ -317,6 +330,44 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 				"teleport.dev/aws-roles-anywhere-profile-arn": "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid1",
 				"teleport.dev/integration":                    "test-integration",
 			}, appServer.GetAllLabels())
+		})
+	})
+
+	t.Run("errors are reported in the integration status", func(t *testing.T) {
+		serverClient := baseServerClient(t)
+
+		params := baseParams(serverClient)
+		tags := map[string][]ratypes.Tag{
+			aws.ToString(exampleProfile.ProfileArn): {
+				{Key: aws.String("TeleportApplicationName"), Value: aws.String("``invalid host $ name")},
+			},
+		}
+		params.rolesAnywhereClient = &mockRolesAnywhereClient{
+			profiles: []ratypes.ProfileDetail{
+				exampleProfile,
+			},
+			tags: tags,
+		}
+
+		synctest.Run(func() {
+			ctx, cancel := context.WithCancel(context.Background())
+			go func() {
+				err := RunAWSRolesAnywherProfileSyncer(ctx, params)
+				assert.NoError(t, err)
+			}()
+
+			// Wait for the 1st profile sync iteration.
+			synctest.Wait()
+			cancel()
+
+			status := serverClient.integrations[integrationWithProfileSync.GetName()].GetStatus()
+			require.NotNil(t, status)
+			lastSyncSummary := status.AWSRolesAnywhere.LastProfileSync
+			require.Equal(t, types.IntegrationAWSRolesAnywhereProfileSyncStatusError, lastSyncSummary.Status)
+			require.NotEmpty(t, lastSyncSummary.StartTime)
+			require.NotEmpty(t, lastSyncSummary.EndTime)
+			require.Equal(t, int32(0), lastSyncSummary.SyncedProfiles)
+			require.NotEmpty(t, lastSyncSummary.ErrorMessage)
 		})
 	})
 }

@@ -53,9 +53,9 @@ const (
 	// under ~/.tsh
 	keyFilePerms os.FileMode = 0600
 
-	// tshConfigFileName is the name of the directory containing the
+	// tshConfigDirName is the name of the directory containing the
 	// tsh config file.
-	tshConfigFileName = "config"
+	tshConfigDirName = "config"
 
 	// tshAzureDirName is the name of the directory containing the
 	// az cli app-specific profiles.
@@ -474,19 +474,21 @@ func (fs *FSKeyStore) DeleteKeys() error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	ignoreDirs := map[string]struct{}{tshConfigFileName: {}, tshAzureDirName: {}, tshBin: {}}
 	for _, file := range files {
-		// Don't delete 'config', 'azure' and 'bin' directories.
-		// TODO: this is hackish and really shouldn't be needed, but fs.KeyDir is `~/.tsh` while it probably should be `~/.tsh/keys` instead.
-		if _, ok := ignoreDirs[file.Name()]; ok && file.IsDir() {
-			continue
-		}
 		if file.IsDir() {
-			err := utils.RemoveAllSecure(filepath.Join(fs.KeyDir, file.Name()))
-			if err != nil {
-				return trace.ConvertSystemError(err)
+			switch file.Name() {
+			case tshConfigDirName, tshAzureDirName, tshBin:
+				// Don't delete 'config', 'azure' and 'bin' directories.
+				// TODO: this is hackish and really shouldn't be needed, but fs.KeyDir is `~/.tsh` while it probably should be `~/.tsh/keys` instead.
+				continue
 			}
-			continue
+		} else {
+			switch file.Name() {
+			case keypaths.VNetClientSSHKey, keypaths.VNetClientSSHKeyPub:
+				// Don't delete VNet client SSH keys on logout in case a user wants to
+				// set these to their own key compatible with their third-party SSH client.
+				continue
+			}
 		}
 		err := utils.RemoveAllSecure(filepath.Join(fs.KeyDir, file.Name()))
 		if err != nil {

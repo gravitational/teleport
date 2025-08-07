@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 // TestAccessListCRUD tests backend operations with access list resources.
@@ -313,7 +314,7 @@ func TestAccessList_EntitlementLimits(t *testing.T) {
 					// target because the `newAccessListService()` fixture also sets the
 					// test modules, and that would clobber our test setup if we went
 					// first
-					modules.SetTestModules(t, &modules.TestModules{
+					modulestest.SetTestModules(t, modulestest.Modules{
 						TestBuildType: modules.BuildEnterprise,
 						TestFeatures: modules.Features{
 							Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -721,7 +722,7 @@ func TestAccessListReviewCRUD(t *testing.T) {
 
 	// Create a couple access lists.
 	accessList1 := newAccessList(t, "accessList1", clock)
-	accessList2 := newAccessList(t, "accessList2", clock)
+	accessList2 := newAccessList(t, "accessList2", clock, withType(accesslist.DeprecatedDynamic))
 
 	accessList1OrigDate := accessList1.Spec.Audit.NextAuditDate
 	accessList2OrigDate := accessList2.Spec.Audit.NextAuditDate
@@ -1016,7 +1017,19 @@ func TestAccessListRequiresEqual(t *testing.T) {
 	}
 }
 
-func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist.AccessList {
+type newAccessListOptions struct {
+	typ accesslist.Type
+}
+
+type newAccessListOpt func(*newAccessListOptions)
+
+func withType(typ accesslist.Type) newAccessListOpt {
+	return func(o *newAccessListOptions) {
+		o.typ = typ
+	}
+}
+
+func newAccessList(t *testing.T, name string, clock clockwork.Clock, opts ...newAccessListOpt) *accesslist.AccessList {
 	t.Helper()
 
 	accessList, err := accesslist.NewAccessList(
@@ -1251,7 +1264,7 @@ func TestAccessListService_ListAllAccessListReviews(t *testing.T) {
 func newAccessListService(t *testing.T, mem *memory.Memory, clock clockwork.Clock, igsEnabled bool) *AccessListService {
 	t.Helper()
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.Identity:    {Enabled: igsEnabled},
