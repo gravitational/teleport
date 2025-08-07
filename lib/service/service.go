@@ -1304,13 +1304,17 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	upgraderKind, externalUpgrader, upgraderVersion := process.detectUpgrader()
 
 	getHello := func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
+		hostID, err := process.waitForHostID(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err, "waiting for host ID")
+		}
 		instanceRoles := process.getInstanceRoles()
 		services := make([]string, 0, len(instanceRoles))
 		for _, r := range instanceRoles {
 			services = append(services, string(r))
 		}
 		hello := &proto.UpstreamInventoryHello{
-			ServerID:         cfg.HostUUID,
+			ServerID:         hostID,
 			Version:          teleport.Version,
 			Services:         services,
 			Hostname:         cfg.Hostname,
@@ -1323,7 +1327,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		}
 
 		if upgraderKind == types.UpgraderKindTeleportUpdate {
-			info, err := autoupdate.ReadHelloUpdaterInfo(supervisor.ExitContext(), cfg.Logger, cfg.HostUUID)
+			info, err := autoupdate.ReadHelloUpdaterInfo(supervisor.ExitContext(), cfg.Logger, hostID)
 			if err != nil {
 				// Failing to detect teleport-update info is not fatal, we continue.
 				cfg.Logger.WarnContext(supervisor.ExitContext(), "Error recovering teleport-update status, this might affect automatic update tracking and progress.", "error", err)
@@ -1769,17 +1773,31 @@ func (process *TeleportProcess) getInstanceClient() *authclient.Client {
 	return conn.Client
 }
 
-// waitForInstanceConnector waits for the instance connector to become available. returns nil if
-// process shutdown is triggered or if this is an auth-only instance. Auth-only instances cannot
-// use the instance client because auth servers need to be able to fully initialize without a
-// valid CA in order to support HSMs.
-func (process *TeleportProcess) waitForInstanceConnector() *Connector {
+// waitForInstanceConnector waits for the instance connector to become
+// available. Returns nil if if this is an auth-only instance or ctx is
+// canceled. Auth-only instances cannot use the instance client because auth
+// servers need to be able to fully initialize without a valid CA in order to
+// support HSMs.
+func (process *TeleportProcess) waitForInstanceConnector(ctx context.Context) *Connector {
 	select {
 	case <-process.instanceConnectorReady:
 		return process.getInstanceConnector()
-	case <-process.ExitContext().Done():
+	case <-ctx.Done():
 		return nil
 	}
+}
+
+// waitForHostID returns the local host UUID. If there is a local auth service,
+// it returns immediately, otherwise it waits for the instance connector to
+// become available.
+func (process *TeleportProcess) waitForHostID(ctx context.Context) (string, error) {
+	if auth := process.getLocalAuth(); auth != nil {
+		return auth.ServerID, nil
+	}
+	if connector := process.waitForInstanceConnector(ctx); connector != nil {
+		return strings.TrimSuffix(connector.HostID(), "."+connector.ClusterName()), nil
+	}
+	return "", trace.Errorf("instance connector never became ready")
 }
 
 // makeInventoryControlStreamWhenReady is the same as makeInventoryControlStream except that it blocks until
