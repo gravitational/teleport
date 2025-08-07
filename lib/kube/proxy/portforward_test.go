@@ -71,6 +71,12 @@ func TestPortForwardKubeService(t *testing.T) {
 			},
 		},
 		{
+			name: "SPDY protocol multiport",
+			args: args{
+				portforwardClientBuilder: spdyMultiPortForwardClientBuilder,
+			},
+		},
+		{
 			name: "Websocket protocol",
 			args: args{
 				portforwardClientBuilder: websocketPortForwardClientBuilder,
@@ -188,7 +194,6 @@ func TestPortForwardKubeService(t *testing.T) {
 				// Dial a connection to localPort.
 				ports, err := fw.GetPorts()
 				require.NoError(t, err)
-				require.Len(t, ports, 1)
 
 				conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", ports[0].Local))
 				require.NoError(t, err)
@@ -228,6 +233,25 @@ func spdyPortForwardClientBuilder(t *testing.T, req portForwardRequestConfig) po
 	require.NoError(t, err)
 	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, http.MethodPost, u)
 	fw, err := portforward.New(dialer, []string{fmt.Sprintf("%d:%d", 0, req.podPort)}, req.stopCh, req.readyCh, os.Stdout, os.Stdin)
+	require.NoError(t, err)
+	return fw
+}
+
+func spdyMultiPortForwardClientBuilder(t *testing.T, req portForwardRequestConfig) portForwarder {
+	transport, upgrader, err := spdy.RoundTripperFor(req.restConfig)
+	require.NoError(t, err)
+	u, err := portforwardURL(req.podNamespace, req.podName, req.restConfig.Host, "")
+	require.NoError(t, err)
+	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, http.MethodPost, u)
+	const portCnt = 100
+	port := 80
+	ports := make([]string, portCnt)
+	for idx := 0; idx < portCnt; idx++ {
+		ports[idx] = fmt.Sprintf("0:%d", port)
+		port++
+	}
+	//ports := []string{"0:80", "0:81", "0:82", "0:83", "0:84"}
+	fw, err := portforward.New(dialer, ports, req.stopCh, req.readyCh, os.Stdout, os.Stdin)
 	require.NoError(t, err)
 	return fw
 }
