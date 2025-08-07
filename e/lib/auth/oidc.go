@@ -917,10 +917,9 @@ func (oas *OIDCAuthService) calculateOIDCUser(ctx context.Context, diagCtx *auth
 		Username:      username,
 	}
 
-	p.Traits = OIDCClaimsToTraits(ident.IDTokenClaims.Claims)
-
 	evaluationOutput, err := oas.auth.GetLoginRuleEvaluator().Evaluate(ctx, &loginrule.EvaluationInput{
-		Traits: p.Traits,
+		Traits: OIDCClaimsToTraits(ident.IDTokenClaims.Claims),
+		Claims: ident.IDTokenClaims.Claims,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

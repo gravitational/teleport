@@ -67,6 +67,7 @@ func Evaluate(rules []*loginrulepb.LoginRule, input *oss.EvaluationInput) (*oss.
 		// Every rule gets the output of the previous rule as input.
 		env := evaluationEnv{
 			external: traits,
+			claims:   input.Claims,
 		}
 		// Each rule should only have one of TraitsMap or TraitsExpression set,
 		// this should be checked when the rule is parsed from a file or from

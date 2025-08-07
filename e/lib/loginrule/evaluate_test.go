@@ -54,6 +54,7 @@ func TestEvaluate(t *testing.T) {
 		desc           string
 		rules          []*loginrulepb.LoginRule
 		inputTraits    map[string][]string
+		unmappedClaims map[string]any
 		expectedTraits map[string][]string
 		errorContains  []string
 	}{
@@ -73,6 +74,10 @@ func TestEvaluate(t *testing.T) {
 				}),
 			},
 			inputTraits: baseInputTraits,
+			// Unmapped claims should be ignored.
+			unmappedClaims: map[string]any{
+				"unmapped_claim": "some_value",
+			},
 			expectedTraits: map[string][]string{
 				"groups": []string{"devs", "security", "admins"},
 			},
@@ -86,6 +91,10 @@ func TestEvaluate(t *testing.T) {
 				)`),
 			},
 			inputTraits: baseInputTraits,
+			// Unmapped claims should be ignored.
+			unmappedClaims: map[string]any{
+				"unmapped_claim": "some_value",
+			},
 			expectedTraits: map[string][]string{
 				"groups":  []string{"devs", "security"},
 				"example": []string{"a", "b"},
@@ -551,9 +560,86 @@ func TestEvaluate(t *testing.T) {
 				"localEmails": {"alice", "bob", "charlie", "darrell", "esther", "frank"},
 			},
 		},
+		{
+			desc: "jsonpath map",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsMap("rule", 0,
+					map[string][]string{
+						"roles":           {`jsonpath("$.groups.teleport.roles.*")`},
+						"login":           {`jsonpath("$.groups.teleport.node.login")`},
+						"env":             {`jsonpath("$.groups.teleport.node.labels.env.*")`},
+						"wildcard_labels": {`jsonpath("$.groups.teleport.node.labels[?(@ == '*')]")`},
+					},
+				),
+			},
+			inputTraits: map[string][]string{
+				"roles":           {"auditor"},
+				"unmapped_traits": {"some", "values"},
+			},
+			unmappedClaims: map[string]any{
+				"groups": map[string]any{
+					"teleport": map[string]any{
+						"roles": []string{"access"},
+						"node": map[string]any{
+							"login": "alice",
+							"labels": map[string]any{
+								"*":   "*",
+								"env": []string{"staging"},
+							},
+							"unmapped_claim": "some_value",
+						},
+					},
+				},
+			},
+			expectedTraits: map[string][]string{
+				"roles":           {"access"},
+				"login":           {"alice"},
+				"env":             {"staging"},
+				"wildcard_labels": {"*"},
+			},
+		},
+		{
+			desc: "jsonpath expression",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsExpression("rule0", 0, `dict(
+					pair("roles", jsonpath("$.groups.teleport.roles.*")),
+					pair("login", jsonpath("$.groups.teleport.node.login")),
+					pair("env", jsonpath("$.groups.teleport.node.labels.env.*")),
+					pair("wildcard_labels", jsonpath("$.groups.teleport.node.labels[?(@ == '*')]")),
+				)`),
+			},
+			inputTraits: map[string][]string{
+				"roles":           {"auditor"},
+				"unmapped_traits": {"some", "values"},
+			},
+			unmappedClaims: map[string]any{
+				"groups": map[string]any{
+					"teleport": map[string]any{
+						"roles": []string{"access"},
+						"node": map[string]any{
+							"login": "alice",
+							"labels": map[string]any{
+								"*":   "*",
+								"env": []string{"staging"},
+							},
+							"unmapped_claim": "some_value",
+						},
+					},
+				},
+			},
+			expectedTraits: map[string][]string{
+				"roles":           {"access"},
+				"login":           {"alice"},
+				"env":             {"staging"},
+				"wildcard_labels": {"*"},
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			result, err := Evaluate(tc.rules, &oss.EvaluationInput{Traits: tc.inputTraits})
+			result, err := Evaluate(tc.rules, &oss.EvaluationInput{
+				Traits: tc.inputTraits,
+				Claims: tc.unmappedClaims,
+			})
 			if len(tc.errorContains) > 0 {
 				for _, contains := range tc.errorContains {
 					require.ErrorContains(t, err, contains, "error string does not contain expected snippet")

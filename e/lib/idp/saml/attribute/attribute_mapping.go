@@ -26,7 +26,9 @@ type evaluationEnv struct {
 var attributeMappingParser = newAttributeMappingParser()
 
 func newAttributeMappingParser() *typical.Parser[evaluationEnv, any] {
-	typicalEnvVar := map[string]typical.Variable{
+	spec := expression.DefaultParserSpec[evaluationEnv]()
+
+	spec.Variables = map[string]typical.Variable{
 		"uid": typical.DynamicVariable[evaluationEnv](func(env evaluationEnv) (expression.Set, error) {
 			return env.username, nil
 		}),
@@ -44,11 +46,10 @@ func newAttributeMappingParser() *typical.Parser[evaluationEnv, any] {
 		}),
 	}
 
-	attributeParser, err := expression.NewTraitsExpressionParser[evaluationEnv](typicalEnvVar)
+	attributeParser, err := typical.NewParser[evaluationEnv, any](spec)
 	if err != nil {
 		panic(trace.Wrap(err, "creating attribute mapping parser (this is a bug)"))
 	}
-
 	return attributeParser
 }
 

@@ -1771,6 +1771,21 @@ func TestOIDCRoleMapping(t *testing.T) {
 	require.Equal(t, "user", roles[0])
 }
 
+func TestOIDCClaimsToTraits(t *testing.T) {
+	claims := map[string]any{
+		"singular_claim": "value",
+		"plural_claim":   []string{"value1", "value2", "value3"},
+	}
+
+	expectTraits := map[string][]string{
+		"singular_claim": {"value"},
+		"plural_claim":   {"value1", "value2", "value3"},
+	}
+
+	gotTraits := eauth.OIDCClaimsToTraits(claims)
+	require.Equal(t, expectTraits, gotTraits)
+}
+
 // TestLargePayload verifies that large payloads from
 // discovery requests are rejected.
 func TestLargePayload(t *testing.T) {
