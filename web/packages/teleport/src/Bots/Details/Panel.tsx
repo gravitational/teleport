@@ -75,7 +75,7 @@ export const PanelTitleText = styled(Text).attrs<{ $isSubPanel?: boolean }>(
     typography: $isSubPanel ? 'h3' : 'h2',
   })
 )`
-  font-weight: ${fontWeights.regular};
+  font-weight: ${fontWeights.bold};
 `;
 
 const ActionButton = styled(ButtonText)`
