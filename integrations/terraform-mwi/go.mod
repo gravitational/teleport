@@ -119,6 +119,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/rds v1.96.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/redshift v1.54.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.27.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi v1.26.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.17.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.80.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.35.4 // indirect

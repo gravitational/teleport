@@ -180,6 +180,8 @@ github.com/aws/aws-sdk-go-v2/service/redshift v1.54.3 h1:LNOKEsPjtoBrV2WYUb2zPLO
 github.com/aws/aws-sdk-go-v2/service/redshift v1.54.3/go.mod h1:TC8pNvjiikrjpX2MEzX/cEJ4/T4XIoSY4BskVvHj8bk=
 github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.27.1 h1:+nldYGx2Kdn7jzntjm2fG7sRonfQ08l1RqkLSTed8G8=
 github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.27.1/go.mod h1:gpRsJN3qxZbsj1NhAoCNX02zJ4RZUB5v/7o4QrnGTcA=
+github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi v1.26.4 h1:QqXnA7s6sxFe6B6dkocEfZ9ap1bAmEXp4W32n9n+cmU=
+github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi v1.26.4/go.mod h1:cgPfPTC/V3JqwCKed7Q6d0FrgarV7ltz4Bz6S4Q+Dqk=
 github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.17.2 h1:0LBxtAX2bHcfPr6VSzQSvJlR1nzlna7xp031gEjbWGU=
 github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.17.2/go.mod h1:NW+LcIadUUlDgM3gb8+97lr6zSKExHR58NRRWSWkXl8=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.79.3 h1:BRXS0U76Z8wfF+bnkilA2QwpIch6URlm++yPUt9QPmQ=
