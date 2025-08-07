@@ -1,6 +1,6 @@
 ssh_service:
-    # Turns 'ssh' role on. Default is true
-    enabled: true
+  # Turns 'ssh' role on. Default is true
+  enabled: true
 
   # IP and the port for SSH service to bind to.
   listen_addr: 0.0.0.0:3022
