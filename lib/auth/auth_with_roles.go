@@ -4647,7 +4647,13 @@ func (a *ServerWithRoles) GetRole(ctx context.Context, name string) (types.Role,
 	// that they hold.  This requirement is checked first to avoid
 	// misleading denial messages in the logs.
 	if slices.Contains(a.context.User.GetRoles(), name) {
-		return a.authServer.GetRole(ctx, name)
+		role, err := a.authServer.GetRole(ctx, name)
+		if err != nil && trace.IsNotFound(err) {
+			// Add the UserSessionRoleNotFoundError message to indicate this role not found error was encountered while the user was
+			// listing their own roles, which can only happen if a role in their session certificate doesn't exist anymore.
+			return nil, trace.Wrap(err, services.UserSessionRoleNotFoundError)
+		}
+		return role, trace.Wrap(err)
 	}
 
 	authErr := a.authorizeAction(types.KindRole, types.VerbRead)
