@@ -77,4 +77,5 @@ const props = {
   username: 'somename',
   onDelete: () => null,
   onClose: () => null,
+  modifyFetchedData: () => null,
 };

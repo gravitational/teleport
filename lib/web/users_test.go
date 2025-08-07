@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -446,6 +447,7 @@ type mockedUserAPIGetter struct {
 	mockUpdateUser func(ctx context.Context, user types.User) (types.User, error)
 	mockGetUsers   func(ctx context.Context, withSecrets bool) ([]types.User, error)
 	mockDeleteUser func(ctx context.Context, user string) error
+	mockListUsers  func(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 }
 
 func (m *mockedUserAPIGetter) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
@@ -482,4 +484,12 @@ func (m *mockedUserAPIGetter) DeleteUser(ctx context.Context, name string) error
 	}
 
 	return trace.NotImplemented("mockDeleteUser not implemented")
+}
+
+func (m *mockedUserAPIGetter) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
+	if m.mockListUsers != nil {
+		return m.mockListUsers(ctx, req)
+	}
+
+	return nil, trace.NotImplemented("mockListUsers not implemented")
 }

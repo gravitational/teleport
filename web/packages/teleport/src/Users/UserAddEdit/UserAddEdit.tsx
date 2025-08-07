@@ -38,6 +38,7 @@ import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
 import { useTeleport } from 'teleport';
+import { ResourcesResponse } from 'teleport/services/agents';
 import auth from 'teleport/services/auth';
 import userService, {
   ExcludeUserField,
@@ -53,9 +54,17 @@ interface UserAddEditProps {
   user: User;
   isNew: boolean;
   onClose: () => void;
+  modifyFetchedData: React.Dispatch<
+    React.SetStateAction<ResourcesResponse<User>>
+  >;
 }
 
-export function UserAddEdit({ onClose, isNew, user }: UserAddEditProps) {
+export function UserAddEdit({
+  onClose,
+  isNew,
+  user,
+  modifyFetchedData,
+}: UserAddEditProps) {
   const ctx = useTeleport();
 
   const queryClient = useQueryClient();
@@ -140,17 +149,40 @@ export function UserAddEdit({ onClose, isNew, user }: UserAddEditProps) {
     };
 
     if (isNew) {
-      await createUser.mutateAsync({
+      const createdUser = (await createUser.mutateAsync({
         user: u,
         excludeUserField: ExcludeUserField.Traits,
+      })) as { user: User; token: ResetToken };
+
+      // We have to update the user list on the clientside for the change to be visible immediately
+      // without needing to refresh.
+      modifyFetchedData(p => {
+        return {
+          ...p,
+          agents: [createdUser.user, ...p.agents],
+        };
       });
 
       return;
     }
 
-    await updateUser.mutateAsync({
+    const updatedUser = (await updateUser.mutateAsync({
       user: u,
       excludeUserField: ExcludeUserField.Traits,
+    })) as User;
+
+    // We have to update the user on the clientside for the change to be visible immediately
+    // without needing to refresh.
+    modifyFetchedData(p => {
+      const index = p.agents.findIndex(a => a.name === updatedUser.name);
+      if (index >= 0) {
+        const newUsers = [...p.agents];
+        newUsers[index] = updatedUser;
+        return {
+          ...p,
+          agents: newUsers,
+        };
+      }
     });
 
     onClose();
