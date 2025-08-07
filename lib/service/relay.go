@@ -18,9 +18,12 @@ package service
 
 import (
 	"context"
+	"log/slog"
 	"sync/atomic"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -36,6 +39,9 @@ func (process *TeleportProcess) initRelay() {
 
 func (process *TeleportProcess) runRelayService() error {
 	log := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentRelay, process.id))
+	sublogger := func(subcomponent string) *slog.Logger {
+		return process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentRelay, process.id, subcomponent))
+	}
 
 	defer func() {
 		if err := process.closeImportedDescriptors(teleport.ComponentRelay); err != nil {
@@ -57,6 +63,7 @@ func (process *TeleportProcess) runRelayService() error {
 	// TODO(espadolini): use the access point
 	_ = accessPoint
 
+	nonce := uuid.NewString()
 	var relayServer atomic.Pointer[presencev1.RelayServer]
 	relayServer.Store(&presencev1.RelayServer{
 		Kind:    apitypes.KindRelayServer,
@@ -65,7 +72,11 @@ func (process *TeleportProcess) runRelayService() error {
 		Metadata: &headerv1.Metadata{
 			Name: process.Config.HostUUID,
 		},
-		Spec: &presencev1.RelayServer_Spec{},
+		Spec: &presencev1.RelayServer_Spec{
+			Hostname:   process.Config.Hostname,
+			RelayGroup: process.Config.Relay.RelayGroup,
+			Nonce:      nonce,
+		},
 	})
 
 	hb, err := srv.NewRelayServerHeartbeat(srv.HeartbeatV2Config[*presencev1.RelayServer]{
@@ -79,15 +90,29 @@ func (process *TeleportProcess) runRelayService() error {
 		Announcer: nil,
 
 		OnHeartbeat: process.OnHeartbeat(teleport.ComponentRelay),
-	}, log)
+	}, sublogger("heartbeat"))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	go hb.Run()
 	defer hb.Close()
 
+	if err := process.closeImportedDescriptors(teleport.ComponentRelay); err != nil {
+		log.WarnContext(process.ExitContext(), "Failed closing imported file descriptors", "error", err)
+	}
+
 	process.BroadcastEvent(Event{Name: RelayReady})
-	log.InfoContext(process.ExitContext(), "The relay service has successfully started.")
+	log.InfoContext(process.ExitContext(), "The relay service has successfully started", "nonce", nonce)
+
+	_, _ = process.WaitForEvent(process.ExitContext(), TeleportTerminatingEvent)
+
+	log.InfoContext(process.ExitContext(), "Process is beginning shutdown, advertising terminating status and waiting for shutdown")
+
+	{
+		r := proto.CloneOf(relayServer.Load())
+		r.GetSpec().Terminating = true
+		relayServer.Store(r)
+	}
 
 	exitEvent, _ := process.WaitForEvent(process.ExitContext(), TeleportExitEvent)
 	ctx, _ := exitEvent.Payload.(context.Context)
@@ -96,15 +121,16 @@ func (process *TeleportProcess) runRelayService() error {
 		// WaitForEvent errored out because of the ungraceful shutdown; either
 		// way, process.ExitContext() is a done context and all operations
 		// should get canceled immediately
-		log.InfoContext(ctx, "Stopping the relay service ungracefully.")
 		ctx = process.ExitContext()
+		log.InfoContext(ctx, "Stopping the relay service ungracefully")
 	} else {
-		log.InfoContext(ctx, "Stopping the relay service.")
+		log.InfoContext(ctx, "Stopping the relay service")
 	}
 
+	warnOnErr(ctx, hb.Close(), log)
 	warnOnErr(ctx, conn.Close(), log)
 
-	log.InfoContext(ctx, "The relay service has stopped.")
+	log.InfoContext(ctx, "The relay service has stopped")
 
 	return nil
 }
