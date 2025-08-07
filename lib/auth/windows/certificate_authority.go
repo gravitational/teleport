@@ -154,9 +154,9 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuer string, c
 		); err != nil {
 			return trace.Wrap(err)
 		}
-		c.cfg.Log.Info("Updated CRL for Windows logins via LDAP")
+		c.cfg.Log.WithField("dn", crlDN).Info("Updated CRL for Windows logins via LDAP")
 	} else {
-		c.cfg.Log.Info("Added CRL for Windows logins via LDAP")
+		c.cfg.Log.WithField("dn", crlDN).Info("Added CRL for Windows logins via LDAP")
 	}
 	return nil
 }
