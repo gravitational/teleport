@@ -201,6 +201,9 @@ export default function createMainProcessClient(): MainProcessClient {
         args
       );
     },
+    supportsAppUpdates() {
+      return ipcRenderer.sendSync(MainProcessIpc.SupportsAppUpdates);
+    },
     checkForAppUpdates() {
       return ipcRenderer.invoke(MainProcessIpc.CheckForAppUpdates);
     },

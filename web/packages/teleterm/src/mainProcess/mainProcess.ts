@@ -648,6 +648,10 @@ export default class MainProcess {
       }
     );
 
+    ipcMain.on(MainProcessIpc.SupportsAppUpdates, event => {
+      event.returnValue = this.appUpdater.supportsUpdates();
+    });
+
     ipcMain.handle(MainProcessIpc.CheckForAppUpdates, () =>
       this.appUpdater.checkForUpdates()
     );

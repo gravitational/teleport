@@ -213,6 +213,7 @@ export type MainProcessClient = {
   maybeRemoveAppUpdatesManagingCluster(
     clusterUri: RootClusterUri
   ): Promise<void>;
+  supportsAppUpdates(): boolean;
   checkForAppUpdates(): Promise<void>;
   downloadAppUpdate(): Promise<void>;
   cancelAppUpdateDownload(): Promise<void>;
@@ -347,6 +348,7 @@ export enum MainProcessIpc {
   QuiteAndInstallAppUpdate = 'main-process-quit-and-install-app-update',
   ChangeAppUpdatesManagingCluster = 'main-process-change-app-updates-managing-cluster',
   MaybeRemoveAppUpdatesManagingCluster = 'main-process-maybe-remove-app-updates-managing-cluster',
+  SupportsAppUpdates = 'main-process-supports-app-updates',
 }
 
 export enum WindowsManagerIpc {

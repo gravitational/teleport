@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import { Popover } from 'design';
 import * as icons from 'design/Icon';
@@ -45,6 +45,10 @@ function useMenuItems(): MenuItem[] {
 
   const { platform } = mainProcessClient.getRuntimeSettings();
   const isDarwin = platform === 'darwin';
+
+  const supportsAppUpdates = useMemo(() => {
+    return mainProcessClient.supportsAppUpdates();
+  }, [mainProcessClient]);
 
   const menuItems: (MenuItem & { isVisible: boolean })[] = [
     {
@@ -84,7 +88,7 @@ function useMenuItems(): MenuItem[] {
     },
     {
       title: 'Check for updates…',
-      isVisible: true,
+      isVisible: supportsAppUpdates,
       Icon: icons.Application,
       onNavigate: () => {
         appUpdaterContext.openDialog();

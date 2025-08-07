@@ -24,9 +24,12 @@ import process from 'process';
 import { app } from 'electron';
 import {
   autoUpdater,
+  DebUpdater,
   MacUpdater,
   AppUpdater as NativeUpdater,
+  NsisUpdater,
   ProgressInfo,
+  RpmUpdater,
   UpdateCheckResult,
   UpdateInfo,
 } from 'electron-updater';
@@ -124,6 +127,20 @@ export class AppUpdater {
   }
 
   /**
+   * Determines whether updates are supported for the current distribution.
+   * Note: Updating `.tar.gz` archives is not supported, but `electron-updater`
+   * incorrectly treats them as AppImage packages.
+   */
+  supportsUpdates(): boolean {
+    return (
+      this.nativeUpdater instanceof MacUpdater ||
+      this.nativeUpdater instanceof NsisUpdater ||
+      this.nativeUpdater instanceof DebUpdater ||
+      this.nativeUpdater instanceof RpmUpdater
+    );
+  }
+
+  /**
    * Checks for app updates.
    *
    * This method enhances the standard autoUpdater.checkForUpdates() by adding
@@ -166,6 +183,10 @@ export class AppUpdater {
       hasRetried?: boolean;
     } = {}
   ): Promise<void> {
+    if (!this.supportsUpdates()) {
+      return;
+    }
+
     this.forceNoAutoDownload = opts.noAutoDownload;
 
     const result = await this.nativeUpdater.checkForUpdates();
