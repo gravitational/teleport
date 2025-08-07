@@ -19,6 +19,7 @@ codegen-units = 1
 lto = "thin"
 
 [workspace.metadata.bin]
+wasm-strip = { version = "0.1.0", locked = true }
 wasm-bindgen-cli = { version = "0.2.99", bins = ["wasm-bindgen"], locked = true }
 
 [workspace.dependencies]

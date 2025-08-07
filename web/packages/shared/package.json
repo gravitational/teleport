@@ -10,7 +10,7 @@
     "directory": "packages/shared"
   },
   "scripts": {
-    "build-wasm": "node ../../scripts/clean-up-ironrdp-artifacts.mjs && cd ./libs/ironrdp && cargo build --target wasm32-unknown-unknown --release && cp ../../../../../target/wasm32-unknown-unknown/release/ironrdp.* pkg/ && cargo bin wasm-bindgen pkg/ironrdp.wasm --out-dir pkg --typescript --target web"
+    "build-wasm": "node ../../scripts/clean-up-ironrdp-artifacts.mjs && cd ./libs/ironrdp && cargo build --target wasm32-unknown-unknown --release && cp ../../../../../target/wasm32-unknown-unknown/release/ironrdp.* pkg/ && cargo bin wasm-bindgen pkg/ironrdp.wasm --out-dir pkg --typescript --target web && cargo bin wasm-strip pkg/ironrdp_bg.wasm"
   },
   "dependencies": {
     "@gravitational/design": "workspace:*",
