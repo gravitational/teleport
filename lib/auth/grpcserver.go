@@ -5736,6 +5736,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	recordingEncryptionService, err := recordingencryptionv1.NewService(recordingencryptionv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Uploader:   cfg.AuthServer.Services,
+		KeyRotater: cfg.AuthServer.Services,
 		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, teleport.ComponentRecordingEncryption),
 	})
 	if err != nil {
