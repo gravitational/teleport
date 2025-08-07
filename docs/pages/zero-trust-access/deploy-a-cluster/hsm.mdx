@@ -13,11 +13,12 @@ hardware security module (HSM) to store and handle private keys.
 ## How it works
 
 The Teleport Auth Service maintains several [certificate
-authorities](../management/operations/ca-rotation.mdx) that it uses for critical
-cluster operations, such as issuing certificates to users to authenticate to
-Teleport-protected resources. Each certificate authority uses a private key to
-sign certificates. On self-hosted clusters, you can instruct the Teleport Auth
-Service to sign certificates with private keys that it obtains from your HSM. 
+authorities](../../admin-guides/management/operations/ca-rotation.mdx) that it
+uses for critical cluster operations, such as issuing certificates to users to
+authenticate to Teleport-protected resources. Each certificate authority uses a
+private key to sign certificates. On self-hosted clusters, you can instruct the
+Teleport Auth Service to sign certificates with private keys that it obtains
+from your HSM. 
 
 ## Prerequisites
 
@@ -361,7 +362,7 @@ their Teleport roles will also see a cluster alert reminding them to rotate the
 CAs.
 
 CA rotation can be performed manually or semi-automatically, see our admin guide
-on [Certificate rotation](../management/operations/ca-rotation.mdx).
+on [Certificate rotation](../../admin-guides/management/operations/ca-rotation.mdx).
 All CAs listed in the output of `tctl status` must be rotated.
 
 ## Step 5/5. Confirm that Teleport is using your HSM
