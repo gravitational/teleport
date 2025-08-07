@@ -1,5 +1,5 @@
 ---
-title: Grant Teleport roles to Entra ID groups with Nested Access List
+title: Configure access for Entra ID users
 description: Learn how to map Entra ID groups to Teleport roles with Nested Access List
 sidebar_position: 3
 labels:
@@ -7,29 +7,15 @@ labels:
  - rbac
 ---
 
-This guide shows how to use Nested Access List to grant Teleport roles to the user groups 
-imported from Entra ID.
-
-![Entra ID to Teleport role mapping](../../../img/igs/entraid/entra-teleport-role-mapping.png)
-
-For demonstration, this guide assumes that:
-- Entra ID integration is set up in Teleport. 
-- A Grafana application is enrolled in Teleport. We want users from Entra ID to have access to
-this application. 
-
-A hypothetical Entra ID tenant has two users and user Groups.
-User `alice@example.com` and `bob@example.com` who are member of user group `ad-app-admin` and 
-`ad-app-support` respectively.
-
-Furthermore, we want the members from the `ad-app-support` group to have just-in-time access to 
-Grafana. And users from `ad-app-admin` have long-term access to Grafana. 
+This guide shows how to configure access for Entra ID imported users with Nested Access List. 
 
 ## How it works
 
 In a Nested Access List setup, the child Access List inherits roles that are granted 
-by the parent Access List. This feature can be utilized to map Teleport roles to the Access 
-Lists which are created for user groups imported via Entra ID integration. 
+by the parent Access List. 
 
+By utilizing this feature, we can add an Entra ID imported Access List as a member of 
+another Access List that grants Teleport roles to its member. 
 
 <Admonition type="note" title="Auth Connector role mapping">
   It's possible to configure Entra ID groups to Teleport role mapping 
@@ -38,30 +24,47 @@ Lists which are created for user groups imported via Entra ID integration.
   over role and trait grants and can be periodically reviewed. 
 
   Entra ID also has a limit on [number of groups](https://learn.microsoft.com/en-us/entra/identity/hybrid/connect/how-to-connect-fed-group-claims#important-caveats-for-this-functionality)
-  that can be included in SAML and OIDC responses. This can be prohibitive in large scale deployment.
+  that can be included in a SAML or an OIDC response. 
+  This can be prohibitive in a large-scale deployment.
 </Admonition>
 
+For demonstration, this guide uses Grafana as a reference application to which we 
+want to configure access for Entra ID users. 
+
+We will have two user groups created in Entra ID: `ad-app-admin` and 
+`ad-app-support`. We want members of these groups to have long-term and 
+short-term access to Grafana respectively.
+
+We will then create two roles in Teleport. One will allow access to Grafana application while 
+the other role will allow requesting access to the role that grants access to Grafana application.
+
+These roles will then be assigned to the Access List to grant roles to the Entra ID imported groups. 
+
+![Entra ID to Teleport role mapping](../../../img/igs/entraid/entra-teleport-role-mapping.png)
 
 ## Prerequisites
 
-- Teleport user with preset `editor` or an equivalent role that allows to read and write Auth 
-Connector, plugins, application resource, roles and Access Lists. 
+- Teleport user with preset `editor` or an equivalent role that allows to 
+read and write Auth Connector, plugins, roles and Access Lists. 
+- Permission to create groups in Entra ID.
 - [Entra ID integration](getting-started.mdx) configured in your Teleport cluster. 
+- For demonstration, this guide references a Grafana application. You may 
+  use any other [resource](../../enroll-resources/enroll-resources.mdx) type
+  to get started.
 
-## Step 1/3. Create groups in Entra ID
+## Step 1/4. Create groups in Entra ID
 
-First, in the Azure portal, select the Groups menu under Azure services. 
+In the Azure portal, select the "Groups" menu under "Azure services". 
 
-Next, click "New group" button to create a new user group named `ad-app-support` 
-with user `bob@example.com` as its member.
+From the "Groups" page, click the "New group" button to create a new user group 
+named `ad-app-support`. You may add desired users to this group. 
 
-Repeat the steps and create another user group named `ad-app-admin` with user 
-`alice@example.com` as its member.
+Repeat the steps and create another user group named `ad-app-admin`.
 
 In the next import cycle, Teleport will create an Access List for each of these groups.
 Teleport will also preserve respective group members as an Access List member.
 
-## Step 2/3. Create roles in Teleport
+## Step 2/4. Create roles in Teleport
 
 First, create a role that grants access to Grafana. 
 Below, we name this role as `app-monitor`.
@@ -100,12 +103,16 @@ spec:
 $ tctl create support-team.yaml
 ```
 
-## Step 3/4 Configure Nested Access List
+<Admonition type="tip" title="Role resource label">
+  In the example role `app-monitor`, the allow `app_labels` 
+  rule we defined applies to the application resources. You may need to reference 
+  a different [resource label](../../reference/access-controls/roles.mdx#example-role-specification) 
+  rule if you are following through this guide with a different kind of resource.  
+</Admonition>
 
-We will create two Access Lists for short-term and long-term access management. 
+## Step 3/4 Grant a role with Access List
 
-First, create an Access List that grants its members with a privilege to request access 
-to resource configured with a `support-team` role. 
+We will create two Access Lists for short-term (Just-In-Time) and long-term access management. 
 
 In the Teleport Web UI, from the side-navigation, select “Identity Governance > Access List”.
 
@@ -121,9 +128,8 @@ Once configured, members of this Access List will be able to create Role Access 
 to the `app-monitor` role. If the request is approved, they can assume the role and 
 access Grafana for a short period of approved `ttl`.
 
-
-Create another Access List that will grant its members with a long term access based on 
-the `app-monitor` role. 
+Create another Access List that will grant its members with a long-term access to Grafana
+based on a direct-assigned `app-monitor` role. 
 - **Title**: Long-term access
 - **Deadline for First Review**: Select a future date.
 - **Member Role Grants**: `app-monitor`
@@ -133,15 +139,15 @@ the `app-monitor` role.
 Once configured, members of this Access List will be able to directly access Grafana with 
 an `app-monitor` role.
 
-## Step 4/4. (Optional) Grant traits to users
+## Step 4/4. Grant a trait with Access List
 
-In Step 2, we created `app-monitor` role with wildcard labels `"*":"*"`. This is 
+In Step 2, we created `app-monitor` role with a wildcard app label `"*":"*"`. This is 
 excessively permissive as it allows users to access any application that is 
 enrolled in the Teleport cluster. 
 
 To reduce the permission boundary of user access, we can scope down the permission 
 by defining specific label that only matches the Grafana application, which in our 
-demo cluster is configured with a `type: monitoring` label. 
+demo cluster is configured with a `type: monitor` label. 
 ```yaml
 app_service:
   enabled: true
@@ -149,7 +155,7 @@ app_service:
   - name: Grafana
     uri: "app.example.com:3000"
     labels:
-      type: monitoring
+      type: monitor
 ```
 
 To narrow down the scope, first, we need to update the `app-monitor` role. 
@@ -167,25 +173,24 @@ spec:
 ...
 ```
 
-Next, update the Access Lists we created in Step 3 and grant `type: monitoring` 
+Next, update the Access Lists we created in Step 3 and grant `type: monitor` 
 trait to its members. 
 
 **Short-term access**
-- **Member Trait Grants**: `type: monitoring`
+- **Member Trait Grants**: `type: monitor`
+
+Note that `type` is the key, and `monitor` is the value of the trait.
 
 **Long-term access**
-- **Member Trait Grants**: `type: monitoring`
+- **Member Trait Grants**: `type: monitor`
 
 These new traits will be now granted to the members of these Access Lists. 
 
-<Admonition type="note" title="Attribute in Entra ID">
-  It's possible to configure and pass user attributes from Entra ID to Teleport.
-  If this attribute is configured for the user in Entra ID, the attribute
-will be preserved in Teleport as user traits. 
-</Admonition>
+Authorized users will now only be able to access Applications that are available 
+under label `type: monitor`.
 
 ## Next steps
 
 - Learn more about [Access List](../access-lists/access-lists.mdx) management.
-- Learn more about [Role and Resource Access Request](../access-requests/access-requests.mdx). 
+- Learn more about [Role and Resource Access Request](../access-requests/access-requests.mdx).
 - Learn more about [role templates](../../zero-trust-access/access-controls/guides/role-templates.mdx).
