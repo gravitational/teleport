@@ -106,10 +106,10 @@ func (c *ProxiedMetricConn) Close() error {
 type serverResolverFn = func(ctx context.Context, host, port string, cluster cluster) (types.Server, error)
 type windowsDesktopServiceConnectorFn = func(ctx context.Context, config *desktop.ConnectionConfig) (conn net.Conn, version string, err error)
 
-// SiteGetter provides access to connected local or remote clusters.
-type SiteGetter interface {
-	// GetSite returns the cluster matching the provided clusterName
-	GetSite(clusterName string) (reversetunnelclient.Cluster, error)
+// ClusterGetter provides access to connected local or remote clusters.
+type ClusterGetter interface {
+	// Cluster returns the cluster matching the provided clusterName
+	Cluster(ctx context.Context, clusterName string) (reversetunnelclient.Cluster, error)
 }
 
 // LocalAccessPoint provides access to remote cluster resources
@@ -127,8 +127,8 @@ type RouterConfig struct {
 	ClusterName string
 	// LocalAccessPoint is the proxy cache
 	LocalAccessPoint LocalAccessPoint
-	// SiteGetter allows looking up clusters
-	SiteGetter SiteGetter
+	// ClusterGetter allows looking up clusters
+	ClusterGetter ClusterGetter
 	// TracerProvider allows tracers to be created
 	TracerProvider oteltrace.TracerProvider
 	// Log is an optional logger. A default logger will be created if not set.
@@ -150,7 +150,7 @@ func (c *RouterConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("LocalAccessPoint must be provided")
 	}
 
-	if c.SiteGetter == nil {
+	if c.ClusterGetter == nil {
 		return trace.BadParameter("SiteGetter must be provided")
 	}
 
@@ -179,7 +179,7 @@ type Router struct {
 	clusterName                    string
 	localAccessPoint               LocalAccessPoint
 	localCluster                   reversetunnelclient.Cluster
-	siteGetter                     SiteGetter
+	clusterGetter                  ClusterGetter
 	tracer                         oteltrace.Tracer
 	log                            *slog.Logger
 	serverResolver                 serverResolverFn
@@ -193,7 +193,7 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	localCluster, err := cfg.SiteGetter.GetSite(cfg.ClusterName)
+	localCluster, err := cfg.ClusterGetter.Cluster(context.Background(), cfg.ClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -202,7 +202,7 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 		clusterName:                    cfg.ClusterName,
 		localAccessPoint:               cfg.LocalAccessPoint,
 		localCluster:                   localCluster,
-		siteGetter:                     cfg.SiteGetter,
+		clusterGetter:                  cfg.ClusterGetter,
 		tracer:                         cfg.TracerProvider.Tracer("Router"),
 		log:                            cfg.Logger,
 		serverResolver:                 cfg.serverResolver,
@@ -424,7 +424,7 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, clust
 	)
 	defer span.End()
 
-	cluster, err := r.siteGetter.GetSite(clusterName)
+	cluster, err := r.clusterGetter.Cluster(ctx, clusterName)
 	if err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
 	}
@@ -621,7 +621,7 @@ func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr
 	}
 
 	// lookup the cluster and dial its auth server
-	cluster, err := r.siteGetter.GetSite(clusterName)
+	cluster, err := r.clusterGetter.Cluster(ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -640,7 +640,7 @@ func (r *Router) GetSiteClient(ctx context.Context, clusterName string) (authcli
 		return r.localCluster.GetClient()
 	}
 
-	cluster, err := r.siteGetter.GetSite(clusterName)
+	cluster, err := r.clusterGetter.Cluster(ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
