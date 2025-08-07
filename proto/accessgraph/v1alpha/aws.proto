@@ -600,10 +600,13 @@ message AWSKMSKeyV1 {
   // last_sync_time is the time when the resource was last synced.
   google.protobuf.Timestamp last_sync_time = 5;
   // aliases is the list of aliases that are attached to the key.
+  // they are prefixed with "alias/", for example "alias/my-key-alias".
   repeated string aliases = 6;
-  // policy_document is the JSON document that defines the policy.
+  // policy_document is the JSON document that defines the Key Policy. Every KMS
+  // key must have exactly one key policy.
   bytes policy_document = 7;
-  // region is the AWS region that the key belongs to.
+  // region is the AWS region that the key belongs to. For multi-region keys,
+  // this is the region where the current key, primary or replica, is located.
   string region = 8;
   // multi_region_key_type is the type of the multi-region key.
   // It is set to "PRIMARY", "REPLICA" or left empty for single region keys.

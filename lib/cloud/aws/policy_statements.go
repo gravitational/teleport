@@ -434,6 +434,8 @@ func StatementAccessGraphAWSSync() *Statement {
 			"iam:GetOpenIDConnectProvider",
 
 			// KMS IAM
+			// If keys disallow IAM policy delegations, these fields need to be
+			// added to the Key policy.
 			"kms:ListKeys",
 			"kms:DescribeKey",
 			"kms:GetKeyPolicy",

@@ -112,7 +112,7 @@ func (a *Fetcher) fetchKMSKeysForRegion(ctx context.Context, client kmsClient, r
 			return nil, trace.Wrap(err)
 		}
 		for _, key := range page.Keys {
-			key, err := a.fetchKMSKey(ctx, client, key.KeyId, region)
+			key, err := a.fetchKMSKey(ctx, client, aws.ToString(key.KeyId), region)
 			if err != nil {
 				errs = append(errs, err)
 			}
@@ -131,25 +131,25 @@ func (a *Fetcher) fetchKMSKeysForRegion(ctx context.Context, client kmsClient, r
 // protobuf representation. It is lenient with errors on subqueries to fetch
 // tags, aliases and policies and aggregates them into a single error. This is
 // useful if permissions don't allow any of the subqueries.
-func (a *Fetcher) fetchKMSKey(ctx context.Context, client kmsClient, keyID *string, region string) (*pb.AWSKMSKeyV1, error) {
-	input := &kms.DescribeKeyInput{KeyId: keyID}
+func (a *Fetcher) fetchKMSKey(ctx context.Context, client kmsClient, keyID string, region string) (*pb.AWSKMSKeyV1, error) {
+	input := &kms.DescribeKeyInput{KeyId: &keyID}
 	output, err := client.DescribeKey(ctx, input)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to describe KMS key %q", *keyID)
+		return nil, trace.Wrap(err, "failed to describe KMS key %q", keyID)
 	}
 	var errs []error
 	result := awsToProtoKMSKey(output, a.AccountID, region)
 	result.Tags, err = getTags(ctx, client, keyID)
 	if err != nil {
-		errs = append(errs, trace.Wrap(err, "cannot fetch tags for KMS key %q", *keyID))
+		errs = append(errs, trace.Wrap(err, "cannot fetch tags for KMS key %q", keyID))
 	}
 	result.Aliases, err = getAliases(ctx, client, keyID)
 	if err != nil {
-		errs = append(errs, trace.Wrap(err, "cannot fetch aliases for KMS key %q", *keyID))
+		errs = append(errs, trace.Wrap(err, "cannot fetch aliases for KMS key %q", keyID))
 	}
 	result.PolicyDocument, err = getPolicy(ctx, client, keyID)
 	if err != nil {
-		errs = append(errs, trace.Wrap(err, "cannot fetch policy for KMS key %q", *keyID))
+		errs = append(errs, trace.Wrap(err, "cannot fetch policy for KMS key %q", keyID))
 	}
 	if len(errs) > 0 {
 		return result, trace.NewAggregate(errs...)
@@ -178,14 +178,14 @@ func awsToProtoKMSKey(output *kms.DescribeKeyOutput, accountID, region string) *
 // getTags fetches tags for a KMS key. Potentially access rights to tags differ
 // to the key access rights as tags are sensitive when used for access control
 // via ABAC.
-func getTags(ctx context.Context, client kmsClient, keyID *string) ([]*pb.AWSTag, error) {
-	input := &kms.ListResourceTagsInput{KeyId: keyID}
+func getTags(ctx context.Context, client kmsClient, keyID string) ([]*pb.AWSTag, error) {
+	input := &kms.ListResourceTagsInput{KeyId: &keyID}
 	pager := kms.NewListResourceTagsPaginator(client, input)
 	var tags []*pb.AWSTag
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, trace.Wrap(err, "failed to list tags for key %s", aws.ToString(keyID))
+			return nil, trace.Wrap(err, "failed to list tags for key %s", keyID)
 		}
 		for _, t := range page.Tags {
 			tag := &pb.AWSTag{
@@ -201,14 +201,14 @@ func getTags(ctx context.Context, client kmsClient, keyID *string) ([]*pb.AWSTag
 // getAliases fetches aliases for a KMS key. Potentially access rights to
 // aliases differ to the key access rights as aliases are sensitive when used
 // for access control via ABAC.
-func getAliases(ctx context.Context, client kmsClient, keyID *string) ([]string, error) {
-	input := &kms.ListAliasesInput{KeyId: keyID}
+func getAliases(ctx context.Context, client kmsClient, keyID string) ([]string, error) {
+	input := &kms.ListAliasesInput{KeyId: &keyID}
 	pager := kms.NewListAliasesPaginator(client, input)
 	var aliases []string
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, trace.Wrap(err, "failed to list aliases for key %s", aws.ToString(keyID))
+			return nil, trace.Wrap(err, "failed to list aliases for key %s", keyID)
 		}
 		for _, alias := range page.Aliases {
 			aliases = append(aliases, aws.ToString(alias.AliasName))
@@ -219,11 +219,11 @@ func getAliases(ctx context.Context, client kmsClient, keyID *string) ([]string,
 
 // getPolicy fetches the attached key policy for a KMS key. There is always
 // exactly one key policy per KMS key called default.
-func getPolicy(ctx context.Context, client kmsClient, keyID *string) ([]byte, error) {
-	input := &kms.GetKeyPolicyInput{KeyId: keyID}
+func getPolicy(ctx context.Context, client kmsClient, keyID string) ([]byte, error) {
+	input := &kms.GetKeyPolicyInput{KeyId: &keyID}
 	output, err := client.GetKeyPolicy(ctx, input)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to get key policy for key %s", aws.ToString(keyID))
+		return nil, trace.Wrap(err, "failed to get key policy for key %s", keyID)
 	}
 	return []byte(aws.ToString(output.Policy)), nil
 }
