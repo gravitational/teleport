@@ -2325,6 +2325,16 @@ func (c *Client) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) 
 	return tokens, nil
 }
 
+// GetStaticTokens returns the cluster static tokens.
+func (c *Client) GetStaticTokens(ctx context.Context) (types.StaticTokens, error) {
+	tokens, err := c.grpc.GetStaticTokens(ctx, &emptypb.Empty{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return tokens, nil
+}
+
 // ListProvisionTokens retrieves a paginated list of provision tokens.
 func (c *Client) ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error) {
 	resp, err := c.grpc.ListProvisionTokens(ctx, &proto.ListProvisionTokensRequest{
