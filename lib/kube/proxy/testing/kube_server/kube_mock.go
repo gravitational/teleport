@@ -958,10 +958,10 @@ func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p
 				go func(portNum string, dataStream, errorStream httpstream.Stream) {
 					defer wg.Done()
 
-					// Check context cancelled.
+					// Check context canceled.
 					select {
 					case <-ctx.Done():
-						s.log.InfoContext(ctx, "Port forward cancelled", "port", portNum)
+						s.log.InfoContext(ctx, "Port forward canceled", "port", portNum)
 						return
 					default:
 					}
