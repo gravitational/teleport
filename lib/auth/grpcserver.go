@@ -1200,7 +1200,7 @@ func (g *GRPCServer) ListResetPasswordTokens(ctx context.Context, req *authpb.Li
 		return nil, trace.Wrap(err)
 	}
 
-	ts, nextKey, err := auth.ServerWithRoles.ListResetPasswordTokens(ctx, int(req.Limit), req.StartKey)
+	ts, nextToken, err := auth.ServerWithRoles.ListResetPasswordTokens(ctx, int(req.PageSize), req.PageToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1212,8 +1212,8 @@ func (g *GRPCServer) ListResetPasswordTokens(ctx context.Context, req *authpb.Li
 		}
 	}
 	return &authpb.ListResetPasswordTokenResponse{
-		UserTokens: userTokensV3,
-		NextKey:    nextKey,
+		UserTokens:    userTokensV3,
+		NextPageToken: nextToken,
 	}, nil
 }
 

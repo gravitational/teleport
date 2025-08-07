@@ -148,7 +148,7 @@ func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httpr
 
 		// Convert user tokens to machine tokens.
 		// This doesn't sound like a good idea, but this was the previous tctl
-		// behaviour se we'll maintain backward compatibility.
+		// behavior se we'll maintain backward compatibility.
 		for _, t := range userTokens {
 			roles := types.SystemRoles{types.RoleSignup}
 			tok, err := types.NewProvisionToken(t.GetName(), roles, t.Expiry())

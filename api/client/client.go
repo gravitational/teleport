@@ -1167,10 +1167,10 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.Create
 	return token, nil
 }
 
-func (c *Client) ListResetPasswordTokens(ctx context.Context, pageSize int, nextKey string) ([]types.UserToken, string, error) {
+func (c *Client) ListResetPasswordTokens(ctx context.Context, pageSize int, pageToken string) ([]types.UserToken, string, error) {
 	req := &proto.ListResetPasswordTokenRequest{
-		Limit:    int32(pageSize),
-		StartKey: nextKey,
+		PageSize:  int32(pageSize),
+		PageToken: pageToken,
 	}
 	resp, err := c.grpc.ListResetPasswordTokens(ctx, req)
 	if err != nil {
@@ -1182,7 +1182,7 @@ func (c *Client) ListResetPasswordTokens(ctx context.Context, pageSize int, next
 	for i, token := range resp.UserTokens {
 		tokens[i] = token
 	}
-	return tokens, resp.NextKey, nil
+	return tokens, resp.NextPageToken, nil
 }
 
 // GetAccessRequests retrieves a list of all access requests matching the provided filter.

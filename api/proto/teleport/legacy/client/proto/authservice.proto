@@ -434,12 +434,12 @@ message CreateResetPasswordTokenRequest {
 
 // ListResetPasswordTokenRequest is a request for a page of user tokens.
 message ListResetPasswordTokenRequest {
-  // Limit is the maximum amount of resources to retrieve.
-  int32 limit = 1;
+  // PageSize is the maximum amount of resources to retrieve.
+  int32 page_size = 1;
   // StartKey is used to start listing resources from a specific spot. It
   // should be set to the previous NextKey value if using pagination, or
   // left empty.
-  string start_key = 2;
+  string page_token = 2;
 }
 
 // ListResetPasswordTokenResponse contains a page of user tokens.
@@ -447,7 +447,7 @@ message ListResetPasswordTokenResponse {
   // UserTokens is a list of user tokens.
   repeated types.UserTokenV3 user_tokens = 1;
   // NextKey is the key for the next page of user tokens.
-  string next_key = 2;
+  string next_page_token = 2;
 }
 
 // RenewableCertsRequest is a request to generate a first set of renewable
