@@ -168,7 +168,6 @@ function AvailableUpdate(props: {
       borderRadius={3}
       px={3}
       mx={props.mx}
-      width="100%"
       py="12px"
     >
       <Flex width="100%" alignItems="center" justifyContent="space-between">
