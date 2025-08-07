@@ -3199,6 +3199,8 @@ service AuthService {
   rpc GetToken(types.ResourceRequest) returns (types.ProvisionTokenV2);
   // GetToken retrieves all tokens.
   rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
+  // GetStaticTokens retrieves all static tokens.
+  rpc GetStaticTokens(google.protobuf.Empty) returns (types.StaticTokensV2);
   // ListToken retrieves a paginated list of filtered provision tokens.
   rpc ListProvisionTokens(ListProvisionTokensRequest) returns (ListProvisionTokensResponse);
   // CreateTokenV2 creates a token in a backend.

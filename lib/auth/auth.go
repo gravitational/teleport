@@ -5261,7 +5261,7 @@ const TokenExpiredOrNotFound = "token expired or not found"
 // a list of roles this token allows its owner to assume and token labels, or an error if the token
 // cannot be found.
 func (a *Server) ValidateToken(ctx context.Context, token string) (types.ProvisionToken, error) {
-	tkns, err := a.GetStaticTokens()
+	tkns, err := a.GetStaticTokens(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5316,7 +5316,7 @@ func (a *Server) checkTokenTTL(tok types.ProvisionToken) bool {
 }
 
 func (a *Server) DeleteToken(ctx context.Context, token string) (err error) {
-	tkns, err := a.GetStaticTokens()
+	tkns, err := a.GetStaticTokens(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -5347,7 +5347,7 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 		return nil, trace.Wrap(err)
 	}
 	// get static tokens:
-	tkns, err := a.GetStaticTokens()
+	tkns, err := a.GetStaticTokens(ctx)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
