@@ -23,7 +23,6 @@ These examples illustrate how Machine & Workload Identity enable secure, scalabl
 - Monitoring and observability exporters
 Custom exporters or telemetry agents running in the cluster push metrics and traces to platforms like Datadog, New Relic, or Grafana Cloud. 
 Workload Identity replaces long-lived API keys with ephemeral credentials tied to the workload's identity.
-
 - Data processing pipelines
 A Kubernetes-based ETL application pulls data from external sources like AWS S3, processes it, and pushes results to third-party analytics or storage platforms. 
 Each workload uses a SPIFFE identity to authenticate securely via JWT or mTLS, eliminating static credentials.
