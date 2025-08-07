@@ -20,6 +20,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -122,6 +123,7 @@ var (
 	KubernetesJoinTypeUnspecified KubernetesJoinType = ""
 	KubernetesJoinTypeInCluster   KubernetesJoinType = "in_cluster"
 	KubernetesJoinTypeStaticJWKS  KubernetesJoinType = "static_jwks"
+	KubernetesJoinTypeOIDC        KubernetesJoinType = "oidc"
 )
 
 // ProvisionToken is a provisioning token
@@ -783,10 +785,34 @@ func (a *ProvisionTokenSpecV2Kubernetes) checkAndSetDefaults() error {
 		if a.StaticJWKS.JWKS == "" {
 			return trace.BadParameter("static_jwks.jwks: must be set when type is %q", KubernetesJoinTypeStaticJWKS)
 		}
+	case KubernetesJoinTypeOIDC:
+		if a.OIDC == nil {
+			return trace.BadParameter("oidc: must be set when types is %q", KubernetesJoinTypeOIDC)
+		}
+		if a.OIDC.Issuer == "" {
+			return trace.BadParameter("oidc.issuer: must be set when type is %q", KubernetesJoinTypeOIDC)
+		}
+
+		parsed, err := url.Parse(a.OIDC.Issuer)
+		if err != nil {
+			return trace.BadParameter("oidc.issuer: must be a valid URL")
+		}
+
+		if parsed.Scheme == "http" {
+			if !a.OIDC.InsecureAllowHTTPIssuer {
+				return trace.BadParameter("oidc.issuer: must be https:// unless insecure_allow_http_issuer is set")
+			}
+		} else if parsed.Scheme != "https" {
+			return trace.BadParameter("oidc.issuer: invalid URL scheme, must be https://")
+		}
 	default:
 		return trace.BadParameter(
 			"type: must be one of (%s), got %q",
-			utils.JoinStrings(JoinMethods, ", "),
+			utils.JoinStrings([]string{
+				string(KubernetesJoinTypeInCluster),
+				string(KubernetesJoinTypeStaticJWKS),
+				string(KubernetesJoinTypeOIDC),
+			}, ", "),
 			a.Type,
 		)
 	}

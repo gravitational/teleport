@@ -1804,6 +1804,18 @@ message ProvisionTokenSpecV2Kubernetes {
     // This can be fetched from /openid/v1/jwks on the Kubernetes API Server.
     string JWKS = 1 [(gogoproto.jsontag) = "jwks,omitempty"];
   }
+  message OIDCConfig {
+    // Issuer is the URI of the OIDC issuer. It must have an accessible and
+    // OIDC-compliant `/.well-known/oidc-configuration` endpoint. This should
+    // be a valid URL and must exactly match the `issuer` field in a service
+    // account JWT. For example:
+    // https://oidc.eks.us-west-2.amazonaws.com/id/12345...
+    string Issuer = 1 [(gogoproto.jsontag) = "issuer,omitempty"];
+
+    // InsecureAllowHTTPIssuer is a flag that, if set, disables the requirement
+    // that the issuer must use HTTPS.
+    bool InsecureAllowHTTPIssuer = 2 [(gogoproto.jsontag) = "insecure_allow_http_issuer"];
+  }
   // Rule is a set of properties the Kubernetes-issued token might have to be
   // allowed to use this ProvisionToken
   message Rule {
@@ -1818,6 +1830,7 @@ message ProvisionTokenSpecV2Kubernetes {
   // Service Account token. Support values:
   // - `in_cluster`
   // - `static_jwks`
+  // - `oidc`
   // If unset, this defaults to `in_cluster`.
   string Type = 2 [
     (gogoproto.jsontag) = "type,omitempty",
@@ -1825,6 +1838,8 @@ message ProvisionTokenSpecV2Kubernetes {
   ];
   // StaticJWKS is the configuration specific to the `static_jwks` type.
   StaticJWKSConfig StaticJWKS = 3 [(gogoproto.jsontag) = "static_jwks,omitempty"];
+  // OIDCConfig configures the `oidc` type.
+  OIDCConfig OIDC = 4 [(gogoproto.jsontag) = "oidc,omitempty"];
 }
 
 // ProvisionTokenSpecV2Azure contains the Azure-specific part of the

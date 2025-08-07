@@ -29,6 +29,7 @@ import (
 	"github.com/go-jose/go-jose/v3"
 	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
+	zoidc "github.com/zitadel/oidc/v3/pkg/oidc"
 	v1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/version"
@@ -38,6 +39,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/oidc"
 )
 
 const (
@@ -277,6 +279,13 @@ type ServiceAccountClaims struct {
 	Kubernetes *KubernetesSubClaim `json:"kubernetes.io"`
 }
 
+// OIDCServiceAccountClaims is a variant of `ServiceAccountClaims` intended for
+// use with the OIDC validator rather than plain JWKS.
+type OIDCServiceAccountClaims struct {
+	zoidc.TokenClaims
+	Kubernetes *KubernetesSubClaim `json:"kubernetes.io"`
+}
+
 // ValidateTokenWithJWKS validates a Kubernetes Service Account JWT using a
 // configured JWKS.
 func ValidateTokenWithJWKS(
@@ -341,6 +350,52 @@ func ValidateTokenWithJWKS(
 		Username: claims.Subject,
 		attrs: &workloadidentityv1pb.JoinAttrsKubernetes{
 			Subject: claims.Subject,
+			Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
+				Name: claims.Kubernetes.Pod.Name,
+			},
+			ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+				Name:      claims.Kubernetes.ServiceAccount.Name,
+				Namespace: claims.Kubernetes.Namespace,
+			},
+		},
+	}, nil
+}
+
+// ValidateTokenWithJWKS validates a Kubernetes Service Account JWT using an
+// OIDC endpoint.
+func ValidateTokenWithOIDC(
+	ctx context.Context,
+	issuerURL string,
+	clusterName string,
+	token string,
+) (*ValidationResult, error) {
+	claims, err := oidc.ValidateToken[*OIDCServiceAccountClaims](
+		ctx,
+		issuerURL,
+		clusterName,
+		token,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "validating OIDC token")
+	}
+
+	// Ensure this is a pod-bound service account token
+	if claims.Kubernetes == nil || claims.Kubernetes.Pod == nil || claims.Kubernetes.Pod.Name == "" {
+		return nil, trace.BadParameter("oidc joining requires the use of a projected pod bound service account token")
+	}
+
+	// Note: OIDC library requires valid exp and iat.
+	maxAllowedTTL := time.Minute * 30
+	if claims.GetExpiration().Sub(claims.GetIssuedAt()) > maxAllowedTTL {
+		return nil, trace.BadParameter("oidc joining requires the use of a service account token with a TTL of less than %s", maxAllowedTTL)
+	}
+
+	return &ValidationResult{
+		Raw:      claims,
+		Type:     types.KubernetesJoinTypeOIDC,
+		Username: claims.GetSubject(),
+		attrs: &workloadidentityv1pb.JoinAttrsKubernetes{
+			Subject: claims.GetSubject(),
 			Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
 				Name: claims.Kubernetes.Pod.Name,
 			},
