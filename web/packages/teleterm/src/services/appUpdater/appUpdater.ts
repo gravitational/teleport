@@ -24,8 +24,8 @@ import process from 'process';
 import { app } from 'electron';
 import {
   autoUpdater,
-  AppUpdater as ElectronAppUpdater,
   MacUpdater,
+  AppUpdater as NativeUpdater,
   ProgressInfo,
   UpdateCheckResult,
   UpdateInfo,
@@ -65,7 +65,9 @@ export class AppUpdater {
     private readonly storage: AppUpdaterStorage,
     private readonly getClusterVersions: () => Promise<GetClusterVersionsResponse>,
     readonly getDownloadBaseUrl: () => Promise<string>,
-    private readonly emit: (event: AppUpdateEvent) => void
+    private readonly emit: (event: AppUpdateEvent) => void,
+    /** Allows overring autoUpdater in tests. */
+    private nativeUpdater: NativeUpdater = autoUpdater
   ) {
     const getClientToolsVersion: ClientToolsVersionGetter = async () => {
       await this.refreshAutoUpdatesStatus();
@@ -78,13 +80,13 @@ export class AppUpdater {
       }
     };
 
-    autoUpdater.setFeedURL({
+    this.nativeUpdater.setFeedURL({
       provider: 'custom',
       // Wraps ClientToolsUpdateProvider to allow passing getClientToolsVersion.
       updateProvider: class extends ClientToolsUpdateProvider {
         constructor(
           options: unknown,
-          updater: ElectronAppUpdater,
+          updater: NativeUpdater,
           runtimeOptions: ProviderRuntimeOptions
         ) {
           super(getClientToolsVersion, updater, runtimeOptions);
@@ -92,22 +94,23 @@ export class AppUpdater {
       },
     });
 
-    autoUpdater.logger = this.logger;
-    autoUpdater.allowDowngrade = true;
-    autoUpdater.autoDownload = false;
+    this.nativeUpdater.logger = this.logger;
+    this.nativeUpdater.allowDowngrade = true;
+    this.nativeUpdater.autoDownload = false;
     // Must be set to true before any download starts.
     // electron-updater registers a listener to install the update when
     // the app quits, after the download has completed.
     // It can be then set to false, it the update shouldn't be installed
     // (except macOS).
-    autoUpdater.autoInstallOnAppQuit = true;
+    this.nativeUpdater.autoInstallOnAppQuit = true;
     // Enables checking for updates and downloading them in dev mode.
     // It makes testing this feature easier.
     // Only installing updates requires the packaged app.
     // Downloads are saved to the path specified in dev-app-update.yml.
-    autoUpdater.forceDevUpdateConfig = true;
+    this.nativeUpdater.forceDevUpdateConfig = true;
 
     this.unregisterEventHandlers = registerEventHandlers(
+      this.nativeUpdater,
       this.emit,
       () => this.autoUpdatesStatus,
       () => this.shouldAutoDownload()
@@ -163,7 +166,9 @@ export class AppUpdater {
       hasRetried?: boolean;
     } = {}
   ): Promise<void> {
-    const result = await autoUpdater.checkForUpdates();
+    this.forceNoAutoDownload = opts.noAutoDownload;
+
+    const result = await this.nativeUpdater.checkForUpdates();
 
     const newSha = result.updateInfo?.files[0]?.sha512;
     const oldSha = this.updateCheckResult?.updateInfo.files[0]?.sha512;
@@ -207,7 +212,7 @@ export class AppUpdater {
       return this.downloadPromise;
     }
 
-    this.downloadPromise = autoUpdater.downloadUpdate();
+    this.downloadPromise = this.nativeUpdater.downloadUpdate();
     try {
       await this.downloadPromise;
       this.isUpdateDownloaded = true;
@@ -232,7 +237,7 @@ export class AppUpdater {
     // into a broken state where it becomes unresponsive.
     // To avoid this, we instead close the network connections to abort
     // the current download.
-    await autoUpdater.netSession.closeAllConnections();
+    await this.nativeUpdater.netSession.closeAllConnections();
     try {
       await this.downloadPromise;
       return false;
@@ -283,7 +288,7 @@ export class AppUpdater {
    */
   quitAndInstall(): void {
     try {
-      autoUpdater.quitAndInstall();
+      this.nativeUpdater.quitAndInstall();
     } catch (error) {
       this.logger.error('Failed to quit and install update', error);
     }
@@ -321,7 +326,7 @@ export class AppUpdater {
     }
 
     // Workaround for Windows and Linux.
-    autoUpdater.autoInstallOnAppQuit = false;
+    this.nativeUpdater.autoInstallOnAppQuit = false;
 
     // macOS-specific workaround:
     // On macOS, electron-updater downloads the update file and, if
@@ -333,7 +338,7 @@ export class AppUpdater {
     // The only workaround I've found is to manually delete the ShipItState.plist
     // file so Squirrel cannot apply the update.
     // The downloaded update will be overwritten with the next update.
-    if (autoUpdater instanceof MacUpdater && app.isPackaged) {
+    if (this.nativeUpdater instanceof MacUpdater && app.isPackaged) {
       const squirrelPlistFilePath = path.join(
         os.homedir(),
         'Library',
@@ -363,6 +368,7 @@ export interface AppUpdaterStorage<
 }
 
 function registerEventHandlers(
+  nativeUpdater: NativeUpdater,
   emit: (event: AppUpdateEvent) => void,
   getAutoUpdatesStatus: () => AutoUpdatesStatus,
   getAutoDownload: () => boolean
@@ -418,20 +424,20 @@ function registerEventHandlers(
       autoUpdatesStatus: getAutoUpdatesStatus() as AutoUpdatesEnabled,
     });
 
-  autoUpdater.on('checking-for-update', onCheckingForUpdate);
-  autoUpdater.on('update-available', onUpdateAvailable);
-  autoUpdater.on('update-not-available', onUpdateNotAvailable);
-  autoUpdater.on('error', onError);
-  autoUpdater.on('download-progress', onDownloadProgress);
-  autoUpdater.on('update-downloaded', onUpdateDownloaded);
+  nativeUpdater.on('checking-for-update', onCheckingForUpdate);
+  nativeUpdater.on('update-available', onUpdateAvailable);
+  nativeUpdater.on('update-not-available', onUpdateNotAvailable);
+  nativeUpdater.on('error', onError);
+  nativeUpdater.on('download-progress', onDownloadProgress);
+  nativeUpdater.on('update-downloaded', onUpdateDownloaded);
 
   return () => {
-    autoUpdater.off('checking-for-update', onCheckingForUpdate);
-    autoUpdater.off('update-available', onUpdateAvailable);
-    autoUpdater.off('update-not-available', onUpdateNotAvailable);
-    autoUpdater.off('error', onError);
-    autoUpdater.off('download-progress', onDownloadProgress);
-    autoUpdater.off('update-downloaded', onUpdateDownloaded);
+    nativeUpdater.off('checking-for-update', onCheckingForUpdate);
+    nativeUpdater.off('update-available', onUpdateAvailable);
+    nativeUpdater.off('update-not-available', onUpdateNotAvailable);
+    nativeUpdater.off('error', onError);
+    nativeUpdater.off('download-progress', onDownloadProgress);
+    nativeUpdater.off('update-downloaded', onUpdateDownloaded);
   };
 }
 
