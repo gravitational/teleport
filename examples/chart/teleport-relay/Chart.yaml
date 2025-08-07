@@ -1,4 +1,4 @@
-.version: &version "18.1.1"
+.version: &version "18.1.5-dev.relay.1"
 
 name: teleport-relay
 apiVersion: v2
