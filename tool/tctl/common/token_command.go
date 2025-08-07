@@ -21,6 +21,7 @@ package common
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -36,6 +37,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -386,6 +388,10 @@ func (c *TokensCommand) Del(ctx context.Context, client *authclient.Client) erro
 	return nil
 }
 
+// The caller MUST make sure the MFA ceremony has been performed and is stored in the context
+// Else this function will cause several MFA prompts.
+// The MFa ceremony cannot be done in this function because we don't know if
+// the caller already attempted one (e.g. tctl get all)
 func getAllTokens(ctx context.Context, client *authclient.Client) ([]types.ProvisionToken, error) {
 	var usedLegacyRPC bool
 	var tokens []types.ProvisionToken
@@ -454,6 +460,14 @@ func getAllTokens(ctx context.Context, client *authclient.Client) ([]types.Provi
 func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) error {
 	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Because getAllTokens do up to 3 calls, we want to perform the MFA ceremony
+	// once and put it in the context. Else the users will get 3 MFA prompts.
+	if mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/); err == nil {
+		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+	} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
 		return trace.Wrap(err)
 	}
 
