@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand/v2"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -976,6 +977,9 @@ func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p
 						}
 						return
 					}
+
+					// Add small delay to increase chance of race conditions
+					time.Sleep(time.Duration(rand.IntN(10)) * time.Millisecond)
 
 					// Write to target.
 					_, writeErr := fmt.Fprint(dataStream, PortForwardPayload, p.ByName("name"), string(buf[:n]))
