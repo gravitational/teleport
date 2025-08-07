@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -210,6 +211,128 @@ func TestPortForwardKubeService(t *testing.T) {
 				require.Equal(t, expected, string(p[:n]))
 			}
 		})
+	}
+}
+
+func TestPortForwardKubeServiceMultiPort(t *testing.T) {
+	t.Parallel()
+
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
+	// creates a Kubernetes service with a configured cluster pointing to mock api server
+	testCtx := SetupTestContext(
+		context.Background(),
+		t,
+		TestConfig{
+			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+		},
+	)
+	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+	// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
+	user, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		username,
+		RoleSpec{
+			Name:       roleName,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+		})
+
+	// generate a kube client with user certs for auth
+	_, config := testCtx.GenTestKubeClientTLSCert(
+		t,
+		user.GetName(),
+		kubeCluster,
+	)
+	require.NoError(t, err)
+
+	// Create multi-port forwarder
+	readyCh := make(chan struct{})
+	errCh := make(chan error)
+	stopCh := make(chan struct{})
+	t.Cleanup(func() { close(stopCh) })
+
+	fw := spdyMultiPortForwardClientBuilder(t, portForwardRequestConfig{
+		podName:      podName,
+		podNamespace: podNamespace,
+		restConfig:   config,
+		podPort:      80, // This is ignored in multi-port builder
+		stopCh:       stopCh,
+		readyCh:      readyCh,
+	})
+	t.Cleanup(fw.Close)
+
+	go func() {
+		defer close(errCh)
+		errCh <- trace.Wrap(fw.ForwardPorts())
+	}()
+
+	select {
+	case err := <-errCh:
+		t.Fatalf("Received error on errCh instead of ready signal: %v", err)
+	case <-readyCh:
+		// Port forwarding is ready
+		ports, err := fw.GetPorts()
+		require.NoError(t, err)
+		//require.Len(t, ports, 5) // We requested 5 ports
+
+		// Test EACH port to ensure they all work
+		var wg sync.WaitGroup
+		errors := make(chan error, len(ports))
+
+		for i, port := range ports {
+			wg.Add(1)
+			go func(idx int, p portforward.ForwardedPort) {
+				defer wg.Done()
+
+				// Add small delay to create concurrency
+				time.Sleep(time.Duration(idx*10) * time.Millisecond)
+
+				conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", p.Local))
+				if err != nil {
+					errors <- fmt.Errorf("port %d dial failed: %w", p.Local, err)
+					return
+				}
+				defer conn.Close()
+
+				testData := []byte(fmt.Sprintf("test-data-port-%d", idx))
+				_, err = conn.Write(testData)
+				if err != nil {
+					errors <- fmt.Errorf("port %d write failed: %w", p.Local, err)
+					return
+				}
+
+				// Set read timeout to avoid hanging
+				conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+
+				buf := make([]byte, 1024)
+				n, err := conn.Read(buf)
+				if err != nil {
+					errors <- fmt.Errorf("port %d read failed: %w", p.Local, err)
+					return
+				}
+
+				expected := fmt.Sprintf("%s%s%s", testingkubemock.PortForwardPayload, podName, string(testData))
+				if !strings.Contains(string(buf[:n]), expected) {
+					errors <- fmt.Errorf("port %d unexpected response: got %q, want substring %q",
+						p.Local, string(buf[:n]), expected)
+				}
+			}(i, port)
+		}
+
+		wg.Wait()
+		close(errors)
+
+		// Check for any errors
+		var allErrors []error
+		for err := range errors {
+			allErrors = append(allErrors, err)
+		}
+		require.Empty(t, allErrors, "Port forwarding errors: %v", allErrors)
 	}
 }
 
