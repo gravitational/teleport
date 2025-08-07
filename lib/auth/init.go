@@ -551,7 +551,14 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	})
 
 	g.Go(func() error {
-		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeSessionRecordingConfig")
+		ctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthPreference")
+		if err := initializeAuthPreference(ctx, asrv, cfg.AuthPreference); err != nil {
+			span.End()
+			return trace.Wrap(err)
+		}
+		span.End()
+
+		ctx, span = cfg.Tracer.Start(gctx, "auth/InitializeSessionRecordingConfig")
 		defer span.End()
 		return trace.Wrap(initializeSessionRecordingConfig(ctx, asrv, cfg.SessionRecordingConfig))
 	})
@@ -566,12 +573,6 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeVnetConfig")
 		defer span.End()
 		return trace.Wrap(initializeVnetConfig(ctx, asrv))
-	})
-
-	g.Go(func() error {
-		ctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthPreference")
-		defer span.End()
-		return trace.Wrap(initializeAuthPreference(ctx, asrv, cfg.AuthPreference))
 	})
 
 	g.Go(func() error {
