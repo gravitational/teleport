@@ -2311,6 +2311,8 @@ func (a *ServerWithRoles) DeleteToken(ctx context.Context, token string) error {
 	return a.authServer.DeleteToken(ctx, token)
 }
 
+// GetTokens retrieves all tokens.
+// Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
 func (a *ServerWithRoles) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	if err := a.authorizeAction(types.KindToken, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
@@ -2321,6 +2323,18 @@ func (a *ServerWithRoles) GetTokens(ctx context.Context) ([]types.ProvisionToken
 	}
 
 	return a.authServer.GetTokens(ctx)
+}
+
+func (a *ServerWithRoles) GetStaticTokens(ctx context.Context) (types.StaticTokens, error) {
+	if err := a.authorizeAction(types.KindToken, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetStaticTokens(ctx)
 }
 
 func (a *ServerWithRoles) ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error) {
@@ -3640,7 +3654,7 @@ func (a *ServerWithRoles) GetResetPasswordToken(ctx context.Context, tokenID str
 	return a.authServer.getResetPasswordToken(ctx, tokenID)
 }
 
-func (a *ServerWithRoles) ListResetPasswordToken(ctx context.Context, pageSize int, nextKey string) ([]types.UserToken, string, error) {
+func (a *ServerWithRoles) ListResetPasswordTokens(ctx context.Context, pageSize int, nextKey string) ([]types.UserToken, string, error) {
 	if err := a.authorizeAction(types.KindToken, types.VerbList, types.VerbRead); err != nil {
 		return nil, "", trace.Wrap(err)
 	}

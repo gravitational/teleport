@@ -1200,7 +1200,7 @@ func (g *GRPCServer) ListResetPasswordTokens(ctx context.Context, req *authpb.Li
 		return nil, trace.Wrap(err)
 	}
 
-	ts, nextKey, err := auth.ServerWithRoles.ListResetPasswordToken(ctx, int(req.Limit), req.StartKey)
+	ts, nextKey, err := auth.ServerWithRoles.ListResetPasswordTokens(ctx, int(req.Limit), req.StartKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3253,6 +3253,7 @@ func (g *GRPCServer) GetToken(ctx context.Context, req *types.ResourceRequest) (
 }
 
 // GetTokens retrieves all tokens.
+// Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
 func (g *GRPCServer) GetTokens(ctx context.Context, _ *emptypb.Empty) (*types.ProvisionTokenV2List, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -3272,6 +3273,24 @@ func (g *GRPCServer) GetTokens(ctx context.Context, _ *emptypb.Empty) (*types.Pr
 	return &types.ProvisionTokenV2List{
 		ProvisionTokens: provisionTokensV2,
 	}, nil
+}
+
+// GetStaticTokens retrieves all static tokens.
+func (g *GRPCServer) GetStaticTokens(ctx context.Context, _ *emptypb.Empty) (*types.StaticTokensV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	st, err := auth.ServerWithRoles.GetStaticTokens(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	result, ok := st.(*types.StaticTokensV2)
+	if !ok {
+		return nil, trace.Errorf("encountered unexpected static token type: %T", st)
+	}
+	return result, nil
 }
 
 // ListProvisionTokens retrieves a paginated list of provision tokens.

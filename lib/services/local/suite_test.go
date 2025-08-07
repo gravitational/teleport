@@ -1122,6 +1122,7 @@ func (s *ServicesTestSuite) SessionRecordingConfig(t *testing.T) {
 }
 
 func (s *ServicesTestSuite) StaticTokens(t *testing.T) {
+	ctx := t.Context()
 	// set static tokens
 	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{
@@ -1137,14 +1138,14 @@ func (s *ServicesTestSuite) StaticTokens(t *testing.T) {
 	err = s.ConfigS.SetStaticTokens(staticTokens)
 	require.NoError(t, err)
 
-	out, err := s.ConfigS.GetStaticTokens()
+	out, err := s.ConfigS.GetStaticTokens(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(staticTokens, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	err = s.ConfigS.DeleteStaticTokens()
 	require.NoError(t, err)
 
-	_, err = s.ConfigS.GetStaticTokens()
+	_, err = s.ConfigS.GetStaticTokens(ctx)
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -1570,7 +1571,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				err = s.LocalConfigS.SetStaticTokens(staticTokens)
 				require.NoError(t, err)
 
-				out, err := s.LocalConfigS.GetStaticTokens()
+				out, err := s.LocalConfigS.GetStaticTokens(ctx)
 				require.NoError(t, err)
 
 				err = s.LocalConfigS.DeleteStaticTokens()
