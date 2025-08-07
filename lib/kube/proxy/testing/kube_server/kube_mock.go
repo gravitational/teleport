@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -149,6 +150,13 @@ func WithPortForwardError(status metav1.Status) Option {
 	}
 }
 
+// WithPortForwardConcurrent enables concurrent port forwarding.
+func WithPortForwardConcurrent() Option {
+	return func(s *KubeMockServer) {
+		s.concurrentPortForward = true
+	}
+}
+
 // WithVersion sets the version of the server
 func WithVersion(version *apimachineryversion.Info) Option {
 	return func(s *KubeMockServer) {
@@ -189,6 +197,8 @@ type KubeMockServer struct {
 	nsList *corev1.NamespaceList
 
 	crds map[GVP]*CRD
+
+	concurrentPortForward bool
 }
 
 // NewKubeAPIMock creates Kubernetes API server for handling exec calls.
@@ -239,8 +249,16 @@ func (s *KubeMockServer) setup() {
 
 	router.Handle("POST /api/{ver}/namespaces/{namespace}/pods/{name}/exec", s.withWriter(s.exec))
 	router.Handle("GET /api/{ver}/namespaces/{namespace}/pods/{name}/exec", s.withWriter(s.exec))
-	router.Handle("GET /api/{ver}/namespaces/{namespace}/pods/{name}/portforward", s.withWriter(s.portforward))
-	router.Handle("POST /api/{ver}/namespaces/{namespace}/pods/{name}/portforward", s.withWriter(s.portforward))
+
+	var portForwardHandler httplib.HandlerFunc
+	if s.concurrentPortForward {
+		s.log.Info("Configuring kube mock server with concurrent port forward")
+		portForwardHandler = s.portforwardConcurrent
+	} else {
+		portForwardHandler = s.portforward
+	}
+	router.Handle("GET /api/{ver}/namespaces/{namespace}/pods/{name}/portforward", s.withWriter(portForwardHandler))
+	router.Handle("POST /api/{ver}/namespaces/{namespace}/pods/{name}/portforward", s.withWriter(portForwardHandler))
 
 	router.Handle("GET /apis/rbac.authorization.k8s.io/{ver}/clusterroles", s.withWriter(s.listClusterRoles))
 	router.Handle("GET /apis/rbac.authorization.k8s.io/{ver}/clusterroles/{name}", s.withWriter(s.getClusterRole))
@@ -928,7 +946,135 @@ func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p
 		errStream.Write([]byte(err.Error()))
 		return nil, nil
 	}
+
 	fmt.Fprint(data, PortForwardPayload, p.ByName("name"), string(buf[:n]))
+	return nil, nil
+}
+
+func (s *KubeMockServer) portforwardConcurrent(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
+	if s.portforwardError != nil {
+		s.writeResponseError(w, nil, s.portforwardError)
+		return nil, nil
+	}
+
+	streamChan := make(chan httpstream.Stream)
+
+	var err error
+	var conn httpstream.Connection
+	if wsstream.IsWebSocketRequestWithTunnelingProtocol(req) {
+		if !s.supportsTunneledSPDY {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("server does not support tunneled SPDY"))
+			return nil, nil
+		}
+		s.KubePortforward.Websocket.Add(1)
+		// Try to upgrade the websocket connection.
+		// Beyond this point, we don't need to write errors to the response.
+		upgrader := gwebsocket.Upgrader{
+			CheckOrigin:  func(r *http.Request) bool { return true },
+			Subprotocols: []string{portforwardconstants.WebsocketsSPDYTunnelingPortForwardV1},
+		}
+		wsConn, err := upgrader.Upgrade(w, req, nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		tunneledConn := portforward.NewTunnelingConnection("server", wsConn)
+
+		conn, err = spdystream.NewServerConnectionWithPings(
+			tunneledConn,
+			httpStreamReceived(req.Context(), streamChan),
+			defaults.HighResPollingPeriod,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "error upgrading connection")
+		}
+	} else {
+		s.KubePortforward.SPDY.Add(1)
+		_, err := httpstream.Handshake(req, w, []string{portForwardProtocolV1Name})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		upgrader := spdystream.NewResponseUpgraderWithPings(defaults.HighResPollingPeriod)
+		conn = upgrader.UpgradeResponse(w, req, httpStreamReceived(req.Context(), streamChan))
+	}
+
+	if conn == nil {
+		err = trace.ConnectionProblem(nil, "unable to upgrade connection")
+		return nil, err
+	}
+	defer conn.Close()
+
+	// Handle multiple ports concurrently
+	type portStream struct {
+		data  httpstream.Stream
+		error httpstream.Stream
+	}
+
+	portStreams := make(map[string]*portStream)
+	streamsMu := sync.Mutex{}
+
+	// Process streams in a goroutine
+	go func() {
+		for {
+			select {
+			case <-conn.CloseChan():
+				return
+			case stream := <-streamChan:
+				port := stream.Headers().Get(portHeader)
+				if port == "" {
+					continue
+				}
+
+				streamsMu.Lock()
+				if _, ok := portStreams[port]; !ok {
+					portStreams[port] = &portStream{}
+				}
+
+				switch stream.Headers().Get(StreamType) {
+				case StreamTypeError:
+					portStreams[port].error = stream
+				case StreamTypeData:
+					portStreams[port].data = stream
+				}
+
+				// Check if this port is ready to process
+				ps := portStreams[port]
+				if ps.data != nil && ps.error != nil {
+					// Process this port in a new goroutine for concurrency
+					go func(portNum string, streams *portStream) {
+						// Read from client
+						buf := make([]byte, 1024)
+						n, err := streams.data.Read(buf)
+						if err != nil {
+							streams.error.Write([]byte(err.Error()))
+							return
+						}
+
+						// Add small delay to increase chance of race conditions
+						if s.concurrentPortForward {
+							time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
+						}
+
+						// Send response
+						response := fmt.Sprintf("%s%s%s",
+							PortForwardPayload,
+							p.ByName("name"),
+							string(buf[:n]))
+
+						_, writeErr := streams.data.Write([]byte(response))
+						if writeErr != nil {
+							s.log.ErrorContext(req.Context(), "Failed to write response", "error", writeErr)
+						}
+					}(port, ps)
+				}
+				streamsMu.Unlock()
+			}
+		}
+	}()
+
+	// Keep the connection alive until it's closed
+	<-conn.CloseChan()
 	return nil, nil
 }
 
