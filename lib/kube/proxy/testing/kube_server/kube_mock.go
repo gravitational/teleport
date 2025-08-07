@@ -847,6 +847,8 @@ func (s *KubeMockServer) selfSubjectAccessReviews(w http.ResponseWriter, req *ht
 
 // portforward supports SPDY protocols only. Teleport always uses SPDY when
 // portforwarding to upstreams even if the original request is WebSocket.
+// kube_mock.go
+
 func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 	if s.portforwardError != nil {
 		s.writeResponseError(w, nil, s.portforwardError)
@@ -901,12 +903,11 @@ func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p
 	}
 	defer conn.Close()
 
-	// Create a context for managing goroutines.
-	// Reduced timeout since we expect quick completion
-	ctx, cancel := context.WithTimeout(req.Context(), 2*time.Second)
+	// Use the request's context to manage goroutine lifecycle without a premature timeout.
+	ctx, cancel := context.WithCancel(req.Context())
 	defer cancel()
 
-	// Wait for all active port forwards complete before returning.
+	// Wait for all active port forwards to complete before returning.
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
@@ -922,7 +923,7 @@ func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p
 	for {
 		select {
 		case <-ctx.Done():
-			s.log.InfoContext(ctx, "Context timeout, stopping stream processing")
+			s.log.InfoContext(ctx, "Context canceled, stopping stream processing")
 			return nil, nil
 		case <-conn.CloseChan():
 			s.log.InfoContext(ctx, "Connection closed")
@@ -958,6 +959,8 @@ func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p
 				wg.Add(1)
 				go func(portNum string, dataStream, errorStream httpstream.Stream) {
 					defer wg.Done()
+					defer dataStream.Close()
+					defer errorStream.Close()
 
 					// Check context canceled.
 					select {
@@ -971,14 +974,17 @@ func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p
 					buf := make([]byte, 1024)
 					n, readErr := dataStream.Read(buf)
 					if readErr != nil {
-						s.log.ErrorContext(ctx, "Read error", "port", portNum, "error", readErr)
-						if _, writeErr := errorStream.Write([]byte(readErr.Error())); writeErr != nil {
-							s.log.ErrorContext(ctx, "Unable to write error", "error", writeErr)
+						// EOF is expected when a client closes a connection.
+						if !errors.Is(readErr, io.EOF) {
+							s.log.ErrorContext(ctx, "Read error", "port", portNum, "error", readErr)
+							if _, writeErr := errorStream.Write([]byte(readErr.Error())); writeErr != nil {
+								s.log.ErrorContext(ctx, "Unable to write error", "error", writeErr)
+							}
 						}
 						return
 					}
 
-					// Add small delay to increase chance of race conditions
+					// Add a random delay to increase chances of race condition.
 					time.Sleep(time.Duration(rand.IntN(10)) * time.Millisecond)
 
 					// Write to target.
@@ -993,10 +999,6 @@ func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p
 					s.log.InfoContext(ctx, "Port forward completed", "port", portNum)
 				}(port, ps.data, ps.error)
 
-				// After starting the first port forward, return after it completes
-				// The deferred wg.Wait() will ensure it finishes before the function returns
-				streamsMu.Unlock()
-				return nil, nil
 			}
 			streamsMu.Unlock()
 		}
