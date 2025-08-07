@@ -47,6 +47,7 @@ type desktopSessionAuditor struct {
 	clusterName        string
 	desktopServiceUUID string
 
+	compactor  auditCompactor
 	auditCache sharedDirectoryAuditCache
 }
 
@@ -75,17 +76,16 @@ func (s *WindowsService) newSessionAuditor(
 	return &desktopSessionAuditor{
 		clock: s.cfg.Clock,
 
-		sessionID:   sessionID,
-		identity:    identity,
-		windowsUser: windowsUser,
-		desktop:     desktop,
-		enableNLA:   s.enableNLA,
-
+		sessionID:          sessionID,
+		identity:           identity,
+		windowsUser:        windowsUser,
+		desktop:            desktop,
+		enableNLA:          s.enableNLA,
 		startTime:          s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 		clusterName:        s.clusterName,
 		desktopServiceUUID: s.cfg.Heartbeat.HostUUID,
-
-		auditCache: newSharedDirectoryAuditCache(),
+		compactor:          newAuditCompactor(3*time.Second, 10*time.Second, s.emit),
+		auditCache:         newSharedDirectoryAuditCache(),
 	}
 }
 
@@ -121,6 +121,10 @@ func (d *desktopSessionAuditor) makeSessionStart(err error) *events.WindowsDeskt
 	}
 
 	return event
+}
+
+func (d *desktopSessionAuditor) teardown(ctx context.Context) {
+	d.compactor.flush(ctx)
 }
 
 func (d *desktopSessionAuditor) makeSessionEnd(recorded bool) *events.WindowsDesktopSessionEnd {
