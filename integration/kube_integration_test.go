@@ -183,7 +183,6 @@ func TestKube(t *testing.T) {
 	t.Run("Exec", suite.bind(testKubeExec))
 	t.Run("Deny", suite.bind(testKubeDeny))
 	t.Run("PortForward", suite.bind(testKubePortForward))
-	t.Run("PortForwardConcurrent", suite.bind(testKubePortForwardConcurrent))
 	t.Run("TransportProtocol", suite.bind(testKubeTransportProtocol))
 	t.Run("TrustedClustersClientCert", suite.bind(testKubeTrustedClustersClientCert))
 	t.Run("TrustedClustersSNI", suite.bind(testKubeTrustedClustersSNI))
@@ -592,120 +591,6 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 		)
 	}
 
-}
-
-// TestKubePortForwardConcurrent tests kubernetes
-// port forwarding with multiple ports to a single pod.
-func testKubePortForwardConcurrent(t *testing.T, suite *KubeSuite) {
-	t.Parallel()
-
-	tconf := suite.teleKubeConfig(Host)
-
-	teleport := helpers.NewInstance(t, helpers.InstanceConfig{
-		ClusterName: helpers.Site,
-		HostID:      helpers.HostID,
-		NodeName:    Host,
-		Priv:        suite.priv,
-		Pub:         suite.pub,
-		Logger:      suite.log,
-	})
-
-	username := suite.me.Username
-	kubeGroups := []string{kube.TestImpersonationGroup}
-	role, err := types.NewRole("kubemaster", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Logins:     []string{username},
-			KubeGroups: kubeGroups,
-			KubernetesLabels: types.Labels{
-				types.Wildcard: []string{types.Wildcard},
-			},
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-	teleport.AddUserWithRole(username, role)
-
-	err = teleport.CreateEx(t, nil, tconf)
-	require.NoError(t, err)
-
-	err = teleport.Start()
-	require.NoError(t, err)
-	defer teleport.StopAll()
-
-	// set up kube configuration using proxy
-	_, proxyClientConfig, err := kube.ProxyClient(kube.ProxyConfig{
-		T:          teleport,
-		Username:   username,
-		KubeGroups: kubeGroups,
-	})
-	require.NoError(t, err)
-
-	// Define multiple ports for forwarding.
-	// Local ports are randomly selected by specifying 0.
-	forwarder, err := newPortForwarder(proxyClientConfig, kubePortForwardArgs{
-		ports:        []string{"0:80", "0:81", "0:82", "0:83", "0:84"},
-		podName:      testPod,
-		podNamespace: testNamespace,
-	})
-	require.NoError(t, err)
-
-	defer forwarder.Close()
-	forwarderCh := make(chan error, 1)
-	go func() { forwarderCh <- forwarder.ForwardPorts() }()
-
-	select {
-	case <-time.After(5 * time.Second):
-		t.Fatal("Timed out waiting for port forwarding")
-	case <-forwarder.readyC:
-	}
-
-	// Get local ports, which are randomly selected.
-	portPairs, err := forwarder.GetPorts()
-	require.NoError(t, err)
-	t.Logf("Ports forwarded %v", portPairs)
-
-	// Exercise each port forward for a single pod.
-	// The focus is on exercising multiple port forwards for concurrency testing.
-	g, groupCtx := errgroup.WithContext(t.Context())
-	for _, portPair := range portPairs {
-		portPair := portPair
-		g.Go(func() error {
-			ctx, cancel := context.WithTimeout(groupCtx, 10*time.Second)
-			defer cancel()
-
-			url := fmt.Sprintf("http://localhost:%d", portPair.Local)
-			req, errReq := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-			if errReq != nil {
-				return fmt.Errorf("http new request for port %v: %w", portPair, errReq)
-			}
-
-			resp, errDoReq := http.DefaultClient.Do(req)
-			if errDoReq != nil {
-				return fmt.Errorf("http GET on port %v: %w", portPair, errDoReq)
-			}
-			if resp.StatusCode != http.StatusOK {
-				return fmt.Errorf("unexpected http GET status %d on port %v", resp.StatusCode, portPair)
-			}
-			io.Copy(io.Discard, resp.Body)
-			resp.Body.Close()
-
-			return nil
-		})
-	}
-	require.NoError(t, g.Wait())
-
-	t.Log("Port forward closing")
-	close(forwarder.stopC)
-	select {
-	case <-time.After(5 * time.Second):
-		t.Fatal("Timed out waiting for port forwarding to exit")
-	case err := <-forwarderCh:
-		require.NoError(t, err, "Port forwarding exited with an error")
-	}
 }
 
 // TestKubeTrustedClustersClientCert tests scenario with trusted clusters
