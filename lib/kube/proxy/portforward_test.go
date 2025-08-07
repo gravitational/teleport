@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/url"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream"
@@ -69,12 +71,6 @@ func TestPortForwardKubeService(t *testing.T) {
 			name: "SPDY protocol",
 			args: args{
 				portforwardClientBuilder: spdyPortForwardClientBuilder,
-			},
-		},
-		{
-			name: "SPDY protocol multiport",
-			args: args{
-				portforwardClientBuilder: spdyMultiPortForwardClientBuilder,
 			},
 		},
 		{
@@ -156,7 +152,7 @@ func TestPortForwardKubeService(t *testing.T) {
 				podName:      podName,
 				podNamespace: podNamespace,
 				restConfig:   config,
-				podPort:      80,
+				podPorts:     []int{80},
 				stopCh:       stopCh,
 				readyCh:      readyCh,
 			})
@@ -256,11 +252,20 @@ func TestPortForwardKubeServiceMultiPort(t *testing.T) {
 	stopCh := make(chan struct{})
 	t.Cleanup(func() { close(stopCh) })
 
-	fw := spdyMultiPortForwardClientBuilder(t, portForwardRequestConfig{
+	// Create 100 ports.
+	portCnt := 100
+	port := 80
+	ports := make([]int, portCnt)
+	for idx := 0; idx < portCnt; idx++ {
+		ports[idx] = port
+		port++
+	}
+
+	fw := spdyPortForwardClientBuilder(t, portForwardRequestConfig{
 		podName:      podName,
 		podNamespace: podNamespace,
 		restConfig:   config,
-		podPort:      80, // This is ignored in multi-port builder
+		podPorts:     ports,
 		stopCh:       stopCh,
 		readyCh:      readyCh,
 	})
@@ -278,61 +283,51 @@ func TestPortForwardKubeServiceMultiPort(t *testing.T) {
 		// Port forwarding is ready
 		ports, err := fw.GetPorts()
 		require.NoError(t, err)
-		//require.Len(t, ports, 5) // We requested 5 ports
 
-		// Test EACH port to ensure they all work
-		var wg sync.WaitGroup
-		errors := make(chan error, len(ports))
+		g, _ := errgroup.WithContext(t.Context())
+		for _, port := range ports {
+			p := port
 
-		for i, port := range ports {
-			wg.Add(1)
-			go func(idx int, p portforward.ForwardedPort) {
-				defer wg.Done()
-
-				// Add small delay to create concurrency
-				time.Sleep(time.Duration(idx*10) * time.Millisecond)
+			g.Go(func() error {
+				// Add a random delay to encourage race conditions.
+				time.Sleep(time.Duration(rand.IntN(20)) * time.Millisecond)
 
 				conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", p.Local))
 				if err != nil {
-					errors <- fmt.Errorf("port %d dial failed: %w", p.Local, err)
-					return
+					return fmt.Errorf("port %d dial failed: %w", p.Local, err)
 				}
 				defer conn.Close()
 
-				testData := []byte(fmt.Sprintf("test-data-port-%d", idx))
+				testData := []byte(fmt.Sprintf("test-data-port-%d", p.Local))
 				_, err = conn.Write(testData)
 				if err != nil {
-					errors <- fmt.Errorf("port %d write failed: %w", p.Local, err)
-					return
+					return fmt.Errorf("port %d write failed: %w", p.Local, err)
 				}
 
-				// Set read timeout to avoid hanging
-				conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+				// Set read timeout to avoid hanging.
+				if err := conn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+					return fmt.Errorf("port %d failed to set read deadline: %w", p.Local, err)
+				}
 
+				// Read from source.
 				buf := make([]byte, 1024)
 				n, err := conn.Read(buf)
 				if err != nil {
-					errors <- fmt.Errorf("port %d read failed: %w", p.Local, err)
-					return
+					return fmt.Errorf("port %d read failed: %w", p.Local, err)
 				}
 
 				expected := fmt.Sprintf("%s%s%s", testingkubemock.PortForwardPayload, podName, string(testData))
 				if !strings.Contains(string(buf[:n]), expected) {
-					errors <- fmt.Errorf("port %d unexpected response: got %q, want substring %q",
+					return fmt.Errorf("port %d unexpected response: got %q, want substring %q",
 						p.Local, string(buf[:n]), expected)
 				}
-			}(i, port)
+
+				return nil
+			})
 		}
 
-		wg.Wait()
-		close(errors)
-
-		// Check for any errors
-		var allErrors []error
-		for err := range errors {
-			allErrors = append(allErrors, err)
-		}
-		require.Empty(t, allErrors, "Port forwarding errors: %v", allErrors)
+		err = g.Wait()
+		require.NoError(t, err, "Port forwarding checks failed")
 	}
 }
 
@@ -355,23 +350,9 @@ func spdyPortForwardClientBuilder(t *testing.T, req portForwardRequestConfig) po
 	u, err := portforwardURL(req.podNamespace, req.podName, req.restConfig.Host, "")
 	require.NoError(t, err)
 	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, http.MethodPost, u)
-	fw, err := portforward.New(dialer, []string{fmt.Sprintf("%d:%d", 0, req.podPort)}, req.stopCh, req.readyCh, os.Stdout, os.Stdin)
-	require.NoError(t, err)
-	return fw
-}
-
-func spdyMultiPortForwardClientBuilder(t *testing.T, req portForwardRequestConfig) portForwarder {
-	transport, upgrader, err := spdy.RoundTripperFor(req.restConfig)
-	require.NoError(t, err)
-	u, err := portforwardURL(req.podNamespace, req.podName, req.restConfig.Host, "")
-	require.NoError(t, err)
-	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, http.MethodPost, u)
-	const portCnt = 100
-	port := 80
-	ports := make([]string, portCnt)
-	for idx := 0; idx < portCnt; idx++ {
-		ports[idx] = fmt.Sprintf("0:%d", port)
-		port++
+	ports := make([]string, len(req.podPorts))
+	for n, port := range req.podPorts {
+		ports[n] = fmt.Sprintf("0:%d", port)
 	}
 	fw, err := portforward.New(dialer, ports, req.stopCh, req.readyCh, os.Stdout, os.Stdin)
 	require.NoError(t, err)
@@ -395,8 +376,8 @@ type portForwardRequestConfig struct {
 	podName string
 	// podNamespace is the pod namespace.
 	podNamespace string
-	// podPort is the target port for the pod.
-	podPort int
+	// podPorts is the target port for the pod.
+	podPorts []int
 	// stopCh is the channel used to manage the port forward lifecycle
 	stopCh <-chan struct{}
 	// readyCh communicates when the tunnel is ready to receive traffic
@@ -679,7 +660,7 @@ func TestPortForwardUnderlyingProtocol(t *testing.T) {
 				podName:      podName,
 				podNamespace: podNamespace,
 				restConfig:   config,
-				podPort:      80,
+				podPorts:     []int{80},
 				stopCh:       stopCh,
 				readyCh:      readyCh,
 			})
