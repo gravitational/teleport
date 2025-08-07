@@ -463,13 +463,13 @@ func TestRotateKey(t *testing.T) {
 
 	encryption, err := config.Backend.GetRecordingEncryption(ctx)
 	require.NoError(t, err)
-	activePairs := encryption.GetSpec().GetActivePairs()
+	activePairs := encryption.GetSpec().GetActiveKeyPairs()
 	require.Len(t, activePairs, 1)
 	initialKey := activePairs[0]
 	require.NotNil(t, initialKey.KeyPair)
 	require.NotEmpty(t, initialKey.KeyPair.PrivateKey)
 	require.NotEmpty(t, initialKey.KeyPair.PublicKey)
-	require.Equal(t, recordingencryptionv1.KeyState_KEY_STATE_ACTIVE, initialKey.State)
+	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, initialKey.State)
 
 	// rotate key
 	err = manager.RotateKey(ctx)
@@ -477,18 +477,18 @@ func TestRotateKey(t *testing.T) {
 
 	encryption, err = config.Backend.GetRecordingEncryption(ctx)
 	require.NoError(t, err)
-	activePairs = encryption.GetSpec().GetActivePairs()
+	activePairs = encryption.GetSpec().GetActiveKeyPairs()
 	require.Len(t, activePairs, 2)
 
 	var foundInitialPair bool
 	var newPair *recordingencryptionv1.KeyPair
 	for _, pair := range activePairs {
 		if slices.Equal(initialKey.KeyPair.PublicKey, pair.KeyPair.PublicKey) {
-			require.Equal(t, recordingencryptionv1.KeyState_KEY_STATE_ROTATING, pair.State)
+			require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING, pair.State)
 			foundInitialPair = true
 		} else {
 			newPair = pair
-			require.Equal(t, recordingencryptionv1.KeyState_KEY_STATE_ACTIVE, pair.State)
+			require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, pair.State)
 		}
 	}
 
@@ -500,12 +500,12 @@ func TestRotateKey(t *testing.T) {
 
 	encryption, err = config.Backend.GetRecordingEncryption(ctx)
 	require.NoError(t, err)
-	activePairs = encryption.GetSpec().GetActivePairs()
+	activePairs = encryption.GetSpec().GetActiveKeyPairs()
 	require.Len(t, activePairs, 1)
 
 	require.Equal(t, newPair.KeyPair.PublicKey, activePairs[0].KeyPair.PublicKey)
 	require.Equal(t, newPair.KeyPair.PrivateKey, activePairs[0].KeyPair.PrivateKey)
-	require.Equal(t, recordingencryptionv1.KeyState_KEY_STATE_ACTIVE, activePairs[0].State)
+	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, activePairs[0].State)
 
 	pubKey, err := keys.ParsePublicKey(initialKey.KeyPair.PublicKey)
 	require.NoError(t, err)
@@ -541,13 +541,13 @@ func TestRollbackRotation(t *testing.T) {
 
 	encryption, err := config.Backend.GetRecordingEncryption(ctx)
 	require.NoError(t, err)
-	activePairs := encryption.GetSpec().GetActivePairs()
+	activePairs := encryption.GetSpec().GetActiveKeyPairs()
 	require.Len(t, activePairs, 1)
 	initialKey := activePairs[0]
 	require.NotNil(t, initialKey.KeyPair)
 	require.NotEmpty(t, initialKey.KeyPair.PrivateKey)
 	require.NotEmpty(t, initialKey.KeyPair.PublicKey)
-	require.Equal(t, recordingencryptionv1.KeyState_KEY_STATE_ACTIVE, initialKey.State)
+	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, initialKey.State)
 
 	// rotate key
 	err = manager.RotateKey(ctx)
@@ -555,18 +555,18 @@ func TestRollbackRotation(t *testing.T) {
 
 	encryption, err = config.Backend.GetRecordingEncryption(ctx)
 	require.NoError(t, err)
-	activePairs = encryption.GetSpec().GetActivePairs()
+	activePairs = encryption.GetSpec().GetActiveKeyPairs()
 	require.Len(t, activePairs, 2)
 
 	var foundInitialPair bool
 	var newPair *recordingencryptionv1.KeyPair
 	for _, pair := range activePairs {
 		if slices.Equal(initialKey.KeyPair.PublicKey, pair.KeyPair.PublicKey) {
-			require.Equal(t, recordingencryptionv1.KeyState_KEY_STATE_ROTATING, pair.State)
+			require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING, pair.State)
 			foundInitialPair = true
 		} else {
 			newPair = pair
-			require.Equal(t, recordingencryptionv1.KeyState_KEY_STATE_ACTIVE, pair.State)
+			require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, pair.State)
 		}
 	}
 
@@ -578,12 +578,12 @@ func TestRollbackRotation(t *testing.T) {
 
 	encryption, err = config.Backend.GetRecordingEncryption(ctx)
 	require.NoError(t, err)
-	activePairs = encryption.GetSpec().GetActivePairs()
+	activePairs = encryption.GetSpec().GetActiveKeyPairs()
 	require.Len(t, activePairs, 1)
 
 	require.Equal(t, initialKey.KeyPair.PublicKey, activePairs[0].KeyPair.PublicKey)
 	require.Equal(t, initialKey.KeyPair.PrivateKey, activePairs[0].KeyPair.PrivateKey)
-	require.Equal(t, recordingencryptionv1.KeyState_KEY_STATE_ACTIVE, activePairs[0].State)
+	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, activePairs[0].State)
 
 	pubKey, err := keys.ParsePublicKey(initialKey.KeyPair.PublicKey)
 	require.NoError(t, err)

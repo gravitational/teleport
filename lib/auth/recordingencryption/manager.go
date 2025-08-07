@@ -222,7 +222,7 @@ func (m *Manager) ensureActiveKeyPair(ctx context.Context, activePairs []*record
 	var foundActiveKey bool
 	if len(activePairs) > 0 {
 		for _, pair := range activePairs {
-			if pair.State != recordingencryptionv1.KeyState_KEY_STATE_ACTIVE {
+			if pair.State != recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE {
 				continue
 			}
 
@@ -254,7 +254,7 @@ func (m *Manager) ensureActiveKeyPair(ctx context.Context, activePairs []*record
 
 	return append(activePairs, &recordingencryptionv1.KeyPair{
 		KeyPair: encryptionPair,
-		State:   recordingencryptionv1.KeyState_KEY_STATE_ACTIVE,
+		State:   recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE,
 	}), nil
 }
 
@@ -396,11 +396,11 @@ func (m *Manager) RotateKey(ctx context.Context) error {
 	var activePair *recordingencryptionv1.KeyPair
 	for _, pair := range activePairs {
 		switch pair.GetState() {
-		case recordingencryptionv1.KeyState_KEY_STATE_ROTATING:
+		case recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING:
 			return trace.AlreadyExists("rotation already in progress, complete or rollback to start a new one")
-		case recordingencryptionv1.KeyState_KEY_STATE_INACCESSIBLE:
+		case recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_INACCESSIBLE:
 			return trace.BadParameter("failed rotation in progress, new key is inaccessible to at least one auth service instance")
-		case recordingencryptionv1.KeyState_KEY_STATE_ACTIVE:
+		case recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE:
 			activePair = pair
 		}
 	}
@@ -409,7 +409,7 @@ func (m *Manager) RotateKey(ctx context.Context) error {
 		return trace.NotFound("no active key present to rotate")
 	}
 
-	activePair.State = recordingencryptionv1.KeyState_KEY_STATE_ROTATING
+	activePair.State = recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING
 	if _, _, err := m.resolveAllSessionRecordingConfigs(ctx, nil, encryption); err != nil {
 		return trace.Wrap(err)
 	}
@@ -429,11 +429,11 @@ func (m *Manager) CompleteRotation(ctx context.Context) error {
 	var rotatedPairs []*recordingencryptionv1.KeyPair
 	for _, pair := range activePairs {
 		switch pair.GetState() {
-		case recordingencryptionv1.KeyState_KEY_STATE_ROTATING:
+		case recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING:
 			rotatedPairs = append(rotatedPairs, pair)
-		case recordingencryptionv1.KeyState_KEY_STATE_ACTIVE:
+		case recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE:
 			remainingPairs = append(remainingPairs, pair)
-		case recordingencryptionv1.KeyState_KEY_STATE_INACCESSIBLE:
+		case recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_INACCESSIBLE:
 			return trace.BadParameter("failed rotation in progress, new key is inaccessible to at least one auth service instance")
 		}
 	}
@@ -463,8 +463,8 @@ func (m *Manager) RollbackRotation(ctx context.Context) error {
 	activePairs := encryption.GetSpec().GetActiveKeyPairs()
 	var rollbackPairs []*recordingencryptionv1.KeyPair
 	for _, pair := range activePairs {
-		if pair.GetState() == recordingencryptionv1.KeyState_KEY_STATE_ROTATING {
-			pair.State = recordingencryptionv1.KeyState_KEY_STATE_ACTIVE
+		if pair.GetState() == recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING {
+			pair.State = recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE
 			rollbackPairs = append(rollbackPairs, pair)
 		}
 	}
@@ -479,6 +479,34 @@ func (m *Manager) RollbackRotation(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// GetRotationState returns the state of each active key identified by a fingerprint.
+func (m *Manager) GetRotationState(ctx context.Context) ([]*recordingencryptionv1.FingerprintWithState, error) {
+	encryption, err := m.GetRecordingEncryption(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	activePairs := encryption.GetSpec().GetActiveKeyPairs()
+	if len(activePairs) == 0 {
+		return nil, nil
+	}
+
+	states := make([]*recordingencryptionv1.FingerprintWithState, 0, len(activePairs))
+	for _, pair := range activePairs {
+		fingerprint, err := fingerprintPEM(pair.GetKeyPair().PublicKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		states = append(states, &recordingencryptionv1.FingerprintWithState{
+			Fingerprint: fingerprint,
+			State:       pair.GetState(),
+		})
+	}
+
+	return states, nil
 }
 
 // Watch for changes in the recording_encryption resource and respond by ensuring access to keys.

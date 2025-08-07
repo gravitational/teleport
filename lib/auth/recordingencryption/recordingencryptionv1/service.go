@@ -36,6 +36,7 @@ type KeyRotater interface {
 	RotateKey(context.Context) error
 	CompleteRotation(context.Context) error
 	RollbackRotation(context.Context) error
+	GetRotationState(context.Context) ([]*recordingencryptionv1.FingerprintWithState, error)
 }
 
 // ServiceConfig captures everything a [Service] requires to fulfill requests.
@@ -251,4 +252,26 @@ func (s *Service) RollbackRotation(ctx context.Context, req *recordingencryption
 	}
 
 	return &recordingencryptionv1.RollbackRotationResponse{}, nil
+}
+
+// GetRotationState the state and fingerprint of all currently active keys.
+func (s *Service) GetRotationState(ctx context.Context, req *recordingencryptionv1.GetRotationStateRequest) (*recordingencryptionv1.GetRotationStateResponse, error) {
+	authCtx, err := s.auth.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
+		s.logger.WarnContext(ctx, "failed to authorize encryption key rotation", "error", err)
+		return nil, trace.AccessDenied("key rotation can only be performed by admins")
+	}
+
+	states, err := s.rotater.GetRotationState(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &recordingencryptionv1.GetRotationStateResponse{
+		KeyPairStates: states,
+	}, nil
 }
