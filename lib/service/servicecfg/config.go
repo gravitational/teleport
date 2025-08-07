@@ -72,6 +72,10 @@ type Config struct {
 	// ProxyServer is the address of the proxy
 	ProxyServer utils.NetAddr
 
+	// RelayServer is the optional address of the relay server this agent should
+	// be opening tunnels to for supported services.
+	RelayServer string
+
 	// Identities is an optional list of pre-generated key pairs
 	// for teleport roles, this is helpful when server is preconfigured
 	Identities []*state.Identity
