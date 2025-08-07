@@ -2323,6 +2323,18 @@ func (a *ServerWithRoles) GetTokens(ctx context.Context) ([]types.ProvisionToken
 	return a.authServer.GetTokens(ctx)
 }
 
+func (a *ServerWithRoles) GetStaticTokens(ctx context.Context) (types.StaticTokens, error) {
+	if err := a.authorizeAction(types.KindToken, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetStaticTokens(ctx)
+}
+
 func (a *ServerWithRoles) ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error) {
 	if err := a.authorizeAction(types.KindToken, types.VerbList, types.VerbRead); err != nil {
 		return nil, "", trace.Wrap(err)
