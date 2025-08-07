@@ -386,13 +386,8 @@ func (c *TokensCommand) Del(ctx context.Context, client *authclient.Client) erro
 	return nil
 }
 
-// List is called to execute "tokens ls" command.
-func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) error {
-	labels, err := libclient.ParseLabelSpec(c.labels)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+func getAllTokens(ctx context.Context, client *authclient.Client) ([]types.ProvisionToken, error) {
+	var usedLegacyRPC bool
 	var tokens []types.ProvisionToken
 	var startKey string
 	for {
@@ -400,20 +395,71 @@ func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) err
 		if err != nil {
 			// TODO(hugoShaka) DELETE IN v21.0.0
 			if trace.IsNotImplemented(err) {
+				usedLegacyRPC = true
 				tokens, err = client.GetTokens(ctx)
 				if err != nil {
-					return trace.Wrap(err)
+					return nil, trace.Wrap(err, "getting all tokens using the legacy GetTokens RPC")
 				}
 
 				break
 			}
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err, "getting provision tokens using the ListProvisionTokens RPC")
 		}
 		tokens = append(tokens, resp...)
 		if key == "" {
 			break
 		}
 		startKey = key
+	}
+
+	// If we use the new RPCs, we must also get the user tokens and the static tokens.
+	if !usedLegacyRPC {
+		// Get static tokens
+		staticTokens, err := client.GetStaticTokens(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting static tokens using the GetStaticTokens RPC")
+		}
+		tokens = append(tokens, staticTokens.GetStaticTokens()...)
+		// Get user tokens
+		var userTokens []types.UserToken
+		startKey = ""
+		for {
+			resp, key, err := client.ListResetPasswordTokens(ctx, 0, startKey)
+			if err != nil {
+				return nil, trace.Wrap(err, "getting provision tokens using the ListResetPasswordTokens RPC")
+			}
+			userTokens = append(userTokens, resp...)
+			if key == "" {
+				break
+			}
+			startKey = key
+		}
+
+		// Convert user tokens to machine tokens.
+		// This doesn't sound like a good idea, but this was the previous tctl
+		// behavior se we'll maintain backward compatibility.
+		for _, t := range userTokens {
+			roles := types.SystemRoles{types.RoleSignup}
+			tok, err := types.NewProvisionToken(t.GetName(), roles, t.Expiry())
+			if err != nil {
+				return nil, trace.Wrap(err, "converting user token into a provision token")
+			}
+			tokens = append(tokens, tok)
+		}
+	}
+	return tokens, nil
+}
+
+// List is called to execute "tokens ls" command.
+func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) error {
+	labels, err := libclient.ParseLabelSpec(c.labels)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tokens, err := getAllTokens(ctx, client)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	tokens = slices.DeleteFunc(tokens, func(token types.ProvisionToken) bool {

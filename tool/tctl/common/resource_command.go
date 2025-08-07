@@ -2948,64 +2948,9 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &dynamicWindowsDesktopCollection{desktops}, nil
 	case types.KindToken:
 		if rc.ref.Name == "" {
-			var usedLegacyRPC bool
-			var tokens []types.ProvisionToken
-			var startKey string
-			for {
-				resp, key, err := client.ListProvisionTokens(ctx, 0, startKey, nil, "")
-				if err != nil {
-					// TODO(hugoShaka) DELETE IN v21.0.0
-					if trace.IsNotImplemented(err) {
-						usedLegacyRPC = true
-						tokens, err = client.GetTokens(ctx)
-						if err != nil {
-							return nil, trace.Wrap(err)
-						}
-
-						break
-					}
-					return nil, trace.Wrap(err)
-				}
-				tokens = append(tokens, resp...)
-				if key == "" {
-					break
-				}
-				startKey = key
-			}
-			// If we use the new RPCs, we must also get the user tokens and the static tokens.
-			if !usedLegacyRPC {
-				// Get static tokens
-				staticTokens, err := client.GetStaticTokens(ctx)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				tokens = append(tokens, staticTokens.GetStaticTokens()...)
-				// Get user tokens
-				var userTokens []types.UserToken
-				startKey = ""
-				for {
-					resp, key, err := client.ListResetPasswordTokens(ctx, 0, startKey)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-					userTokens = append(userTokens, resp...)
-					if key == "" {
-						break
-					}
-					startKey = key
-				}
-
-				// Convert user tokens to machine tokens.
-				// This doesn't sound like a good idea, but this was the previous tctl
-				// behavior se we'll maintain backward compatibility.
-				for _, t := range userTokens {
-					roles := types.SystemRoles{types.RoleSignup}
-					tok, err := types.NewProvisionToken(t.GetName(), roles, t.Expiry())
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-					tokens = append(tokens, tok)
-				}
+			tokens, err := getAllTokens(ctx, client)
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
 			return &tokenCollection{tokens: tokens}, nil
 		}
