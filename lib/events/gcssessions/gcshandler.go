@@ -352,16 +352,16 @@ func (h *Handler) summaryPath(sessionID session.ID) string {
 
 func (h *Handler) detailsPath(sessionID session.ID) string {
 	if h.Path == "" {
-		return string(sessionID) + ".details.json"
+		return string(sessionID) + ".details"
 	}
-	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".details.json"), slash)
+	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".details"), slash)
 }
 
 func (h *Handler) thumbnailPath(sessionID session.ID) string {
 	if h.Path == "" {
-		return string(sessionID) + ".thumbnail.json"
+		return string(sessionID) + ".thumbnail"
 	}
-	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".thumbnail.json"), slash)
+	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".thumbnail"), slash)
 }
 
 // ensureBucket makes sure bucket exists, and if it does not, creates it

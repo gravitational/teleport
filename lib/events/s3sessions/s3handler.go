@@ -506,16 +506,16 @@ func (h *Handler) summaryPath(sessionID session.ID) string {
 
 func (h *Handler) detailsPath(sessionID session.ID) string {
 	if h.Path == "" {
-		return string(sessionID) + ".details.json"
+		return string(sessionID) + ".details"
 	}
-	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".details.json"), "/")
+	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".details"), "/")
 }
 
 func (h *Handler) thumbnailPath(sessionID session.ID) string {
 	if h.Path == "" {
-		return string(sessionID) + ".thumbnail.json"
+		return string(sessionID) + ".thumbnail"
 	}
-	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".thumbnail.json"), "/")
+	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".thumbnail"), "/")
 }
 
 func (h *Handler) fromPath(p string) session.ID {

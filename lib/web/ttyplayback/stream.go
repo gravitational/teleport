@@ -19,6 +19,7 @@
 package ttyplayback
 
 import (
+	"cmp"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -36,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/web/ttyplayback/terminal"
 	"github.com/gravitational/teleport/lib/web/ttyplayback/vt10x"
 )
 
@@ -64,13 +64,16 @@ const (
 	EventTypeScreen byte = 8
 	// EventTypeBatch indicates a batch of events
 	EventTypeBatch byte = 9
-
-	requestHeaderSize  = 21
-	responseHeaderSize = 21
 )
 
-// BinaryRequest represents a client request
-type BinaryRequest struct {
+const (
+	maxRequestRange    = 10 * time.Minute
+	requestHeaderSize  = 21
+	responseHeaderSize = 17
+)
+
+// fetchRequest represents a client request
+type fetchRequest struct {
 	Type                 byte
 	StartTime            int64
 	EndTime              int64
@@ -80,31 +83,54 @@ type BinaryRequest struct {
 
 // SessionEventsHandler manages session event streaming
 type SessionEventsHandler struct {
-	ctx       context.Context
-	cancel    context.CancelFunc
-	ws        *websocket.Conn
-	clt       authclient.ClientI
-	sessionID string
-	logger    *slog.Logger
-
+	ctx        context.Context
+	cancel     context.CancelFunc
+	clt        authclient.ClientI
+	sessionID  string
+	logger     *slog.Logger
 	mu         sync.Mutex
 	activeTask context.CancelFunc
 
-	// wsMu protects websocket writes
-	wsMu sync.Mutex
+	stream struct {
+		sync.Mutex
+		eventsChan  <-chan apievents.AuditEvent
+		errorsChan  <-chan error
+		lastEndTime int64
+	}
+
+	websocket struct {
+		sync.Mutex
+		*websocket.Conn
+	}
+
+	terminal struct {
+		sync.RWMutex
+		vt          vt10x.Terminal
+		currentTime int64
+	}
+}
+
+type sessionEvent struct {
+	eventType byte
+	timestamp int64
+	data      []byte
 }
 
 // NewSessionEventsHandler creates a new session events handler
 func NewSessionEventsHandler(ctx context.Context, ws *websocket.Conn, clt authclient.ClientI, sessionID string, logger *slog.Logger) *SessionEventsHandler {
 	ctx, cancel := context.WithCancel(ctx)
-	return &SessionEventsHandler{
+
+	s := &SessionEventsHandler{
 		ctx:       ctx,
 		cancel:    cancel,
-		ws:        ws,
 		clt:       clt,
 		sessionID: sessionID,
 		logger:    logger,
 	}
+
+	s.websocket.Conn = ws
+
+	return s
 }
 
 // Run starts the handler
@@ -116,21 +142,15 @@ func (s *SessionEventsHandler) Run() {
 func (s *SessionEventsHandler) cleanup() {
 	s.cancel()
 
-	s.wsMu.Lock()
-	_ = s.ws.WriteMessage(websocket.CloseMessage, nil)
-	_ = s.ws.Close()
-	s.wsMu.Unlock()
-
-	s.mu.Lock()
-	if s.activeTask != nil {
-		s.activeTask()
-	}
-	s.mu.Unlock()
+	s.websocket.Lock()
+	_ = s.WriteMessage(websocket.CloseMessage, nil)
+	_ = s.websocket.Close()
+	s.websocket.Unlock()
 }
 
 func (s *SessionEventsHandler) readLoop() {
 	for {
-		msgType, data, err := s.ws.ReadMessage()
+		msgType, data, err := s.websocket.ReadMessage()
 		if err != nil {
 			if !utils.IsOKNetworkError(err) {
 				s.logger.WarnContext(s.ctx, "websocket read error", "error", err)
@@ -157,83 +177,96 @@ func (s *SessionEventsHandler) readLoop() {
 	}
 }
 
-func encodeScreenEvent(vt vt10x.Terminal) []byte {
-	screen := terminal.Serialize(vt)
-	data := vt.ANSI()
-
-	eventData := make([]byte, 21+len(data))
-	eventData[0] = EventTypeScreen
-
-	binary.BigEndian.PutUint32(eventData[1:5], uint32(screen.Cols))
-	binary.BigEndian.PutUint32(eventData[5:9], uint32(screen.Rows))
-	binary.BigEndian.PutUint32(eventData[9:13], uint32(screen.CursorX))
-	binary.BigEndian.PutUint32(eventData[13:17], uint32(screen.CursorY))
-	binary.BigEndian.PutUint32(eventData[17:21], uint32(len(data)))
-
-	copy(eventData[21:], data)
-
-	return eventData
-}
-
-func (s *SessionEventsHandler) handleFetchRequest(req *BinaryRequest) {
+func (s *SessionEventsHandler) createTaskContext() context.Context {
 	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.activeTask != nil {
 		s.activeTask()
 	}
-	taskCtx, taskCancel := context.WithCancel(s.ctx)
-	s.activeTask = taskCancel
-	s.mu.Unlock()
 
-	go s.streamEvents(taskCtx, req)
+	ctx, taskCancel := context.WithCancel(s.ctx)
+	s.activeTask = taskCancel
+
+	return ctx
 }
 
-func (s *SessionEventsHandler) streamEvents(ctx context.Context, req *BinaryRequest) {
+func (s *SessionEventsHandler) handleFetchRequest(req *fetchRequest) {
+	if err := validateRequest(req); err != nil {
+		s.sendError(err, req.RequestID)
+
+		return
+	}
+
+	ctx := s.createTaskContext()
+
+	s.stream.Lock()
+	needNewStream := false
+
+	if s.stream.eventsChan == nil {
+		needNewStream = true
+	} else if req.StartTime < s.stream.lastEndTime {
+		needNewStream = true
+	}
+
+	if needNewStream {
+		events, errors := s.clt.StreamSessionEvents(
+			metadata.WithSessionRecordingFormatContext(ctx, teleport.PTY),
+			session.ID(s.sessionID),
+			0,
+		)
+
+		if events == nil || errors == nil {
+			s.sendError(fmt.Errorf("failed to start session event stream"), req.RequestID)
+			s.stream.Unlock()
+
+			return
+		}
+
+		s.stream.eventsChan = events
+		s.stream.errorsChan = errors
+		s.stream.lastEndTime = 0
+
+		s.terminal.Lock()
+		s.terminal.vt = vt10x.New()
+		s.terminal.Unlock()
+	}
+
+	s.stream.lastEndTime = req.EndTime
+
+	s.stream.Unlock()
+
+	go s.streamEvents(ctx, req)
+}
+
+func (s *SessionEventsHandler) streamEvents(ctx context.Context, req *fetchRequest) {
 	defer func() {
 		s.mu.Lock()
 		s.activeTask = nil
 		s.mu.Unlock()
 	}()
 
-	s.sendEvent(EventTypeStart, req.StartTime, nil, 0, req.RequestID)
+	s.sendEvent(EventTypeStart, req.StartTime, nil, req.RequestID)
 
-	fmt.Println("Streaming session events for session ID:", s.sessionID)
-
-	events, errors := s.clt.StreamSessionEvents(
-		metadata.WithSessionRecordingFormatContext(ctx, teleport.PTY),
-		session.ID(s.sessionID),
-		0,
-	)
-
-	vt := vt10x.New()
-	currentTime := int64(0)
-	index := 0
 	screenSent := false
-	inTimeRange := req.StartTime == 0 // If starting from beginning, we're already in range
+	inTimeRange := false
 	var streamStartTime time.Time
 
 	const maxBatchSize = 200
-	eventBatch := make([]struct {
-		eventType byte
-		timestamp int64
-		data      []byte
-		index     int
-	}, 0, maxBatchSize)
+
+	eventBatch := make([]sessionEvent, 0, maxBatchSize)
 
 	flushBatch := func() {
 		if len(eventBatch) == 0 {
 			return
 		}
+
 		s.sendEventBatch(eventBatch, req.RequestID)
 		eventBatch = eventBatch[:0]
 	}
 
-	addToBatch := func(eventType byte, timestamp int64, data []byte, idx int) {
-		eventBatch = append(eventBatch, struct {
-			eventType byte
-			timestamp int64
-			data      []byte
-			index     int
-		}{eventType, timestamp, data, idx})
+	addToBatch := func(eventType byte, timestamp int64, data []byte) {
+		eventBatch = append(eventBatch, sessionEvent{eventType, timestamp, data})
 
 		if len(eventBatch) >= maxBatchSize {
 			flushBatch()
@@ -244,22 +277,30 @@ func (s *SessionEventsHandler) streamEvents(ctx context.Context, req *BinaryRequ
 		select {
 		case <-ctx.Done():
 			flushBatch()
-			s.sendEvent(EventTypeStop, 0, encodeTime(req.StartTime, req.EndTime), 0, req.RequestID)
+
+			s.sendEvent(EventTypeStop, 0, encodeTime(req.StartTime, req.EndTime), req.RequestID)
+
 			return
-		case err := <-errors:
+
+		case err := <-s.stream.errorsChan:
 			flushBatch()
+
 			if err != nil {
 				s.sendError(err, req.RequestID)
 			}
-			s.sendEvent(EventTypeStop, 0, encodeTime(req.StartTime, req.EndTime), 0, req.RequestID)
+
+			s.sendEvent(EventTypeStop, 0, encodeTime(req.StartTime, req.EndTime), req.RequestID)
 			return
-		case evt, ok := <-events:
+
+		case evt, ok := <-s.stream.eventsChan:
 			if !ok {
 				flushBatch()
+
 				if req.RequestCurrentScreen && !screenSent && inTimeRange {
-					s.sendScreenState(vt, currentTime, req.RequestID)
+					s.sendCurrentScreen(req.RequestID, req.StartTime)
 				}
-				s.sendEvent(EventTypeStop, 0, encodeTime(req.StartTime, req.EndTime), 0, req.RequestID)
+
+				s.sendEvent(EventTypeStop, 0, encodeTime(req.StartTime, req.EndTime), req.RequestID)
 				return
 			}
 
@@ -269,144 +310,190 @@ func (s *SessionEventsHandler) streamEvents(ctx context.Context, req *BinaryRequ
 
 			eventTime := getEventTime(evt)
 
-			// Process all events with vt10x to maintain terminal state
+			if !inTimeRange && eventTime >= req.StartTime {
+				inTimeRange = true
+
+				if req.RequestCurrentScreen && !screenSent {
+					flushBatch()
+
+					s.sendCurrentScreen(req.RequestID, eventTime)
+
+					screenSent = true
+				}
+			}
+
 			switch evt := evt.(type) {
 			case *apievents.SessionStart:
-				resizeTerminal(vt, evt.TerminalSize)
+				s.resizeTerminal(evt.TerminalSize)
+
 				if inTimeRange {
-					addToBatch(EventTypeSessionStart, 0, []byte(evt.TerminalSize), index)
-					index++
+					addToBatch(EventTypeSessionStart, 0, []byte(evt.TerminalSize))
 				}
 
 			case *apievents.SessionPrint:
-				// Always write to vt to maintain terminal state
-				_, _ = vt.Write(evt.Data)
-				currentTime = evt.DelayMilliseconds
+				s.terminal.Lock()
+				_, _ = s.terminal.vt.Write(evt.Data)
+				s.terminal.Unlock()
 
-				// Check if we've entered the time range
-				if !inTimeRange && evt.DelayMilliseconds >= req.StartTime {
-					inTimeRange = true
-					if req.RequestCurrentScreen && !screenSent {
-						flushBatch()
-						s.sendScreenState(vt, evt.DelayMilliseconds, req.RequestID)
-						screenSent = true
-					}
-				}
-
-				// Only send events within the time range
-				if inTimeRange && evt.DelayMilliseconds <= req.EndTime {
-					addToBatch(EventTypeSessionPrint, evt.DelayMilliseconds, evt.Data, index)
-					index++
+				if evt.DelayMilliseconds >= req.StartTime && evt.DelayMilliseconds <= req.EndTime {
+					addToBatch(EventTypeSessionPrint, evt.DelayMilliseconds, evt.Data)
 				} else if evt.DelayMilliseconds > req.EndTime {
 					flushBatch()
-					s.sendEvent(EventTypeStop, 0, encodeTime(req.StartTime, req.EndTime), 0, req.RequestID)
+
+					s.sendEvent(EventTypeStop, 0, encodeTime(req.StartTime, req.EndTime), req.RequestID)
+
 					return
 				}
 
 			case *apievents.SessionEnd:
 				endTime := int64(evt.EndTime.Sub(evt.StartTime) / time.Millisecond)
+
 				if endTime >= req.StartTime && endTime <= req.EndTime {
-					addToBatch(EventTypeSessionEnd, endTime, []byte(evt.EndTime.Format(time.RFC3339)), index)
+					addToBatch(EventTypeSessionEnd, endTime, []byte(evt.EndTime.Format(time.RFC3339)))
 				}
+
 				flushBatch()
-				s.sendEvent(EventTypeStop, 0, encodeTime(req.StartTime, req.EndTime), 0, req.RequestID)
+
+				s.sendEvent(EventTypeStop, 0, encodeTime(req.StartTime, req.EndTime), req.RequestID)
+
 				return
 
 			case *apievents.Resize:
-				// Always resize vt to maintain terminal state
-				resizeTerminal(vt, evt.TerminalSize)
+				s.resizeTerminal(evt.TerminalSize)
 
 				if inTimeRange {
-					addToBatch(EventTypeResize, 0, []byte(evt.TerminalSize), index)
-					index++
+					addToBatch(EventTypeResize, 0, []byte(evt.TerminalSize))
 				}
 			}
 		}
 	}
 }
 
-func (s *SessionEventsHandler) sendEvent(eventType byte, timestamp int64, data []byte, index int, requestID int) {
+func (s *SessionEventsHandler) resizeTerminal(size string) {
+	parts := strings.Split(size, ":")
+	if len(parts) != 2 {
+		return
+	}
+
+	cols, cErr := strconv.Atoi(parts[0])
+	rows, rErr := strconv.Atoi(parts[1])
+
+	if cmp.Or(cErr, rErr) != nil {
+		return
+	}
+
+	s.terminal.Lock()
+	defer s.terminal.Unlock()
+
+	s.terminal.vt.Resize(cols, rows)
+}
+
+func (s *SessionEventsHandler) WriteMessage(msgType int, data []byte) error {
+	s.websocket.Lock()
+	defer s.websocket.Unlock()
+
+	if err := s.websocket.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		return err
+	}
+
+	return s.websocket.WriteMessage(msgType, data)
+}
+
+func (s *SessionEventsHandler) sendEvent(eventType byte, timestamp int64, data []byte, requestID int) {
 	buf := make([]byte, responseHeaderSize+len(data))
 	buf[0] = eventType
+
 	binary.BigEndian.PutUint64(buf[1:9], uint64(timestamp))
 	binary.BigEndian.PutUint32(buf[9:13], uint32(len(data)))
-	binary.BigEndian.PutUint32(buf[13:17], uint32(index))
-	binary.BigEndian.PutUint32(buf[17:21], uint32(requestID))
-	copy(buf[21:], data)
+	binary.BigEndian.PutUint32(buf[13:17], uint32(requestID))
 
-	s.wsMu.Lock()
-	err := s.ws.WriteMessage(websocket.BinaryMessage, buf)
-	s.wsMu.Unlock()
+	copy(buf[17:], data)
 
-	if err != nil {
+	if err := s.WriteMessage(websocket.BinaryMessage, buf); err != nil {
 		s.logger.WarnContext(s.ctx, "failed to send event", "error", err)
 	}
 }
 
-func (s *SessionEventsHandler) sendEventBatch(batch []struct {
-	eventType byte
-	timestamp int64
-	data      []byte
-	index     int
-}, requestID int) {
+func (s *SessionEventsHandler) sendEventBatch(batch []sessionEvent, requestID int) {
 	eventsSize := 0
 	for _, evt := range batch {
-		eventsSize += responseHeaderSize + len(evt.data)
+		eventsSize += 17 + len(evt.data)
 	}
 
 	buf := make([]byte, responseHeaderSize+eventsSize)
 
 	buf[0] = EventTypeBatch
+
 	binary.BigEndian.PutUint32(buf[1:5], uint32(len(batch)))
 	binary.BigEndian.PutUint32(buf[5:9], uint32(requestID))
 
 	// keep the header size the same for all events
-	offset := responseHeaderSize
+	offset := 17
 
 	for _, evt := range batch {
 		buf[offset] = evt.eventType
 
 		binary.BigEndian.PutUint64(buf[offset+1:offset+9], uint64(evt.timestamp))
 		binary.BigEndian.PutUint32(buf[offset+9:offset+13], uint32(len(evt.data)))
-		binary.BigEndian.PutUint32(buf[offset+13:offset+17], uint32(evt.index))
-		binary.BigEndian.PutUint32(buf[offset+17:offset+21], uint32(requestID))
+		binary.BigEndian.PutUint32(buf[offset+13:offset+17], uint32(requestID))
 
-		copy(buf[offset+21:], evt.data)
+		copy(buf[offset+17:], evt.data)
 
-		offset += responseHeaderSize + len(evt.data)
+		offset += 17 + len(evt.data)
 	}
 
-	s.wsMu.Lock()
-	err := s.ws.WriteMessage(websocket.BinaryMessage, buf)
-	s.wsMu.Unlock()
-
-	if err != nil {
+	if err := s.WriteMessage(websocket.BinaryMessage, buf); err != nil {
 		s.logger.WarnContext(s.ctx, "failed to send event batch", "error", err, "batch_size", len(batch))
 	}
 }
 
 func (s *SessionEventsHandler) sendError(err error, requestID int) {
-	s.sendEvent(EventTypeError, 0, []byte(err.Error()), 0, requestID)
+	s.sendEvent(EventTypeError, 0, []byte(err.Error()), requestID)
 }
 
-func (s *SessionEventsHandler) sendScreenState(vt vt10x.Terminal, currentTime int64, requestID int) {
-	data := encodeScreenEvent(vt)
-	s.sendEvent(EventTypeScreen, currentTime, data, 0, requestID)
+func (s *SessionEventsHandler) sendCurrentScreen(requestID int, timestamp int64) {
+	s.terminal.RLock()
+	defer s.terminal.RUnlock()
+
+	data := encodeScreenEvent(s.terminal.vt)
+
+	s.sendEvent(EventTypeScreen, timestamp, data, requestID)
+}
+
+func encodeScreenEvent(vt vt10x.Terminal) []byte {
+	cols, rows := vt.Size()
+	cursor := vt.Cursor()
+	data := vt.ANSI()
+
+	eventData := make([]byte, 21+len(data))
+	eventData[0] = EventTypeScreen
+
+	binary.BigEndian.PutUint32(eventData[1:5], uint32(cols))
+	binary.BigEndian.PutUint32(eventData[5:9], uint32(rows))
+	binary.BigEndian.PutUint32(eventData[9:13], uint32(cursor.X))
+	binary.BigEndian.PutUint32(eventData[13:17], uint32(cursor.Y))
+	binary.BigEndian.PutUint32(eventData[17:21], uint32(len(data)))
+
+	copy(eventData[21:], data)
+
+	return eventData
 }
 
 func encodeTime(startTime, endTime int64) []byte {
 	buf := make([]byte, 16)
+
 	binary.BigEndian.PutUint64(buf, uint64(startTime))
 	binary.BigEndian.PutUint64(buf[8:], uint64(endTime))
+
 	return buf
 }
 
-func decodeBinaryRequest(data []byte) (*BinaryRequest, error) {
+func decodeBinaryRequest(data []byte) (*fetchRequest, error) {
 	if len(data) < requestHeaderSize {
 		return nil, fmt.Errorf("request too short")
 	}
 
-	req := &BinaryRequest{
+	req := &fetchRequest{
 		Type:      data[0],
 		StartTime: int64(binary.BigEndian.Uint64(data[1:9])),
 		EndTime:   int64(binary.BigEndian.Uint64(data[9:17])),
@@ -431,21 +518,21 @@ func getEventTime(evt apievents.AuditEvent) int64 {
 	}
 }
 
-func resizeTerminal(vt vt10x.Terminal, size string) {
-	parts := strings.Split(size, ":")
-	if len(parts) != 2 {
-		return
+func validateRequest(req *fetchRequest) error {
+	if req.StartTime < 0 || req.EndTime < 0 {
+		return fmt.Errorf("invalid time range")
 	}
 
-	width, err := strconv.Atoi(parts[0])
-	if err != nil {
-		return
+	if req.EndTime < req.StartTime {
+		return fmt.Errorf("end time before start time")
 	}
 
-	height, err := strconv.Atoi(parts[1])
-	if err != nil {
-		return
+	rangeMillis := req.EndTime - req.StartTime
+	maxRangeMillis := int64(maxRequestRange / time.Millisecond)
+
+	if rangeMillis > maxRangeMillis {
+		return fmt.Errorf("time range too large")
 	}
 
-	vt.Resize(width, height)
+	return nil
 }

@@ -78,13 +78,13 @@ func summaryName(sid session.ID) string {
 // detailsName returns the name of the blob that contains the details for a
 // given session.
 func detailsName(sid session.ID) string {
-	return sid.String() + ".details.json"
+	return sid.String() + ".details"
 }
 
 // thumbnailName returns the name of the blob that contains the thumbnail for a
 // given session.
 func thumbnailName(sid session.ID) string {
-	return sid.String() + ".thumbnail.json"
+	return sid.String() + ".thumbnail"
 }
 
 // uploadMarkerPrefix is the prefix of the names of the upload marker blobs.
