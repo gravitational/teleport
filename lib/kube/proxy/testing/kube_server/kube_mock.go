@@ -892,7 +892,6 @@ func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p
 		}
 		upgrader := spdystream.NewResponseUpgraderWithPings(defaults.HighResPollingPeriod)
 		conn = upgrader.UpgradeResponse(w, req, httpStreamReceived(req.Context(), streamChan))
-
 	}
 
 	if conn == nil {
@@ -900,36 +899,104 @@ func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p
 		return nil, err
 	}
 	defer conn.Close()
-	var (
-		data      httpstream.Stream
-		errStream httpstream.Stream
-	)
+
+	// Create a context for managing goroutines.
+	// Reduced timeout since we expect quick completion
+	ctx, cancel := context.WithTimeout(req.Context(), 2*time.Second)
+	defer cancel()
+
+	// Wait for all active port forwards complete before returning.
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	type portStream struct {
+		data       httpstream.Stream
+		error      httpstream.Stream
+		processing bool // Prevent duplicate handlers
+	}
+
+	portStreams := make(map[string]*portStream)
+	var streamsMu sync.Mutex
 
 	for {
 		select {
+		case <-ctx.Done():
+			s.log.InfoContext(ctx, "Context timeout, stopping stream processing")
+			return nil, nil
 		case <-conn.CloseChan():
+			s.log.InfoContext(ctx, "Connection closed")
 			return nil, nil
 		case stream := <-streamChan:
+			port := stream.Headers().Get(portHeader)
+			if port == "" {
+				s.log.WarnContext(ctx, "Received stream without port header")
+				continue
+			}
+
+			streamsMu.Lock()
+			if _, ok := portStreams[port]; !ok {
+				portStreams[port] = &portStream{}
+			}
+
+			ps := portStreams[port]
+
 			switch stream.Headers().Get(StreamType) {
 			case StreamTypeError:
-				errStream = stream
+				ps.error = stream
 			case StreamTypeData:
-				data = stream
+				ps.data = stream
+			default:
+				s.log.WarnContext(ctx, "Unknown stream type", "type", stream.Headers().Get(StreamType))
 			}
-		}
-		if errStream != nil && data != nil {
-			break
-		}
-	}
 
-	buf := make([]byte, 1024)
-	n, err := data.Read(buf)
-	if err != nil {
-		errStream.Write([]byte(err.Error()))
-		return nil, nil
+			// Check whether port is ready to process.
+			if ps.data != nil && ps.error != nil && !ps.processing {
+				ps.processing = true
+
+				// Process each port in a separate goroutine for concurrency testing.
+				wg.Add(1)
+				go func(portNum string, dataStream, errorStream httpstream.Stream) {
+					defer wg.Done()
+
+					// Check context cancelled.
+					select {
+					case <-ctx.Done():
+						s.log.InfoContext(ctx, "Port forward cancelled", "port", portNum)
+						return
+					default:
+					}
+
+					// Read from source.
+					buf := make([]byte, 1024)
+					n, readErr := dataStream.Read(buf)
+					if readErr != nil {
+						s.log.ErrorContext(ctx, "Read error", "port", portNum, "error", readErr)
+						if _, writeErr := errorStream.Write([]byte(readErr.Error())); writeErr != nil {
+							s.log.ErrorContext(ctx, "Unable to write error", "error", writeErr)
+						}
+						return
+					}
+
+					// Write to target.
+					_, writeErr := fmt.Fprint(dataStream, PortForwardPayload, p.ByName("name"), string(buf[:n]))
+					if writeErr != nil {
+						s.log.ErrorContext(ctx, "Unable to write response", "error", writeErr)
+						if _, errWriteErr := errorStream.Write([]byte(writeErr.Error())); errWriteErr != nil {
+							s.log.ErrorContext(ctx, "Unable to write error", "error", errWriteErr)
+						}
+					}
+
+					s.log.InfoContext(ctx, "Port forward completed", "port", portNum)
+				}(port, ps.data, ps.error)
+
+				// After starting the first port forward, return after it completes
+				// The deferred wg.Wait() will ensure it finishes before the function returns
+				streamsMu.Unlock()
+				return nil, nil
+			}
+			streamsMu.Unlock()
+		}
 	}
-	fmt.Fprint(data, PortForwardPayload, p.ByName("name"), string(buf[:n]))
-	return nil, nil
 }
 
 // httpStreamReceived is the httpstream.NewStreamHandler for port
