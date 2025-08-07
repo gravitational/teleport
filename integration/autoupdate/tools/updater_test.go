@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -59,8 +58,13 @@ func TestUpdate(t *testing.T) {
 	err := updater.Update(ctx, testVersions[0])
 	require.NoError(t, err)
 
+	tshPath, err := updater.ToolPath("tsh", testVersions[0])
+	require.NoError(t, err)
+	tctlPath, err := updater.ToolPath("tctl", testVersions[0])
+	require.NoError(t, err)
+
 	// Verify that the installed version is equal to requested one.
-	cmd := exec.CommandContext(ctx, filepath.Join(toolsDir, "tctl"), "version")
+	cmd := exec.CommandContext(ctx, tctlPath, "version")
 	out, err := cmd.Output()
 	require.NoError(t, err)
 
@@ -70,7 +74,7 @@ func TestUpdate(t *testing.T) {
 
 	// Execute version command again with setting the new version which must
 	// trigger re-execution of the same command after downloading requested version.
-	cmd = exec.CommandContext(ctx, filepath.Join(toolsDir, "tsh"), "version")
+	cmd = exec.CommandContext(ctx, tshPath, "version")
 	cmd.Env = append(
 		os.Environ(),
 		fmt.Sprintf("%s=%s", teleportToolsVersion, testVersions[1]),
@@ -100,6 +104,9 @@ func TestParallelUpdate(t *testing.T) {
 	err := updater.Update(ctx, testVersions[0])
 	require.NoError(t, err)
 
+	tshPath, err := updater.ToolPath("tsh", testVersions[0])
+	require.NoError(t, err)
+
 	// By setting the limit request next test http serving file going blocked until unlock is sent.
 	lock := make(chan struct{})
 	limitedWriter.SetLimitRequest(limitRequest{
@@ -109,8 +116,8 @@ func TestParallelUpdate(t *testing.T) {
 
 	outputs := make([]bytes.Buffer, 3)
 	errChan := make(chan error, 3)
-	for i := 0; i < len(outputs); i++ {
-		cmd := exec.Command(filepath.Join(toolsDir, "tsh"), "version")
+	for i := range outputs {
+		cmd := exec.Command(tshPath, "version")
 		cmd.Stdout = &outputs[i]
 		cmd.Stderr = &outputs[i]
 		cmd.Env = append(
@@ -172,9 +179,11 @@ func TestUpdateInterruptSignal(t *testing.T) {
 	)
 	err := updater.Update(ctx, testVersions[0])
 	require.NoError(t, err)
+	tshPath, err := updater.ToolPath("tsh", testVersions[0])
+	require.NoError(t, err)
 
 	var output bytes.Buffer
-	cmd := exec.Command(filepath.Join(toolsDir, "tsh"), "version")
+	cmd := exec.Command(tshPath, "version")
 	cmd.Stdout = &output
 	cmd.Stderr = &output
 	cmd.Env = append(
@@ -236,9 +245,11 @@ func TestUpdateForOSSBuild(t *testing.T) {
 	)
 	err := updater.Update(ctx, testVersions[0])
 	require.NoError(t, err)
+	tshPath, err := updater.ToolPath("tsh", testVersions[0])
+	require.NoError(t, err)
 
 	// Verify that requested update is not ignored by OSS build type and version is updated.
-	cmd := exec.CommandContext(ctx, filepath.Join(toolsDir, "tsh"), "version")
+	cmd := exec.CommandContext(ctx, tshPath, "version")
 	cmd.Env = append(
 		os.Environ(),
 		fmt.Sprintf("%s=%s", teleportToolsVersion, testVersions[1]),
