@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 )
 
 // TestKubernetesCommand tests that the KubernetesCommand properly parses its
@@ -48,7 +49,7 @@ func TestKubernetesCommand(t *testing.T) {
 
 				// It must configure a kubernetes output with a directory destination.
 				svc := cfg.Services[0]
-				k8s, ok := svc.(*config.KubernetesOutput)
+				k8s, ok := svc.(*k8s.OutputV1Config)
 				require.True(t, ok)
 
 				require.Equal(t, "demo", k8s.KubernetesCluster)

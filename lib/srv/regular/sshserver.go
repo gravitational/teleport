@@ -66,10 +66,10 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/ingress"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/networking"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
-	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/hostid"
 )
@@ -1852,7 +1852,9 @@ func (s *Server) serveAgent(ctx context.Context, scx *srv.ServerContext) error {
 
 	// start an agent server on a unix socket.  each incoming connection
 	// will result in a separate agent request.
-	agentServer := teleagent.NewServer(scx.Parent().StartAgentChannel)
+	agentServer := sshagent.NewServer(func() (sshagent.Client, error) {
+		return scx.Parent().StartAgentChannel()
+	})
 	agentServer.SetListener(listener)
 	scx.Parent().AddCloser(agentServer)
 	scx.Parent().SetEnv(teleport.SSHAuthSock, listener.Addr().String())

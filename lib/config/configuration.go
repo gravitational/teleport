@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	libslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -955,17 +956,24 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// Only override session recording configuration if either field is
 	// specified in file configuration.
 	if fc.Auth.hasCustomSessionRecording() {
-		var encryption *types.SessionRecordingEncryptionConfig
-		if fc.Auth.SessionRecordingEncryption != nil && fc.Auth.SessionRecordingEncryption.Value {
-			encryption = &types.SessionRecordingEncryptionConfig{
-				Enabled: true,
-			}
-		}
-		cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		src := types.SessionRecordingConfigSpecV2{
 			Mode:                fc.Auth.SessionRecording,
 			ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
-			Encryption:          encryption,
-		})
+		}
+
+		if fc.Auth.SessionRecordingConfig != nil {
+			if src.Mode != "" {
+				return trace.BadParameter("cannot set both session_recording and session_recording_config at the same time, prefer session_recording_config.mode")
+			}
+
+			if src.ProxyChecksHostKeys != nil {
+				return trace.BadParameter("cannot set both proxy_checks_host_keys and session_recording_config at the same time, prefer session_recording_config.proxy_checks_host_keys")
+			}
+
+			src = *fc.Auth.SessionRecordingConfig
+		}
+
+		cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(src)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2550,19 +2558,20 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 	// 140-2 compliant.
 	if clf.FIPS {
 		// Make sure all cryptographic primitives are FIPS compliant.
-		err = utils.UintSliceSubset(defaults.FIPSCipherSuites, cfg.CipherSuites)
+		//
+		err = libslices.ContainsAll(defaults.FIPSCipherSuites, cfg.CipherSuites)
 		if err != nil {
 			return trace.BadParameter("non-FIPS compliant TLS cipher suite selected: %v", err)
 		}
-		err = utils.StringSliceSubset(defaults.FIPSCiphers, cfg.Ciphers)
+		err = libslices.ContainsAll(defaults.FIPSCiphers, cfg.Ciphers)
 		if err != nil {
 			return trace.BadParameter("non-FIPS compliant SSH cipher selected: %v", err)
 		}
-		err = utils.StringSliceSubset(defaults.FIPSKEXAlgorithms, cfg.KEXAlgorithms)
+		err = libslices.ContainsAll(defaults.FIPSKEXAlgorithms, cfg.KEXAlgorithms)
 		if err != nil {
 			return trace.BadParameter("non-FIPS compliant SSH kex algorithm selected: %v", err)
 		}
-		err = utils.StringSliceSubset(defaults.FIPSMACAlgorithms, cfg.MACAlgorithms)
+		err = libslices.ContainsAll(defaults.FIPSMACAlgorithms, cfg.MACAlgorithms)
 		if err != nil {
 			return trace.BadParameter("non-FIPS compliant SSH mac algorithm selected: %v", err)
 		}

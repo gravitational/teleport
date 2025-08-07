@@ -46,56 +46,59 @@ export function Instance(props: {
 }) {
   const { id, version, hostname, activeAt, method, os } = props;
 
+  const hasHeartbeatData = !!version || !!hostname || !!method || !!os;
+
   return (
     <Container>
       <TopRow>
-        <Text fontWeight={'light'}>{id}</Text>
+        <IdText typography="body2">{id}</IdText>
         {activeAt ? (
           <HoverTooltip
             placement="top"
             tipContent={format(parseISO(activeAt), 'PP, p z')}
           >
-            <Text
-              fontSize={0}
-              fontWeight={'regular'}
-            >{`${formatDistanceToNowStrict(parseISO(activeAt))} ago`}</Text>
+            <TimeText>{`${formatDistanceToNowStrict(parseISO(activeAt))} ago`}</TimeText>
           </HoverTooltip>
         ) : undefined}
       </TopRow>
-      <BottomRow>
-        <Flex gap={2}>
-          <Version version={version} />
+      {hasHeartbeatData ? (
+        <BottomRow>
+          <Flex gap={2} flex={1}>
+            <Version version={version} />
 
-          {hostname ? (
-            <HoverTooltip placement="top" tipContent={'Hostname'}>
-              <SecondaryOutlined>
-                <Text>{hostname}</Text>
-              </SecondaryOutlined>
-            </HoverTooltip>
-          ) : undefined}
-        </Flex>
-        <Flex gap={2}>
-          {method ? (
-            <JoinMethodIcon method={method} size={'medium'} />
-          ) : undefined}
+            {hostname ? (
+              <HoverTooltip placement="top" tipContent={'Hostname'}>
+                <SecondaryOutlined borderRadius={2}>
+                  <LabelText>{hostname}</LabelText>
+                </SecondaryOutlined>
+              </HoverTooltip>
+            ) : undefined}
+          </Flex>
+          <Flex gap={2}>
+            {method ? (
+              <JoinMethodIcon method={method} size={'medium'} />
+            ) : undefined}
 
-          {os ? (
-            <HoverTooltip placement="top" tipContent={os}>
-              <OsIconContainer>
-                {os === 'darwin' ? (
-                  <ResourceIcon name={'apple'} width={'16px'} />
-                ) : os === 'windows' ? (
-                  <ResourceIcon name={'windows'} width={'16px'} />
-                ) : os === 'linux' ? (
-                  <ResourceIcon name={'linux'} width={'16px'} />
-                ) : (
-                  <ResourceIcon name={'server'} width={'16px'} />
-                )}
-              </OsIconContainer>
-            </HoverTooltip>
-          ) : undefined}
-        </Flex>
-      </BottomRow>
+            {os ? (
+              <HoverTooltip placement="top" tipContent={os}>
+                <OsIconContainer>
+                  {os === 'darwin' ? (
+                    <ResourceIcon name={'apple'} width={'16px'} />
+                  ) : os === 'windows' ? (
+                    <ResourceIcon name={'windows'} width={'16px'} />
+                  ) : os === 'linux' ? (
+                    <ResourceIcon name={'linux'} width={'16px'} />
+                  ) : (
+                    <ResourceIcon name={'server'} width={'16px'} />
+                  )}
+                </OsIconContainer>
+              </HoverTooltip>
+            ) : undefined}
+          </Flex>
+        </BottomRow>
+      ) : (
+        <EmptyText>No heartbeat data</EmptyText>
+      )}
     </Container>
   );
 }
@@ -112,11 +115,15 @@ const Container = styled(Flex)`
 const TopRow = styled(Flex)`
   justify-content: space-between;
   align-items: center;
+  overflow: hidden;
+  gap: ${p => p.theme.space[2]}px;
 `;
 
 const BottomRow = styled(Flex)`
   justify-content: space-between;
   align-items: flex-end;
+  gap: ${p => p.theme.space[2]}px;
+  overflow: hidden;
 `;
 
 const OsIconContainer = styled(Flex)`
@@ -124,6 +131,21 @@ const OsIconContainer = styled(Flex)`
   height: 20px; // Intentionally not a theme value
   align-items: center;
   justify-content: center;
+`;
+
+const EmptyText = styled(Text)`
+  color: ${p => p.theme.colors.text.muted};
+`;
+
+const TimeText = styled(Text).attrs({
+  typography: 'body4',
+})`
+  white-space: nowrap;
+`;
+
+const IdText = styled(Text)`
+  flex: 1;
+  white-space: nowrap;
 `;
 
 function Version(props: { version: string | undefined }) {
@@ -165,12 +187,18 @@ function Version(props: { version: string | undefined }) {
 
   return version ? (
     <HoverTooltip placement="top" tipContent={tooltip}>
-      <Wrapper>
+      <Wrapper borderRadius={2}>
         <Flex gap={1}>
           {icon}
-          <Text>v{version}</Text>
+          <LabelText>v{version}</LabelText>
         </Flex>
       </Wrapper>
     </HoverTooltip>
   ) : undefined;
 }
+
+const LabelText = styled(Text)`
+  font-size: ${({ theme }) => theme.fontSizes[1]}px;
+  white-space: nowrap;
+  max-width: 96px;
+`;

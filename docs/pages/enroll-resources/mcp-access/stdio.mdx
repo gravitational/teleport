@@ -27,7 +27,7 @@ providing visibility into user activity.
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v18.1.0 or higher)"!)
 - A host, e.g., an EC2 instance, where you will run the Teleport Applications
   Service.
 - Tools on the same host that can launch stdio-based MCP servers like `npx`
@@ -129,7 +129,7 @@ server you desire to run.
 
 ## Step 3/3. Connect
 
-Log in to Teleport with the user we've just created.
+Log in to Teleport with the user we've just created, <Var name="my_user" />:
 
 ```code
 $ tsh login --proxy=<Var name="teleport.example.com:443" /> --user=<Var name="my_user" />

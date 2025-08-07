@@ -133,7 +133,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/s3sessions"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
-	"github.com/gravitational/teleport/lib/integrations/awsra"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/joinserver"
@@ -1823,6 +1822,18 @@ func (process *TeleportProcess) exportUpgradeWindows(ctx context.Context, req pr
 	return clt.ExportUpgradeWindows(ctx, req)
 }
 
+// isGroupMember returns whether currently logged user is a member of a group
+func isGroupMember(gid int) (bool, error) {
+	groups, err := os.Getgroups()
+	if err != nil {
+		return false, trace.ConvertSystemError(err)
+	}
+	if slices.Contains(groups, gid) {
+		return true, nil
+	}
+	return false, nil
+}
+
 // adminCreds returns admin UID and GID settings based on the OS
 func adminCreds() (*int, *int, error) {
 	if runtime.GOOS != constants.LinuxOS {
@@ -1830,7 +1841,7 @@ func adminCreds() (*int, *int, error) {
 	}
 	// if the user member of adm linux group,
 	// make audit log folder readable by admins
-	isAdmin, err := utils.IsGroupMember(teleport.LinuxAdminGID)
+	isAdmin, err := isGroupMember(teleport.LinuxAdminGID)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -2157,7 +2168,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
-	recordingEncryptionManager, err := recordingencryption.NewManager(recordingencryption.ManagerConfig{
+	recordingEncryptionManager, err := recordingencryption.NewManager(process.GracefulExitContext(), recordingencryption.ManagerConfig{
 		Backend:       localRecordingEncryption,
 		Cache:         localRecordingEncryption,
 		KeyStore:      keyStore,
@@ -2725,59 +2736,6 @@ func (process *TeleportProcess) initAuthService() error {
 
 	process.RegisterFunc("auth.recording_encryption_resolver", func() error {
 		return trace.Wrap(recordingEncryptionManager.Watch(process.GracefulExitContext(), authServer.Services))
-	})
-
-	awsRolesAnywhereProfileSyncProcessName := "aws-roles-anywhere.profile-sync"
-	process.RegisterFunc("auth."+awsRolesAnywhereProfileSyncProcessName+".service", func() error {
-		ctx := process.GracefulExitContext()
-		logger := process.logger.With("process", awsRolesAnywhereProfileSyncProcessName)
-
-		if _, err := process.WaitForEvent(ctx, TeleportReadyEvent); err != nil {
-			logger.DebugContext(ctx, "process exiting: failed to start AWS Roles Anywhere profile sync service")
-			return nil
-		}
-
-		params := awsra.AWSRolesAnywherProfileSyncerParams{
-			Clock:             process.Clock,
-			Logger:            logger,
-			KeyStoreManager:   authServer.GetKeyStore(),
-			Cache:             authServer.Cache,
-			StatusReporter:    authServer.Services,
-			AppServerUpserter: authServer.Services,
-			HostUUID:          process.Config.HostUUID,
-		}
-
-		runWhileLockedConfig := backend.RunWhileLockedConfig{
-			LockConfiguration: backend.LockConfiguration{
-				Backend:            process.backend,
-				LockNameComponents: []string{awsRolesAnywhereProfileSyncProcessName},
-				TTL:                1 * time.Minute,
-			},
-			RefreshLockInterval: 20 * time.Second,
-		}
-
-		runFunction := func(ctx context.Context) error {
-			return trace.Wrap(awsra.RunAWSRolesAnywherProfileSyncer(ctx, params))
-		}
-
-		waitWithJitter := retryutils.SeventhJitter(time.Second * 10)
-		for {
-			err := backend.RunWhileLocked(ctx, runWhileLockedConfig, runFunction)
-			if err != nil && ctx.Err() == nil {
-				logger.ErrorContext(
-					ctx,
-					"AWS Roles Anywhere profile syncer encountered a fatal error, it will restart after backoff",
-					"error", err,
-					"restart_after", waitWithJitter,
-				)
-			}
-
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-time.After(waitWithJitter):
-			}
-		}
 	})
 
 	// execute this when process is asked to exit:

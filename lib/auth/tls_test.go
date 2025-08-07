@@ -37,6 +37,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
@@ -76,7 +77,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshca"
 	libsshutils "github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -1453,11 +1453,68 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
-	suite := &suite.ServicesTestSuite{
-		TrustS: clt,
-		Clock:  clockwork.NewFakeClock(),
-	}
-	suite.TunnelConnectionsCRUD(t)
+	clusterName := "example.com"
+	out, err := clt.GetTunnelConnections(clusterName)
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	dt := clockwork.NewFakeClock().Now()
+	conn, err := types.NewTunnelConnection("conn1", types.TunnelConnectionSpecV2{
+		ClusterName:   clusterName,
+		ProxyName:     "p1",
+		LastHeartbeat: dt,
+	})
+	require.NoError(t, err)
+
+	err = clt.UpsertTunnelConnection(conn)
+	require.NoError(t, err)
+
+	out, err = clt.GetTunnelConnections(clusterName)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	out, err = clt.GetAllTunnelConnections()
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	dt = dt.Add(time.Hour)
+	conn.SetLastHeartbeat(dt)
+
+	err = clt.UpsertTunnelConnection(conn)
+	require.NoError(t, err)
+
+	out, err = clt.GetTunnelConnections(clusterName)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	err = clt.DeleteAllTunnelConnections()
+	require.NoError(t, err)
+
+	out, err = clt.GetTunnelConnections(clusterName)
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	err = clt.DeleteAllTunnelConnections()
+	require.NoError(t, err)
+
+	// test delete individual connection
+	err = clt.UpsertTunnelConnection(conn)
+	require.NoError(t, err)
+
+	out, err = clt.GetTunnelConnections(clusterName)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	err = clt.DeleteTunnelConnection(clusterName, conn.GetName())
+	require.NoError(t, err)
+
+	out, err = clt.GetTunnelConnections(clusterName)
+	require.NoError(t, err)
+	require.Empty(t, out)
 }
 
 func TestServersCRUD(t *testing.T) {
@@ -1468,10 +1525,82 @@ func TestServersCRUD(t *testing.T) {
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
-	suite := &suite.ServicesTestSuite{
-		PresenceS: clt,
+	NewServer := func(kind, name, addr, namespace string) *types.ServerV2 {
+		return &types.ServerV2{
+			Kind:    kind,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      name,
+				Namespace: namespace,
+			},
+			Spec: types.ServerSpecV2{
+				Addr: addr,
+			},
+		}
 	}
-	suite.ServerCRUD(t)
+
+	ctx := context.Background()
+
+	// SSH service.
+	out, err := clt.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	srv := NewServer(types.KindNode, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
+	srv.Spec.Hostname = "llama"
+	_, err = clt.UpsertNode(ctx, srv)
+	require.NoError(t, err)
+
+	node, err := clt.GetNode(ctx, srv.Metadata.Namespace, srv.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(node, srv, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	out, err = clt.GetNodes(ctx, srv.Metadata.Namespace)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Empty(t, cmp.Diff(out, []types.Server{srv}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	err = clt.DeleteNode(ctx, srv.Metadata.Namespace, srv.GetName())
+	require.NoError(t, err)
+
+	out, err = clt.GetNodes(ctx, srv.Metadata.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	// Proxy service.
+	out, err = clt.GetProxies()
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	proxy := NewServer(types.KindProxy, "proxy1", "127.0.0.1:2023", apidefaults.Namespace)
+	proxy.Spec.Hostname = "proxy.llama"
+	require.NoError(t, clt.UpsertProxy(ctx, proxy))
+
+	out, err = clt.GetProxies()
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Empty(t, cmp.Diff(out, []types.Server{proxy}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	err = clt.DeleteProxy(ctx, proxy.GetName())
+	require.NoError(t, err)
+
+	out, err = clt.GetProxies()
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	// Auth service.
+	out, err = clt.GetAuthServers()
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	auth := NewServer(types.KindAuthServer, "auth1", "127.0.0.1:2025", apidefaults.Namespace)
+	auth.Spec.Hostname = "auth.llama"
+	require.NoError(t, clt.UpsertAuthServer(ctx, auth))
+
+	out, err = clt.GetAuthServers()
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Empty(t, cmp.Diff(out, []types.Server{auth}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 // TestAppServerCRUD tests CRUD functionality for services.App using an auth client.
@@ -1483,10 +1612,45 @@ func TestAppServerCRUD(t *testing.T) {
 	clt, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleApp))
 	require.NoError(t, err)
 
-	suite := &suite.ServicesTestSuite{
-		PresenceS: clt,
-	}
-	suite.AppServerCRUD(t)
+	ctx := context.Background()
+
+	// Expect not to be returned any applications and trace.NotFound.
+	out, err := clt.GetApplicationServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	// Make an app and an app server.
+	app, err := types.NewAppV3(types.Metadata{Name: "foo"},
+		types.AppSpecV3{URI: "http://127.0.0.1:8080", PublicAddr: "foo.example.com"})
+	require.NoError(t, err)
+	server, err := types.NewAppServerV3(types.Metadata{
+		Name:      app.GetName(),
+		Namespace: apidefaults.Namespace,
+	}, types.AppServerSpecV3{
+		Hostname: "localhost",
+		HostID:   uuid.New().String(),
+		App:      app,
+	})
+	require.NoError(t, err)
+
+	// Upsert application.
+	_, err = clt.UpsertApplicationServer(ctx, server)
+	require.NoError(t, err)
+
+	// Check again, expect a single application to be found.
+	out, err = clt.GetApplicationServers(ctx, server.GetNamespace())
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Empty(t, cmp.Diff([]types.AppServer{server}, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	// Remove the application.
+	err = clt.DeleteApplicationServer(ctx, server.Metadata.Namespace, server.GetHostID(), server.GetName())
+	require.NoError(t, err)
+
+	// Now expect no applications to be returned.
+	out, err = clt.GetApplicationServers(ctx, server.Metadata.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, out)
 }
 
 func TestUsersCRUD(t *testing.T) {
@@ -3929,6 +4093,57 @@ func TestEventsNodePresence(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(k2.Error()))
 }
 
+// ExpectResource expects a Put event of a certain resource
+func ExpectResource(t *testing.T, w types.Watcher, timeout time.Duration, resource types.Resource) {
+	timeoutC := time.After(timeout)
+waitLoop:
+	for {
+		select {
+		case <-timeoutC:
+			t.Fatalf("Timeout waiting for event")
+		case <-w.Done():
+			t.Fatalf("Watcher exited with error %v", w.Error())
+		case event := <-w.Events():
+			if event.Type != types.OpPut {
+				continue
+			}
+			if resource.GetName() != event.Resource.GetName() || resource.GetKind() != event.Resource.GetKind() || resource.GetSubKind() != event.Resource.GetSubKind() {
+				continue waitLoop
+			}
+			require.Empty(t, cmp.Diff(resource, event.Resource))
+			break waitLoop
+		}
+	}
+}
+
+// ExpectDeleteResource expects a delete event of a certain kind
+func ExpectDeleteResource(t *testing.T, w types.Watcher, timeout time.Duration, resource types.Resource) {
+	timeoutC := time.After(timeout)
+waitLoop:
+	for {
+		select {
+		case <-timeoutC:
+			t.Fatalf("Timeout waiting for delete resource %v", resource)
+		case <-w.Done():
+			t.Fatalf("Watcher exited with error %v", w.Error())
+		case event := <-w.Events():
+			if event.Type != types.OpDelete {
+				continue
+			}
+
+			// Server resources may have subkind set, but the backend
+			// generating this delete event doesn't know the subkind.
+			// Set it to prevent the check below from failing.
+			if event.Resource.GetKind() == types.KindNode {
+				event.Resource.SetSubKind(resource.GetSubKind())
+			}
+
+			require.Empty(t, cmp.Diff(resource, event.Resource))
+			break waitLoop
+		}
+	}
+}
+
 // TestEventsPermissions tests events with regards
 // to certificate authority rotation
 func TestEventsPermissions(t *testing.T) {
@@ -3968,7 +4183,7 @@ func TestEventsPermissions(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	suite.ExpectResource(t, w, 3*time.Second, ca)
+	ExpectResource(t, w, 3*time.Second, ca)
 
 	type testCase struct {
 		name     string
@@ -4145,17 +4360,404 @@ func TestEvents(t *testing.T) {
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
-	suite := &suite.ServicesTestSuite{
-		ConfigS:       clt,
-		LocalConfigS:  testSrv.Auth(),
-		EventsS:       clt,
-		PresenceS:     testSrv.Auth(),
-		TrustS:        testSrv.Auth(),
-		ProvisioningS: clt,
-		Access:        clt,
-		UsersS:        clt,
+	ctx := context.Background()
+	testCases := []eventTest{
+		{
+			name: "Cert authority with secrets",
+			kind: types.WatchKind{
+				Kind:        types.KindCertAuthority,
+				LoadSecrets: true,
+			},
+			crud: func(context.Context) types.Resource {
+				ca := authtest.NewTestCA(types.UserCA, "example.com")
+				require.NoError(t, testSrv.Auth().UpsertCertAuthority(ctx, ca))
+
+				out, err := testSrv.Auth().GetCertAuthority(ctx, *ca.ID(), true)
+				require.NoError(t, err)
+
+				require.NoError(t, testSrv.Auth().DeleteCertAuthority(ctx, *ca.ID()))
+				return out
+			},
+		},
 	}
-	suite.Events(t)
+	runEventsTests(t, testCases, clt, types.Watch{Kinds: eventsTestKinds(testCases)})
+
+	testCases = []eventTest{
+		{
+			name: "Cert authority without secrets",
+			kind: types.WatchKind{
+				Kind:        types.KindCertAuthority,
+				LoadSecrets: false,
+			},
+			crud: func(context.Context) types.Resource {
+				ca := authtest.NewTestCA(types.UserCA, "example.com")
+				require.NoError(t, testSrv.Auth().UpsertCertAuthority(ctx, ca))
+
+				out, err := testSrv.Auth().GetCertAuthority(ctx, *ca.ID(), false)
+				require.NoError(t, err)
+
+				require.NoError(t, testSrv.Auth().DeleteCertAuthority(ctx, *ca.ID()))
+				return out
+			},
+		},
+	}
+	runEventsTests(t, testCases, clt, types.Watch{Kinds: eventsTestKinds(testCases)})
+
+	testCases = []eventTest{
+		{
+			name: "Token",
+			kind: types.WatchKind{
+				Kind: types.KindToken,
+			},
+			crud: func(context.Context) types.Resource {
+				expires := time.Now().UTC().Add(time.Hour)
+				tok, err := types.NewProvisionToken("token",
+					types.SystemRoles{types.RoleAuth, types.RoleNode}, expires)
+				require.NoError(t, err)
+
+				require.NoError(t, clt.UpsertToken(ctx, tok))
+
+				token, err := clt.GetToken(ctx, "token")
+				require.NoError(t, err)
+
+				require.NoError(t, clt.DeleteToken(ctx, "token"))
+				return token
+			},
+		},
+		{
+			name: "Static tokens",
+			kind: types.WatchKind{
+				Kind: types.KindStaticTokens,
+			},
+			crud: func(context.Context) types.Resource {
+				staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
+					StaticTokens: []types.ProvisionTokenV1{
+						{
+							Token:   "tok1",
+							Roles:   types.SystemRoles{types.RoleNode},
+							Expires: time.Now().UTC().Add(time.Hour),
+						},
+					},
+				})
+				require.NoError(t, err)
+
+				err = testSrv.Auth().SetStaticTokens(staticTokens)
+				require.NoError(t, err)
+
+				out, err := testSrv.Auth().GetStaticTokens()
+				require.NoError(t, err)
+
+				err = testSrv.Auth().DeleteStaticTokens()
+				require.NoError(t, err)
+
+				return out
+			},
+		},
+		{
+			name: "Role",
+			kind: types.WatchKind{
+				Kind: types.KindRole,
+			},
+			crud: func(context.Context) types.Resource {
+				role, err := types.NewRole("role1", types.RoleSpecV6{
+					Options: types.RoleOptions{
+						MaxSessionTTL: types.Duration(time.Hour),
+					},
+					Allow: types.RoleConditions{
+						Logins:     []string{"root", "bob"},
+						NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					},
+					Deny: types.RoleConditions{},
+				})
+				require.NoError(t, err)
+
+				_, err = clt.UpsertRole(ctx, role)
+				require.NoError(t, err)
+
+				out, err := clt.GetRole(ctx, role.GetName())
+				require.NoError(t, err)
+
+				err = clt.DeleteRole(ctx, role.GetName())
+				require.NoError(t, err)
+
+				return out
+			},
+		},
+		{
+			name: "User",
+			kind: types.WatchKind{
+				Kind: types.KindUser,
+			},
+			crud: func(context.Context) types.Resource {
+				var user types.User = &types.UserV2{
+					Kind:    types.KindUser,
+					Version: types.V2,
+					Metadata: types.Metadata{
+						Name:      "user1",
+						Namespace: apidefaults.Namespace,
+					},
+					Spec: types.UserSpecV2{
+						Roles: []string{constants.DefaultImplicitRole},
+					},
+				}
+
+				user, err := clt.UpsertUser(ctx, user)
+				require.NoError(t, err)
+
+				out, err := clt.GetUser(ctx, user.GetName(), false)
+				require.NoError(t, err)
+
+				require.NoError(t, clt.DeleteUser(ctx, user.GetName()))
+				return out
+			},
+		},
+		{
+			name: "Node",
+			kind: types.WatchKind{
+				Kind: types.KindNode,
+			},
+			crud: func(context.Context) types.Resource {
+				srv := &types.ServerV2{
+					Kind:    types.KindNode,
+					Version: types.V2,
+					Metadata: types.Metadata{
+						Name:      "srv1",
+						Namespace: apidefaults.Namespace,
+					},
+					Spec: types.ServerSpecV2{
+						Addr: "127.0.0.1:2022",
+					},
+				}
+
+				_, err := testSrv.Auth().UpsertNode(ctx, srv)
+				require.NoError(t, err)
+
+				out, err := testSrv.Auth().GetNodes(ctx, srv.Metadata.Namespace)
+				require.NoError(t, err)
+
+				err = testSrv.Auth().DeleteAllNodes(ctx, srv.Metadata.Namespace)
+				require.NoError(t, err)
+
+				return out[0]
+			},
+		},
+		{
+			name: "Proxy",
+			kind: types.WatchKind{
+				Kind: types.KindProxy,
+			},
+			crud: func(context.Context) types.Resource {
+				srv := &types.ServerV2{
+					Kind:    types.KindProxy,
+					Version: types.V2,
+					Metadata: types.Metadata{
+						Name:      "srv1",
+						Namespace: apidefaults.Namespace,
+					},
+					Spec: types.ServerSpecV2{
+						Addr: "127.0.0.1:2022",
+					},
+				}
+
+				err := testSrv.Auth().UpsertProxy(ctx, srv)
+				require.NoError(t, err)
+
+				out, err := testSrv.Auth().GetProxies()
+				require.NoError(t, err)
+
+				err = testSrv.Auth().DeleteAllProxies()
+				require.NoError(t, err)
+
+				return out[0]
+			},
+		},
+		{
+			name: "Tunnel connection",
+			kind: types.WatchKind{
+				Kind: types.KindTunnelConnection,
+			},
+			crud: func(context.Context) types.Resource {
+				conn, err := types.NewTunnelConnection("conn1", types.TunnelConnectionSpecV2{
+					ClusterName:   "example.com",
+					ProxyName:     "p1",
+					LastHeartbeat: time.Now().UTC(),
+				})
+				require.NoError(t, err)
+
+				err = testSrv.Auth().UpsertTunnelConnection(conn)
+				require.NoError(t, err)
+
+				out, err := testSrv.Auth().GetTunnelConnections("example.com")
+				require.NoError(t, err)
+
+				err = testSrv.Auth().DeleteAllTunnelConnections()
+				require.NoError(t, err)
+
+				return out[0]
+			},
+		},
+		{
+			name: "Reverse tunnel",
+			kind: types.WatchKind{
+				Kind: types.KindReverseTunnel,
+			},
+			crud: func(context.Context) types.Resource {
+				tunnel := &types.ReverseTunnelV2{
+					Kind:    types.KindReverseTunnel,
+					Version: types.V2,
+					Metadata: types.Metadata{
+						Name:      "example.com",
+						Namespace: apidefaults.Namespace,
+					},
+					Spec: types.ReverseTunnelSpecV2{
+						ClusterName: "example.com",
+						DialAddrs:   []string{"example.com:2023"},
+					},
+				}
+
+				_, err := testSrv.Auth().UpsertReverseTunnel(ctx, tunnel)
+				require.NoError(t, err)
+
+				out, _, err := testSrv.Auth().ListReverseTunnels(
+					ctx, 0, "",
+				)
+				require.NoError(t, err)
+
+				err = testSrv.Auth().DeleteReverseTunnel(ctx, tunnel.Spec.ClusterName)
+				require.NoError(t, err)
+
+				return out[0]
+			},
+		},
+		{
+			name: "Remote cluster",
+			kind: types.WatchKind{
+				Kind: types.KindRemoteCluster,
+			},
+			crud: func(ctx context.Context) types.Resource {
+				rc, err := types.NewRemoteCluster("example.com")
+				rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
+				require.NoError(t, err)
+				_, err = testSrv.Auth().CreateRemoteCluster(ctx, rc)
+				require.NoError(t, err)
+
+				out, err := testSrv.Auth().GetRemoteClusters(ctx)
+				require.NoError(t, err)
+
+				err = testSrv.Auth().DeleteRemoteCluster(ctx, rc.GetName())
+				require.NoError(t, err)
+
+				return out[0]
+			},
+		},
+	}
+	// this also tests the partial success mode by requesting an unknown kind
+	runEventsTests(t, testCases, clt, types.Watch{
+		Kinds:               append(eventsTestKinds(testCases), types.WatchKind{Kind: "unknown"}),
+		AllowPartialSuccess: true,
+	})
+
+	// tests that a watch fails given an unknown kind when the partial success mode is not enabled
+	runUnknownEventsTest(t, clt, types.Watch{Kinds: []types.WatchKind{
+		{Kind: types.KindNamespace},
+		{Kind: "unknown"},
+	}})
+
+	// tests that a watch fails if all given kinds are unknown even if the success mode is enabled
+	runUnknownEventsTest(t, clt, types.Watch{
+		Kinds: []types.WatchKind{
+			{Kind: "unrecognized"},
+			{Kind: "unidentified"},
+		},
+		AllowPartialSuccess: true,
+	})
+}
+
+func runEventsTests(t *testing.T, testCases []eventTest, events types.Events, watch types.Watch) {
+	ctx := context.Background()
+	w, err := events.NewWatcher(ctx, watch)
+	require.NoError(t, err)
+	defer w.Close()
+
+	select {
+	case event := <-w.Events():
+		require.Equal(t, types.OpInit, event.Type)
+		watchStatus, ok := event.Resource.(types.WatchStatus)
+		require.True(t, ok)
+		expectedKinds := eventsTestKinds(testCases)
+		require.Equal(t, expectedKinds, watchStatus.GetKinds())
+	case <-w.Done():
+		t.Fatalf("Watcher exited with error %v", w.Error())
+	case <-time.After(2 * time.Second):
+		t.Fatalf("Timeout waiting for init event")
+	}
+
+	// filter out all events that could have been inserted
+	// by the initialization routines
+skiploop:
+	for {
+		select {
+		case <-w.Events():
+			continue skiploop
+		default:
+			break skiploop
+		case <-w.Done():
+			t.Fatalf("Watcher exited with error %v", w.Error())
+		}
+	}
+
+	for _, tc := range testCases {
+		t.Logf("test case %q", tc.name)
+		resource := tc.crud(ctx)
+
+		ExpectResource(t, w, 3*time.Second, resource)
+
+		meta := resource.GetMetadata()
+		header := &types.ResourceHeader{
+			Kind:    resource.GetKind(),
+			SubKind: resource.GetSubKind(),
+			Version: resource.GetVersion(),
+			Metadata: types.Metadata{
+				Name:      meta.Name,
+				Namespace: meta.Namespace,
+			},
+		}
+		ExpectDeleteResource(t, w, 3*time.Second, header)
+	}
+}
+
+func runUnknownEventsTest(t *testing.T, events types.Events, watch types.Watch) {
+	ctx := context.Background()
+	w, err := events.NewWatcher(ctx, watch)
+	if err != nil {
+		// depending on the implementation of EventsS, it might fail here immediately
+		// or later before returning the first event from the watcher.
+		return
+	}
+	defer w.Close()
+
+	select {
+	case <-w.Events():
+		t.Fatal("unexpected event from watcher that is supposed to fail")
+	case <-w.Done():
+		require.Error(t, w.Error())
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for error from watcher")
+	}
+}
+
+type eventTest struct {
+	name string
+	kind types.WatchKind
+	crud func(context.Context) types.Resource
+}
+
+func eventsTestKinds(tests []eventTest) []types.WatchKind {
+	out := make([]types.WatchKind, len(tests))
+	for i, tc := range tests {
+		out[i] = tc.kind
+	}
+	return out
 }
 
 // TestEventsClusterConfig test cluster configuration
@@ -4202,7 +4804,7 @@ func TestEventsClusterConfig(t *testing.T) {
 	}, true)
 	require.NoError(t, err)
 
-	suite.ExpectResource(t, w, 3*time.Second, ca)
+	ExpectResource(t, w, 3*time.Second, ca)
 
 	// set static tokens
 	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
@@ -4221,7 +4823,7 @@ func TestEventsClusterConfig(t *testing.T) {
 
 	staticTokens, err = testSrv.Auth().GetStaticTokens()
 	require.NoError(t, err)
-	suite.ExpectResource(t, w, 3*time.Second, staticTokens)
+	ExpectResource(t, w, 3*time.Second, staticTokens)
 
 	// create provision token and expect the update event
 	token, err := types.NewProvisionToken(
@@ -4234,12 +4836,12 @@ func TestEventsClusterConfig(t *testing.T) {
 	token, err = testSrv.Auth().GetToken(ctx, token.GetName())
 	require.NoError(t, err)
 
-	suite.ExpectResource(t, w, 3*time.Second, token)
+	ExpectResource(t, w, 3*time.Second, token)
 
 	// delete token and expect delete event
 	err = testSrv.Auth().DeleteToken(ctx, token.GetName())
 	require.NoError(t, err)
-	suite.ExpectDeleteResource(t, w, 3*time.Second, &types.ResourceHeader{
+	ExpectDeleteResource(t, w, 3*time.Second, &types.ResourceHeader{
 		Kind:    types.KindToken,
 		Version: types.V2,
 		Metadata: types.Metadata{
@@ -4258,7 +4860,7 @@ func TestEventsClusterConfig(t *testing.T) {
 
 	auditConfigResource, err := testSrv.Auth().GetClusterAuditConfig(ctx)
 	require.NoError(t, err)
-	suite.ExpectResource(t, w, 3*time.Second, auditConfigResource)
+	ExpectResource(t, w, 3*time.Second, auditConfigResource)
 
 	// update cluster name resource metadata
 	clusterNameResource, err := testSrv.Auth().GetClusterName(ctx)
@@ -4285,7 +4887,7 @@ func TestEventsClusterConfig(t *testing.T) {
 
 	clusterNameResource, err = testSrv.Auth().GetClusterName(ctx)
 	require.NoError(t, err)
-	suite.ExpectResource(t, w, 3*time.Second, clusterNameResource)
+	ExpectResource(t, w, 3*time.Second, clusterNameResource)
 }
 
 func TestNetworkRestrictions(t *testing.T) {
@@ -4296,10 +4898,44 @@ func TestNetworkRestrictions(t *testing.T) {
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
-	suite := &suite.ServicesTestSuite{
-		RestrictionsS: clt,
+	ctx := context.Background()
+
+	// blank slate, should be get/delete should fail
+	_, err = clt.GetNetworkRestrictions(ctx)
+	require.True(t, trace.IsNotFound(err))
+
+	err = clt.DeleteNetworkRestrictions(ctx)
+	require.True(t, trace.IsNotFound(err))
+
+	allow := []types.AddressCondition{
+		{CIDR: "10.0.1.0/24"},
+		{CIDR: "10.0.2.2"},
 	}
-	suite.NetworkRestrictions(t)
+	deny := []types.AddressCondition{
+		{CIDR: "10.1.0.0/16"},
+		{CIDR: "8.8.8.8"},
+	}
+
+	expected := types.NewNetworkRestrictions()
+	expected.SetAllow(allow)
+	expected.SetDeny(deny)
+
+	// set and make sure we get it back
+	err = clt.SetNetworkRestrictions(ctx, expected)
+	require.NoError(t, err)
+
+	actual, err := clt.GetNetworkRestrictions(ctx)
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff(expected.GetAllow(), actual.GetAllow()))
+	require.Empty(t, cmp.Diff(expected.GetDeny(), actual.GetDeny()))
+
+	// now delete should work ok and get should fail again
+	err = clt.DeleteNetworkRestrictions(ctx)
+	require.NoError(t, err)
+
+	err = clt.DeleteNetworkRestrictions(ctx)
+	require.True(t, trace.IsNotFound(err))
 }
 
 func mustNewToken(
@@ -5091,10 +5727,10 @@ func TestVerifyPeerCert(t *testing.T) {
 		}
 	)
 
-	localHostCA := suite.NewTestCA(types.HostCA, localClusterName)
-	remoteHostCA := suite.NewTestCA(types.HostCA, remoteClusterName)
-	localUserCA := suite.NewTestCA(types.UserCA, localClusterName)
-	remoteUserCA := suite.NewTestCA(types.UserCA, remoteClusterName)
+	localHostCA := authtest.NewTestCA(types.HostCA, localClusterName)
+	remoteHostCA := authtest.NewTestCA(types.HostCA, remoteClusterName)
+	localUserCA := authtest.NewTestCA(types.UserCA, localClusterName)
+	remoteUserCA := authtest.NewTestCA(types.UserCA, remoteClusterName)
 
 	caPool := buildPoolInfo(
 		t,
