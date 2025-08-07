@@ -27,7 +27,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"math/rand/v2"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -249,8 +249,16 @@ func (s *KubeMockServer) setup() {
 
 	router.Handle("POST /api/{ver}/namespaces/{namespace}/pods/{name}/exec", s.withWriter(s.exec))
 	router.Handle("GET /api/{ver}/namespaces/{namespace}/pods/{name}/exec", s.withWriter(s.exec))
-	router.Handle("GET /api/{ver}/namespaces/{namespace}/pods/{name}/portforward", s.withWriter(s.portforward))
-	router.Handle("POST /api/{ver}/namespaces/{namespace}/pods/{name}/portforward", s.withWriter(s.portforward))
+
+	var portForwardHandler httplib.HandlerFunc
+	if s.concurrentPortForward {
+		s.log.Info("Configuring kube mock server with concurrent port forward")
+		portForwardHandler = s.portforwardConcurrent
+	} else {
+		portForwardHandler = s.portforward
+	}
+	router.Handle("GET /api/{ver}/namespaces/{namespace}/pods/{name}/portforward", s.withWriter(portForwardHandler))
+	router.Handle("POST /api/{ver}/namespaces/{namespace}/pods/{name}/portforward", s.withWriter(portForwardHandler))
 
 	router.Handle("GET /apis/rbac.authorization.k8s.io/{ver}/clusterroles", s.withWriter(s.listClusterRoles))
 	router.Handle("GET /apis/rbac.authorization.k8s.io/{ver}/clusterroles/{name}", s.withWriter(s.getClusterRole))
@@ -857,6 +865,93 @@ func (s *KubeMockServer) selfSubjectAccessReviews(w http.ResponseWriter, req *ht
 // portforward supports SPDY protocols only. Teleport always uses SPDY when
 // portforwarding to upstreams even if the original request is WebSocket.
 func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
+	if s.portforwardError != nil {
+		s.writeResponseError(w, nil, s.portforwardError)
+		return nil, nil
+	}
+
+	streamChan := make(chan httpstream.Stream)
+
+	var err error
+	var conn httpstream.Connection
+	if wsstream.IsWebSocketRequestWithTunnelingProtocol(req) {
+		if !s.supportsTunneledSPDY {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("server does not support tunneled SPDY"))
+			return nil, nil
+		}
+		s.KubePortforward.Websocket.Add(1)
+		// Try to upgrade the websocket connection.
+		// Beyond this point, we don't need to write errors to the response.
+		upgrader := gwebsocket.Upgrader{
+			CheckOrigin:  func(r *http.Request) bool { return true },
+			Subprotocols: []string{portforwardconstants.WebsocketsSPDYTunnelingPortForwardV1},
+		}
+		wsConn, err := upgrader.Upgrade(w, req, nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		tunneledConn := portforward.NewTunnelingConnection("server", wsConn)
+
+		conn, err = spdystream.NewServerConnectionWithPings(
+			tunneledConn,
+			httpStreamReceived(req.Context(), streamChan),
+			defaults.HighResPollingPeriod,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "error upgrading connection")
+		}
+	} else {
+		s.KubePortforward.SPDY.Add(1)
+		_, err := httpstream.Handshake(req, w, []string{portForwardProtocolV1Name})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		upgrader := spdystream.NewResponseUpgraderWithPings(defaults.HighResPollingPeriod)
+		conn = upgrader.UpgradeResponse(w, req, httpStreamReceived(req.Context(), streamChan))
+
+	}
+
+	if conn == nil {
+		err = trace.ConnectionProblem(nil, "unable to upgrade connection")
+		return nil, err
+	}
+	defer conn.Close()
+	var (
+		data      httpstream.Stream
+		errStream httpstream.Stream
+	)
+
+	for {
+		select {
+		case <-conn.CloseChan():
+			return nil, nil
+		case stream := <-streamChan:
+			switch stream.Headers().Get(StreamType) {
+			case StreamTypeError:
+				errStream = stream
+			case StreamTypeData:
+				data = stream
+			}
+		}
+		if errStream != nil && data != nil {
+			break
+		}
+	}
+
+	buf := make([]byte, 1024)
+	n, err := data.Read(buf)
+	if err != nil {
+		errStream.Write([]byte(err.Error()))
+		return nil, nil
+	}
+
+	fmt.Fprint(data, PortForwardPayload, p.ByName("name"), string(buf[:n]))
+	return nil, nil
+}
+
+func (s *KubeMockServer) portforwardConcurrent(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 	if s.portforwardError != nil {
 		s.writeResponseError(w, nil, s.portforwardError)
 		return nil, nil
