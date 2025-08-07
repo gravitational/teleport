@@ -130,7 +130,7 @@ See [SAML IdP RBAC](./saml-idp.mdx#RBAC) for more details.
 
 A Teleport role defines which resources (e.g., applications, servers, and
 databases) a user can access.
-This works by [labeling resources](../../admin-guides/management/admin/labels.mdx) and
+This works by [labeling resources](../../zero-trust-access/management/admin/labels.mdx) and
 configuring allow/deny labels in a role definition.
 
 Consider the following use case:
@@ -499,7 +499,7 @@ Labels for resources enrolled with Teleport:
 |Role Field|Teleport Resource|
 |---|---|
 |`app_labels`|[Applications](../../enroll-resources/application-access/controls.mdx)|
-|`cluster_labels`|[Trusted Clusters](../../admin-guides/management/admin/trustedclusters.mdx)|
+|`cluster_labels`|[Trusted Clusters](../../zero-trust-access/management/admin/trustedclusters.mdx)|
 |`db_labels`|[Databases](../../enroll-resources/database-access/rbac.mdx)|
 |`db_service_labels`|[Database Service](../../enroll-resources/database-access/database-access.mdx) instances|
 |`kubernetes_labels`|[Kubernetes clusters](../../enroll-resources/kubernetes-access/controls.mdx)|
@@ -554,7 +554,7 @@ sign-on provider.
 |`{{internal.jwt}}`|JWT header used for app access.|
 |`{{internal.kubernetes_groups}}`|List of allowed Kubernetes groups for the user.|
 |`{{internal.kubernetes_users}}`|List of allowed Kubernetes users for the user.|
-|`{{internal.logins}}` | Substituted with a value stored in Teleport's local user database and logins from a root cluster. <br/><br/>For local users, Teleport will substitute this with the "allowed logins" parameter used in the `tctl users add [user] <allowed logins>` command. <br/><br/>If the role is within a leaf cluster in a [trusted cluster](../../admin-guides/management/admin/trustedclusters.mdx), Teleport will substitute the logins from the root cluster whether the user is a local user or from an SSO provider. <br/><br/>As an example, if the user has the `ubuntu` login in the root cluster, then `ubuntu` will be substituted in the leaf cluster with this variable. |
+|`{{internal.logins}}` | Substituted with a value stored in Teleport's local user database and logins from a root cluster. <br/><br/>For local users, Teleport will substitute this with the "allowed logins" parameter used in the `tctl users add [user] <allowed logins>` command. <br/><br/>If the role is within a leaf cluster in a [trusted cluster](../../zero-trust-access/management/admin/trustedclusters.mdx), Teleport will substitute the logins from the root cluster whether the user is a local user or from an SSO provider. <br/><br/>As an example, if the user has the `ubuntu` login in the root cluster, then `ubuntu` will be substituted in the leaf cluster with this variable. |
 |`{{internal.windows_logins}}`|List of allowed Windows logins for the user.|
 |`{{external.xyz}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, the variable is expanded to the value of the "xyz" claim. See the next section for more information on referring to the `external` variable in Teleport roles. |
 

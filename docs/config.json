@@ -107,7 +107,7 @@
     },
     {
       "source": "/admin-guides/deploy-a-cluster/deployments/ibm/",
-      "destination": "/admin-guides/deploy-a-cluster/helm-deployments/ibm/",
+      "destination": "/zero-trust-access/deploy-a-cluster/helm-deployments/ibm/",
       "permanent": true
     },
     {
@@ -1158,6 +1158,211 @@
     {
       "source": "/admin-guides/access-controls/login-rules/",
       "destination": "/zero-trust-access/access-controls/login-rules/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/aws-kms/",
+      "destination": "/zero-trust-access/deploy-a-cluster/aws-kms/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/",
+      "destination": "/zero-trust-access/deploy-a-cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/deployments/aws-gslb-proxy-peering-ha-deployment/",
+      "destination": "/zero-trust-access/deploy-a-cluster/deployments/aws-gslb-proxy-peering-ha-deployment/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
+      "destination": "/zero-trust-access/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/deployments/aws-starter-cluster-terraform/",
+      "destination": "/zero-trust-access/deploy-a-cluster/deployments/aws-starter-cluster-terraform/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/deployments/",
+      "destination": "/zero-trust-access/deploy-a-cluster/deployments/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/deployments/gcp/",
+      "destination": "/zero-trust-access/deploy-a-cluster/deployments/gcp/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/gcp-kms/",
+      "destination": "/zero-trust-access/deploy-a-cluster/gcp-kms/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/helm-deployments/argocd-helm/",
+      "destination": "/zero-trust-access/deploy-a-cluster/helm-deployments/argocd-helm/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/helm-deployments/aws/",
+      "destination": "/zero-trust-access/deploy-a-cluster/helm-deployments/aws/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/helm-deployments/azure/",
+      "destination": "/zero-trust-access/deploy-a-cluster/helm-deployments/azure/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/helm-deployments/custom/",
+      "destination": "/zero-trust-access/deploy-a-cluster/helm-deployments/custom/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/helm-deployments/digitalocean/",
+      "destination": "/zero-trust-access/deploy-a-cluster/helm-deployments/digitalocean/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/helm-deployments/disaster-recovery/",
+      "destination": "/zero-trust-access/deploy-a-cluster/helm-deployments/disaster-recovery/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/helm-deployments/gcp/",
+      "destination": "/zero-trust-access/deploy-a-cluster/helm-deployments/gcp/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/helm-deployments/",
+      "destination": "/zero-trust-access/deploy-a-cluster/helm-deployments/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/helm-deployments/ibm/",
+      "destination": "/zero-trust-access/deploy-a-cluster/helm-deployments/ibm/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/helm-deployments/kubernetes-cluster/",
+      "destination": "/zero-trust-access/deploy-a-cluster/helm-deployments/kubernetes-cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp/",
+      "destination": "/zero-trust-access/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/high-availability/",
+      "destination": "/zero-trust-access/deploy-a-cluster/high-availability/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/hsm/",
+      "destination": "/zero-trust-access/deploy-a-cluster/hsm/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/license/",
+      "destination": "/zero-trust-access/deploy-a-cluster/license/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/multi-region-blueprint/",
+      "destination": "/zero-trust-access/deploy-a-cluster/multi-region-blueprint/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/separate-proxy-service-endpoints/",
+      "destination": "/zero-trust-access/deploy-a-cluster/separate-proxy-service-endpoints/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/admin/",
+      "destination": "/zero-trust-access/management/admin/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/admin/daemon/",
+      "destination": "/zero-trust-access/management/admin/daemon/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/admin/labels/",
+      "destination": "/zero-trust-access/management/admin/labels/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/admin/self-signed-certs/",
+      "destination": "/zero-trust-access/management/admin/self-signed-certs/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/admin/troubleshooting/",
+      "destination": "/zero-trust-access/management/admin/troubleshooting/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/admin/trusted-cluster-address-lookup/",
+      "destination": "/zero-trust-access/management/admin/trusted-cluster-address-lookup/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/admin/trustedclusters/",
+      "destination": "/zero-trust-access/management/admin/trustedclusters/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/admin/uninstall-teleport/",
+      "destination": "/zero-trust-access/management/admin/uninstall-teleport/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/admin/users/",
+      "destination": "/zero-trust-access/management/admin/users/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/security/client-timeout/",
+      "destination": "/zero-trust-access/management/security/client-timeout/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/security/proxy-protocol/",
+      "destination": "/zero-trust-access/management/security/proxy-protocol/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/security/reduce-blast-radius/",
+      "destination": "/zero-trust-access/management/security/reduce-blast-radius/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/security/restrict-privileges/",
+      "destination": "/zero-trust-access/management/security/restrict-privileges/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/security/revoking-access/",
+      "destination": "/zero-trust-access/management/security/revoking-access/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/security/",
+      "destination": "/zero-trust-access/management/security/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/security/selinux/",
+      "destination": "/zero-trust-access/management/security/selinux/",
+      "permanent": true
+    },
+    {
+      "source": "/upgrading/client-tools-autoupdate/",
+      "destination": "/upgrading/client-tools-managed-updates/",
       "permanent": true
     }
   ]

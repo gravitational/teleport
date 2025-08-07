@@ -667,8 +667,8 @@ func (c *Client) DeleteStaticTokens() error {
 }
 
 // GetStaticTokens returns a list of static register tokens
-func (c *Client) GetStaticTokens() (types.StaticTokens, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
+func (c *Client) GetStaticTokens(ctx context.Context) (types.StaticTokens, error) {
+	return c.APIClient.GetStaticTokens(ctx)
 }
 
 // SetStaticTokens sets a list of static register tokens

@@ -189,6 +189,10 @@ spec:
           {{- if .Values.extraEnv }}
             {{- toYaml .Values.extraEnv | nindent 10 }}
           {{- end }}
+          {{- if .Values.teleportClusterName }}
+          - name: KUBERNETES_TOKEN_PATH
+            value: /var/run/secrets/tokens/join-sa-token
+          {{- end }}
         args:
         - "--diag-addr=0.0.0.0:3000"
         {{- if .Values.insecureSkipProxyTLSVerify }}
@@ -231,6 +235,11 @@ spec:
         - mountPath: /etc/teleport-secrets
           name: "auth-token"
           readOnly: true
+{{- if .Values.teleportClusterName }}
+        - mountPath: /var/run/secrets/tokens
+          name: join-sa-token
+          readOnly: true
+{{- end }}
 {{- if .Values.storage.enabled }}
         - mountPath: /var/lib/teleport
           name: "{{ .Release.Name }}-teleport-data"
@@ -261,6 +270,19 @@ spec:
       - name: "auth-token"
         secret:
           secretName: {{ coalesce .Values.secretName .Values.joinTokenSecret.name }}
+      {{- if .Values.teleportClusterName }}
+      {{- /* This volume is used to obtain a service account token that can be used
+       to join the Teleport cluster using the kubernetes join method.
+       To ensure backward compatibility, we use .Values.teleportClusterName as a feature flag.
+       The token must have the cluster name as audience, and its TTL must not exceed 30 minutes. */}}
+      - name: join-sa-token
+        projected:
+          sources:
+            - serviceAccountToken:
+                path: join-sa-token
+                expirationSeconds: 600
+                audience: {{ .Values.teleportClusterName }}
+      {{- end }}
 {{- if not .Values.storage.enabled }}
       - name: "data"
         emptyDir: {}

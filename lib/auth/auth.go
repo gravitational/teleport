@@ -755,6 +755,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	if as.k8sJWKSValidator == nil {
 		as.k8sJWKSValidator = kubetoken.ValidateTokenWithJWKS
 	}
+	if as.k8sOIDCValidator == nil {
+		as.k8sOIDCValidator = kubetoken.ValidateTokenWithOIDC
+	}
 
 	if as.gcpIDTokenValidator == nil {
 		as.gcpIDTokenValidator = gcp.NewIDTokenValidator(
@@ -1218,6 +1221,9 @@ type Server struct {
 	// by the auth server using a known JWKS. It can be overridden for the
 	// purpose of tests.
 	k8sJWKSValidator k8sJWKSValidator
+	// k8sOIDCValidator allows tokens from Kubernetes to be validated by the
+	// auth server using a known OIDC endpoint. It can be overridden in tests.
+	k8sOIDCValidator k8sOIDCValidator
 
 	// gcpIDTokenValidator allows ID tokens from GCP to be validated by the auth
 	// server. It can be overridden for the purpose of tests.
@@ -5255,7 +5261,7 @@ const TokenExpiredOrNotFound = "token expired or not found"
 // a list of roles this token allows its owner to assume and token labels, or an error if the token
 // cannot be found.
 func (a *Server) ValidateToken(ctx context.Context, token string) (types.ProvisionToken, error) {
-	tkns, err := a.GetStaticTokens()
+	tkns, err := a.GetStaticTokens(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5310,7 +5316,7 @@ func (a *Server) checkTokenTTL(tok types.ProvisionToken) bool {
 }
 
 func (a *Server) DeleteToken(ctx context.Context, token string) (err error) {
-	tkns, err := a.GetStaticTokens()
+	tkns, err := a.GetStaticTokens(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -5341,7 +5347,7 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 		return nil, trace.Wrap(err)
 	}
 	// get static tokens:
-	tkns, err := a.GetStaticTokens()
+	tkns, err := a.GetStaticTokens(ctx)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}

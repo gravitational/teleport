@@ -188,6 +188,7 @@ const (
 	AuthService_DeleteTrustedCluster_FullMethodName                = "/proto.AuthService/DeleteTrustedCluster"
 	AuthService_GetToken_FullMethodName                            = "/proto.AuthService/GetToken"
 	AuthService_GetTokens_FullMethodName                           = "/proto.AuthService/GetTokens"
+	AuthService_GetStaticTokens_FullMethodName                     = "/proto.AuthService/GetStaticTokens"
 	AuthService_ListProvisionTokens_FullMethodName                 = "/proto.AuthService/ListProvisionTokens"
 	AuthService_CreateTokenV2_FullMethodName                       = "/proto.AuthService/CreateTokenV2"
 	AuthService_UpsertTokenV2_FullMethodName                       = "/proto.AuthService/UpsertTokenV2"
@@ -706,6 +707,8 @@ type AuthServiceClient interface {
 	GetToken(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.ProvisionTokenV2, error)
 	// GetToken retrieves all tokens.
 	GetTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ProvisionTokenV2List, error)
+	// GetStaticTokens retrieves all static tokens.
+	GetStaticTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.StaticTokensV2, error)
 	// ListToken retrieves a paginated list of filtered provision tokens.
 	ListProvisionTokens(ctx context.Context, in *ListProvisionTokensRequest, opts ...grpc.CallOption) (*ListProvisionTokensResponse, error)
 	// CreateTokenV2 creates a token in a backend.
@@ -2655,6 +2658,16 @@ func (c *authServiceClient) GetTokens(ctx context.Context, in *emptypb.Empty, op
 	return out, nil
 }
 
+func (c *authServiceClient) GetStaticTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.StaticTokensV2, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(types.StaticTokensV2)
+	err := c.cc.Invoke(ctx, AuthService_GetStaticTokens_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) ListProvisionTokens(ctx context.Context, in *ListProvisionTokensRequest, opts ...grpc.CallOption) (*ListProvisionTokensResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListProvisionTokensResponse)
@@ -4170,6 +4183,8 @@ type AuthServiceServer interface {
 	GetToken(context.Context, *types.ResourceRequest) (*types.ProvisionTokenV2, error)
 	// GetToken retrieves all tokens.
 	GetTokens(context.Context, *emptypb.Empty) (*types.ProvisionTokenV2List, error)
+	// GetStaticTokens retrieves all static tokens.
+	GetStaticTokens(context.Context, *emptypb.Empty) (*types.StaticTokensV2, error)
 	// ListToken retrieves a paginated list of filtered provision tokens.
 	ListProvisionTokens(context.Context, *ListProvisionTokensRequest) (*ListProvisionTokensResponse, error)
 	// CreateTokenV2 creates a token in a backend.
@@ -4930,6 +4945,9 @@ func (UnimplementedAuthServiceServer) GetToken(context.Context, *types.ResourceR
 }
 func (UnimplementedAuthServiceServer) GetTokens(context.Context, *emptypb.Empty) (*types.ProvisionTokenV2List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTokens not implemented")
+}
+func (UnimplementedAuthServiceServer) GetStaticTokens(context.Context, *emptypb.Empty) (*types.StaticTokensV2, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetStaticTokens not implemented")
 }
 func (UnimplementedAuthServiceServer) ListProvisionTokens(context.Context, *ListProvisionTokensRequest) (*ListProvisionTokensResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListProvisionTokens not implemented")
@@ -7871,6 +7889,24 @@ func _AuthService_GetTokens_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_GetStaticTokens_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetStaticTokens(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_GetStaticTokens_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetStaticTokens(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_ListProvisionTokens_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListProvisionTokensRequest)
 	if err := dec(in); err != nil {
@@ -10351,6 +10387,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetTokens",
 			Handler:    _AuthService_GetTokens_Handler,
+		},
+		{
+			MethodName: "GetStaticTokens",
+			Handler:    _AuthService_GetStaticTokens_Handler,
 		},
 		{
 			MethodName: "ListProvisionTokens",
