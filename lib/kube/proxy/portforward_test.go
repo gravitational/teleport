@@ -243,7 +243,7 @@ func spdyMultiPortForwardClientBuilder(t *testing.T, req portForwardRequestConfi
 	u, err := portforwardURL(req.podNamespace, req.podName, req.restConfig.Host, "")
 	require.NoError(t, err)
 	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, http.MethodPost, u)
-	const portCnt = 5
+	const portCnt = 100
 	port := 80
 	ports := make([]string, portCnt)
 	for idx := 0; idx < portCnt; idx++ {
