@@ -1206,7 +1206,7 @@ func TestUpdateConfig(t *testing.T) {
 	cn, err := s.a.GetClusterName(ctx)
 	require.NoError(t, err)
 	require.Equal(t, cn.GetClusterName(), s.clusterName.GetClusterName())
-	st, err := s.a.GetStaticTokens()
+	st, err := s.a.GetStaticTokens(ctx)
 	require.NoError(t, err)
 	require.Empty(t, st.GetStaticTokens())
 
@@ -1246,7 +1246,7 @@ func TestUpdateConfig(t *testing.T) {
 	cn, err = s.a.GetClusterName(ctx)
 	require.NoError(t, err)
 	require.Equal(t, cn.GetClusterName(), s.clusterName.GetClusterName())
-	st, err = s.a.GetStaticTokens()
+	st, err = s.a.GetStaticTokens(ctx)
 	require.NoError(t, err)
 	require.Equal(t, st.GetStaticTokens(), types.ProvisionTokensFromStatic([]types.ProvisionTokenV1{{
 		Token: "bar",
@@ -1255,7 +1255,7 @@ func TestUpdateConfig(t *testing.T) {
 
 	// check second auth server and make sure it also has the correct values
 	// new static tokens
-	st, err = authServer.GetStaticTokens()
+	st, err = authServer.GetStaticTokens(ctx)
 	require.NoError(t, err)
 	require.Equal(t, st.GetStaticTokens(), types.ProvisionTokensFromStatic([]types.ProvisionTokenV1{{
 		Token: "bar",

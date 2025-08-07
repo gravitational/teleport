@@ -4450,7 +4450,7 @@ func TestEvents(t *testing.T) {
 				err = testSrv.Auth().SetStaticTokens(staticTokens)
 				require.NoError(t, err)
 
-				out, err := testSrv.Auth().GetStaticTokens()
+				out, err := testSrv.Auth().GetStaticTokens(ctx)
 				require.NoError(t, err)
 
 				err = testSrv.Auth().DeleteStaticTokens()
@@ -4827,7 +4827,7 @@ func TestEventsClusterConfig(t *testing.T) {
 	err = testSrv.Auth().SetStaticTokens(staticTokens)
 	require.NoError(t, err)
 
-	staticTokens, err = testSrv.Auth().GetStaticTokens()
+	staticTokens, err = testSrv.Auth().GetStaticTokens(ctx)
 	require.NoError(t, err)
 	ExpectResource(t, w, 3*time.Second, staticTokens)
 
