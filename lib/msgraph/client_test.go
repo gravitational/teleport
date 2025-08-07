@@ -734,3 +734,22 @@ var userGroups = `
 	}
 ]
 `
+
+// Test_ExampleManagedDeviceCalls shows example calls that would be made from e/lib/intune.
+func Test_ExampleManagedDeviceCalls(t *testing.T) {
+	t.Skip()
+	client, err := NewClient(Config{})
+	require.NoError(t, err)
+	exampleTime := clockwork.NewFakeClock().Now()
+
+	// Make a request to the API to verify if credentials are correct and grant permissions to fetch
+	// managed devices.
+	_ = client.IterateManagedDevicePages(t.Context(), func(mds []*ManagedDevice) bool {
+		return false
+	}, WithTop(1))
+
+	// Fetch changed devices since the last sync.
+	_ = client.IterateManagedDevicePages(t.Context(), func(mds []*ManagedDevice) bool {
+		return true
+	}, WithLastSyncDateTimeGt(exampleTime))
+}

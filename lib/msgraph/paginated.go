@@ -20,10 +20,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"path"
 	"strconv"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -77,6 +79,17 @@ func WithHeader(key, value string) IterateOpt {
 	}
 }
 
+func WithLastSyncDateTimeGt(lastSyncDateTime time.Time) IterateOpt {
+	return func(ic *iterateConfig) {
+		if lastSyncDateTime.IsZero() {
+			return
+		}
+		// As noted in the docs, DateTimeOffset values aren't enclosed in quotes in $filter expressions.
+		// https://learn.microsoft.com/en-us/graph/filter-query-parameter
+		ic.Filter = fmt.Sprintf("lastSyncDateTime gt %s", lastSyncDateTime.UTC().Format(time.RFC3339))
+	}
+}
+
 // iterateSimple implements pagination for "simple" object lists, where additional logic isn't needed
 func iterateSimple[T any](c *Client, ctx context.Context, endpoint string, f func(*T) bool, queryOpts ...IterateOpt) error {
 	var err error
@@ -89,6 +102,24 @@ func iterateSimple[T any](c *Client, ctx context.Context, endpoint string, f fun
 			if !f(&item) {
 				return false
 			}
+		}
+		return true
+	}, queryOpts...)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(itErr)
+}
+
+func iteratePage[T any](c *Client, ctx context.Context, endpoint string, f func([]T) bool, queryOpts ...IterateOpt) error {
+	var err error
+	itErr := c.iterate(ctx, endpoint, func(msg json.RawMessage) bool {
+		var page []T
+		if err = json.Unmarshal(msg, &page); err != nil {
+			return false
+		}
+		if !f(page) {
+			return false
 		}
 		return true
 	}, queryOpts...)
@@ -175,6 +206,11 @@ func (c *Client) IterateUsers(ctx context.Context, f func(*User) bool) error {
 // Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-list].
 func (c *Client) IterateServicePrincipals(ctx context.Context, f func(principal *ServicePrincipal) bool) error {
 	return iterateSimple(c, ctx, "servicePrincipals", f)
+}
+
+func (c *Client) IterateManagedDevicePages(ctx context.Context, f func(mds []*ManagedDevice) bool, iterateOpts ...IterateOpt) error {
+	iterateOpts = append(iterateOpts, WithSelect(selectManagedDevice))
+	return iteratePage(c, ctx, "deviceManagement/managedDevices", f, iterateOpts...)
 }
 
 // IterateGroupMembers lists all members for the given Entra ID group using pagination.
