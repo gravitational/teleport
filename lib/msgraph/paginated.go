@@ -135,6 +135,24 @@ func iterateSimple[T any](c *Client, ctx context.Context, endpoint string, f fun
 	return trace.Wrap(itErr)
 }
 
+func iteratePage[T any](c *Client, ctx context.Context, endpoint string, f func([]T) bool, iterateOpts ...IterateOpt) error {
+	var err error
+	itErr := c.iterate(ctx, endpoint, func(msg json.RawMessage) bool {
+		var page []T
+		if err = json.Unmarshal(msg, &page); err != nil {
+			return false
+		}
+		if !f(page) {
+			return false
+		}
+		return true
+	}, iterateOpts...)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(itErr)
+}
+
 // iterate implements pagination for "list" endpoints.
 func (c *Client) iterate(ctx context.Context, endpoint string, f func(json.RawMessage) bool, iterateOpts ...IterateOpt) error {
 	ic := c.newIterateConfig()
