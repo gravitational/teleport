@@ -847,8 +847,6 @@ func (s *KubeMockServer) selfSubjectAccessReviews(w http.ResponseWriter, req *ht
 
 // portforward supports SPDY protocols only. Teleport always uses SPDY when
 // portforwarding to upstreams even if the original request is WebSocket.
-// kube_mock.go
-
 func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 	if s.portforwardError != nil {
 		s.writeResponseError(w, nil, s.portforwardError)
@@ -903,7 +901,7 @@ func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p
 	}
 	defer conn.Close()
 
-	// Use the request's context to manage goroutine lifecycle without a premature timeout.
+	// Create a context for managing goroutines.
 	ctx, cancel := context.WithCancel(req.Context())
 	defer cancel()
 
