@@ -437,8 +437,14 @@ func (c *Connector) ClusterName() string {
 	return c.clusterName
 }
 
+// HostID returns the host ID in <uuid>.<clusterName> format.
 func (c *Connector) HostID() string {
 	return c.hostID
+}
+
+// HostUUID returns the plain host UUID.
+func (c *Connector) HostUUID() string {
+	return strings.TrimSuffix(c.hostID, "."+c.clusterName)
 }
 
 func (c *Connector) Role() types.SystemRole {
@@ -1798,7 +1804,7 @@ func (process *TeleportProcess) waitForHostID(ctx context.Context) (string, erro
 		return auth.ServerID, nil
 	}
 	if connector := process.waitForInstanceConnector(ctx); connector != nil {
-		return strings.TrimSuffix(connector.HostID(), "."+connector.ClusterName()), nil
+		return connector.HostUUID(), nil
 	}
 	return "", trace.Errorf("instance connector never became ready")
 }
@@ -4816,7 +4822,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				// reverse tunnel agents during rollouts, as otherwise they'll keep
 				// trying to reach proxies until the heartbeats expire.
 				if services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
-					if err := conn.Client.DeleteProxy(ctx, process.Config.HostUUID); err != nil {
+					if err := conn.Client.DeleteProxy(ctx, conn.HostUUID()); err != nil {
 						if !trace.IsNotFound(err) {
 							logger.WarnContext(ctx, "Failed to delete heartbeat", "error", err)
 						} else {
@@ -4866,7 +4872,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 			peerClient, err = peer.NewClient(peer.ClientConfig{
 				Context:           process.ExitContext(),
-				ID:                process.Config.HostUUID,
+				ID:                conn.HostUUID(),
 				AuthClient:        conn.Client,
 				AccessPoint:       accessPoint,
 				TLSCipherSuites:   cfg.CipherSuites,
@@ -4893,7 +4899,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				GetClientTLSCertificate: conn.ClientGetCertificate,
 				Context:                 process.ExitContext(),
 				Component:               teleport.Component(teleport.ComponentProxy, process.id),
-				ID:                      process.Config.HostUUID,
+				ID:                      conn.HostUUID(),
 				ClusterName:             clusterName,
 				Listener:                rtListener,
 				GetHostSigners:          conn.ServerGetHostSigners,
@@ -5062,7 +5068,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			AccessPoint:    accessPoint,
 			LockWatcher:    lockWatcher,
 			Clock:          process.Clock,
-			ServerID:       cfg.HostUUID,
+			ServerID:       conn.HostUUID(),
 			Emitter:        asyncEmitter,
 			EmitterContext: process.GracefulExitContext(),
 			Logger:         process.logger,
@@ -5076,7 +5082,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			DataDir:           cfg.DataDir,
 			Emitter:           asyncEmitter,
 			Authorizer:        authorizer,
-			HostID:            cfg.HostUUID,
+			HostID:            conn.HostUUID(),
 			AuthClient:        conn.Client,
 			AccessPoint:       accessPoint,
 			TLSConfig:         serverTLSConfig,
@@ -5117,7 +5123,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			AccessPoint:               accessPoint,
 			Emitter:                   asyncEmitter,
 			PluginRegistry:            process.PluginRegistry,
-			HostUUID:                  process.Config.HostUUID,
+			HostUUID:                  conn.HostUUID(),
 			Context:                   process.GracefulExitContext(),
 			StaticFS:                  fs,
 			ClusterFeatures:           process.GetClusterFeatures(),
@@ -5561,7 +5567,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Emitter:                       asyncEmitter,
 				DataDir:                       cfg.DataDir,
 				CachingAuthClient:             accessPoint,
-				HostID:                        cfg.HostUUID,
+				HostID:                        conn.HostUUID(),
 				ClusterOverride:               cfg.Proxy.Kube.ClusterOverride,
 				KubeconfigPath:                cfg.Proxy.Kube.KubeconfigPath,
 				Component:                     component,
@@ -5640,7 +5646,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			AccessPoint:    accessPoint,
 			LockWatcher:    lockWatcher,
 			Clock:          process.Config.Clock,
-			ServerID:       process.Config.HostUUID,
+			ServerID:       conn.HostUUID(),
 			Emitter:        asyncEmitter,
 			EmitterContext: process.ExitContext(),
 			Logger:         process.logger,
@@ -6413,7 +6419,7 @@ func (process *TeleportProcess) initApps() {
 			AccessPoint:         accessPoint,
 			LockWatcher:         lockWatcher,
 			Clock:               process.Config.Clock,
-			ServerID:            process.Config.HostUUID,
+			ServerID:            conn.HostUUID(),
 			Emitter:             asyncEmitter,
 			EmitterContext:      process.ExitContext(),
 			Logger:              process.logger,
@@ -6431,7 +6437,7 @@ func (process *TeleportProcess) initApps() {
 			Authorizer:        authorizer,
 			TLSConfig:         tlsConfig,
 			CipherSuites:      process.Config.CipherSuites,
-			HostID:            process.Config.HostUUID,
+			HostID:            conn.HostUUID(),
 			Emitter:           asyncEmitter,
 			ConnectionMonitor: connMonitor,
 			ServiceComponent:  teleport.ComponentApp,
@@ -6446,7 +6452,7 @@ func (process *TeleportProcess) initApps() {
 			Clock:                process.Config.Clock,
 			AuthClient:           conn.Client,
 			AccessPoint:          accessPoint,
-			HostID:               process.Config.HostUUID,
+			HostID:               conn.HostUUID(),
 			Hostname:             process.Config.Hostname,
 			GetRotation:          process.GetRotation,
 			Apps:                 applications,
