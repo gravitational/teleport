@@ -168,6 +168,7 @@ type Options struct {
 	mrkClient    mrkClient
 	awsSTSClient stsClient
 	kmsClient    *kms.KeyManagementClient
+	awsRGTClient rgtClient
 
 	clockworkOverride clockwork.Clock
 	// GCPKMS uses a special fake clock that seemed more testable at the time.
