@@ -105,9 +105,6 @@ func newProvisionTokensCollection(p services.Provisioner, w types.WatchKind) (*c
 				provisionTokenStoreNameIndex: types.ProvisionToken.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.ProvisionToken, error) {
-			// TODO(hugoShaka): remove this comment in v19
-			// No need to provide backward compatibility by falling back to previous
-			// GetTokens RPC because the Auth service is the only one caching this resource.
 			tokens, err := stream.Collect(
 				clientutils.Resources(
 					ctx,

@@ -119,7 +119,7 @@ func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httpr
 		return nil, trace.Wrap(err, "getting static tokens")
 	}
 
-	// TODO(hugoShaka): remove fallback in v19.
+	// TODO(hugoShaka): DELETE IN 19.0.0
 	if trace.IsNotImplemented(err) {
 		// We are connected to an old auth, that doesn't support the per-token type RPCs
 		// so we fallback to the legacy all-in-one RPC.
