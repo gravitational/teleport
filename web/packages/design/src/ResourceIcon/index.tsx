@@ -20,6 +20,7 @@ import { ComponentProps } from 'react';
 import { useTheme } from 'styled-components';
 
 import { Image } from 'design';
+import { IconProps } from 'design/Icon/Icon';
 
 import {
   iconNames,
@@ -33,6 +34,11 @@ interface ResourceIconProps extends ComponentProps<typeof Image> {
    * available names.
    */
   name: ResourceIconName;
+
+  /**
+   * Use a standard size. Otherwise, use `width` and `height` props.
+   */
+  size?: IconProps['size'];
 }
 
 /**
@@ -45,7 +51,32 @@ export const ResourceIcon = ({ name, ...props }: ResourceIconProps) => {
   if (!icon) {
     return null;
   }
-  return <Image src={icon} data-testid={`res-icon-${name}`} {...props} />;
+  const width = props.size ? sizetoPx(props.size) : props.width;
+  const height = props.size ? sizetoPx(props.size) : props.height;
+  return (
+    <Image
+      src={icon}
+      data-testid={`res-icon-${name}`}
+      {...props}
+      width={width}
+      height={height}
+    />
+  );
 };
+
+/**
+ * Convert a standard size to a pixel width/height. This is different to the
+ * conversion done for Icons as they include in-asset padding.
+ *
+ * @param size the standard size to convert.
+ * @returns the pixel size
+ */
+function sizetoPx(size: IconProps['size']) {
+  if (size === 'small') return '14px';
+  if (size === 'medium') return '16px';
+  if (size === 'large') return '20px';
+  if (size === 'extra-large') return '24px';
+  return '24px';
+}
 
 export { type ResourceIconName, resourceIconSpecs, iconNames };

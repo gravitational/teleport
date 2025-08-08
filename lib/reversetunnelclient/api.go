@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
-	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/sshagent"
 )
 
 // ConnectedProxyGetter provides the ability to retrieve which proxy instances
@@ -52,7 +52,7 @@ type DialParams struct {
 
 	// GetUserAgent gets an SSH agent for use in connecting to the remote host. Used by the
 	// forwarding proxy.
-	GetUserAgent teleagent.Getter
+	GetUserAgent sshagent.ClientGetter
 
 	// IsAgentlessNode indicates whether the Node is an OpenSSH Node.
 	// This includes Nodes whose sub kind is OpenSSH and OpenSSHEICE.

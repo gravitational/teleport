@@ -37,9 +37,15 @@ import (
 // TestTokens tests static tokens
 func TestStaticTokens(t *testing.T) {
 	t.Parallel()
+	ctx := t.Context()
 
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
+
+	// Make sure we get a NotFoundError (and not a panic) when there are no
+	// static tokens.
+	_, err := p.cache.GetStaticTokens(ctx)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{
@@ -62,7 +68,7 @@ func TestStaticTokens(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetStaticTokens()
+	out, err := p.cache.GetStaticTokens(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(staticTokens, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }

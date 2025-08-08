@@ -820,6 +820,8 @@ github.com/aws/aws-sdk-go-v2/service/redshift v1.55.1 h1:g2AXKrTkVjnWpYXBXJ00lU6
 github.com/aws/aws-sdk-go-v2/service/redshift v1.55.1/go.mod h1:GGQqtUubSmvzcr23P48Qkkv2auTeatL67pL9SO6/b14=
 github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.28.1 h1:Tybcb+WE3hbjkF3kfkppyS6qRigIZwlPbtnFdMN9Hvg=
 github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.28.1/go.mod h1:PD4779i8tDuTz0p6k1XSZTF2RrepnIGeZOTCmuFhFOA=
+github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi v1.27.1 h1:dGw/U6NbhnWoW2gw+75/AZvnYjFuxYRtzUpxALoRhLc=
+github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi v1.27.1/go.mod h1:ZNIISn1QONFDUbTmkIK53IBTrGn1TbsrBH5pG/BCwew=
 github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.18.1 h1:CS6N35VnEJGpPbXUoQEm0LBA/uDpTC/jfrAkkNsbjEo=
 github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.18.1/go.mod h1:tlqfSYOwnjSkzCp1Oc5dT44TX1bvy1SchvixKOXPvTI=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.85.1 h1:Hsqo8+dFxSdDvv9B2PgIx1AJAnDpqgS0znVI+R+MoGY=
@@ -1512,6 +1514,8 @@ github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f/go.mod h1:ZdcZmHo+
 github.com/nxadm/tail v1.4.4/go.mod h1:kenIhsEOeOJmVchQTgglprH7qJGnHDVpk1VPCcaMI8A=
 github.com/nxadm/tail v1.4.11 h1:8feyoE3OzPrcshW5/MJ4sGESc5cqmGkGCWlco4l0bqY=
 github.com/nxadm/tail v1.4.11/go.mod h1:OTaG3NK980DZzxbRq6lEuzgU+mug70nY11sMd4JXXHc=
+github.com/ohler55/ojg v1.26.8 h1:njM65m+ej8sLHiFZIhJK9UkwOmDPsUikjGbTgcwu8CU=
+github.com/ohler55/ojg v1.26.8/go.mod h1:/Y5dGWkekv9ocnUixuETqiL58f+5pAsUfg5P8e7Pa2o=
 github.com/oklog/ulid v1.3.1 h1:EGfNDEx6MqHz8B3uNV6QAib1UR2Lm97sHi3ocA6ESJ4=
 github.com/oklog/ulid v1.3.1/go.mod h1:CirwcVhetQ6Lv90oh/F+FBtV6XMibvdAFo93nm5qn4U=
 github.com/okta/okta-sdk-golang/v2 v2.20.0 h1:EDKM+uOPfihOMNwgHMdno+NAsIfyXkVnoFAYVPay0YU=

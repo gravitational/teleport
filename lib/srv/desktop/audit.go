@@ -100,6 +100,7 @@ func (d *desktopSessionAuditor) makeSessionStart(err error) *events.WindowsDeskt
 			ClusterName: d.clusterName,
 			Time:        d.startTime,
 		},
+		CertMetadata:          new(events.WindowsCertificateMetadata),
 		UserMetadata:          userMetadata,
 		SessionMetadata:       d.getSessionMetadata(),
 		ConnectionMetadata:    d.getConnectionMetadata(),

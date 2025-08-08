@@ -102,6 +102,7 @@ func (r resourceTeleportWorkloadIdentity) Create(ctx context.Context, req tfsdk.
 		return
 	}
 		var workloadIdentityI *workloadidentityv1.WorkloadIdentity
+	// Try getting the resource until it exists.
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
@@ -109,12 +110,13 @@ func (r resourceTeleportWorkloadIdentity) Create(ctx context.Context, req tfsdk.
 		workloadIdentityI, err = r.p.Client.GetWorkloadIdentity(ctx, id)
 		if trace.IsNotFound(err) {
 			if bErr := backoff.Do(ctx); bErr != nil {
-				resp.Diagnostics.Append(diagFromWrappedErr("Error reading WorkloadIdentity", trace.Wrap(bErr), "workload_identity"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading WorkloadIdentity", trace.Wrap(err), "workload_identity"))
 				return
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading WorkloadIdentity (tried %d times) - state outdated, please import resource", tries)
 				resp.Diagnostics.AddError(diagMessage, "workload_identity")
+				return
 			}
 			continue
 		}

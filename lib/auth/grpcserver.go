@@ -3251,6 +3251,24 @@ func (g *GRPCServer) GetTokens(ctx context.Context, _ *emptypb.Empty) (*types.Pr
 	}, nil
 }
 
+// GetStaticTokens returns the static tokens.
+func (g *GRPCServer) GetStaticTokens(ctx context.Context, _ *emptypb.Empty) (*types.StaticTokensV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	st, err := auth.ServerWithRoles.GetStaticTokens(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	result, ok := st.(*types.StaticTokensV2)
+	if !ok {
+		return nil, trace.Errorf("encountered unexpected static token type: %T", st)
+	}
+	return result, nil
+}
+
 // ListProvisionTokens retrieves a paginated list of provision tokens.
 func (g *GRPCServer) ListProvisionTokens(ctx context.Context, req *authpb.ListProvisionTokensRequest) (*authpb.ListProvisionTokensResponse, error) {
 	auth, err := g.authenticate(ctx)

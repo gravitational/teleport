@@ -103,6 +103,7 @@ func (r resourceTeleportAccessMonitoringRule) Create(ctx context.Context, req tf
 		return
 	}
 		var accessMonitoringRuleI *accessmonitoringrulesv1.AccessMonitoringRule
+	// Try getting the resource until it exists.
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
@@ -110,12 +111,13 @@ func (r resourceTeleportAccessMonitoringRule) Create(ctx context.Context, req tf
 		accessMonitoringRuleI, err = r.p.Client.AccessMonitoringRulesClient().GetAccessMonitoringRule(ctx, id)
 		if trace.IsNotFound(err) {
 			if bErr := backoff.Do(ctx); bErr != nil {
-				resp.Diagnostics.Append(diagFromWrappedErr("Error reading AccessMonitoringRule", trace.Wrap(bErr), "access_monitoring_rule"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading AccessMonitoringRule", trace.Wrap(err), "access_monitoring_rule"))
 				return
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading AccessMonitoringRule (tried %d times) - state outdated, please import resource", tries)
 				resp.Diagnostics.AddError(diagMessage, "access_monitoring_rule")
+				return
 			}
 			continue
 		}
