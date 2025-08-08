@@ -1194,6 +1194,29 @@ func (g *GRPCServer) GetResetPasswordToken(ctx context.Context, req *authpb.GetR
 	return r, nil
 }
 
+func (g *GRPCServer) ListResetPasswordTokens(ctx context.Context, req *authpb.ListResetPasswordTokenRequest) (*authpb.ListResetPasswordTokenResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ts, nextToken, err := auth.ServerWithRoles.ListResetPasswordTokens(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	userTokensV3 := make([]*types.UserTokenV3, len(ts))
+	for i, t := range ts {
+		var ok bool
+		if userTokensV3[i], ok = t.(*types.UserTokenV3); !ok {
+			return nil, trace.Errorf("encountered unexpected token type: %T", t)
+		}
+	}
+	return &authpb.ListResetPasswordTokenResponse{
+		UserTokens:    userTokensV3,
+		NextPageToken: nextToken,
+	}, nil
+}
+
 // GetPluginData loads all plugin data matching the supplied filter.
 func (g *GRPCServer) GetPluginData(ctx context.Context, filter *types.PluginDataFilter) (*authpb.PluginDataSeq, error) {
 	// TODO(fspmarshall): Implement rate-limiting to prevent misbehaving plugins from
@@ -3249,6 +3272,24 @@ func (g *GRPCServer) GetTokens(ctx context.Context, _ *emptypb.Empty) (*types.Pr
 	return &types.ProvisionTokenV2List{
 		ProvisionTokens: provisionTokensV2,
 	}, nil
+}
+
+// GetStaticTokens returns the static tokens.
+func (g *GRPCServer) GetStaticTokens(ctx context.Context, _ *emptypb.Empty) (*types.StaticTokensV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	st, err := auth.ServerWithRoles.GetStaticTokens(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	result, ok := st.(*types.StaticTokensV2)
+	if !ok {
+		return nil, trace.Errorf("encountered unexpected static token type: %T", st)
+	}
+	return result, nil
 }
 
 // ListProvisionTokens retrieves a paginated list of provision tokens.

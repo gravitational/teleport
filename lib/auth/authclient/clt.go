@@ -667,8 +667,8 @@ func (c *Client) DeleteStaticTokens() error {
 }
 
 // GetStaticTokens returns a list of static register tokens
-func (c *Client) GetStaticTokens() (types.StaticTokens, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
+func (c *Client) GetStaticTokens(ctx context.Context) (types.StaticTokens, error) {
+	return c.APIClient.GetStaticTokens(ctx)
 }
 
 // SetStaticTokens sets a list of static register tokens
@@ -1105,6 +1105,8 @@ type IdentityService interface {
 
 	// GetResetPasswordToken returns a reset password token.
 	GetResetPasswordToken(ctx context.Context, username string) (types.UserToken, error)
+	// ListResetPasswordTokens returns a page of user tokens.
+	ListResetPasswordTokens(ctx context.Context, pageSize int, nextKey string) ([]types.UserToken, string, error)
 
 	// GetMFADevices fetches all MFA devices registered for the calling user.
 	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
