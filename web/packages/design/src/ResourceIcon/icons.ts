@@ -226,6 +226,7 @@ import onepasswordLight from './assets/onepassword-light.svg?no-inline';
 import opencomp from './assets/opencomp.svg?no-inline';
 import openid from './assets/openid.svg?no-inline';
 import opsgenie from './assets/opsgenie.svg?no-inline';
+import oracle from './assets/oracle.svg?no-inline';
 import orbitLove from './assets/orbit.love.svg?no-inline';
 import orcasecurityDark from './assets/orcasecurity-dark.svg?no-inline';
 import orcasecurityLight from './assets/orcasecurity-light.svg?no-inline';
@@ -276,6 +277,7 @@ import snowflake from './assets/snowflake.svg?no-inline';
 import spaceliftDark from './assets/spacelift-dark.svg?no-inline';
 import spaceliftLight from './assets/spacelift-light.svg?no-inline';
 import sparrow from './assets/sparrow.svg?no-inline';
+import strapi from './assets/strapi.svg?no-inline';
 import stripeDark from './assets/stripe-dark.svg?no-inline';
 import stripeLight from './assets/stripe-light.svg?no-inline';
 import tableau from './assets/tableau.svg?no-inline';
@@ -521,6 +523,7 @@ export {
   opencomp,
   openid,
   opsgenie,
+  oracle,
   orbitLove,
   orcasecurityDark,
   orcasecurityLight,
@@ -571,6 +574,7 @@ export {
   spaceliftDark,
   spaceliftLight,
   sparrow,
+  strapi,
   stripeDark,
   stripeLight,
   tableau,

@@ -111,6 +111,7 @@ import (
 	_ "github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
+	myrepl "github.com/gravitational/teleport/lib/client/db/mysql/repl"
 	pgrepl "github.com/gravitational/teleport/lib/client/db/postgres/repl"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -133,7 +134,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/s3sessions"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
-	"github.com/gravitational/teleport/lib/integrations/awsra"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/joinserver"
@@ -1162,7 +1162,9 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 
 	if cfg.DatabaseREPLRegistry == nil {
 		cfg.DatabaseREPLRegistry = dbrepl.NewREPLGetter(map[string]dbrepl.REPLNewFunc{
-			defaults.ProtocolPostgres: pgrepl.New,
+			defaults.ProtocolPostgres:    pgrepl.New,
+			defaults.ProtocolCockroachDB: pgrepl.New,
+			defaults.ProtocolMySQL:       myrepl.New,
 		})
 	}
 
@@ -1305,13 +1307,17 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	upgraderKind, externalUpgrader, upgraderVersion := process.detectUpgrader()
 
 	getHello := func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
+		hostID, err := process.waitForHostID(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err, "waiting for host ID")
+		}
 		instanceRoles := process.getInstanceRoles()
 		services := make([]string, 0, len(instanceRoles))
 		for _, r := range instanceRoles {
 			services = append(services, string(r))
 		}
 		hello := &proto.UpstreamInventoryHello{
-			ServerID:         cfg.HostUUID,
+			ServerID:         hostID,
 			Version:          teleport.Version,
 			Services:         services,
 			Hostname:         cfg.Hostname,
@@ -1324,7 +1330,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		}
 
 		if upgraderKind == types.UpgraderKindTeleportUpdate {
-			info, err := autoupdate.ReadHelloUpdaterInfo(supervisor.ExitContext(), cfg.Logger, cfg.HostUUID)
+			info, err := autoupdate.ReadHelloUpdaterInfo(supervisor.ExitContext(), cfg.Logger, hostID)
 			if err != nil {
 				// Failing to detect teleport-update info is not fatal, we continue.
 				cfg.Logger.WarnContext(supervisor.ExitContext(), "Error recovering teleport-update status, this might affect automatic update tracking and progress.", "error", err)
@@ -1770,17 +1776,31 @@ func (process *TeleportProcess) getInstanceClient() *authclient.Client {
 	return conn.Client
 }
 
-// waitForInstanceConnector waits for the instance connector to become available. returns nil if
-// process shutdown is triggered or if this is an auth-only instance. Auth-only instances cannot
-// use the instance client because auth servers need to be able to fully initialize without a
-// valid CA in order to support HSMs.
-func (process *TeleportProcess) waitForInstanceConnector() *Connector {
+// waitForInstanceConnector waits for the instance connector to become
+// available. Returns nil if if this is an auth-only instance or ctx is
+// canceled. Auth-only instances cannot use the instance client because auth
+// servers need to be able to fully initialize without a valid CA in order to
+// support HSMs.
+func (process *TeleportProcess) waitForInstanceConnector(ctx context.Context) *Connector {
 	select {
 	case <-process.instanceConnectorReady:
 		return process.getInstanceConnector()
-	case <-process.ExitContext().Done():
+	case <-ctx.Done():
 		return nil
 	}
+}
+
+// waitForHostID returns the local host UUID. If there is a local auth service,
+// it returns immediately, otherwise it waits for the instance connector to
+// become available.
+func (process *TeleportProcess) waitForHostID(ctx context.Context) (string, error) {
+	if auth := process.getLocalAuth(); auth != nil {
+		return auth.ServerID, nil
+	}
+	if connector := process.waitForInstanceConnector(ctx); connector != nil {
+		return strings.TrimSuffix(connector.HostID(), "."+connector.ClusterName()), nil
+	}
+	return "", trace.Errorf("instance connector never became ready")
 }
 
 // makeInventoryControlStreamWhenReady is the same as makeInventoryControlStream except that it blocks until
@@ -1823,6 +1843,18 @@ func (process *TeleportProcess) exportUpgradeWindows(ctx context.Context, req pr
 	return clt.ExportUpgradeWindows(ctx, req)
 }
 
+// isGroupMember returns whether currently logged user is a member of a group
+func isGroupMember(gid int) (bool, error) {
+	groups, err := os.Getgroups()
+	if err != nil {
+		return false, trace.ConvertSystemError(err)
+	}
+	if slices.Contains(groups, gid) {
+		return true, nil
+	}
+	return false, nil
+}
+
 // adminCreds returns admin UID and GID settings based on the OS
 func adminCreds() (*int, *int, error) {
 	if runtime.GOOS != constants.LinuxOS {
@@ -1830,7 +1862,7 @@ func adminCreds() (*int, *int, error) {
 	}
 	// if the user member of adm linux group,
 	// make audit log folder readable by admins
-	isAdmin, err := utils.IsGroupMember(teleport.LinuxAdminGID)
+	isAdmin, err := isGroupMember(teleport.LinuxAdminGID)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -2157,7 +2189,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
-	recordingEncryptionManager, err := recordingencryption.NewManager(recordingencryption.ManagerConfig{
+	recordingEncryptionManager, err := recordingencryption.NewManager(process.GracefulExitContext(), recordingencryption.ManagerConfig{
 		Backend:       localRecordingEncryption,
 		Cache:         localRecordingEncryption,
 		KeyStore:      keyStore,
@@ -2727,59 +2759,6 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(recordingEncryptionManager.Watch(process.GracefulExitContext(), authServer.Services))
 	})
 
-	awsRolesAnywhereProfileSyncProcessName := "aws-roles-anywhere.profile-sync"
-	process.RegisterFunc("auth."+awsRolesAnywhereProfileSyncProcessName+".service", func() error {
-		ctx := process.GracefulExitContext()
-		logger := process.logger.With("process", awsRolesAnywhereProfileSyncProcessName)
-
-		if _, err := process.WaitForEvent(ctx, TeleportReadyEvent); err != nil {
-			logger.DebugContext(ctx, "process exiting: failed to start AWS Roles Anywhere profile sync service")
-			return nil
-		}
-
-		params := awsra.AWSRolesAnywherProfileSyncerParams{
-			Clock:             process.Clock,
-			Logger:            logger,
-			KeyStoreManager:   authServer.GetKeyStore(),
-			Cache:             authServer.Cache,
-			StatusReporter:    authServer.Services,
-			AppServerUpserter: authServer.Services,
-			HostUUID:          process.Config.HostUUID,
-		}
-
-		runWhileLockedConfig := backend.RunWhileLockedConfig{
-			LockConfiguration: backend.LockConfiguration{
-				Backend:            process.backend,
-				LockNameComponents: []string{awsRolesAnywhereProfileSyncProcessName},
-				TTL:                1 * time.Minute,
-			},
-			RefreshLockInterval: 20 * time.Second,
-		}
-
-		runFunction := func(ctx context.Context) error {
-			return trace.Wrap(awsra.RunAWSRolesAnywherProfileSyncer(ctx, params))
-		}
-
-		waitWithJitter := retryutils.SeventhJitter(time.Second * 10)
-		for {
-			err := backend.RunWhileLocked(ctx, runWhileLockedConfig, runFunction)
-			if err != nil && ctx.Err() == nil {
-				logger.ErrorContext(
-					ctx,
-					"AWS Roles Anywhere profile syncer encountered a fatal error, it will restart after backoff",
-					"error", err,
-					"restart_after", waitWithJitter,
-				)
-			}
-
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-time.After(waitWithJitter):
-			}
-		}
-	})
-
 	// execute this when process is asked to exit:
 	process.OnExit("auth.shutdown", func(payload any) {
 		// The listeners have to be closed here, because if shutdown
@@ -3035,6 +3014,20 @@ func (process *TeleportProcess) newLocalCacheForProxy(clt authclient.ClientI, ca
 	}
 
 	return authclient.NewProxyWrapper(clt, cache), nil
+}
+
+func (process *TeleportProcess) newLocalCacheForRelay(clt authclient.ClientI, cacheName []string) (authclient.ReadRelayAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.NewLocalCache(clt, cache.ForRelay, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cache, nil
 }
 
 // newLocalCacheForRemoteProxy returns new instance of access point configured for a remote proxy.

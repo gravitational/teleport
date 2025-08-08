@@ -208,6 +208,7 @@ export const resourceIconSpecs = {
   openid: forAllThemes(i.openid),
   opsgenie: forAllThemes(i.opsgenie),
   'orbit.love': forAllThemes(i.orbitLove),
+  oracle: forAllThemes(i.oracle),
   orcasecurity: { dark: i.orcasecurityDark, light: i.orcasecurityLight },
   'outreach.io': forAllThemes(i.outreachIo),
 
@@ -255,6 +256,7 @@ export const resourceIconSpecs = {
   snowflake: forAllThemes(i.snowflake),
   spacelift: { dark: i.spaceliftDark, light: i.spaceliftLight },
   sparrow: forAllThemes(i.sparrow),
+  strapi: forAllThemes(i.strapi),
   stripe: { dark: i.stripeDark, light: i.stripeLight },
 
   tableau: forAllThemes(i.tableau),

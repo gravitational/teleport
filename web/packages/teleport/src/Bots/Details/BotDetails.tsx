@@ -17,7 +17,7 @@
  */
 
 import React, { useState } from 'react';
-import { useHistory, useParams } from 'react-router';
+import { useHistory, useLocation, useParams } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
 import { Alert } from 'design/Alert/Alert';
@@ -59,6 +59,7 @@ import { Panel } from './Panel';
 export function BotDetails() {
   const ctx = useTeleport();
   const history = useHistory();
+  const location = useLocation();
   const params = useParams<{
     botName: string;
   }>();
@@ -74,7 +75,12 @@ export function BotDetails() {
   });
 
   const handleBackPress = () => {
-    history.goBack();
+    // If location.key is unset, or 'default', this is the first history entry in-app in the session.
+    if (!location.key || location.key === 'default') {
+      history.push(cfg.getBotsRoute());
+    } else {
+      history.goBack();
+    }
   };
 
   const handleEdit = () => {
@@ -97,10 +103,12 @@ export function BotDetails() {
             <ArrowLeft size="medium" />
           </ButtonIcon>
         </HoverTooltip>
-        <Flex flex={1} gap={2} justifyContent="space-between">
+        <Flex flex={1} gap={2} justifyContent="space-between" overflow="hidden">
           {isSuccess && data ? (
             <>
-              <FeatureHeaderTitle>{data.name}</FeatureHeaderTitle>
+              <FeatureHeaderTitle>
+                <TitleText>{data.name}</TitleText>
+              </FeatureHeaderTitle>
 
               <EditButton onClick={handleEdit} disabled={!hasEditPermission}>
                 <Pencil size="medium" /> Edit Bot
@@ -154,7 +162,12 @@ export function BotDetails() {
               <PanelContentContainer>
                 <Grid>
                   <GridLabel>Bot name</GridLabel>
-                  <Flex inline alignItems={'center'} gap={1}>
+                  <Flex
+                    inline
+                    alignItems={'center'}
+                    gap={1}
+                    overflow={'hidden'}
+                  >
                     <MonoText>{data.name}</MonoText>
                     <CopyButton name={data.name} />
                   </Flex>
@@ -173,15 +186,15 @@ export function BotDetails() {
             <Panel title="Roles" isSubPanel>
               <PanelContentContainer>
                 {data.roles.length ? (
-                  <RolesContainer>
+                  <LabelsContainer>
                     {data.roles.toSorted().map(r => (
-                      <SecondaryOutlined mr="1" key={r}>
-                        {r}
+                      <SecondaryOutlined key={r}>
+                        <LabelText>{r}</LabelText>
                       </SecondaryOutlined>
                     ))}
-                  </RolesContainer>
+                  </LabelsContainer>
                 ) : (
-                  'No roles assigned'
+                  <EmptyText>No roles assigned</EmptyText>
                 )}
               </PanelContentContainer>
             </Panel>
@@ -199,20 +212,20 @@ export function BotDetails() {
                           <GridLabel>
                             <Trait traitName={r.name} />
                           </GridLabel>
-                          <div>
+                          <LabelsContainer>
                             {r.values.length > 0
                               ? r.values.toSorted().map(v => (
-                                  <SecondaryOutlined mr="1" key={v}>
-                                    {v}
+                                  <SecondaryOutlined key={v}>
+                                    <LabelText>{v}</LabelText>
                                   </SecondaryOutlined>
                                 ))
                               : 'no values'}
-                          </div>
+                          </LabelsContainer>
                         </React.Fragment>
                       ))}
                   </Grid>
                 ) : (
-                  'No traits set'
+                  <EmptyText>No traits set</EmptyText>
                 )}
               </PanelContentContainer>
             </Panel>
@@ -260,7 +273,11 @@ const PanelContentContainer = styled(Flex)`
   padding-top: 0;
 `;
 
-const RolesContainer = styled.div``;
+const LabelsContainer = styled(Flex)`
+  flex-wrap: wrap;
+  overflow: hidden;
+  gap: ${props => props.theme.space[1]}px;
+`;
 
 const Divider = styled.div`
   height: 1px;
@@ -278,6 +295,7 @@ const Grid = styled(Box)`
   display: grid;
   grid-template-columns: repeat(2, auto);
   gap: ${({ theme }) => theme.space[2]}px;
+  overflow: hidden;
 `;
 
 const GridLabel = styled(Text)`
@@ -292,6 +310,21 @@ const MonoText = styled(Text)`
 
 const EditButton = styled(ButtonSecondary)`
   gap: ${props => props.theme.space[2]}px;
+  white-space: nowrap;
+`;
+
+const TitleText = styled(Text)`
+  white-space: nowrap;
+`;
+
+const LabelText = styled(Text).attrs({
+  typography: 'body3',
+})`
+  white-space: nowrap;
+`;
+
+const EmptyText = styled(Text)`
+  color: ${p => p.theme.colors.text.muted};
 `;
 
 const traitDescriptions: { [key in (typeof traitsPreset)[number]]: string } = {
@@ -315,18 +348,14 @@ function Trait(props: { traitName: string }) {
 
   const description = traitDescriptions[props.traitName];
 
-  const help = (
-    <Question
-      size={'small'}
-      color={theme.colors.interactive.tonal.neutral[3]}
-    />
-  );
-
   return description ? (
     <Flex gap={1}>
       {props.traitName}
       <HoverTooltip placement="top" tipContent={description}>
-        {help}
+        <Question
+          size={'small'}
+          color={theme.colors.interactive.tonal.neutral[3]}
+        />
       </HoverTooltip>
     </Flex>
   ) : (
@@ -402,28 +431,37 @@ function JoinTokens(props: { botName: string; onViewAllClicked: () => void }) {
         {isSuccess ? (
           <>
             {data.items.length ? (
-              <Flex gap={1} flexWrap={'wrap'}>
+              <LabelsContainer>
                 {data.items
                   .toSorted((a, b) => a.safeName.localeCompare(b.safeName))
                   .map(t => {
                     return (
-                      <SecondaryOutlined key={t.id}>
-                        <HoverTooltip placement="top" tipContent={t.method}>
-                          <Flex alignItems={'center'} gap={1}>
+                      <HoverTooltip
+                        key={t.id}
+                        placement="top"
+                        tipContent={t.method}
+                      >
+                        <SecondaryOutlined padding={0}>
+                          <Flex
+                            alignItems={'center'}
+                            gap={1}
+                            padding={1}
+                            paddingRight={2}
+                          >
                             <JoinMethodIcon
                               method={t.method}
-                              size={'small'}
+                              size={'large'}
                               includeTooltip={false}
                             />
-                            {t.safeName}
+                            <LabelText>{t.safeName}</LabelText>
                           </Flex>
-                        </HoverTooltip>
-                      </SecondaryOutlined>
+                        </SecondaryOutlined>
+                      </HoverTooltip>
                     );
                   })}
-              </Flex>
+              </LabelsContainer>
             ) : (
-              'No join tokens'
+              <EmptyText>No join tokens</EmptyText>
             )}
           </>
         ) : undefined}

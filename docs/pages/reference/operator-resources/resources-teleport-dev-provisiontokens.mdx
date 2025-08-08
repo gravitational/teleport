@@ -216,14 +216,22 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |allow|[][object](#speckubernetesallow-items)|Allow is a list of Rules, nodes using this token must match one allow rule to use this token.|
+|oidc|[object](#speckubernetesoidc)|OIDCConfig configures the `oidc` type.|
 |static_jwks|[object](#speckubernetesstatic_jwks)|StaticJWKS is the configuration specific to the `static_jwks` type.|
-|type|string|Type controls which behavior should be used for validating the Kubernetes Service Account token. Support values: - `in_cluster` - `static_jwks` If unset, this defaults to `in_cluster`.|
+|type|string|Type controls which behavior should be used for validating the Kubernetes Service Account token. Support values: - `in_cluster` - `static_jwks` - `oidc` If unset, this defaults to `in_cluster`.|
 
 ### spec.kubernetes.allow items
 
 |Field|Type|Description|
 |---|---|---|
 |service_account|string||
+
+### spec.kubernetes.oidc
+
+|Field|Type|Description|
+|---|---|---|
+|insecure_allow_http_issuer|boolean||
+|issuer|string||
 
 ### spec.kubernetes.static_jwks
 

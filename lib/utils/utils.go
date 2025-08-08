@@ -21,13 +21,11 @@ package utils
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"log/slog"
 	"math/rand/v2"
 	"net"
-	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -146,52 +144,6 @@ func ThisFunction() string {
 	return runtime.FuncForPC(pc[0]).Name()
 }
 
-// SyncString is a string value
-// that can be concurrently accessed
-type SyncString struct {
-	sync.Mutex
-	string
-}
-
-// Value returns value of the string
-func (s *SyncString) Value() string {
-	s.Lock()
-	defer s.Unlock()
-	return s.string
-}
-
-// Set sets the value of the string
-func (s *SyncString) Set(v string) {
-	s.Lock()
-	defer s.Unlock()
-	s.string = v
-}
-
-// ClickableURL fixes address in url to make sure
-// it's clickable, e.g. it replaces "undefined" address like
-// 0.0.0.0 used in network listeners format with loopback 127.0.0.1
-func ClickableURL(in string) string {
-	out, err := url.Parse(in)
-	if err != nil {
-		return in
-	}
-	host, port, err := net.SplitHostPort(out.Host)
-	if err != nil {
-		return in
-	}
-	ip := net.ParseIP(host)
-	// If address is not an IP address, return it unchanged.
-	if ip == nil && out.Host != "" {
-		return out.String()
-	}
-	// if address is unspecified, e.g. all interfaces 0.0.0.0 or multicast,
-	// replace with localhost that is clickable
-	if len(ip) == 0 || ip.IsUnspecified() || ip.IsMulticast() {
-		out.Host = fmt.Sprintf("127.0.0.1:%v", port)
-	}
-	return out.String()
-}
-
 // AsBool converts string to bool, in case of the value is empty
 // or unknown, defaults to false
 func AsBool(v string) bool {
@@ -258,19 +210,8 @@ func StringsSet(in []string) map[string]struct{} {
 	return out
 }
 
-// IsGroupMember returns whether currently logged user is a member of a group
-func IsGroupMember(gid int) (bool, error) {
-	groups, err := os.Getgroups()
-	if err != nil {
-		return false, trace.ConvertSystemError(err)
-	}
-	if slices.Contains(groups, gid) {
-		return true, nil
-	}
-	return false, nil
-}
-
-// DNSName extracts DNS name from host:port string.
+// DNSName extracts DNS name from host:port string,
+// returning an error if the hostname is an IP address.
 func DNSName(hostport string) (string, error) {
 	host, err := Host(hostport)
 	if err != nil {
@@ -485,58 +426,17 @@ func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 	return PortList{ports: list}, nil
 }
 
-// StringSliceSubset returns true if b is a subset of a.
-func StringSliceSubset(a []string, b []string) error {
-	aset := make(map[string]bool)
-	for _, v := range a {
-		aset[v] = true
-	}
-
-	for _, v := range b {
-		_, ok := aset[v]
-		if !ok {
-			return trace.BadParameter("%v not in set", v)
-		}
-
-	}
-	return nil
-}
-
-// UintSliceSubset returns true if b is a subset of a.
-func UintSliceSubset(a []uint16, b []uint16) error {
-	aset := make(map[uint16]bool)
-	for _, v := range a {
-		aset[v] = true
-	}
-
-	for _, v := range b {
-		_, ok := aset[v]
-		if !ok {
-			return trace.BadParameter("%v not in set", v)
-		}
-
-	}
-	return nil
-}
-
 // RemoveFromSlice makes a copy of the slice and removes the passed in values from the copy.
 func RemoveFromSlice(slice []string, values ...string) []string {
-	output := make([]string, 0, len(slice))
-
-	remove := make(map[string]bool)
+	remove := make(map[string]struct{})
 	for _, value := range values {
-		remove[value] = true
+		remove[value] = struct{}{}
 	}
 
-	for _, s := range slice {
+	return slices.DeleteFunc(slice, func(s string) bool {
 		_, ok := remove[s]
-		if ok {
-			continue
-		}
-		output = append(output, s)
-	}
-
-	return output
+		return ok
+	})
 }
 
 // ChooseRandomString returns a random string from the given slice.
@@ -577,10 +477,7 @@ func AddrsFromStrings(s apiutils.Strings, defaultPort int) ([]NetAddr, error) {
 // FileExists checks whether a file exists at a given path
 func FileExists(fp string) bool {
 	_, err := os.Stat(fp)
-	if err != nil && os.IsNotExist(err) {
-		return false
-	}
-	return true
+	return !errors.Is(err, fs.ErrNotExist)
 }
 
 // StoreErrorOf stores the error returned by f within *err.
@@ -616,32 +513,6 @@ func ReadAtMost(r io.Reader, limit int64) ([]byte, error) {
 	limitedReader := LimitReader(r, limit)
 	data, err := io.ReadAll(limitedReader)
 	return data, err
-}
-
-// HasPrefixAny determines if any of the string values have the given prefix.
-func HasPrefixAny(prefix string, values []string) bool {
-	for _, val := range values {
-		if strings.HasPrefix(val, prefix) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// ByteCount converts a size in bytes to a human-readable string.
-func ByteCount(b int64) string {
-	const unit = 1000
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
-	}
-	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB",
-		float64(b)/float64(div), "kMGTPE"[exp])
 }
 
 // ErrLimitReached means that the read limit is reached.

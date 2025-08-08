@@ -33,7 +33,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"go.opentelemetry.io/otel"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
@@ -46,7 +45,11 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
+	"github.com/gravitational/teleport/lib/tbot/services/example"
+	"github.com/gravitational/teleport/lib/tbot/services/identity"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
+	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -56,8 +59,6 @@ const (
 	DefaultCertificateTTL = 60 * time.Minute
 	DefaultRenewInterval  = 20 * time.Minute
 )
-
-var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/config")
 
 // ReservedServiceNames are the service names reserved for internal use.
 var ReservedServiceNames = []string{
@@ -244,7 +245,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		switch d := d.(type) {
 		case *destination.Directory:
 			destinationPaths[fmt.Sprintf("file://%s", d.Path)]++
-		case *DestinationKubernetesSecret:
+		case *k8s.SecretDestination:
 			destinationPaths[fmt.Sprintf("kubernetes-secret://%s", d.Name)]++
 		}
 	}
@@ -351,8 +352,8 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 		}
 
 		switch header.Type {
-		case ExampleServiceType:
-			v := &ExampleService{}
+		case example.ServiceType:
+			v := &example.Config{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
@@ -369,21 +370,21 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case SSHMultiplexerServiceType:
-			v := &SSHMultiplexerService{}
-			if err := node.Decode(v); err != nil {
+		case ssh.MultiplexerServiceType:
+			v := &ssh.MultiplexerConfig{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case KubernetesOutputType:
-			v := &KubernetesOutput{}
-			if err := node.Decode(v); err != nil {
+		case k8s.OutputV1ServiceType:
+			v := &k8s.OutputV1Config{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case KubernetesV2OutputType:
-			v := &KubernetesV2Output{}
-			if err := node.Decode(v); err != nil {
+		case k8s.OutputV2ServiceType:
+			v := &k8s.OutputV2Config{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
@@ -393,9 +394,9 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case SSHHostOutputType:
-			v := &SSHHostOutput{}
-			if err := node.Decode(v); err != nil {
+		case ssh.HostOutputServiceType:
+			v := &ssh.HostOutputConfig{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
@@ -411,9 +412,9 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case IdentityOutputType:
-			v := &IdentityOutput{}
-			if err := node.Decode(v); err != nil {
+		case identity.OutputServiceType:
+			v := &identity.OutputConfig{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
@@ -469,8 +470,8 @@ func (ctx unmarshalConfigContext) UnmarshalDestination(node *yaml.Node) (destina
 	}
 
 	switch header.Type {
-	case DestinationKubernetesSecretType:
-		v := &DestinationKubernetesSecret{}
+	case k8s.SecretDestinationType:
+		v := &k8s.SecretDestination{}
 		if err := node.Decode(v); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -542,7 +543,7 @@ func DestinationFromURI(uriString string) (destination.Destination, error) {
 		// Path will be prefixed with '/' so we'll strip it off.
 		secretName := strings.TrimPrefix(uri.Path, "/")
 
-		return &DestinationKubernetesSecret{
+		return &k8s.SecretDestination{
 			Name: secretName,
 		}, nil
 	default:

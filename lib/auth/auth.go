@@ -81,6 +81,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -114,6 +115,7 @@ import (
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/inventory"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
@@ -189,8 +191,15 @@ var ErrRequiresEnterprise = services.ErrRequiresEnterprise
 type ServerOption func(*Server) error
 
 // NewServer creates and configures a new Server instance
-func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
-	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
+func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
+	closeCtx, cancelFunc := context.WithCancel(context.TODO())
+	defer func() {
+		if err != nil {
+			cancelFunc()
+		}
+	}()
+
+	err = metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -257,7 +266,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		recordingEncryptionManager, err := recordingencryption.NewManager(recordingencryption.ManagerConfig{
+		recordingEncryptionManager, err := recordingencryption.NewManager(closeCtx, recordingencryption.ManagerConfig{
 			Backend:       localRecordingEncryption,
 			Cache:         localRecordingEncryption,
 			ClusterConfig: cfg.ClusterConfiguration,
@@ -563,7 +572,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
 		TrustInternal:                   cfg.Trust,
 		PresenceInternal:                cfg.Presence,
@@ -624,7 +632,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Summarizer:                      cfg.Summarizer,
 	}
 
-	as := Server{
+	as = &Server{
 		bk:                        cfg.Backend,
 		clock:                     cfg.Clock,
 		limiter:                   limiter,
@@ -649,7 +657,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		logger:                    cfg.Logger,
 		sessionSummarizerProvider: cfg.SessionSummarizerProvider,
 	}
-	as.inventory = inventory.NewController(&as, services,
+	as.inventory = inventory.NewController(as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
 		inventory.WithClock(cfg.Clock),
 		inventory.WithOnConnect(func(s string) {
@@ -669,7 +677,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	)
 
 	for _, o := range opts {
-		if err := o(&as); err != nil {
+		if err := o(as); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -749,6 +757,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if as.k8sJWKSValidator == nil {
 		as.k8sJWKSValidator = kubetoken.ValidateTokenWithJWKS
 	}
+	if as.k8sOIDCValidator == nil {
+		as.k8sOIDCValidator = kubetoken.ValidateTokenWithOIDC
+	}
 
 	if as.gcpIDTokenValidator == nil {
 		as.gcpIDTokenValidator = gcp.NewIDTokenValidator(
@@ -773,9 +784,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	// Add in a login hook for generating state during user login.
 	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         as.logger,
-		AccessLists: &as,
-		Access:      &as,
-		UsageEvents: &as,
+		AccessLists: as,
+		Access:      as,
+		UsageEvents: as,
 		Clock:       cfg.Clock,
 		Emitter:     as.emitter,
 	})
@@ -797,7 +808,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		as.logger.WarnContext(closeCtx, "Auth server starting without cache (may have negative performance implications)")
 	}
 
-	return &as, nil
+	return as, nil
 }
 
 // Services is a collection of services that are used by the auth server.
@@ -1212,6 +1223,9 @@ type Server struct {
 	// by the auth server using a known JWKS. It can be overridden for the
 	// purpose of tests.
 	k8sJWKSValidator k8sJWKSValidator
+	// k8sOIDCValidator allows tokens from Kubernetes to be validated by the
+	// auth server using a known OIDC endpoint. It can be overridden in tests.
+	k8sOIDCValidator k8sOIDCValidator
 
 	// gcpIDTokenValidator allows ID tokens from GCP to be validated by the auth
 	// server. It can be overridden for the purpose of tests.
@@ -5249,7 +5263,7 @@ const TokenExpiredOrNotFound = "token expired or not found"
 // a list of roles this token allows its owner to assume and token labels, or an error if the token
 // cannot be found.
 func (a *Server) ValidateToken(ctx context.Context, token string) (types.ProvisionToken, error) {
-	tkns, err := a.GetStaticTokens()
+	tkns, err := a.GetStaticTokens(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5304,7 +5318,7 @@ func (a *Server) checkTokenTTL(tok types.ProvisionToken) bool {
 }
 
 func (a *Server) DeleteToken(ctx context.Context, token string) (err error) {
-	tkns, err := a.GetStaticTokens()
+	tkns, err := a.GetStaticTokens(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -5335,7 +5349,7 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 		return nil, trace.Wrap(err)
 	}
 	// get static tokens:
-	tkns, err := a.GetStaticTokens()
+	tkns, err := a.GetStaticTokens(ctx)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -5343,9 +5357,9 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 		tokens = append(tokens, tkns.GetStaticTokens()...)
 	}
 	// get user tokens:
-	userTokens, err := a.GetUserTokens(ctx)
+	userTokens, err := iterstream.Collect(clientutils.Resources(ctx, a.Services.ListUserTokens))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "retrieving user tokens")
 	}
 	// convert user tokens to machine tokens:
 	for _, t := range userTokens {

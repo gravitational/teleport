@@ -343,6 +343,33 @@ type ProxyAccessPoint interface {
 	accessPoint
 }
 
+// ReadRelayAccessPoint is a read only API interface to be used by a Relay
+// service.
+//
+// NOTE: This interface must be a subset of the [*cache.Cache] methods usable in the
+// cache configured by [cache.ForRelay].
+type ReadRelayAccessPoint interface {
+	io.Closer
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
+
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
+
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+
+	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
+
+	GetRole(ctx context.Context, name string) (types.Role, error)
+
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
+
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
+}
+
 // ReadRemoteProxyAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
 // used by a teleport.ComponentProxy.
 //
@@ -1097,7 +1124,7 @@ type Cache interface {
 	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
 
 	// GetStaticTokens gets the list of static tokens used to provision nodes.
-	GetStaticTokens() (types.StaticTokens, error)
+	GetStaticTokens(ctx context.Context) (types.StaticTokens, error)
 
 	// GetTokens returns all active (non-expired) provisioning tokens
 	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
