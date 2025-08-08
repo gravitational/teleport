@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh/agent"
@@ -86,7 +87,6 @@ func TestNodeAccess(t *testing.T) {
 	process := testserver.MakeTestServer(t,
 		testserver.WithBootstrap(connector),
 		testserver.WithHostname("node01"),
-		testserver.WithClusterName(t, "root"),
 		testserver.WithSSHLabel("env", "staging"),
 		testserver.WithSSHPublicAddrs("localhost"),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
@@ -99,6 +99,13 @@ func TestNodeAccess(t *testing.T) {
 
 			err = cfg.PluginRegistry.Add(authPlugin)
 			require.NoError(t, err)
+
+			cfg.Auth.ClusterName = &types.ClusterNameV2{
+				Spec: types.ClusterNameSpecV2{
+					ClusterName: "root",
+					ClusterID:   uuid.NewString(),
+				},
+			}
 		}),
 	)
 
