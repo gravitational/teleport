@@ -63,7 +63,7 @@ func TestRecordingEncryptionKeyRotation(t *testing.T) {
 	require.Error(t, err)
 
 	// rollback rotation
-	_, err = runRecordingsCommand(t, clt, []string{"recordings", "encryption", "rollback"})
+	_, err = runRecordingsCommand(t, clt, []string{"recordings", "encryption", "rollback-rotation"})
 	require.NoError(t, err)
 
 	// ensure initial key is the only active key remaining
@@ -87,7 +87,7 @@ func TestRecordingEncryptionKeyRotation(t *testing.T) {
 	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, newKeyState.State)
 
 	// complete rotation
-	_, err = runRecordingsCommand(t, clt, []string{"recordings", "encryption", "complete"})
+	_, err = runRecordingsCommand(t, clt, []string{"recordings", "encryption", "complete-rotation"})
 	require.NoError(t, err)
 
 	// ensure remaining active key is new

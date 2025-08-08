@@ -92,7 +92,6 @@ type VersionStorage interface {
 // operations.
 type RecordingEncryptionManager interface {
 	services.RecordingEncryption
-	recordingencryptionv1.KeyRotater
 	recordingencryption.KeyUnwrapper
 	recordingencryptionv1.KeyRotater
 	SetCache(cache recordingencryption.Cache)

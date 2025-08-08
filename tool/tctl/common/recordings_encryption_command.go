@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -20,7 +20,9 @@ import (
 )
 
 type recordingsEncryptionCommand struct {
+	// cmd implements the "tctl recordings encryptino" parent command
 	cmd *kingpin.CmdClause
+
 	// rotateCmd implements the "tctl recordings encryption rotate" subcommand.
 	rotateCmd *kingpin.CmdClause
 
@@ -33,21 +35,25 @@ type recordingsEncryptionCommand struct {
 	// rollbackCmd implements the "tctl recordings encryption rollback" subcommand.
 	rollbackCmd *kingpin.CmdClause
 
-	// format is the output format (text, json, or yaml)
+	// format is the output format of statusCmd (text, json, or yaml)
 	format string
 
-	// stdout allows to switch standard output source for resource command. Used in tests.
+	// stdout allows for redirecting command output. Useful for tests.
 	stdout io.Writer
 }
 
-func (c *recordingsEncryptionCommand) Initialize(recordingsCmd *kingpin.CmdClause) {
+// Initialize allows recordingsEncryptionCommand to plug itself into the CLI parser.
+func (c *recordingsEncryptionCommand) Initialize(recordingsCmd *kingpin.CmdClause, stdout io.Writer) {
 	c.cmd = recordingsCmd.Command("encryption", "Manage encryption properties of session recordings.")
 
 	c.rotateCmd = c.cmd.Command("rotate", "Rotate encryption keys used for encrypting session recordings.")
 	c.statusCmd = c.cmd.Command("status", "Show current rotation status")
 	c.statusCmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+". Defaults to 'text'.").Default(teleport.Text).StringVar(&c.format)
-	c.completeCmd = c.cmd.Command("complete", "Completes an in-progress encryption key rotation.")
-	c.rollbackCmd = c.cmd.Command("rollback", "Rolls back an in-progress encryption key rotation.")
+	c.completeCmd = c.cmd.Command("complete-rotation", "Completes an in-progress encryption key rotation.")
+	c.rollbackCmd = c.cmd.Command("rollback-rotation", "Rolls back an in-progress encryption key rotation.")
+	if stdout == nil {
+		c.stdout = os.Stdout
+	}
 }
 
 // TryRun attempts to run subcommands like "recordings encryption rotate".
@@ -75,7 +81,8 @@ func (c *recordingsEncryptionCommand) TryRun(ctx context.Context, cmd string, cl
 	return true, trace.Wrap(err)
 }
 
-// Rotate handles
+// Rotate initiates a key rotation. It should fail if a key rotation is already
+// in progress.
 func (c *recordingsEncryptionCommand) Rotate(ctx context.Context, tc *authclient.Client) error {
 	client := tc.RecordingEncryptionServiceClient()
 	if _, err := client.RotateKey(ctx, &recordingencryptionv1.RotateKeyRequest{}); err != nil {
@@ -85,6 +92,8 @@ func (c *recordingsEncryptionCommand) Rotate(ctx context.Context, tc *authclient
 	return nil
 }
 
+// Complete an in progress key rotation. It should fail if any key is marked
+// 'inaccessible'.
 func (c *recordingsEncryptionCommand) Complete(ctx context.Context, tc *authclient.Client) error {
 	client := tc.RecordingEncryptionServiceClient()
 	if _, err := client.CompleteRotation(ctx, &recordingencryptionv1.CompleteRotationRequest{}); err != nil {
@@ -95,6 +104,7 @@ func (c *recordingsEncryptionCommand) Complete(ctx context.Context, tc *authclie
 	return nil
 }
 
+// Rollback an in progress key rotation.
 func (c *recordingsEncryptionCommand) Rollback(ctx context.Context, tc *authclient.Client) error {
 	client := tc.RecordingEncryptionServiceClient()
 	if _, err := client.RollbackRotation(ctx, &recordingencryptionv1.RollbackRotationRequest{}); err != nil {
@@ -105,6 +115,7 @@ func (c *recordingsEncryptionCommand) Rollback(ctx context.Context, tc *authclie
 	return nil
 }
 
+// Status displays the current status of
 func (c *recordingsEncryptionCommand) Status(ctx context.Context, tc *authclient.Client) error {
 	client := tc.RecordingEncryptionServiceClient()
 	res, err := client.GetRotationState(ctx, &recordingencryptionv1.GetRotationStateRequest{})
@@ -114,11 +125,11 @@ func (c *recordingsEncryptionCommand) Status(ctx context.Context, tc *authclient
 
 	switch c.format {
 	case teleport.Text, "":
-		return trace.Wrap(c.writeStatusText(c.stdout, res.GetKeyPairs()))
+		return trace.Wrap(c.writeStatusText(c.stdout, res.GetKeyPairStates()))
 	case teleport.YAML:
-		return trace.Wrap(c.writeStatusYAML(c.stdout, res.GetKeyPairs()))
+		return trace.Wrap(c.writeStatusYAML(c.stdout, res.GetKeyPairStates()))
 	case teleport.JSON:
-		return trace.Wrap(c.writeStatusJSON(c.stdout, res.GetKeyPairs()))
+		return trace.Wrap(c.writeStatusJSON(c.stdout, res.GetKeyPairStates()))
 	}
 
 	return trace.Wrap(err, "writing encryption key status")

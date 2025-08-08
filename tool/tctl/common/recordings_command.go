@@ -65,6 +65,10 @@ type RecordingsCommand struct {
 
 // Initialize allows RecordingsCommand to plug itself into the CLI parser
 func (c *RecordingsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
+	if c.stdout == nil {
+		c.stdout = os.Stdout
+	}
+
 	c.config = config
 	recordings := app.Command("recordings", "View and control session recordings.")
 	c.recordingsList = recordings.Command("ls", "List recorded sessions.")
@@ -73,10 +77,7 @@ func (c *RecordingsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Glob
 	c.recordingsList.Flag("to-utc", fmt.Sprintf("End of time range in which recordings are listed. Format %s. Defaults to current time.", defaults.TshTctlSessionListTimeFormat)).StringVar(&c.toUTC)
 	c.recordingsList.Flag("limit", fmt.Sprintf("Maximum number of recordings to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&c.maxRecordingsToShow)
 	c.recordingsList.Flag("last", "Duration into the past from which session recordings should be listed. Format 5h30m40s").StringVar(&c.recordingsSince)
-	c.recordingsEncryption.Initialize(recordings)
-	if c.stdout == nil {
-		c.stdout = os.Stdout
-	}
+	c.recordingsEncryption.Initialize(recordings, c.stdout)
 
 	if c.recordingsEncryption.stdout == nil {
 		c.recordingsEncryption.stdout = c.stdout
