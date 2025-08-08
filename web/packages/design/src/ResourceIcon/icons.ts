@@ -226,6 +226,7 @@ import onepasswordLight from './assets/onepassword-light.svg?no-inline';
 import opencomp from './assets/opencomp.svg?no-inline';
 import openid from './assets/openid.svg?no-inline';
 import opsgenie from './assets/opsgenie.svg?no-inline';
+import oracle from './assets/oracle.svg?no-inline';
 import orbitLove from './assets/orbit.love.svg?no-inline';
 import orcasecurityDark from './assets/orcasecurity-dark.svg?no-inline';
 import orcasecurityLight from './assets/orcasecurity-light.svg?no-inline';
@@ -522,6 +523,7 @@ export {
   opencomp,
   openid,
   opsgenie,
+  oracle,
   orbitLove,
   orcasecurityDark,
   orcasecurityLight,
