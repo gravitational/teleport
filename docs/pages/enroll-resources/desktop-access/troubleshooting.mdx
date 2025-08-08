@@ -148,11 +148,11 @@ Open the Windows Event Log and navigate to Event Viewer, Application and Service
 Microsoft, Windows, Security-Kerberos, Operational. Enable this Event Log and attempt
 to connect with Teleport Web UI to review log entries.
 
-#### The Kerberos Key Distribution Center (KDC) for the domain "Your Domain" does not 
-havea certificate installed or does not support logon using certificates: 0xC0000320
+#### The KDC does not support logon using certificates: 0xC0000320
 
-You see this error in your *Security-Kerberos* Windows Event log on the client you're 
-trying to connect to.
+You see this error `The Kerberos Key Distribution Center (KDC) for the domain "Your Domain" does not 
+have a certificate installed or does not support logon using certificates: 0xC0000320
+` in your *Security-Kerberos* Windows Event log on the client you're trying to connect to.
 
 **Solution:** Review the Kerberos-Key-Distribution-Center Logs on each of your **Domain 
 controller** for causes.
@@ -175,12 +175,9 @@ Kdc Certificate Information:
   Template: Kerberos Authentication
 ```
 
-If the template name you see is *Domain Controller* this template does not include 
-the EKU for Smart Card by default.
-
-You can check in the local computer Personnal certificat store if the certificate has the 
+You can check in the local computer Personnal certificate store if the certificate has the 
 "Smart Card Logon" listed in the intended purpose column. If it's not the case:
-- Request a new certificat for your domain controller using the default "Kerberos Autentication" 
+- Request a new certificate for your domain controller using the default "Kerberos Autentication" 
 Template or any custom template allowing for Smart Card Logon
 - Remove the old certificate
 - Restart the *Kerberos Key Distribution Center* Windows service
@@ -206,7 +203,12 @@ certutil -f -verify -URLfetch base64_exported_DomainControler_certificate.cer
 Review the output with attention.
 
 For checking CRL you can also use certutil GUI. Simply run the command below and click on 
-the "Retrive". Below is an example of an expired revocation list that needs to be addressed
+the "Retrive". 
+```
+certutil -URL base64_exported_DomainControler_certificate.cer
+```
+
+Below is an example of an expired revocation list that needs to be addressed
 
 ![Certutil GUI](../../../img/desktop-access/certutilgui.png)
 
