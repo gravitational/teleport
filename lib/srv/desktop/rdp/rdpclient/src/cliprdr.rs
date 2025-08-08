@@ -59,7 +59,7 @@ impl TeleportCliprdrBackend {
             .client_handle
             .write_cliprdr(Box::new(ClipboardFnInternal::new(name, f)));
         if let Err(e) = res {
-            error!("Couldn't send request for {}: {:?}", name, e);
+            error!("Couldn't send request for {name}: {e:?}");
         }
     }
 }
@@ -87,14 +87,11 @@ impl CliprdrBackend for TeleportCliprdrBackend {
         // our capabilities are minimal, so we log the server
         // capabilities for debug purposes, but don't otherwise care
         // (the server will be forced into working with us)
-        info!("RDP server clipboard capabilities: {:?}", capabilities);
+        info!("RDP server clipboard capabilities: {capabilities:?}");
     }
 
     fn on_remote_copy(&mut self, available_formats: &[ClipboardFormat]) {
-        trace!(
-            "CLIPRDR: on_remote_copy, available formats: {:?}",
-            available_formats
-        );
+        trace!("CLIPRDR: on_remote_copy, available formats: {available_formats:?}");
 
         let format = if available_formats.contains(&CF_UNICODETEXT) {
             ClipboardFormatId::CF_UNICODETEXT
@@ -102,8 +99,7 @@ impl CliprdrBackend for TeleportCliprdrBackend {
             ClipboardFormatId::CF_TEXT
         } else {
             debug!(
-                "data was copied on the remote desktop, but no supported formats were found: {:?}",
-                available_formats
+                "data was copied on the remote desktop, but no supported formats were found: {available_formats:?}"
             );
             return;
         };
@@ -156,7 +152,7 @@ impl CliprdrBackend for TeleportCliprdrBackend {
         match data {
             Some(data) => {
                 if let Err(e) = self.client_handle.handle_remote_copy(data.into_bytes()) {
-                    error!("Can't send format_data_response: {:?}", e);
+                    error!("Can't send format_data_response: {e:?}");
                 }
             }
             None => {
@@ -273,7 +269,7 @@ fn convert_string(data: &str, format_id: ClipboardFormatId) -> Option<Vec<u8>> {
             Some(data)
         }
         _ => {
-            debug!("incorrect format requested: {:?}", format_id);
+            debug!("incorrect format requested: {format_id:?}");
             None
         }
     }
