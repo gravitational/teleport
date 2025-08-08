@@ -1338,7 +1338,7 @@ func (c *CertificateRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter PublicKey")
 	}
 	if c.Subject.CommonName == "" {
-		return trace.BadParameter("missing parameter Subject.Common name")
+		return trace.BadParameter("missing parameter Subject.CommonName")
 	}
 	if c.NotAfter.IsZero() {
 		return trace.BadParameter("missing parameter NotAfter")
