@@ -17,14 +17,14 @@
  */
 
 import { getPlatform, Platform } from 'design/platform';
-import { ButtonState, SyncKeys, TdpClient } from 'shared/libs/tdp';
+import { ButtonState, MouseButton, SyncKeys, TdpClient } from 'shared/libs/tdp';
 
 import { Withholder } from './Withholder';
 
 /**
- * Handles keyboard events.
+ * Handles mouse and keyboard events.
  */
-export class KeyboardHandler {
+export class InputHandler {
   private withholder: Withholder = new Withholder();
   /**
    * Tracks whether the next keydown or keyup event should sync the
@@ -38,33 +38,37 @@ export class KeyboardHandler {
   private static isMac: boolean = getPlatform() === Platform.macOS;
 
   constructor() {
-    // Bind finishHandlingKeyboardEvent to this instance so it can be passed
+    // Bind finishHandlingInputEvent to this instance so it can be passed
     // as a callback to the Withholder.
-    this.finishHandlingKeyboardEvent =
-      this.finishHandlingKeyboardEvent.bind(this);
+    this.finishHandlingInputEvent = this.finishHandlingInputEvent.bind(this);
   }
 
   /**
-   * Primary method for handling keyboard events.
+   * Primary method for handling input events.
    */
-  public handleKeyboardEvent(params: KeyboardEventParams) {
+  public handleInputEvent(params: InputEventParams) {
     const { e, cli } = params;
-    e.preventDefault();
-    this.handleSyncBeforeNextKey(cli, e);
-    this.withholder.handleKeyboardEvent(
-      params,
-      this.finishHandlingKeyboardEvent
-    );
+    if (e instanceof KeyboardEvent) {
+      // Only prevent default for KeyboardEvents.
+      // If preventDefault is done on MouseEvents,
+      // it breaks focus and keys won't be registered.
+      e.preventDefault();
+      this.handleSyncBeforeNextKey(cli, e);
+    }
+    this.withholder.handleInputEvent(params, this.finishHandlingInputEvent);
   }
 
-  private handleSyncBeforeNextKey(cli: TdpClient, e: KeyboardEvent) {
+  private handleSyncBeforeNextKey(
+    cli: TdpClient,
+    e: KeyboardEvent | MouseEvent
+  ) {
     if (this.syncBeforeNextKey === true) {
       cli.sendSyncKeys(this.getSyncKeys(e));
       this.syncBeforeNextKey = false;
     }
   }
 
-  private getSyncKeys = (e: KeyboardEvent): SyncKeys => {
+  private getSyncKeys = (e: KeyboardEvent | MouseEvent): SyncKeys => {
     return {
       scrollLockState: this.getModifierState(e, 'ScrollLock'),
       numLockState: this.getModifierState(e, 'NumLock'),
@@ -80,7 +84,7 @@ export class KeyboardHandler {
    * @param keyArg The key to check the state of. Valid values can be found [here](https://www.w3.org/TR/uievents-key/#keys-modifier)
    */
   private getModifierState = (
-    e: KeyboardEvent,
+    e: KeyboardEvent | MouseEvent,
     keyArg: string
   ): ButtonState => {
     return e.getModifierState(keyArg) ? ButtonState.DOWN : ButtonState.UP;
@@ -93,10 +97,17 @@ export class KeyboardHandler {
    * For withheld or delayed keys, this is called as the callback when
    * another key is pressed or released (withheld) or after a delay (delayed).
    */
-  private finishHandlingKeyboardEvent(params: KeyboardEventParams): void {
+  private finishHandlingInputEvent(params: InputEventParams): void {
     const { cli, e, state } = params;
+
+    // If this is a mouse event no special handling is needed.
+    if (e instanceof MouseEvent) {
+      cli.sendMouseButton(e.button as MouseButton, state);
+      return;
+    }
+
     // Special handling for CapsLock on Mac.
-    if (e.code === 'CapsLock' && KeyboardHandler.isMac) {
+    if (e.code === 'CapsLock' && InputHandler.isMac) {
       // On Mac, every UP or DOWN given to us by the browser corresponds
       // to a DOWN + UP on the remote machine for CapsLock.
       cli.sendKeyboardInput('CapsLock', ButtonState.DOWN);
@@ -108,7 +119,7 @@ export class KeyboardHandler {
   }
 
   /**
-   * Must be called when the element associated with the KeyboardHandler loses focus.
+   * Must be called when the element associated with the InputHandler loses focus.
    */
   public onFocusOut() {
     // Sync toggle keys when we come back into focus.
@@ -118,7 +129,7 @@ export class KeyboardHandler {
   }
 
   /**
-   * Should be called when the element associated with the KeyboardHandler goes away.
+   * Should be called when the element associated with the InputHandler goes away.
    */
   public dispose() {
     // Make sure we cancel any withheld keys, particularly we want to cancel the timeouts.
@@ -126,8 +137,8 @@ export class KeyboardHandler {
   }
 }
 
-export type KeyboardEventParams = {
+export type InputEventParams = {
   cli: TdpClient;
-  e: KeyboardEvent;
+  e: KeyboardEvent | MouseEvent;
   state: ButtonState;
 };

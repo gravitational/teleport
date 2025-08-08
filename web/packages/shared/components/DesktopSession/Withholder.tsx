@@ -18,7 +18,7 @@
 
 import { ButtonState } from 'shared/libs/tdp';
 
-import { KeyboardEventParams } from './KeyboardHandler';
+import { InputEventParams } from './InputHandler';
 
 /**
  * The Withholder class manages keyboard events, particularly for alt/cmd keys. It delays handling these keys to determine the user's intent:
@@ -42,22 +42,23 @@ export class Withholder {
    * The internal array of keystrokes that are currently
    * being withheld.
    */
-  private withheldKeys: Array<WithheldKeyboardEventHandler> = [];
+  private withheldKeys: Array<WithheldInputEventHandler> = [];
 
   /**
-   * All keyboard events should be handled via this function.
+   * All input events should be handled via this function.
    */
-  public handleKeyboardEvent(
-    params: KeyboardEventParams,
-    handleKeyboardEvent: (params: KeyboardEventParams) => void
+  public handleInputEvent(
+    params: InputEventParams,
+    handleInputEvent: (params: InputEventParams) => void
   ) {
-    const key = params.e.key;
-
-    // If this is not a key we withhold, immediately flush any withheld keys
+    // If this is not a key we withhold or a mouse event, immediately flush any withheld keys
     // and handle this key.
-    if (!this.keysToWithhold.includes(key)) {
+    if (
+      params.e instanceof MouseEvent ||
+      !this.keysToWithhold.includes((params.e as KeyboardEvent).key)
+    ) {
       this.flush();
-      handleKeyboardEvent(params);
+      handleInputEvent(params);
       return;
     }
 
@@ -86,7 +87,7 @@ export class Withholder {
 
     this.withheldKeys.push({
       params,
-      handler: handleKeyboardEvent,
+      handler: handleInputEvent,
       timeout,
     });
   }
@@ -107,9 +108,9 @@ export class Withholder {
   }
 }
 
-type WithheldKeyboardEventHandler = {
-  handler: (params: KeyboardEventParams) => void;
-  params: KeyboardEventParams;
+type WithheldInputEventHandler = {
+  handler: (params: InputEventParams) => void;
+  params: InputEventParams;
   timeout?: NodeJS.Timeout;
 };
 
