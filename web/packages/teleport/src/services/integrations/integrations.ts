@@ -38,6 +38,7 @@ import {
   AwsOidcPingRequest,
   AwsOidcPingResponse,
   AwsRdsDatabase,
+  AwsRolesAnywherePingResponse,
   CreateAwsAppAccessRequest,
   EnrollEksClustersRequest,
   EnrollEksClustersResponse,
@@ -542,6 +543,32 @@ export const integrationService = {
           title: resp.title,
           integration: resp.integration,
           lastStateChange: resp.lastStateChange,
+        };
+      });
+  },
+
+  awsRolesAnywherePing(
+    integrationName: string,
+    trustAnchorArn: string,
+    syncRoleArn: string,
+    syncProfileArn: string
+  ): Promise<AwsRolesAnywherePingResponse> {
+    return api
+      .post(
+        cfg.getAwsRolesAnywherePingUrl(
+          integrationName,
+          trustAnchorArn,
+          syncRoleArn,
+          syncProfileArn
+        ),
+        null
+      )
+      .then(json => {
+        return {
+          profileCount: json?.profileCount,
+          accountID: json?.accountID,
+          arn: json?.arn,
+          userId: json?.userId,
         };
       });
   },

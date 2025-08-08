@@ -218,6 +218,8 @@ const cfg = {
     integrationStatusResources:
       '/web/integrations/status/:type/:name/resources/:resourceKind',
     integrationEnroll: '/web/integrations/new/:type?/:subPage?',
+    integrationEnrollChild:
+      '/web/integrations/new/:type/:name/child/:subType/:subPage?',
     locks: '/web/locks',
     newLock: '/web/locks/new',
     requests: '/web/requests/:requestId?',
@@ -404,6 +406,12 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/usertask?integration=:name?&state=:state?',
     userTaskPath: '/v1/webapi/sites/:clusterId/usertask/:name',
     resolveUserTaskPath: '/v1/webapi/sites/:clusterId/usertask/:name/state',
+
+    awsRolesAnywhere: {
+      generate:
+        '/v1/webapi/scripts/integrations/configure/awsra-trust-anchor.sh?integrationName=:integrationName?&trustAnchor=:trustAnchor?&syncRole=:syncRole?&syncProfile=:syncProfile',
+      ping: '/v1/webapi/sites/:clusterId/integrations/aws-ra/:integrationName/ping?trustAnchorArn=:trustAnchorArn?&syncRoleArn=:syncRoleArn?&syncProfileArn=:syncProfileArn',
+    },
 
     thumbprintPath: '/v1/webapi/thumbprint',
     pingAwsOidcIntegrationPath:
@@ -641,6 +649,29 @@ const cfg = {
    */
   getIntegrationEnrollRoute(type?: string, subPage?: string) {
     return generatePath(cfg.routes.integrationEnroll, { type, subPage });
+  },
+
+  /**
+   * Generates a route for an Integration's enrollment page when the integration is a child of an existing integration
+   *
+   * @param {string} [type] - The parent integration type (e.g. "okta", "aws-oidc")
+   * @param {string} [name] - The parent integration name (e.g. "teleport-dev", "prod")
+   * @param {string} [subType] - The child integration type (e.g. "aws-console")
+   * @param {string} [subPage] - Optional subpage within the enrollment flow
+   * @returns {string} Generated enrollment route
+   */
+  getIntegrationEnrollChildRoute(
+    type: string,
+    name: string,
+    subType: string,
+    subPage?: string
+  ) {
+    return generatePath(cfg.routes.integrationEnrollChild, {
+      type,
+      name,
+      subType,
+      subPage,
+    });
   },
 
   /**
@@ -1462,6 +1493,41 @@ const cfg = {
         ...params,
       })
     );
+  },
+
+  getAwsRolesAnywhereGenerateUrl(
+    integrationName: string,
+    trustAnchor: string,
+    syncRole: string,
+    syncProfile: string
+  ) {
+    const path = cfg.api.awsRolesAnywhere.generate;
+    return (
+      cfg.baseUrl +
+      generatePath(path, {
+        integrationName,
+        trustAnchor,
+        syncRole,
+        syncProfile,
+      })
+    );
+  },
+
+  getAwsRolesAnywherePingUrl(
+    integrationName: string,
+    trustAnchorArn: string,
+    syncRoleArn: string,
+    syncProfileArn: string
+  ) {
+    const path = cfg.api.awsRolesAnywhere.ping;
+    const clusterId = cfg.proxyCluster;
+    return generatePath(path, {
+      clusterId,
+      integrationName,
+      trustAnchorArn,
+      syncRoleArn,
+      syncProfileArn,
+    });
   },
 
   getBotTokenUrl() {
