@@ -1170,6 +1170,24 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.Create
 	return token, nil
 }
 
+func (c *Client) ListResetPasswordTokens(ctx context.Context, pageSize int, pageToken string) ([]types.UserToken, string, error) {
+	req := &proto.ListResetPasswordTokenRequest{
+		PageSize:  int32(pageSize),
+		PageToken: pageToken,
+	}
+	resp, err := c.grpc.ListResetPasswordTokens(ctx, req)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	// Convert concrete type []*types.UserTokenV3 to interface type []types.UserToken
+	tokens := make([]types.UserToken, len(resp.UserTokens))
+	for i, token := range resp.UserTokens {
+		tokens[i] = token
+	}
+	return tokens, resp.NextPageToken, nil
+}
+
 // GetAccessRequests retrieves a list of all access requests matching the provided filter.
 func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
 	requests, err := c.ListAllAccessRequests(ctx, &proto.ListAccessRequestsRequest{

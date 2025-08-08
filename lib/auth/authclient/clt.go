@@ -1086,6 +1086,8 @@ type IdentityService interface {
 
 	// GetResetPasswordToken returns a reset password token.
 	GetResetPasswordToken(ctx context.Context, username string) (types.UserToken, error)
+	// ListResetPasswordTokens returns a page of user tokens.
+	ListResetPasswordTokens(ctx context.Context, pageSize int, nextKey string) ([]types.UserToken, string, error)
 
 	// GetMFADevices fetches all MFA devices registered for the calling user.
 	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
