@@ -31,11 +31,9 @@ const makeProps = (): BotListProps => ({
   onClose: () => {},
   onDelete: () => {},
   onEdit: () => {},
-  fetchRoles: async () => [],
+  onSelect: () => {},
   selectedBot: null,
-  selectedRoles: [],
   setSelectedBot: () => {},
-  setSelectedRoles: () => {},
 });
 
 test('renders table with bots', () => {
@@ -74,7 +72,7 @@ test('renders View options if type is github actions ssh', async () => {
   props.bots = [bot];
   render(<BotList {...props} />);
   fireEvent.click(await screen.findByText('Options'));
-  expect(screen.getByText('View...')).toBeInTheDocument();
+  expect(screen.getByText('View GitHub example...')).toBeInTheDocument();
 });
 
 test('doesnt renders View options if bot type is not github actions', async () => {
@@ -98,5 +96,5 @@ test('doesnt renders View options if bot type is not github actions', async () =
   props.bots = [bot];
   render(<BotList {...props} />);
   fireEvent.click(await screen.findByText('Options'));
-  expect(screen.queryByText('View...')).not.toBeInTheDocument();
+  expect(screen.queryByText('View GitHub example...')).not.toBeInTheDocument();
 });

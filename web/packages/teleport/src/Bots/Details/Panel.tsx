@@ -43,13 +43,7 @@ export function Panel(
     <section>
       <Container data-testid={testId}>
         <TitleContainer>
-          <Text
-            as={isSubPanel ? 'h3' : 'h2'}
-            typography={isSubPanel ? 'body2' : 'h2'}
-            fontWeight={fontWeights.bold}
-          >
-            {title}
-          </Text>
+          <PanelTitleText $isSubPanel={isSubPanel}>{title}</PanelTitleText>
           {action ? (
             <ActionButton onClick={action.onClick} disabled={action.disabled}>
               {action.iconLeft}
@@ -73,6 +67,15 @@ const TitleContainer = styled(Flex)`
   justify-content: space-between;
   padding: ${p => p.theme.space[3]}px;
   gap: 8px;
+`;
+
+export const PanelTitleText = styled(Text).attrs<{ $isSubPanel?: boolean }>(
+  ({ $isSubPanel = false }) => ({
+    as: $isSubPanel ? 'h3' : 'h2',
+    typography: $isSubPanel ? 'h3' : 'h2',
+  })
+)`
+  font-weight: ${fontWeights.bold};
 `;
 
 const ActionButton = styled(ButtonText)`

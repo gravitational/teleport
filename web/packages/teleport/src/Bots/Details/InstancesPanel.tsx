@@ -26,13 +26,13 @@ import { ButtonSecondary, ButtonText } from 'design/Button';
 import Flex from 'design/Flex/Flex';
 import { SortAscending, SortDescending } from 'design/Icon';
 import { Indicator } from 'design/Indicator/Indicator';
-import { H2 } from 'design/Text/Text';
-import { fontWeights } from 'design/theme/typography';
+import Text from 'design/Text';
 
 import { listBotInstances } from 'teleport/services/bot/bot';
 import useTeleport from 'teleport/useTeleport';
 
 import { Instance } from './Instance';
+import { PanelTitleText } from './Panel';
 
 export function InstancesPanel(props: { botName: string }) {
   const { botName } = props;
@@ -88,7 +88,7 @@ export function InstancesPanel(props: { botName: string }) {
   return (
     <Container>
       <TitleContainer>
-        <H2 fontWeight={fontWeights.bold}>Active Instances</H2>
+        <PanelTitleText>Active Instances</PanelTitleText>
         {isSuccess ? (
           <ActionButton onClick={handleToggleSort}>
             Recent
@@ -154,7 +154,9 @@ export function InstancesPanel(props: { botName: string }) {
               </LoadMoreContainer>
             </ContentContainer>
           ) : (
-            <Box p={3}>No active instances</Box>
+            <Box p={3}>
+              <EmptyText>No active instances</EmptyText>
+            </Box>
           )}
         </>
       ) : undefined}
@@ -194,4 +196,8 @@ const Divider = styled.div`
   height: 1px;
   flex-shrink: 0;
   background-color: ${p => p.theme.colors.interactive.tonal.neutral[0]};
+`;
+
+const EmptyText = styled(Text)`
+  color: ${p => p.theme.colors.text.muted};
 `;
