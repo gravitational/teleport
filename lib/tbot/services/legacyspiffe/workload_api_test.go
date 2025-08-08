@@ -454,9 +454,15 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 	log := logtest.NewLogger()
 
 	// Make a new auth server.
-	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
-
+	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(log))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 	// Create a role that allows the bot to issue a SPIFFE SVID.
 	role, err := types.NewRole("spiffe-issuer", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -665,8 +671,15 @@ func Test_E2E_SPIFFE_SDS(t *testing.T) {
 	log := logtest.NewLogger()
 
 	// Make a new auth server.
-	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(log))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	// Create a role that allows the bot to issue a SPIFFE SVID.
 	role, err := types.NewRole("spiffe-issuer", types.RoleSpecV6{
