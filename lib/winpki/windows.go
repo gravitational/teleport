@@ -198,10 +198,17 @@ func GenerateWindowsDesktopCredentials(ctx context.Context, auth AuthInterface, 
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	crlEndpoint := ""
+	if certReq.cdpDomain != "" {
+		crlEndpoint = crlDistributionPoint(req.ClusterName, certReq.cdpDomain, types.UserCA)
+	}
 	genResp, err := auth.GenerateWindowsDesktopCert(ctx, &proto.WindowsDesktopCertRequest{
 		CSR:       certReq.csrPEM,
 		CRLDomain: certReq.cdpDomain,
-		TTL:       proto.Duration(req.TTL),
+		// TODO(probakowski): REMOVE IN v21
+		// CRLEndpoint is needed if we hit old auth that doesn't check CRLDomain
+		CRLEndpoint: crlEndpoint,
+		TTL:         proto.Duration(req.TTL),
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -225,6 +232,10 @@ func generateDatabaseCredentials(ctx context.Context, auth AuthInterface, req *G
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
+	crlEndpoint := ""
+	if certReq.cdpDomain != "" {
+		crlEndpoint = crlDistributionPoint(req.ClusterName, certReq.cdpDomain, types.UserCA)
+	}
 	genResp, err := auth.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{
 		CSR: certReq.csrPEM,
 		// LDAP URI pointing at the CRL created with updateCRL.
@@ -235,7 +246,10 @@ func generateDatabaseCredentials(ctx context.Context, auth AuthInterface, req *G
 		// Using ldap:///distinguished_name_and_parameters (with empty
 		// domain_controller_addr) will cause Windows to fetch the CRL from any
 		// of its current domain controllers.
-		CRLDomain:             certReq.cdpDomain,
+		CRLDomain: certReq.cdpDomain,
+		// TODO(probakowski): REMOVE IN v21
+		// CRLEndpoint is needed if we hit old auth that doesn't check CRLDomain
+		CRLEndpoint:           crlEndpoint,
 		TTL:                   proto.Duration(req.TTL),
 		CertificateExtensions: proto.DatabaseCertRequest_WINDOWS_SMARTCARD,
 	})

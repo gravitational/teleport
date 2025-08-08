@@ -308,6 +308,10 @@ func CRLDistributionPoint(activeDirectoryDomain string, caType types.CertAuthTyp
 		id := base32.HexEncoding.EncodeToString(issuer.Cert.SubjectKeyId)
 		name = id + "_" + name
 	}
+	return crlDistributionPoint(name, activeDirectoryDomain, caType)
+}
+
+func crlDistributionPoint(name string, activeDirectoryDomain string, caType types.CertAuthType) string {
 	crlDN := CRLDN(name, activeDirectoryDomain, caType)
 	return fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN)
 }
