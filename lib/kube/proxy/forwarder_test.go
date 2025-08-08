@@ -1213,7 +1213,7 @@ type mockRevTunnel struct {
 	sites map[string]reversetunnelclient.Cluster
 }
 
-func (t mockRevTunnel) GetSite(name string) (reversetunnelclient.Cluster, error) {
+func (t mockRevTunnel) Cluster(_ context.Context, name string) (reversetunnelclient.Cluster, error) {
 	s, ok := t.sites[name]
 	if !ok {
 		return nil, trace.NotFound("remote site %q not found", name)
@@ -1221,7 +1221,7 @@ func (t mockRevTunnel) GetSite(name string) (reversetunnelclient.Cluster, error)
 	return s, nil
 }
 
-func (t mockRevTunnel) GetSites() ([]reversetunnelclient.Cluster, error) {
+func (t mockRevTunnel) Clusters(context.Context) ([]reversetunnelclient.Cluster, error) {
 	var sites []reversetunnelclient.Cluster
 	for _, s := range t.sites {
 		sites = append(sites, s)

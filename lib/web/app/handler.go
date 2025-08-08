@@ -55,8 +55,8 @@ type HandlerConfig struct {
 	AuthClient authclient.ClientI
 	// AccessPoint is caching client to auth.
 	AccessPoint authclient.ProxyAccessPoint
-	// ProxyClient holds connections to leaf clusters.
-	ProxyClient reversetunnelclient.Tunnel
+	// ClusterGetter holds connections to leaf clusters.
+	ClusterGetter reversetunnelclient.ClusterGetter
 	// ProxyPublicAddrs contains web proxy public addresses.
 	ProxyPublicAddrs []utils.NetAddr
 	// CipherSuites is the list of TLS cipher suites that have been configured
@@ -224,7 +224,7 @@ func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) err
 // application requests. Can be used to ensure the proxy can handle application
 // requests before they arrive.
 func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, clusterName string) error {
-	clusterClient, err := h.c.ProxyClient.GetSite(clusterName)
+	clusterClient, err := h.c.ClusterGetter.Cluster(ctx, clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -236,7 +236,7 @@ func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, c
 	// At least one AppServer needs to be present to serve the requests. Using
 	// MatchOne can reduce the amount of work required by the app matcher by not
 	// dialing every AppServer.
-	_, err = MatchOne(ctx, accessPoint, appServerMatcher(h.c.ProxyClient, publicAddr, clusterName))
+	_, err = MatchOne(ctx, accessPoint, appServerMatcher(h.c.ClusterGetter, publicAddr, clusterName))
 	if err != nil {
 		return trace.Wrap(err)
 	}
