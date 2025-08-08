@@ -22,6 +22,7 @@ import { useAsync } from 'shared/hooks/useAsync';
 
 import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useAppUpdaterContext } from 'teleterm/ui/AppUpdater';
 import type * as types from 'teleterm/ui/services/clusters/types';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { assertUnreachable } from 'teleterm/ui/utils';
@@ -30,6 +31,7 @@ export default function useClusterLogin(props: Props) {
   const { onSuccess, clusterUri } = props;
   const { clustersService, tshd, configService, mainProcessClient } =
     useAppContext();
+  const appUpdaterContext = useAppUpdaterContext();
   const cluster = clustersService.findCluster(clusterUri);
   const refAbortCtrl = useRef<AbortController>(null);
   const loggedInUserName =
@@ -38,9 +40,12 @@ export default function useClusterLogin(props: Props) {
   const [passwordlessLoginState, setPasswordlessLoginState] =
     useState<PasswordlessLoginState>();
 
-  const [initAttempt, init] = useAsync(() =>
-    tshd.getAuthSettings({ clusterUri }).then(({ response }) => response)
-  );
+  const [initAttempt, init] = useAsync(() => {
+    return Promise.all([
+      tshd.getAuthSettings({ clusterUri }).then(({ response }) => response),
+      mainProcessClient.checkForAppUpdates(),
+    ]).then(r => r[0]);
+  });
 
   const [loginAttempt, login, setAttempt] = useAsync(
     (params: types.LoginParams) => {
@@ -184,6 +189,17 @@ export default function useClusterLogin(props: Props) {
     shouldSkipVersionCheck,
     disableVersionCheck,
     platform,
+    appUpdateEvent: appUpdaterContext.updateEvent,
+    downloadAppUpdate: mainProcessClient.downloadAppUpdate,
+    cancelAppUpdateDownload: mainProcessClient.cancelAppUpdateDownload,
+    checkForAppUpdates: mainProcessClient.checkForAppUpdates,
+    quitAndInstallAppUpdate: mainProcessClient.quitAndInstallAppUpdate,
+    changeAppUpdatesManagingCluster:
+      mainProcessClient.changeAppUpdatesManagingCluster,
+    clusterGetter: {
+      findCluster: (clusterUri: RootClusterUri) =>
+        clustersService.findCluster(clusterUri),
+    },
   };
 }
 

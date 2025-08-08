@@ -291,7 +291,15 @@ function WidgetAndDetails(storyProps: StoryProps) {
 
   return (
     <Flex rowGap={7} columnGap={10} flexWrap="wrap">
-      <Stack gap={4} maxWidth="432px">
+      <Stack
+        gap={4}
+        maxWidth="432px"
+        css={`
+          > * {
+            width: 100%;
+          }
+        `}
+      >
         <Stack height={textHeight}>
           <H3>Widget View</H3>
           <P2>The component is rendered in the login form.</P2>
