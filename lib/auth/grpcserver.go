@@ -3254,7 +3254,7 @@ func (g *GRPCServer) GetToken(ctx context.Context, req *types.ResourceRequest) (
 
 // GetTokens retrieves all tokens.
 // Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
-// TODO(hugoShaka): remove in v21.
+// TODO(hugoShaka): DELETE IN 21.0.0
 func (g *GRPCServer) GetTokens(ctx context.Context, _ *emptypb.Empty) (*types.ProvisionTokenV2List, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {

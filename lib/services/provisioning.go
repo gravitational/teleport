@@ -46,7 +46,7 @@ type Provisioner interface {
 
 	// GetTokens returns all non-expired tokens
 	// Deprecated: use [ListProvisionTokens] instead.
-	// TODO(hugoShaka): remove in v19
+	// TODO(hugoShaka): DELETE IN 19.0.0
 	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
 
 	// PatchToken performs a conditional update on the named token using

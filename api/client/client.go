@@ -2328,7 +2328,7 @@ func (c *Client) GetToken(ctx context.Context, name string) (types.ProvisionToke
 
 // GetTokens returns a list of active provision tokens for nodes and users.
 // Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
-// TODO(hugoShaka): remove in v19.
+// TODO(hugoShaka): DELETE IN 19.0.0
 func (c *Client) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	resp, err := c.grpc.GetTokens(ctx, &emptypb.Empty{})
 	if err != nil {

@@ -2313,7 +2313,7 @@ func (a *ServerWithRoles) DeleteToken(ctx context.Context, token string) error {
 
 // GetTokens retrieves all tokens.
 // Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
-// TODO(hugoShaka): remove in v21.
+// TODO(hugoShaka): DELETE IN 21.0.0
 func (a *ServerWithRoles) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	if err := a.authorizeAction(types.KindToken, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)

@@ -135,7 +135,7 @@ func newProvisionTokensCollection(p services.Provisioner, w types.WatchKind) (*c
 
 // GetTokens returns all active (non-expired) provisioning tokens
 // Deprecated: use [ListProvisionTokens] istead.
-// TODO(hugoShaka): remove in v19
+// TODO(hugoShaka): DELETE IN 19.0.0
 func (c *Cache) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetTokens")
 	defer span.End()

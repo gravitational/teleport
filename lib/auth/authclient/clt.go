@@ -1160,7 +1160,7 @@ type IdentityService interface {
 type ProvisioningService interface {
 	// GetTokens returns a list of active invitation tokens for nodes and users
 	// Deprecated: use [ListProvisionTokens] istead.
-	// TODO(hugoShaka): remove in v19
+	// TODO(hugoShaka): DELETE IN 19.0.0
 	GetTokens(ctx context.Context) (tokens []types.ProvisionToken, err error)
 
 	// GetToken returns provisioning token
