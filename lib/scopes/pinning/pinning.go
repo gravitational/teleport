@@ -37,6 +37,9 @@ func StrongValidate(pin *scopesv1.Pin) error {
 	}
 
 	if len(pin.GetAssignments()) == 0 {
+		// in theory there isn't any harm in allowing pins to be created without any assignments, but we're choosing to err
+		// on the side of caution for now. this limitation may be lifted later.
+		// NOTE: if lifting this restriction, the equivalent check in the pin building logic must also be lifted.
 		return trace.BadParameter("scope pin at %q contains no assignments", pin.GetScope())
 	}
 

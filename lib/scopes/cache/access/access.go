@@ -231,7 +231,11 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry) error
 			return trace.BadParameter("expected init event, got %v instead", event.Type)
 		}
 	case <-watcher.Done():
-		return trace.Errorf("watcher failed while waiting for init event: %w", watcher.Error())
+		if err := watcher.Error(); err != nil {
+			// watcher errors are expected if the watcher is closed before init completes.
+			return trace.Errorf("watcher failed while waiting for init event: %w", err)
+		}
+		return trace.Errorf("watcher failed while waiting for init event")
 	case <-time.After(retryutils.SeventhJitter(time.Minute)):
 		return trace.Errorf("timed out waiting for init event from watcher")
 	case <-ctx.Done():
@@ -262,7 +266,11 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry) error
 				return trace.Errorf("failed to process event: %w", err)
 			}
 		case <-watcher.Done():
-			return trace.Errorf("watcher failed: %w", watcher.Error())
+			if err := watcher.Error(); err != nil {
+				// watcher errors are expected if the watcher is closed before init completes.
+				return trace.Errorf("watcher failed during event processing: %w", err)
+			}
+			return trace.Errorf("watcher failed during event processing")
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
 		}
