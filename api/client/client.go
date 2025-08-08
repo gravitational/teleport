@@ -908,12 +908,6 @@ func (c *Client) PresenceServiceClient() presencepb.PresenceServiceClient {
 	return presencepb.NewPresenceServiceClient(c.conn)
 }
 
-// WorkloadIdentityServiceClient returns an unadorned client for the workload
-// identity service.
-func (c *Client) WorkloadIdentityServiceClient() machineidv1pb.WorkloadIdentityServiceClient {
-	return machineidv1pb.NewWorkloadIdentityServiceClient(c.conn)
-}
-
 // NotificationServiceClient returns a notification service client that can be used to fetch notifications.
 func (c *Client) NotificationServiceClient() notificationsv1pb.NotificationServiceClient {
 	return notificationsv1pb.NewNotificationServiceClient(c.conn)
