@@ -58,7 +58,7 @@ export const Item: Story = {
   args: {
     id: '686750f5-0f21-4a6f-b151-fa11a603701d',
     activeAt: new Date('2025-07-18T14:54:32Z').getTime(),
-    hostname: 'hostname',
+    hostname: 'my-svc.my-namespace.svc.cluster-domain.example',
     method: 'kubernetes',
     version: '4.4.0',
     os: 'linux',
@@ -77,7 +77,7 @@ export const ItemWithLongValues: Story = {
     activeAt: new Date('2025-07-18T14:54:32Z').getTime(),
     hostname: 'hostnamehostnamehostnamehostnamehostnamehostnamehostnamehostnam',
     method: 'kubernetes',
-    version: '4.4.0-fa11a603701dfa11a603701dfa11a603701dfa11a603701dfa11a6031d',
+    version: '4.4.0-fa11a60',
     os: 'linux',
   },
 };

@@ -69,8 +69,7 @@ const renderLogo = (method: string, size: IconProps['size']) => {
       case 'bitbucket':
         return 'git';
       case 'oracle':
-        // TODO(nicholasmarais1158): Add missing oracle icon/logo
-        return 'database';
+        return 'oracle';
       case 'azure_devops':
         return 'azure';
     }
