@@ -372,6 +372,8 @@ persistence:
   # Leave blank to automatically create a PersistentVolumeClaim for Teleport storage.
   # If you would like to use a pre-existing PersistentVolumeClaim, put its name here.
   existingClaimName: ""
+  # Leave blank to use the default storage class
+  storageClassName: ""
   # Size of persistent volume to request when created by Teleport.
   # Ignored if existingClaimName is provided.
   volumeSize: 10Gi
