@@ -48,6 +48,25 @@ import auth0Light from './assets/auth0-light.svg';
 import avalara from './assets/avalara.svg';
 import awsDark from './assets/aws-dark.svg';
 import awsLight from './assets/aws-light.svg';
+import awsaurora from './assets/awsaurora.svg';
+import awscommandlineinterface from './assets/awscommandlineinterface.svg';
+import awsdynamodb from './assets/awsdynamodb.svg';
+import awsec2 from './assets/awsec2.svg';
+import awselasticache from './assets/awselasticache.svg';
+import awselasticblockstore from './assets/awselasticblockstore.svg';
+import awselasticcontainerservice from './assets/awselasticcontainerservice.svg';
+import awselasticsearchservice from './assets/awselasticsearchservice.svg';
+import awsfargate from './assets/awsfargate.svg';
+import awsiamidentitycenter from './assets/awsiamidentitycenter.svg';
+import awsidentityandaccessmanagementiam from './assets/awsidentityandaccessmanagementiam.svg';
+import awskeyspaces from './assets/awskeyspaces.svg';
+import awsmanagementconsole from './assets/awsmanagementconsole.svg';
+import awsmemorydb from './assets/awsmemorydb.svg';
+import awsrds from './assets/awsrds.svg';
+import awsredshift from './assets/awsredshift.svg';
+import awsredshift2 from './assets/awsredshift2.svg';
+import awssimplestorageservices3 from './assets/awssimplestorageservices3.svg';
+import awssinglesignon from './assets/awssinglesignon.svg';
 import azure from './assets/azure.svg';
 import bill from './assets/bill.svg';
 import bonusly from './assets/bonusly.svg';
@@ -335,6 +354,25 @@ export {
   avalara,
   awsDark,
   awsLight,
+  awsaurora,
+  awscommandlineinterface,
+  awsdynamodb,
+  awsec2,
+  awselasticache,
+  awselasticblockstore,
+  awselasticcontainerservice,
+  awselasticsearchservice,
+  awsfargate,
+  awsiamidentitycenter,
+  awsidentityandaccessmanagementiam,
+  awskeyspaces,
+  awsmanagementconsole,
+  awsmemorydb,
+  awsrds,
+  awsredshift,
+  awsredshift2,
+  awssimplestorageservices3,
+  awssinglesignon,
   azure,
   bill,
   bonusly,
