@@ -3570,6 +3570,18 @@ message PostgresFunctionCall {
   repeated string FunctionArgs = 6 [(gogoproto.jsontag) = "function_args,omitempty"];
 }
 
+// WindowsCertificateMetadata contains metadata about certificates
+// issued for Windows environments.
+message WindowsCertificateMetadata {
+  string Subject = 1 [(gogoproto.jsontag) = "subject"];
+  string SerialNumber = 2 [(gogoproto.jsontag) = "serial_number"];
+  string UPN = 3 [(gogoproto.jsontag) = "upn"];
+  repeated string CRLDistributionPoints = 4 [(gogoproto.jsontag) = "crl_distribution_points"];
+  int32 KeyUsage = 5 [(gogoproto.jsontag) = "key_usage"];
+  repeated int32 ExtendedKeyUsage = 6 [(gogoproto.jsontag) = "extended_key_usage"];
+  repeated string EnhancedKeyUsage = 7 [(gogoproto.jsontag) = "enhanced_key_usage"];
+}
+
 // WindowsDesktopSessionStart is emitted when a user connects to a desktop.
 message WindowsDesktopSessionStart {
   // Metadata is common event metadata.
@@ -3620,6 +3632,8 @@ message WindowsDesktopSessionStart {
   // NLA indicates whether Teleport performed Network Level Authentication (NLA)
   // when initiating this session.
   bool NLA = 13 [(gogoproto.jsontag) = "nla"];
+
+  WindowsCertificateMetadata CertMetadata = 14 [(gogoproto.jsontag) = "certificate"];
 }
 
 // DatabaseSessionEnd is emitted when a user ends the database session.

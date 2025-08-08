@@ -1,29 +1,27 @@
 //go:build windows
 // +build windows
 
-/*
- * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//	http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
-package agentconn
+package sshagent
 
 import (
 	"encoding/binary"
 	"encoding/hex"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -35,33 +33,37 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
 const namedPipe = `\\.\pipe\openssh-ssh-agent`
 
-// Dial creates net.Conn to a SSH agent listening on a Windows named pipe.
-// This is behind a build flag because winio.DialPipe is only available on
-// Windows. If connecting to a named pipe fails and we're in a Cygwin
-// environment, a connection to a Cygwin SSH agent will be attempted.
-func Dial(socket string) (net.Conn, error) {
+// DialSystemAgent connects to the SSH agent listening on a Windows named pipe.
+// If connecting to a named pipe fails and we're in a Cygwin environment, a
+// connection to the Cygwin SSH agent advertised by SSH_AUTH_SOCK will be attempted.
+//
+// This is behind a build flag because winio.DialPipe is only available on Windows.
+func DialSystemAgent() (io.ReadWriteCloser, error) {
 	conn, err := winio.DialPipe(namedPipe, nil)
-	if err != nil {
-		// MSYSTEM is used to specify what Cygwin environment is used;
-		// if it exists, there's a very good chance we're in a Cygwin
-		// environment
-		if msys := os.Getenv("MSYSTEM"); msys != "" {
-			conn, err := dialCygwin(socket)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return conn, nil
-		}
-
-		return nil, trace.Wrap(err)
+	if err == nil {
+		return conn, nil
 	}
 
-	return conn, nil
+	// MSYSTEM is used to specify what Cygwin environment is used;
+	// if it exists, there's a very good chance we're in a Cygwin
+	// environment
+	msys := os.Getenv("MSYSTEM")
+	socketPath := os.Getenv(teleport.SSHAuthSock)
+	if msys != "" && socketPath != "" {
+		conn, err := dialCygwin(socketPath)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return conn, nil
+	}
+
+	return nil, trace.Wrap(err)
 }
 
 // SIDs that are computer or domain SIDs start with this prefix.

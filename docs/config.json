@@ -1094,6 +1094,11 @@
       "source": "/admin-guides/management/export-audit-events/splunk/",
       "destination": "/zero-trust-access/export-audit-events/splunk/",
       "permanent": true
+    },
+    {
+      "source": "/upgrading/client-tools-autoupdate/",
+      "destination": "/upgrading/client-tools-managed-updates/",
+      "permanent": true
     }
   ]
 }
