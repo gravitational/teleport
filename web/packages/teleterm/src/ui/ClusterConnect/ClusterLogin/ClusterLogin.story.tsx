@@ -155,15 +155,19 @@ export const SsoError = (storyProps: StoryProps) => {
 };
 
 export const LocalWithPasswordless = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
+  props.initAttempt.data.allowPasswordless = true;
+
   return (
     <TestContainer>
-      <ClusterLoginPresentation {...makeProps(storyProps)} />
+      <ClusterLoginPresentation {...props} />
     </TestContainer>
   );
 };
 
 export const LocalLoggedInUserWithPasswordless = (storyProps: StoryProps) => {
   const props = makeProps(storyProps);
+  props.initAttempt.data.allowPasswordless = true;
   props.loggedInUserName = 'llama';
 
   return (
