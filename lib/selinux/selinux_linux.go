@@ -165,7 +165,7 @@ func CheckConfiguration(ensureEnforced bool, logger *slog.Logger) error {
 	}
 
 	if !installed {
-		return trace.Errorf("the SSH SELinux module %s is not installed", moduleName)
+		return trace.NotFound("the SSH SELinux module %s is not installed", moduleName)
 	}
 	if disabled {
 		return trace.Errorf("the SSH SELinux module %s is disabled", moduleName)
@@ -215,6 +215,22 @@ func diagnoseWrongDomain(procCtx *selinuxContext, logger *slog.Logger) error {
 	}
 
 	return fallbackErr
+}
+
+// ModuleInstalled returns true if the SSH SELinux module is installed.
+func ModuleInstalled() (bool, error) {
+	selinuxType, err := readConfig(selinuxTypeTag)
+	if err != nil {
+		return false, trace.Wrap(err, "failed to find SELinux type")
+	}
+
+	modulesDir := filepath.Join(selinuxRoot, selinuxType, "active/modules")
+	installed, _, _, err := moduleStatus(modulesDir)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return installed, nil
 }
 
 func moduleStatus(modulesDir string) (installed bool, disabled bool, permissive bool, err error) {
