@@ -708,7 +708,10 @@ type AuthServiceClient interface {
 	DeleteTrustedCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetToken retrieves a token described by the given request.
 	GetToken(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.ProvisionTokenV2, error)
+	// Deprecated: Do not use.
 	// GetToken retrieves all tokens.
+	// Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
+	// TODO(hugoShaka): DELETE IN 21.0.0
 	GetTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ProvisionTokenV2List, error)
 	// GetStaticTokens retrieves all static tokens.
 	GetStaticTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.StaticTokensV2, error)
@@ -2661,6 +2664,7 @@ func (c *authServiceClient) GetToken(ctx context.Context, in *types.ResourceRequ
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ProvisionTokenV2List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.ProvisionTokenV2List)
@@ -4196,7 +4200,10 @@ type AuthServiceServer interface {
 	DeleteTrustedCluster(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
 	// GetToken retrieves a token described by the given request.
 	GetToken(context.Context, *types.ResourceRequest) (*types.ProvisionTokenV2, error)
+	// Deprecated: Do not use.
 	// GetToken retrieves all tokens.
+	// Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
+	// TODO(hugoShaka): DELETE IN 21.0.0
 	GetTokens(context.Context, *emptypb.Empty) (*types.ProvisionTokenV2List, error)
 	// GetStaticTokens retrieves all static tokens.
 	GetStaticTokens(context.Context, *emptypb.Empty) (*types.StaticTokensV2, error)
