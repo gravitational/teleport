@@ -1437,6 +1437,9 @@ func TestServer_RegisterUsingBoundKeypairMethod_JoinStateFailureDuringRenewal(t 
 		ctx,
 		makeInitReq(
 			withJoinState(firstResponse.JoinState),
+
+			// Provide the previous identity to trigger the "standard rejoin" /
+			// renewal flow, rather than recovery.
 			withBotInstance(firstIdent),
 		),
 		solver.solver(),
