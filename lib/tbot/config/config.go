@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
+	"github.com/gravitational/teleport/lib/tbot/services/mcpproxy"
 	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -448,6 +449,11 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
+		case mcpproxy.TunnelServiceType:
+			v := &mcpproxy.TunnelConfig{}
+			if err := v.UnmarshalYAML(node); err != nil {
+				return trace.Wrap(err)
+			}
 		default:
 			return trace.BadParameter("unrecognized service type (%s)", header.Type)
 		}
