@@ -19,7 +19,9 @@ package types
 import (
 	"fmt"
 	"testing"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -817,4 +819,42 @@ func TestGitServerOrgDomain(t *testing.T) {
 
 	_, ok = GetGitHubOrgFromNodeAddr("my-server.example.teleport.sh:22")
 	require.False(t, ok)
+}
+
+func TestServerLabels(t *testing.T) {
+	emptyLabels := make(map[string]string)
+	// empty
+	server := &ServerV2{}
+	require.Empty(t, server.GetAllLabels())
+	require.True(t, MatchLabels(server, emptyLabels))
+	require.False(t, MatchLabels(server, map[string]string{"a": "b"}))
+
+	// more complex
+	server = &ServerV2{
+		Metadata: Metadata{
+			Labels: map[string]string{
+				"role": "database",
+			},
+		},
+		Spec: ServerSpecV2{
+			CmdLabels: map[string]CommandLabelV2{
+				"time": {
+					Period:  NewDuration(time.Second),
+					Command: []string{"time"},
+					Result:  "now",
+				},
+			},
+		},
+	}
+
+	require.Empty(t, cmp.Diff(server.GetAllLabels(), map[string]string{
+		"role": "database",
+		"time": "now",
+	}))
+
+	require.True(t, MatchLabels(server, emptyLabels))
+	require.False(t, MatchLabels(server, map[string]string{"a": "b"}))
+	require.True(t, MatchLabels(server, map[string]string{"role": "database"}))
+	require.True(t, MatchLabels(server, map[string]string{"time": "now"}))
+	require.True(t, MatchLabels(server, map[string]string{"time": "now", "role": "database"}))
 }

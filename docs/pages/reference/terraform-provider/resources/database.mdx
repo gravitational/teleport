@@ -113,8 +113,8 @@ Optional:
 
 - `account_id` (String) AccountID is the AWS account ID this database belongs to.
 - `assume_role_arn` (String) AssumeRoleARN is an optional AWS role ARN to assume when accessing a database. Set this field and ExternalID to enable access across AWS accounts.
-- `docdb` (Attributes) DocumentDB contains AWS DocumentDB specific metadata. (see [below for nested schema](#nested-schema-for-specawsdocdb))
-- `elasticache` (Attributes) ElastiCache contains AWS ElastiCache Redis specific metadata. (see [below for nested schema](#nested-schema-for-specawselasticache))
+- `docdb` (Attributes) DocumentDB contains Amazon DocumentDB-specific metadata. (see [below for nested schema](#nested-schema-for-specawsdocdb))
+- `elasticache` (Attributes) ElastiCache contains Amazon ElastiCache Redis-specific metadata. (see [below for nested schema](#nested-schema-for-specawselasticache))
 - `external_id` (String) ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
 - `iam_policy_status` (Number) IAMPolicyStatus indicates whether the IAM Policy is configured properly for database access. If not, the user must update the AWS profile identity to allow access to the Database. Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database.
 - `memorydb` (Attributes) MemoryDB contains AWS MemoryDB specific metadata. (see [below for nested schema](#nested-schema-for-specawsmemorydb))
@@ -122,7 +122,7 @@ Optional:
 - `rds` (Attributes) RDS contains RDS specific metadata. (see [below for nested schema](#nested-schema-for-specawsrds))
 - `rdsproxy` (Attributes) RDSProxy contains AWS Proxy specific metadata. (see [below for nested schema](#nested-schema-for-specawsrdsproxy))
 - `redshift` (Attributes) Redshift contains Redshift specific metadata. (see [below for nested schema](#nested-schema-for-specawsredshift))
-- `redshift_serverless` (Attributes) RedshiftServerless contains AWS Redshift Serverless specific metadata. (see [below for nested schema](#nested-schema-for-specawsredshift_serverless))
+- `redshift_serverless` (Attributes) RedshiftServerless contains Amazon Redshift Serverless-specific metadata. (see [below for nested schema](#nested-schema-for-specawsredshift_serverless))
 - `region` (String) Region is a AWS cloud region.
 - `secret_store` (Attributes) SecretStore contains secret store configurations. (see [below for nested schema](#nested-schema-for-specawssecret_store))
 - `session_tags` (Map of String) SessionTags is a list of AWS STS session tags.

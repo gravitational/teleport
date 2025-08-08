@@ -76,7 +76,10 @@ func (c *Cache) GetStaticTokens() (types.StaticTokens, error) {
 
 	if rg.ReadCache() {
 		st, err := rg.store.get(staticTokensNameIndex, types.MetaNameStaticTokens)
-		return st.Clone(), trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return st.Clone(), nil
 	}
 
 	st, err := c.Config.ClusterConfig.GetStaticTokens()

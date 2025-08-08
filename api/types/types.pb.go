@@ -2074,7 +2074,7 @@ type AWS struct {
 	RDS RDS `protobuf:"bytes,3,opt,name=RDS,proto3" json:"rds,omitempty"`
 	// AccountID is the AWS account ID this database belongs to.
 	AccountID string `protobuf:"bytes,4,opt,name=AccountID,proto3" json:"account_id,omitempty"`
-	// ElastiCache contains AWS ElastiCache Redis specific metadata.
+	// ElastiCache contains Amazon ElastiCache Redis-specific metadata.
 	ElastiCache ElastiCache `protobuf:"bytes,5,opt,name=ElastiCache,proto3" json:"elasticache,omitempty"`
 	// SecretStore contains secret store configurations.
 	SecretStore SecretStore `protobuf:"bytes,6,opt,name=SecretStore,proto3" json:"secret_store,omitempty"`
@@ -2082,7 +2082,7 @@ type AWS struct {
 	MemoryDB MemoryDB `protobuf:"bytes,7,opt,name=MemoryDB,proto3" json:"memorydb,omitempty"`
 	// RDSProxy contains AWS Proxy specific metadata.
 	RDSProxy RDSProxy `protobuf:"bytes,8,opt,name=RDSProxy,proto3" json:"rdsproxy,omitempty"`
-	// RedshiftServerless contains AWS Redshift Serverless specific metadata.
+	// RedshiftServerless contains Amazon Redshift Serverless-specific metadata.
 	RedshiftServerless RedshiftServerless `protobuf:"bytes,9,opt,name=RedshiftServerless,proto3" json:"redshift_serverless,omitempty"`
 	// ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
 	ExternalID string `protobuf:"bytes,10,opt,name=ExternalID,proto3" json:"external_id,omitempty"`
@@ -2097,7 +2097,7 @@ type AWS struct {
 	IAMPolicyStatus IAMPolicyStatus `protobuf:"varint,14,opt,name=IAMPolicyStatus,proto3,enum=types.IAMPolicyStatus" json:"iam_policy_status"`
 	// SessionTags is a list of AWS STS session tags.
 	SessionTags map[string]string `protobuf:"bytes,15,rep,name=SessionTags,proto3" json:"session_tags,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	// DocumentDB contains AWS DocumentDB specific metadata.
+	// DocumentDB contains Amazon DocumentDB-specific metadata.
 	DocumentDB           DocumentDB `protobuf:"bytes,16,opt,name=DocumentDB,proto3" json:"docdb,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
 	XXX_unrecognized     []byte     `json:"-"`
@@ -2323,7 +2323,7 @@ func (m *RDSProxy) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_RDSProxy proto.InternalMessageInfo
 
-// ElastiCache contains AWS ElastiCache Redis specific metadata.
+// ElastiCache contains Amazon ElastiCache Redis-specific metadata.
 type ElastiCache struct {
 	// ReplicationGroupID is the Redis replication group ID.
 	ReplicationGroupID string `protobuf:"bytes,1,opt,name=ReplicationGroupID,proto3" json:"replication_group_id,omitempty"`
@@ -2419,7 +2419,7 @@ func (m *MemoryDB) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_MemoryDB proto.InternalMessageInfo
 
-// RedshiftServerless contains AWS Redshift Serverless specific metadata.
+// RedshiftServerless contains Amazon Redshift Serverless-specific metadata.
 type RedshiftServerless struct {
 	// WorkgroupName is the workgroup name.
 	WorkgroupName string `protobuf:"bytes,1,opt,name=WorkgroupName,proto3" json:"workgroup_name,omitempty"`
@@ -2511,7 +2511,7 @@ func (m *OpenSearch) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_OpenSearch proto.InternalMessageInfo
 
-// DocumentDB contains AWS DocumentDB specific metadata.
+// DocumentDB contains Amazon DocumentDB-specific metadata.
 type DocumentDB struct {
 	// ClusterID is the cluster identifier.
 	ClusterID string `protobuf:"bytes,1,opt,name=ClusterID,proto3" json:"cluster_id,omitempty"`
@@ -6884,9 +6884,9 @@ type ClusterNetworkingConfigSpecV2 struct {
 	// KeepAliveCountMax is the number of keep-alive messages that can be
 	// missed before the server disconnects the connection to the client.
 	KeepAliveCountMax int64 `protobuf:"varint,3,opt,name=KeepAliveCountMax,proto3" json:"keep_alive_count_max"`
-	// SessionControlTimeout is the session control lease expiry and defines
-	// the upper limit of how long a node may be out of contact with the auth
-	// server before it begins terminating controlled sessions.
+	// SessionControlTimeout is the session control lease expiry and defines the
+	// upper limit of how long a node may be out of contact with the Auth Service
+	// before it begins terminating controlled sessions.
 	SessionControlTimeout Duration `protobuf:"varint,4,opt,name=SessionControlTimeout,proto3,casttype=Duration" json:"session_control_timeout"`
 	// ClientIdleTimeoutMessage is the message sent to the user when a connection times out.
 	ClientIdleTimeoutMessage string `protobuf:"bytes,5,opt,name=ClientIdleTimeoutMessage,proto3" json:"idle_timeout_message"`

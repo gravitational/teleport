@@ -1,5 +1,3 @@
-//go:build !windows
-
 /*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -18,20 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package agentconn
+package teleagent
 
 import (
-	"net"
-
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/sshagent"
 )
 
-// Dial creates net.Conn to a SSH agent listening on a Unix socket.
-func Dial(socket string) (net.Conn, error) {
-	conn, err := net.Dial("unix", socket)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+// TODO(Joerger): Remove this file once no longer needed by /e
+type (
+	Agent = sshagent.Client
+)
 
-	return conn, nil
-}
+var (
+	NopCloser = sshagent.NewStaticClient
+	NewServer = sshagent.NewServer
+)
