@@ -117,7 +117,54 @@ ssh_service:
 
 If `teleport.relay_server` is set, the agent will open reverse tunnels against the Relay in addition to its usual reverse tunnels against the Teleport control plane. Setting the `TELEPORT_UNSTABLE_DISABLE_REVERSE_TUNNEL` envvar to `yes` will disable the standard reverse tunnels (during testing, it can be useful to confirm that the connections are using the Relay). The relay is only used if the agent is using "tunnel mode" (i.e. when the agent is pointed at a proxy rather than directly to an auth).
 
+Inspecting the node heartbeat should show the indication that it's available through the Relay group, and the host IDs of the Relay Service instances it's connected to:
+
+```shell
+$ tsh ls --format yaml --search nodename
+- kind: node
+  metadata:
+    expires: "2025-08-08T14:49:15Z"
+    name: 58b5c8e3-7742-4d5d-99e8-78c5fa882294
+    revision: 6a17a77d-b52c-4290-b497-ca1bfc71cbb9
+  spec:
+    addr: ""
+    hostname: nodename
+    proxy_ids:
+    - 2d38cd31-da30-4de6-9222-afa2a905a825
+    - 542d7955-dd4b-4ad9-b219-8c8b71010691
+    relay_group: groupname
+    relay_ids:
+    - 9f233419-1a4d-4497-882a-cf4983d40929
+    - 16509408-41d8-4308-920d-0293331eb92a
+    use_tunnel: true
+    version: 18.1.2-dev.relay.2
+  version: v2
+
+```
+
+Likewise, inspecting the list of Relay Service heartbeats should show one entry for each instance:
+
+```shell
+$ tctl get relay_server
+kind: relay_server
+metadata:
+  expires: "2025-08-08T14:55:09.914279Z"
+  name: 9f233419-1a4d-4497-882a-cf4983d40929
+  revision: 7c93d70a-3898-445b-8bc1-82b847d626e0
+spec:
+  hostname: relayhostname
+  nonce: 29f3b44b-ff02-4353-b026-4f98f8cc6883
+  peer_addr: 10.12.41.121:3041
+  relay_group: groupname
+version: v1
+---
+kind: relay_server
+# ...
+```
+
 All Teleport SSH clients can make use of a relay by setting the `TELEPORT_UNSTABLE_RELAY_ADDR` envvar to point at the Relay API endpoint address (using port 443 if unspecified). The envvar should be set at connection time when using `tsh`, the `tsh` OpenSSH integration or a Machine ID `identity` output. The envvar must be set for the `tbot` process when using an `ssh-multiplexer` service. The final release of the Relay feature will include CLI options to set the desired Relay address at `tsh login` time and ways to enable and choose the Relay to use for each output and service in the `tbot` configuration file.
+
+If the `TELEPORT_UNSTABLE_RELAY_ADDR` envvar is set, all Teleport SSH client connection are guaranteed to either fail or result in a connection to the relay, which will potentially connect to a different relay of its group, and then forward the connection along through the relay connection to the appropriate agent, without any SSH traffic going through the regular Teleport control plane.
 
 ## Deploying a Relay with the `teleport-relay` chart
 
