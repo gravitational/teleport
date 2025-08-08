@@ -2330,7 +2330,7 @@ func (c *Client) GetToken(ctx context.Context, name string) (types.ProvisionToke
 // Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
 // TODO(hugoShaka): DELETE IN 19.0.0
 func (c *Client) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
-	resp, err := c.grpc.GetTokens(ctx, &emptypb.Empty{})
+	resp, err := c.grpc.GetTokens(ctx, &emptypb.Empty{}) //nolint:staticcheck // Provides backward compatibility, will be removed later.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
