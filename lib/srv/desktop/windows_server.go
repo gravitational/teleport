@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/asn1"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -946,13 +947,9 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 
 	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	rdpc, err := rdpclient.New(rdpclient.Config{
-		LicenseStore: s.cfg.LicenseStore,
-		HostID:       s.cfg.Heartbeat.HostUUID,
-		Logger:       log,
-		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
-			return s.generateUserCert(ctx, username, ttl, desktop, createUsers, groups)
-		},
-		CertTTL:               windowsUserCertTTL,
+		LicenseStore:          s.cfg.LicenseStore,
+		HostID:                s.cfg.Heartbeat.HostUUID,
+		Logger:                log,
 		Addr:                  addr.String(),
 		ComputerName:          computerName,
 		KDCAddr:               kdcAddr,
@@ -973,12 +970,19 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		windowsUser = rdpc.GetClientUsername()
 		audit.windowsUser = windowsUser
 	}
+
 	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	if err != nil {
 		startEvent := audit.makeSessionStart(err)
 		s.record(ctx, recorder, startEvent)
 		s.emit(ctx, startEvent)
 		return trace.Wrap(err)
+	}
+
+	// Generate client certificates to be used for the RDP connection.
+	certDER, keyDER, err := s.generateUserCert(ctx, windowsUser, windowsUserCertTTL, desktop, createUsers, groups)
+	if err != nil {
+		return trace.Wrap(err, "could not generate client certificates for RDP")
 	}
 
 	if err := s.trackSession(ctx, &identity, windowsUser, string(sessionID), desktop); err != nil {
@@ -1022,10 +1026,18 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	startEvent := audit.makeSessionStart(nil)
 	startEvent.AllowUserCreation = createUsers
 
+	// Parse some information about the cert, which we'll use in order to enhance
+	// the session start event.
+	userCert, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		return trace.Wrap(err, "the user certificate for RDP is invalid")
+	}
+	populateCertMetadata(startEvent.CertMetadata, userCert)
+
 	s.record(ctx, recorder, startEvent)
 	s.emit(ctx, startEvent)
 
-	err = rdpc.Run(ctx)
+	err = rdpc.Run(ctx, certDER, keyDER)
 
 	// ctx may have been canceled, so emit with a separate context
 	endEvent := audit.makeSessionEnd(recordSession)
@@ -1033,6 +1045,43 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	s.emit(context.Background(), endEvent)
 
 	return trace.Wrap(err)
+}
+
+func populateCertMetadata(metadata *events.WindowsCertificateMetadata, cert *x509.Certificate) {
+	var enhancedKeyUsages []string
+	var upn string
+
+	type upnValue struct {
+		Value string `asn1:"utf8"`
+	}
+
+	for _, extension := range cert.Extensions {
+		if extension.Id.Equal(windows.EnhancedKeyUsageExtensionOID) {
+			var oids []asn1.ObjectIdentifier
+			if _, err := asn1.Unmarshal(extension.Value, &oids); err == nil {
+				enhancedKeyUsages = make([]string, 0, len(oids))
+				for _, oid := range oids {
+					enhancedKeyUsages = append(enhancedKeyUsages, oid.String())
+				}
+			}
+		} else if extension.Id.Equal(windows.SubjectAltNameExtensionOID) {
+			var san windows.SubjectAltName[upnValue]
+			if _, err := asn1.Unmarshal(extension.Value, &san); err == nil {
+				upn = san.OtherName.Value.Value
+			}
+		}
+	}
+
+	metadata.Subject = cert.Subject.String()
+	metadata.SerialNumber = cert.SerialNumber.String()
+	metadata.UPN = upn
+	metadata.CRLDistributionPoints = cert.CRLDistributionPoints
+	metadata.KeyUsage = int32(cert.KeyUsage)
+	metadata.EnhancedKeyUsage = enhancedKeyUsages
+	metadata.ExtendedKeyUsage = make([]int32, len(cert.ExtKeyUsage))
+	for i, usage := range cert.ExtKeyUsage {
+		metadata.ExtendedKeyUsage[i] = int32(usage)
+	}
 }
 
 func (s *WindowsService) makeTDPSendHandler(
