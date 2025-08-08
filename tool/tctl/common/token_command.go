@@ -443,14 +443,13 @@ func getAllTokens(ctx context.Context, clt *authclient.Client) ([]types.Provisio
 	}
 	// Converting the user tokens as provision tokens for presentation and
 	// backward compatibility.
-	userProvisionTokens := make([]types.ProvisionToken, len(userTokens))
 	for _, t := range userTokens {
 		roles := types.SystemRoles{types.RoleSignup}
 		tok, err := types.NewProvisionToken(t.GetName(), roles, t.Expiry())
 		if err != nil {
 			return nil, trace.Wrap(err, "converting user token as a provision token")
 		}
-		tokens = append(userProvisionTokens, tok)
+		tokens = append(tokens, tok)
 	}
 
 	return tokens, nil
