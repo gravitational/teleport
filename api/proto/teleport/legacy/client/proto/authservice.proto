@@ -3219,6 +3219,8 @@ service AuthService {
   // GetToken retrieves a token described by the given request.
   rpc GetToken(types.ResourceRequest) returns (types.ProvisionTokenV2);
   // GetToken retrieves all tokens.
+  // Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
+  // TODO(hugoShaka): remove in v21.
   rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
   // GetStaticTokens retrieves all static tokens.
   rpc GetStaticTokens(google.protobuf.Empty) returns (types.StaticTokensV2);

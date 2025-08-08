@@ -2953,7 +2953,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &dynamicWindowsDesktopCollection{desktops}, nil
 	case types.KindToken:
 		if rc.ref.Name == "" {
-			tokens, err := client.GetTokens(ctx)
+			tokens, err := getAllTokens(ctx, client)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

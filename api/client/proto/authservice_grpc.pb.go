@@ -709,6 +709,8 @@ type AuthServiceClient interface {
 	// GetToken retrieves a token described by the given request.
 	GetToken(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.ProvisionTokenV2, error)
 	// GetToken retrieves all tokens.
+	// Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
+	// TODO(hugoShaka): remove in v21.
 	GetTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ProvisionTokenV2List, error)
 	// GetStaticTokens retrieves all static tokens.
 	GetStaticTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.StaticTokensV2, error)
@@ -4197,6 +4199,8 @@ type AuthServiceServer interface {
 	// GetToken retrieves a token described by the given request.
 	GetToken(context.Context, *types.ResourceRequest) (*types.ProvisionTokenV2, error)
 	// GetToken retrieves all tokens.
+	// Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
+	// TODO(hugoShaka): remove in v21.
 	GetTokens(context.Context, *emptypb.Empty) (*types.ProvisionTokenV2List, error)
 	// GetStaticTokens retrieves all static tokens.
 	GetStaticTokens(context.Context, *emptypb.Empty) (*types.StaticTokensV2, error)

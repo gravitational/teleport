@@ -23,6 +23,8 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
@@ -103,7 +105,19 @@ func newProvisionTokensCollection(p services.Provisioner, w types.WatchKind) (*c
 				provisionTokenStoreNameIndex: types.ProvisionToken.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.ProvisionToken, error) {
-			tokens, err := p.GetTokens(ctx)
+			// TODO(hugoShaka): remove this comment in v19
+			// No need to provide backward compatibility by falling back to previous
+			// GetTokens RPC because the Auth service is the only one caching this resource.
+			tokens, err := stream.Collect(
+				clientutils.Resources(
+					ctx,
+					// ListProvisionTokens take too many arguments for [clientutils.Resources]
+					// so we wrap it to get the usual paginated signature.
+					func(ctx context.Context, pageSize int, pageKey string) ([]types.ProvisionToken, string, error) {
+						return p.ListProvisionTokens(ctx, pageSize, pageKey, nil, "")
+					},
+				),
+			)
 			return tokens, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.ProvisionToken {
@@ -120,6 +134,8 @@ func newProvisionTokensCollection(p services.Provisioner, w types.WatchKind) (*c
 }
 
 // GetTokens returns all active (non-expired) provisioning tokens
+// Deprecated: use [ListProvisionTokens] istead.
+// TODO(hugoShaka): remove in v19
 func (c *Cache) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetTokens")
 	defer span.End()
@@ -182,7 +198,7 @@ func (c *Cache) GetToken(ctx context.Context, name string) (types.ProvisionToken
 // returned. If a bot name is provided, only tokens having a role of Bot are
 // returned.
 func (c *Cache) ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetTokens")
+	ctx, span := c.Tracer.Start(ctx, "cache/ListProvisionTokens")
 	defer span.End()
 
 	lister := genericLister[types.ProvisionToken, provisionTokenIndex]{
