@@ -65,7 +65,7 @@ const kind = ({ kind, theme }: { kind?: LabelKind; theme: Theme }) => {
 
   if (kind === 'outline-warning') {
     return {
-      color: theme.colors.interactive.solid.alert.default,
+      color: theme.colors.dataVisualisation.primary.sunflower,
       backgroundColor: theme.colors.interactive.tonal.alert[0],
       borderColor: theme.colors.interactive.tonal.alert[2],
       borderWidth: 1,

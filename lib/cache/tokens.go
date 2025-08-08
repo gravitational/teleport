@@ -44,7 +44,7 @@ func newStaticTokensCollection(c services.ClusterConfiguration, w types.WatchKin
 				staticTokensNameIndex: types.StaticTokens.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.StaticTokens, error) {
-			token, err := c.GetStaticTokens()
+			token, err := c.GetStaticTokens(ctx)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -64,8 +64,8 @@ func newStaticTokensCollection(c services.ClusterConfiguration, w types.WatchKin
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
-func (c *Cache) GetStaticTokens() (types.StaticTokens, error) {
-	_, span := c.Tracer.Start(context.TODO(), "cache/GetStaticTokens")
+func (c *Cache) GetStaticTokens(ctx context.Context) (types.StaticTokens, error) {
+	_, span := c.Tracer.Start(ctx, "cache/GetStaticTokens")
 	defer span.End()
 
 	rg, err := acquireReadGuard(c, c.collections.staticTokens)
@@ -82,7 +82,7 @@ func (c *Cache) GetStaticTokens() (types.StaticTokens, error) {
 		return st.Clone(), nil
 	}
 
-	st, err := c.Config.ClusterConfig.GetStaticTokens()
+	st, err := c.Config.ClusterConfig.GetStaticTokens(ctx)
 	return st, trace.Wrap(err)
 }
 
