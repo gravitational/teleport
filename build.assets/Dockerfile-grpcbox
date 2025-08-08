@@ -39,6 +39,12 @@ RUN cd /teleport-module; \
   go install google.golang.org/grpc/cmd/protoc-gen-go-grpc && \
   go install google.golang.org/protobuf/cmd/protoc-gen-go
 
+# Pre-cache buf plugin
+COPY build.assets/tooling /tooling-tmp/
+RUN \
+  go -C /tooling-tmp  run -exec true ./cmd/buf-plugin-linters &&  \
+  rm -rf /tooling-tmp
+
 ARG UID
 ARG GID
 RUN mkdir -p /.cache /.npm && \
