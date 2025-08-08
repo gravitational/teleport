@@ -120,6 +120,10 @@ func (g *gcpKMSKeyStore) generateKey(ctx context.Context, algorithm cryptosuites
 	keyUUID := uuid.NewString()
 	g.log.InfoContext(ctx, "Creating new GCP KMS keypair.", "id", keyUUID, "algorithm", alg.String())
 
+	hostLabel := g.hostUUID
+	if usage == keyUsageDecrypt {
+		hostLabel = recordingEncryptionHostID
+	}
 	req := &kmspb.CreateCryptoKeyRequest{
 		Parent:      g.keyRing,
 		CryptoKeyId: keyUUID,
