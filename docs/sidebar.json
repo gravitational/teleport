@@ -98,7 +98,7 @@
             {
               "type": "doc",
               "label": "Managed Updates for Client Tools",
-              "id": "upgrading/client-tools-autoupdate"
+              "id": "upgrading/client-tools-managed-updates"
             }
           ],
           "link": {
