@@ -563,7 +563,7 @@ func (s *remoteSite) updateCertAuthorities(retry retryutils.Retry, remoteWatcher
 				s.logger.DebugContext(s.ctx, "Remote cluster does not support cert authorities rotation yet")
 			case trace.IsCompareFailed(err):
 				s.logger.InfoContext(s.ctx, "Remote cluster has updated certificate authorities, going to force reconnect")
-				if err := s.srv.onSiteTunnelClose(&alwaysClose{RemoteSite: s}); err != nil {
+				if err := s.srv.onSiteTunnelClose(&alwaysClose{Cluster: s}); err != nil {
 					s.logger.WarnContext(s.ctx, "Failed to close remote site", "error", err)
 				}
 				return

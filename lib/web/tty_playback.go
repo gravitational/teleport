@@ -59,8 +59,8 @@ func (h *Handler) sessionLengthHandle(
 	r *http.Request,
 	p httprouter.Params,
 	sctx *SessionContext,
-	site reversetunnelclient.RemoteSite,
-) (interface{}, error) {
+	cluster reversetunnelclient.Cluster,
+) (any, error) {
 	sID := p.ByName("sid")
 	if sID == "" {
 		return nil, trace.BadParameter("missing session ID in request URL")
@@ -69,7 +69,7 @@ func (h *Handler) sessionLengthHandle(
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	clt, err := sctx.GetUserClient(ctx, site)
+	clt, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -106,14 +106,14 @@ func (h *Handler) ttyPlaybackHandle(
 	r *http.Request,
 	p httprouter.Params,
 	sctx *SessionContext,
-	site reversetunnelclient.RemoteSite,
-) (interface{}, error) {
+	cluster reversetunnelclient.Cluster,
+) (any, error) {
 	sID := p.ByName("sid")
 	if sID == "" {
 		return nil, trace.BadParameter("missing session ID in request URL")
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
