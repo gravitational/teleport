@@ -101,7 +101,7 @@ var errRecordingEncryptionWithFIPS = &trace.BadParameterError{Message: `non-FIPS
 var errManualKeyManagementInCloud = &trace.BadParameterError{Message: `"manual_key_management" configuration is unsupported in Teleport Cloud`}
 
 // ValidateSessionRecordingConfig checks that the state of a [SessionRecordingConfig] meets constraints.
-func ValidateSessionRecordingConfig(cfg types.SessionRecordingConfig, params types.SignatureAlgorithmSuiteParams) error {
+func ValidateSessionRecordingConfig(cfg types.SessionRecordingConfig, fips, cloud bool) error {
 	if !slices.Contains(types.SessionRecordingModes, cfg.GetMode()) {
 		return trace.BadParameter("session recording mode must be one of %v; got %q", strings.Join(types.SessionRecordingModes, ","), cfg.GetMode())
 	}
@@ -111,7 +111,7 @@ func ValidateSessionRecordingConfig(cfg types.SessionRecordingConfig, params typ
 		return nil
 	}
 
-	if params.FIPS && encryptionCfg.Enabled {
+	if fips && encryptionCfg.Enabled {
 		return trace.Wrap(errRecordingEncryptionWithFIPS)
 	}
 
@@ -120,7 +120,7 @@ func ValidateSessionRecordingConfig(cfg types.SessionRecordingConfig, params typ
 		return nil
 	}
 
-	if params.Cloud {
+	if cloud {
 		return trace.Wrap(errManualKeyManagementInCloud)
 	}
 
