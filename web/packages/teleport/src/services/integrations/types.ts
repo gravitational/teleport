@@ -120,6 +120,38 @@ export type IntegrationSpecAwsOidc = {
   audience?: IntegrationAudience;
 };
 
+export type IntegrationSpecAwsRa = {
+  trustAnchorArn: string;
+  profileSyncConfig: AWSRolesAnywhereProfileSyncConfig;
+};
+
+// AWSRolesAnywhereProfileSyncConfig contains the configuration for the AWS Roles Anywhere Profile sync.
+// This is used to sync AWS Roles Anywhere profiles as application servers.
+type AWSRolesAnywhereProfileSyncConfig = {
+  // Enabled is set to true if this integration should sync profiles as application servers.
+  enabled: boolean;
+  // ProfileARN is the ARN of the Roles Anywhere Profile used to generate credentials to access the AWS APIs.
+  profileArn: string;
+  // ProfileAcceptsRoleSessionName indicates whether the profile accepts a custom Role Session name.
+  profileAcceptsRoleSessionName: boolean;
+  // RoleARN is the ARN of the IAM Role to assume when accessing the AWS APIs.
+  roleArn: string;
+  // ProfileNameFilters is a list of filters applied to the profile name.
+  // Only matching profiles will be synchronized as application servers.
+  // If empty, no filtering is applied.
+  //
+  // Filters can be globs, for example,
+  //
+  //	profile*
+  //	*name*
+  //
+  // Or regexes if they're prefixed and suffixed with ^ and $, for example:
+  //
+  //	^profile.*$
+  //	^.*name.*$
+  profileNameFilters: string[];
+};
+
 export type IntegrationAwsOidc = IntegrationTemplate<
   'integration',
   IntegrationKind.AwsOidc,
@@ -396,9 +428,16 @@ type IntegrationCreateAwsOidcRequest = {
   awsoidc: IntegrationSpecAwsOidc;
 };
 
+type IntegrationCreateAwsRaRequest = {
+  name: string;
+  subKind: IntegrationKind.AWSRa;
+  awsRa: IntegrationSpecAwsRa;
+};
+
 export type IntegrationCreateRequest =
   | IntegrationCreateAwsOidcRequest
-  | IntegrationCreateGitHubRequest;
+  | IntegrationCreateGitHubRequest
+  | IntegrationCreateAwsRaRequest;
 
 export type IntegrationListResponse = {
   items: Integration[];
@@ -645,6 +684,28 @@ export type AwsRolesAnywherePingResponse = {
   arn: string;
   // userID is the unique identifier of the calling entity.
   userId: string;
+};
+
+// ListRolesAnywhereProfilesResponse contains the response for the ListRolesAnywhereProfiles operation.
+export type ListRolesAnywhereProfilesResponse = {
+  // Profiles is a list of AWS Roles Anywhere Profiles.
+  profiles: RolesAnywhereProfile[];
+};
+
+// RolesAnywhereProfile represents an AWS Roles Anywhere Profile.
+export type RolesAnywhereProfile = {
+  // The AWS Roles Anywhere Profile ARN.
+  arn: string;
+  // Whether the AWS Roles Anywhere Profile is enabled.
+  enabled: boolean;
+  // The name of the AWS Roles Anywhere Profile.
+  name: string;
+  // Whether the profile accepts role session names.
+  accept_role_session_name: boolean;
+  // The tags associated with the AWS Roles Anywhere Profile.
+  tags: string[];
+  // The roles accessible from this AWS Roles Anywhere Profile.
+  roles: string[];
 };
 
 // awsRegionMap maps the AWS regions to it's region name

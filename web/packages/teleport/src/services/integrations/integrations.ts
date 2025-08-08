@@ -17,6 +17,7 @@
  */
 
 import cfg from 'teleport/config';
+import { ProfilesFilterOption } from 'teleport/Integrations/Enroll/AwsConsole/Access/ProfilesFilter';
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import api from 'teleport/services/api';
@@ -62,8 +63,10 @@ import {
   ListAwsSubnetsResponse,
   ListEksClustersRequest,
   ListEksClustersResponse,
+  ListRolesAnywhereProfilesResponse,
   RdsEngineIdentifier,
   Regions,
+  RolesAnywhereProfile,
   SecurityGroup,
   SecurityGroupRule,
   Subnet,
@@ -572,6 +575,29 @@ export const integrationService = {
         };
       });
   },
+
+  awsRolesAnywhereProfiles(
+    variables: {
+      integrationName: string;
+      filters?: ProfilesFilterOption[];
+    },
+    signal?: AbortSignal
+  ): Promise<ListRolesAnywhereProfilesResponse> {
+    const { integrationName, filters } = variables;
+    const path = cfg.getAwsRolesAnywhereProfilesUrl(integrationName);
+
+    return api
+      .post(
+        path,
+        {
+          filters: filters?.length > 0 ? filters.map(f => f.value) : ['*'],
+        },
+        signal
+      )
+      .then(data => ({
+        profiles: data?.profiles?.map(profile => makeProfile(profile)) ?? [],
+      }));
+  },
 };
 
 function makeDatabaseServices(json: any): AWSOIDCDeployedDatabaseService[] {
@@ -694,5 +720,30 @@ function makeAwsSubnets(json: any): Subnet {
     name,
     id,
     availabilityZone: availability_zone,
+  };
+}
+
+function makeProfile(json: any): RolesAnywhereProfile {
+  json = json ?? {};
+
+  const { arn, enabled, name, accept_role_session_name, tags, roles } = json;
+
+  let arr: string[] = [];
+  if (tags != undefined) {
+    const parsedObject: { [key: string]: string } = JSON.parse(
+      JSON.stringify(tags[0])
+    );
+    Object.entries(parsedObject).forEach(entry => {
+      arr.push(entry.join(':'));
+    });
+  }
+
+  return {
+    arn,
+    enabled,
+    name,
+    accept_role_session_name,
+    tags: arr,
+    roles,
   };
 }

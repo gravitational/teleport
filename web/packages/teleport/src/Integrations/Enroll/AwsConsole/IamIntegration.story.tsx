@@ -20,6 +20,7 @@ import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
 
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
+import { makeErrorAttempt } from 'shared/hooks/useAsync';
 
 import cfg from 'teleport/config';
 import { ContextProvider } from 'teleport/index';
@@ -29,18 +30,19 @@ import { MockAwsOidcStatusProvider } from 'teleport/Integrations/status/AwsOidc/
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
 export default {
-  title: 'Teleport/Integrations/Enroll/AwsConsole',
+  title: 'Teleport/Integrations/Enroll/AwsConsole/IamIntegration',
 };
 
 const ctx = createTeleportContext();
+const raName = 'test-ra';
 
 // For success view use:
-// * Integration Name: test
+// * Integration Name: test-ra
 // * Trust Anchor, Profile and Role ARNs:
 //   arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo
 //   arn:aws:rolesanywhere:eu-west-2:123456789012:profile/bar
 //   arn:aws:iam::123456789012:role/baz
-export const PageOneIamIntegration = () => (
+export const Loaded = () => (
   <ContextProvider ctx={ctx}>
     <MockAwsOidcStatusProvider value={makeAwsOidcStatusContextState()} path="">
       <InfoGuidePanelProvider>
@@ -51,12 +53,12 @@ export const PageOneIamIntegration = () => (
     </MockAwsOidcStatusProvider>
   </ContextProvider>
 );
-PageOneIamIntegration.parameters = {
+Loaded.parameters = {
   msw: {
     handlers: [
       http.post(
         cfg.getAwsRolesAnywherePingUrl(
-          'test',
+          raName,
           'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo',
           'arn:aws:iam::123456789012:role/baz',
           'arn:aws:rolesanywhere:eu-west-2:123456789012:profile/bar'
@@ -67,6 +69,44 @@ PageOneIamIntegration.parameters = {
             accountID: 'fc2ef183-2ac0-4836-9d7d-ff873c99e733',
             arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo',
             userId: 'edd13a04-9956-4ef2-9ef5-7b0169e1cd5b',
+          });
+        }
+      ),
+    ],
+  },
+};
+
+export const ParentIssue = () => (
+  <ContextProvider ctx={ctx}>
+    <MockAwsOidcStatusProvider
+      value={makeAwsOidcStatusContextState({
+        statsAttempt: makeErrorAttempt(
+          new Error('Error with aws oidc parent integration.')
+        ),
+      })}
+      path=""
+    >
+      <InfoGuidePanelProvider>
+        <MemoryRouter>
+          <IamIntegration />
+        </MemoryRouter>
+      </InfoGuidePanelProvider>
+    </MockAwsOidcStatusProvider>
+  </ContextProvider>
+);
+ParentIssue.parameters = {
+  msw: {
+    handlers: [
+      http.post(
+        cfg.getAwsRolesAnywherePingUrl(
+          raName,
+          'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo',
+          'arn:aws:iam::123456789012:role/baz',
+          'arn:aws:rolesanywhere:eu-west-2:123456789012:profile/bar'
+        ),
+        () => {
+          return HttpResponse.json({
+            profiles: [],
           });
         }
       ),
