@@ -280,7 +280,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	}()
 
 	var tty *os.File
-	uaccEnabled := false
 
 	// If a terminal was requested, file descriptor 7 always points to the
 	// TTY. Extract it and set the controlling TTY. Otherwise, connect
@@ -343,39 +342,41 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 	readyfd = nil
-	uaccDB, err := uacc.NewUserAccounting(uacc.UaccConfig{
+	uaccDB, err := uacc.NewUserAccountHandler(uacc.UaccConfig{
 		IsPAMEnabled: c.PAMConfig != nil,
-		Utmp:         c.UaccMetadata.UtmpPath,
-		Wtmp:         c.UaccMetadata.WtmpPath,
-		Btmp:         c.UaccMetadata.BtmpPath,
+		UtmpFile:     c.UaccMetadata.UtmpPath,
+		WtmpFile:     c.UaccMetadata.WtmpPath,
+		BtmpFile:     c.UaccMetadata.BtmpPath,
+		WtmpdbFile:   c.UaccMetadata.WtmpdbPath,
 	})
 	if err != nil {
 		slog.DebugContext(ctx, "uacc unsupported", "error", err)
-	} else {
-		uaccEnabled = true
 	}
 
 	localUser, err := user.Lookup(c.Login)
 	if err != nil {
-		if uaccEnabled {
-			uaccErr := uaccDB.FailedLogin(c.Login, &c.UaccMetadata.RemoteAddr, time.Now())
-			if uaccErr != nil {
-				uaccEnabled = false
+		if uaccDB != nil {
+			if uaccErr := uaccDB.FailedLogin(c.Login, &c.UaccMetadata.RemoteAddr); uaccErr != nil {
 				slog.DebugContext(ctx, "uacc unsupported", "error", uaccErr)
 			}
 		}
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	var uaccKey []byte
-	if c.Terminal && uaccEnabled {
-		uaccKey, err = uaccDB.Login(tty, c.Login, &c.UaccMetadata.RemoteAddr, time.Now())
-		// uacc support is best-effort, only enable it if Open is successful.
+	var uaccSession *uacc.Session
+	if c.Terminal && uaccDB != nil {
+		uaccSession, err = uaccDB.OpenSession(tty, c.Login, &c.UaccMetadata.RemoteAddr)
+		// uacc support is best-effort, only enable it if OpenSession is successful.
 		// Currently, there is no way to log this error out-of-band with the
 		// command output, so for now we essentially ignore it.
 		if err != nil {
 			slog.DebugContext(ctx, "uacc unsupported", "error", err)
-			uaccEnabled = false
+		} else {
+			defer func() {
+				if err := uaccSession.Close(); err != nil {
+					slog.DebugContext(ctx, "uacc session failed to close", "error", err)
+				}
+			}()
 		}
 	}
 
@@ -444,13 +445,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	parkerCancel()
 
 	err = waitForShell(terminatefd, cmd)
-
-	if uaccEnabled {
-		uaccErr := uaccDB.Logout(uaccKey, time.Now())
-		if uaccErr != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(uaccErr)
-		}
-	}
 
 	return errorWriter, exitCode(err), trace.Wrap(err)
 }

@@ -20,7 +20,6 @@ import (
 	"database/sql"
 	"errors"
 	"net"
-	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -30,16 +29,21 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const wtmpdbLocation = "/var/lib/wtmpdb/wtmp.db"
-const USER_PROCESS = 3
+// defaultWtmpdbPath is the default location of the wtmpdb db file.
+const defaultWtmpdbPath = "/var/lib/wtmpdb/wtmp.db"
 
-type wtmpdbBackend struct {
+// userProcess is the wtmpdb entry type for user sessions.
+const userProcess = 3
+
+// WtmpdbBackend handles user accounting with a utmp(x) system.
+type WtmpdbBackend struct {
 	db *sql.DB
 }
 
-func newWtmpdb(dbPath string) (*wtmpdbBackend, error) {
+// NewWtmpdbBackend creates a new wtmpdb backend.
+func NewWtmpdbBackend(dbPath string) (*WtmpdbBackend, error) {
 	if dbPath == "" {
-		dbPath = wtmpdbLocation
+		dbPath = defaultWtmpdbPath
 	}
 	if !utils.FileExists(dbPath) {
 		return nil, trace.NotFound("no wtmpdb at %q", dbPath)
@@ -48,49 +52,48 @@ func newWtmpdb(dbPath string) (*wtmpdbBackend, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &wtmpdbBackend{db: db}, nil
+	_, err = db.Exec("CREATE TABLE IF NOT EXISTS wtmp(ID INTEGER PRIMARY KEY, Type INTEGER, User TEXT NOT NULL, Login INTEGER, Logout INTEGER, TTY TEXT, RemoteHost TEXT, Service TEXT) STRICT;")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &WtmpdbBackend{db: db}, nil
 }
 
-func (w *wtmpdbBackend) Login(ttyName, username string, remote net.Addr, ts time.Time) (string, error) {
+// Login creates a new session entry for the given user.
+func (w *WtmpdbBackend) Login(ttyName, username string, remote net.Addr, ts time.Time) (int64, error) {
 	stmt, err := w.db.Prepare("INSERT INTO wtmp(Type, User, Login, TTY, RemoteHost) VALUES(?,?,?,?,?)")
 	if err != nil {
-		return "", trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 	defer stmt.Close()
 	addr := utils.FromAddr(remote)
-	result, err := stmt.Exec(USER_PROCESS, username, ts.UnixMicro(), ttyName, addr.Host())
+	result, err := stmt.Exec(userProcess, username, ts.UnixMicro(), ttyName, addr.Host())
 	if err != nil {
 		if errors.Is(err, sqlite3.ErrReadonly) {
-			return "", trace.AccessDenied("cannot write to wtmpdb file, is teleport running as root?")
+			return 0, trace.AccessDenied("cannot write to wtmpdb file, is teleport running as root?")
 		}
-		return "", trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 	id, err := result.LastInsertId()
 	if err != nil {
-		return "", trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
-	return strconv.Itoa(int(id)), nil
+	return id, nil
 }
 
-func (w *wtmpdbBackend) Logout(id string, ts time.Time) error {
-	idInt, err := strconv.Atoi(id)
+// Logout marks the user corresponding to the given id (returned from Login) as logged out.
+func (w *WtmpdbBackend) Logout(id int64, ts time.Time) error {
+	stmt, err := w.db.Prepare("UPDATE wtmp SET Logout = ? WHERE ID = ?")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	stmt, err := w.db.Prepare("UPDATE wtmp SET Logout = ? WHERE ID = ?")
-	if err != nil {
-		return trace.Wrap(err, int64(idInt))
-	}
 	defer stmt.Close()
-	_, err = stmt.Exec(ts.UnixMicro(), idInt)
+	_, err = stmt.Exec(ts.UnixMicro(), id)
 	return trace.Wrap(err)
 }
 
-func (w *wtmpdbBackend) FailedLogin(username string, remote net.Addr, ts time.Time) error {
-	return trace.NotImplemented("wtmpdb backend does not support logging failed logins")
-}
-
-func (w *wtmpdbBackend) IsUserLoggedIn(username string) (bool, error) {
+// IsUserLoggedIn checks if the given user has an active session.
+func (w *WtmpdbBackend) IsUserLoggedIn(username string) (bool, error) {
 	stmt, err := w.db.Prepare("SELECT COUNT(1) FROM wtmp WHERE User = ? AND Logout IS NULL")
 	if err != nil {
 		return false, trace.Wrap(err)

@@ -20,7 +20,6 @@ package uacc
 
 import (
 	"encoding/binary"
-	"encoding/json"
 	"net"
 	"os"
 	"strings"
@@ -29,33 +28,36 @@ import (
 	"github.com/gravitational/trace"
 )
 
-type userKey struct {
-	Utmp   string
-	Wtmpdb string
-}
-
-type UserAccounting struct {
+// UserAccountHandler handles user accounting across multiple backends.
+type UserAccountHandler struct {
 	utmp         *UtmpBackend
-	wtmpdb       *wtmpdbBackend
+	wtmpdb       *WtmpdbBackend
 	isPAMEnabled bool
 }
 
+// UaccConfig configures NewUserAccounting.
 type UaccConfig struct {
+	// IsPAMEnabled indicates if PAM is in use (affects wtmpdb login/out).
 	IsPAMEnabled bool
-	WtmpdbFile   string
-	Utmp         string
-	Wtmp         string
-	Btmp         string
+	// WtmpdbFile is the path to an alternate wtmpdb database.
+	WtmpdbFile string
+	// UtmpFile is the path to an alternate utmp file.
+	UtmpFile string
+	// WtmpFile is the path to an alternate wtmp file.
+	WtmpFile string
+	// BtmpFile is the path to an alternate btmp file.
+	BtmpFile string
 }
 
-func NewUserAccounting(cfg UaccConfig) (*UserAccounting, error) {
-	uacc := &UserAccounting{
+// NewUserAccountHandler creates a new UserAccountHandler.
+func NewUserAccountHandler(cfg UaccConfig) (*UserAccountHandler, error) {
+	uacc := &UserAccountHandler{
 		isPAMEnabled: cfg.IsPAMEnabled,
 	}
-	if utmp, err := NewUtmpBackend(cfg.Utmp, cfg.Wtmp, cfg.Btmp); err == nil {
+	if utmp, err := NewUtmpBackend(cfg.UtmpFile, cfg.WtmpFile, cfg.BtmpFile); err == nil {
 		uacc.utmp = utmp
 	}
-	if wtmpdb, err := newWtmpdb(cfg.WtmpdbFile); err == nil {
+	if wtmpdb, err := NewWtmpdbBackend(cfg.WtmpdbFile); err == nil {
 		uacc.wtmpdb = wtmpdb
 	}
 	if uacc.utmp == nil && uacc.wtmpdb == nil {
@@ -64,28 +66,40 @@ func NewUserAccounting(cfg UaccConfig) (*UserAccounting, error) {
 	return uacc, nil
 }
 
-func (uacc *UserAccounting) Login(tty *os.File, username string, remote net.Addr, ts time.Time) ([]byte, error) {
-	ttyName, err := GetTTYName(tty)
+// Session represents a login session. It must be closed when the session is finished.
+type Session struct {
+	uacc      *UserAccountHandler
+	utmpKey   string
+	wtmpdbKey *int64
+}
+
+// OpenSession opens a new login session.
+func (uacc *UserAccountHandler) OpenSession(tty *os.File, username string, remote net.Addr) (*Session, error) {
+	loginTime := time.Now()
+	ttyFullName, err := os.Readlink(tty.Name())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var backendKeys userKey
+	ttyName := strings.TrimPrefix(ttyFullName, "/dev/")
+
 	var anySucceeded bool
+	session := &Session{
+		uacc: uacc,
+	}
 	errors := make([]error, 0, 2)
 	if uacc.utmp != nil {
-		utmpKey, err := uacc.utmp.Login(ttyName, username, remote, ts)
-		if err == nil {
+		if err := uacc.utmp.Login(ttyName, username, remote, loginTime); err == nil {
 			anySucceeded = true
-			backendKeys.Utmp = utmpKey
+			session.utmpKey = ttyName
 		} else {
 			errors = append(errors, err)
 		}
 	}
 	if uacc.wtmpdb != nil && !uacc.isPAMEnabled {
-		wtmpdbKey, err := uacc.wtmpdb.Login(ttyName, username, remote, ts)
+		key, err := uacc.wtmpdb.Login(ttyName, username, remote, loginTime)
 		if err == nil {
 			anySucceeded = true
-			backendKeys.Wtmpdb = wtmpdbKey
+			session.wtmpdbKey = &key
 		} else {
 			errors = append(errors, err)
 		}
@@ -93,34 +107,31 @@ func (uacc *UserAccounting) Login(tty *os.File, username string, remote net.Addr
 	if !anySucceeded {
 		return nil, trace.NewAggregate(errors...)
 	}
-	key, err := json.Marshal(backendKeys)
-	return key, trace.Wrap(err)
+	return session, nil
 }
 
-func (uacc *UserAccounting) Logout(key []byte, ts time.Time) error {
-	var backendKeys userKey
-	if err := json.Unmarshal(key, &backendKeys); err != nil {
-		return trace.Wrap(err)
-	}
+// Close closes the login session.
+func (session *Session) Close() error {
+	logoutTime := time.Now()
 	var anySucceeded bool
 	errors := make([]error, 0, 2)
-	if backendKeys.Utmp != "" {
-		if uacc.utmp == nil {
+	if session.utmpKey != "" {
+		if session.uacc.utmp == nil {
 			return trace.BadParameter("utmp not supported")
 		}
-		if err := uacc.utmp.Logout(backendKeys.Utmp, ts); err == nil {
+		if err := session.uacc.utmp.Logout(session.utmpKey, logoutTime); err == nil {
 			anySucceeded = true
 		} else {
 			errors = append(errors, err)
 		}
 	}
-	if backendKeys.Wtmpdb != "" {
-		if uacc.wtmpdb == nil {
+	if session.wtmpdbKey != nil {
+		if session.uacc.wtmpdb == nil {
 			return trace.BadParameter("wtmpdb not supported")
-		} else if uacc.isPAMEnabled {
+		} else if session.uacc.isPAMEnabled {
 			return trace.BadParameter("wtmpdb login/logout is handled by PAM")
 		}
-		if err := uacc.wtmpdb.Logout(backendKeys.Wtmpdb, ts); err == nil {
+		if err := session.uacc.wtmpdb.Logout(*session.wtmpdbKey, logoutTime); err == nil {
 			anySucceeded = true
 		} else {
 			errors = append(errors, err)
@@ -132,9 +143,10 @@ func (uacc *UserAccounting) Logout(key []byte, ts time.Time) error {
 	return nil
 }
 
-func (uacc *UserAccounting) FailedLogin(username string, remote net.Addr, ts time.Time) error {
+// FailedLogin logs a failed login attempt.
+func (uacc *UserAccountHandler) FailedLogin(username string, remote net.Addr) error {
 	if uacc.utmp != nil {
-		if err := uacc.utmp.FailedLogin(username, remote, ts); err != nil {
+		if err := uacc.utmp.FailedLogin(username, remote, time.Now()); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -142,29 +154,8 @@ func (uacc *UserAccounting) FailedLogin(username string, remote net.Addr, ts tim
 	return nil
 }
 
-func (uacc *UserAccounting) IsUserLoggedIn(username string) (bool, error) {
-	errors := make([]error, 0, 2)
-	if uacc.utmp != nil {
-		loggedIn, err := uacc.utmp.IsUserLoggedIn(username)
-		if err != nil {
-			errors = append(errors, err)
-		} else if loggedIn {
-			return true, nil
-		}
-	}
-	if uacc.wtmpdb != nil {
-		loggedIn, err := uacc.wtmpdb.IsUserLoggedIn(username)
-		if err != nil {
-			errors = append(errors, err)
-		} else if loggedIn {
-			return true, nil
-		}
-	}
-	return false, trace.NewAggregate(errors...)
-}
-
-// PrepareAddr parses and transforms a net.Addr into a format usable by other uacc functions.
-func PrepareAddr(addr net.Addr) ([4]int32, error) {
+// prepareAddr parses and transforms a net.Addr into a format usable by other uacc functions.
+func prepareAddr(addr net.Addr) ([4]int32, error) {
 	stringIP, _, err := net.SplitHostPort(addr.String())
 	if err != nil {
 		return [4]int32{}, trace.Wrap(err)
@@ -184,12 +175,4 @@ func PrepareAddr(addr net.Addr) ([4]int32, error) {
 		groupedV6[i] = int32(binary.LittleEndian.Uint32(rawV6[i*4 : (i+1)*4]))
 	}
 	return groupedV6, nil
-}
-
-func GetTTYName(tty *os.File) (string, error) {
-	ttyFullName, err := os.Readlink(tty.Name())
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return strings.TrimPrefix(ttyFullName, "/dev/"), nil
 }
