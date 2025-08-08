@@ -49,6 +49,14 @@ func (process *TeleportProcess) runRelayService() error {
 	}
 	defer conn.Close()
 
+	accessPoint, err := process.newLocalCacheForRelay(conn.Client, []string{teleport.ComponentRelay})
+	if err != nil {
+		return err
+	}
+
+	// TODO(espadolini): use the access point
+	_ = accessPoint
+
 	var relayServer atomic.Pointer[presencev1.RelayServer]
 	relayServer.Store(&presencev1.RelayServer{
 		Kind:    apitypes.KindRelayServer,

@@ -3066,6 +3066,20 @@ func (process *TeleportProcess) newLocalCacheForProxy(clt authclient.ClientI, ca
 	return authclient.NewProxyWrapper(clt, cache), nil
 }
 
+func (process *TeleportProcess) newLocalCacheForRelay(clt authclient.ClientI, cacheName []string) (authclient.ReadRelayAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+
+	cache, err := process.NewLocalCache(clt, cache.ForRelay, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cache, nil
+}
+
 // newLocalCacheForRemoteProxy returns new instance of access point configured for a remote proxy.
 func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt authclient.ClientI, cacheName []string) (authclient.RemoteProxyAccessPoint, error) {
 	// if caching is disabled, return access point
