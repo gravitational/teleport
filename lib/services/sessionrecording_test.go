@@ -32,6 +32,8 @@ func TestValidateSessionRecordingConfig(t *testing.T) {
 		name      string
 		spec      types.SessionRecordingConfigSpecV2
 		params    types.SignatureAlgorithmSuiteParams
+		cloud     bool
+		fips      bool
 		expectErr error
 	}{
 		{
@@ -39,10 +41,8 @@ func TestValidateSessionRecordingConfig(t *testing.T) {
 			spec: types.SessionRecordingConfigSpecV2{
 				Mode: "node",
 			},
-			params: types.SignatureAlgorithmSuiteParams{
-				FIPS:  true,
-				Cloud: true,
-			},
+			fips:      true,
+			cloud:     true,
 			expectErr: nil,
 		},
 		{
@@ -89,9 +89,7 @@ func TestValidateSessionRecordingConfig(t *testing.T) {
 					Enabled: true,
 				},
 			},
-			params: types.SignatureAlgorithmSuiteParams{
-				FIPS: true,
-			},
+			fips:      true,
 			expectErr: trace.BadParameter("non-FIPS compliant session recording setting"),
 		},
 		{
@@ -105,9 +103,7 @@ func TestValidateSessionRecordingConfig(t *testing.T) {
 					},
 				},
 			},
-			params: types.SignatureAlgorithmSuiteParams{
-				Cloud: true,
-			},
+			cloud:     true,
 			expectErr: trace.BadParameter(`"manual_key_management" configuration is unsupported in Teleport Cloud`),
 		},
 		{
@@ -171,7 +167,7 @@ func TestValidateSessionRecordingConfig(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			err := services.ValidateSessionRecordingConfig(&types.SessionRecordingConfigV2{Spec: c.spec}, c.params)
+			err := services.ValidateSessionRecordingConfig(&types.SessionRecordingConfigV2{Spec: c.spec}, c.fips, c.cloud)
 			if c.expectErr == nil {
 				require.NoError(t, err)
 			} else {
