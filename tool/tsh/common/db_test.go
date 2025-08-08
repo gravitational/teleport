@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -52,7 +53,6 @@ import (
 	dbcommon "github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func registerFakeEnterpriseDBEngines(t *testing.T) {
@@ -87,9 +87,26 @@ func TestTshDB(t *testing.T) {
 	// this speeds up test suite setup substantially, which is where
 	// tests spend the majority of their time, especially when leaf
 	// clusters are setup.
-	testenv.WithResyncInterval(t, 0)
+	oldResyncInterval := defaults.ResyncInterval
+	defaults.ResyncInterval = 100 * time.Millisecond
+	// To detect tests that run in parallel incorrectly, call t.Setenv with a
+	// dummy env var - that function detects tests with parallel ancestors
+	// and panics, preventing improper use of this helper.
+	t.Setenv("WithResyncInterval", "1")
+	t.Cleanup(func() {
+		defaults.ResyncInterval = oldResyncInterval
+	})
+
 	// Proxy uses self-signed certificates in tests.
-	testenv.WithInsecureDevMode(t, true)
+	originalValue := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(true)
+	// To detect tests that run in parallel incorrectly, call t.Setenv with a
+	// dummy env var - that function detects tests with parallel ancestors
+	// and panics, preventing improper use of this helper.
+	t.Setenv("WithInsecureDevMode", "1")
+	t.Cleanup(func() {
+		lib.SetInsecureDevMode(originalValue)
+	})
 	t.Run("Login", testDatabaseLogin)
 	t.Run("List", testListDatabase)
 	t.Run("DatabaseSelection", testDatabaseSelection)

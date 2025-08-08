@@ -49,8 +49,15 @@ import (
 func TestEditResources(t *testing.T) {
 	t.Parallel()
 	log := utils.NewSlogLoggerForTests()
-	process := testenv.MakeTestServer(t, testenv.WithLogger(log))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(log))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	tests := []struct {
 		kind string
@@ -365,8 +372,15 @@ func TestEditEnterpriseResources(t *testing.T) {
 		},
 	})
 	log := utils.NewSlogLoggerForTests()
-	process := testenv.MakeTestServer(t, testenv.WithLogger(log))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(log))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	tests := []struct {
 		kind string
