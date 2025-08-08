@@ -81,6 +81,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -114,6 +115,7 @@ import (
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/inventory"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
@@ -5355,9 +5357,9 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 		tokens = append(tokens, tkns.GetStaticTokens()...)
 	}
 	// get user tokens:
-	userTokens, err := a.GetUserTokens(ctx)
+	userTokens, err := iterstream.Collect(clientutils.Resources(ctx, a.Services.ListUserTokens))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "retrieving user tokens")
 	}
 	// convert user tokens to machine tokens:
 	for _, t := range userTokens {
