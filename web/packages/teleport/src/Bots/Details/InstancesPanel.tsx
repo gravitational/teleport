@@ -27,13 +27,12 @@ import Flex from 'design/Flex/Flex';
 import { SortAscending, SortDescending } from 'design/Icon';
 import { Indicator } from 'design/Indicator/Indicator';
 import Text from 'design/Text';
-import { H2 } from 'design/Text/Text';
-import { fontWeights } from 'design/theme/typography';
 
 import { listBotInstances } from 'teleport/services/bot/bot';
 import useTeleport from 'teleport/useTeleport';
 
 import { Instance } from './Instance';
+import { PanelTitleText } from './Panel';
 
 export function InstancesPanel(props: { botName: string }) {
   const { botName } = props;
@@ -89,7 +88,7 @@ export function InstancesPanel(props: { botName: string }) {
   return (
     <Container>
       <TitleContainer>
-        <H2 fontWeight={fontWeights.bold}>Active Instances</H2>
+        <PanelTitleText>Active Instances</PanelTitleText>
         {isSuccess ? (
           <ActionButton onClick={handleToggleSort}>
             Recent

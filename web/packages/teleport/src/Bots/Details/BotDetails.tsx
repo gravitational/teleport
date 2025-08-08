@@ -348,18 +348,14 @@ function Trait(props: { traitName: string }) {
 
   const description = traitDescriptions[props.traitName];
 
-  const help = (
-    <Question
-      size={'small'}
-      color={theme.colors.interactive.tonal.neutral[3]}
-    />
-  );
-
   return description ? (
     <Flex gap={1}>
       {props.traitName}
       <HoverTooltip placement="top" tipContent={description}>
-        {help}
+        <Question
+          size={'small'}
+          color={theme.colors.interactive.tonal.neutral[3]}
+        />
       </HoverTooltip>
     </Flex>
   ) : (
@@ -445,11 +441,16 @@ function JoinTokens(props: { botName: string; onViewAllClicked: () => void }) {
                         placement="top"
                         tipContent={t.method}
                       >
-                        <SecondaryOutlined>
-                          <Flex alignItems={'center'} gap={1}>
+                        <SecondaryOutlined padding={0}>
+                          <Flex
+                            alignItems={'center'}
+                            gap={1}
+                            padding={1}
+                            paddingRight={2}
+                          >
                             <JoinMethodIcon
                               method={t.method}
-                              size={'small'}
+                              size={'large'}
                               includeTooltip={false}
                             />
                             <LabelText>{t.safeName}</LabelText>
