@@ -21,6 +21,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -57,6 +58,9 @@ type RecordingsCommand struct {
 	maxRecordingsToShow int
 	// recordingsSince is a duration which sets the time into the past in which to list session recordings
 	recordingsSince string
+
+	// stdout allows to switch standard output source for resource command. Used in tests.
+	stdout io.Writer
 }
 
 // Initialize allows RecordingsCommand to plug itself into the CLI parser
@@ -70,6 +74,13 @@ func (c *RecordingsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Glob
 	c.recordingsList.Flag("limit", fmt.Sprintf("Maximum number of recordings to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&c.maxRecordingsToShow)
 	c.recordingsList.Flag("last", "Duration into the past from which session recordings should be listed. Format 5h30m40s").StringVar(&c.recordingsSince)
 	c.recordingsEncryption.Initialize(recordings)
+	if c.stdout == nil {
+		c.stdout = os.Stdout
+	}
+
+	if c.recordingsEncryption.stdout == nil {
+		c.recordingsEncryption.stdout = c.stdout
+	}
 }
 
 // TryRun attempts to run subcommands like "recordings ls".
@@ -106,5 +117,5 @@ func (c *RecordingsCommand) ListRecordings(ctx context.Context, tc *authclient.C
 	if err != nil {
 		return trace.Errorf("getting session events: %v", err)
 	}
-	return trace.Wrap(common.ShowSessions(recordings, c.format, os.Stdout))
+	return trace.Wrap(common.ShowSessions(recordings, c.format, c.stdout))
 }

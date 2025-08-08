@@ -2,24 +2,42 @@ package common
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"os"
+	"io"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
+
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 type recordingsEncryptionCommand struct {
-	cmd         *kingpin.CmdClause
-	rotateCmd   *kingpin.CmdClause
-	statusCmd   *kingpin.CmdClause
+	cmd *kingpin.CmdClause
+	// rotateCmd implements the "tctl recordings encryption rotate" subcommand.
+	rotateCmd *kingpin.CmdClause
+
+	// statusCmd implements the "tctl recordings encryption status" subcommand.
+	statusCmd *kingpin.CmdClause
+
+	// completeCmd implements the "tctl recordings encryption complete" subcommand.
 	completeCmd *kingpin.CmdClause
+
+	// rollbackCmd implements the "tctl recordings encryption rollback" subcommand.
 	rollbackCmd *kingpin.CmdClause
+
+	// format is the output format (text, json, or yaml)
+	format string
+
+	// stdout allows to switch standard output source for resource command. Used in tests.
+	stdout io.Writer
 }
 
 func (c *recordingsEncryptionCommand) Initialize(recordingsCmd *kingpin.CmdClause) {
@@ -27,6 +45,7 @@ func (c *recordingsEncryptionCommand) Initialize(recordingsCmd *kingpin.CmdClaus
 
 	c.rotateCmd = c.cmd.Command("rotate", "Rotate encryption keys used for encrypting session recordings.")
 	c.statusCmd = c.cmd.Command("status", "Show current rotation status")
+	c.statusCmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+". Defaults to 'text'.").Default(teleport.Text).StringVar(&c.format)
 	c.completeCmd = c.cmd.Command("complete", "Completes an in-progress encryption key rotation.")
 	c.rollbackCmd = c.cmd.Command("rollback", "Rolls back an in-progress encryption key rotation.")
 }
@@ -62,7 +81,7 @@ func (c *recordingsEncryptionCommand) Rotate(ctx context.Context, tc *authclient
 	if _, err := client.RotateKey(ctx, &recordingencryptionv1.RotateKeyRequest{}); err != nil {
 		return trace.Errorf("rotating key encryption keys: %v", err)
 	}
-
+	fmt.Fprintln(c.stdout, "Rotation started")
 	return nil
 }
 
@@ -72,6 +91,7 @@ func (c *recordingsEncryptionCommand) Complete(ctx context.Context, tc *authclie
 		return trace.Errorf("completing encryption key rotation: %v", err)
 	}
 
+	fmt.Fprintln(c.stdout, "Rotation completed")
 	return nil
 }
 
@@ -81,6 +101,7 @@ func (c *recordingsEncryptionCommand) Rollback(ctx context.Context, tc *authclie
 		return trace.Errorf("rolling back encryption key rotation: %v", err)
 	}
 
+	fmt.Fprintln(c.stdout, "Rotation rollback successful")
 	return nil
 }
 
@@ -91,9 +112,36 @@ func (c *recordingsEncryptionCommand) Status(ctx context.Context, tc *authclient
 		return trace.Errorf("fetching encryption key status: %v", err)
 	}
 
+	switch c.format {
+	case teleport.Text, "":
+		return trace.Wrap(c.writeStatusText(c.stdout, res.GetKeyPairs()))
+	case teleport.YAML:
+		return trace.Wrap(c.writeStatusYAML(c.stdout, res.GetKeyPairs()))
+	case teleport.JSON:
+		return trace.Wrap(c.writeStatusJSON(c.stdout, res.GetKeyPairs()))
+	}
+
+	return trace.Wrap(err, "writing encryption key status")
+}
+
+func (c *recordingsEncryptionCommand) writeStatusJSON(w io.Writer, keyStates []*recordingencryptionv1.FingerprintWithState) error {
+	data, err := json.MarshalIndent(keyStates, "", "    ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}
+
+func (c *recordingsEncryptionCommand) writeStatusYAML(w io.Writer, keyStates []*recordingencryptionv1.FingerprintWithState) error {
+	return trace.Wrap(utils.WriteYAML(w, keyStates))
+}
+
+func (c *recordingsEncryptionCommand) writeStatusText(w io.Writer, keyStates []*recordingencryptionv1.FingerprintWithState) error {
 	rotationState := recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_UNSPECIFIED
 	t := asciitable.MakeTable([]string{"Key Pair Fingerprint", "State"})
-	for _, pair := range res.KeyPairs {
+	for _, pair := range keyStates {
 		if pair.State == recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_INACCESSIBLE {
 			rotationState = pair.State
 		}
@@ -109,14 +157,13 @@ func (c *recordingsEncryptionCommand) Status(ctx context.Context, tc *authclient
 
 	switch rotationState {
 	case recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_INACCESSIBLE:
-		fmt.Println("Rotation failed due to inaccessible key")
+		fmt.Fprintln(w, "Rotation failed due to inaccessible key")
 	case recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING:
-		fmt.Println("Rotation in progress")
-
+		fmt.Fprintln(w, "Rotation in progress")
 	}
 
-	_, err = t.AsBuffer().WriteTo(os.Stdout)
-	return trace.Wrap(err, "writing table")
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
 }
 
 func (c *recordingsEncryptionCommand) getFriendlyStatusString(state recordingencryptionv1.KeyPairState) string {
