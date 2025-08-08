@@ -1637,6 +1637,15 @@ terraform-resources-up-to-date: must-start-clean/host
 		exit 1; \
 	fi
 
+# icons-up-to-date checks if icons were pre-processed before being added to the repo.
+.PHONY: icons-up-to-date
+icons-up-to-date: must-start-clean/host
+	pnpm process-icons
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "icons (see web/packages/design/src/Icon/README.md)" "pnpm process-icons"; \
+		exit 1; \
+	fi
+
 # go-generate will execute `go generate` and generate go code.
 .PHONY: go-generate
 go-generate:
