@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "17.7.1"
+const Version = "17.7.2-dev.signcsrs.1"
 
 const VersionMajor = 17
 const VersionMinor = 7
-const VersionPatch = 1
-const VersionPreRelease = ""
+const VersionPatch = 2
+const VersionPreRelease = "dev.signcsrs.1"
 const VersionMetadata = ""
