@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func requireDBEntry(t *testing.T, db *sql.DB, key string, expectUsername, expectTTY, expectAddr string, expectLoginTime, expectLogoutTime time.Time) {
+func requireDBEntry(t *testing.T, db *sql.DB, key int64, expectUsername, expectTTY, expectAddr string, expectLoginTime, expectLogoutTime time.Time) {
 	var user string
 	var tty, remoteHost sql.NullString
 	var wtmpType, loginTs, logoutTs sql.NullInt64
@@ -35,7 +35,7 @@ func requireDBEntry(t *testing.T, db *sql.DB, key string, expectUsername, expect
 		db.QueryRow("SELECT Type, User, Login, TTY, RemoteHost, Logout FROM wtmp WHERE ID = ?", key).
 			Scan(&wtmpType, &user, &loginTs, &tty, &remoteHost, &logoutTs),
 	)
-	require.Equal(t, int64(USER_PROCESS), wtmpType.Int64)
+	require.Equal(t, int64(userProcess), wtmpType.Int64)
 	require.Equal(t, expectUsername, user)
 	require.Equal(t, expectTTY, tty.String)
 	require.Equal(t, expectAddr, remoteHost.String)
@@ -45,12 +45,14 @@ func requireDBEntry(t *testing.T, db *sql.DB, key string, expectUsername, expect
 
 func TestWtmpdb(t *testing.T) {
 	t.Parallel()
+	// Create database.
 	dbFile := filepath.Join(t.TempDir(), "wtmp.db")
-	wtmpdb, err := newWtmpdb(dbFile)
+	wtmpdb, err := NewWtmpdbBackend(dbFile)
 	require.NoError(t, err)
 	_, err = wtmpdb.db.Exec("CREATE TABLE IF NOT EXISTS wtmp(ID INTEGER PRIMARY KEY, Type INTEGER, User TEXT NOT NULL, Login INTEGER, Logout INTEGER, TTY TEXT, RemoteHost TEXT, Service TEXT) STRICT;")
 	require.NoError(t, err)
 
+	// Log in a user.
 	remote := &utils.NetAddr{
 		AddrNetwork: "tcp",
 		Addr:        "123.456.789.012",
@@ -60,11 +62,13 @@ func TestWtmpdb(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, key)
 
+	// Check that user was logged.
 	requireDBEntry(t, wtmpdb.db, key, "testuser", "pts/99", remote.Addr, loginTime, time.Unix(0, 0))
 	isUserLoggedIn, err := wtmpdb.IsUserLoggedIn("testuser")
 	require.NoError(t, err)
 	require.True(t, isUserLoggedIn)
 
+	// Check that logout is logged.
 	logoutTime := loginTime.Add(time.Hour)
 	require.NoError(t, wtmpdb.Logout(key, logoutTime))
 	requireDBEntry(t, wtmpdb.db, key, "testuser", "pts/99", remote.Addr, loginTime, logoutTime)

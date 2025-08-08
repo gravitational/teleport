@@ -99,6 +99,8 @@ func TestRootUTMPEntryExists(t *testing.T) {
 
 	utmp, err := uacc.NewUtmpBackend(s.utmpPath, s.wtmpPath, s.btmpPath)
 	require.NoError(t, err)
+	wtmpdb, err := uacc.NewWtmpdbBackend(s.wtmpdbPath)
+	require.NoError(t, err)
 
 	t.Run("successful login is logged in utmp and wtmp", func(t *testing.T) {
 		sshConfig := &ssh.ClientConfig{
@@ -133,6 +135,10 @@ func TestRootUTMPEntryExists(t *testing.T) {
 			checkUserInFile(collect, utmp, s.wtmpPath, teleportTestUser, true)
 			// Ensure than an entry was not written to btmp.
 			checkUserInFile(collect, utmp, s.btmpPath, teleportTestUser, false)
+
+			inWtmpdb, err := wtmpdb.IsUserLoggedIn(teleportTestUser)
+			assert.NoError(collect, err)
+			assert.True(collect, inWtmpdb)
 		}, 5*time.Minute, time.Second, "did not detect utmp entry within 5 minutes")
 	})
 
@@ -172,37 +178,6 @@ func TestRootUTMPEntryExists(t *testing.T) {
 		}, 5*time.Minute, time.Second, "did not detect btmp entry within 5 minutes")
 	})
 
-}
-
-// TestUsernameLimit tests that the maximum length of usernames is a hard error.
-func TestRootUsernameLimit(t *testing.T) {
-	if !isRoot() {
-		t.Skip("This test will be skipped because tests are not being run as root.")
-	}
-
-	dir := t.TempDir()
-	utmpPath := filepath.Join(dir, "utmp")
-	wtmpPath := filepath.Join(dir, "wtmp")
-	btmpPath := filepath.Join(dir, "btmp")
-
-	err := TouchFile(utmpPath)
-	require.NoError(t, err)
-	err = TouchFile(wtmpPath)
-	require.NoError(t, err)
-	err = TouchFile(btmpPath)
-	require.NoError(t, err)
-
-	utmp, err := uacc.NewUtmpBackend(utmpPath, wtmpPath, btmpPath)
-
-	// A 33 character long username.
-	username := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	_, err = utmp.Login("pts/99", username, &utils.NetAddr{Addr: "0.0.0.0:0"}, time.Now())
-	require.True(t, trace.IsBadParameter(err))
-
-	// A 32 character long username.
-	username = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	_, err = utmp.Login("pts/99", username, &utils.NetAddr{Addr: "0.0.0.0:0"}, time.Now())
-	require.False(t, trace.IsBadParameter(err))
 }
 
 // upack holds all ssh signing artifacts needed for signing and checking user keys
