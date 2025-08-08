@@ -63,14 +63,21 @@ type pluginDeleteArgs struct {
 	name string
 }
 
+type pluginUpdateCredsArgs struct {
+	cmd     *kingpin.CmdClause
+	name    string
+	payload string
+}
+
 // PluginsCommand allows for management of plugins.
 type PluginsCommand struct {
-	config     *servicecfg.Config
-	cleanupCmd *kingpin.CmdClause
-	pluginType string
-	dryRun     bool
-	install    pluginInstallArgs
-	delete     pluginDeleteArgs
+	config      *servicecfg.Config
+	cleanupCmd  *kingpin.CmdClause
+	pluginType  string
+	dryRun      bool
+	install     pluginInstallArgs
+	delete      pluginDeleteArgs
+	updateCreds pluginUpdateCredsArgs
 }
 
 // Initialize creates the plugins command and subcommands
@@ -86,6 +93,7 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalC
 
 	p.initInstall(pluginsCommand, config)
 	p.initDelete(pluginsCommand)
+	p.initUpdateCreds(pluginsCommand)
 }
 
 func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicecfg.Config) {
@@ -167,6 +175,34 @@ func (p *PluginsCommand) Cleanup(ctx context.Context, args installPluginArgs) er
 	return nil
 }
 
+func (p *PluginsCommand) initUpdateCreds(parent *kingpin.CmdClause) {
+	p.updateCreds.cmd = parent.Command("rotate-creds", "Rotates a plugin's primary credential.")
+	p.updateCreds.cmd.
+		Arg("name", "The name of the plugin resource to update").
+		StringVar(&p.updateCreds.name)
+
+	p.updateCreds.cmd.
+		Arg("payload", "The name of the plugin resource to update").
+		StringVar(&p.updateCreds.payload)
+}
+
+func (p *PluginsCommand) UpdateCreds(ctx context.Context, args installPluginArgs) error {
+	req := pluginsv1.UpdatePluginStaticCredentialsRequest{
+		Name:       p.updateCreds.name,
+		Credential: &types.PluginStaticCredentialsSpecV1{},
+	}
+
+	req.Credential.Credentials = &types.PluginStaticCredentialsSpecV1_APIToken{
+		APIToken: p.updateCreds.payload,
+	}
+
+	if _, err := args.plugins.UpdatePluginStaticCredentials(ctx, &req); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 type authClient interface {
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
 	CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
@@ -186,6 +222,7 @@ type pluginsClient interface {
 	NeedsCleanup(ctx context.Context, in *pluginsv1.NeedsCleanupRequest, opts ...grpc.CallOption) (*pluginsv1.NeedsCleanupResponse, error)
 	Cleanup(ctx context.Context, in *pluginsv1.CleanupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	DeletePlugin(ctx context.Context, in *pluginsv1.DeletePluginRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpdatePluginStaticCredentials(ctx context.Context, in *pluginsv1.UpdatePluginStaticCredentialsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type installPluginArgs struct {
@@ -213,6 +250,8 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 		commandFunc = p.InstallGithub
 	case p.delete.cmd.FullCommand():
 		commandFunc = p.Delete
+	case p.updateCreds.cmd.FullCommand():
+		commandFunc = p.UpdateCreds
 	default:
 		return false, nil
 	}
