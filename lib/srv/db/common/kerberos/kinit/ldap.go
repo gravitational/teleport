@@ -122,7 +122,7 @@ func (s *ldapConnector) GetActiveDirectorySID(ctx context.Context, username stri
 	// Find the user's SID
 	filter := windows.CombineLDAPFilters([]string{
 		fmt.Sprintf("(%s=%s)", attrSAMAccountType, AccountTypeUser),
-		fmt.Sprintf("(%s=%s)", attrSAMAccountName, username),
+		fmt.Sprintf("(%s=%s)", attrSAMAccountName, ldap.EscapeFilter(username)),
 	})
 
 	domainDN := windows.DomainDN(s.ldapConfig.Domain)
