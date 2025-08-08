@@ -580,6 +580,79 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			desc: "kubernetes: oidc must have valid issuer",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Type: KubernetesJoinTypeOIDC,
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccount: "namespace:my-service-account",
+							},
+						},
+						OIDC: &ProvisionTokenSpecV2Kubernetes_OIDCConfig{
+							Issuer: "https://example.com",
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "kubernetes: http issuers not allowed without override",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Type: KubernetesJoinTypeOIDC,
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccount: "namespace:my-service-account",
+							},
+						},
+						OIDC: &ProvisionTokenSpecV2Kubernetes_OIDCConfig{
+							Issuer: "http://example.com",
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "kubernetes: http issuers are allowed with override",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Type: KubernetesJoinTypeOIDC,
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccount: "namespace:my-service-account",
+							},
+						},
+						OIDC: &ProvisionTokenSpecV2Kubernetes_OIDCConfig{
+							Issuer:                  "http://example.com",
+							InsecureAllowHTTPIssuer: true,
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
 			desc: "gitlab empty allow rules",
 			token: &ProvisionTokenV2{
 				Metadata: Metadata{
