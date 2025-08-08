@@ -339,6 +339,9 @@ const (
 	// ProxyQueueSize is proxy service queue size
 	ProxyQueueSize = 8192
 
+	// RelayQueueSize is the watcher queue size for the relay cache.
+	RelayQueueSize = 8192
+
 	// UnifiedResourcesQueueSize is the unified resource watcher queue size
 	UnifiedResourcesQueueSize = 8192
 
