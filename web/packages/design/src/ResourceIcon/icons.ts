@@ -49,6 +49,25 @@ import avalara from './assets/avalara.svg?no-inline';
 import awsAccount from './assets/aws-account.svg?no-inline';
 import awsDark from './assets/aws-dark.svg?no-inline';
 import awsLight from './assets/aws-light.svg?no-inline';
+import awsaurora from './assets/awsaurora.svg?no-inline';
+import awscommandlineinterface from './assets/awscommandlineinterface.svg?no-inline';
+import awsdynamodb from './assets/awsdynamodb.svg?no-inline';
+import awsec2 from './assets/awsec2.svg?no-inline';
+import awselasticache from './assets/awselasticache.svg?no-inline';
+import awselasticblockstore from './assets/awselasticblockstore.svg?no-inline';
+import awselasticcontainerservice from './assets/awselasticcontainerservice.svg?no-inline';
+import awselasticsearchservice from './assets/awselasticsearchservice.svg?no-inline';
+import awsfargate from './assets/awsfargate.svg?no-inline';
+import awsiamidentitycenter from './assets/awsiamidentitycenter.svg?no-inline';
+import awsidentityandaccessmanagementiam from './assets/awsidentityandaccessmanagementiam.svg?no-inline';
+import awskeyspaces from './assets/awskeyspaces.svg?no-inline';
+import awsmanagementconsole from './assets/awsmanagementconsole.svg?no-inline';
+import awsmemorydb from './assets/awsmemorydb.svg?no-inline';
+import awsrds from './assets/awsrds.svg?no-inline';
+import awsredshift from './assets/awsredshift.svg?no-inline';
+import awsredshift2 from './assets/awsredshift2.svg?no-inline';
+import awssimplestorageservices3 from './assets/awssimplestorageservices3.svg?no-inline';
+import awssinglesignon from './assets/awssinglesignon.svg?no-inline';
 import azure from './assets/azure.svg?no-inline';
 import bill from './assets/bill.svg?no-inline';
 import bonusly from './assets/bonusly.svg?no-inline';
@@ -341,6 +360,25 @@ export {
   awsDark,
   awsLight,
   awsAccount,
+  awsaurora,
+  awscommandlineinterface,
+  awsdynamodb,
+  awsec2,
+  awselasticache,
+  awselasticblockstore,
+  awselasticcontainerservice,
+  awselasticsearchservice,
+  awsfargate,
+  awsiamidentitycenter,
+  awsidentityandaccessmanagementiam,
+  awskeyspaces,
+  awsmanagementconsole,
+  awsmemorydb,
+  awsrds,
+  awsredshift,
+  awsredshift2,
+  awssimplestorageservices3,
+  awssinglesignon,
   azure,
   bill,
   bonusly,
