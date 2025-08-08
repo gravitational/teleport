@@ -1752,6 +1752,7 @@ func TestSetupConfigFns(t *testing.T) {
 
 	setupFuncs := map[string]SetupConfigFn{
 		"ForProxy":          ForProxy,
+		"ForRelay":          ForRelay,
 		"ForRemoteProxy":    ForRemoteProxy,
 		"ForNode":           ForNode,
 		"ForKubernetes":     ForKubernetes,
@@ -1861,6 +1862,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 	cases := map[string]Config{
 		"ForAuth":        ForAuth(Config{}),
 		"ForProxy":       ForProxy(Config{}),
+		"ForRelay":       ForRelay(Config{}),
 		"ForRemoteProxy": ForRemoteProxy(Config{}),
 		"ForNode":        ForNode(Config{}),
 		"ForKubernetes":  ForKubernetes(Config{}),

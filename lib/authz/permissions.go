@@ -1099,8 +1099,36 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Namespaces: []string{
 						types.Wildcard,
 					},
+					NodeLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
+					AppLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
+					DatabaseLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
+					KubernetesLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
+					WindowsDesktopLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
 					Rules: []types.Rule{
-						// TODO(espadolini): define permissions for relay role
+						types.NewRule(types.KindAppServer, services.RO()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						types.NewRule(types.KindDatabaseServer, services.RO()),
+						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindKubeServer, services.RO()),
+						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindNode, services.RO()),
+						types.NewRule(types.KindRelayServer, services.RO()),
+						types.NewRule(types.KindRole, services.RO()),
+						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+						types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindWindowsDesktop, services.RO()),
 					},
 				},
 			},
