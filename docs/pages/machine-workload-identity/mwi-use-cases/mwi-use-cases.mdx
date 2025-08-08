@@ -21,14 +21,14 @@ A [CI/CD system](../mwi-use-cases/mwi-ci-cd.mdx) securely deploys services to Ku
 These examples illustrate how Machine & Workload Identity enable secure, scalable API access for cloud-native applications running in Kubernetes:
 
 - Monitoring and observability exporters
-Custom exporters or telemetry agents running in the cluster push metrics and traces to platforms like Datadog, New Relic, or Grafana Cloud. 
-Workload Identity replaces long-lived API keys with ephemeral credentials tied to the workload's identity.
+Custom exporters or telemetry agents in the cluster send metrics and traces to platforms like Datadog, New Relic, or Grafana Cloud. Machine & Workload Identity replaces 
+static API keys with short-lived credentials tied to the exporter's identity, improving security and auditability.
 - Data processing pipelines
 A Kubernetes-based ETL application pulls data from external sources like AWS S3, processes it, and pushes results to third-party analytics or storage platforms. 
 Each workload uses a SPIFFE identity to authenticate securely via JWT or mTLS, eliminating static credentials.
 - Customer support automation
 A Kubernetes-based support app consumes internal service data and interacts with systems like Zendesk or Salesforce. 
-Machine ID ensures API calls originate only from authorized workloads, supporting fine-grained access control and auditability.
+Machine ID uses short-lived certificates to ensure API calls originate only from authorized workloads, enabling fine-grained access control and complete auditability.
 
 ## Zero Trust security implementation
 
