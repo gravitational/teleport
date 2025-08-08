@@ -122,13 +122,18 @@ const api = {
     );
   },
 
-  // TODO (avatus) add abort signal to this
-  put(url, data, mfaResponse?: MfaChallengeResponse) {
+  put(
+    url: string,
+    data: any,
+    abortSignal?: AbortSignal,
+    mfaResponse?: MfaChallengeResponse
+  ) {
     return api.fetchJsonWithMfaAuthnRetry(
       url,
       {
         body: JSON.stringify(data),
         method: 'PUT',
+        signal: abortSignal,
       },
       mfaResponse
     );

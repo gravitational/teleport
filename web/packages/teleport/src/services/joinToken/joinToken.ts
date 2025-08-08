@@ -119,11 +119,13 @@ class JoinTokenService {
 
   async editJoinToken(
     req: CreateJoinTokenRequest,
-    mfaResponse: MfaChallengeResponse
+    mfaResponse: MfaChallengeResponse,
+    abortSignal?: AbortSignal
   ) {
     const json = await api.put(
       cfg.getJoinTokenUrl({ action: 'update' }),
       req,
+      abortSignal,
       mfaResponse
     );
     return makeJoinToken(json);
