@@ -17,7 +17,7 @@ with servers it lists from the EC2 API. If an EC2 instance matches a configured
 label and is not enrolled in your cluster, the Discovery Service executes a
 script on these discovered instances using AWS Systems Manager that installs
 Teleport, starts it and joins the cluster using the [IAM join method](
-../../../agents/aws-iam.mdx).
+../../agents/aws-iam.mdx).
 
 The Teleport Discovery Service uses an IAM invite token with a long time-to-live
 (TTL), so that new instances can be discovered and added to the Teleport cluster
@@ -33,5 +33,5 @@ manual configuration may be suitable for you.
 
 ## Guides
 
-- [Guided EC2 Auto-Discovery Configuration](ec2-discovery-guided.mdx)
-- [Manual EC2 Auto-Discovery Configuration](ec2-discovery-manual.mdx)
+- [Guided EC2 Auto-Discovery Configuration](ec2-discovery/ec2-discovery-guided.mdx)
+- [Manual EC2 Auto-Discovery Configuration](ec2-discovery/ec2-discovery-manual.mdx)
