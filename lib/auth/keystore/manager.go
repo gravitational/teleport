@@ -50,7 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -801,7 +801,7 @@ func (m *Manager) hasUsableKeys(ctx context.Context, keySet types.CAKeySet) (*Us
 			allRawKeys = append(allRawKeys, jwtKeyPair.PrivateKey)
 		}
 	}
-	caKeyTypes := utils.NewSet[string]()
+	caKeyTypes := set.New[string]()
 	for _, rawKey := range allRawKeys {
 		desc, err := keyDescription(rawKey)
 		if err != nil {

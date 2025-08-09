@@ -1430,7 +1430,7 @@ func WithRoleMutator(mutate ...func(role types.Role)) CreateUserAndRoleOption {
 	}
 }
 
-// CreateUserAndRole creates user and role and assigns role to a user, used in tests
+// CreateUserAndRole creates user and role and assigns role to a user, used in tests.
 // If allowRules is nil, the role has admin privileges.
 // If allowRules is not-nil, then the rules associated with the role will be
 // replaced with those specified.

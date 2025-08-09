@@ -64,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 var (
@@ -199,8 +200,8 @@ func TestAuthenticate(t *testing.T) {
 			),
 			activeRequests: activeAccessRequests,
 			wantCtx: &authContext{
-				kubeUsers:       utils.NewSet("user-a"),
-				kubeGroups:      utils.NewSet("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
+				kubeUsers:       set.New("user-a"),
+				kubeGroups:      set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
 				kubeClusterName: "local",
 				kubeClusterLabels: map[string]string{
 					"static_label1": "static_value1",
@@ -276,8 +277,8 @@ func TestAuthenticate(t *testing.T) {
 				},
 			),
 			wantCtx: &authContext{
-				kubeUsers:       utils.NewSet("user-a"),
-				kubeGroups:      utils.NewSet("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
+				kubeUsers:       set.New("user-a"),
+				kubeGroups:      set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
 				kubeClusterName: "local",
 				kubeClusterLabels: map[string]string{
 					"static_label1": "static_value1",
@@ -327,8 +328,8 @@ func TestAuthenticate(t *testing.T) {
 			),
 
 			wantCtx: &authContext{
-				kubeUsers:         utils.NewSet("user-a"),
-				kubeGroups:        utils.NewSet("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
+				kubeUsers:         set.New("user-a"),
+				kubeGroups:        set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
 				kubeClusterName:   "local",
 				kubeClusterLabels: make(map[string]string),
 				certExpires:       certExpiration,
@@ -371,8 +372,8 @@ func TestAuthenticate(t *testing.T) {
 				},
 			),
 			wantCtx: &authContext{
-				kubeUsers:         utils.NewSet("user-a"),
-				kubeGroups:        utils.NewSet("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
+				kubeUsers:         set.New("user-a"),
+				kubeGroups:        set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
 				kubeClusterName:   "local",
 				certExpires:       certExpiration,
 				kubeClusterLabels: make(map[string]string),
@@ -417,8 +418,8 @@ func TestAuthenticate(t *testing.T) {
 				},
 			),
 			wantCtx: &authContext{
-				kubeUsers:         utils.NewSet("user-a"),
-				kubeGroups:        utils.NewSet("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
+				kubeUsers:         set.New("user-a"),
+				kubeGroups:        set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
 				kubeClusterName:   "local",
 				certExpires:       certExpiration,
 				kubeClusterLabels: make(map[string]string),
@@ -525,8 +526,8 @@ func TestAuthenticate(t *testing.T) {
 			),
 
 			wantCtx: &authContext{
-				kubeUsers:         utils.NewSet("kube-user-a", "kube-user-b"),
-				kubeGroups:        utils.NewSet("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
+				kubeUsers:         set.New("kube-user-a", "kube-user-b"),
+				kubeGroups:        set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
 				kubeClusterName:   "local",
 				kubeClusterLabels: make(map[string]string),
 				certExpires:       certExpiration,
@@ -586,8 +587,8 @@ func TestAuthenticate(t *testing.T) {
 			),
 
 			wantCtx: &authContext{
-				kubeUsers:         utils.NewSet("user-a"),
-				kubeGroups:        utils.NewSet("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
+				kubeUsers:         set.New("user-a"),
+				kubeGroups:        set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
 				kubeClusterName:   "local",
 				kubeClusterLabels: make(map[string]string),
 				certExpires:       certExpiration,
@@ -645,8 +646,8 @@ func TestAuthenticate(t *testing.T) {
 				},
 			),
 			wantCtx: &authContext{
-				kubeUsers:       utils.NewSet("user-a"),
-				kubeGroups:      utils.NewSet("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
+				kubeUsers:       set.New("user-a"),
+				kubeGroups:      set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
 				kubeClusterName: "foo",
 				certExpires:     certExpiration,
 				kubeClusterLabels: map[string]string{
@@ -940,8 +941,8 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 				&clusterSession{
 					kubeAPICreds: kubeCreds,
 					authContext: authContext{
-						kubeUsers:       utils.NewSet(tt.kubeUsers...),
-						kubeGroups:      utils.NewSet(tt.kubeGroups...),
+						kubeUsers:       set.New(tt.kubeUsers...),
+						kubeGroups:      set.New(tt.kubeGroups...),
 						teleportCluster: teleportClusterClient{isRemote: tt.remoteCluster},
 					},
 				},

@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -404,14 +405,14 @@ func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bo
 		traits[t.Name] = t.Values
 	}
 
-	currentLogins := utils.NewSet[string]()
+	currentLogins := set.New[string]()
 	if logins, exists := traits[constants.TraitLogins]; exists {
 		currentLogins.Add(logins...)
 	}
 
-	var desiredLogins utils.Set[string]
+	var desiredLogins set.Set[string]
 	if c.setLogins != "" {
-		desiredLogins = utils.NewSet[string](splitEntries(c.setLogins)...)
+		desiredLogins = set.New[string](splitEntries(c.setLogins)...)
 	} else {
 		desiredLogins = currentLogins.Clone()
 	}
@@ -458,11 +459,11 @@ type clientRoleGetter interface {
 // updateBotRoles applies updates from CLI arguments to a bot's roles, updating
 // the field mask as necessary if any updates were made.
 func (c *BotsCommand) updateBotRoles(ctx context.Context, client clientRoleGetter, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
-	currentRoles := utils.NewSet[string](bot.Spec.Roles...)
+	currentRoles := set.New[string](bot.Spec.Roles...)
 
-	var desiredRoles utils.Set[string]
+	var desiredRoles set.Set[string]
 	if c.botRoles != "" {
-		desiredRoles = utils.NewSet(splitEntries(c.botRoles)...)
+		desiredRoles = set.New(splitEntries(c.botRoles)...)
 	} else {
 		desiredRoles = currentRoles.Clone()
 	}

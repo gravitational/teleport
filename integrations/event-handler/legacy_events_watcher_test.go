@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/export"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // mockTeleportEventWatcher is Teleport client mock
@@ -138,7 +138,7 @@ func (c *mockTeleportEventWatcher) Close() error {
 }
 
 func newTeleportEventWatcher(t *testing.T, eventsClient TeleportSearchEventsClient, startTime time.Time, skipEventTypesRaw []string, exportFn func(context.Context, *TeleportEvent) error) *LegacyEventsWatcher {
-	skipEventTypes := utils.NewSet(skipEventTypesRaw...)
+	skipEventTypes := set.New(skipEventTypesRaw...)
 
 	cursor := LegacyCursorValues{WindowStartTime: startTime}
 

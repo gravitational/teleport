@@ -130,7 +130,6 @@ func TestAutoUsersPostgres(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			tc := tc
 			t.Parallel()
 
 			// At initial setup, only allows postgres (used to create execute the procedures).

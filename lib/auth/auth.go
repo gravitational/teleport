@@ -137,6 +137,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/lib/versioncontrol/github"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
@@ -5604,7 +5605,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 // appendImplicitlyRequiredResources examines the set of requested resources and adds
 // any extra resources that are implicitly required by the request.
 func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resources []types.ResourceID) ([]types.ResourceID, error) {
-	addedApps := utils.NewSet[string]()
+	addedApps := set.New[string]()
 	var userGroups []types.ResourceID
 	var accountAssignments []types.ResourceID
 
@@ -5638,7 +5639,7 @@ func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resource
 		}
 	}
 
-	icAccounts := utils.NewSet[string]()
+	icAccounts := set.New[string]()
 	for _, resource := range accountAssignments {
 		// The UI needs access to the account associated with an Account Assignment
 		// in order to display the enclosing Account, otherwise the user will not
@@ -5700,7 +5701,7 @@ func updateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.A
 	}
 
 	// For promotions, add in access list owners as additional suggested reviewers
-	additionalReviewers := utils.NewSet[string]()
+	additionalReviewers := set.New[string]()
 
 	// Iterate through the promotions, adding the owners of the corresponding access lists as reviewers.
 	for _, promotion := range promotions.Promotions {
@@ -6625,7 +6626,7 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 			}
 		}
 
-		accessListIDs := utils.NewSet[string]()
+		accessListIDs := set.New[string]()
 		for _, id := range identifiers {
 			// id.Spec.UniqueIdentifier is the access list ID
 			accessListIDs.Add(id.Spec.UniqueIdentifier)

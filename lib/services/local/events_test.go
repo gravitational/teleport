@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 func fetchEvent(t *testing.T, w types.Watcher, timeout time.Duration) types.Event {
@@ -91,7 +91,7 @@ func TestWatchers(t *testing.T) {
 			validateEvents: func(subtestCtx context.Context, subtestT *testing.T, watcher types.Watcher) {
 				// EXPECT that we receive at least 3 events notifying us of the
 				// CA creations
-				gotCertAuthIDSet := utils.NewSet[types.CertAuthID]()
+				gotCertAuthIDSet := set.New[types.CertAuthID]()
 				for range 3 {
 					event := fetchEvent(subtestT, watcher, fetchTimeout)
 

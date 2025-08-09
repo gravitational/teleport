@@ -25,7 +25,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // FluentdConfig represents fluentd instance configuration
@@ -78,8 +78,8 @@ type TeleportConfig struct {
 
 // Check verifies that a valid configuration is set
 func (cfg *TeleportConfig) Check() error {
-	provided := utils.NewSetWithCapacity[string](3)
-	missing := utils.NewSetWithCapacity[string](3)
+	provided := set.NewWithCapacity[string](3)
+	missing := set.NewWithCapacity[string](3)
 	if cfg.TeleportCert != "" {
 		provided.Add("`teleport.cert`")
 	} else {
@@ -237,8 +237,8 @@ func (c *StartCmdConfig) Validate() error {
 	if err := c.TeleportConfig.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	c.SkipSessionTypes = utils.NewSet(c.SkipEventTypesRaw...)
-	c.SkipEventTypes = utils.NewSet(c.SkipEventTypesRaw...)
+	c.SkipSessionTypes = set.New(c.SkipSessionTypesRaw...)
+	c.SkipEventTypes = set.New(c.SkipEventTypesRaw...)
 
 	if c.FluentdMaxConnections < 1 {
 		// 2x concurrency is effectively uncapped.

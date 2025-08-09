@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/parse"
+	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -2347,7 +2348,7 @@ func fewestLogins(roles []types.Role) []types.Role {
 }
 
 func countAllowedLogins(role types.Role) int {
-	allowed := utils.NewSet(role.GetLogins(types.Allow)...)
+	allowed := set.New(role.GetLogins(types.Allow)...)
 	for _, d := range role.GetLogins(types.Deny) {
 		allowed.Remove(d)
 	}

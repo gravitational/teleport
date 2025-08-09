@@ -80,6 +80,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // TestReadIdentity makes parses identity from private key and certificate
@@ -1262,7 +1263,7 @@ func TestPresets(t *testing.T) {
 
 		// EXPECT that createPresets will try to create all expected
 		// non-system roles
-		remainingPresets := utils.NewSet(expectedPresetRoles...)
+		remainingPresets := set.New(expectedPresetRoles...)
 		roleManager.
 			On("CreateRole", mock.Anything, mock.Anything).
 			Run(func(args mock.Arguments) {
