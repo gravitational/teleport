@@ -116,6 +116,7 @@ type Config struct {
 // auth preference.
 type AccessPoint interface {
 	services.RoleGetter
+	GetRoles(ctx context.Context) ([]types.Role, error)
 }
 
 // CheckAndSetDefaults checks and sets default values.
@@ -163,7 +164,10 @@ func (s *Server) ListKubernetesResources(ctx context.Context, req *proto.ListKub
 	if req.UseSearchAsRoles || req.UsePreviewAsRoles {
 		var extraRoles []string
 		if req.UseSearchAsRoles {
-			allowedSearchAsRoles := userContext.Checker.GetAllowedSearchAsRolesForKubeResourceKind(req.ResourceType)
+			allowedSearchAsRoles, err := userContext.Checker.GetAllowedSearchAsRolesForKubeResourceKind(ctx, s.cfg.AccessPoint, req.ResourceType)
+			if err != nil {
+				return nil, trail.ToGRPC(err)
+			}
 			extraRoles = append(extraRoles, allowedSearchAsRoles...)
 		}
 		if req.UsePreviewAsRoles {

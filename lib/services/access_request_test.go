@@ -1174,6 +1174,20 @@ func TestRolesForResourceRequest(t *testing.T) {
 		"splunk-super-admins": {
 			// ...
 		},
+		"allow-wildcard": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{"splunk-*"},
+				},
+			},
+		},
+		"deny-wildcard": {
+			Deny: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{"splunk-*"},
+				},
+			},
+		},
 	}
 	roles := make(map[string]types.Role)
 	for name, spec := range roleDesc {
@@ -1253,6 +1267,18 @@ func TestRolesForResourceRequest(t *testing.T) {
 			requestResourceIDs: resourceIDs,
 			expectError:        trace.AccessDenied(`Resource Access Requests require usable "search_as_roles", none found for user "test-user"`),
 		},
+		{
+			desc:                 "allowed role with regexp",
+			currentRoles:         []string{"allow-wildcard"},
+			requestResourceIDs:   resourceIDs,
+			expectRequestedRoles: []string{"splunk-admins", "splunk-super-admins", "splunk-response-team"},
+		},
+		{
+			desc:               "denied role with regexp",
+			currentRoles:       []string{"splunk-response-team", "deny-wildcard"},
+			requestResourceIDs: resourceIDs,
+			expectError:        trace.AccessDenied(`Resource Access Requests require usable "search_as_roles", none found for user "test-user"`),
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -1290,7 +1316,7 @@ func TestRolesForResourceRequest(t *testing.T) {
 				return
 			}
 
-			require.Equal(t, tc.expectRequestedRoles, req.GetRoles())
+			require.ElementsMatch(t, tc.expectRequestedRoles, req.GetRoles())
 		})
 	}
 }
