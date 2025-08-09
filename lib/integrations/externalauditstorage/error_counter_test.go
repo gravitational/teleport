@@ -51,7 +51,7 @@ func TestErrorCounter(t *testing.T) {
 		expectAlerts []alert
 	}{
 		{
-			desc: "upload errors alert",
+			desc: "recording upload errors alert",
 			steps: []testStep{
 				{
 					action: func(pack *testPack) {
@@ -68,12 +68,46 @@ func TestErrorCounter(t *testing.T) {
 			}},
 		},
 		{
-			desc: "download errors alert",
+			desc: "recording download errors alert",
 			steps: []testStep{
 				{
 					action: func(pack *testPack) {
 						pack.errHandler.Download(ctx, "", nil)
 						pack.successHandler.Download(ctx, "", nil)
+					},
+					repeat: 10,
+				},
+			},
+			err: testError,
+			expectAlerts: []alert{{
+				name:    sessionDownloadFailureClusterAlert,
+				message: fmt.Sprintf(sessionDownloadFailureClusterAlertMsgTemplate, testError),
+			}},
+		},
+		{
+			desc: "summary upload errors alert",
+			steps: []testStep{
+				{
+					action: func(pack *testPack) {
+						pack.errHandler.UploadSummary(ctx, "", nil)
+						pack.successHandler.UploadSummary(ctx, "", nil)
+					},
+					repeat: 10,
+				},
+			},
+			err: testError,
+			expectAlerts: []alert{{
+				name:    sessionUploadFailureClusterAlert,
+				message: fmt.Sprintf(sessionUploadFailureClusterAlertMsgTemplate, testError),
+			}},
+		},
+		{
+			desc: "summary download errors alert",
+			steps: []testStep{
+				{
+					action: func(pack *testPack) {
+						pack.errHandler.DownloadSummary(ctx, "", nil)
+						pack.successHandler.DownloadSummary(ctx, "", nil)
 					},
 					repeat: 10,
 				},
@@ -276,6 +310,14 @@ func (h *errorHandler) Upload(ctx context.Context, sessionID session.ID, reader 
 	return "", h.err
 }
 
-func (h *errorHandler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+func (h *errorHandler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return "", h.err
+}
+
+func (h *errorHandler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return h.err
+}
+
+func (h *errorHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	return h.err
 }
