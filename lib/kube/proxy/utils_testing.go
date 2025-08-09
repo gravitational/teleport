@@ -389,7 +389,7 @@ func (c *TestContext) startKubeServices(t *testing.T) {
 	go func() {
 		err := c.KubeServer.Serve(c.kubeServerListener)
 		// ignore server closed error returned when .Close is called.
-		if errors.Is(err, http.ErrServerClosed) {
+		if errors.Is(err, http.ErrServerClosed) || errors.Is(err, net.ErrClosed) {
 			return
 		}
 		assert.NoError(t, err)
@@ -398,7 +398,7 @@ func (c *TestContext) startKubeServices(t *testing.T) {
 	go func() {
 		err := c.KubeProxy.Serve(c.kubeProxyListener)
 		// ignore server closed error returned when .Close is called.
-		if errors.Is(err, http.ErrServerClosed) {
+		if errors.Is(err, http.ErrServerClosed) || errors.Is(err, net.ErrClosed) {
 			return
 		}
 		assert.NoError(t, err)
