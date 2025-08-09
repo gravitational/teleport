@@ -87,6 +87,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // KubeServiceType specifies a Teleport service type which can forward Kubernetes requests
@@ -1115,8 +1116,8 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	// fillDefaultKubePrincipalDetails fills the default details in order to keep
 	// the correct behavior when forwarding the request to the Kubernetes API.
 	kubeUsers, kubeGroups = fillDefaultKubePrincipalDetails(kubeUsers, kubeGroups, actx.User.GetName())
-	actx.kubeUsers = utils.NewSet(kubeUsers...)
-	actx.kubeGroups = utils.NewSet(kubeGroups...)
+	actx.kubeUsers = set.New(kubeUsers...)
+	actx.kubeGroups = set.New(kubeGroups...)
 
 	// Check authz against the first match.
 	//

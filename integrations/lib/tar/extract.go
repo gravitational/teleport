@@ -29,7 +29,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // Compression is a compression flag.
@@ -91,9 +91,9 @@ func Extract(reader io.Reader, options ExtractOptions) error {
 
 	tarReader := tar.NewReader(reader)
 
-	var filesDone utils.Set[string]
+	var filesDone set.Set[string]
 	if len(options.Files) > 0 {
-		filesDone = utils.NewSet(options.Files...)
+		filesDone = set.New(options.Files...)
 	}
 	for filesDone == nil || filesDone.Len() > 0 {
 		header, err := tarReader.Next()

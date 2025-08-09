@@ -105,6 +105,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/terminal"
@@ -3240,7 +3241,7 @@ type loginGetter interface {
 // so we need to ensure that we only present the allowed logins that would
 // result in a successful connection, if any exists.
 func calculateSSHLogins(identity *tlsca.Identity, allowedLogins []string) ([]string, error) {
-	allowed := utils.NewSet(allowedLogins...)
+	allowed := set.New(allowedLogins...)
 
 	var logins []string
 	for _, local := range identity.Principals {

@@ -96,8 +96,8 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
-	libutils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 func TestMain(m *testing.M) {
@@ -1512,7 +1512,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			t.Cleanup(discServer.Stop)
 			go discServer.Start()
 
-			clustersNotUpdatedMap := libutils.NewSet(tc.clustersNotUpdated...)
+			clustersNotUpdatedMap := set.New(tc.clustersNotUpdated...)
 			clustersFoundInAuth := false
 			require.Eventually(t, func() bool {
 			loop:

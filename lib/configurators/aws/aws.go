@@ -53,6 +53,7 @@ import (
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -1539,7 +1540,7 @@ func isStubAccountIDError(target awslib.Identity, err error) bool {
 // rolesForTarget returns all AWS roles from cli flags, AWS matchers, and
 // databases that the target identity will need to be able to assume.
 func rolesForTarget(forcedRoles []string, matchers []types.AWSMatcher, databases []*servicecfg.Database, resourceMatchers []services.ResourceMatcher, targetIsAssumeRole bool) []string {
-	roleSet := utils.NewSet(forcedRoles...)
+	roleSet := set.New(forcedRoles...)
 	if targetIsAssumeRole {
 		// if target is the same as some assume_role_arn in matchers/databases
 		// config, then it shouldn't assume other roles from config.

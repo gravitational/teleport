@@ -53,6 +53,7 @@ import (
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/parse"
+	setutils "github.com/gravitational/teleport/lib/utils/set"
 )
 
 // DefaultImplicitRules provides access to the default set of implicit rules
@@ -1437,8 +1438,8 @@ func (set RoleSet) AdjustDisconnectExpiredCert(disconnect bool) bool {
 // CheckKubeGroupsAndUsers check if role can login into kubernetes
 // and returns two lists of allowed groups and users
 func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) ([]string, []string, error) {
-	groups := utils.NewSet[string]()
-	users := utils.NewSet[string]()
+	groups := setutils.New[string]()
+	users := setutils.New[string]()
 	var matchedTTL bool
 	for _, role := range set {
 		ok, err := RoleMatchers(matchers).MatchAll(role, types.Allow)
@@ -1487,8 +1488,8 @@ func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, 
 // CheckDatabaseNamesAndUsers checks if the role has any allowed database
 // names or users.
 func (set RoleSet) CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL bool) ([]string, []string, error) {
-	names := utils.NewSet[string]()
-	users := utils.NewSet[string]()
+	names := setutils.New[string]()
+	users := setutils.New[string]()
 	var matchedTTL bool
 	for _, role := range set {
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
@@ -1521,7 +1522,7 @@ func (set RoleSet) CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL boo
 
 // CheckAWSRoleARNs returns a list of AWS role ARNs this role set is allowed to assume.
 func (set RoleSet) CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]string, error) {
-	arns := utils.NewSet[string]()
+	arns := setutils.New[string]()
 	var matchedTTL bool
 	for _, role := range set {
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
@@ -1586,7 +1587,7 @@ func (set RoleSet) CheckAzureIdentities(ttl time.Duration, overrideTTL bool) ([]
 
 // CheckGCPServiceAccounts returns a list of GCP service accounts this role set is allowed to assume.
 func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) ([]string, error) {
-	accounts := utils.NewSet[string]()
+	accounts := setutils.New[string]()
 	var matchedTTL bool
 	for _, role := range set {
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
@@ -1601,7 +1602,7 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 		for _, account := range role.GetGCPServiceAccounts(types.Deny) {
 			// deny * removes all accounts
 			if account == types.Wildcard {
-				accounts = utils.NewSet[string]()
+				accounts = setutils.New[string]()
 			}
 			// remove particular account
 			accounts.Remove(strings.ToLower(account))
@@ -3220,7 +3221,7 @@ func (set RoleSet) GetKubeResources(cluster types.KubeCluster, userTraits wrappe
 }
 
 func deduplicateKubeResources(resources []types.KubernetesResource) []types.KubernetesResource {
-	allKeys := utils.NewSet[string]()
+	allKeys := setutils.New[string]()
 	copy := make([]types.KubernetesResource, 0, len(resources))
 	for _, item := range resources {
 		key := item.String()
