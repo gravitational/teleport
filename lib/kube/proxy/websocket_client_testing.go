@@ -37,6 +37,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/portforward"
 	clientremotecommand "k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport"
 
@@ -132,6 +133,15 @@ func newWebSocketClient(config *rest.Config, method string, u *url.URL, opts ...
 //	CLOSE
 func (e *wsStreamClient) StreamWithContext(_ context.Context, options clientremotecommand.StreamOptions) error {
 	return trace.Wrap(e.Stream(options))
+}
+
+func (e *wsStreamClient) GetPorts() ([]portforward.ForwardedPort, error) {
+	return []portforward.ForwardedPort{
+		{
+			Local:  uint16(e.listener.Addr().(*net.TCPAddr).Port),
+			Remote: 8080,
+		},
+	}, nil
 }
 
 // Stream copies the contents from stdin into the connection and respective stdout and stderr
