@@ -148,7 +148,7 @@ read [Exporting Teleport Audit Events](../../zero-trust-access/export-audit-even
 | session.command | A list of commands ran during the session.  *Requires Enhanced Session Recording*. |
 | session.recording.access | A session recording has been accessed. |
 | exec | Remote command has been executed via SSH, like `tsh ssh root@node ls /`. The following fields will be logged: `{"command": "ls /", "exitCode": 0, "exitError": ""}` |
-| scp | Remote file copy has been executed. The following fields will be logged: `{"path": "/path/to/file.txt", "len": 32344, "action": "read" }` |
+| sftp | Remote file copy has been executed. The following fields will be logged: `{"user": "alice@example.com", "path": "/path/to/file.txt", "working_directory": "/home/ubuntu", "action": 1 }` |
 | resize | Terminal has been resized. |
 | user.login | A user logged into web UI or via tsh. The following fields will be logged: `{"user": "alice@example.com", "method": "local"}` . |
 | app.session.start | A user accessed an application |
