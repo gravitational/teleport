@@ -170,6 +170,13 @@ func ReadResourceJSON(r *http.Request, val any) error {
 	return readJSON(r, val, teleport.MaxResourceSize)
 }
 
+// ReadLoginJSON reads an HTTP JSON request for login-related endpoints and
+// unmarshals it into val. A small maximum size is enforced to mitigate
+// DoS/resource exhaustion attacks.
+func ReadLoginJSON(r *http.Request, val any) error {
+	return readJSON(r, val, teleport.MaxLoginRequestSize)
+}
+
 func readJSON(r *http.Request, val any, maxSize int64) error {
 	// Check content type to mitigate CSRF attack.
 	// (Form POST requests don't support application/json payloads.)

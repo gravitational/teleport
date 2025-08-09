@@ -2005,8 +2005,11 @@ func userMatchesConnector(username string, connector interface {
 // getUserMatchedAuthConnectors returns auth connectors that match the given username.
 func (h *Handler) getUserMatchedAuthConnectors(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
 	var req *getUserMatchedAuthConnectorsReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadLoginJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if req.Username != "" && len(req.Username) > teleport.MaxUsernameLength {
+		return nil, trace.BadParameter("username exceeds maximum length of %d characters", teleport.MaxUsernameLength)
 	}
 
 	githubConns, err := h.cfg.ProxyClient.GetGithubConnectors(r.Context(), false)
@@ -2647,8 +2650,11 @@ func newSessionResponse(sctx *SessionContext) (*CreateSessionResponse, error) {
 // {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
 func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	var req *CreateSessionReq
-	if err := httplib.ReadResourceJSON(r, &req); err != nil {
+	if err := httplib.ReadLoginJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if req.User != "" && len(req.User) > teleport.MaxUsernameLength {
+		return nil, trace.BadParameter("username exceeds maximum length of %d characters", teleport.MaxUsernameLength)
 	}
 
 	// get cluster preferences to see if we should login
@@ -2986,8 +2992,11 @@ func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (an
 // {"webauthn_challenge": {...}} // passwordless
 func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	var req *client.MFAChallengeRequest
-	if err := httplib.ReadResourceJSON(r, &req); err != nil {
+	if err := httplib.ReadLoginJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if req.User != "" && len(req.User) > teleport.MaxUsernameLength {
+		return nil, trace.BadParameter("username exceeds maximum length of %d characters", teleport.MaxUsernameLength)
 	}
 
 	mfaReq := &proto.CreateAuthenticateChallengeRequest{}
@@ -3037,8 +3046,11 @@ func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httpro
 // { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
 func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	var req *client.AuthenticateSSHUserRequest
-	if err := httplib.ReadResourceJSON(r, &req); err != nil {
+	if err := httplib.ReadLoginJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if req.User != "" && len(req.User) > teleport.MaxUsernameLength {
+		return nil, trace.BadParameter("username exceeds maximum length of %d characters", teleport.MaxUsernameLength)
 	}
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -3064,8 +3076,11 @@ func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httpr
 // {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
 func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	req := &client.AuthenticateWebUserRequest{}
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadLoginJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if req.User != "" && len(req.User) > teleport.MaxUsernameLength {
+		return nil, trace.BadParameter("username exceeds maximum length of %d characters", teleport.MaxUsernameLength)
 	}
 
 	clientMeta := clientMetaFromReq(r)
@@ -4452,8 +4467,11 @@ func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p http
 // { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
 func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	var req client.HeadlessLoginReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadLoginJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if req.User != "" && len(req.User) > teleport.MaxUsernameLength {
+		return nil, trace.BadParameter("username exceeds maximum length of %d characters", teleport.MaxUsernameLength)
 	}
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

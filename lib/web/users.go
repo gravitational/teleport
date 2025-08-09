@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
@@ -409,6 +410,9 @@ type saveUserRequest struct {
 func (r *saveUserRequest) checkAndSetDefaults() error {
 	if r.Name == "" {
 		return trace.BadParameter("missing user name")
+	}
+	if len(r.Name) > teleport.MaxUsernameLength {
+		return trace.BadParameter("username exceeds maximum length of %d characters", teleport.MaxUsernameLength)
 	}
 	if len(r.Roles) == 0 {
 		return trace.BadParameter("missing roles")

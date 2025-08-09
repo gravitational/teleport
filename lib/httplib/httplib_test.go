@@ -466,3 +466,60 @@ func TestOriginLocalRedirectURI(t *testing.T) {
 		})
 	}
 }
+
+func TestReadLoginJSON_SizeLimit(t *testing.T) {
+	t.Parallel()
+
+	type testLoginReq struct {
+		User string `json:"user"`
+		Pass string `json:"pass"`
+	}
+
+	testCases := []struct {
+		name    string
+		req     testLoginReq
+		wantErr bool
+	}{
+		{
+			name: "request below size limit",
+			req: testLoginReq{
+				User: "normal_user",
+				Pass: "password123",
+			},
+			wantErr: false,
+		},
+		{
+			name: "username at 48 char limit",
+			req: testLoginReq{
+				User: strings.Repeat("a", 48),
+				Pass: "password123",
+			},
+			wantErr: false,
+		},
+		{
+			name: "request over size limit",
+			req: testLoginReq{
+				User: strings.Repeat("a", 18000),
+				Pass: "password123",
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			payload, _ := json.Marshal(tc.req)
+			req := httptest.NewRequest("POST", "/test", bytes.NewReader(payload))
+			req.Header.Set("Content-Type", "application/json")
+
+			var result testLoginReq
+			err := ReadLoginJSON(req, &result)
+
+			if tc.wantErr {
+				require.Error(t, err, "expected error for %s", tc.name)
+			} else {
+				require.NoError(t, err, "expected no error for %s", tc.name)
+			}
+		})
+	}
+}

@@ -28,6 +28,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -36,6 +37,10 @@ import (
 func ValidateUser(u types.User) error {
 	if err := CheckAndSetDefaults(u); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if len(u.GetName()) > teleport.MaxUsernameLength {
+		return trace.BadParameter("username exceeds maximum length of %d characters", teleport.MaxUsernameLength)
 	}
 
 	if localAuth := u.GetLocalAuth(); localAuth != nil {

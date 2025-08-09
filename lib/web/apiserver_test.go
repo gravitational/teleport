@@ -11514,3 +11514,48 @@ func TestPingWithSAMLURL(t *testing.T) {
 		})
 	}
 }
+
+func TestLoginUsernameValidation(t *testing.T) {
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	clt := proxy.newClient(t)
+
+	testCases := []struct {
+		name     string
+		username string
+		wantErr  bool
+	}{
+		{
+			name:     "valid username",
+			username: "validuser",
+			wantErr:  false,
+		},
+		{
+			name:     "username at 48 char limit",
+			username: strings.Repeat("a", 48),
+			wantErr:  false,
+		},
+		{
+			name:     "username over 48 char limit",
+			username: strings.Repeat("a", 49),
+			wantErr:  true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			reqBody := map[string]string{
+				"user": tc.username,
+				"pass": "password123",
+			}
+
+			_, err := clt.PostJSON(context.Background(), clt.Endpoint("webapi", "mfa", "login", "begin"), reqBody)
+			if tc.wantErr {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "username exceeds maximum length")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
