@@ -103,7 +103,7 @@ var (
 			expectedTraits: map[string][]string{
 				"extragroups":            append([]string{"extra", "surplus"}, baseInputTraits["groups"]...),
 				"fewergroups":            {"devs"},
-				"nogroups":               {},
+				"nogroups":               nil,
 				"groups-by-another-name": baseInputTraits["groups"],
 				"logins":                 {"alice", "security-team"},
 			},
@@ -268,7 +268,7 @@ var (
 				"b": {"b"},
 				"c": {"c"},
 				"d": {"d"},
-				"e": {},
+				"e": nil,
 				"f": {"f"},
 				"g": {"g"},
 			},
