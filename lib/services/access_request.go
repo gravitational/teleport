@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/parse"
+	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -2347,14 +2348,11 @@ func fewestLogins(roles []types.Role) []types.Role {
 }
 
 func countAllowedLogins(role types.Role) int {
-	allowed := make(map[string]struct{})
-	for _, a := range role.GetLogins(types.Allow) {
-		allowed[a] = struct{}{}
-	}
+	allowed := set.New(role.GetLogins(types.Allow)...)
 	for _, d := range role.GetLogins(types.Deny) {
-		delete(allowed, d)
+		allowed.Remove(d)
 	}
-	return len(allowed)
+	return allowed.Len()
 }
 
 func (m *requestValidator) roleAllowsResource(

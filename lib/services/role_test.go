@@ -5214,7 +5214,7 @@ func TestCheckDatabaseRoles(t *testing.T) {
 			roleSet:          RoleSet{roleA, roleE, roleF},
 			inDatabaseLabels: map[string]string{"app": "metrics"},
 			outCreateUser:    true,
-			outRoles:         []string{},
+			outRoles:         nil, // TODO(zmb3): why sometimes empty slice other times nil?
 			outAllowPermissions: types.DatabasePermissions{
 				types.DatabasePermission{Permissions: []string{"SELECT", "UPDATE", "INSERT", "DELETE"}, Match: types.Labels{"*": apiutils.Strings{"*"}}},
 			},
@@ -5231,7 +5231,7 @@ func TestCheckDatabaseRoles(t *testing.T) {
 			roleSet:          RoleSet{roleA, roleE, roleF},
 			inDatabaseLabels: map[string]string{"app": "metrics", "env": "prod"},
 			outCreateUser:    true,
-			outRoles:         []string{},
+			outRoles:         nil,
 			// the overlap between outAllowPermissions and outDenyPermissions is expected.
 			// the permission arithmetic (e.g. removing denied permissions) will be done ba a downstream function.
 			outAllowPermissions: types.DatabasePermissions{
@@ -6312,7 +6312,7 @@ func TestCheckGCPServiceAccounts(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			accounts, err := tt.roles.CheckGCPServiceAccounts(tt.ttl, tt.overrideTTL)
-			require.Equal(t, tt.wantAccounts, accounts)
+			require.ElementsMatch(t, tt.wantAccounts, accounts)
 			tt.wantError(t, err)
 		})
 	}

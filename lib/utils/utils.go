@@ -30,7 +30,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -182,32 +181,6 @@ func ParseAdvertiseAddr(advertiseIP string) (string, string, error) {
 		}
 	}
 	return host, port, nil
-}
-
-// StringsSliceFromSet returns a sorted strings slice from set
-func StringsSliceFromSet(in map[string]struct{}) []string {
-	if in == nil {
-		return nil
-	}
-	out := make([]string, 0, len(in))
-	for key := range in {
-		out = append(out, key)
-	}
-	sort.Strings(out)
-	return out
-}
-
-// StringsSet creates set of string (map[string]struct{})
-// from a list of strings
-func StringsSet(in []string) map[string]struct{} {
-	if in == nil {
-		return map[string]struct{}{}
-	}
-	out := make(map[string]struct{})
-	for _, v := range in {
-		out[v] = struct{}{}
-	}
-	return out
 }
 
 // DNSName extracts DNS name from host:port string,
@@ -428,15 +401,8 @@ func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 
 // RemoveFromSlice makes a copy of the slice and removes the passed in values from the copy.
 func RemoveFromSlice(slice []string, values ...string) []string {
-	remove := make(map[string]struct{})
-	for _, value := range values {
-		remove[value] = struct{}{}
-	}
-
-	return slices.DeleteFunc(slice, func(s string) bool {
-		_, ok := remove[s]
-		return ok
-	})
+	remove := NewSet(values...)
+	return slices.DeleteFunc(slice, func(s string) bool { return remove.Contains(s) })
 }
 
 // ChooseRandomString returns a random string from the given slice.

@@ -33,8 +33,8 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib/logger"
-	"github.com/gravitational/teleport/integrations/lib/stringset"
 	"github.com/gravitational/teleport/lib/accessmonitoring"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -179,7 +179,7 @@ func (amrh *RuleHandler) RecipientsFromAccessMonitoringRules(ctx context.Context
 // RawRecipientsFromAccessMonitoringRules returns the recipients that result from the Access Monitoring Rules being applied to the given Access Request without converting to the rich recipient type.
 func (amrh *RuleHandler) RawRecipientsFromAccessMonitoringRules(ctx context.Context, req types.AccessRequest) []string {
 	log := logger.Get(ctx)
-	recipientSet := stringset.New()
+	recipientSet := set.New[string]()
 
 	env, err := amrh.newExpressionEnv(ctx, req)
 	if err != nil {
@@ -202,7 +202,7 @@ func (amrh *RuleHandler) RawRecipientsFromAccessMonitoringRules(ctx context.Cont
 			recipientSet.Add(recipient)
 		}
 	}
-	return recipientSet.ToSlice()
+	return recipientSet.Elements()
 }
 
 func (amrh *RuleHandler) getAllAccessMonitoringRules(ctx context.Context) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {

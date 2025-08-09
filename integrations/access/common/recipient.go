@@ -22,7 +22,7 @@ import (
 	"fmt"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/lib/stringset"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -75,7 +75,7 @@ func (r *RawRecipientsMap) UnmarshalTOML(in any) error {
 // - for each role, the list of reviewers
 // - if the role doesn't exist in the map (or it's empty), we add the list of recipients for the default role ("*") instead
 func (r RawRecipientsMap) GetRawRecipientsFor(roles, suggestedReviewers []string) []string {
-	recipients := stringset.New()
+	recipients := set.New[string]()
 
 	for _, role := range roles {
 		roleRecipients := r[role]
@@ -88,18 +88,16 @@ func (r RawRecipientsMap) GetRawRecipientsFor(roles, suggestedReviewers []string
 
 	recipients.Add(suggestedReviewers...)
 
-	return recipients.ToSlice()
+	return recipients.Elements()
 }
 
 // GetAllRawRecipients returns unique set of raw recipients
 func (r RawRecipientsMap) GetAllRawRecipients() []string {
-	recipients := stringset.New()
-
+	recipients := set.New[string]()
 	for _, r := range r {
 		recipients.Add(r...)
 	}
-
-	return recipients.ToSlice()
+	return recipients.Elements()
 }
 
 // Recipient is a generic representation of a message recipient. Its nature depends on the messaging service used.

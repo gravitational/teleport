@@ -189,7 +189,7 @@ func TestAutoUsersPostgres(t *testing.T) {
 			select {
 			case e := <-testCtx.postgres["postgres"].db.UserEventsCh():
 				require.Equal(t, "alice", e.Name)
-				require.Equal(t, tc.databaseRoles, e.Roles)
+				require.ElementsMatch(t, tc.databaseRoles, e.Roles)
 				require.True(t, e.Active)
 			case <-time.After(5 * time.Second):
 				t.Fatal("user not activated after 5s")
