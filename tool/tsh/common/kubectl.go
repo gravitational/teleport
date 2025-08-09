@@ -20,6 +20,8 @@ package common
 
 import (
 	"bufio"
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -34,6 +36,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/otel"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -45,6 +49,7 @@ import (
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
@@ -97,6 +102,7 @@ const (
 	// tshKubectlReexecEnvVar is the name of the environment variable used to control if
 	// tsh should re-exec or execute a kubectl command.
 	tshKubectlReexecEnvVar = "TSH_KUBE_REEXEC"
+	tshTraceContextEnvVar  = "TSH_TRACE_CONTEXT"
 )
 
 // runKubectlReexec reexecs itself and copies the `stderr` output into
@@ -110,7 +116,14 @@ func runKubectlReexec(cf *CLIConf, fullArgs, args []string, collector io.Writer)
 	}
 	defer closeFn()
 
-	cmdEnv := append(os.Environ(), fmt.Sprintf("%s=yes", tshKubectlReexecEnvVar))
+	cmdEnv := append(os.Environ(), tshKubectlReexecEnvVar+"=yes")
+	if span := oteltrace.SpanFromContext(cf.Context); span.IsRecording() {
+		if traceCtx := tracing.PropagationContextFromContext(cf.Context, tracing.WithTextMapPropagator(otel.GetTextMapPropagator())); len(traceCtx) > 0 {
+			if out, err := json.Marshal(traceCtx); err == nil {
+				cmdEnv = append(cmdEnv, tshTraceContextEnvVar+"="+string(out))
+			}
+		}
+	}
 
 	// Update kubeconfig location.
 	if newKubeConfigLocation != "" {
@@ -119,7 +132,7 @@ func runKubectlReexec(cf *CLIConf, fullArgs, args []string, collector io.Writer)
 	}
 
 	// Execute.
-	cmd := exec.Command(cf.executablePath, fullArgs...)
+	cmd := exec.CommandContext(cf.Context, cf.executablePath, fullArgs...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = io.MultiWriter(os.Stderr, collector)
@@ -129,19 +142,37 @@ func runKubectlReexec(cf *CLIConf, fullArgs, args []string, collector io.Writer)
 
 // wrapConfigFn wraps the rest.Config with a custom RoundTripper if the user
 // wants to sample traces.
-func wrapConfigFn(cf *CLIConf) func(c *rest.Config) *rest.Config {
+func wrapConfigFn(ctx context.Context, sample bool) func(c *rest.Config) *rest.Config {
 	return func(c *rest.Config) *rest.Config {
-		c.Wrap(
-			func(rt http.RoundTripper) http.RoundTripper {
-				if cf.SampleTraces {
-					// If the user wants to sample traces, wrap the transport with a trace
-					// transport.
-					return tracehttp.NewTransport(rt)
-				}
+		c.Wrap(func(rt http.RoundTripper) http.RoundTripper {
+			if !sample {
 				return rt
-			},
+			}
+
+			// Wrap the transport with a trace transport that injects a context as well
+			// since kubectl uses context.TODO() for all requests.
+			return &contextTripper{ctx: ctx, RoundTripper: tracehttp.NewTransport(rt)}
+		},
 		)
 		return c
+	}
+}
+
+type contextTripper struct {
+	ctx context.Context
+	http.RoundTripper
+}
+
+func (t *contextTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+	return t.RoundTripper.RoundTrip(r.WithContext(t.ctx))
+}
+
+func (t *contextTripper) CloseIdleConnections() {
+	type closeIdler interface {
+		CloseIdleConnections()
+	}
+	if c, ok := t.RoundTripper.(closeIdler); ok {
+		c.CloseIdleConnections()
 	}
 }
 
@@ -150,21 +181,16 @@ func wrapConfigFn(cf *CLIConf) func(c *rest.Config) *rest.Config {
 // because we need to retry kubectl calls and `kubectl` calls os.Exit in multiple
 // paths.
 func runKubectlCode(cf *CLIConf, args []string) {
-	closeTracer := initializeTracing(cf)
-	// If the user opted to not sample traces, cf.TracingProvider is pre-initialized
-	// with a noop provider.
 	ctx, span := cf.TracingProvider.Tracer("kubectl").Start(cf.Context, "kubectl")
-	closeSpanAndTracer := func() {
-		span.End()
-		closeTracer()
-	}
+	defer span.End()
+
 	// These values are the defaults used by kubectl and can be found here:
 	// https://github.com/kubernetes/kubectl/blob/3612c18ed86fc0a2f4467ca355b3e21569fabe0a/pkg/cmd/cmd.go#L94
 	defaultConfigFlags := genericclioptions.NewConfigFlags(true).
 		WithDeprecatedPasswordFlag().
 		WithDiscoveryBurst(300).
 		WithDiscoveryQPS(50.0).
-		WithWrapConfigFn(wrapConfigFn(cf))
+		WithWrapConfigFn(wrapConfigFn(ctx, cf.SampleTraces))
 
 	command := cmd.NewDefaultKubectlCommandWithArgs(
 		cmd.KubectlOptions{
@@ -182,13 +208,9 @@ func runKubectlCode(cf *CLIConf, args []string) {
 
 	// run command until it finishes.
 	if err := cli.RunNoErrOutput(command); err != nil {
-		closeSpanAndTracer()
 		// Pretty-print the error and exit with an error.
 		cmdutil.CheckErr(err)
 	}
-
-	closeSpanAndTracer()
-	os.Exit(0)
 }
 
 func runKubectlAndCollectRun(cf *CLIConf, fullArgs, args []string) error {

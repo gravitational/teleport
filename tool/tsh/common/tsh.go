@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -64,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
+	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -2007,18 +2009,7 @@ func initializeTracing(cf *CLIConf) func() {
 	// of remote spans this will also cause Teleport to sample any spans it generates
 	// in response to the client request.
 	const samplingRate = 1.0
-
 	switch {
-	// kubectl is a special case because it is the only command that we re-execute
-	// in order to be able to access the exit code and stdout/stderr of the command
-	// that was run and determine if we should create a new access request from
-	// the output data.
-	// We don't want to enable tracing for the master invocation of tsh kubectl
-	// because the data that we would be tracing would be the tsh kubectl command.
-	// Instead, we want to enable tracing for the re-executed kubectl command and
-	// we do that in the kubectl command handler.
-	case cf.command == "kubectl":
-		return func() {}
 	// The user explicitly asked for traces to be sent to a particular exporter
 	// instead of forwarding them to Auth. Proceed with creating the provider.
 	case cf.SampleTraces && cf.TraceExporter != "":
