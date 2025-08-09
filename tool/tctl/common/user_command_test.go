@@ -85,7 +85,9 @@ func TestUserAdd(t *testing.T) {
 	}
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
 	ctx := context.Background()
-	client := testenv.MakeDefaultAuthClient(t, process)
+	client, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
 
 	tests := []struct {
 		name string
@@ -244,7 +246,9 @@ func TestUserUpdate(t *testing.T) {
 	}
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
 	ctx := context.Background()
-	client := testenv.MakeDefaultAuthClient(t, process)
+	client, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
 
 	baseUser, err := types.NewUser("test-user")
 	require.NoError(t, err)
