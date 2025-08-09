@@ -39,7 +39,7 @@ import (
 )
 
 type sitesGetter interface {
-	GetSites() ([]reversetunnelclient.RemoteSite, error)
+	GetSites() ([]reversetunnelclient.Cluster, error)
 }
 
 // NewAuthProxyDialerService create new instance of AuthProxyDialerService.
