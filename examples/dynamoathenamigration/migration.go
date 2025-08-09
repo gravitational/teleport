@@ -773,6 +773,9 @@ func (t *task) loadEmitterCheckpoint(ctx context.Context, exportARN string) (*ch
 			return nil, nil
 		}
 		return nil, trace.Wrap(err)
+	} else if len(bb) == 0 {
+		// If the file is empty, ignore it. This may occur due to OOM errors.
+		return nil, nil
 	}
 	var out checkpointData
 	if err := json.Unmarshal(bb, &out); err != nil {
