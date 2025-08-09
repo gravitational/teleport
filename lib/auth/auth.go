@@ -771,6 +771,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		as.terraformIDTokenValidator = terraformcloud.NewIDTokenValidator(terraformcloud.IDTokenValidatorConfig{})
 	}
 
+	if as.env0IDTokenValidator == nil {
+		as.env0IDTokenValidator = terraformcloud.NewEnv0IDTokenValidator(terraformcloud.Env0IDTokenValidatorConfig{
+			Clock: as.clock,
+		})
+	}
+
 	if as.bitbucketIDTokenValidator == nil {
 		as.bitbucketIDTokenValidator = bitbucket.NewIDTokenValidator()
 	}
@@ -1235,6 +1241,11 @@ type Server struct {
 	// validated by the auth server using a known JWKS. It can be overridden for
 	// the purpose of tests.
 	terraformIDTokenValidator terraformCloudIDTokenValidator
+
+	// Env0IDTokenValidator allows JWTs from Env0 to be
+	// validated by the auth server using a known JWKS. It can be overridden for
+	// the purpose of tests.
+	Env0IDTokenValidator terraformCloudIDTokenValidator
 
 	bitbucketIDTokenValidator bitbucketIDTokenValidator
 
