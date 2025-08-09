@@ -65,6 +65,10 @@ service SummarizerService {
   rpc DeleteInferencePolicy(DeleteInferencePolicyRequest) returns (DeleteInferencePolicyResponse);
   // ListInferencePolicies lists all InferencePolicies that match the request.
   rpc ListInferencePolicies(ListInferencePoliciesRequest) returns (ListInferencePoliciesResponse);
+
+  // GetSummary retrieves the inference result for a session, which
+  // contains the session summary.
+  rpc GetSummary(GetSummaryRequest) returns (GetSummaryResponse);
 }
 
 // Summarization inference models
@@ -308,4 +312,16 @@ message ListInferencePoliciesResponse {
   // NextPageToken is the token to retrieve the next page of results, or empty
   // if there are no more results in the list.
   string next_page_token = 2;
+}
+
+// GetSummaryRequest is a request for retrieving a session recording summary.
+message GetSummaryRequest {
+  // SessionId is the ID of the session whose summary is being requested.
+  string session_id = 1;
+}
+
+// GetSummaryResponse is a response to retrieving a session recording summary.
+message GetSummaryResponse {
+  // Summary is the session recording summary.
+  Summary summary = 1;
 }
