@@ -46,10 +46,13 @@ const (
 	AccessListService_ListAccessListMembers_FullMethodName                   = "/teleport.accesslist.v1.AccessListService/ListAccessListMembers"
 	AccessListService_ListAllAccessListMembers_FullMethodName                = "/teleport.accesslist.v1.AccessListService/ListAllAccessListMembers"
 	AccessListService_GetAccessListMember_FullMethodName                     = "/teleport.accesslist.v1.AccessListService/GetAccessListMember"
+	AccessListService_GetStaticAccessListMember_FullMethodName               = "/teleport.accesslist.v1.AccessListService/GetStaticAccessListMember"
 	AccessListService_GetAccessListOwners_FullMethodName                     = "/teleport.accesslist.v1.AccessListService/GetAccessListOwners"
 	AccessListService_UpsertAccessListMember_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/UpsertAccessListMember"
+	AccessListService_UpsertStaticAccessListMember_FullMethodName            = "/teleport.accesslist.v1.AccessListService/UpsertStaticAccessListMember"
 	AccessListService_UpdateAccessListMember_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/UpdateAccessListMember"
 	AccessListService_DeleteAccessListMember_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/DeleteAccessListMember"
+	AccessListService_DeleteStaticAccessListMember_FullMethodName            = "/teleport.accesslist.v1.AccessListService/DeleteStaticAccessListMember"
 	AccessListService_DeleteAllAccessListMembersForAccessList_FullMethodName = "/teleport.accesslist.v1.AccessListService/DeleteAllAccessListMembersForAccessList"
 	AccessListService_DeleteAllAccessListMembers_FullMethodName              = "/teleport.accesslist.v1.AccessListService/DeleteAllAccessListMembers"
 	AccessListService_UpsertAccessListWithMembers_FullMethodName             = "/teleport.accesslist.v1.AccessListService/UpsertAccessListWithMembers"
@@ -95,16 +98,28 @@ type AccessListServiceClient interface {
 	ListAllAccessListMembers(ctx context.Context, in *ListAllAccessListMembersRequest, opts ...grpc.CallOption) (*ListAllAccessListMembersResponse, error)
 	// GetAccessListMember returns the specified access list member resource.
 	GetAccessListMember(ctx context.Context, in *GetAccessListMemberRequest, opts ...grpc.CallOption) (*Member, error)
+	// GetStaticAccessListMember returns the specified access_list_member resource. If returns error
+	// if the target access_list is not of type static.  This API is there for the IaC tools to
+	// prevent them from making changes to members of dynamic access lists.
+	GetStaticAccessListMember(ctx context.Context, in *GetStaticAccessListMemberRequest, opts ...grpc.CallOption) (*GetStaticAccessListMemberResponse, error)
 	// GetAccessListOwners returns a list of all owners in an Access List,
 	// including those inherited from nested Access Lists.
 	GetAccessListOwners(ctx context.Context, in *GetAccessListOwnersRequest, opts ...grpc.CallOption) (*GetAccessListOwnersResponse, error)
 	// UpsertAccessListMember creates or updates an access list member resource.
 	UpsertAccessListMember(ctx context.Context, in *UpsertAccessListMemberRequest, opts ...grpc.CallOption) (*Member, error)
+	// UpsertStaticAccessListMember creates or updates an access_list_member resource. It returns
+	// error and does nothing if the target access_list is not of type static. This API is there for
+	// the IaC tools to prevent them from making changes to members of dynamic access lists.
+	UpsertStaticAccessListMember(ctx context.Context, in *UpsertStaticAccessListMemberRequest, opts ...grpc.CallOption) (*UpsertStaticAccessListMemberResponse, error)
 	// UpdateAccessListMember conditionally updates an access list member resource.
 	UpdateAccessListMember(ctx context.Context, in *UpdateAccessListMemberRequest, opts ...grpc.CallOption) (*Member, error)
 	// DeleteAccessListMember hard deletes the specified access list member
 	// resource.
 	DeleteAccessListMember(ctx context.Context, in *DeleteAccessListMemberRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// DeleteStaticAccessListMember hard deletes the specified access_list_member. It returns error
+	// and does nothing if the target access_list is not of static type. This API is there for the
+	// IaC tools to prevent them from making changes to members of dynamic access lists.
+	DeleteStaticAccessListMember(ctx context.Context, in *DeleteStaticAccessListMemberRequest, opts ...grpc.CallOption) (*DeleteStaticAccessListMemberResponse, error)
 	// DeleteAllAccessListMembers hard deletes all access list members for an
 	// access list.
 	DeleteAllAccessListMembersForAccessList(ctx context.Context, in *DeleteAllAccessListMembersForAccessListRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -262,6 +277,16 @@ func (c *accessListServiceClient) GetAccessListMember(ctx context.Context, in *G
 	return out, nil
 }
 
+func (c *accessListServiceClient) GetStaticAccessListMember(ctx context.Context, in *GetStaticAccessListMemberRequest, opts ...grpc.CallOption) (*GetStaticAccessListMemberResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetStaticAccessListMemberResponse)
+	err := c.cc.Invoke(ctx, AccessListService_GetStaticAccessListMember_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *accessListServiceClient) GetAccessListOwners(ctx context.Context, in *GetAccessListOwnersRequest, opts ...grpc.CallOption) (*GetAccessListOwnersResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetAccessListOwnersResponse)
@@ -282,6 +307,16 @@ func (c *accessListServiceClient) UpsertAccessListMember(ctx context.Context, in
 	return out, nil
 }
 
+func (c *accessListServiceClient) UpsertStaticAccessListMember(ctx context.Context, in *UpsertStaticAccessListMemberRequest, opts ...grpc.CallOption) (*UpsertStaticAccessListMemberResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpsertStaticAccessListMemberResponse)
+	err := c.cc.Invoke(ctx, AccessListService_UpsertStaticAccessListMember_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *accessListServiceClient) UpdateAccessListMember(ctx context.Context, in *UpdateAccessListMemberRequest, opts ...grpc.CallOption) (*Member, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Member)
@@ -296,6 +331,16 @@ func (c *accessListServiceClient) DeleteAccessListMember(ctx context.Context, in
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, AccessListService_DeleteAccessListMember_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accessListServiceClient) DeleteStaticAccessListMember(ctx context.Context, in *DeleteStaticAccessListMemberRequest, opts ...grpc.CallOption) (*DeleteStaticAccessListMemberResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteStaticAccessListMemberResponse)
+	err := c.cc.Invoke(ctx, AccessListService_DeleteStaticAccessListMember_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -435,16 +480,28 @@ type AccessListServiceServer interface {
 	ListAllAccessListMembers(context.Context, *ListAllAccessListMembersRequest) (*ListAllAccessListMembersResponse, error)
 	// GetAccessListMember returns the specified access list member resource.
 	GetAccessListMember(context.Context, *GetAccessListMemberRequest) (*Member, error)
+	// GetStaticAccessListMember returns the specified access_list_member resource. If returns error
+	// if the target access_list is not of type static.  This API is there for the IaC tools to
+	// prevent them from making changes to members of dynamic access lists.
+	GetStaticAccessListMember(context.Context, *GetStaticAccessListMemberRequest) (*GetStaticAccessListMemberResponse, error)
 	// GetAccessListOwners returns a list of all owners in an Access List,
 	// including those inherited from nested Access Lists.
 	GetAccessListOwners(context.Context, *GetAccessListOwnersRequest) (*GetAccessListOwnersResponse, error)
 	// UpsertAccessListMember creates or updates an access list member resource.
 	UpsertAccessListMember(context.Context, *UpsertAccessListMemberRequest) (*Member, error)
+	// UpsertStaticAccessListMember creates or updates an access_list_member resource. It returns
+	// error and does nothing if the target access_list is not of type static. This API is there for
+	// the IaC tools to prevent them from making changes to members of dynamic access lists.
+	UpsertStaticAccessListMember(context.Context, *UpsertStaticAccessListMemberRequest) (*UpsertStaticAccessListMemberResponse, error)
 	// UpdateAccessListMember conditionally updates an access list member resource.
 	UpdateAccessListMember(context.Context, *UpdateAccessListMemberRequest) (*Member, error)
 	// DeleteAccessListMember hard deletes the specified access list member
 	// resource.
 	DeleteAccessListMember(context.Context, *DeleteAccessListMemberRequest) (*emptypb.Empty, error)
+	// DeleteStaticAccessListMember hard deletes the specified access_list_member. It returns error
+	// and does nothing if the target access_list is not of static type. This API is there for the
+	// IaC tools to prevent them from making changes to members of dynamic access lists.
+	DeleteStaticAccessListMember(context.Context, *DeleteStaticAccessListMemberRequest) (*DeleteStaticAccessListMemberResponse, error)
 	// DeleteAllAccessListMembers hard deletes all access list members for an
 	// access list.
 	DeleteAllAccessListMembersForAccessList(context.Context, *DeleteAllAccessListMembersForAccessListRequest) (*emptypb.Empty, error)
@@ -518,17 +575,26 @@ func (UnimplementedAccessListServiceServer) ListAllAccessListMembers(context.Con
 func (UnimplementedAccessListServiceServer) GetAccessListMember(context.Context, *GetAccessListMemberRequest) (*Member, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccessListMember not implemented")
 }
+func (UnimplementedAccessListServiceServer) GetStaticAccessListMember(context.Context, *GetStaticAccessListMemberRequest) (*GetStaticAccessListMemberResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetStaticAccessListMember not implemented")
+}
 func (UnimplementedAccessListServiceServer) GetAccessListOwners(context.Context, *GetAccessListOwnersRequest) (*GetAccessListOwnersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccessListOwners not implemented")
 }
 func (UnimplementedAccessListServiceServer) UpsertAccessListMember(context.Context, *UpsertAccessListMemberRequest) (*Member, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertAccessListMember not implemented")
 }
+func (UnimplementedAccessListServiceServer) UpsertStaticAccessListMember(context.Context, *UpsertStaticAccessListMemberRequest) (*UpsertStaticAccessListMemberResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertStaticAccessListMember not implemented")
+}
 func (UnimplementedAccessListServiceServer) UpdateAccessListMember(context.Context, *UpdateAccessListMemberRequest) (*Member, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateAccessListMember not implemented")
 }
 func (UnimplementedAccessListServiceServer) DeleteAccessListMember(context.Context, *DeleteAccessListMemberRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccessListMember not implemented")
+}
+func (UnimplementedAccessListServiceServer) DeleteStaticAccessListMember(context.Context, *DeleteStaticAccessListMemberRequest) (*DeleteStaticAccessListMemberResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteStaticAccessListMember not implemented")
 }
 func (UnimplementedAccessListServiceServer) DeleteAllAccessListMembersForAccessList(context.Context, *DeleteAllAccessListMembersForAccessListRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllAccessListMembersForAccessList not implemented")
@@ -797,6 +863,24 @@ func _AccessListService_GetAccessListMember_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccessListService_GetStaticAccessListMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetStaticAccessListMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessListServiceServer).GetStaticAccessListMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessListService_GetStaticAccessListMember_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessListServiceServer).GetStaticAccessListMember(ctx, req.(*GetStaticAccessListMemberRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccessListService_GetAccessListOwners_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetAccessListOwnersRequest)
 	if err := dec(in); err != nil {
@@ -833,6 +917,24 @@ func _AccessListService_UpsertAccessListMember_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccessListService_UpsertStaticAccessListMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertStaticAccessListMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessListServiceServer).UpsertStaticAccessListMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessListService_UpsertStaticAccessListMember_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessListServiceServer).UpsertStaticAccessListMember(ctx, req.(*UpsertStaticAccessListMemberRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccessListService_UpdateAccessListMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateAccessListMemberRequest)
 	if err := dec(in); err != nil {
@@ -865,6 +967,24 @@ func _AccessListService_DeleteAccessListMember_Handler(srv interface{}, ctx cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AccessListServiceServer).DeleteAccessListMember(ctx, req.(*DeleteAccessListMemberRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccessListService_DeleteStaticAccessListMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteStaticAccessListMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessListServiceServer).DeleteStaticAccessListMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessListService_DeleteStaticAccessListMember_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessListServiceServer).DeleteStaticAccessListMember(ctx, req.(*DeleteStaticAccessListMemberRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1105,6 +1225,10 @@ var AccessListService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AccessListService_GetAccessListMember_Handler,
 		},
 		{
+			MethodName: "GetStaticAccessListMember",
+			Handler:    _AccessListService_GetStaticAccessListMember_Handler,
+		},
+		{
 			MethodName: "GetAccessListOwners",
 			Handler:    _AccessListService_GetAccessListOwners_Handler,
 		},
@@ -1113,12 +1237,20 @@ var AccessListService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AccessListService_UpsertAccessListMember_Handler,
 		},
 		{
+			MethodName: "UpsertStaticAccessListMember",
+			Handler:    _AccessListService_UpsertStaticAccessListMember_Handler,
+		},
+		{
 			MethodName: "UpdateAccessListMember",
 			Handler:    _AccessListService_UpdateAccessListMember_Handler,
 		},
 		{
 			MethodName: "DeleteAccessListMember",
 			Handler:    _AccessListService_DeleteAccessListMember_Handler,
+		},
+		{
+			MethodName: "DeleteStaticAccessListMember",
+			Handler:    _AccessListService_DeleteStaticAccessListMember_Handler,
 		},
 		{
 			MethodName: "DeleteAllAccessListMembersForAccessList",
