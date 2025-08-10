@@ -50,6 +50,8 @@ type SessionParams struct {
 	SessionID string
 	// ClusterName is an optional originating cluster name
 	ClusterName string
+	// UserName is name of the user interacting with the session
+	UserName string
 }
 
 // SetDefaults sets parameters defaults
@@ -70,12 +72,20 @@ func (p *SessionParams) SetDefaults() {
 			p.PrintData[i] = strings.Repeat("hello", int(i%177+1))
 		}
 	}
+	if p.UserName == "" {
+		p.UserName = "alice@example.com"
+	}
 }
 
 // GenerateTestSession generates test session events starting with session start
 // event, adds printEvents events and returns the result.
 func GenerateTestSession(params SessionParams) []apievents.AuditEvent {
 	params.SetDefaults()
+	connectionMetadata := apievents.ConnectionMetadata{
+		LocalAddr:  "127.0.0.1:3022",
+		RemoteAddr: "[::1]:37718",
+		Protocol:   events.EventProtocolSSH,
+	}
 	sessionStart := apievents.SessionStart{
 		Metadata: apievents.Metadata{
 			Index:       0,
@@ -100,14 +110,11 @@ func GenerateTestSession(params SessionParams) []apievents.AuditEvent {
 			SessionID: params.SessionID,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User:  "bob@example.com",
+			User:  params.UserName,
 			Login: "bob",
 		},
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			LocalAddr:  "127.0.0.1:3022",
-			RemoteAddr: "[::1]:37718",
-		},
-		TerminalSize: "80:25",
+		ConnectionMetadata: connectionMetadata,
+		TerminalSize:       "80:25",
 	}
 
 	sessionEnd := apievents.SessionEnd{
@@ -127,13 +134,14 @@ func GenerateTestSession(params SessionParams) []apievents.AuditEvent {
 			SessionID: params.SessionID,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User: "alice@example.com",
+			User: params.UserName,
 		},
-		EnhancedRecording: true,
-		Interactive:       true,
-		Participants:      []string{"alice@example.com"},
-		StartTime:         params.Clock.Now().UTC(),
-		EndTime:           params.Clock.Now().UTC().Add(3*time.Hour + time.Second + 7*time.Millisecond),
+		ConnectionMetadata: connectionMetadata,
+		EnhancedRecording:  true,
+		Interactive:        true,
+		Participants:       []string{params.UserName},
+		StartTime:          params.Clock.Now().UTC(),
+		EndTime:            params.Clock.Now().UTC().Add(3*time.Hour + time.Second + 7*time.Millisecond),
 	}
 
 	genEvents := []apievents.AuditEvent{&sessionStart}
@@ -179,6 +187,8 @@ type DBSessionParams struct {
 	SessionID string
 	// ClusterName is an optional originating cluster name
 	ClusterName string
+	// UserName is name of the user interacting with the session
+	UserName string
 }
 
 // SetDefaults sets parameters defaults
@@ -196,6 +206,9 @@ func (p *DBSessionParams) SetDefaults() {
 	if p.SessionID == "" {
 		p.SessionID = uuid.New().String()
 	}
+	if p.UserName == "" {
+		p.UserName = "bob@example.com"
+	}
 }
 
 // GenerateTestDBSession generates test database session events starting with
@@ -206,7 +219,7 @@ func GenerateTestDBSession(params DBSessionParams) []apievents.AuditEvent {
 	startTime := params.Clock.Now().UTC()
 	endTime := startTime.Add(time.Minute)
 	userMetadata := apievents.UserMetadata{
-		User:     "bob@example.com",
+		User:     params.UserName,
 		UserKind: apievents.UserKind_USER_KIND_HUMAN,
 	}
 	sessionMetadata := apievents.SessionMetadata{
@@ -269,7 +282,7 @@ func GenerateTestDBSession(params DBSessionParams) []apievents.AuditEvent {
 	for i := range params.Queries {
 		query := &apievents.DatabaseSessionQuery{
 			Metadata: apievents.Metadata{
-				Index:       i * 2,
+				Index:       i*2 + 1,
 				Type:        events.DatabaseSessionQueryEvent,
 				ID:          uuid.New().String(),
 				Code:        events.DatabaseSessionQueryCode,
@@ -287,7 +300,7 @@ func GenerateTestDBSession(params DBSessionParams) []apievents.AuditEvent {
 
 		result := &apievents.DatabaseSessionCommandResult{
 			Metadata: apievents.Metadata{
-				Index:       i*2 + 1,
+				Index:       i*2 + 2,
 				Type:        events.DatabaseSessionCommandResultEvent,
 				ID:          uuid.New().String(),
 				Code:        events.DatabaseSessionCommandResultCode,
