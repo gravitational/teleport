@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/cli"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/mcpproxy"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -121,6 +122,15 @@ func Run(args []string, stdout io.Writer) error {
 
 		cli.NewKeypairCreateCommand(keypairCmd, func(keypairCreateCmd *cli.KeypairCreateCommand) error {
 			return onKeypairCreateCommand(ctx, globalCfg, keypairCreateCmd)
+		}),
+
+		cli.NewMCPProxyCommand(app, func(command *cli.MCPProxyCommand) error {
+			return mcpproxy.STDIOProxy(
+				ctx,
+				command.MCPServerName,
+				command.ProxyServer,
+				command.IdentityFilePath,
+			)
 		}),
 
 		// `start` and `configure` commands
