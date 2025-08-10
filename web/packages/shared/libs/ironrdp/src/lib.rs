@@ -163,7 +163,7 @@ impl FastPathProcessor {
             let processor_updates = self
                 .fast_path_processor
                 .process(&mut self.image, tdp_fast_path_frame, &mut output)
-                .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
+                .map_err(|e| JsValue::from_str(&format!("{e:?}")))?;
 
             (output.into_inner(), processor_updates)
         };
@@ -241,7 +241,7 @@ impl FastPathProcessor {
                     update_pointer_cb.call1(cb_context, &JsValue::from(false))?;
                 }
                 _ => {
-                    debug!("Unhandled ActiveStageOutput: {:?}", output);
+                    debug!("Unhandled ActiveStageOutput: {output:?}");
                 }
             }
         }
@@ -260,9 +260,9 @@ impl FastPathProcessor {
         // code here is copied from fast_path::Processor::process
         let mut input = ReadCursor::new(tdp_fast_path_frame);
         decode_cursor::<FastPathHeader>(&mut input)
-            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
+            .map_err(|e| JsValue::from_str(&format!("{e:?}")))?;
         let update_pdu = decode_cursor::<FastPathUpdatePdu<'_>>(&mut input)
-            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
+            .map_err(|e| JsValue::from_str(&format!("{e:?}")))?;
 
         match update_pdu.update_code {
             SurfaceCommands => {
