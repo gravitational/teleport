@@ -34,7 +34,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/integrations/access/pagerduty"
-	"github.com/gravitational/teleport/integrations/lib/stringset"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 type FakePagerduty struct {
@@ -61,15 +61,15 @@ type FakePagerduty struct {
 
 type QueryValues url.Values
 
-func (q QueryValues) GetAsSet(name string) stringset.StringSet {
+func (q QueryValues) GetAsSet(name string) set.Set[string] {
 	values := q[name]
-	result := stringset.NewWithCap(len(values))
+	result := set.NewWithCapacity[string](len(values))
 	for _, v := range values {
 		if v != "" {
-			result[v] = struct{}{}
+			result.Add(v)
 		}
 	}
-	if len(result) == 0 {
+	if result.Len() == 0 {
 		return nil
 	}
 	return result
