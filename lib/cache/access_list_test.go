@@ -77,7 +77,7 @@ func TestAccessListMembers(t *testing.T) {
 
 	const numMembers = 32
 
-	p := newTestPack(t, ForAuth, memoryBackend(true))
+	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
 	clock := clockwork.NewFakeClock()
@@ -277,7 +277,7 @@ func TestAccessListReviews(t *testing.T) {
 func TestCountAccessListMembersScoping(t *testing.T) {
 	t.Parallel()
 
-	p := newTestPack(t, ForAuth, memoryBackend(true))
+	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
 	ctx := context.Background()
