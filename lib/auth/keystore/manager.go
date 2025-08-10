@@ -33,9 +33,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"maps"
 	"math/big"
-	"slices"
 	"time"
 
 	kms "cloud.google.com/go/kms/apiv1"
@@ -53,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -864,15 +863,15 @@ func (m *Manager) hasUsableKeys(ctx context.Context, keySet types.CAKeySet) (*Us
 			allRawKeys = append(allRawKeys, jwtKeyPair.PrivateKey)
 		}
 	}
-	caKeyTypes := make(map[string]struct{})
+	caKeyTypes := set.New[string]()
 	for _, rawKey := range allRawKeys {
 		desc, err := keyDescription(rawKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		caKeyTypes[desc] = struct{}{}
+		caKeyTypes.Add(desc)
 	}
-	result.CAKeyTypes = slices.Collect(maps.Keys(caKeyTypes))
+	result.CAKeyTypes = caKeyTypes.Elements()
 	return result, nil
 }
 

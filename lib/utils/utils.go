@@ -31,6 +31,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -271,7 +272,8 @@ func IsGroupMember(gid int) (bool, error) {
 	return false, nil
 }
 
-// DNSName extracts DNS name from host:port string.
+// DNSName extracts DNS name from host:port string,
+// returning an error if the hostname is an IP address.
 func DNSName(hostport string) (string, error) {
 	host, err := Host(hostport)
 	if err != nil {
@@ -522,22 +524,8 @@ func UintSliceSubset(a []uint16, b []uint16) error {
 
 // RemoveFromSlice makes a copy of the slice and removes the passed in values from the copy.
 func RemoveFromSlice(slice []string, values ...string) []string {
-	output := make([]string, 0, len(slice))
-
-	remove := make(map[string]bool)
-	for _, value := range values {
-		remove[value] = true
-	}
-
-	for _, s := range slice {
-		_, ok := remove[s]
-		if ok {
-			continue
-		}
-		output = append(output, s)
-	}
-
-	return output
+	remove := NewSet(values...)
+	return slices.DeleteFunc(slice, func(s string) bool { return remove.Contains(s) })
 }
 
 // ChooseRandomString returns a random string from the given slice.

@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const updateClientsJoinWarning = "This agent joined the cluster during the update_clients phase of a host CA rotation, so its services might not be usable by clients that haven't logged in recently."
@@ -325,8 +326,8 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 }
 
 func (process *TeleportProcess) healInstanceIdentity(currentIdentity *state.Identity) (*state.Identity, error) {
-	currentSystemRoles := utils.NewSet(currentIdentity.SystemRoles...)
-	wantSystemRoles := utils.NewSetWithCapacity[string](len(process.instanceRoles))
+	currentSystemRoles := set.New(currentIdentity.SystemRoles...)
+	wantSystemRoles := set.NewWithCapacity[string](len(process.instanceRoles))
 	for role := range process.instanceRoles {
 		wantSystemRoles.Add(string(role))
 	}

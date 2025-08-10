@@ -35,7 +35,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // NewSystemAutomaticAccessApproverRole creates a new Role that is allowed to
@@ -1221,7 +1221,7 @@ func AddRoleDefaults(ctx context.Context, buildType string, role types.Role) (ty
 }
 
 func mergeStrings(dst, src []string) (merged []string, changed bool) {
-	items := utils.NewSet[string](dst...)
+	items := set.New[string](dst...)
 	items.Add(src...)
 	if len(items) == len(dst) {
 		return dst, false
