@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -2167,7 +2168,24 @@ func makeAccessCheckerWithRolePointers(roles []*types.RoleV6) AccessChecker {
 	return makeAccessCheckerWithRoleSet(roleSet)
 }
 
-func makeAccessCheckerWithRoleSet(roleSet RoleSet) AccessChecker {
+type acOption struct {
+	traits map[string][]string
+}
+
+type acOpts func(*acOption)
+
+func withTraits(traits map[string][]string) acOpts {
+	return func(o *acOption) {
+		o.traits = traits
+	}
+}
+
+func makeAccessCheckerWithRoleSet(roleSet RoleSet, opts ...acOpts) AccessChecker {
+	var options acOption
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	roleNames := make([]string, len(roleSet))
 	for i, role := range roleSet {
 		roleNames[i] = role.GetName()
@@ -2175,7 +2193,7 @@ func makeAccessCheckerWithRoleSet(roleSet RoleSet) AccessChecker {
 	accessInfo := &AccessInfo{
 		Username:           "alice",
 		Roles:              roleNames,
-		Traits:             nil,
+		Traits:             options.traits,
 		AllowedResourceIDs: nil,
 	}
 	return NewAccessCheckerWithRoleSet(accessInfo, "clustername", roleSet)
@@ -4973,12 +4991,15 @@ func TestGetAllowedSearchAsRoles_WithAllowedKubernetesResourceKindFilter(t *test
 	roleWithDenyRole := newRole([]string{"sar4", "sar5", "sar6", "sar7"}, []string{"sar4", "sar6"}, []types.RequestKubernetesResource{{Kind: types.KindNamespace}, {Kind: types.KindKubePod}}, []types.RequestKubernetesResource{{Kind: types.KindKubePod}})
 	roleWithDenyWildcard := newRole([]string{"sar10"}, nil, []types.RequestKubernetesResource{{Kind: types.KindNamespace}}, []types.RequestKubernetesResource{{Kind: types.Wildcard}})
 	roleWithAllowWildcard := newRole([]string{"sar4", "sar5"}, nil, []types.RequestKubernetesResource{{Kind: types.Wildcard}}, nil)
+	roleWithAllowTraitsTemplate := newRole([]string{"sar1", "{{external.roles}}"}, nil, []types.RequestKubernetesResource{{Kind: types.KindNamespace}}, []types.RequestKubernetesResource{})
+	roleWithDenyTraitsTemplate := newRole([]string{"sar1", "sar2"}, []string{"{{external.roles}}"}, []types.RequestKubernetesResource{{Kind: types.KindNamespace}}, []types.RequestKubernetesResource{})
 
 	tt := []struct {
 		name                 string
 		roleSet              RoleSet
 		requestType          string
 		expectedAllowedRoles []string
+		traits               map[string][]string
 	}{
 		{
 			name:                 "single match",
@@ -5016,9 +5037,27 @@ func TestGetAllowedSearchAsRoles_WithAllowedKubernetesResourceKindFilter(t *test
 			requestType:          types.KindNamespace,
 			expectedAllowedRoles: []string{"sar5", "sar7", "sar1"},
 		},
+		{
+			name:                 "allowed with traits",
+			roleSet:              NewRoleSet(roleWithAllowTraitsTemplate, roleWithNoConfigure),
+			requestType:          types.KindNamespace,
+			expectedAllowedRoles: []string{"sar1", "sar2", "sar3"},
+			traits: map[string][]string{
+				"roles": {"sar2", "sar3"},
+			},
+		},
+		{
+			name:                 "denied with traits",
+			roleSet:              NewRoleSet(roleWithDenyTraitsTemplate, roleWithNoConfigure),
+			requestType:          types.KindNamespace,
+			expectedAllowedRoles: []string{"sar1"},
+			traits: map[string][]string{
+				"roles": {"sar2", "sar3"},
+			},
+		},
 	}
 	for _, tc := range tt {
-		accessChecker := makeAccessCheckerWithRoleSet(tc.roleSet)
+		accessChecker := makeAccessCheckerWithRoleSet(tc.roleSet, withTraits(tc.traits))
 		t.Run(tc.name, func(t *testing.T) {
 			allowedRoles := accessChecker.GetAllowedSearchAsRolesForKubeResourceKind(tc.requestType)
 			require.ElementsMatch(t, tc.expectedAllowedRoles, allowedRoles)
@@ -10334,6 +10373,221 @@ func TestNewEnumerationResultFromEntities(t *testing.T) {
 			actualAllowed, actualDenied := result.ToEntities()
 			require.Equal(t, test.wantAllowed, actualAllowed)
 			require.Equal(t, test.wantDenied, actualDenied)
+		})
+	}
+}
+
+func TestGetAllowedPreviewAsRole(t *testing.T) {
+	localCluster := "cluster"
+	const rudyReviewer = "rudyReviewer"
+	roles := roleMap(t, 4)
+
+	type reviewer struct {
+		allowed []string
+		denied  []string
+		traits  map[string][]string
+	}
+
+	tests := []struct {
+		name          string
+		reviewer      reviewer
+		expectedRoles []string
+	}{
+		{
+			name: "matching allow preview roles",
+			reviewer: reviewer{
+				allowed: []string{"role1", "role2"},
+			},
+			expectedRoles: []string{"role1", "role2"},
+		},
+		{
+			name: "without traits interpolation",
+			reviewer: reviewer{
+				allowed: []string{"role1"},
+				traits: map[string][]string{
+					"roles": {"role2"},
+				},
+			},
+			expectedRoles: []string{"role1"},
+		},
+		{
+			name: "preview roles with traits interpolation",
+			reviewer: reviewer{
+				allowed: []string{"role1", "{{external.roles}}"},
+				traits: map[string][]string{
+					"roles": {"role2"},
+				},
+			},
+			expectedRoles: []string{"role1", "role2"},
+		},
+		{
+			name: "preview roles with multiple traits interpolation",
+			reviewer: reviewer{
+				allowed: []string{"role1", "{{external.roles}}", "{{external.other_roles}}"},
+				traits: map[string][]string{
+					"roles":       {"role2"},
+					"other_roles": {"role3"},
+				},
+			},
+			expectedRoles: []string{"role1", "role2", "role3"},
+		},
+		{
+			name: "matching deny preview roles",
+			reviewer: reviewer{
+				allowed: []string{"role1", "role2"},
+				denied:  []string{"role2"},
+			},
+			expectedRoles: []string{"role1"},
+		},
+		{
+			name: "denied preview roles with traits interpolation",
+			reviewer: reviewer{
+				allowed: []string{"role1", "role2"},
+				traits: map[string][]string{
+					"roles": {"role2"},
+				},
+				denied: []string{"{{external.roles}}"},
+			},
+			expectedRoles: []string{"role1"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := &mockGetter{
+				roles: func() map[string]types.Role {
+					roles["rev"] = mustReviewRole(t, "rev", tt.reviewer.allowed, tt.reviewer.denied)
+					return roles
+				}(),
+				userStates: map[string]*userloginstate.UserLoginState{
+					rudyReviewer: mustUserLoginState(t, rudyReviewer, "rev", tt.reviewer.traits),
+				},
+				users: map[string]types.User{
+					rudyReviewer: mustUser(t, rudyReviewer, []string{"rev"}),
+				},
+			}
+
+			var roleNames []string
+			for v := range g.roles {
+				roleNames = append(roleNames, v)
+			}
+
+			accessChecker, err := NewAccessChecker(&AccessInfo{
+				Roles:    roleNames,
+				Traits:   tt.reviewer.traits,
+				Username: rudyReviewer,
+			}, localCluster, g)
+			require.NoError(t, err)
+			roles := accessChecker.GetAllowedPreviewAsRoles()
+			require.Equal(t, tt.expectedRoles, roles)
+		})
+	}
+}
+
+func TestGetAllowedSearchAsRoles(t *testing.T) {
+	localCluster := "cluster"
+	const rickyRequester = "rickyRequester"
+	roles := roleMap(t, 4)
+
+	type requester struct {
+		allowed, denied []string
+		traits          map[string][]string
+	}
+
+	tests := []struct {
+		name          string
+		requester     requester
+		expectedRoles []string
+		requireError  require.ErrorAssertionFunc
+	}{
+		{
+			name: "matching search roles",
+			requester: requester{
+				allowed: []string{"role1", "role2"},
+			},
+			expectedRoles: []string{"role1", "role2"},
+			requireError:  require.NoError,
+		},
+		{
+			name: "without traits interpolation",
+			requester: requester{
+				allowed: []string{"role1"},
+				traits: map[string][]string{
+					"roles": {"role2"},
+				},
+			},
+			expectedRoles: []string{"role1"},
+		},
+		{
+			name: "search roles with traits interpolation",
+			requester: requester{
+				allowed: []string{"role1", "{{external.roles}}"},
+				traits: map[string][]string{
+					"roles": {"role2"},
+				},
+			},
+			expectedRoles: []string{"role1", "role2"},
+			requireError:  require.Error,
+		},
+		{
+			name: "search roles with multiple traits interpolation",
+			requester: requester{
+				allowed: []string{"role1", "{{external.roles}}", "{{external.other_roles}}"},
+				traits: map[string][]string{
+					"roles":       {"role2"},
+					"other_roles": {"role3"},
+				},
+			},
+			expectedRoles: []string{"role1", "role2", "role3"},
+			requireError:  require.Error,
+		},
+		{
+			name: "matching deny preview roles",
+			requester: requester{
+				allowed: []string{"role1", "role2"},
+				denied:  []string{"role2"},
+			},
+			expectedRoles: []string{"role1"},
+		},
+		{
+			name: "denied preview roles with traits interpolation",
+			requester: requester{
+				allowed: []string{"role1", "role2"},
+				traits: map[string][]string{
+					"roles": {"role2"},
+				},
+				denied: []string{"{{external.roles}}"},
+			},
+			expectedRoles: []string{"role1"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := &mockGetter{
+				roles: func() map[string]types.Role {
+					roles["req"] = mustRequestSearchAsRole(t, "req", tt.requester.allowed, tt.requester.denied)
+					return roles
+				}(),
+				userStates: map[string]*userloginstate.UserLoginState{
+					rickyRequester: mustUserLoginState(t, rickyRequester, "req", tt.requester.traits),
+				},
+				users: map[string]types.User{
+					rickyRequester: mustUser(t, rickyRequester, []string{"req"}),
+				},
+			}
+
+			var roleNames []string
+			for v := range g.roles {
+				roleNames = append(roleNames, v)
+			}
+
+			accessChecker, err := NewAccessChecker(&AccessInfo{
+				Roles:    roleNames,
+				Traits:   tt.requester.traits,
+				Username: rickyRequester,
+			}, localCluster, g)
+			require.NoError(t, err)
+			roles := accessChecker.GetAllowedSearchAsRoles()
+			require.Equal(t, tt.expectedRoles, roles)
 		})
 	}
 }
