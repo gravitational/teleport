@@ -26,13 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/linux"
-)
-
-const (
-	// ZypperPublicKeyEndpoint is the endpoint that contains the Teleport's GPG production Key.
-	ZypperPublicKeyEndpoint = "https://zypper.releases.teleport.dev/gpg"
-	// zypperRepoEndpoint is the repo endpoint for Zypper based distros.
-	zypperRepoEndpoint = "https://zypper.releases.teleport.dev/"
+	"github.com/gravitational/teleport/lib/utils/teleportassets"
 )
 
 // Zypper is a wrapper for apt package manager.
@@ -84,8 +78,8 @@ func (pm *Zypper) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OS
 		versionID = "15" // tumbleweed uses dated VERSION_IDs like 20230702
 	}
 
-	pm.logger.InfoContext(ctx, "Trusting Teleport repository key", "command", "rpm --import "+ZypperPublicKeyEndpoint)
-	importPublicKeyCMD := exec.CommandContext(ctx, pm.bins.Rpm, "--import", ZypperPublicKeyEndpoint)
+	pm.logger.InfoContext(ctx, "Trusting Teleport repository key", "command", "rpm --import "+teleportassets.ZypperRepoGPGURL())
+	importPublicKeyCMD := exec.CommandContext(ctx, pm.bins.Rpm, "--import", teleportassets.ZypperRepoGPGURL())
 	importPublicKeyCMDOutput, err := importPublicKeyCMD.CombinedOutput()
 	if err != nil {
 		return trace.Wrap(err, string(importPublicKeyCMDOutput))
@@ -93,7 +87,7 @@ func (pm *Zypper) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OS
 
 	// Repo location looks like this:
 	// https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/{{ .RepoChannel }}/teleport.repo
-	repoLocation := fmt.Sprintf("%s%s/%s/Teleport/%%{_arch}/%s/teleport.repo", zypperRepoEndpoint, linuxInfo.ID, versionID, repoChannel)
+	repoLocation := fmt.Sprintf("%s%s/%s/Teleport/%%{_arch}/%s/teleport.repo", teleportassets.ZypperRepoURL(), linuxInfo.ID, versionID, repoChannel)
 	pm.logger.InfoContext(ctx, "Building rpm metadata for Teleport repo", "command", "rpm --eval "+repoLocation)
 	rpmEvalTeleportRepoCMD := exec.CommandContext(ctx, pm.bins.Rpm, "--eval", repoLocation)
 	rpmEvalTeleportRepoCMDOutput, err := rpmEvalTeleportRepoCMD.CombinedOutput()

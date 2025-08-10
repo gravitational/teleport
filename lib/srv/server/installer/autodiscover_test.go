@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/imds/azure"
 	"github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/utils/packagemanager"
+	"github.com/gravitational/teleport/lib/utils/teleportassets"
 )
 
 func buildMockBins(t *testing.T) (map[string]*bintest.Mock, packagemanager.BinariesLocation, []func() error) {
@@ -223,7 +224,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 							c.Exit(0)
 						})
 					case "sles":
-						mockBins["rpm"].Expect("--import", packagemanager.ZypperPublicKeyEndpoint)
+						mockBins["rpm"].Expect("--import", teleportassets.ZypperRepoGPGURL())
 						mockBins["rpm"].Expect("--eval", bintest.MatchAny())
 						mockBins["zypper"].Expect("--non-interactive", "addrepo", bintest.MatchAny())
 						mockBins["zypper"].Expect("--gpg-auto-import-keys", "refresh")
