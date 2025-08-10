@@ -854,6 +854,12 @@ const (
 	// KubeConfigFile is a default filename where k8s stores its user local config
 	KubeConfigFile = "config"
 
+	// KubernetesGroupsWildcardMapping is the name of the default group
+	// that will be assigned to users when using the special `*` wildcard
+	// in `kubernetes_groups` field in roles. This value only applies if
+	// the value from configuration is not set.
+	KubernetesGroupsWildcardMapping = "system:masters"
+
 	// KubeRunTests turns on kubernetes tests
 	KubeRunTests = "TEST_KUBE"
 

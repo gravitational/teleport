@@ -141,6 +141,9 @@ type ForwarderConfig struct {
 	// KubeClusterName is the name of the kubernetes cluster that this
 	// forwarder handles.
 	KubeClusterName string
+	// KubeGroupsWildcardMapping is the name of the group that will be used
+	// for impersonation when using the special `*` wildcard value in `kubernetes_groups`.
+	KubeGroupsWildcardMapping string
 	// Clock is a server clock, could be overridden in tests
 	Clock clockwork.Clock
 	// ConnPingPeriod is a period for sending ping messages on the incoming
@@ -447,6 +450,9 @@ type authContext struct {
 	// kubeCluster is the Kubernetes cluster the request is targeted to.
 	// It's only available after authorization layer.
 	kubeCluster types.KubeCluster
+	// kubeGroupsWildcardMapping is the name of the group that will be used
+	// for impersonation when using the special `*` wildcard value in `kubernetes_groups`.
+	kubeGroupsWildcardMapping string
 
 	// metaResource holds the resource data:
 	// - the requested resource
@@ -938,13 +944,21 @@ func (f *Forwarder) emitAuditEvent(req *http.Request, sess *clusterSession, stat
 // a builtin group that allows any user to access common API methods,
 // e.g. discovery methods required for initial client usage, without it,
 // restricted user's kubectl clients will not work.
-func fillDefaultKubePrincipalDetails(kubeUsers []string, kubeGroups []string, username string) ([]string, []string) {
+// If we have a wildcard in the groups, we replace it with
+// kubeGroupsWildcardMapping, which comes from the configuration.
+func fillDefaultKubePrincipalDetails(kubeUsers, kubeGroups []string, username, kubeGroupsWildcardMapping string) ([]string, []string) {
 	if len(kubeUsers) == 0 {
 		kubeUsers = append(kubeUsers, username)
 	}
 
 	if !slices.Contains(kubeGroups, teleport.KubeSystemAuthenticated) {
 		kubeGroups = append(kubeGroups, teleport.KubeSystemAuthenticated)
+	}
+	if idx := slices.Index(kubeGroups, types.Wildcard); idx != -1 {
+		if kubeGroupsWildcardMapping == "" {
+			kubeGroupsWildcardMapping = teleport.KubernetesGroupsWildcardMapping
+		}
+		kubeGroups[idx] = kubeGroupsWildcardMapping
 	}
 	return kubeUsers, kubeGroups
 }
@@ -1114,9 +1128,10 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 
 	// fillDefaultKubePrincipalDetails fills the default details in order to keep
 	// the correct behavior when forwarding the request to the Kubernetes API.
-	kubeUsers, kubeGroups = fillDefaultKubePrincipalDetails(kubeUsers, kubeGroups, actx.User.GetName())
+	kubeUsers, kubeGroups = fillDefaultKubePrincipalDetails(kubeUsers, kubeGroups, actx.User.GetName(), f.cfg.KubeGroupsWildcardMapping)
 	actx.kubeUsers = utils.StringsSet(kubeUsers)
 	actx.kubeGroups = utils.StringsSet(kubeGroups)
+	actx.kubeGroupsWildcardMapping = f.cfg.KubeGroupsWildcardMapping
 
 	// Check authz against the first match.
 	//

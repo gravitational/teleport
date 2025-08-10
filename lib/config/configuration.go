@@ -1738,6 +1738,9 @@ func applyKubeConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.Kube.KubeClusterName != "" {
 		cfg.Kube.KubeClusterName = fc.Kube.KubeClusterName
 	}
+	if fc.Kube.GroupsWildcardMapping != "" {
+		cfg.Kube.GroupWildcardMapping = fc.Kube.GroupsWildcardMapping
+	}
 	if fc.Kube.StaticLabels != nil {
 		cfg.Kube.StaticLabels = maps.Clone(fc.Kube.StaticLabels)
 	}

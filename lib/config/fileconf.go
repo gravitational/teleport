@@ -2449,6 +2449,9 @@ type Kube struct {
 	DynamicLabels []CommandLabel `yaml:"commands,omitempty"`
 	// ResourceMatchers match cluster kube_cluster resources.
 	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
+	// GroupsWildcardMapping is the name of the Kubernetes group that
+	// will be used for impersonation when using the special `*` wildcard value.
+	GroupsWildcardMapping string `yaml:"groups_wildcard_mapping,omitempty"`
 }
 
 // ReverseTunnel is a SSH reverse tunnel maintained by one cluster's

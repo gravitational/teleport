@@ -226,15 +226,16 @@ func MakeKubeResources(resources []*types.KubernetesResourceV1, cluster string) 
 // This function ignores any verification of the TTL associated with
 // each Role, and focuses only on listing all users and groups that the user may
 // have access to.
-func getAllowedKubeUsersAndGroupsForCluster(accessChecker services.AccessChecker, kube types.KubeCluster) (kubeUsers []string, kubeGroups []string) {
+func getAllowedKubeUsersAndGroupsForCluster(accessChecker services.AccessChecker, kube types.KubeCluster) (kubeUsers, kubeGroups []string) {
 	matcher := services.NewKubernetesClusterLabelMatcher(kube.GetAllLabels(), accessChecker.Traits())
 	// We ignore the TTL verification because we want to include every possibility.
 	// Later, if the user certificate expiration is longer than the maximum allowed TTL
 	// for the role that defines the `kubernetes_*` principals the request will be
 	// denied by Kubernetes Service.
 	// We ignore the returning error since we are only interested in allowed users and groups.
+	// TODO(@creack): Investigate this, we may need to pass the `AdminClusterRoleName` from the configu here.
 	kubeGroups, kubeUsers, _ = accessChecker.CheckKubeGroupsAndUsers(0, true /* force ttl override*/, matcher)
-	return
+	return kubeUsers, kubeGroups
 }
 
 // ConnectionDiagnostic describes a connection diagnostic.
