@@ -302,6 +302,6 @@ the `--fips` flag, you must update the certificate authorities.  Otherwise, the 
 ECDSA keys supported` is produced.  
 
 To migrate to a FIPS installation, [set the signature algorithm suite](../../reference/signature-algorithms.mdx)
-to `fips-v1`.  Then, any CA with an Ed25519 key must undergo a [CA rotation](../../admin-guides/management/operations/ca-rotation.mdx).  The 
+to `fips-v1`.  Then, any CA with an Ed25519 key must undergo a [CA rotation](../management/operations/ca-rotation.mdx).  The 
 command `tctl status` can be used on v17+ to confirm the signature algorithms in use.  After all CA rotations are 
 complete, proceed with installing the FIPS binary.
