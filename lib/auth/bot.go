@@ -595,17 +595,17 @@ func (a *Server) generateInitialBotCerts(
 
 	// Generate certificate
 	certReq := certRequest{
-		user:            userState,
-		ttl:             expires.Sub(a.GetClock().Now()),
-		sshPublicKey:    sshPubKey,
-		tlsPublicKey:    tlsPubKey,
-		unscopedChecker: checker, // TODO(fspmarshall/scopes): scoped checker (likely not necessary until bot scoping work begins).
-		traits:          accessInfo.Traits,
-		renewable:       renewable,
-		includeHostCA:   true,
-		loginIP:         loginIP,
-		botName:         botName,
-		joinAttributes:  joinAttrs,
+		user:           userState,
+		ttl:            expires.Sub(a.GetClock().Now()),
+		sshPublicKey:   sshPubKey,
+		tlsPublicKey:   tlsPubKey,
+		checker:        services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to generateInitialBotCerts (likely not necessary until bot scoping work begins).
+		traits:         accessInfo.Traits,
+		renewable:      renewable,
+		includeHostCA:  true,
+		loginIP:        loginIP,
+		botName:        botName,
+		joinAttributes: joinAttrs,
 	}
 
 	// Set the join token cert field for non-renewable identities. This is used

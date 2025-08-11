@@ -2390,12 +2390,12 @@ type certRequest struct {
 	// impersonator is a user who generates the certificate,
 	// is set when different from the user in the certificate
 	impersonator string
-	// unscopedChecker is an unscoped (classic) access checker, used to determine various certificate
-	// properties/parameters. one of unscopedChecker or scopedChecker must be set.
-	unscopedChecker unscopedCertGenChecker
-	// scopedChecker is a scoped access checker, used to determine various certificate properties/parameters.
-	// one of unscopedChecker or scopedChecker must be set.
-	scopedChecker scopedCertGenChecker
+
+	// checker is an access checker that may either be scoped or unscoped. used to generate various
+	// certificate parameters, some of which differ depending on wether the cert being generated
+	// is scoped or not.
+	checker *services.SplitAccessChecker
+
 	// ttl is Duration of the certificate
 	ttl time.Duration
 	// compatibility is compatibility mode
@@ -2504,8 +2504,8 @@ func (r *certRequest) check() error {
 	if r.user == nil {
 		return trace.BadParameter("missing parameter user")
 	}
-	if r.unscopedChecker == nil && r.scopedChecker == nil {
-		return trace.BadParameter("missing parameter unscopedChecker or scopedChecker")
+	if r.checker == nil {
+		return trace.BadParameter("missing parameter checker")
 	}
 
 	// When generating certificate for MongoDB access, database username must
@@ -2609,7 +2609,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 		user:            req.User,
 		sshPublicKey:    req.PublicKey,
 		compatibility:   constants.CertificateFormatStandard,
-		unscopedChecker: checker, // TODO(fspmarshall/scopes): scoped checker.
+		checker:         services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to OpenSSH certs.
 		ttl:             sessionTTL,
 		traits:          req.User.GetTraits(),
 		routeToCluster:  req.Cluster,
@@ -2677,7 +2677,7 @@ func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req Gener
 		sshPublicKey:                     req.SSHPubKey,
 		tlsPublicKey:                     req.TLSPubKey,
 		routeToCluster:                   req.RouteToCluster,
-		unscopedChecker:                  checker,
+		checker:                          services.NewUnscopedSplitAccessChecker(checker),
 		traits:                           userState.GetTraits(),
 		loginIP:                          req.PinnedIP,
 		pinIP:                            req.PinnedIP != "",
@@ -2762,10 +2762,10 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	}
 
 	certs, err := a.generateUserCert(ctx, certRequest{
-		user:            userState,
-		tlsPublicKey:    req.PublicKey,
-		unscopedChecker: checker,
-		ttl:             req.TTL,
+		user:         userState,
+		tlsPublicKey: req.PublicKey,
+		checker:      services.NewUnscopedSplitAccessChecker(checker),
+		ttl:          req.TTL,
 		// Set the login to be a random string. Application certificates are never
 		// used to log into servers but SSH certificate generation code requires a
 		// principal be in the certificate.
@@ -2824,12 +2824,12 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 		return nil, trace.Wrap(err)
 	}
 	certs, err := a.generateUserCert(ctx, certRequest{
-		user:            userState,
-		tlsPublicKey:    req.PublicKey,
-		loginIP:         req.PinnedIP,
-		pinIP:           req.PinnedIP != "",
-		unscopedChecker: checker,
-		ttl:             time.Hour,
+		user:         userState,
+		tlsPublicKey: req.PublicKey,
+		loginIP:      req.PinnedIP,
+		pinIP:        req.PinnedIP != "",
+		checker:      services.NewUnscopedSplitAccessChecker(checker),
+		ttl:          time.Hour,
 		traits: map[string][]string{
 			constants.TraitLogins: {req.Username},
 		},
@@ -3162,7 +3162,7 @@ func (a *Server) augmentUserCertificates(
 		return nil, trace.Wrap(err)
 	}
 	if err := a.verifyLocksForUserCerts(verifyLocksForUserCertsReq{
-		unscopedChecker:      opts.checker, // TODO(fspmarshall/scopes): scopedChecker.
+		checker:              services.NewUnscopedSplitAccessChecker(opts.checker), // TODO(fspmarshall/scopes): add scoping support to AugmentUserCertificates.
 		defaultMode:          readOnlyAuthPref.GetLockingMode(),
 		username:             x509Identity.Username,
 		mfaVerified:          x509Identity.MFAVerified,
@@ -3327,15 +3327,10 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
-	var checker commonCertGenChecker
-	if req.scopedChecker != nil {
-		checker = req.scopedChecker
-	} else {
-		checker = req.unscopedChecker
-	}
-
-	if req.unscopedChecker != nil && len(req.unscopedChecker.GetAllowedResourceIDs()) > 0 && modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil, fmt.Errorf("resource access requests: %w", ErrRequiresEnterprise)
+	if unscopedChecker, ok := req.checker.Unscoped(); ok {
+		if len(unscopedChecker.GetAllowedResourceIDs()) > 0 && modules.GetModules().BuildType() != modules.BuildEnterprise {
+			return nil, fmt.Errorf("resource access requests: %w", ErrRequiresEnterprise)
+		}
 	}
 
 	// Reject the cert request if there is a matching lock in force.
@@ -3343,9 +3338,9 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if err := a.verifyLocksForUserCerts(verifyLocksForUserCertsReq{
-		scopedChecker:        req.scopedChecker,
-		unscopedChecker:      req.unscopedChecker,
+		checker:              req.checker,
 		defaultMode:          readOnlyAuthPref.GetLockingMode(),
 		username:             req.user.GetName(),
 		mfaVerified:          req.mfaVerified,
@@ -3366,17 +3361,17 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 
 	// scoped identities must use the standard certificate format, unscoped identities may have their
 	// certificate format customized by request parameters and/or role settings.
-	if req.scopedChecker != nil {
+	if unscopedChecker, ok := req.checker.Unscoped(); ok {
+		if certificateFormat == teleport.CertificateFormatUnspecified {
+			certificateFormat = unscopedChecker.CertificateFormat()
+		}
+	} else {
 		switch certificateFormat {
 		case constants.CertificateFormatStandard:
 		case teleport.CertificateFormatUnspecified:
 			certificateFormat = constants.CertificateFormatStandard
 		default:
 			return nil, trace.BadParameter("certificate format %q is not supported for scoped access", certificateFormat)
-		}
-	} else {
-		if certificateFormat == teleport.CertificateFormatUnspecified {
-			certificateFormat = req.unscopedChecker.CertificateFormat()
 		}
 	}
 
@@ -3395,7 +3390,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		// Take whatever was passed in. Pass in 0 to CheckLoginDuration so all
 		// logins are returned for the role set.
 		sessionTTL = req.ttl
-		allowedLogins, err = checker.CheckLoginDuration(0)
+		allowedLogins, err = req.checker.Common().CheckLoginDuration(0)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3403,11 +3398,11 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		// Adjust session TTL to the smaller of two values: the session TTL requested
 		// in tsh (possibly using default_session_ttl) or the session TTL for the
 		// role.
-		sessionTTL = checker.AdjustSessionTTL(req.ttl)
+		sessionTTL = req.checker.Common().AdjustSessionTTL(req.ttl)
 		// Return a list of logins that meet the session TTL limit. This means if
 		// the requested session TTL is larger than the max session TTL for a login,
 		// that login will not be included in the list of allowed logins.
-		allowedLogins, err = checker.CheckLoginDuration(sessionTTL)
+		allowedLogins, err = req.checker.Common().CheckLoginDuration(sessionTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3415,7 +3410,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	notAfter := a.clock.Now().UTC().Add(sessionTTL)
 
 	attestedKeyPolicy := keys.PrivateKeyPolicyNone
-	requiredKeyPolicy, err := checker.PrivateKeyPolicy(readOnlyAuthPref.GetPrivateKeyPolicy())
+	requiredKeyPolicy, err := req.checker.Common().PrivateKeyPolicy(readOnlyAuthPref.GetPrivateKeyPolicy())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3437,7 +3432,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 				sessionTTL:           sessionTTL,
 				readOnlyAuthPref:     readOnlyAuthPref,
 				userName:             req.user.GetName(),
-				userTraits:           checker.Traits(),
+				userTraits:           req.checker.Common().Traits(),
 			})
 			if err != nil {
 				return nil, trace.Wrap(err, "attesting SSH key")
@@ -3455,7 +3450,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 				sessionTTL:           sessionTTL,
 				readOnlyAuthPref:     readOnlyAuthPref,
 				userName:             req.user.GetName(),
-				userTraits:           checker.Traits(),
+				userTraits:           req.checker.Common().Traits(),
 			})
 			if err != nil {
 				return nil, trace.Wrap(err, "attesting TLS key")
@@ -3476,8 +3471,9 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		req.routeToCluster = clusterName
 	}
 	if req.routeToCluster != clusterName {
-		if req.scopedChecker != nil {
-			return nil, trace.BadParameter("cannot generate scoped certificate for remote cluster %q", req.routeToCluster)
+		unscopedChecker, ok := req.checker.Unscoped()
+		if !ok {
+			return nil, trace.BadParameter("cannot generate certs for remote clsuter  %q, remote cluster access is only supported for unscoped certs", req.routeToCluster)
 		}
 
 		// Authorize access to a remote cluster.
@@ -3485,7 +3481,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := req.unscopedChecker.CheckAccessToRemoteCluster(rc); err != nil {
+		if err := unscopedChecker.CheckAccessToRemoteCluster(rc); err != nil {
 			if trace.IsAccessDenied(err) {
 				return nil, trace.NotFound("remote cluster %q not found", req.routeToCluster)
 			}
@@ -3498,7 +3494,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	allowedLogins = append(allowedLogins, teleport.SSHSessionJoinPrincipal)
 
 	pinnedIP := ""
-	if caType == types.UserCA && (checker.PinSourceIP() || req.pinIP) {
+	if caType == types.UserCA && (req.checker.Common().PinSourceIP() || req.pinIP) {
 		if req.loginIP == "" {
 			return nil, trace.BadParameter("IP pinning is enabled for user %q but there is no client IP information", req.user.GetName())
 		}
@@ -3528,8 +3524,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			return nil, trace.Wrap(err)
 		}
 
-		// depending on wether this is a scoped or unscoped certificate, exactly one of role names or
-		// scope pin must be set.
+		// collect fields that are mutually exclusive based on wether we're working with a scoped vs unscoped identity.
 		var (
 			scopePin              *scopesv1.Pin
 			roleNames             []string
@@ -3537,12 +3532,14 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			allowedResourceIDs    []types.ResourceID
 		)
 
-		if req.scopedChecker != nil {
-			scopePin = req.scopedChecker.ScopePin()
-		} else {
-			roleNames = req.unscopedChecker.RoleNames()
-			certificateExtensions = req.unscopedChecker.CertificateExtensions()
-			allowedResourceIDs = req.unscopedChecker.GetAllowedResourceIDs()
+		if scopedChecker, ok := req.checker.Scoped(); ok {
+			scopePin = scopedChecker.ScopePin()
+		}
+
+		if unscopedChecker, ok := req.checker.Unscoped(); ok {
+			roleNames = unscopedChecker.RoleNames()
+			certificateExtensions = unscopedChecker.CertificateExtensions()
+			allowedResourceIDs = unscopedChecker.GetAllowedResourceIDs()
 		}
 
 		params := sshca.UserCertificateRequest{
@@ -3556,9 +3553,9 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 				Principals:              allowedLogins,
 				ScopePin:                scopePin,
 				Roles:                   roleNames,
-				PermitPortForwarding:    checker.CanPortForward(),
-				PermitAgentForwarding:   checker.CanForwardAgents(),
-				PermitX11Forwarding:     checker.PermitX11Forwarding(),
+				PermitPortForwarding:    req.checker.Common().CanPortForward(),
+				PermitAgentForwarding:   req.checker.Common().CanForwardAgents(),
+				PermitX11Forwarding:     req.checker.Common().PermitX11Forwarding(),
 				RouteToCluster:          req.routeToCluster,
 				Traits:                  req.traits,
 				ActiveRequests:          req.activeRequests,
@@ -3619,8 +3616,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	)
 
 	// only unscoped identities currently support kube groups/users.
-	if req.unscopedChecker != nil {
-		kubeGroups, kubeUsers, err = req.unscopedChecker.CheckKubeGroupsAndUsers(sessionTTL, req.overrideRoleTTL)
+	if unscopedChecker, ok := req.checker.Unscoped(); ok {
+		kubeGroups, kubeUsers, err = unscopedChecker.CheckKubeGroupsAndUsers(sessionTTL, req.overrideRoleTTL)
 		// NotFound errors are acceptable - this user may have no k8s access
 		// granted and that shouldn't prevent us from issuing a TLS cert.
 		if err != nil && !trace.IsNotFound(err) {
@@ -3628,25 +3625,25 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		}
 
 		// See which database names and users this user is allowed to use.
-		dbNames, dbUsers, err = req.unscopedChecker.CheckDatabaseNamesAndUsers(sessionTTL, req.overrideRoleTTL)
+		dbNames, dbUsers, err = unscopedChecker.CheckDatabaseNamesAndUsers(sessionTTL, req.overrideRoleTTL)
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 
 		// See which AWS role ARNs this user is allowed to assume.
-		roleARNs, err = req.unscopedChecker.CheckAWSRoleARNs(sessionTTL, req.overrideRoleTTL)
+		roleARNs, err = unscopedChecker.CheckAWSRoleARNs(sessionTTL, req.overrideRoleTTL)
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 
 		// See which Azure identities this user is allowed to assume.
-		azureIdentities, err = req.unscopedChecker.CheckAzureIdentities(sessionTTL, req.overrideRoleTTL)
+		azureIdentities, err = unscopedChecker.CheckAzureIdentities(sessionTTL, req.overrideRoleTTL)
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 
 		// Enumerate allowed GCP service accounts.
-		gcpAccounts, err = req.unscopedChecker.CheckGCPServiceAccounts(sessionTTL, req.overrideRoleTTL)
+		gcpAccounts, err = unscopedChecker.CheckGCPServiceAccounts(sessionTTL, req.overrideRoleTTL)
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
@@ -3666,11 +3663,13 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		allowedResourceIDs []types.ResourceID
 	)
 
-	if req.scopedChecker != nil {
-		scopePin = req.scopedChecker.ScopePin()
-	} else {
-		roleNames = req.unscopedChecker.RoleNames()
-		allowedResourceIDs = req.unscopedChecker.GetAllowedResourceIDs()
+	if scopedChecker, ok := req.checker.Scoped(); ok {
+		scopePin = scopedChecker.ScopePin()
+	}
+
+	if unscopedChecker, ok := req.checker.Unscoped(); ok {
+		roleNames = unscopedChecker.RoleNames()
+		allowedResourceIDs = unscopedChecker.GetAllowedResourceIDs()
 	}
 
 	identity := tlsca.Identity{
@@ -3872,9 +3871,8 @@ func (a *Server) attestHardwareKey(ctx context.Context, params *attestHardwareKe
 }
 
 type verifyLocksForUserCertsReq struct {
-	scopedChecker   scopedCertGenChecker
-	unscopedChecker unscopedCertGenChecker
-
+	// checker is a split access checker which may be scoped or unscoped.
+	checker *services.SplitAccessChecker
 	// defaultMode is the default locking mode, as recorded in the cluster
 	// Auth Preferences.
 	defaultMode constants.LockingMode
@@ -3899,14 +3897,7 @@ type verifyLocksForUserCertsReq struct {
 // verifyLocksForUserCerts verifies if any locks are in place before issuing new
 // user certificates.
 func (a *Server) verifyLocksForUserCerts(req verifyLocksForUserCertsReq) error {
-	var checker commonCertGenChecker
-	if req.scopedChecker != nil {
-		checker = req.scopedChecker
-	} else {
-		checker = req.unscopedChecker
-	}
-
-	lockingMode := checker.LockingMode(req.defaultMode)
+	lockingMode := req.checker.Common().LockingMode(req.defaultMode)
 
 	lockTargets := []types.LockTarget{
 		{User: req.username},
@@ -3914,9 +3905,9 @@ func (a *Server) verifyLocksForUserCerts(req verifyLocksForUserCertsReq) error {
 		{Device: req.deviceID},
 	}
 
-	if req.unscopedChecker != nil {
+	if unscopedChecker, ok := req.checker.Unscoped(); ok {
 		lockTargets = append(lockTargets,
-			services.RolesToLockTargets(req.unscopedChecker.RoleNames())...,
+			services.RolesToLockTargets(unscopedChecker.RoleNames())...,
 		)
 	}
 

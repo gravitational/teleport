@@ -1479,12 +1479,21 @@ type UserState interface {
 // user does not have any active access requests (initial web login, initial
 // tbot certs, tests).
 func AccessInfoFromUserState(user UserState) *AccessInfo {
-	// TODO(fspmarshall): figure out what the scoped equivalent of this should be.
-	roles := user.GetRoles()
-	traits := user.GetTraits()
+	return accessInfoFromUserState(user, user.GetRoles(), nil)
+}
+
+// ScopePinnedAccessInfoFromUserState returns a new AccessInfo populated from the
+// traits held by the user and the provided scope pin. Population/verification of the
+// scope pin must be performed prior to calling this function.
+func ScopePinnedAccessInfoFromUserState(user UserState, pin *scopesv1.Pin) *AccessInfo {
+	return accessInfoFromUserState(user, nil, pin)
+}
+
+func accessInfoFromUserState(user UserState, roles []string, pin *scopesv1.Pin) *AccessInfo {
 	return &AccessInfo{
 		Username: user.GetName(),
 		Roles:    roles,
-		Traits:   traits,
+		ScopePin: pin,
+		Traits:   user.GetTraits(),
 	}
 }

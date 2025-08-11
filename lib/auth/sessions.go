@@ -284,14 +284,14 @@ func (a *Server) newWebSession(
 	}
 
 	certReq := certRequest{
-		user:            userState,
-		loginIP:         req.LoginIP,
-		ttl:             sessionTTL,
-		sshPublicKey:    sshAuthorizedKey,
-		tlsPublicKey:    tlsPublicKeyPEM,
-		unscopedChecker: checker, // TODO(fspmarshall/scopes): scoped checker.
-		traits:          req.Traits,
-		activeRequests:  req.AccessRequests,
+		user:           userState,
+		loginIP:        req.LoginIP,
+		ttl:            sessionTTL,
+		sshPublicKey:   sshAuthorizedKey,
+		tlsPublicKey:   tlsPublicKeyPEM,
+		checker:        services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to newWebSession.
+		traits:         req.Traits,
+		activeRequests: req.AccessRequests,
 	}
 	var hasDeviceExtensions bool
 	if opts != nil && opts.deviceExtensions != nil {
@@ -559,13 +559,13 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	}
 
 	certs, err := a.generateUserCert(ctx, certRequest{
-		user:            user,
-		loginIP:         req.LoginIP,
-		tlsPublicKey:    tlsPublicKey,
-		unscopedChecker: checker, // TODO(fspmarshall/scopes): scoped checker (possibly not until scoped app work begins).
-		ttl:             req.SessionTTL,
-		traits:          req.Traits,
-		activeRequests:  req.AccessRequests,
+		user:           user,
+		loginIP:        req.LoginIP,
+		tlsPublicKey:   tlsPublicKey,
+		checker:        services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to newAppSession.
+		ttl:            req.SessionTTL,
+		traits:         req.Traits,
+		activeRequests: req.AccessRequests,
 		// Set the app session ID in the certificate - used in auditing from the App Service.
 		appSessionID: sessionID,
 		// Only allow this certificate to be used for applications.
@@ -752,7 +752,7 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 		sshPublicKeyAttestationStatement: req.SSHAttestationStatement,
 		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
 		compatibility:                    req.Compatibility,
-		unscopedChecker:                  checker, // TODO(fspmarshall/scopes): scoped checker.
+		checker:                          services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to CreateSessionCerts.
 		traits:                           req.UserState.GetTraits(),
 		routeToCluster:                   req.RouteToCluster,
 		kubernetesCluster:                req.KubernetesCluster,

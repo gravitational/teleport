@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -164,6 +165,17 @@ func (c *Cache) ListScopedRoleAssignments(ctx context.Context, req *scopedaccess
 	}
 
 	return state.assignments.ListScopedRoleAssignments(ctx, req)
+}
+
+// PopulatePinnedAssignmentsForUser populates the provided scope pin with all relevant assignments related to the
+// given user. The provided pin must already have its Scope field set.
+func (c *Cache) PopulatePinnedAssignmentsForUser(ctx context.Context, user string, pin *scopesv1.Pin) error {
+	state, err := c.read(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return state.assignments.PopulatePinnedAssignmentsForUser(ctx, user, pin)
 }
 
 // Close stops cache background operations and causes future reads to fail. It is safe to call multiple times.

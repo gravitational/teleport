@@ -149,6 +149,10 @@ func (c *ScopedAccessChecker) LockingMode(defaultMode constants.LockingMode) con
 	return c.checker.LockingMode(defaultMode)
 }
 
+func (c *ScopedAccessChecker) AccessInfo() *AccessInfo {
+	return c.checker.info
+}
+
 // fetchAndConvertScopedRoles fetches scoped roles by name and converts them to classic roles.
 func fetchAndConvertScopedRoles(ctx context.Context, scope string, names []string, reader ScopedRoleReader) ([]types.Role, error) {
 	roles := make([]types.Role, 0, len(names))

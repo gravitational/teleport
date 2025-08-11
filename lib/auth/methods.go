@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -55,7 +57,7 @@ const (
 // authenticateUserLogin implements the bulk of user login authentication.
 // Used by the top-level local login methods, [Server.AuthenticateSSHUser] and
 // [Server.AuthenticateWebUser]
-func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, services.AccessChecker, error) {
+func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, *services.SplitAccessChecker, error) {
 	username := req.Username
 
 	requiredExt := mfav1.ChallengeExtensions{
@@ -107,10 +109,40 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.Authe
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	accessInfo := services.AccessInfoFromUserState(userState)
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+
+	var checker *services.SplitAccessChecker
+	if req.Scope != "" {
+		if err := scopes.StrongValidate(req.Scope); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		scopePin := &scopesv1.Pin{
+			Scope: req.Scope,
+		}
+
+		if err := a.scopedAccessCache.PopulatePinnedAssignmentsForUser(ctx, user.GetName(), scopePin); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		accessInfo := services.ScopePinnedAccessInfoFromUserState(userState, scopePin)
+
+		scopedChecker, err := services.NewScopedAccessCheckerAtScope(ctx, req.Scope, accessInfo, clusterName.GetClusterName(), a.scopedAccessCache)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		checker = services.NewScopedSplitAccessChecker(scopedChecker)
+	} else {
+		accessInfo := services.AccessInfoFromUserState(userState)
+
+		// TODO(fspmarshall/scopes): should we be bifurcating behavior on scoped/unscoped authentication
+		// here or later (as currently implemented)?
+		unscopedChecker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		checker = services.NewUnscopedSplitAccessChecker(unscopedChecker)
 	}
 
 	// Verify if the MFA device is locked.
@@ -148,7 +180,7 @@ type authAuditProps struct {
 	username       string
 	clientMetadata *authclient.ForwardedClientMetadata
 	mfaDevice      *types.MFADevice
-	checker        services.AccessChecker
+	checker        *services.SplitAccessChecker
 	authErr        error
 	userOrigin     apievents.UserOrigin
 }
@@ -191,7 +223,7 @@ func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) e
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		privateKeyPolicy, err := props.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+		privateKeyPolicy, err := props.checker.Common().PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -213,9 +245,10 @@ var (
 )
 
 type verifyMFADeviceLocksParams struct {
-	// Checker used to verify locks.
-	// Optional, created via a [UserState] fetch if nil.
-	Checker services.AccessChecker
+	// Checker is used to verify locks. Lock verification varies depending on wether the checker is
+	// scoped or unscoped, so we use a split checker. If no checker is provided, a default unscoped
+	// checker is created from the user backend state.
+	Checker *services.SplitAccessChecker
 
 	// ClusterLockingMode used to verify locks.
 	// Optional, acquired from [Server.GetAuthPreference] if nil.
@@ -262,11 +295,11 @@ func (a *Server) authenticateUser(
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+			unscopedChecker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			p.Checker = checker
+			p.Checker = services.NewUnscopedSplitAccessChecker(unscopedChecker)
 		}
 
 		if p.ClusterLockingMode == "" {
@@ -281,10 +314,10 @@ func (a *Server) authenticateUser(
 		// as part of certificate issuance in various scenarios (password change,
 		// non-session certificates, etc)
 		return a.verifyLocksForUserCerts(verifyLocksForUserCertsReq{
-			unscopedChecker: p.Checker, // TODO(fspmarshall/scopes): add scope pinning/checker support here.
-			defaultMode:     p.ClusterLockingMode,
-			username:        user,
-			mfaVerified:     mfaDev.Id,
+			checker:     p.Checker,
+			defaultMode: p.ClusterLockingMode,
+			username:    user,
+			mfaVerified: mfaDev.Id,
 		})
 	}
 	return verifyLocks, mfaDev, user, nil
@@ -718,18 +751,18 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		}
 		clientIP = host
 	}
-	if checker.PinSourceIP() && clientIP == "" {
+
+	if checker.Common().PinSourceIP() && clientIP == "" {
 		return nil, trace.BadParameter("source IP pinning is enabled but client IP is unknown")
 	}
 
 	certReq := certRequest{
-		user:            user,
-		ttl:             req.TTL,
-		sshPublicKey:    req.SSHPublicKey,
-		tlsPublicKey:    req.TLSPublicKey,
-		compatibility:   req.CompatibilityMode,
-		unscopedChecker: checker,
-		// TODO(fspmarshall/scopes): add scope pinning/checker support here.
+		user:                             user,
+		ttl:                              req.TTL,
+		sshPublicKey:                     req.SSHPublicKey,
+		tlsPublicKey:                     req.TLSPublicKey,
+		compatibility:                    req.CompatibilityMode,
+		checker:                          checker,
 		traits:                           user.GetTraits(),
 		routeToCluster:                   req.RouteToCluster,
 		kubernetesCluster:                req.KubernetesCluster,
