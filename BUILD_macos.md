@@ -56,10 +56,10 @@ and updates are welcome!
             rustup default <version>
             ```
 
-            > **Note:** Using `rustup default <version>` sets the toolchain globally
-            > for your user. If you only want to override the toolchain for a
-            > specific project directory, use `rustup override set <version>` inside
-            > that directory instead.
+            > **Note:** Using `rustup default <version>` sets the toolchain
+            > globally for your user. If you only want to override the toolchain
+            > for a specific project directory, use `rustup override set
+            > <version>` inside that directory instead.
 
         1. Verify the installed version:
 
@@ -68,29 +68,36 @@ and updates are welcome!
             ```
 
 1. **Install Node.js**
-   1. Find the required Node version in
+    1. Find the required Node version in
       [`build.assets/versions.mk`](/build.assets/versions.mk) (`NODE_VERSION`).
 
-   1. Install Node.js (Homebrew only supports MAJOR version):
+    1. Install Node.js (Homebrew only supports MAJOR version):
 
-      ```shell
-      # Replace <version> with the MAJOR value of NODE_VERSION from build.assets/versions.mk (e.g., 22)
-      brew install node@<version>
-      ```
+        ```shell
+        # Replace <version> with the MAJOR value of NODE_VERSION from build.assets/versions.mk (e.g., 22)
+        brew install node@<version>
+        ```
 
-   1. Install to PATH and apply the changes to your shell:
+    1. Install to PATH and apply the changes to your shell:
 
-      ```shell
-      # Replace <version> with the MAJOR value of NODE_VERSION from build.assets/versions.mk (e.g., 22)
-      echo 'export PATH="/opt/homebrew/opt/node@22/bin:$PATH"' >> ~/.zshrc
-      source ~/.zshrc
-      ```
+        ```shell
+        # Replace <version> with the MAJOR value of NODE_VERSION from build.assets/versions.mk (e.g., 22)
+        echo 'export PATH="/opt/homebrew/opt/node@<version>/bin:$PATH"' >> ~/.zshrc
 
-   1. Enable pnpm using the bundled corepack:
+        source ~/.zshrc
+        ```
 
-      ```shell
-      corepack enable pnpm
-      ```
+    1. Verify the installed version:
+
+        ```shell
+        node --version
+        ```
+
+    1. Enable pnpm using the bundled `corepack`:
+
+        ```shell
+        corepack enable pnpm
+        ```
 
 1. **Install additional build dependencies**
    1. Install `wasm-pack`:
@@ -111,17 +118,6 @@ and updates are welcome!
           wasm-pack --version
           ```
 
-   1. Install `wasm-bindgen-cli`:
-      1. Find the required wasm-bindgen version in
-        [`build.assets/versions.mk`](/build.assets/versions.mk)
-        (`WASM_BINDGEN_VERSION`).
-
-      1. Install wasm-bindgen-cli:
-
-          ```shell
-          cargo install wasm-bindgen-cli --force --locked --version <version>
-          ```
-
    1. Install `libfido2` (pulls `openssl 3` as dependency):
 
       ```shell
@@ -135,27 +131,48 @@ and updates are welcome!
       ```
 
 1. **Install test dependencies (optional)**
-   1. Install `helm` and `helm-unittest` plugin:
+    1. Install `helm` and the `helm-unittest` plugin:
 
-      ```shell
-      brew install helm
-      helm plugin install https://github.com/quintush/helm-unittest --version 0.2.11
-      ```
+        ```shell
+        brew install helm
 
-   1. Install `protoc`:
-      1. Find the required protoc version in
-         [`build.assets/versions.mk`](/build.assets/versions.mk)
-         (`PROTOC_VERSION`).
+        helm plugin install https://github.com/quintush/helm-unittest --version 0.2.11
+        ```
 
-      1. Install `protobuf` (Homebrew only supports MAJOR.MINOR versions):
+    1. Install `bats`:
+        1. Find the required `bats-core` version from
+            [`build.assets/Dockerfile`](/build.assets/Dockerfile) (search for `bats-core`).
+        1. Set the version variable and install `bats-core`:
 
-          ```shell
-          # Replace <version> with the value of PROTOC_VERSION from build.assets/versions.mk (e.g., 26.1)
-          brew install protobuf@<version>
-          ```
+            ```shell
+            # Replace <version> with the required bats-core version (e.g., 1.12.0)
+            BATS_VERSION=1.12.0
 
-   1. Increase the maximum number of open files:
+            curl -L https://github.com/bats-core/bats-core/archive/v${BATS_VERSION}.tar.gz -o ~/Downloads/bats.tar.gz
+            cd ~/Downloads
+            tar xzvf bats.tar.gz
+            sudo mkdir -p /usr/local/libexec
+            sudo chown $USER /usr/local/libexec
+            cd bats-core-${BATS_VERSION}
+            sudo ./install.sh /usr/local
+            cd ../
+            rm -rf bats-core-${BATS_VERSION} bats.tar.gz
+            ```
 
-      ```shell
-      ulimit -n 2560 # 10x default
-      ```
+        1. Verify `bats` installation:
+
+              ```shell
+              bats --version
+              ```
+
+    1. Install `protoc`:
+
+        ```shell
+        brew install protobuf
+        ```
+
+    1. Increase the maximum number of open files:
+
+        ```shell
+        ulimit -n 2560 # 10x default
+        ```

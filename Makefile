@@ -1637,15 +1637,6 @@ terraform-resources-up-to-date: must-start-clean/host
 		exit 1; \
 	fi
 
-# icons-up-to-date checks if icons were pre-processed before being added to the repo.
-.PHONY: icons-up-to-date
-icons-up-to-date: must-start-clean/host
-	pnpm process-icons
-	@if ! git diff --quiet; then \
-		./build.assets/please-run.sh "icons (see web/packages/design/src/Icon/README.md)" "pnpm process-icons"; \
-		exit 1; \
-	fi
-
 # go-generate will execute `go generate` and generate go code.
 .PHONY: go-generate
 go-generate:
@@ -1835,7 +1826,10 @@ ensure-wasm-pack:
 		@echo wasm-pack up-to-date: $(INSTALLED_VERSION) \
 	)
 
-ensure-wasm-bindgen: NEED_VERSION = $(shell $(MAKE) --no-print-directory -s -C build.assets print-wasm-bindgen-version)
+# TODO: Use CARGO_GET_VERSION_AWK instead of hardcoded version
+#       On 386 Arch, calling the variable produces a malformed command that fails the build.
+#ensure-wasm-bindgen: NEED_VERSION = $(shell $(call CARGO_GET_VERSION,wasm-bindgen))
+ensure-wasm-bindgen: NEED_VERSION = 0.2.99
 ensure-wasm-bindgen: INSTALLED_VERSION = $(word 2,$(shell wasm-bindgen --version 2>/dev/null))
 ensure-wasm-bindgen:
 ifneq ($(CI)$(FORCE),)
