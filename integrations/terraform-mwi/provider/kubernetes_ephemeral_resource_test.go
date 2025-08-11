@@ -35,7 +35,11 @@ func TestAccKubernetesEphemeralResource(t *testing.T) {
 	ctx := t.Context()
 
 	process, kubeMock := setupKubernetesHarness(t, log)
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	if err != nil {
+		t.Fatalf("failed to create auth client: %v", err)
+	}
+	t.Cleanup(func() { _ = rootClient.Close() })
 	_, pt := setupKubernetesAccessBot(ctx, t, rootClient)
 
 	config := fmt.Sprintf(`
