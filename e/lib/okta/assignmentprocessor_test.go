@@ -17,9 +17,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
-	"github.com/gravitational/teleport/e/lib/okta/common/set"
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 func TestProcessAssignments(t *testing.T) {

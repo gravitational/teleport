@@ -12,7 +12,7 @@ import (
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // NewAssignmentProvisioner creates a new AssignmentProvisioner.
@@ -22,7 +22,7 @@ func NewAssignmentProvisioner(cfg ProvisionerConfig) (*AssignmentProvisioner, er
 	}
 	return &AssignmentProvisioner{
 		ProvisionerConfig: cfg,
-		knownAccounts:     utils.NewSet[services.IdentityCenterAccountID](),
+		knownAccounts:     set.New[services.IdentityCenterAccountID](),
 	}, nil
 }
 
@@ -31,13 +31,13 @@ type AssignmentProvisioner struct {
 	ProvisionerConfig
 
 	accountLock   sync.RWMutex
-	knownAccounts utils.Set[services.IdentityCenterAccountID]
+	knownAccounts set.Set[services.IdentityCenterAccountID]
 }
 
 func (a *AssignmentProvisioner) SetKnownAccounts(accts ...services.IdentityCenterAccountID) {
 	a.accountLock.Lock()
 	defer a.accountLock.Unlock()
-	a.knownAccounts = utils.NewSet(accts...)
+	a.knownAccounts = set.New(accts...)
 }
 
 func (a *AssignmentProvisioner) isKnownAccount(acct services.IdentityCenterAccountID) bool {
@@ -76,8 +76,8 @@ func (a *AssignmentProvisioner) Provision(ctx context.Context, principal *pb.Pri
 	teleportAssignments := convertToICSDKAssignments(principal.GetStatus().GetAssignments(), principalType)
 
 	diffCalc := assignmentDiffCalculator{
-		teleportAssignments: utils.NewSet(dereferenceSlice(teleportAssignments)...),
-		awsAssignments:      utils.NewSet(dereferenceSlice(awsAssignments)...),
+		teleportAssignments: set.New(dereferenceSlice(teleportAssignments)...),
+		awsAssignments:      set.New(dereferenceSlice(awsAssignments)...),
 	}
 
 	var g errGroup
@@ -187,19 +187,19 @@ func filterAssignmentsByType(in []*icsdk.Assignment, principalType ssoadmintypes
 }
 
 type assignmentDiffCalculator struct {
-	teleportAssignments utils.Set[icsdk.Assignment]
-	awsAssignments      utils.Set[icsdk.Assignment]
+	teleportAssignments set.Set[icsdk.Assignment]
+	awsAssignments      set.Set[icsdk.Assignment]
 }
 
 // assignmentsToCreate calculates  the set of Identity Center assignment that
 // need to be created in order to sync the Teleport assignment set with AWS.
-func (d *assignmentDiffCalculator) assignmentsToCreate() utils.Set[icsdk.Assignment] {
+func (d *assignmentDiffCalculator) assignmentsToCreate() set.Set[icsdk.Assignment] {
 	return d.teleportAssignments.Clone().Subtract(d.awsAssignments)
 }
 
 // assignmentsToDelete calculates the set of Identity Center assignments that
 // need to be deleted in order to sync the Teleport assignment set with AWS.
-func (d *assignmentDiffCalculator) assignmentsToDelete() utils.Set[icsdk.Assignment] {
+func (d *assignmentDiffCalculator) assignmentsToDelete() set.Set[icsdk.Assignment] {
 	return d.awsAssignments.Clone().Subtract(d.teleportAssignments)
 }
 

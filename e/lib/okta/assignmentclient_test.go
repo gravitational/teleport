@@ -19,8 +19,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
-	"github.com/gravitational/teleport/e/lib/okta/common/set"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // purgeCache clears the assignmentClient caches, forcing the client to reload
@@ -50,8 +50,8 @@ func TestAssignmentClient(t *testing.T) {
 		oktaClient := newTestClient()
 
 		oktaClient.UsernamesToUserIDs.Store(testUser, testOktaUserID)
-		oktaClient.AppsToUsers.Store(testApp, newSet(oktaapi.AppAssignment{UserID: string(testOktaUserID), Scope: oktaapi.UserScope}))
-		oktaClient.GroupsToUsers.Store(testGroup, newSet(testOktaUserID))
+		oktaClient.AppsToUsers.Store(testApp, set.New(oktaapi.AppAssignment{UserID: string(testOktaUserID), Scope: oktaapi.UserScope}))
+		oktaClient.GroupsToUsers.Store(testGroup, set.New(testOktaUserID))
 		oktaClient.AppsToGroups = map[oktaAppID][]oktaGroupID{
 			testApp: {testGroup},
 		}
@@ -96,8 +96,8 @@ func TestAssignmentClient(t *testing.T) {
 		// group and one app configured, but the user is not assigned to either...
 		oktaClient := newTestClient()
 		oktaClient.UsernamesToUserIDs.Store(testUser, testOktaUserID)
-		oktaClient.AppsToUsers.Store(testApp, newSet[oktaapi.AppAssignment]())
-		oktaClient.GroupsToUsers.Store(testGroup, newSet[oktaapi.OktaUserID]())
+		oktaClient.AppsToUsers.Store(testApp, set.New[oktaapi.AppAssignment]())
+		oktaClient.GroupsToUsers.Store(testGroup, set.New[oktaapi.OktaUserID]())
 
 		assignmentClient := newAssignmentClient(log, oktaClient)
 

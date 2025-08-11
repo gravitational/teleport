@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/pagination"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // assignment holds the minimal set of information about an single account
@@ -164,8 +165,8 @@ func (calc *AssignmentCalculator) calcUserAssignments(ctx context.Context, user 
 		}
 	}
 
-	allRoles := utils.NewSet[string](user.GetRoles()...)
-	allowedByRequest := utils.NewSet[assignment]()
+	allRoles := set.New(user.GetRoles()...)
+	allowedByRequest := set.New[assignment]()
 	accessRequests, err := calc.getActiveAccessRequestsOnUser(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err, "Fetching active access requests for user")
@@ -316,10 +317,10 @@ func (calc *AssignmentCalculator) getActiveAccessRequestsOnUser(ctx context.Cont
 func (calc *AssignmentCalculator) applyExpressions(
 	ctx context.Context,
 	allowExpressions, denyExpressions []types.IdentityCenterAccountAssignment,
-) (utils.Set[assignment], utils.Set[assignment], error) {
+) (set.Set[assignment], set.Set[assignment], error) {
 
-	allow := utils.NewSet[assignment]()
-	deny := utils.NewSet[assignment]()
+	allow := set.New[assignment]()
+	deny := set.New[assignment]()
 
 	for candidate, err := range iciter.AllAccountAssignments(ctx, calc.AccountAssignmentCache) {
 		if err != nil {
@@ -369,7 +370,7 @@ func sortAssignments(a, b *identitycenterv1.AccountAssignmentRef) int {
 // updated record to the backend data service if there are any changes.
 func updatePrincipalAccountAssignments(
 	ctx context.Context,
-	assignments utils.Set[assignment],
+	assignments set.Set[assignment],
 	extID provisioning.ExternalID,
 	principalAssignment *identitycenterv1.PrincipalAssignment,
 	icSvc services.IdentityCenterPrincipalAssignments,

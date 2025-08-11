@@ -13,8 +13,8 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
-	"github.com/gravitational/teleport/e/lib/okta/common/set"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // assignmentClient is a caching Okta client that will keep track of of Okta
@@ -108,7 +108,7 @@ func (a *assignmentClient) userAssignedToGroup(ctx context.Context, username use
 
 	ok := false
 	a.groups.Read(func(_ map[oktaGroupID]set.Set[oktaUserID]) {
-		ok = members.Has(userID)
+		ok = members.Contains(userID)
 	})
 
 	return ok, nil
@@ -248,8 +248,8 @@ func (a *assignmentClient) userAssignedToApp(ctx context.Context, username userN
 	assignedToGroup := false
 	assignedToApp := false
 	a.apps.Read(func(_ map[oktaAppID]set.Set[oktaapi.AppAssignment]) {
-		assignedToGroup = assignments.Has(oktaapi.AppAssignment{UserID: string(userID), Scope: oktaapi.GroupScope})
-		assignedToApp = assignments.Has(oktaapi.AppAssignment{UserID: string(userID), Scope: oktaapi.UserScope})
+		assignedToGroup = assignments.Contains(oktaapi.AppAssignment{UserID: string(userID), Scope: oktaapi.GroupScope})
+		assignedToApp = assignments.Contains(oktaapi.AppAssignment{UserID: string(userID), Scope: oktaapi.UserScope})
 	})
 
 	return assignedToGroup || assignedToApp, nil

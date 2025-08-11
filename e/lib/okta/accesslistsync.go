@@ -26,12 +26,12 @@ import (
 	accesslistsvc "github.com/gravitational/teleport/e/lib/accesslist"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/lib/okta/common"
-	"github.com/gravitational/teleport/e/lib/okta/common/set"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -787,7 +787,7 @@ func getAppID(a types.Application) (oktaAppID, bool) {
 }
 
 func (a *accessListSync) importApps(ctx context.Context, params importAppsParams) error {
-	appIDProcessed := newSet[oktaAppID]()
+	appIDProcessed := set.New[oktaAppID]()
 	// Sort the apps by name. This is to make the generated resource names predictable. It may
 	// a single Okta application has multiple links. If so, there is a separate app passed here
 	// in the params for each Okta app link, but the resources here (Access Lists, Access List
@@ -830,7 +830,7 @@ func (a *accessListSync) importApps(ctx context.Context, params importAppsParams
 			}
 		}
 
-		if appIDProcessed.Has(appID) {
+		if appIDProcessed.Contains(appID) {
 			log.DebugContext(ctx, "application ID was already processed")
 			continue
 		}
@@ -855,11 +855,6 @@ func (a *accessListSync) importApps(ctx context.Context, params importAppsParams
 		}
 	}
 	return nil
-}
-
-// New constructs a set from an arbitrary collection of elements
-func newSet[T comparable](elements ...T) set.Set[T] {
-	return set.New[T](elements...)
 }
 
 func (a *accessListSync) appToImportResources(ctx context.Context, appID oktaAppID, app types.Application, userMapping map[oktaUserID]userName) (importResourceMetadata, error) {
@@ -915,7 +910,7 @@ func getGroupID(g types.UserGroup) (oktaGroupID, bool) {
 }
 
 func (a *accessListSync) importGroups(ctx context.Context, params importGroupsParams) error {
-	groupIDProcessed := newSet[oktaGroupID]()
+	groupIDProcessed := set.New[oktaGroupID]()
 	for _, group := range params.groups {
 		log := a.logger.With("group_name", group.GetName())
 
@@ -927,7 +922,7 @@ func (a *accessListSync) importGroups(ctx context.Context, params importGroupsPa
 
 		log = log.With("group_id", groupID)
 
-		if groupIDProcessed.Has(groupID) {
+		if groupIDProcessed.Contains(groupID) {
 			log.DebugContext(ctx, "group ID was already processed")
 			continue
 		}

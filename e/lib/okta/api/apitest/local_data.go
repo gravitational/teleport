@@ -13,8 +13,8 @@ import (
 	query "github.com/okta/okta-sdk-golang/v2/okta/query"
 
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
-	"github.com/gravitational/teleport/e/lib/okta/common/set"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // LocalData is a structure holds in-memory data representing Okta state which can be manipulated

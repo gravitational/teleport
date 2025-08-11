@@ -12,7 +12,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T) {
@@ -249,8 +249,8 @@ func TestAssignmentDiffCalculator(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			diff := &assignmentDiffCalculator{
-				teleportAssignments: utils.NewSet(tc.localState...),
-				awsAssignments:      utils.NewSet(tc.remoteState...),
+				teleportAssignments: set.New(tc.localState...),
+				awsAssignments:      set.New(tc.remoteState...),
 			}
 			gotToDelete := diff.assignmentsToDelete()
 			require.ElementsMatch(t, tc.wantToDelete, gotToDelete.Elements())

@@ -13,10 +13,10 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 type MembersMapType map[string]*accesslist.AccessListMember
-type membersSetType map[string]struct{}
 
 type ongoingAccessRequestAssignments struct {
 	accessRequestAssignments []types.OktaAssignment
@@ -122,11 +122,11 @@ func (a *OngoingAssignmentsMembershipFilter) collectAssignments(ctx context.Cont
 	return nil
 }
 
-func toSet(assignments []types.OktaAssignment) membersSetType {
-	out := make(membersSetType, len(assignments))
+func toSet(assignments []types.OktaAssignment) set.Set[string] {
+	out := set.NewWithCapacity[string](len(assignments))
 	for _, assignment := range assignments {
 		for _, target := range assignment.GetTargets() {
-			out[assigmentMapKey(target.GetID(), assignment.GetUser())] = struct{}{}
+			out.Add(assigmentMapKey(target.GetID(), assignment.GetUser()))
 		}
 	}
 	return out
