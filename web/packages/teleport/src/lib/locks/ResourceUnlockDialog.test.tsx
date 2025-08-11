@@ -18,6 +18,7 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 
 import darkTheme from 'design/theme/themes/darkTheme';
@@ -26,17 +27,44 @@ import { testQueryClient } from 'design/utils/testing';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
+import {
+  listV2LocksSuccess,
+  removeLockSuccess,
+} from 'teleport/test/helpers/locks';
 
 import { ResourceUnlockDialog } from './ResourceUnlockDialog';
-import { useResourceLock } from './useResourceLock';
 
-jest.mock('./useResourceLock', () => ({
-  useResourceLock: jest.fn(),
-}));
+const server = setupServer();
+
+beforeAll(() => {
+  server.listen();
+});
+
+afterEach(async () => {
+  server.resetHandlers();
+  await testQueryClient.resetQueries();
+
+  jest.clearAllMocks();
+});
+
+afterAll(() => server.close());
 
 describe('ResourceUnlockDialog', () => {
   it('should cancel', async () => {
-    withMockHook();
+    withListLocksSuccess({
+      locks: [
+        {
+          name: '76bc5cc7-b9bf-4a03-935f-8018c0a2bc05',
+          message: 'This is a test message',
+          expires: '2023-12-31T23:59:59Z',
+          targets: {
+            user: 'test-user',
+          },
+          createdAt: '2023-01-01T00:00:00Z',
+          createdBy: 'admin',
+        },
+      ],
+    });
 
     const onCancel = jest.fn();
 
@@ -50,19 +78,30 @@ describe('ResourceUnlockDialog', () => {
       { wrapper: makeWrapper() }
     );
 
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
+    });
+
     expect(screen.getByText('Unlock test-user?')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Remove Lock' })).toBeEnabled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
   it('should submit', async () => {
-    const unlock = jest.fn().mockResolvedValue(null);
-
-    withMockHook({
-      unlock,
+    withListLocksSuccess({
+      locks: [
+        {
+          name: '76bc5cc7-b9bf-4a03-935f-8018c0a2bc05',
+          message: 'This is a test message',
+          expires: '2023-12-31T23:59:59Z',
+          targets: {
+            user: 'test-user',
+          },
+          createdAt: '2023-01-01T00:00:00Z',
+          createdBy: 'admin',
+        },
+      ],
     });
 
     const onComplete = jest.fn();
@@ -77,11 +116,13 @@ describe('ResourceUnlockDialog', () => {
       { wrapper: makeWrapper() }
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remove Lock' }));
-    expect(unlock).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
+    });
 
-    // unlock() is async and wont finish immediately, so we need to give it time
-    // to call onComplete()
+    withUnlockSuccess();
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Lock' }));
+
     await waitFor(() => {
       expect(onComplete).toHaveBeenCalledTimes(1);
     });
@@ -101,34 +142,16 @@ function makeWrapper() {
   );
 }
 
-function withMockHook(
-  result: Partial<ReturnType<typeof useResourceLock>> = {}
+function withListLocksSuccess(
+  ...params: Parameters<typeof listV2LocksSuccess>
 ) {
-  jest.mocked(useResourceLock).mockReturnValue({
-    canLock: false,
-    canUnlock: true,
-    error: null,
-    isLoading: false,
-    isLocked: false,
-    lock: jest.fn(),
-    unlock: jest.fn(),
-    lockError: null,
-    lockPending: false,
-    locks: [
-      {
-        name: '2e76fda0-a698-46c1-977d-cf95ad2df7fc',
-        message: 'This is a test message',
-        expires: '2023-12-31T23:59:59Z',
-        targets: [{ kind: 'user', name: 'test-user' }],
-        targetLookup: {
-          user: 'test-user',
-        },
-        createdAt: '2023-01-01T00:00:00Z',
-        createdBy: 'admin',
-      },
-    ],
-    unlockError: null,
-    unlockPending: false,
-    ...result,
-  });
+  server.use(
+    listV2LocksSuccess({
+      locks: params[0]?.locks ?? [],
+    })
+  );
+}
+
+function withUnlockSuccess() {
+  server.use(removeLockSuccess());
 }

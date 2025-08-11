@@ -17,7 +17,8 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 
 import darkTheme from 'design/theme/themes/darkTheme';
@@ -26,28 +27,36 @@ import { testQueryClient, userEvent } from 'design/utils/testing';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
+import { listV2LocksSuccess } from 'teleport/test/helpers/locks';
 
 import { ResourceLockIndicator } from './ResourceLockIndicator';
-import { useResourceLock } from './useResourceLock';
 
-jest.mock('./useResourceLock', () => ({
-  useResourceLock: jest.fn(),
-}));
+const server = setupServer();
+
+beforeAll(() => {
+  server.listen();
+});
+
+afterEach(async () => {
+  server.resetHandlers();
+  await testQueryClient.resetQueries();
+
+  jest.clearAllMocks();
+});
+
+afterAll(() => server.close());
 
 describe('ResourceUnlockDialog', () => {
   it('show a tooltip with details of a single lock', async () => {
     const user = userEvent.setup();
 
-    withMockHook({
+    withListLocksSuccess({
       locks: [
         {
           name: '2e76fda0-a698-46c1-977d-cf95ad2df7fc',
           message: 'This is a test message',
           expires: '2023-12-31T23:59:59Z',
-          targets: [{ kind: 'user', name: 'test-user' }],
-          targetLookup: {
-            user: 'test-user',
-          },
+          targets: { user: 'test-user' },
           createdAt: '2023-01-01T00:00:00Z',
           createdBy: 'admin',
         },
@@ -58,7 +67,9 @@ describe('ResourceUnlockDialog', () => {
       wrapper: makeWrapper(),
     });
 
-    expect(screen.getByText('Locked')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Locked')).toBeInTheDocument();
+    });
 
     await user.hover(screen.getByText('Locked'));
     expect(
@@ -74,27 +85,21 @@ describe('ResourceUnlockDialog', () => {
   it('show a tooltip when multiple locks exist', async () => {
     const user = userEvent.setup();
 
-    withMockHook({
+    withListLocksSuccess({
       locks: [
         {
           name: '2e76fda0-a698-46c1-977d-cf95ad2df7fc',
           message: 'This is a test message',
           expires: '2023-12-31T23:59:59Z',
-          targets: [{ kind: 'user', name: 'test-user' }],
-          targetLookup: {
-            user: 'test-user',
-          },
+          targets: { user: 'test-user' },
           createdAt: '2023-01-01T00:00:00Z',
           createdBy: 'admin',
         },
         {
-          name: '2e76fda0-a698-46c1-977d-cf95ad2df7fc',
+          name: 'b8f312c9-f8b7-4ef2-b3b1-97c07a750bff',
           message: 'This is a another test message',
           expires: '2023-12-31T23:59:59Z',
-          targets: [{ kind: 'user', name: 'test-user' }],
-          targetLookup: {
-            user: 'test-user',
-          },
+          targets: { user: 'test-user' },
           createdAt: '2023-01-01T00:00:00Z',
           createdBy: 'admin',
         },
@@ -105,7 +110,9 @@ describe('ResourceUnlockDialog', () => {
       wrapper: makeWrapper(),
     });
 
-    expect(screen.getByText('Locked')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Locked')).toBeInTheDocument();
+    });
 
     await user.hover(screen.getByText('Locked'));
     expect(
@@ -127,22 +134,12 @@ function makeWrapper() {
   );
 }
 
-function withMockHook(
-  result: Partial<ReturnType<typeof useResourceLock>> = {}
+function withListLocksSuccess(
+  ...params: Parameters<typeof listV2LocksSuccess>
 ) {
-  jest.mocked(useResourceLock).mockReturnValue({
-    canLock: false,
-    canUnlock: true,
-    error: null,
-    isLoading: false,
-    isLocked: false,
-    lock: jest.fn(),
-    unlock: jest.fn(),
-    lockError: null,
-    lockPending: false,
-    locks: [],
-    unlockError: null,
-    unlockPending: false,
-    ...result,
-  });
+  server.use(
+    listV2LocksSuccess({
+      locks: params[0]?.locks ?? [],
+    })
+  );
 }

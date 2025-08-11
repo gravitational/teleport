@@ -31,6 +31,7 @@ import FieldInput from 'shared/components/FieldInput/FieldInput';
 import { Validation } from 'shared/components/Validation/Validation';
 
 import { LockResourceKind } from 'teleport/LocksV2/NewLock/common';
+import { Lock } from 'teleport/services/locks';
 
 import { useResourceLock } from './useResourceLock';
 
@@ -68,9 +69,10 @@ export function ResourceLockDialog(props: {
   onCancel: () => void;
   /**
    * Called when the user completes the lock operation.
+   * @param newLock the newly created lock or undefined if the operation didn't happen
    * @returns nothing
    */
-  onComplete: () => void;
+  onComplete: (newLock: Lock | undefined) => void;
 }) {
   const { targetKind, targetName, onCancel, onComplete } = props;
 
@@ -84,8 +86,8 @@ export function ResourceLockDialog(props: {
 
   const handleLock = async () => {
     try {
-      await lock(message, ttl);
-      onComplete();
+      const newLock = await lock(message, ttl);
+      onComplete(newLock);
     } catch {
       // Swallow this error - it's handled as `lockError` above
     }

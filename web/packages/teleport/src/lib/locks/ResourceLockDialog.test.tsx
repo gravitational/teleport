@@ -18,6 +18,7 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 
 import darkTheme from 'design/theme/themes/darkTheme';
@@ -26,17 +27,32 @@ import { testQueryClient } from 'design/utils/testing';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
+import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
+import {
+  createLockSuccess,
+  listV2LocksSuccess,
+} from 'teleport/test/helpers/locks';
 
 import { ResourceLockDialog } from './ResourceLockDialog';
-import { useResourceLock } from './useResourceLock';
 
-jest.mock('./useResourceLock', () => ({
-  useResourceLock: jest.fn(),
-}));
+const server = setupServer();
+
+beforeAll(() => {
+  server.listen();
+});
+
+afterEach(async () => {
+  server.resetHandlers();
+  await testQueryClient.resetQueries();
+
+  jest.clearAllMocks();
+});
+
+afterAll(() => server.close());
 
 describe('ResourceLockDialog', () => {
   it('should cancel', async () => {
-    withMockHook();
+    withListLocksSuccess();
 
     const onCancel = jest.fn();
 
@@ -50,29 +66,18 @@ describe('ResourceLockDialog', () => {
       { wrapper: makeWrapper() }
     );
 
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
+    });
+
     expect(screen.getByText('Lock test-user?')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Create Lock' })).toBeEnabled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
   it('should submit', async () => {
-    const lock = jest.fn().mockResolvedValue({
-      name: '2e76fda0-a698-46c1-977d-cf95ad2df7fc',
-      message: 'This is a test message',
-      expires: '2023-12-31T23:59:59Z',
-      targets: {
-        user: 'test-user',
-      },
-      createdAt: '2023-01-01T00:00:00Z',
-      createdBy: 'admin',
-    });
-
-    withMockHook({
-      lock,
-    });
+    withListLocksSuccess();
 
     const onComplete = jest.fn();
 
@@ -86,23 +91,54 @@ describe('ResourceLockDialog', () => {
       { wrapper: makeWrapper() }
     );
 
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
+    });
+
     inputMessage('This is a test message');
     inputTtl('24h');
 
+    withLockSuccess();
     fireEvent.click(screen.getByRole('button', { name: 'Create Lock' }));
-    expect(lock).toHaveBeenCalledTimes(1);
-    expect(lock).toHaveBeenLastCalledWith('This is a test message', '24h');
 
-    // lock() is async and wont finish immediately, so we need to give it time
-    // to call onComplete()
     await waitFor(() => {
       expect(onComplete).toHaveBeenCalledTimes(1);
+    });
+
+    expect(onComplete).toHaveBeenCalledWith({
+      createdAt: expect.anything(),
+      createdBy: expect.anything(),
+      expires: expect.anything(),
+      message: 'This is a test message',
+      name: expect.anything(),
+      targetLookup: {
+        user: 'test-user',
+      },
+      targets: [
+        {
+          kind: 'user',
+          name: 'test-user',
+        },
+      ],
     });
   });
 });
 
-function makeWrapper() {
-  const ctx = createTeleportContext();
+function makeWrapper(params?: { customAcl?: ReturnType<typeof makeAcl> }) {
+  const {
+    customAcl = makeAcl({
+      lock: {
+        ...defaultAccess,
+        list: true,
+        remove: true,
+        create: true,
+        edit: true,
+      },
+    }),
+  } = params ?? {};
+  const ctx = createTeleportContext({
+    customAcl,
+  });
   return (props: PropsWithChildren) => (
     <QueryClientProvider client={testQueryClient}>
       <TeleportProviderBasic teleportCtx={ctx}>
@@ -114,26 +150,6 @@ function makeWrapper() {
   );
 }
 
-function withMockHook(
-  result: Partial<ReturnType<typeof useResourceLock>> = {}
-) {
-  jest.mocked(useResourceLock).mockReturnValue({
-    canLock: true,
-    canUnlock: false,
-    error: null,
-    isLoading: false,
-    isLocked: false,
-    lock: jest.fn(),
-    unlock: jest.fn(),
-    lockError: null,
-    lockPending: false,
-    locks: [],
-    unlockError: null,
-    unlockPending: false,
-    ...result,
-  });
-}
-
 async function inputMessage(value: string) {
   const input = screen.getByLabelText('Reason');
   fireEvent.change(input, { target: { value } });
@@ -142,4 +158,18 @@ async function inputMessage(value: string) {
 async function inputTtl(value: string) {
   const input = screen.getByLabelText('Expiry');
   fireEvent.change(input, { target: { value } });
+}
+
+function withListLocksSuccess(
+  ...params: Parameters<typeof listV2LocksSuccess>
+) {
+  server.use(
+    listV2LocksSuccess({
+      locks: params[0]?.locks ?? [],
+    })
+  );
+}
+
+function withLockSuccess() {
+  server.use(createLockSuccess());
 }
