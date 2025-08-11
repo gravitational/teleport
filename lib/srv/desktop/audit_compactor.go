@@ -2,7 +2,9 @@ package desktop
 
 import (
 	"context"
+	"maps"
 	"math"
+	"slices"
 	"sync"
 	"time"
 
@@ -27,9 +29,8 @@ type streamEvent interface {
 
 type stream struct {
 	expireTime time.Time
-	base       streamEvent
-	//offset     uint64
-	//length     uint64
+	events     []streamEvent
+	//events     map[uint64]streamEvent
 	timer *time.Timer
 	done  chan struct{}
 }
@@ -51,6 +52,84 @@ type auditCompactor struct {
 	streamLock       sync.Mutex
 }
 
+func (s *stream) emitEvents(ctx context.Context, emitFn func(ctx context.Context, evnt events.AuditEvent)) {
+	for _, evnt := range s.compactEvents() {
+		emitFn(ctx, evnt.Base())
+	}
+}
+
+func (s *stream) compactEvents() []streamEvent {
+	offsetMapping := map[uint64][]streamEvent{}
+	for _, evnt := range s.events {
+		offsetMapping[evnt.GetOffset()] = append(offsetMapping[evnt.GetOffset()], evnt)
+	}
+
+	var finalEvents []streamEvent
+	for len(offsetMapping) > 0 {
+		smallestKey := slices.Sorted(maps.Keys(offsetMapping))
+		if len(smallestKey) == 0 {
+			continue
+		}
+		evnt := offsetMapping[smallestKey[0]][0]
+		sequentialEvents := s.compact(evnt, offsetMapping)
+		base := sequentialEvents[0]
+		for i, subsequent := range sequentialEvents {
+			if i > 0 {
+				base.SetLength(base.GetLength() + subsequent.GetLength())
+			}
+			offset := subsequent.GetOffset()
+			evnts := offsetMapping[offset]
+			evnts = slices.Delete(evnts, slices.Index(evnts, subsequent), 1)
+			if len(evnts) > 0 {
+				offsetMapping[offset] = evnts
+			} else {
+				delete(offsetMapping, offset)
+			}
+		}
+		finalEvents = append(finalEvents, base)
+	}
+
+	return finalEvents
+}
+
+func (s *stream) compact(evnt streamEvent, sortedEvents map[uint64][]streamEvent) []streamEvent {
+	offset := evnt.GetOffset() + evnt.GetLength()
+	if len(sortedEvents[offset]) > 0 {
+		// Pick the longest
+		var results [][]streamEvent
+		for _, choice := range sortedEvents[offset] {
+			results = append(results, s.compact(choice, sortedEvents))
+		}
+		winner := slices.MaxFunc(results, func(a, b []streamEvent) int {
+			return len(a) - len(b)
+		})
+
+		return append([]streamEvent{evnt}, winner...)
+	}
+	return []streamEvent{evnt}
+}
+
+func (s *stream) addEvent(evnt streamEvent) {
+	s.events = append(s.events, evnt)
+}
+
+//func (s *stream) emitEvents(ctx context.Context, emitFn func(context.Context, events.AuditEvent)) {
+//	// Examine the events in the stream and attempt to compact them
+//	for _, evnt := range s.events {
+//		emitFn(ctx, evnt.Base())
+//	}
+//}
+//
+//func (s *stream) addEvent(evnt streamEvent) {
+//	if base, exists := s.events[evnt.GetOffset()]; exists {
+//		delete(s.events, evnt.GetOffset())
+//		base.SetLength(base.GetLength() + evnt.GetLength())
+//		s.events[base.GetOffset()+base.GetLength()] = base
+//	} else {
+//		s.events[evnt.GetOffset()+evnt.GetLength()] = evnt
+//	}
+//}
+
 func (a *auditCompactor) handleEvent(ctx context.Context, evnt streamEvent) {
 	// Does the event exist in the stream?
 	key := streamId{
@@ -68,12 +147,12 @@ func (a *auditCompactor) handleEvent(ctx context.Context, evnt streamEvent) {
 		// Temporarily stop the timer (if possible)
 		alreadyFired := !stream.timer.Stop()
 		// Is this read/write a continuation of a previous event?
-		expectedOffset := stream.base.GetOffset() + stream.base.GetLength()
-		if evnt.GetOffset() == expectedOffset && !alreadyFired {
+		//expectedOffset := stream.base.GetOffset() + stream.base.GetLength()
+		if !alreadyFired {
 			// Update the current stream. It is a continuation of the current stream
 			// and the timer has not yet fired for it
 			// TODO: Should we update the timestamp of the audit event?
-			stream.base.SetLength(stream.base.GetLength() + evnt.GetLength())
+			stream.addEvent(evnt)
 			// Reset the timer either to the refresh interval, or until
 			// the stream's expiration time
 			stream.timer.Reset(time.Duration(math.Min(float64(a.refreshInterval), float64(time.Until(stream.expireTime)))))
@@ -95,20 +174,21 @@ func (a *auditCompactor) handleEvent(ctx context.Context, evnt streamEvent) {
 	//   - We are tracking this stream, and the read/write is continuous,
 	//     but the timer has already fired.
 	if newStream {
-		done := make(chan struct{})
-		a.streams[key] = &stream{
-			done:       done,
+		s := &stream{
+			done:       make(chan struct{}),
 			expireTime: time.Now().Add(a.maxDelayInterval),
-			base:       evnt,
-			timer: time.AfterFunc(a.refreshInterval, func() {
-				// Only needed for shutting down / flushing
-				defer close(done)
-				a.streamLock.Lock()
-				defer a.streamLock.Unlock()
-				delete(a.streams, key)
-				a.emitFn(ctx, evnt.Base())
-			}),
+			events:     []streamEvent{evnt},
 		}
+		s.timer = time.AfterFunc(a.refreshInterval, func() {
+			// Only needed for shutting down / flushing
+			defer close(s.done)
+			a.streamLock.Lock()
+			delete(a.streams, key)
+			a.streamLock.Unlock()
+			s.emitEvents(context.TODO(), a.emitFn)
+
+		})
+		a.streams[key] = s
 	}
 }
 
@@ -119,7 +199,7 @@ func (a *auditCompactor) flush(ctx context.Context) {
 		if stream.timer.Stop() {
 			// If we successfully stop the timer before it fires,
 			// go ahead and emit the audit event
-			a.emitFn(ctx, stream.base.Base())
+			stream.emitEvents(ctx, a.emitFn)
 			delete(a.streams, streamId)
 		} else {
 			// The timer was already firing, so wait until

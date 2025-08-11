@@ -51,31 +51,32 @@ func TestAuditCompactor(t *testing.T) {
 	}
 
 	t.Run("basic", func(t *testing.T) {
+		auditEvents = auditEvents[:0]
 		ctx := t.Context()
 		baseTime := time.Now()
 		synctest.Run(func() {
-			// 3 sequential reads
+			// Read sequence A
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 0, 100, baseTime))
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 100, 100, baseTime.Add(1*time.Second)))
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 200, 100, baseTime.Add(2*time.Second)))
-			// out-of-sequence reads
+			// Read sequence B
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 0, 100, baseTime.Add(4*time.Second)))
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 100, 100, baseTime.Add(5*time.Second)))
-			// continue previous sequence
+			// Read sequence A continued
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 300, 200, baseTime.Add(6*time.Second)))
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 500, 50, baseTime.Add(7*time.Second)))
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 550, 90, baseTime.Add(8*time.Second)))
 			synctest.Wait()
 		})
 
-		require.Len(t, auditEvents, 3)
-		// Should be compacted to 3 audit events
-		assert.Contains(t, auditEvents, newReadEvent("foo", 1, 0, 300, baseTime))
+		require.Len(t, auditEvents, 2)
+		// Should be compacted to 2 audit events
+		assert.Contains(t, auditEvents, newReadEvent("foo", 1, 0, 640, baseTime))
 		assert.Contains(t, auditEvents, newReadEvent("foo", 1, 0, 200, baseTime.Add(4*time.Second)))
-		assert.Contains(t, auditEvents, newReadEvent("foo", 1, 300, 340, baseTime.Add(6*time.Second)))
 	})
 
 	t.Run("expirations", func(t *testing.T) {
+		auditEvents = auditEvents[:0]
 		ctx := t.Context()
 		baseTime := time.Now()
 		synctest.Run(func() {
@@ -97,6 +98,7 @@ func TestAuditCompactor(t *testing.T) {
 	})
 
 	t.Run("mix-reads-writes", func(t *testing.T) {
+		auditEvents = auditEvents[:0]
 		ctx := t.Context()
 		baseTime := time.Now()
 		synctest.Run(func() {
@@ -117,6 +119,7 @@ func TestAuditCompactor(t *testing.T) {
 	})
 
 	t.Run("mix-files-and-directories", func(t *testing.T) {
+		auditEvents = auditEvents[:0]
 		ctx := t.Context()
 		baseTime := time.Now()
 		synctest.Run(func() {
@@ -139,6 +142,7 @@ func TestAuditCompactor(t *testing.T) {
 	})
 
 	t.Run("flush", func(t *testing.T) {
+		auditEvents = auditEvents[:0]
 		ctx := t.Context()
 		baseTime := time.Now()
 		synctest.Run(func() {
