@@ -2234,7 +2234,9 @@ func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (remote
 			if result {
 				// If the error is a known upgrade failure, we can retry with the other protocol.
 				// To do that, we need to reset the connection monitor context.
+				sess.connMonitorMu.Lock()
 				sess.connCtx, sess.connMonitorCancel = context.WithCancelCause(req.Context())
+				sess.connMonitorMu.Unlock()
 			}
 			return result
 		})
@@ -2289,7 +2291,9 @@ func (f *Forwarder) getPortForwardDialer(sess *clusterSession, req *http.Request
 		result := httpstream.IsUpgradeFailure(err) || httpstream.IsHTTPSProxyError(err) || kubeerrors.IsForbidden(err) || isTeleportUpgradeFailure(err)
 		if result {
 			// If the error is a known upgrade failure, we can retry with the other protocol.
+			sess.connMonitorMu.Lock()
 			sess.connCtx, sess.connMonitorCancel = context.WithCancelCause(req.Context())
+			sess.connMonitorMu.Unlock()
 		}
 		return result
 	}), nil
@@ -2391,12 +2395,17 @@ type clusterSession struct {
 	connCtx context.Context
 	// connMonitorCancel is the conn monitor connMonitorCancel function.
 	connMonitorCancel context.CancelCauseFunc
+	// connMonitorMu guards connMonitorCancel.
+	connMonitorMu sync.Mutex
 	// sendErrStatus is a function that sends an error status to the client.
 	sendErrStatus func(status *kubeerrors.StatusError) error
 }
 
 // close cancels the connection monitor context if available.
 func (s *clusterSession) close() {
+	s.connMonitorMu.Lock()
+	defer s.connMonitorMu.Unlock()
+
 	if s.connMonitorCancel != nil {
 		s.connMonitorCancel(io.EOF)
 	}
@@ -2406,6 +2415,8 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (n
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	s.connMonitorMu.Lock()
+	defer s.connMonitorMu.Unlock()
 
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    conn,
