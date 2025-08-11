@@ -22,25 +22,26 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func requireDBEntry(t *testing.T, db *sql.DB, key int64, expectUsername, expectTTY, expectAddr string, expectLoginTime, expectLogoutTime time.Time) {
+func assertDBEntry(t *testing.T, db *sql.DB, key int64, expectUsername, expectTTY, expectAddr string, expectLoginTime, expectLogoutTime time.Time) {
 	var user string
 	var tty, remoteHost sql.NullString
 	var wtmpType, loginTs, logoutTs sql.NullInt64
-	require.NoError(t,
+	assert.NoError(t,
 		db.QueryRow("SELECT Type, User, Login, TTY, RemoteHost, Logout FROM wtmp WHERE ID = ?", key).
 			Scan(&wtmpType, &user, &loginTs, &tty, &remoteHost, &logoutTs),
 	)
-	require.Equal(t, int64(userProcess), wtmpType.Int64)
-	require.Equal(t, expectUsername, user)
-	require.Equal(t, expectTTY, tty.String)
-	require.Equal(t, expectAddr, remoteHost.String)
-	require.Equal(t, expectLoginTime.UnixMicro(), loginTs.Int64)
-	require.Equal(t, expectLogoutTime.UnixMicro(), logoutTs.Int64)
+	assert.Equal(t, int64(userProcess), wtmpType.Int64)
+	assert.Equal(t, expectUsername, user)
+	assert.Equal(t, expectTTY, tty.String)
+	assert.Equal(t, expectAddr, remoteHost.String)
+	assert.Equal(t, expectLoginTime.UnixMicro(), loginTs.Int64)
+	assert.Equal(t, expectLogoutTime.UnixMicro(), logoutTs.Int64)
 }
 
 func TestWtmpdb(t *testing.T) {
@@ -63,7 +64,7 @@ func TestWtmpdb(t *testing.T) {
 	require.NotEmpty(t, key)
 
 	// Check that user was logged.
-	requireDBEntry(t, wtmpdb.db, key, "testuser", "pts/99", remote.Addr, loginTime, time.Unix(0, 0))
+	assertDBEntry(t, wtmpdb.db, key, "testuser", "pts/99", remote.Addr, loginTime, time.Unix(0, 0))
 	isUserLoggedIn, err := wtmpdb.IsUserLoggedIn("testuser")
 	require.NoError(t, err)
 	require.True(t, isUserLoggedIn)
@@ -71,7 +72,7 @@ func TestWtmpdb(t *testing.T) {
 	// Check that logout is logged.
 	logoutTime := loginTime.Add(time.Hour)
 	require.NoError(t, wtmpdb.Logout(key, logoutTime))
-	requireDBEntry(t, wtmpdb.db, key, "testuser", "pts/99", remote.Addr, loginTime, logoutTime)
+	assertDBEntry(t, wtmpdb.db, key, "testuser", "pts/99", remote.Addr, loginTime, logoutTime)
 	isUserLoggedIn, err = wtmpdb.IsUserLoggedIn("testuser")
 	require.NoError(t, err)
 	require.False(t, isUserLoggedIn)

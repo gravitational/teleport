@@ -19,7 +19,6 @@
 package uacc
 
 import (
-	"encoding/binary"
 	"net"
 	"os"
 	"strings"
@@ -66,7 +65,7 @@ func NewUserAccountHandler(cfg UaccConfig) (*UserAccountHandler, error) {
 	return uacc, nil
 }
 
-// Session represents a login session. It must be closed when the session is finished.
+// Session represents a login Session. It must be closed when the Session is finished.
 type Session struct {
 	uacc      *UserAccountHandler
 	utmpKey   string
@@ -116,22 +115,24 @@ func (session *Session) Close() error {
 	var anySucceeded bool
 	errors := make([]error, 0, 2)
 	if session.utmpKey != "" {
-		if session.uacc.utmp == nil {
+		utmp := session.uacc.utmp
+		if utmp == nil {
 			return trace.BadParameter("utmp not supported")
 		}
-		if err := session.uacc.utmp.Logout(session.utmpKey, logoutTime); err == nil {
+		if err := utmp.Logout(session.utmpKey, logoutTime); err == nil {
 			anySucceeded = true
 		} else {
 			errors = append(errors, err)
 		}
 	}
 	if session.wtmpdbKey != nil {
-		if session.uacc.wtmpdb == nil {
+		wtmpdb := session.uacc.wtmpdb
+		if wtmpdb == nil {
 			return trace.BadParameter("wtmpdb not supported")
 		} else if session.uacc.isPAMEnabled {
 			return trace.BadParameter("wtmpdb login/logout is handled by PAM")
 		}
-		if err := session.uacc.wtmpdb.Logout(*session.wtmpdbKey, logoutTime); err == nil {
+		if err := wtmpdb.Logout(*session.wtmpdbKey, logoutTime); err == nil {
 			anySucceeded = true
 		} else {
 			errors = append(errors, err)
@@ -150,29 +151,6 @@ func (uacc *UserAccountHandler) FailedLogin(username string, remote net.Addr) er
 			return trace.Wrap(err)
 		}
 	}
-	// wtmpdb doesn't log failed logins
+	// wtmpdb doesn't log failed logins.
 	return nil
-}
-
-// prepareAddr parses and transforms a net.Addr into a format usable by other uacc functions.
-func prepareAddr(addr net.Addr) ([4]int32, error) {
-	stringIP, _, err := net.SplitHostPort(addr.String())
-	if err != nil {
-		return [4]int32{}, trace.Wrap(err)
-	}
-	ip := net.ParseIP(stringIP)
-	rawV6 := ip.To16()
-
-	// this case can occur if the net.Addr isn't in an expected IP format, in that case, ignore it
-	// we have to guard against this because the net.Addr internal format is implementation specific
-	if rawV6 == nil {
-		return [4]int32{}, nil
-	}
-
-	groupedV6 := [4]int32{}
-	for i := range groupedV6 {
-		// some bit magic to convert the byte array into 4 32 bit integers
-		groupedV6[i] = int32(binary.LittleEndian.Uint32(rawV6[i*4 : (i+1)*4]))
-	}
-	return groupedV6, nil
 }

@@ -195,6 +195,7 @@ type UaccMetadata struct {
 	// BtmpPath is the path of the system btmp log.
 	BtmpPath string `json:"btmp_path,omitempty"`
 
+	// WtmpdbPath is the path of the system wtmpdb database.
 	WtmpdbPath string `json:"wtmpdb_path,omitempty"`
 }
 
@@ -363,9 +364,8 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	var uaccSession *uacc.Session
 	if c.Terminal && uaccDB != nil {
-		uaccSession, err = uaccDB.OpenSession(tty, c.Login, &c.UaccMetadata.RemoteAddr)
+		uaccSession, err := uaccDB.OpenSession(tty, c.Login, &c.UaccMetadata.RemoteAddr)
 		// uacc support is best-effort, only enable it if OpenSession is successful.
 		// Currently, there is no way to log this error out-of-band with the
 		// command output, so for now we essentially ignore it.

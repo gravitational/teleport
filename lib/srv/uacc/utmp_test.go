@@ -21,6 +21,7 @@ package uacc
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -83,12 +84,12 @@ func TestUtmpUsernameLength(t *testing.T) {
 	utmp := makeUtmpBackend(t)
 
 	// A 33 character long username.
-	username := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	username := strings.Repeat("a", 33)
 	err := utmp.Login("pts/99", username, &utils.NetAddr{Addr: "0.0.0.0:0"}, time.Now())
 	require.True(t, trace.IsBadParameter(err))
 
 	// A 32 character long username.
-	username = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	username = strings.Repeat("a", 32)
 	err = utmp.Login("pts/99", username, &utils.NetAddr{Addr: "0.0.0.0:0"}, time.Now())
 	require.False(t, trace.IsBadParameter(err))
 }

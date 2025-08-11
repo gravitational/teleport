@@ -29,6 +29,7 @@ package uacc
 import "C"
 
 import (
+	"encoding/binary"
 	"net"
 	"strings"
 	"sync"
@@ -296,6 +297,29 @@ func convertIPToC(remote [4]int32) [4]C.int32_t {
 		cIP[i] = (C.int32_t)(remote[i])
 	}
 	return cIP
+}
+
+// prepareAddr parses and transforms a net.Addr into a format usable by other uacc functions.
+func prepareAddr(addr net.Addr) ([4]int32, error) {
+	stringIP, _, err := net.SplitHostPort(addr.String())
+	if err != nil {
+		return [4]int32{}, trace.Wrap(err)
+	}
+	ip := net.ParseIP(stringIP)
+	rawV6 := ip.To16()
+
+	// this case can occur if the net.Addr isn't in an expected IP format, in that case, ignore it
+	// we have to guard against this because the net.Addr internal format is implementation specific
+	if rawV6 == nil {
+		return [4]int32{}, nil
+	}
+
+	groupedV6 := [4]int32{}
+	for i := range groupedV6 {
+		// some bit magic to convert the byte array into 4 32 bit integers
+		groupedV6[i] = int32(binary.LittleEndian.Uint32(rawV6[i*4 : (i+1)*4]))
+	}
+	return groupedV6, nil
 }
 
 func cTimestamp(ts time.Time) (C.int32_t, C.int32_t) {
