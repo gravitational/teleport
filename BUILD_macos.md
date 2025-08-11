@@ -55,6 +55,7 @@ and updates are welcome!
         1. Set the default Rust toolchain globally (applies to all projects):
 
             ```shell
+            # Replace <version> with the value of RUST_VERSION from build.assets/versions.mk (e.g., 1.81.0)
             rustup default <version>
             ```
 
