@@ -225,6 +225,11 @@ jobs:
             --path "teleport-${TELEPORT_VERSION}.pkg" \
             --products 'teleport' --os 'darwin' --architecture 'universal' \
             --description "MacOS Universal .pkg installer"
+          
+          "${RELCLI_PATH}" generate-manifest \
+            --path "teleport-tools-${TELEPORT_VERSION}.pkg" \
+            --products 'teleport' --os 'darwin' --architecture 'universal' \
+            --description "MacOS Universal Client Tools .pkg installer"
 
           if [[ "${RELEASE}" == 'enterprise' ]]; then
             "${RELCLI_PATH}" generate-manifest \
