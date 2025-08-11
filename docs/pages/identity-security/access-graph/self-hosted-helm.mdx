@@ -19,13 +19,24 @@ The full listing of supported parameters can be found in the [Helm chart referen
 Access Graph is a feature of the [Identity Security](https://goteleport.com/platform/policy/) product that is only available
 to Teleport Enterprise customers.
 
+## How it works
+
+Unlike Teleport services like the Auth Service, Proxy Service, and agent
+services, Teleport Access Graph does not run from the `teleport` binary, but as
+a separate piece of software available from Teleport as a container image.
+Teleport Access Graph uses TLS credentials to authenticate to the Teleport Auth
+Service. It must also connect to PostgreSQL for its backing storage. After
+obtaining credentials from your Teleport cluster, you create a configuration
+file for Teleport Access Graph and install the `teleport-access-graph` Helm
+chart.
+
 ## Prerequisites
 
 - Kubernetes >= v1.21
 - Helm >= (=helm.version=)
 - A running Teleport Enterprise cluster v18.0.0 or later.
   - For the purposes of this guide, we assume that the Teleport cluster is set up
-    [using the `teleport-cluster` Helm chart](../../admin-guides/deploy-a-cluster/helm-deployments/helm-deployments.mdx)
+    [using the `teleport-cluster` Helm chart](../../zero-trust-access/deploy-a-cluster/helm-deployments/helm-deployments.mdx)
     in the same Kubernetes cluster that will be used to deploy Access Graph.
 - An updated Teleport Enterprise license file with Teleport Identity Security enabled.
 - A PostgreSQL database server v14 or later.
@@ -208,10 +219,10 @@ $ kubectl -n <Var name="teleport-cluster-namespace" /> rollout restart deploymen
 $ kubectl -n <Var name="teleport-cluster-namespace" /> rollout status deployment/teleport-proxy  # Wait for the deployment to succeed
 ```
 
-## Step 4/4. View the Access Graph in the Web UI
+## Step 4/4. View Access Graph data in the Graph Explorer
 
-You can find the Access Graph in the "Access Management" tab in the Web UI.
-![Access Management menu item](../../../img/access-graph/menu-item.png)
+In order to visualize the data from the Access Graph service, use the Graph Explorer in the Web UI. 
+Click **Identity Security** --> **Graph Explorer** and then select a resource to view in the Graph Explorer. 
 
 To access the interface, your user must have a role that allows `list` and `read` verbs on the `access_graph` resource, e.g.:
 

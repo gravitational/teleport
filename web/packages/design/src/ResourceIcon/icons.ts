@@ -49,6 +49,25 @@ import avalara from './assets/avalara.svg?no-inline';
 import awsAccount from './assets/aws-account.svg?no-inline';
 import awsDark from './assets/aws-dark.svg?no-inline';
 import awsLight from './assets/aws-light.svg?no-inline';
+import awsaurora from './assets/awsaurora.svg?no-inline';
+import awscommandlineinterface from './assets/awscommandlineinterface.svg?no-inline';
+import awsdynamodb from './assets/awsdynamodb.svg?no-inline';
+import awsec2 from './assets/awsec2.svg?no-inline';
+import awselasticache from './assets/awselasticache.svg?no-inline';
+import awselasticblockstore from './assets/awselasticblockstore.svg?no-inline';
+import awselasticcontainerservice from './assets/awselasticcontainerservice.svg?no-inline';
+import awselasticsearchservice from './assets/awselasticsearchservice.svg?no-inline';
+import awsfargate from './assets/awsfargate.svg?no-inline';
+import awsiamidentitycenter from './assets/awsiamidentitycenter.svg?no-inline';
+import awsidentityandaccessmanagementiam from './assets/awsidentityandaccessmanagementiam.svg?no-inline';
+import awskeyspaces from './assets/awskeyspaces.svg?no-inline';
+import awsmanagementconsole from './assets/awsmanagementconsole.svg?no-inline';
+import awsmemorydb from './assets/awsmemorydb.svg?no-inline';
+import awsrds from './assets/awsrds.svg?no-inline';
+import awsredshift from './assets/awsredshift.svg?no-inline';
+import awsredshift2 from './assets/awsredshift2.svg?no-inline';
+import awssimplestorageservices3 from './assets/awssimplestorageservices3.svg?no-inline';
+import awssinglesignon from './assets/awssinglesignon.svg?no-inline';
 import azure from './assets/azure.svg?no-inline';
 import bill from './assets/bill.svg?no-inline';
 import bonusly from './assets/bonusly.svg?no-inline';
@@ -189,6 +208,10 @@ import mattermostDark from './assets/mattermost-dark.svg?no-inline';
 import mattermostLight from './assets/mattermost-light.svg?no-inline';
 import maxioDark from './assets/maxio-dark.svg?no-inline';
 import maxioLight from './assets/maxio-light.svg?no-inline';
+import mcpCursorDark from './assets/mcpcursor-dark.svg';
+import mcpCursorLight from './assets/mcpcursor-dark.svg';
+import mcpVscode from './assets/mcpvscode.svg';
+import mcpVscodeInsiders from './assets/mcpvscodeinsiders.svg';
 import metabase from './assets/metabase.svg?no-inline';
 import microsoft from './assets/microsoft.svg?no-inline';
 import microsoftexcel from './assets/microsoftexcel.svg?no-inline';
@@ -222,6 +245,7 @@ import onepasswordLight from './assets/onepassword-light.svg?no-inline';
 import opencomp from './assets/opencomp.svg?no-inline';
 import openid from './assets/openid.svg?no-inline';
 import opsgenie from './assets/opsgenie.svg?no-inline';
+import oracle from './assets/oracle.svg?no-inline';
 import orbitLove from './assets/orbit.love.svg?no-inline';
 import orcasecurityDark from './assets/orcasecurity-dark.svg?no-inline';
 import orcasecurityLight from './assets/orcasecurity-light.svg?no-inline';
@@ -272,6 +296,7 @@ import snowflake from './assets/snowflake.svg?no-inline';
 import spaceliftDark from './assets/spacelift-dark.svg?no-inline';
 import spaceliftLight from './assets/spacelift-light.svg?no-inline';
 import sparrow from './assets/sparrow.svg?no-inline';
+import strapi from './assets/strapi.svg?no-inline';
 import stripeDark from './assets/stripe-dark.svg?no-inline';
 import stripeLight from './assets/stripe-light.svg?no-inline';
 import tableau from './assets/tableau.svg?no-inline';
@@ -340,6 +365,25 @@ export {
   awsDark,
   awsLight,
   awsAccount,
+  awsaurora,
+  awscommandlineinterface,
+  awsdynamodb,
+  awsec2,
+  awselasticache,
+  awselasticblockstore,
+  awselasticcontainerservice,
+  awselasticsearchservice,
+  awsfargate,
+  awsiamidentitycenter,
+  awsidentityandaccessmanagementiam,
+  awskeyspaces,
+  awsmanagementconsole,
+  awsmemorydb,
+  awsrds,
+  awsredshift,
+  awsredshift2,
+  awssimplestorageservices3,
+  awssinglesignon,
   azure,
   bill,
   bonusly,
@@ -480,6 +524,10 @@ export {
   mattermostLight,
   maxioDark,
   maxioLight,
+  mcpCursorDark,
+  mcpCursorLight,
+  mcpVscode,
+  mcpVscodeInsiders,
   metabase,
   microsoft,
   microsoftexcel,
@@ -513,6 +561,7 @@ export {
   opencomp,
   openid,
   opsgenie,
+  oracle,
   orbitLove,
   orcasecurityDark,
   orcasecurityLight,
@@ -563,6 +612,7 @@ export {
   spaceliftDark,
   spaceliftLight,
   sparrow,
+  strapi,
   stripeDark,
   stripeLight,
   tableau,

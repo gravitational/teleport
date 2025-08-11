@@ -1,5 +1,5 @@
 ---
-title: "Protect Azure CLIs with Teleport Application Access"
+title: Protect Azure CLIs and APIs with Teleport
 description: How to enable secure access to Azure CLIs.
 labels:
  - how-to
@@ -11,12 +11,22 @@ labels:
 In this guide, you will:
 
 1. Create an Azure managed identity for user access and attach it your VM.
-1. Deploy a Teleport Application Service with an Azure app in your Teleport cluster.
+1. Deploy the Teleport Application Service with an Azure app in your Teleport cluster.
 1. Assume the managed identity and run `az` commands via `tsh`.
 
 ## How it works
 
 (!docs/pages/includes/application-access/azure-how-it-works.mdx deployment="on an Azure VM" credential="managed identities"!)
+
+Alternatively, you can use the [Teleport SAML IdP](
+../../../identity-governance/idps/saml-microsoft-entra-external-id.mdx)-based
+integration to manage access to Azure Portal and CLI applications.  In this
+approach, users [interactively sign in](
+https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli-interactively)
+to Azure portal and CLI tools, and Azure services tag audit logs on behalf of
+Teleport user account, providing more visibility into how Teleport users are
+interacting with Azure. It is also the only supported method to manage access to
+the Azure portal.
 
 ## Prerequisites
 

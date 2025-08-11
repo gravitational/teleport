@@ -27,11 +27,11 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/dustin/go-humanize"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ClientConfig contains configuration for the release client
@@ -124,7 +124,7 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 				OS:          a.OS,
 				SHA256:      a.SHA256,
 				AssetSize:   a.Size,
-				DisplaySize: utils.ByteCount(a.Size),
+				DisplaySize: humanize.Bytes(uint64(a.Size)),
 				ReleaseIDs:  a.ReleaseIDs,
 				PublicURL:   a.PublicURL,
 			})
