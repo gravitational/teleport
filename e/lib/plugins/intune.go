@@ -7,7 +7,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/intune"
+	"github.com/gravitational/teleport/e/lib/intune/api"
 	"github.com/gravitational/teleport/e/lib/services"
 )
 
@@ -25,8 +25,8 @@ func intuneInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps ins
 		return nil, trace.BadParameter("field Spec.Intune must be present")
 	}
 
-	config := intune.APIConfig{
-		AppCredentials: intune.AppCredentials{
+	config := api.Config{
+		AppCredentials: api.AppCredentials{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 			Tenant:       intuneSettings.Tenant,
@@ -34,7 +34,7 @@ func intuneInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps ins
 		LoginEndpoint: intuneSettings.LoginEndpoint,
 		GraphEndpoint: intuneSettings.GraphEndpoint,
 	}
-	if err := intune.ValidateAppCredentials(config.AppCredentials); err != nil {
+	if err := api.ValidateAppCredentials(config.AppCredentials); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

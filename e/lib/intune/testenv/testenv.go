@@ -14,13 +14,13 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require" //nolint:depguard // This is a test package.
 
-	"github.com/gravitational/teleport/e/lib/intune"
+	"github.com/gravitational/teleport/e/lib/intune/api"
 	intunefake "github.com/gravitational/teleport/e/lib/intune/fake"
 	"github.com/gravitational/teleport/lib/utils/log"
 )
 
 // DefaultApps are the app credentials added by default to the fake Intune API.
-var DefaultApps = []*intune.AppCredentials{
+var DefaultApps = []*api.AppCredentials{
 	{ClientID: "client-id", ClientSecret: "client-secret", Tenant: "example.onmicrosoft.com"},
 }
 
@@ -107,7 +107,7 @@ func (e *Env) Close() {
 }
 
 // MustNewClient is like [NewClient] but it fails the test on error.
-func (e *Env) MustNewClient(t *testing.T) *intune.Client {
+func (e *Env) MustNewClient(t *testing.T) *api.Client {
 	t.Helper()
 	client, err := e.NewClient(t.Context())
 	require.NoError(t, err)
@@ -115,10 +115,10 @@ func (e *Env) MustNewClient(t *testing.T) *intune.Client {
 }
 
 // NewClient returns a new Intune client that connects to the fake API served by [Env].
-func (e *Env) NewClient(ctx context.Context) (*intune.Client, error) {
-	client, err := intune.NewClient(ctx, intune.ClientConfig{
-		APIConfig: intune.APIConfig{
-			AppCredentials: intune.AppCredentials{
+func (e *Env) NewClient(ctx context.Context) (*api.Client, error) {
+	client, err := api.NewClient(ctx, api.ClientConfig{
+		APIConfig: api.Config{
+			AppCredentials: api.AppCredentials{
 				ClientID:     DefaultApps[0].ClientID,
 				ClientSecret: DefaultApps[0].ClientSecret,
 				Tenant:       DefaultApps[0].Tenant,

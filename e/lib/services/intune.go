@@ -10,7 +10,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/intune"
-	intuneservice "github.com/gravitational/teleport/e/lib/intune/service"
+	"github.com/gravitational/teleport/e/lib/intune/api"
 	ent "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/service"
@@ -25,7 +25,7 @@ const (
 
 // IntunePluginInit starts the Intune plugin and orchestrates its lifecycle.
 // It immediately returns the name of the event that's going to be emitted when the plugin stops.
-func IntunePluginInit(ctx context.Context, process *service.TeleportProcess, httpClient *http.Client, statusSink common.StatusSink, apiConfig intune.APIConfig) (string, error) {
+func IntunePluginInit(ctx context.Context, process *service.TeleportProcess, httpClient *http.Client, statusSink common.StatusSink, apiConfig api.Config) (string, error) {
 	if process == nil {
 		return "", trace.BadParameter("process required")
 	}
@@ -39,7 +39,7 @@ func IntunePluginInit(ctx context.Context, process *service.TeleportProcess, htt
 	return EventWithComponents(IntuneStoppedEvent), nil
 }
 
-func startIntuneService(ctx context.Context, process *service.TeleportProcess, httpClient *http.Client, statusSink common.StatusSink, apiConfig intune.APIConfig) error {
+func startIntuneService(ctx context.Context, process *service.TeleportProcess, httpClient *http.Client, statusSink common.StatusSink, apiConfig api.Config) error {
 	process.RegisterWithAuthServer(types.RoleMDM, mdmIdentityEvent)
 
 	logger := process.Config.Logger.With(teleport.ComponentKey, teleport.Component(ent.ComponentIntune, process.GetID()))
@@ -57,15 +57,15 @@ func startIntuneService(ctx context.Context, process *service.TeleportProcess, h
 		return trace.BadParameter("failed to acquire MDM credentials from Auth")
 	}
 
-	s, err := intuneservice.New(ctx, intuneservice.Config{
+	s, err := intune.NewService(ctx, intune.Config{
 		APIConfig:  apiConfig,
 		Logger:     logger,
 		HTTPClient: httpClient,
 	})
 	if err != nil {
 		code := types.PluginStatusCode_OTHER_ERROR
-		if errors.Is(err, intune.ErrIntuneClientInvalidCredentials) ||
-			errors.Is(err, intune.ErrIntuneClientTenantNotFound) {
+		if errors.Is(err, api.ErrIntuneClientInvalidCredentials) ||
+			errors.Is(err, api.ErrIntuneClientTenantNotFound) {
 			code = types.PluginStatusCode_UNAUTHORIZED
 		}
 		statusSink.Emit(

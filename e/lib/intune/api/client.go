@@ -1,4 +1,4 @@
-package intune
+package api
 
 import (
 	"cmp"
@@ -41,14 +41,14 @@ type Client struct {
 
 // ClientConfig is the config used by [Client].
 type ClientConfig struct {
-	APIConfig  APIConfig
+	APIConfig  Config
 	Logger     *slog.Logger
 	Clock      clockwork.Clock
 	HTTPClient *http.Client
 }
 
-// APIConfig are parameters required by the Intune API itself.
-type APIConfig struct {
+// Config are parameters required by the Intune API itself.
+type Config struct {
 	// AppCredentials are credentials used to authenticate with the API.
 	AppCredentials AppCredentials
 	// LoginEndpoint points to one of the national deployments of Microsoft Entra ID.
@@ -141,23 +141,23 @@ func (c *Client) verifyCredentials(ctx context.Context) error {
 		return nil
 	}
 
-	apiError := &APIError{}
+	apiError := &Error{}
 	// Returned error ignored on purpose, makes no difference in the logic below.
 	_ = errors.As(err, &apiError)
 
 	switch {
-	case apiError.APIKind == APIKindLogin &&
+	case apiError.ServiceKind == ServiceKindLogin &&
 		slices.Contains(apiError.DiagnosticCodes, DiagCodeTenantNotFound):
 		return trace.Wrap(ErrIntuneClientTenantNotFound, apiError.Message)
 
-	case apiError.APIKind == APIKindLogin &&
+	case apiError.ServiceKind == ServiceKindLogin &&
 		apiError.StatusCode == http.StatusBadRequest &&
 		apiError.Code == "unauthorized_client":
 		// It likely means that the provided client ID doesn't exist under this tenant.
 		// https://login.microsoftonline.com/error?code=700016
 		return trace.Wrap(ErrIntuneClientInvalidCredentials, apiError.Message)
 
-	case apiError.APIKind == APIKindLogin &&
+	case apiError.ServiceKind == ServiceKindLogin &&
 		apiError.StatusCode == http.StatusUnauthorized:
 		// It likely means that the provided client secret doesn't match the client ID.
 		// https://login.microsoftonline.com/error?code=7000215
@@ -227,41 +227,41 @@ func (c *Client) doRequest(req *http.Request, jsonResp any) error {
 }
 
 // unmarshalAPIError attempts to unmarshal the error response and use it to populate the fields of
-// APIError. APIKind is the only field that is guaranteed to be populated. The rest might be empty
+// Error. ServiceKind is the only field that is guaranteed to be populated. The rest might be empty
 // if unmarshaling failed.
-func (c *Client) unmarshalAPIError(body []byte, req *http.Request) *APIError {
-	var apiError APIError
+func (c *Client) unmarshalAPIError(body []byte, req *http.Request) *Error {
+	var error Error
 	// Requests to the login API have no Authorization header set. We cannot depend on the host of the
 	// request, because in tests the host is the same for both c.loginURL and c.graphURL.
 	if req.Header.Get("Authorization") == "" {
-		apiError.APIKind = APIKindLogin
+		error.ServiceKind = ServiceKindLogin
 
 		resp := &LoginErrorResponse{}
 		if err := json.Unmarshal(body, resp); err != nil {
 			c.config.Logger.DebugContext(req.Context(), "Could not unmarshal login error response", "error", err)
-			return &apiError
+			return &error
 		}
 
-		apiError.Code = resp.Error
-		apiError.Message = resp.ErrorDescription
-		apiError.DiagnosticCodes = resp.ErrorCodes
+		error.Code = resp.Error
+		error.Message = resp.ErrorDescription
+		error.DiagnosticCodes = resp.ErrorCodes
 	} else {
-		apiError.APIKind = APIKindGraph
+		error.ServiceKind = ServiceKindGraph
 
 		resp := &GraphErrorResponse{}
 		if err := json.Unmarshal(body, resp); err != nil {
 			c.config.Logger.DebugContext(req.Context(), "Could not unmarshal Graph error response", "error", err)
-			return &apiError
+			return &error
 		}
 
-		apiError.Code = resp.Error.Code
-		apiError.Message = resp.Error.Message
+		error.Code = resp.Error.Code
+		error.Message = resp.Error.Message
 	}
 
-	return &apiError
+	return &error
 }
 
-// LoginErrorResponse is the JSON shape returned by requests sent to LoginEndpoint of [APIConfig].
+// LoginErrorResponse is the JSON shape returned by requests sent to LoginEndpoint of [Config].
 // https://learn.microsoft.com/en-us/entra/identity-platform/reference-error-codes
 type LoginErrorResponse struct {
 	// Error is the code string for the error, e.g. "invalid_client".
@@ -274,7 +274,7 @@ type LoginErrorResponse struct {
 	ErrorCodes []int `json:"error_codes"`
 }
 
-// GraphErrorResponse is the JSON shape returned by requests sent to GraphEndpoint of [APIConfig].
+// GraphErrorResponse is the JSON shape returned by requests sent to GraphEndpoint of [Config].
 // https://learn.microsoft.com/en-us/graph/errors#json-representation
 type GraphErrorResponse struct {
 	Error GraphErrorResource `json:"error"`
@@ -289,8 +289,8 @@ type GraphErrorResource struct {
 	Message string `json:"message"`
 }
 
-// APIError is an error returned by the Intune API.
-type APIError struct {
+// Error is an error returned by the Intune API.
+type Error struct {
 	// StatusCode is the status of the HTTP response. Guaranteed to be present.
 	// https://learn.microsoft.com/en-us/graph/errors#http-status-codes
 	StatusCode int
@@ -304,33 +304,33 @@ type APIError struct {
 	// problem with parsing the error response payload.
 	Message string
 	// DiagnosticCodes are codes returned by the security token service which map to specific reasons
-	// as to why a request have failed. Non-empty only if APIKind is [APIKindLogin].
+	// as to why a request have failed. Non-empty only if ServiceKind is [ServiceKindLogin].
 	// https://learn.microsoft.com/en-us/entra/identity-platform/reference-error-codes
 	DiagnosticCodes []int
-	// APIKind specifies which API returned the error.
-	APIKind APIKind
+	// ServiceKind specifies which API returned the error.
+	ServiceKind ServiceKind
 }
 
-// APIKind describes which API was contacted.
-type APIKind int
+// ServiceKind describes which API was contacted.
+type ServiceKind int
 
 const (
-	APIKindUnspecified APIKind = iota
-	// APIKindGraph represents requests to the Microsoft Graph API.
-	APIKindGraph
-	// APIKindLogin represents requests to the Microsoft identity platform API.
-	APIKindLogin
+	ServiceKindUnspecified ServiceKind = iota
+	// ServiceKindGraph represents requests to the Microsoft Graph API.
+	ServiceKindGraph
+	// ServiceKindLogin represents requests to the Microsoft identity platform API.
+	ServiceKindLogin
 )
 
 // Error returns a textual representation of the error.
-func (e *APIError) Error() string {
+func (e *Error) Error() string {
 	if e == nil {
 		return "nil error"
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "api_kind=%d status=%v code=%s", e.APIKind, e.StatusCode, e.Code)
+	fmt.Fprintf(&b, "service_kind=%d status=%v code=%s", e.ServiceKind, e.StatusCode, e.Code)
 
-	// e.DiagnosticCodes is always empty if e.APIKind is APIKindGraph.
+	// e.DiagnosticCodes is always empty if e.ServiceKind is ServiceKindGraph.
 	if len(e.DiagnosticCodes) > 0 {
 		fmt.Fprintf(&b, " diag_codes=%v", e.DiagnosticCodes)
 	}

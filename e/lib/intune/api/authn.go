@@ -1,4 +1,4 @@
-package intune
+package api
 
 import (
 	"context"
@@ -58,7 +58,7 @@ func (c *Client) doGraphRequest(req *http.Request, jsonResp any) error {
 
 		// If we got a 401, attempt a single token renewal.
 		// This may happen if our existing auth token got invalidated.
-		apiErr := &APIError{}
+		apiErr := &Error{}
 		is401 := errors.As(err, &apiErr) && apiErr.StatusCode == 401
 		canRetry := allowRetry && is401
 

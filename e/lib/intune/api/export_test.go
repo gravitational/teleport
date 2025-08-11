@@ -1,4 +1,4 @@
-package intune
+package api
 
 func (c *Client) AccessToken() *AccessToken {
 	c.mu.Lock()

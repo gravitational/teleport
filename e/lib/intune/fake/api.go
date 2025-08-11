@@ -15,7 +15,7 @@ import (
 
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/e/lib/intune"
+	"github.com/gravitational/teleport/e/lib/intune/api"
 )
 
 // API holds the implementation details of an HTTP handler for the fake Intune API.
@@ -24,8 +24,8 @@ type API struct {
 
 	// mu guards all fields below it
 	mu             sync.Mutex
-	apps           []*intune.AppCredentials
-	managedDevices []*intune.ManagedDevice
+	apps           []*api.AppCredentials
+	managedDevices []*api.ManagedDevice
 	issuedTokens   map[string]*accessToken // key is [accessToken.token]
 }
 
@@ -40,18 +40,18 @@ func New(config Config) *API {
 	return &API{
 		config:         config,
 		issuedTokens:   make(map[string]*accessToken),
-		managedDevices: []*intune.ManagedDevice{},
+		managedDevices: []*api.ManagedDevice{},
 	}
 }
 
 // SetApps overrides app credentials that can be used to authenticate with the fake API.
-func (a *API) SetApps(apps []*intune.AppCredentials) {
+func (a *API) SetApps(apps []*api.AppCredentials) {
 	a.mu.Lock()
 	a.apps = apps
 	a.mu.Unlock()
 }
 
-func (a *API) SetManagedDevices(devices []*intune.ManagedDevice) {
+func (a *API) SetManagedDevices(devices []*api.ManagedDevice) {
 	a.mu.Lock()
 	a.managedDevices = devices
 	a.mu.Unlock()
@@ -101,7 +101,7 @@ func (a *rootHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	_, ok := a.isAuthorized(req)
 	if !ok {
-		a.replyError(w, 401, intune.GraphErrorResource{
+		a.replyError(w, 401, api.GraphErrorResource{
 			Code:    "InvalidAuthenticationToken",
 			Message: "invalid authentication token",
 		})
@@ -120,7 +120,7 @@ func (a *rootHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if handler == nil {
-		a.replyError(w, 404, intune.GraphErrorResource{
+		a.replyError(w, 404, api.GraphErrorResource{
 			Code:    "BadRequest",
 			Message: fmt.Sprintf("Resource not found for %s %q", req.Method, req.URL.Path),
 		})
@@ -171,7 +171,7 @@ func (a *API) postAccessToken(w http.ResponseWriter, req *http.Request, tenant s
 
 	// Require a specific Content-Type. This is a fake only check.
 	if ct := req.Header.Get("Content-Type"); ct != "application/x-www-form-urlencoded" {
-		a.replyJSON(w, 400, intune.LoginErrorResponse{
+		a.replyJSON(w, 400, api.LoginErrorResponse{
 			Error:            invalidRequest,
 			ErrorDescription: "wrong content type",
 		})
@@ -180,7 +180,7 @@ func (a *API) postAccessToken(w http.ResponseWriter, req *http.Request, tenant s
 
 	// Parse form from body. This is a fake only check.
 	if err := req.ParseForm(); err != nil {
-		a.replyJSON(w, 400, intune.LoginErrorResponse{
+		a.replyJSON(w, 400, api.LoginErrorResponse{
 			Error:            invalidRequest,
 			ErrorDescription: "could not parse request body",
 		})
@@ -188,7 +188,7 @@ func (a *API) postAccessToken(w http.ResponseWriter, req *http.Request, tenant s
 	}
 
 	if grantType := req.PostForm.Get("grant_type"); grantType != "client_credentials" {
-		a.replyJSON(w, 400, intune.LoginErrorResponse{
+		a.replyJSON(w, 400, api.LoginErrorResponse{
 			Error:            "unsupported_grant_type",
 			ErrorDescription: "unsupported grant type",
 		})
@@ -196,7 +196,7 @@ func (a *API) postAccessToken(w http.ResponseWriter, req *http.Request, tenant s
 	}
 
 	if scope := req.PostForm.Get("scope"); scope != "https://graph.microsoft.com/.default" {
-		a.replyJSON(w, 400, intune.LoginErrorResponse{
+		a.replyJSON(w, 400, api.LoginErrorResponse{
 			Error:            invalidRequest,
 			ErrorDescription: "missing or invalid scope",
 		})
@@ -205,11 +205,11 @@ func (a *API) postAccessToken(w http.ResponseWriter, req *http.Request, tenant s
 
 	tenants := a.getTenants()
 	if _, ok := tenants[tenant]; !ok {
-		a.replyJSON(w, 400, intune.LoginErrorResponse{
+		a.replyJSON(w, 400, api.LoginErrorResponse{
 			// https://login.microsoftonline.com/error?code=90002
 			Error:            invalidRequest,
 			ErrorDescription: "tenant not found",
-			ErrorCodes:       []int{intune.DiagCodeTenantNotFound},
+			ErrorCodes:       []int{api.DiagCodeTenantNotFound},
 		})
 		return
 	}
@@ -228,7 +228,7 @@ func (a *API) postAccessToken(w http.ResponseWriter, req *http.Request, tenant s
 				match = true
 				break
 			}
-			a.replyJSON(w, 401, intune.LoginErrorResponse{
+			a.replyJSON(w, 401, api.LoginErrorResponse{
 				// https://login.microsoftonline.com/error?code=7000215
 				Error:            "invalid_client",
 				ErrorDescription: "invalid client secret provided",
@@ -237,7 +237,7 @@ func (a *API) postAccessToken(w http.ResponseWriter, req *http.Request, tenant s
 		}
 	}
 	if !match {
-		a.replyJSON(w, 400, intune.LoginErrorResponse{
+		a.replyJSON(w, 400, api.LoginErrorResponse{
 			// https://login.microsoftonline.com/error?code=700016
 			Error:            "unauthorized_client",
 			ErrorDescription: "app not found",
@@ -246,7 +246,7 @@ func (a *API) postAccessToken(w http.ResponseWriter, req *http.Request, tenant s
 	}
 
 	if token := a.issueAuthTokenLocked(w, clientID); token != nil {
-		a.replyJSON(w, 200, intune.AccessToken{
+		a.replyJSON(w, 200, api.AccessToken{
 			AccessToken: token.token,
 			ExpiresIn:   int(AccessTokenExpiryPeriod.Seconds()),
 		})
@@ -257,7 +257,7 @@ func (a *API) issueAuthTokenLocked(w http.ResponseWriter, clientID string) *acce
 	token, err := a.newAuthToken(clientID)
 	if err != nil {
 		// Error not observed in practice.
-		a.replyJSON(w, 500, intune.LoginErrorResponse{
+		a.replyJSON(w, 500, api.LoginErrorResponse{
 			Error:            "auth_token_error",
 			ErrorDescription: err.Error(),
 		})
@@ -286,8 +286,8 @@ func (a *API) newAuthToken(clientID string) (*accessToken, error) {
 	}, nil
 }
 
-func (a *API) replyError(w http.ResponseWriter, code int, error intune.GraphErrorResource) {
-	a.replyJSON(w, code, intune.GraphErrorResponse{Error: error})
+func (a *API) replyError(w http.ResponseWriter, code int, error api.GraphErrorResource) {
+	a.replyJSON(w, code, api.GraphErrorResponse{Error: error})
 }
 
 func (a *API) replyJSON(w http.ResponseWriter, code int, resp any) {
@@ -314,17 +314,17 @@ func (a *API) listManagedDevices(w http.ResponseWriter, req *http.Request) {
 		// In the fake API, this is the only supported filter.
 		rawLastSync, found := strings.CutPrefix(rawFilter, "lastSyncDateTime gt ")
 		if !found {
-			a.replyError(w, 400, intune.GraphErrorResource{Code: "BadRequest", Message: "Invalid $filter clause: unrecognized property"})
+			a.replyError(w, 400, api.GraphErrorResource{Code: "BadRequest", Message: "Invalid $filter clause: unrecognized property"})
 			return
 		}
 		lastSync, err := time.Parse(time.RFC3339, rawLastSync)
 		if err != nil {
-			a.replyError(w, 400, intune.GraphErrorResource{
+			a.replyError(w, 400, api.GraphErrorResource{
 				Code: "BadRequest", Message: fmt.Sprintf("Invalid $filter clause: invalid time %s", rawLastSync)})
 			return
 		}
 
-		devices = []*intune.ManagedDevice{}
+		devices = []*api.ManagedDevice{}
 		for _, device := range a.managedDevices {
 			if device.LastSyncDateTime.After(lastSync) {
 				devices = append(devices, device)
@@ -336,7 +336,7 @@ func (a *API) listManagedDevices(w http.ResponseWriter, req *http.Request) {
 	if rawTop := q.Get("$top"); rawTop != "" && len(devices) > 0 {
 		top, err := strconv.Atoi(rawTop)
 		if err != nil || top < 1 {
-			a.replyError(w, 400, intune.GraphErrorResource{
+			a.replyError(w, 400, api.GraphErrorResource{
 				Code: "BadRequest", Message: fmt.Sprintf("Invalid $top value %q", rawTop)})
 			return
 		}
@@ -345,7 +345,7 @@ func (a *API) listManagedDevices(w http.ResponseWriter, req *http.Request) {
 		lastDeviceID := q.Get("$skipToken")
 		skippedDevicesCount := 0
 		keepSkipping := lastDeviceID != ""
-		var devicePage []*intune.ManagedDevice
+		var devicePage []*api.ManagedDevice
 
 		for _, device := range devices {
 			// If $skipToken is present, keep skipping devices until one is found that matches $skipToken.
@@ -364,7 +364,7 @@ func (a *API) listManagedDevices(w http.ResponseWriter, req *http.Request) {
 		}
 
 		if keepSkipping {
-			a.replyError(w, 400, intune.GraphErrorResource{
+			a.replyError(w, 400, api.GraphErrorResource{
 				Code: "BadRequest", Message: "Could not find the device with the ID from $skipToken"})
 			return
 		}
@@ -383,7 +383,7 @@ func (a *API) listManagedDevices(w http.ResponseWriter, req *http.Request) {
 		devices = devicePage
 	}
 
-	a.replyJSON(w, 200, &intune.ListManagedDevicesResponse{
+	a.replyJSON(w, 200, &api.ListManagedDevicesResponse{
 		ManagedDevices: devices,
 		NextLink:       nextLink,
 	})

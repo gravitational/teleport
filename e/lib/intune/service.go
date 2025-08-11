@@ -1,4 +1,4 @@
-package service
+package intune
 
 import (
 	"context"
@@ -7,19 +7,19 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/e/lib/intune"
+	"github.com/gravitational/teleport/e/lib/intune/api"
 )
 
 // Config contains parameters needed by [Service].
 type Config struct {
-	APIConfig  intune.APIConfig
+	APIConfig  api.Config
 	Logger     *slog.Logger
 	HTTPClient *http.Client
 }
 
-// New creates a new [Service].
+// NewService creates a new [Service].
 // ctx is used to perform initial validations against the Intune API.
-func New(ctx context.Context, config Config) (*Service, error) {
+func NewService(ctx context.Context, config Config) (*Service, error) {
 	// TODO(ravicious): Register metrics like the Jamf service does.
 
 	if config.Logger == nil {
@@ -29,7 +29,7 @@ func New(ctx context.Context, config Config) (*Service, error) {
 	// TODO(ravicious): Create a scheduler like the Jamf service does.
 
 	// Connect to the Intune API and verify credentials.
-	_, err := intune.NewClient(ctx, intune.ClientConfig{
+	_, err := api.NewClient(ctx, api.ClientConfig{
 		APIConfig:  config.APIConfig,
 		Logger:     config.Logger,
 		HTTPClient: config.HTTPClient,

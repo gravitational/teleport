@@ -1,4 +1,4 @@
-package intune_test
+package api_test
 
 import (
 	"errors"
@@ -8,7 +8,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/e/lib/intune"
+	"github.com/gravitational/teleport/e/lib/intune/api"
 	intunefake "github.com/gravitational/teleport/e/lib/intune/fake"
 	"github.com/gravitational/teleport/e/lib/intune/testenv"
 )
@@ -72,7 +72,7 @@ func TestClient_authn(t *testing.T) {
 	t.Run("invalidated token healed", func(t *testing.T) {
 		badToken := "foo"
 		client := env.MustNewClient(t)
-		client.SetAccessToken(&intune.AccessToken{
+		client.SetAccessToken(&api.AccessToken{
 			AccessToken: badToken,
 			Expires:     clock.Now().Add(time.Hour),
 		})
@@ -84,39 +84,39 @@ func TestClient_authn(t *testing.T) {
 	})
 
 	t.Run("invalid tenant fails creation", func(t *testing.T) {
-		_, err := intune.NewClient(t.Context(), intune.ClientConfig{
-			APIConfig: intune.APIConfig{
-				AppCredentials: intune.AppCredentials{Tenant: "foo", ClientID: "invalid", ClientSecret: "not a secret"},
+		_, err := api.NewClient(t.Context(), api.ClientConfig{
+			APIConfig: api.Config{
+				AppCredentials: api.AppCredentials{Tenant: "foo", ClientID: "invalid", ClientSecret: "not a secret"},
 			},
 			Logger:     env.Logger,
 			HTTPClient: env.HTTPClient,
 			Clock:      env.Clock,
 		})
-		require.ErrorIs(t, err, intune.ErrIntuneClientTenantNotFound)
+		require.ErrorIs(t, err, api.ErrIntuneClientTenantNotFound)
 	})
 
 	t.Run("invalid client ID fails creation", func(t *testing.T) {
-		_, err := intune.NewClient(t.Context(), intune.ClientConfig{
-			APIConfig: intune.APIConfig{
-				AppCredentials: intune.AppCredentials{Tenant: testenv.DefaultApps[0].Tenant, ClientID: "invalid", ClientSecret: "not a secret"},
+		_, err := api.NewClient(t.Context(), api.ClientConfig{
+			APIConfig: api.Config{
+				AppCredentials: api.AppCredentials{Tenant: testenv.DefaultApps[0].Tenant, ClientID: "invalid", ClientSecret: "not a secret"},
 			},
 			Logger:     env.Logger,
 			HTTPClient: env.HTTPClient,
 			Clock:      env.Clock,
 		})
-		require.ErrorIs(t, err, intune.ErrIntuneClientInvalidCredentials)
+		require.ErrorIs(t, err, api.ErrIntuneClientInvalidCredentials)
 	})
 
 	t.Run("invalid client secret fails creation", func(t *testing.T) {
-		_, err := intune.NewClient(t.Context(), intune.ClientConfig{
-			APIConfig: intune.APIConfig{
-				AppCredentials: intune.AppCredentials{Tenant: testenv.DefaultApps[0].Tenant, ClientID: testenv.DefaultApps[0].ClientID, ClientSecret: "not a secret"},
+		_, err := api.NewClient(t.Context(), api.ClientConfig{
+			APIConfig: api.Config{
+				AppCredentials: api.AppCredentials{Tenant: testenv.DefaultApps[0].Tenant, ClientID: testenv.DefaultApps[0].ClientID, ClientSecret: "not a secret"},
 			},
 			Logger:     env.Logger,
 			HTTPClient: env.HTTPClient,
 			Clock:      env.Clock,
 		})
-		require.ErrorIs(t, err, intune.ErrIntuneClientInvalidCredentials)
+		require.ErrorIs(t, err, api.ErrIntuneClientInvalidCredentials)
 	})
 
 	t.Run("repeated authn failures cause ErrMaxAuthnAttemptsReached", func(t *testing.T) {
@@ -125,7 +125,7 @@ func TestClient_authn(t *testing.T) {
 
 		// Change registered API apps.
 		t.Cleanup(func() { env.API.SetApps(testenv.DefaultApps) })
-		env.API.SetApps([]*intune.AppCredentials{
+		env.API.SetApps([]*api.AppCredentials{
 			{
 				Tenant:       testenv.DefaultApps[0].Tenant,
 				ClientID:     testenv.DefaultApps[0].ClientID,
@@ -137,7 +137,7 @@ func TestClient_authn(t *testing.T) {
 
 		const maxAttempts = 5 // We should reach an error before this.
 		for range maxAttempts {
-			if _, err := client.ListManagedDevices(t.Context(), &intune.ListManagedDevicesRequest{}); errors.Is(err, intune.ErrMaxAuthnAttemptsReached) {
+			if _, err := client.ListManagedDevices(t.Context(), &api.ListManagedDevicesRequest{}); errors.Is(err, api.ErrMaxAuthnAttemptsReached) {
 				return // Test successful
 			}
 		}
@@ -145,8 +145,8 @@ func TestClient_authn(t *testing.T) {
 	})
 }
 
-func mustListManagedDevices(t *testing.T, client *intune.Client) {
+func mustListManagedDevices(t *testing.T, client *api.Client) {
 	t.Helper()
-	_, err := client.ListManagedDevices(t.Context(), &intune.ListManagedDevicesRequest{})
+	_, err := client.ListManagedDevices(t.Context(), &api.ListManagedDevicesRequest{})
 	require.NoError(t, err)
 }

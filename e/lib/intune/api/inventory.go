@@ -1,4 +1,4 @@
-package intune
+package api
 
 import (
 	"context"
@@ -17,7 +17,7 @@ type ListManagedDevicesRequest struct {
 	// other field in this struct is ignored.
 	//
 	// As an additional precaution, only the path and the query of NextLink are used for the
-	// subsequent request – the client always sends the request to GraphEndpoint from [APIConfig]. But
+	// subsequent request – the client always sends the request to GraphEndpoint from [Config]. But
 	// the Graph API should always respond with a NextLink with the same host anyway.
 	NextLink string
 	// LastSyncDateTime limits the returned devices to only those that were last sync only after the
