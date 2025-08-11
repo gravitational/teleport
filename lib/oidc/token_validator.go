@@ -20,9 +20,11 @@ package oidc
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/gregjones/httpcache"
 	"github.com/zitadel/oidc/v3/pkg/client"
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
@@ -41,6 +43,24 @@ func ValidateToken[C oidc.Claims](
 	token string,
 	opts ...rp.VerifierOption,
 ) (C, error) {
+	return ValidateTokenWithClient[C](
+		ctx,
+		otelhttp.DefaultClient,
+		issuerURL,
+		audience,
+		token,
+		opts...,
+	)
+}
+
+func ValidateTokenWithClient[C oidc.Claims](
+	ctx context.Context,
+	httpClient *http.Client,
+	issuerURL string,
+	audience string,
+	token string,
+	opts ...rp.VerifierOption,
+) (C, error) {
 	timeoutCtx, cancel := context.WithTimeout(ctx, providerTimeout)
 	defer cancel()
 
@@ -49,7 +69,7 @@ func ValidateToken[C oidc.Claims](
 	// TODO(noah): It'd be nice to cache the OIDC discovery document fairly
 	// aggressively across join tokens since this isn't going to change very
 	// regularly.
-	dc, err := client.Discover(timeoutCtx, issuerURL, otelhttp.DefaultClient)
+	dc, err := client.Discover(timeoutCtx, issuerURL, httpClient)
 	if err != nil {
 		return nilClaims, trace.Wrap(err, "discovering oidc document")
 	}
@@ -67,4 +87,15 @@ func ValidateToken[C oidc.Claims](
 	}
 
 	return claims, nil
+}
+
+// NewCachingHTTPClient constructs and returns a caching HTTP client. Similar to
+// the default client used in `ValidateToken()`, this uses an underlying
+// `otelhttp` transport.
+// Note that this client should be retained and reused to benefit from caching.
+func NewCachingHTTPClient() *http.Client {
+	transport := httpcache.NewMemoryCacheTransport()
+	transport.Transport = otelhttp.NewTransport(http.DefaultTransport)
+
+	return transport.Client()
 }

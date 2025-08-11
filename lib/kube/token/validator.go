@@ -21,6 +21,7 @@ package token
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"slices"
 	"strings"
 	"sync"
@@ -361,16 +362,29 @@ func ValidateTokenWithJWKS(
 	}, nil
 }
 
+// KubernetesOIDCTokenValidator is a utility struct to retain a caching HTTP
+// client for use during OIDC validation.
+type KubernetesOIDCTokenValidator struct {
+	client *http.Client
+}
+
+func NewKubernetesOIDCTokenValidator() *KubernetesOIDCTokenValidator {
+	return &KubernetesOIDCTokenValidator{
+		client: oidc.NewCachingHTTPClient(),
+	}
+}
+
 // ValidateTokenWithJWKS validates a Kubernetes Service Account JWT using an
 // OIDC endpoint.
-func ValidateTokenWithOIDC(
+func (v *KubernetesOIDCTokenValidator) ValidateTokenWithOIDC(
 	ctx context.Context,
 	issuerURL string,
 	clusterName string,
 	token string,
 ) (*ValidationResult, error) {
-	claims, err := oidc.ValidateToken[*OIDCServiceAccountClaims](
+	claims, err := oidc.ValidateTokenWithClient[*OIDCServiceAccountClaims](
 		ctx,
+		v.client,
 		issuerURL,
 		clusterName,
 		token,
