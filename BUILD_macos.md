@@ -157,10 +157,10 @@ and updates are welcome!
               bats --version
               ```
 
-    1. Install `protoc`:
+    1. Install `buf`:
 
         ```shell
-        brew install protobuf
+        brew install bufbuild/buf/buf
         ```
 
     1. Increase the maximum number of open files:
