@@ -11,10 +11,8 @@ all managed through Teleport's infrastructure identity platform.
 
 ## CI/CD pipeline with end-to-end authentication
 
-A [CI/CD system](../mwi-use-cases/mwi-ci-cd.mdx) securely deploys services to Kubernetes and establishes secure communication channels between them:
-
-- The pipeline authenticates through the [Teleport Proxy Service](../../reference/architecture/architecture.mdx#teleport-proxy-service) to deploy to Kubernetes and receives credentials to interact with cloud APIs (e.g., to push container images)
-- Services deployed by the pipeline receive SPIFFE identities for mutual TLS. The pipeline manages the identity lifecycle for the services it deploys
+A [CI/CD system](../mwi-use-cases/mwi-ci-cd.mdx) securely deploys services to Kubernetes and establishes secure communication channels between them.
+The pipeline authenticates through the [Teleport Proxy Service](../../reference/architecture/architecture.mdx#teleport-proxy-service) to deploy to Kubernetes and receives credentials to interact with cloud APIs (e.g., to push container images)
 
 ## Cloud-native application with third-party API access
 
