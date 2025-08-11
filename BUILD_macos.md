@@ -1,122 +1,147 @@
-# MacOS environment setup
+# MacOS Environment Setup
 
-The instructions below are provided as in a best-effort basis.
-PRs with corrections and updates are welcome!
+The instructions below are provided on a best-effort basis. PRs with corrections
+and updates are welcome!
 
-* Install [Homebrew](https://brew.sh/)
-* `Go` version from
-  [go.mod](https://github.com/gravitational/teleport/blob/master/go.mod#L3)
+1. **Install [Homebrew](https://brew.sh/)**
 
-  * Follow [official instructions](https://go.dev/doc/install) to install `Go`
-    * **On an M1 Mac, download ARM64 installer from https://go.dev/dl/**
-    * Download the installer for `<version from go.mod>`
-    * After installing, don't forget to `export PATH="/usr/local/go/bin:$PATH"` in `~/.zprofile`
-    * If you need other go versions, see https://go.dev/doc/manage-install
-      * You will need to add `export PATH="$HOME/go/bin:$PATH"` to the `~/.zprofile`
+1. **Install Go**
+   1. Find the required Go version in
+      [`build.assets/versions.mk`](/build.assets/versions.mk)
+      (`GOLANG_VERSION`).
 
-  * Or install required version of `Go` with homebrew:
+      1. Install the required version of Go with Homebrew:
 
-  ```shell
-  # if we are not on the latest, you might need to install like this:
-  # brew install go@<version from go.mod>, i.e. 1.16
-  #
-  # check which version will be installed by running:
-  # brew info go
+        ```shell
+        # Replace <version> with the MAJOR.MINOR value of GOLANG_VERSION from build.assets/versions.mk (e.g., 1.24)
+        brew install go@<version>
+        ```
 
-  brew install go
-  ````
+      Verify the installed version:
 
-* `Rust` and `Cargo` version from
-  [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11)
-  (search for RUST_VERSION):
+      ```shell
+      go version
+      ```
 
-  * Follow [official instructions](https://www.rust-lang.org/tools/install) to install `rustup`
-    * Or install with homebrew:
+1. **Install Rust**
+   1. **Install rustup**
 
-  ```shell
-  brew install rustup
-  ```
+      Install rustup with Homebrew:
 
-  * Initialize Rustup
+      ```shell
+      brew install rustup
+      ```
 
-  ```shell
-  rustup-init
-  #
-  # accept defaults
-  #
-  # Once command finishes successfully, you might need to add
-  #
-  # export PATH="$HOME/.cargo/bin:$PATH"
-  #
-  # into ~/.zprofile and run:
-  #
-  # . ~/.zprofile
-  #
-  # or open a new shell
-  ```
+      Initialize rustup:
 
-  * Install the required version
+      ```shell
+      rustup-init
+      # Accept defaults
+      ```
 
-  ```shell
-  rustup toolchain install <version from build.assets/versions.mk>
-  cd <teleport.git>
-  rustup override set <version from build.assets/versions.mk>
-  rustc --version
-  # rustc <version from build.assets/versions.mk>
-  ```
+   1. **Install and configure Rust toolchain**
+      1. Find the required Rust version in
+          [`build.assets/versions.mk`](/build.assets/versions.mk)
+          (`RUST_VERSION`).
 
-* To install `libfido2` (pulls `openssl 3` as dependency)
+      1. Install the required Rust toolchain:
 
-  ```shell
-  brew install libfido2
-  ```
+        ```shell
+        # Replace <version> with the value of RUST_VERSION from build.assets/versions.mk (e.g., 1.81.0)
+        rustup toolchain install <version>
+        ```
 
-* To install `pkg-config`
+        Set the default Rust toolchain globally (applies to all projects):
 
-  ```shell
-  brew install pkg-config
-  ```
+        ```shell
+        rustup default <version>
+        ```
 
-* To install tools for building the UI:
-  * `brew install node corepack`
-  * `corepack enable pnpm`
-  * The `Rust` and `Cargo` version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11) (search for `RUST_VERSION`) are required.
-  * The [`wasm-pack`](https://github.com/rustwasm/wasm-pack) version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L12) (search for `WASM_PACK_VERSION`) is required:
-    `curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh`
+        > **Note:** Using `rustup default <version>` sets the toolchain globally
+        > for your user. If you only want to override the toolchain for a
+        > specific project directory, use `rustup override set <version>` inside
+        > that directory instead.
 
-##### Local Tests Dependencies
+        Verify the installed version:
 
-To run a full test suite locally, you will need
+        ```shell
+        rustc --version
+        ```
 
-* `helm` and `helm-unittest` plugin
+1. **Install Node.js**
+   1. Find the required Node version in
+      [`build.assets/versions.mk`](/build.assets/versions.mk) (`NODE_VERSION`).
 
-  ```shell
-  brew install helm
-  helm plugin install https://github.com/quintush/helm-unittest
-  ```
+   1. Install Node.js:
 
-* `bats-core` version from [build.assets/Dockerfile](https://github.com/gravitational/teleport/blob/master/build.assets/Dockerfile#L183) (search for `bats-core`)
+      ```shell
+      # Replace <version> with the value of NODE_VERSION from build.assets/versions.mk (e.g., 22.14.0)
+      brew install node@<version>
+      ```
 
-  ```shell
-  curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz -o ~/Downloads/bats.tar.gz
-  cd ~/Downloads
-  tar xzvf bats.tar.gz
-  sudo mkdir /usr/local/libexec
-  sudo chown $USER /usr/local/libexec
-  cd bats-core-1.2.1
-  sudo ./install.sh /usr/local
-  cd ../
-  rm -rf bats-core-1.2.1 bats.tar.gz
-  ```
+   1. Install corepack:
 
-* `protoc` binary, typically found in `protobuf` package
+      ```shell
+      brew install corepack
+      ```
 
-  ```shell
-  brew install protobuf
-  ```
+   1. Install pnpm using corepack:
 
-* increased `ulimit -n`
+      ```shell
+      corepack enable pnpm
+      ```
 
-  ```shell
-  ulimit -n 2560 # 10x default
-  ```
+1. **Install additional build dependencies**
+   1. Install `wasm-pack`:
+    1. Find the required wasm-pack version in
+      [`build.assets/versions.mk`](/build.assets/versions.mk)
+      (`WASM_PACK_VERSION`).
+
+    1. Install wasm-pack globally:
+
+      ```shell
+      # Replace <version> with the value of WASM_PACK_VERSION from build.assets/versions.mk (e.g., 0.12.1)
+      npm install --global wasm-pack@<version>
+      ```
+
+    1. Verify wasm-pack version:
+
+      ```shell
+      wasm-pack --version
+      ```
+
+   1. Install `libfido2` (pulls `openssl 3` as dependency):
+
+    ```shell
+    brew install libfido2
+    ```
+
+   1. Install `pkg-config`:
+
+    ```shell
+    brew install pkg-config
+    ```
+
+1. **Install test dependencies**
+   1. Install `helm` and `helm-unittest` plugin:
+
+      ```shell
+      brew install helm
+      helm plugin install https://github.com/quintush/helm-unittest --version 0.2.11
+      ```
+
+   1. Install `protoc` binary (typically found in `protobuf` package):
+      1. Find the required protoc version in
+         [`build.assets/versions.mk`](/build.assets/versions.mk)
+         (`PROTOC_VERSION`).
+
+      ```shell
+      # Replace <version> with the value of PROTOC_VERSION from build.assets/versions.mk (e.g., 26.1)
+      brew install protobuf@<version>
+      ```
+
+   1. Increase `ulimit -n`:
+
+      ```shell
+      ulimit -n 2560 # 10x default
+      ```
