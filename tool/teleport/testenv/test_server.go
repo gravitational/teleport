@@ -557,7 +557,7 @@ func (p *cliModules) SetFeatures(f modules.Features) {
 // MakeTestServer.
 // Deprecated: Prefer using NewDefaultAuthClient
 // TODO(tross): Remove once all callers are converted to NewDefaultAuthClient.
-func MakeDefaultAuthClient1(t *testing.T, process *service.TeleportProcess) *authclient.Client {
+func MakeDefaultAuthClient(t *testing.T, process *service.TeleportProcess) *authclient.Client {
 	t.Helper()
 
 	clt, err := NewDefaultAuthClient(process)

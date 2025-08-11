@@ -97,6 +97,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/server"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 func TestMain(m *testing.M) {
@@ -1511,17 +1512,17 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			t.Cleanup(discServer.Stop)
 			go discServer.Start()
 
-			clustersNotUpdatedMap := sliceToSet(tc.clustersNotUpdated)
+			clustersNotUpdatedMap := set.New(tc.clustersNotUpdated...)
 			clustersFoundInAuth := false
 			require.Eventually(t, func() bool {
 			loop:
 				for {
 					select {
 					case cluster := <-clustersNotUpdated:
-						if _, ok := clustersNotUpdatedMap[cluster]; !ok {
+						if !clustersNotUpdatedMap.Contains(cluster) {
 							require.Failf(t, "expected Action for cluster %s but got no action from reconciler", cluster)
 						}
-						delete(clustersNotUpdatedMap, cluster)
+						clustersNotUpdatedMap.Remove(cluster)
 					default:
 						kubeClusters, err := tlsServer.Auth().GetKubernetesClusters(ctx)
 						require.NoError(t, err)
@@ -1859,14 +1860,6 @@ func mustConvertAKSToKubeCluster(t *testing.T, azureCluster *azure.AKSCluster, d
 func modifyKubeCluster(cluster types.KubeCluster) types.KubeCluster {
 	cluster.GetStaticLabels()["test"] = "test"
 	return cluster
-}
-
-func sliceToSet[T comparable](slice []T) map[T]struct{} {
-	set := map[T]struct{}{}
-	for _, v := range slice {
-		set[v] = struct{}{}
-	}
-	return set
 }
 
 func mustConvertKubeServiceToApp(t *testing.T, discoveryGroup, protocol string, kubeService *corev1.Service, port corev1.ServicePort) types.Application {
