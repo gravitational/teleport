@@ -252,7 +252,9 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 	}
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
 	ctx := context.Background()
-	client := testenv.MakeDefaultAuthClient(t, process)
+	client, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
 
 	tokens, err := client.GetTokens(ctx)
 	require.NoError(t, err)

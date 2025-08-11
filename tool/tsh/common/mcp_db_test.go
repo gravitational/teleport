@@ -52,9 +52,9 @@ func TestMCPDBCommand(t *testing.T) {
 	alice.SetDatabaseNames([]string{"postgres"})
 	alice.SetRoles([]string{"access"})
 
-	authProcess := testserver.MakeTestServer(
-		t,
-		testserver.WithClusterName(t, "root"),
+	authProcess, err := testserver.NewTeleportProcess(
+		t.TempDir(),
+		testserver.WithClusterName("root"),
 		testserver.WithBootstrap(connector, alice),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
@@ -78,6 +78,11 @@ func TestMCPDBCommand(t *testing.T) {
 			}
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authProcess.Close())
+		require.NoError(t, authProcess.Wait())
+	})
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
@@ -155,9 +160,9 @@ func TestMCPDBCommandFailures(t *testing.T) {
 	alice.SetRoles([]string{"access"})
 	clusterName := "root"
 
-	authProcess := testserver.MakeTestServer(
-		t,
-		testserver.WithClusterName(t, clusterName),
+	authProcess, err := testserver.NewTeleportProcess(
+		t.TempDir(),
+		testserver.WithClusterName(clusterName),
 		testserver.WithBootstrap(connector, alice),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
@@ -181,6 +186,11 @@ func TestMCPDBCommandFailures(t *testing.T) {
 			}
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authProcess.Close())
+		require.NoError(t, authProcess.Wait())
+	})
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
