@@ -11,22 +11,10 @@ and updates are welcome!
 1. **Install [Homebrew](https://brew.sh/)**
 
 1. **Install Go**
-    1. Find the required Go version in
-      [`build.assets/versions.mk`](/build.assets/versions.mk)
-      (`GOLANG_VERSION`).
 
-    1. Install Go (Homebrew only supports MAJOR.MINOR versions):
-
-        ```shell
-        # Replace <version> with the MAJOR.MINOR value of GOLANG_VERSION from build.assets/versions.mk (e.g., 1.24)
-        brew install go@<version>
-        ```
-
-    1. Verify the installed version:
-
-        ```shell
-        go version
-        ```
+      ```shell
+      brew install go
+      ```
 
 1. **Install Rust**
     1. **Install rustup**
