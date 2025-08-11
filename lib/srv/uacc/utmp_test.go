@@ -79,19 +79,12 @@ func TestUtmp(t *testing.T) {
 }
 
 func TestUtmpUsernameLength(t *testing.T) {
-	dir := t.TempDir()
-	utmpPath := filepath.Join(dir, "utmp")
-	wtmpPath := filepath.Join(dir, "wtmp")
-	btmpPath := filepath.Join(dir, "btmp")
-	touchFile(t, utmpPath)
-	touchFile(t, wtmpPath)
-	touchFile(t, btmpPath)
-
-	utmp, err := NewUtmpBackend(utmpPath, wtmpPath, btmpPath)
+	t.Parallel()
+	utmp := makeUtmpBackend(t)
 
 	// A 33 character long username.
 	username := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	err = utmp.Login("pts/99", username, &utils.NetAddr{Addr: "0.0.0.0:0"}, time.Now())
+	err := utmp.Login("pts/99", username, &utils.NetAddr{Addr: "0.0.0.0:0"}, time.Now())
 	require.True(t, trace.IsBadParameter(err))
 
 	// A 32 character long username.

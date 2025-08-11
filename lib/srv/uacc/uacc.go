@@ -73,7 +73,7 @@ type Session struct {
 	wtmpdbKey *int64
 }
 
-// OpenSession opens a new login session.
+// OpenSession opens a new login session. It will succeed if at least one backend succeeds.
 func (uacc *UserAccountHandler) OpenSession(tty *os.File, username string, remote net.Addr) (*Session, error) {
 	loginTime := time.Now()
 	ttyFullName, err := os.Readlink(tty.Name())
@@ -110,7 +110,7 @@ func (uacc *UserAccountHandler) OpenSession(tty *os.File, username string, remot
 	return session, nil
 }
 
-// Close closes the login session.
+// Close closes the login session. It will succeed if at least one backend succeeds.
 func (session *Session) Close() error {
 	logoutTime := time.Now()
 	var anySucceeded bool

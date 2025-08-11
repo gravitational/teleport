@@ -175,6 +175,10 @@ func TestRootUTMPEntryExists(t *testing.T) {
 			// Ensure that entries were not written to utmp and wtmp
 			checkUserInFile(collect, utmp, s.utmpPath, teleportFakeUser, false)
 			checkUserInFile(collect, utmp, s.wtmpPath, teleportFakeUser, false)
+
+			inWtmpdb, err := wtmpdb.IsUserLoggedIn(teleportFakeUser)
+			assert.NoError(collect, err)
+			assert.False(collect, inWtmpdb)
 		}, 5*time.Minute, time.Second, "did not detect btmp entry within 5 minutes")
 	})
 

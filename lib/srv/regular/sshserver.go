@@ -183,6 +183,7 @@ type Server struct {
 	// btmpPath is the path to the user accounting failed login log.
 	btmpPath string
 
+	// wtmpdbPath is the path to the wtmpdb database file.
 	wtmpdbPath string
 
 	// allowTCPForwarding indicates whether the ssh server is allowed to offer
