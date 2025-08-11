@@ -204,6 +204,16 @@ export const ScimForm = ({
                 below to update the SCIM configuration in Teleport before
                 proceeding.
               </Text>
+              <ButtonPrimary
+                onClick={onSubmit}
+                disabled={updatePlugin.isSuccess || updatePlugin.isPending}
+                width="fit-content"
+                intent={updatePlugin.isSuccess ? 'success' : 'primary'}
+                px={3}
+              >
+                {updatePlugin.isSuccess && <Check mr={2} size="small" />}
+                {`${isEditing ? 'Update' : 'Save'} SCIM Configuration`}
+              </ButtonPrimary>
             </ListItem>
             <ListItem>
               <Text>
@@ -218,16 +228,6 @@ export const ScimForm = ({
               {getErrMessage(updatePlugin.error)}
             </Alert>
           )}
-          <ButtonPrimary
-            onClick={onSubmit}
-            disabled={updatePlugin.isSuccess || updatePlugin.isPending}
-            width="fit-content"
-            intent={updatePlugin.isSuccess ? 'success' : 'primary'}
-            px={3}
-          >
-            {updatePlugin.isSuccess && <Check mr={2} size="small" />}
-            {`${isEditing ? 'Update' : 'Save'} SCIM Configuration`}
-          </ButtonPrimary>
         </StyledBox>
         <StyledBox header="Step 3: Configure SCIM Provisioning Permissions in Okta">
           <NumberedList>
