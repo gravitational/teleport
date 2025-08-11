@@ -1,7 +1,9 @@
 # MacOS Environment Setup
 
-For the best experience, follow these steps to set up your MacOS environment
-using Homebrew as the primary dependency installer.
+To set up your MacOS environment, follow these steps using Homebrew as the main
+package manager. Aim to install versions specified in
+[`build.assets/versions.mk`](/build.assets/versions.mk); for others, use the
+latest Homebrew version.
 
 The instructions below are provided on a best-effort basis. PRs with corrections
 and updates are welcome!
@@ -93,7 +95,7 @@ and updates are welcome!
         node --version
         ```
 
-    1. Enable pnpm using the bundled `corepack`:
+    1. Enable `pnpm` using the bundled `corepack`:
 
         ```shell
         corepack enable pnpm
@@ -141,7 +143,8 @@ and updates are welcome!
 
     1. Install `bats`:
         1. Find the required `bats-core` version from
-            [`build.assets/Dockerfile`](/build.assets/Dockerfile) (search for `bats-core`).
+            [`build.assets/Dockerfile`](/build.assets/Dockerfile) (search for
+            `bats-core`).
         1. Set the version variable and install `bats-core`:
 
             ```shell
