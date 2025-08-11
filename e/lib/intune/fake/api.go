@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -22,9 +23,10 @@ type API struct {
 	config Config
 
 	// mu guards all fields below it
-	mu           sync.Mutex
-	apps         []*intune.AppCredentials
-	issuedTokens map[string]*accessToken // key is [accessToken.token]
+	mu             sync.Mutex
+	apps           []*intune.AppCredentials
+	managedDevices []*intune.ManagedDevice
+	issuedTokens   map[string]*accessToken // key is [accessToken.token]
 }
 
 // Config contains values needed by [API].
@@ -36,8 +38,9 @@ type Config struct {
 // New returns new [API] with no configured apps.
 func New(config Config) *API {
 	return &API{
-		config:       config,
-		issuedTokens: make(map[string]*accessToken),
+		config:         config,
+		issuedTokens:   make(map[string]*accessToken),
+		managedDevices: []*intune.ManagedDevice{},
 	}
 }
 
@@ -45,6 +48,12 @@ func New(config Config) *API {
 func (a *API) SetApps(apps []*intune.AppCredentials) {
 	a.mu.Lock()
 	a.apps = apps
+	a.mu.Unlock()
+}
+
+func (a *API) SetManagedDevices(devices []*intune.ManagedDevice) {
+	a.mu.Lock()
+	a.managedDevices = devices
 	a.mu.Unlock()
 }
 
@@ -113,7 +122,7 @@ func (a *rootHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if handler == nil {
 		a.replyError(w, 404, intune.GraphErrorResource{
 			Code:    "BadRequest",
-			Message: fmt.Sprintf("Resource not found for the segment %q", req.URL.Path),
+			Message: fmt.Sprintf("Resource not found for %s %q", req.Method, req.URL.Path),
 		})
 		return
 	}
@@ -295,5 +304,87 @@ func (a *API) replyJSON(w http.ResponseWriter, code int, resp any) {
 }
 
 func (a *API) listManagedDevices(w http.ResponseWriter, req *http.Request) {
-	a.replyJSON(w, 200, make(map[string]any))
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	devices := a.managedDevices
+	q := req.URL.Query()
+
+	if rawFilter := q.Get("$filter"); rawFilter != "" {
+		// In the fake API, this is the only supported filter.
+		rawLastSync, found := strings.CutPrefix(rawFilter, "lastSyncDateTime gt ")
+		if !found {
+			a.replyError(w, 400, intune.GraphErrorResource{Code: "BadRequest", Message: "Invalid $filter clause: unrecognized property"})
+			return
+		}
+		lastSync, err := time.Parse(time.RFC3339, rawLastSync)
+		if err != nil {
+			a.replyError(w, 400, intune.GraphErrorResource{
+				Code: "BadRequest", Message: fmt.Sprintf("Invalid $filter clause: invalid time %s", rawLastSync)})
+			return
+		}
+
+		devices = []*intune.ManagedDevice{}
+		for _, device := range a.managedDevices {
+			if device.LastSyncDateTime.After(lastSync) {
+				devices = append(devices, device)
+			}
+		}
+	}
+
+	var nextLink string
+	if rawTop := q.Get("$top"); rawTop != "" && len(devices) > 0 {
+		top, err := strconv.Atoi(rawTop)
+		if err != nil || top < 1 {
+			a.replyError(w, 400, intune.GraphErrorResource{
+				Code: "BadRequest", Message: fmt.Sprintf("Invalid $top value %q", rawTop)})
+			return
+		}
+		// In the real API, $skipToken is an opaque token. In the fake API, it's the ID of the last
+		// device that was returned from the previous page of results.
+		lastDeviceID := q.Get("$skipToken")
+		skippedDevicesCount := 0
+		keepSkipping := lastDeviceID != ""
+		var devicePage []*intune.ManagedDevice
+
+		for _, device := range devices {
+			// If $skipToken is present, keep skipping devices until one is found that matches $skipToken.
+			if keepSkipping {
+				if device.ID == lastDeviceID {
+					keepSkipping = false
+				}
+				skippedDevicesCount++
+				continue
+			}
+
+			devicePage = append(devicePage, device)
+			if len(devicePage) == top {
+				break
+			}
+		}
+
+		if keepSkipping {
+			a.replyError(w, 400, intune.GraphErrorResource{
+				Code: "BadRequest", Message: "Could not find the device with the ID from $skipToken"})
+			return
+		}
+
+		// Are there still more devices to return?
+		if len(devices) > skippedDevicesCount+len(devicePage) {
+			nextURL := *req.URL
+			q := nextURL.Query()
+			nextLastDeviceID := devicePage[len(devicePage)-1].ID
+			q.Set("$skipToken", nextLastDeviceID)
+			nextURL.Scheme = "https"
+			nextURL.Host = req.Host
+			nextURL.RawQuery = q.Encode()
+			nextLink = nextURL.String()
+		}
+		devices = devicePage
+	}
+
+	a.replyJSON(w, 200, &intune.ListManagedDevicesResponse{
+		ManagedDevices: devices,
+		NextLink:       nextLink,
+	})
 }

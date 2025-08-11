@@ -137,7 +137,7 @@ func TestClient_authn(t *testing.T) {
 
 		const maxAttempts = 5 // We should reach an error before this.
 		for range maxAttempts {
-			if err := client.ListManagedDevices(t.Context()); errors.Is(err, intune.ErrMaxAuthnAttemptsReached) {
+			if _, err := client.ListManagedDevices(t.Context(), &intune.ListManagedDevicesRequest{}); errors.Is(err, intune.ErrMaxAuthnAttemptsReached) {
 				return // Test successful
 			}
 		}
@@ -147,5 +147,6 @@ func TestClient_authn(t *testing.T) {
 
 func mustListManagedDevices(t *testing.T, client *intune.Client) {
 	t.Helper()
-	require.NoError(t, client.ListManagedDevices(t.Context()))
+	_, err := client.ListManagedDevices(t.Context(), &intune.ListManagedDevicesRequest{})
+	require.NoError(t, err)
 }

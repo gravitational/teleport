@@ -42,7 +42,7 @@ func ValidateAppCredentials(creds AppCredentials) error {
 	return nil
 }
 
-func (c *Client) doAuthnRequest(req *http.Request, jsonResp any) error {
+func (c *Client) doGraphRequest(req *http.Request, jsonResp any) error {
 	allowRetry := true
 	for {
 		token, err := c.createOrRenewCurrentToken(req.Context())

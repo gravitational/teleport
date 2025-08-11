@@ -135,7 +135,7 @@ const (
 )
 
 func (c *Client) verifyCredentials(ctx context.Context) error {
-	err := c.ListManagedDevices(ctx)
+	_, err := c.ListManagedDevices(ctx, &ListManagedDevicesRequest{Top: 1})
 	if err == nil {
 		c.config.Logger.DebugContext(ctx, "Authentication successful", "url", c.loginURL.String())
 		return nil
@@ -259,11 +259,6 @@ func (c *Client) unmarshalAPIError(body []byte, req *http.Request) *APIError {
 	}
 
 	return &apiError
-}
-
-// endpoint accepts a path and appends it to the base URL for Microsoft Graph.
-func (c *Client) endpoint(path string) string {
-	return c.graphURL.JoinPath(path).String()
 }
 
 // LoginErrorResponse is the JSON shape returned by requests sent to LoginEndpoint of [APIConfig].

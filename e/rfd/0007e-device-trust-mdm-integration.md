@@ -860,19 +860,20 @@ Profile mapping:
 | model_identifier    | model\*             |
 | os_version          | osVersion\*         |
 | os_build            | not available       |
-| os_usernames        | userPrincipalName\* |
+| os_usernames        | not available       |
 | jamf_binary_version | not available       |
 
-The managedDevice API offers no search filters, therefore no sync filters are
-available.
+The managedDevice API offers just a couple of basic search filters (see mentions of `$filter` in
+[managedDevice resource type](https://learn.microsoft.com/en-us/graph/api/resources/intune-devices-manageddevice?view=graph-rest-1.0)).
+Most of the customers use the hosted plugin for Jamf where the filters are not available, therefore
+the Intune integration is not going to support filters for the time being.
 
 <!--
 TODO(codingllama): Design rudimentary filtering for Intune?
  -->
 
-Partial syncs take advantage of the lastSyncDateTime\* field to limit the number
-of devices sent to Teleport, but it must list all managedDevices from Intune
-regardless.
+Partial syncs take advantage of the latest `lastSyncDateTime` found in the last partial or full sync
+to limit the number of devices fetched from Intune.
 
 teleport.yaml:
 
