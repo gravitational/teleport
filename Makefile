@@ -1835,10 +1835,7 @@ ensure-wasm-pack:
 		@echo wasm-pack up-to-date: $(INSTALLED_VERSION) \
 	)
 
-# TODO: Use CARGO_GET_VERSION_AWK instead of hardcoded version
-#       On 386 Arch, calling the variable produces a malformed command that fails the build.
-#ensure-wasm-bindgen: NEED_VERSION = $(shell $(call CARGO_GET_VERSION,wasm-bindgen))
-ensure-wasm-bindgen: NEED_VERSION = 0.2.99
+ensure-wasm-bindgen: NEED_VERSION = $(shell $(MAKE) --no-print-directory -s -C build.assets print-wasm-bindgen-version)
 ensure-wasm-bindgen: INSTALLED_VERSION = $(word 2,$(shell wasm-bindgen --version 2>/dev/null))
 ensure-wasm-bindgen:
 ifneq ($(CI)$(FORCE),)

@@ -745,6 +745,13 @@ print-wasm-pack-version:
 	@echo $(WASM_PACK_VERSION)
 
 #
+# Print the wasm-bindgen version used to build Teleport.
+#
+.PHONY:print-wasm-bindgen-version
+print-wasm-bindgen-version:
+	@echo $(WASM_BINDGEN_VERSION)
+
+#
 # Print the Node version used to build Teleport Connect.
 #
 .PHONY:print-node-version
