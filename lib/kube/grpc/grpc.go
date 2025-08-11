@@ -115,7 +115,7 @@ type Config struct {
 // AccessPoint is caching access point to retrieve roles and the cluster
 // auth preference.
 type AccessPoint interface {
-	services.RoleGetter
+	services.RolesGetter
 }
 
 // CheckAndSetDefaults checks and sets default values.
@@ -160,33 +160,30 @@ func (s *Server) ListKubernetesResources(ctx context.Context, req *proto.ListKub
 		return nil, trail.ToGRPC(err)
 	}
 
-	if req.UseSearchAsRoles || req.UsePreviewAsRoles {
-		var extraRoles []string
-		if req.UseSearchAsRoles {
-			allowedSearchAsRoles := userContext.Checker.GetAllowedSearchAsRolesForKubeResourceKind(req.ResourceType)
-			extraRoles = append(extraRoles, allowedSearchAsRoles...)
-		}
-		if req.UsePreviewAsRoles {
-			extraRoles = append(extraRoles, userContext.Checker.GetAllowedPreviewAsRoles()...)
-		}
+	newChecker, err := services.ExtendKubernetesAccessCheckerRoles(ctx, userContext.Checker, s.cfg.AccessPoint, req.ResourceType, services.ExtendAccessCheckerParam{
+		UseSearchAsRoles:  req.UseSearchAsRoles,
+		UsePreviewAsRoles: req.UsePreviewAsRoles,
+		ClusterName:       s.cfg.ClusterName,
+	})
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
 
-		extendedContext, err := userContext.WithExtraRoles(s.cfg.AccessPoint, s.cfg.ClusterName, extraRoles)
-		if err != nil {
+	extendedContext := userContext
+	extendedContext.Checker = newChecker
+
+	if len(extendedContext.Checker.RoleNames()) != len(userContext.Checker.RoleNames()) {
+		if err := s.emitAuditEvent(ctx, userContext, req); err != nil {
 			return nil, trail.ToGRPC(err)
 		}
-		if len(extendedContext.Checker.RoleNames()) != len(userContext.Checker.RoleNames()) {
-			if err := s.emitAuditEvent(ctx, userContext, req); err != nil {
-				return nil, trail.ToGRPC(err)
-			}
-		}
-		userContext = extendedContext
 	}
+
 	// We use the unmapped identity here because Kube Proxy will handle
 	// the forwarding of the request to the correct leaf cluster if that's the case
 	// and it handles the mapping of the identity to the leaf cluster.
-	identity := userContext.UnmappedIdentity.GetIdentity()
+	identity := extendedContext.UnmappedIdentity.GetIdentity()
 	identity.KubernetesCluster = req.KubernetesCluster
-	identity.Groups = userContext.Checker.RoleNames()
+	identity.Groups = extendedContext.Checker.RoleNames()
 	identity.RouteToCluster = req.TeleportCluster
 	ctx = authz.ContextWithUser(ctx, authz.WrapIdentity(identity)) // wrap the identity in the context
 

@@ -3544,18 +3544,18 @@ func matchRequestKubernetesResources(input gk, reference types.RequestKubernetes
 	return ok1 || ok2
 }
 
-// GetAllowedSearchAsRolesForKubeResourceKind returns all of the allowed SearchAsRoles
-// that allowed requesting to the requested Kubernetes resource kind.
-func (set RoleSet) GetAllowedSearchAsRolesForKubeResourceKind(requestedKubeResourceKind string) []string {
+// checkKubernetesResourceDenied checks if Kubernetes resource is denied
+// with a global deny directive.
+func (set RoleSet) checkKubernetesResourceDenied(requestedKubeResourceKind string) bool {
 	// Return no results if encountering any denies since its globally matched.
 	for _, role := range set {
 		for _, kr := range role.GetRequestKubernetesResources(types.Deny) {
 			if matchRequestKubernetesResources(normalizeKubernetesKind(requestedKubeResourceKind), kr, types.Deny) {
-				return nil
+				return true
 			}
 		}
 	}
-	return set.GetAllowedSearchAsRoles(WithAllowedKubernetesResourceKindFilter(requestedKubeResourceKind))
+	return false
 }
 
 // WithAllowedKubernetesResourceKindFilter returns a SearchAsRolesOption func
@@ -3575,25 +3575,6 @@ func WithAllowedKubernetesResourceKindFilter(requestedKubeResourceKind string) S
 		}
 		return false
 	}
-}
-
-// GetAllowedPreviewAsRoles returns all PreviewAsRoles for this RoleSet.
-func (set RoleSet) GetAllowedPreviewAsRoles() []string {
-	denied := make(map[string]struct{})
-	var allowed []string
-	for _, role := range set {
-		for _, d := range role.GetPreviewAsRoles(types.Deny) {
-			denied[d] = struct{}{}
-		}
-	}
-	for _, role := range set {
-		for _, a := range role.GetPreviewAsRoles(types.Allow) {
-			if _, ok := denied[a]; !ok {
-				allowed = append(allowed, a)
-			}
-		}
-	}
-	return apiutils.Deduplicate(allowed)
 }
 
 // GetCreateDatabaseUserMode returns the create database user mode of the rule
@@ -3756,4 +3737,119 @@ func (m *MCPToolMatcher) Match(role types.Role, condition types.RoleConditionTyp
 // String returns the matcher's string representation.
 func (m *MCPToolMatcher) String() string {
 	return fmt.Sprintf("MCPToolMatcher(Name=%v)", m.Name)
+}
+
+func (set RoleSet) buildMatchers(params ExtendAccessCheckerParam) (roleMatcher, error) {
+	var matcher roleMatcher
+
+	isSearchFiltered := func(role types.Role, params ExtendAccessCheckerParam) bool {
+		return slices.ContainsFunc(params.SearchAsRolesFilters, func(filter SearchAsRolesOption) bool { return !filter(role) })
+	}
+
+	for _, role := range set {
+		if params.UseSearchAsRoles && !isSearchFiltered(role, params) {
+			allowSearch, denySearch, err := buildMatchers(role.GetSearchAsRoles(types.Allow), role.GetSearchAsRoles(types.Deny))
+			if err != nil {
+				return matcher, trace.Wrap(err)
+			}
+			matcher.allowSearch = append(matcher.allowSearch, allowSearch...)
+			matcher.denySearch = append(matcher.denySearch, denySearch...)
+
+			if len(matcher.allowSearch) > 0 {
+				// allow search_as_role is checked against deny search_as_role and deny request role
+				_, denyRequest, err := buildMatchers(nil /* allow roles */, role.GetAccessRequestConditions(types.Deny).Roles)
+				if err != nil {
+					return matcher, trace.Wrap(err)
+				}
+				matcher.denyRequest = append(matcher.denyRequest, denyRequest...)
+			}
+		}
+
+		if params.UsePreviewAsRoles {
+			allowPreview, denyPreview, err := buildMatchers(role.GetPreviewAsRoles(types.Allow), role.GetPreviewAsRoles(types.Deny))
+			if err != nil {
+				return matcher, trace.Wrap(err)
+			}
+			matcher.allowPreview = append(matcher.allowPreview, allowPreview...)
+			matcher.denyPreview = append(matcher.denyPreview, denyPreview...)
+		}
+	}
+
+	return matcher, nil
+}
+
+func buildMatchers(allow, deny []string) ([]parse.Matcher, []parse.Matcher, error) {
+	allowMatcher := make([]parse.Matcher, 0, len(allow))
+	denyMatcher := make([]parse.Matcher, 0, len(deny))
+	for _, r := range allow {
+		m, err := parse.NewMatcher(r)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		allowMatcher = append(allowMatcher, m)
+	}
+
+	for _, r := range deny {
+		m, err := parse.NewMatcher(r)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		denyMatcher = append(denyMatcher, m)
+	}
+
+	return allowMatcher, denyMatcher, nil
+}
+
+type roleMatcher struct {
+	allowRequest, denyRequest, allowSearch, denySearch, allowPreview, denyPreview []parse.Matcher
+}
+
+// canRequestRole checks if a given role can be requested.
+func (m roleMatcher) canRequestRole(name string) bool {
+	for _, deny := range m.denyRequest {
+		if deny.Match(name) {
+			return false
+		}
+	}
+	for _, allow := range m.allowRequest {
+		if allow.Match(name) {
+			return true
+		}
+	}
+	return false
+}
+
+// canSearchAsRole checks allowed search_as_roles.
+func (m roleMatcher) canSearchAsRole(name string) bool {
+	for _, deny := range m.denySearch {
+		if deny.Match(name) {
+			return false
+		}
+	}
+	for _, deny := range m.denyRequest {
+		if deny.Match(name) {
+			return false
+		}
+	}
+	for _, allow := range m.allowSearch {
+		if allow.Match(name) {
+			return true
+		}
+	}
+	return false
+}
+
+// canPreviewAsRole checks allowed preview_as_roles
+func (m roleMatcher) canPreviewAsRole(name string) bool {
+	for _, deny := range m.denyPreview {
+		if deny.Match(name) {
+			return false
+		}
+	}
+	for _, allow := range m.allowPreview {
+		if allow.Match(name) {
+			return true
+		}
+	}
+	return false
 }

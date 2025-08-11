@@ -1174,6 +1174,20 @@ func TestRolesForResourceRequest(t *testing.T) {
 		"splunk-super-admins": {
 			// ...
 		},
+		"allow-wildcard": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{"splunk-*"},
+				},
+			},
+		},
+		"deny-wildcard": {
+			Deny: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{"splunk-*"},
+				},
+			},
+		},
 	}
 	roles := make(map[string]types.Role)
 	for name, spec := range roleDesc {
@@ -1245,11 +1259,23 @@ func TestRolesForResourceRequest(t *testing.T) {
 			currentRoles:       []string{"db-response-team"},
 			requestResourceIDs: resourceIDs,
 			requestRoles:       []string{"splunk-admins"},
-			expectError:        trace.BadParameter(`user "test-user" can not request role "splunk-admins"`),
+			expectError:        trace.BadParameter(`user "test-user" can not request search as role "splunk-admins"`),
 		},
 		{
 			desc:               "no allowed roles",
 			currentRoles:       nil,
+			requestResourceIDs: resourceIDs,
+			expectError:        trace.AccessDenied(`Resource Access Requests require usable "search_as_roles", none found for user "test-user"`),
+		},
+		{
+			desc:                 "allowed role with regexp",
+			currentRoles:         []string{"allow-wildcard"},
+			requestResourceIDs:   resourceIDs,
+			expectRequestedRoles: []string{"splunk-admins", "splunk-super-admins", "splunk-response-team"},
+		},
+		{
+			desc:               "denied role with regexp",
+			currentRoles:       []string{"splunk-response-team", "deny-wildcard"},
 			requestResourceIDs: resourceIDs,
 			expectError:        trace.AccessDenied(`Resource Access Requests require usable "search_as_roles", none found for user "test-user"`),
 		},
@@ -1290,7 +1316,7 @@ func TestRolesForResourceRequest(t *testing.T) {
 				return
 			}
 
-			require.Equal(t, tc.expectRequestedRoles, req.GetRoles())
+			require.ElementsMatch(t, tc.expectRequestedRoles, req.GetRoles())
 		})
 	}
 }
@@ -4425,4 +4451,133 @@ func getMockGetter(t *testing.T, roleDesc roleTestSet, userDesc map[string][]str
 		userStates: userStates,
 	}
 	return g
+}
+
+// go test ./lib/services -bench=BenchmarkNewRequestValidator -run=^$ -benchmem
+// goos: darwin
+// goarch: arm64
+// pkg: github.com/gravitational/teleport/lib/services
+// cpu: Apple M3 Max
+// BenchmarkNewRequestValidator/without-expression(roles-count=100)-14                53743             21892 ns/op           23437 B/op        146 allocs/op
+// BenchmarkNewRequestValidator/without-expression(roles-count=1000)-14               13185             91022 ns/op          115503 B/op        148 allocs/op
+// BenchmarkNewRequestValidator/without-expression(roles-count=10000)-14               1203            935743 ns/op          836694 B/op        176 allocs/op
+// BenchmarkNewRequestValidator/with-match-all-expression(roles-count=100)-14          8634            131235 ns/op          138751 B/op       1681 allocs/op
+// BenchmarkNewRequestValidator/with-match-all-expression(roles-count=1000)-14          948           1269298 ns/op         1292339 B/op      15206 allocs/op
+// BenchmarkNewRequestValidator/with-match-all-expression(roles-count=10000)-14          87          13679194 ns/op        13206808 B/op     150345 allocs/op
+// BenchmarkNewRequestValidator/with-deny-expression(roles-count=100)-14              42972             29856 ns/op           28304 B/op        218 allocs/op
+// BenchmarkNewRequestValidator/with-deny-expression(roles-count=1000)-14              9634            120998 ns/op          120169 B/op        220 allocs/op
+// BenchmarkNewRequestValidator/with-deny-expression(roles-count=10000)-14              962           1262179 ns/op          841840 B/op        248 allocs/op
+// PASS
+// ok      github.com/gravitational/teleport/lib/services  11.621s
+func BenchmarkNewRequestValidator(b *testing.B) {
+	const (
+		username = "requester-user"
+		nodename = "mynode"
+	)
+
+	node, err := types.NewServerWithLabels(
+		nodename,
+		types.KindNode,
+		types.ServerSpecV2{},
+		map[string]string{"dev": "prod"})
+	require.NoError(b, err)
+
+	uls, err := userloginstate.New(header.Metadata{
+		Name: username,
+	}, userloginstate.Spec{
+		Roles: []string{"req"},
+	})
+	require.NoError(b, err)
+
+	for _, c := range []int{100, 1_000, 10_000} {
+		name := fmt.Sprintf("without-expression(roles-count=%d)", c)
+		b.Run(name, func(sb *testing.B) {
+			g := mockGetterB(b, c, uls, node, []string{"role-5"} /* allowSearch */, nil)
+			benchmarkNewRequestValidator(sb, g, nodename, username)
+		})
+	}
+
+	for _, c := range []int{100, 1_000, 10_000} {
+		name := fmt.Sprintf("with-match-all-expression(roles-count=%d)", c)
+		b.Run(name, func(sb *testing.B) {
+			g := mockGetterB(b, c, uls, node, []string{"role-*"} /* allowSearch */, nil)
+			benchmarkNewRequestValidator(sb, g, nodename, username)
+		})
+	}
+
+	for _, c := range []int{100, 1_000, 10_000} {
+		name := fmt.Sprintf("with-deny-expression(roles-count=%d)", c)
+		b.Run(name, func(sb *testing.B) {
+			g := mockGetterB(b, c, uls, node, []string{"role-5"} /* allowSearch */, []string{"role-10*"} /* denySearch */)
+			benchmarkNewRequestValidator(sb, g, nodename, username)
+		})
+	}
+}
+
+func benchmarkNewRequestValidator(b *testing.B, g *mockGetter, nodename, username string) {
+	var sink []string
+	resourceIDs := []types.ResourceID{{
+		ClusterName: "mycluster",
+		Kind:        types.KindNode,
+		Name:        nodename,
+	}}
+	for b.Loop() {
+		req, err := NewAccessRequestWithResources(username, []string{"role-5"}, resourceIDs)
+		require.NoError(b, err)
+
+		clock := clockwork.NewFakeClock()
+		identity := tlsca.Identity{
+			Expires: clock.Now().UTC().Add(8 * time.Hour),
+		}
+
+		validator, err := newRequestValidator(context.Background(), clock, g, username, WithExpandVars(true))
+		require.NoError(b, err)
+
+		err = validator.validate(context.Background(), req, identity)
+		require.NoError(b, err)
+
+		sink = validator.roles.allowedSearch
+	}
+	// This is checked only to prevent compiler from doing clever
+	// code optimization, which might affect benchmark test.
+	require.NotEmpty(b, sink)
+}
+
+func mockGetterB(b *testing.B, roleCounts int, uls *userloginstate.UserLoginState, node types.Server, allowSearch, denySearch []string) *mockGetter {
+	b.Helper()
+	roles := genRoles(b, roleCounts)
+	b.ResetTimer()
+	return &mockGetter{
+		roles: func() map[string]types.Role {
+			role, err := createRole("req", allowSearch, denySearch, nil /* denyRequest */)
+			require.NoError(b, err)
+			roles["req"] = role
+			return roles
+		}(),
+		userStates: map[string]*userloginstate.UserLoginState{
+			uls.GetName(): uls,
+		},
+		nodes: map[string]types.Server{
+			node.GetName(): node,
+		},
+		clusterName: "mycluster",
+	}
+}
+
+// genRoles generates a collection of test roles.
+func genRoles(b *testing.B, roleCount int) map[string]types.Role {
+	b.Helper()
+	roles := make(map[string]types.Role)
+	for i := range roleCount {
+		name := fmt.Sprintf("role-%d", i)
+		role, err := types.NewRole(name, types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			},
+		})
+		require.NoError(b, err)
+		roles[name] = role
+	}
+
+	return roles
 }

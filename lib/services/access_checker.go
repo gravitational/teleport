@@ -201,13 +201,6 @@ type AccessChecker interface {
 	// GetAllowedSearchAsRoles returns all of the allowed SearchAsRoles.
 	GetAllowedSearchAsRoles(allowFilters ...SearchAsRolesOption) []string
 
-	// GetAllowedSearchAsRolesForKubeResourceKind returns all of the allowed SearchAsRoles
-	// that allowed requesting to the requested Kubernetes resource kind.
-	GetAllowedSearchAsRolesForKubeResourceKind(requestedKubeResourceKind string) []string
-
-	// GetAllowedPreviewAsRoles returns all of the allowed PreviewAsRoles.
-	GetAllowedPreviewAsRoles() []string
-
 	// MaxConnections returns the maximum number of concurrent ssh connections
 	// allowed.  If MaxConnections is zero then no maximum was defined and the
 	// number of concurrent connections is unconstrained.
@@ -358,6 +351,78 @@ func NewAccessCheckerWithRoleSet(info *AccessInfo, localCluster string, roleSet 
 		localCluster: localCluster,
 		RoleSet:      roleSet,
 	}
+}
+
+// RolesGetter defines an interface to fetch role(s) from the cluster.
+type RolesGetter interface {
+	// GetRole returns role by name.
+	GetRole(ctx context.Context, name string) (types.Role, error)
+	// GetRoles returns all the available roles from the cluster.
+	GetRoles(ctx context.Context) ([]types.Role, error)
+}
+
+// ExtendAccessCheckerParam defines input params for
+// ExtendAccessChecker.
+type ExtendAccessCheckerParam struct {
+	// UseSearchAsRoles indicates to include search_as_roles.
+	UseSearchAsRoles bool
+	// Filters search_as_roles roles.
+	SearchAsRolesFilters []SearchAsRolesOption
+	// UsePreviewAsRoles indicates to include preview_as_roles.
+	UsePreviewAsRoles bool
+	// Teleport cluster name
+	ClusterName string
+}
+
+// ExtendAccessCheckerRoles returns a shallow copy of [in], where the users roles have been
+// extended with search and preview as roles. It may return [in] unmodified.
+func ExtendAccessCheckerRoles(ctx context.Context, in AccessChecker, getter RolesGetter, params ExtendAccessCheckerParam) (AccessChecker, error) {
+	if !params.UseSearchAsRoles && !params.UsePreviewAsRoles {
+		// Return the current access checker unmodified.
+		return in, nil
+	}
+
+	var extraRoles []string
+	set := NewRoleSet(in.Roles()...)
+	matcher, err := set.buildMatchers(params)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(matcher.allowSearch) == 0 && len(matcher.allowPreview) == 0 {
+		// Return the current access checker unmodified.
+		return in, nil
+	}
+
+	allClusterRoles, err := getter.GetRoles(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, r := range allClusterRoles {
+		if matcher.canSearchAsRole(r.GetName()) || matcher.canPreviewAsRole(r.GetName()) {
+			extraRoles = append(extraRoles, r.GetName())
+		}
+	}
+
+	in.AccessInfo().Roles = apiutils.Deduplicate(append(in.AccessInfo().Roles, extraRoles...))
+	extendedChecker, err := NewAccessChecker(in.AccessInfo(), params.ClusterName, getter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return extendedChecker, nil
+}
+
+// ExtendKubernetesAccessCheckerRoles returns a shallow copy of [in], where the users
+// roles have been extended with search and preview as roles available for Kubernetes
+// resource access. It may return [in] unmodified.
+func ExtendKubernetesAccessCheckerRoles(ctx context.Context, in AccessChecker, getter RolesGetter, resourceType string, params ExtendAccessCheckerParam) (AccessChecker, error) {
+	set := NewRoleSet(in.Roles()...)
+	if set.checkKubernetesResourceDenied(resourceType) {
+		// Return the current access checker unmodified.
+		return in, nil
+	}
+	params.SearchAsRolesFilters = []SearchAsRolesOption{WithAllowedKubernetesResourceKindFilter(resourceType)}
+	return ExtendAccessCheckerRoles(ctx, in, getter, params)
 }
 
 // CurrentUserRoleGetter limits the interface of auth.ClientI to methods needed
