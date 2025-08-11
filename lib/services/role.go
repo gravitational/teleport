@@ -3430,15 +3430,33 @@ func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, res
 // SearchAsRolesOption is a functional option for filtering SearchAsRoles.
 type SearchAsRolesOption func(role types.Role) bool
 
-// GetSearchAsRoles returns all SearchAsRoles for this RoleSet.
-func (set RoleSet) GetAllowedSearchAsRoles(allowFilters ...SearchAsRolesOption) []string {
-	denied := make(map[string]struct{})
-	var allowed []string
+// GetOriginalAllowedSearchAsRoles returns all SearchAsRoles for this RoleSet.
+// This method does not expand regexp values and does not exclude roles that
+// may be denied due to deny directive. Use GetAllowedSearchAsRoles to get
+// computed and allowed search as roles.
+func (set RoleSet) GetOriginalAllowSearchAsRoles() []string {
+	var allow []string
 	for _, role := range set {
-		for _, d := range role.GetSearchAsRoles(types.Deny) {
-			denied[d] = struct{}{}
-		}
+		allow = append(allow, role.GetSearchAsRoles(types.Allow)...)
 	}
+	return apiutils.Deduplicate(allow)
+}
+
+// RolesGetter defines an interface to fetch all roles from the cluster.
+type RolesGetter interface {
+	GetRoles(ctx context.Context) ([]types.Role, error)
+}
+
+// GetAllowedSearchAsRoles returns all SearchAsRoles for this RoleSet.
+// Roles are matched against all the existing roles in the cluster.
+func (set RoleSet) GetAllowedSearchAsRoles(ctx context.Context, getter RolesGetter, allowFilters ...SearchAsRolesOption) ([]string, error) {
+	var outAllowed []string
+	if getter == nil {
+		return nil, trace.BadParameter("missing roles getter, this is a bug")
+	}
+
+	var err error
+	var matcher roleMatcher
 	for _, role := range set {
 		if slices.ContainsFunc(allowFilters, func(filter SearchAsRolesOption) bool {
 			return !filter(role)
@@ -3446,14 +3464,31 @@ func (set RoleSet) GetAllowedSearchAsRoles(allowFilters ...SearchAsRolesOption) 
 			// Don't consider this base role if it's filtered out.
 			continue
 		}
-		for _, a := range role.GetSearchAsRoles(types.Allow) {
-			if _, isDenied := denied[a]; isDenied {
-				continue
-			}
-			allowed = append(allowed, a)
+
+		matcher.allowSearch, err = appendRoleMatchers(matcher.allowSearch, role.GetSearchAsRoles(types.Allow), nil /* claim mapping */, nil /* traits */)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		matcher.denySearch, err = appendRoleMatchers(matcher.denySearch, role.GetSearchAsRoles(types.Deny), nil /* claim mapping */, nil /* traits */)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
-	return apiutils.Deduplicate(allowed)
+
+	if len(matcher.allowSearch) == 0 {
+		return outAllowed, nil
+	}
+
+	allClusterRoles, err := getter.GetRoles(ctx)
+	if err != nil {
+		return outAllowed, trace.Wrap(err)
+	}
+	for _, r := range allClusterRoles {
+		if matcher.canSearchAsRole(r.GetName()) {
+			outAllowed = append(outAllowed, r.GetName())
+		}
+	}
+	return apiutils.Deduplicate(outAllowed), nil
 }
 
 type gk struct{ group, kind string }
@@ -3546,16 +3581,17 @@ func matchRequestKubernetesResources(input gk, reference types.RequestKubernetes
 
 // GetAllowedSearchAsRolesForKubeResourceKind returns all of the allowed SearchAsRoles
 // that allowed requesting to the requested Kubernetes resource kind.
-func (set RoleSet) GetAllowedSearchAsRolesForKubeResourceKind(requestedKubeResourceKind string) []string {
+func (set RoleSet) GetAllowedSearchAsRolesForKubeResourceKind(ctx context.Context, getter RolesGetter, requestedKubeResourceKind string) ([]string, error) {
 	// Return no results if encountering any denies since its globally matched.
 	for _, role := range set {
 		for _, kr := range role.GetRequestKubernetesResources(types.Deny) {
 			if matchRequestKubernetesResources(normalizeKubernetesKind(requestedKubeResourceKind), kr, types.Deny) {
-				return nil
+				// Let the caller continue with an empty SearchAsRoles.
+				return nil, nil
 			}
 		}
 	}
-	return set.GetAllowedSearchAsRoles(WithAllowedKubernetesResourceKindFilter(requestedKubeResourceKind))
+	return set.GetAllowedSearchAsRoles(ctx, getter, WithAllowedKubernetesResourceKindFilter(requestedKubeResourceKind))
 }
 
 // WithAllowedKubernetesResourceKindFilter returns a SearchAsRolesOption func

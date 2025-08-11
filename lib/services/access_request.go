@@ -234,7 +234,7 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 		if req.FilterRequestableRolesByResource {
 			resourceIDs = req.ResourceIDs
 		}
-		caps.RequestableRoles, err = v.getRequestableRoles(ctx, identity, resourceIDs, req.Login)
+		caps.RequestableRoles, err = v.filterRequestableRole(ctx, identity, resourceIDs, req.Login)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -272,37 +272,18 @@ func (v *requestValidator) calcRequireReasonCap(ctx context.Context, req types.A
 	return requireReason, nil
 }
 
-// allowedSearchAsRoles returns all allowed `allow.request.search_as_roles` for the user that are
-// not in the `deny.request.search_as_roles`. It does not filter out any roles that should not be
-// allowed based on requests.
-func (m *requestValidator) allowedSearchAsRoles() ([]string, error) {
-	var rolesToRequest []string
-	for _, roleName := range m.roles.allowSearch {
-		if !m.canSearchAsRole(roleName) {
-			continue
-		}
-		rolesToRequest = append(rolesToRequest, roleName)
-	}
-	if len(rolesToRequest) == 0 {
-		return nil, trace.AccessDenied(`Resource Access Requests require usable "search_as_roles", none found for user %q`, m.userState.GetName())
-	}
-
-	return rolesToRequest, nil
-}
-
 // applicableSearchAsRoles prunes the search_as_roles and only returns those
 // applicable for the given list of resourceIDs.
 //
 // If loginHint is provided, it will attempt to prune the list to a single role.
 func (m *requestValidator) applicableSearchAsRoles(ctx context.Context, resourceIDs []types.ResourceID, loginHint string) ([]string, error) {
-	rolesToRequest, err := m.allowedSearchAsRoles()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if len(m.roles.allowedSearch) == 0 {
+		return nil, trace.AccessDenied(`Resource Access Requests require usable "search_as_roles", none found for user %q`, m.userState.GetName())
 	}
 
 	// Prune the list of roles to request to only those which may be necessary
 	// to access the requested resources.
-	rolesToRequest, err = m.pruneResourceRequestRoles(ctx, resourceIDs, loginHint, rolesToRequest)
+	rolesToRequest, err := m.pruneResourceRequestRoles(ctx, resourceIDs, loginHint, m.roles.allowedSearch)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1070,10 +1051,22 @@ type requestValidator struct {
 		deny []types.RequestKubernetesResource
 	}
 	roles struct {
-		allowRequest, denyRequest []parse.Matcher
-		allowSearch, denySearch   []string
+		// allowedRequest holds all allowed `allow.request.roles`
+		// for the user that are not in the `deny.request.roles`.
+		allowedRequest []string
+		// allowedSearch holds all allowed `allow.request.search_as_roles`
+		// for the user that are not in the `deny.request.roles` and
+		// `deny.request.search_as_roles`.
+		allowedSearch []string
+		// roleMatcher holds allow and deny role matchers for request roles
+		// and search as roles.
+		matchers roleMatcher
 	}
-	annotations struct {
+	// allClusterRoles holds all the role available in the Teleport cluster.
+	// Value available after allowed requestable and searchable roles
+	// are computed.
+	allClusterRoles map[string]types.Role
+	annotations     struct {
 		// allow annotations are not greedy, the role that defines the annotation must allow requesting one
 		// of the roles that are being requested in order for the annotation to be applied.
 		allow map[singleAnnotation]annotationMatcher
@@ -1132,6 +1125,12 @@ func newRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 		}
 	}
 	slices.Sort(m.reasonPrompts)
+	requestable, searchable, err := m.getAllowedRoles(ctx)
+	if err != nil {
+		return requestValidator{}, trace.Wrap(err)
+	}
+	m.roles.allowedRequest = apiutils.Deduplicate(append(m.roles.allowedRequest, requestable...))
+	m.roles.allowedSearch = apiutils.Deduplicate(append(m.roles.allowedSearch, searchable...))
 
 	return m, nil
 }
@@ -1171,15 +1170,10 @@ func (m *requestValidator) validate(ctx context.Context, req types.AccessRequest
 			return trace.BadParameter("unexpected wildcard request (this is a bug)")
 		}
 
-		requestable, err := m.getRequestableRoles(ctx, identity, nil, "")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if len(requestable) == 0 {
+		if len(m.roles.allowedRequest) == 0 {
 			return trace.BadParameter("no requestable roles, please verify static RBAC configuration")
 		}
-		req.SetRoles(requestable)
+		req.SetRoles(m.roles.allowedRequest)
 	}
 
 	enrichment := &types.AccessRequestDryRunEnrichment{
@@ -1211,14 +1205,14 @@ func (m *requestValidator) validate(ctx context.Context, req types.AccessRequest
 	// verify that all requested roles are permissible
 	for _, roleName := range req.GetRoles() {
 		if len(req.GetRequestedResourceIDs()) > 0 {
-			if !m.canSearchAsRole(roleName) {
+			if !slices.Contains(m.roles.allowedSearch, roleName) {
 				// Roles are normally determined automatically for resource
 				// access requests, this role must have been explicitly
 				// requested, or a new deny rule has since been added.
 				return trace.BadParameter("user %q can not request role %q", req.GetUser(), roleName)
 			}
 		} else {
-			if !m.canRequestRole(roleName) {
+			if !slices.Contains(m.roles.allowedRequest, roleName) {
 				return trace.BadParameter("user %q can not request role %q", req.GetUser(), roleName)
 			}
 		}
@@ -1534,30 +1528,41 @@ func (m *requestValidator) truncateTTL(ctx context.Context, identity tlsca.Ident
 	return ttl, nil
 }
 
-// getResourceViewingRoles gets the subset of the user's roles that could be used
-// to view resources (i.e., base roles + search as roles).
-func (m *requestValidator) getResourceViewingRoles() []string {
-	roles := slices.Clone(m.userState.GetRoles())
-	for _, role := range m.roles.allowSearch {
-		if m.canSearchAsRole(role) {
-			roles = append(roles, role)
-		}
-	}
-	return apiutils.Deduplicate(roles)
-}
-
-// getRequestableRoles gets the list of all existent roles which the user is
-// able to request.  This operation is expensive since it loads all existent
-// roles to determine the role list.  Prefer calling CanRequestRole
-// when checking against a known role list. If resource IDs or a login hints
-// are provided, roles will be filtered to only include those that would
-// allow access to the given resource with the given login.
-func (m *requestValidator) getRequestableRoles(ctx context.Context, identity tlsca.Identity, resourceIDs []types.ResourceID, loginHint string) ([]string, error) {
+// getAllowedRoles gets all the allowed requestable and searchable
+// roles for the user. This operation is expensive since it loads
+// all existent roles to determine the role list. The loaded roles
+// are then contained within allClusterRoles for a future reference
+// within requestValidator. Use allowedRequest and allowedSearch to
+// get computed request and search role names.
+func (m *requestValidator) getAllowedRoles(ctx context.Context) ([]string, []string, error) {
 	allRoles, err := m.getter.GetRoles(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
+	m.allClusterRoles = make(map[string]types.Role, len(allRoles))
+	var requestRoles, searchRoles []string
+	for _, role := range allRoles {
+		n := role.GetName()
+		m.allClusterRoles[n] = role
+
+		if m.roles.matchers.canRequestRole(n) {
+			requestRoles = append(requestRoles, n)
+		}
+
+		if m.roles.matchers.canSearchAsRole(n) {
+			searchRoles = append(searchRoles, n)
+		}
+	}
+
+	return requestRoles, searchRoles, nil
+}
+
+// filterRequestableRole filters roles that can be requested by the user.
+// If resource IDs or a login hints are provided, roles will be filtered
+// to only include those that would allow access to the given resource with
+// the given login.
+func (m *requestValidator) filterRequestableRole(ctx context.Context, identity tlsca.Identity, resourceIDs []types.ResourceID, loginHint string) ([]string, error) {
 	resources, err := m.getUnderlyingResourcesByResourceIDs(ctx, resourceIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1567,8 +1572,11 @@ func (m *requestValidator) getRequestableRoles(ctx context.Context, identity tls
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	resourceViewingRoles := slices.Clone(m.userState.GetRoles())
+	resourceViewingRoles = append(resourceViewingRoles, m.roles.allowedSearch...)
 	accessChecker, err := NewAccessChecker(&AccessInfo{
-		Roles:              m.getResourceViewingRoles(),
+		Roles:              resourceViewingRoles,
 		Traits:             m.userState.GetTraits(),
 		Username:           m.userState.GetName(),
 		AllowedResourceIDs: identity.AllowedResourceIDs,
@@ -1586,12 +1594,17 @@ func (m *requestValidator) getRequestableRoles(ctx context.Context, identity tls
 	}
 
 	var expanded []string
-	for _, role := range allRoles {
-		n := role.GetName()
-		if slices.Contains(m.userState.GetRoles(), n) || !m.canRequestRole(n) {
+	for _, roleName := range m.roles.allowedRequest {
+		if slices.Contains(m.userState.GetRoles(), roleName) {
 			continue
 		}
 
+		role, ok := m.allClusterRoles[roleName]
+		if !ok {
+			// This is not expected so logging here to flag out problematic role.
+			m.logger.WarnContext(ctx, "Requested role not matched", "role", roleName)
+			continue
+		}
 		roleAllowsAccess := true
 		for _, resource := range filteredResources {
 			access, err := m.roleAllowsResource(role, resource, loginHint)
@@ -1605,7 +1618,7 @@ func (m *requestValidator) getRequestableRoles(ctx context.Context, identity tls
 
 		// user does not currently hold this role, and is allowed to request it.
 		if roleAllowsAccess {
-			expanded = append(expanded, n)
+			expanded = append(expanded, roleName)
 		}
 	}
 	return expanded, nil
@@ -1665,28 +1678,31 @@ func (m *requestValidator) push(ctx context.Context, role types.Role) error {
 		m.kubernetesResource.deny = append(m.kubernetesResource.deny, deniedKubeResources...)
 	}
 
-	m.roles.denyRequest, err = appendRoleMatchers(m.roles.denyRequest, deny.Roles, deny.ClaimsToRoles, m.userState.GetTraits())
+	m.roles.matchers.denyRequest, err = appendRoleMatchers(m.roles.matchers.denyRequest, deny.Roles, deny.ClaimsToRoles, m.userState.GetTraits())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	// record what will be the starting index of the allow and deny matchers for this role, if it applies any.
-	astart := len(m.roles.allowRequest)
-
-	m.roles.allowRequest, err = appendRoleMatchers(m.roles.allowRequest, allow.Roles, allow.ClaimsToRoles, m.userState.GetTraits())
+	astart := len(m.roles.matchers.allowRequest)
+	m.roles.matchers.allowRequest, err = appendRoleMatchers(m.roles.matchers.allowRequest, allow.Roles, allow.ClaimsToRoles, m.userState.GetTraits())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	m.roles.allowSearch = apiutils.Deduplicate(append(m.roles.allowSearch, allow.SearchAsRoles...))
-	m.roles.denySearch = apiutils.Deduplicate(append(m.roles.denySearch, deny.SearchAsRoles...))
+	m.roles.matchers.allowSearch, err = appendRoleMatchers(m.roles.matchers.allowSearch, allow.SearchAsRoles, nil /* claim mapping */, nil /* traits */)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	m.roles.matchers.denySearch, err = appendRoleMatchers(m.roles.matchers.denySearch, deny.SearchAsRoles, nil /* claim mapping */, nil /* traits */)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	if m.opts.expandVars {
 		// if this role added additional allow matchers, then we need to record the relationship
 		// between its matchers and its thresholds. This information is used later to calculate
 		// the rtm and threshold list.
-		newAllowRequestMatchers := m.roles.allowRequest[astart:]
-		newAllowSearchMatchers := literalMatchers(allow.SearchAsRoles)
+		newAllowRequestMatchers := m.roles.matchers.allowRequest[astart:]
+		newAllowSearchMatchers := m.roles.matchers.allowSearch
 
 		allNewAllowMatchers := make([]parse.Matcher, 0, len(newAllowRequestMatchers)+len(newAllowSearchMatchers))
 		allNewAllowMatchers = append(allNewAllowMatchers, newAllowRequestMatchers...)
@@ -1923,14 +1939,18 @@ func (c *thresholdCollector) pushThreshold(t types.AccessReviewThreshold) (uint3
 	return uint32(len(c.Thresholds) - 1), nil
 }
 
+type roleMatcher struct {
+	allowRequest, denyRequest, allowSearch, denySearch []parse.Matcher
+}
+
 // canRequestRole checks if a given role can be requested.
-func (m *requestValidator) canRequestRole(name string) bool {
-	for _, deny := range m.roles.denyRequest {
+func (m roleMatcher) canRequestRole(name string) bool {
+	for _, deny := range m.denyRequest {
 		if deny.Match(name) {
 			return false
 		}
 	}
-	for _, allow := range m.roles.allowRequest {
+	for _, allow := range m.allowRequest {
 		if allow.Match(name) {
 			return true
 		}
@@ -1940,16 +1960,23 @@ func (m *requestValidator) canRequestRole(name string) bool {
 
 // canSearchAsRole check if a given role can be requested through a search-based
 // access request
-func (m *requestValidator) canSearchAsRole(name string) bool {
-	if slices.Contains(m.roles.denySearch, name) {
-		return false
-	}
-	for _, deny := range m.roles.denyRequest {
+func (m roleMatcher) canSearchAsRole(name string) bool {
+	for _, deny := range m.denySearch {
 		if deny.Match(name) {
 			return false
 		}
 	}
-	return slices.Contains(m.roles.allowSearch, name)
+	for _, deny := range m.denyRequest {
+		if deny.Match(name) {
+			return false
+		}
+	}
+	for _, allow := range m.allowSearch {
+		if allow.Match(name) {
+			return true
+		}
+	}
+	return false
 }
 
 // collectSetsForRole collects the threshold index sets which describe the various groups of

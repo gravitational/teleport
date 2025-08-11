@@ -198,12 +198,19 @@ type AccessChecker interface {
 	// CertificateExtensions returns the list of extensions for each role in the RoleSet
 	CertificateExtensions() []*types.CertExtension
 
-	// GetAllowedSearchAsRoles returns all of the allowed SearchAsRoles.
-	GetAllowedSearchAsRoles(allowFilters ...SearchAsRolesOption) []string
+	// GetOriginalAllowedSearchAsRoles returns all SearchAsRoles for this RoleSet.
+	// This method does not expand regexp values and does not exclude roles that
+	// may be denied due to deny directive. Use GetAllowedSearchAsRoles to get
+	// computed and allowed search as roles.
+	GetOriginalAllowSearchAsRoles() []string
+
+	// GetAllowedSearchAsRoles returns all SearchAsRoles for this RoleSet.
+	// Roles are matched against all the existing roles in the cluster.
+	GetAllowedSearchAsRoles(ctx context.Context, getter RolesGetter, allowFilters ...SearchAsRolesOption) ([]string, error)
 
 	// GetAllowedSearchAsRolesForKubeResourceKind returns all of the allowed SearchAsRoles
 	// that allowed requesting to the requested Kubernetes resource kind.
-	GetAllowedSearchAsRolesForKubeResourceKind(requestedKubeResourceKind string) []string
+	GetAllowedSearchAsRolesForKubeResourceKind(ctx context.Context, getter RolesGetter, requestedKubeResourceKind string) ([]string, error)
 
 	// GetAllowedPreviewAsRoles returns all of the allowed PreviewAsRoles.
 	GetAllowedPreviewAsRoles() []string
