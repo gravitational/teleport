@@ -22,6 +22,7 @@ package discovery
 
 import (
 	"context"
+	"iter"
 	"maps"
 	"slices"
 	"testing"
@@ -47,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -356,6 +358,14 @@ func (m *mockAuthServer) GetKubernetesServers(context.Context) ([]types.KubeServ
 
 func (m *mockAuthServer) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	return nil, nil
+}
+
+func (m *mockAuthServer) ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error) {
+	return nil, "", nil
+}
+
+func (m *mockAuthServer) RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error] {
+	return stream.Empty[types.Database]()
 }
 
 func (m *mockAuthServer) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {

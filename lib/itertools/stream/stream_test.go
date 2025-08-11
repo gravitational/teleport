@@ -884,3 +884,216 @@ func TestMergeStreams(t *testing.T) {
 		require.Equal(t, []int{1, 2, 3, 4, 5, 6}, out)
 	})
 }
+
+func TestFilter(t *testing.T) {
+	t.Parallel()
+
+	// normal usage
+	out, err := Collect(Filter(
+		Slice([]int{1, 2, 3, 4}),
+		func(i int) bool {
+			return i%2 == 0
+		}))
+	require.NoError(t, err)
+	require.Equal(t, []int{2, 4}, out)
+
+	// Produce empty on no match
+	out, err = Collect(Filter(
+		Slice([]int{1, 2, 3, 4}),
+		func(i int) bool {
+			return false
+		}))
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	// empty stream
+	out, err = Collect(Filter(
+		Empty[int](),
+		func(_ int) bool { panic("unreachable") }))
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	// failure
+	err = Drain(Filter(
+		Fail[int](fmt.Errorf("unexpected error")),
+		func(_ int) bool { panic("unreachable") }))
+	require.Error(t, err)
+
+	// Test early exit
+	var actual []int
+	Filter(
+		Slice([]int{1, 2, 3, 4}),
+		func(i int) bool {
+			return i%2 == 0
+		})(func(item int, err error) bool {
+		actual = append(actual, item)
+		return item < 3
+	})
+	require.Equal(t, []int{2, 4}, actual)
+
+}
+
+func TestMap(t *testing.T) {
+	t.Parallel()
+
+	// normal usage
+	out, err := Collect(Map(
+		Slice([]int{1, 2, 3, 4}),
+		func(i int) (string, error) {
+			return fmt.Sprintf("%d", i*10), nil
+		}))
+	require.NoError(t, err)
+	require.Equal(t, []string{"10", "20", "30", "40"}, out)
+
+	// Mapping failure
+	out, err = Collect(Map(
+		Slice([]int{1, 2, 3, 4}),
+		func(i int) (string, error) {
+			return "", fmt.Errorf("unexpected error")
+		}))
+	require.Error(t, err)
+	require.Empty(t, out)
+
+	// empty stream
+	out, err = Collect(Map(
+		Empty[int](),
+		func(_ int) (string, error) { panic("unreachable") }))
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	// failure
+	err = Drain(Map(
+		Fail[int](fmt.Errorf("unexpected error")),
+		func(_ int) (string, error) { panic("unreachable") }))
+	require.Error(t, err)
+
+	// Test early exit
+	var actual []string
+	Map(Slice([]int{1, 2, 3, 4}),
+		func(i int) (string, error) {
+			return fmt.Sprintf("%d", i*10), nil
+		})(func(item string, err error) bool {
+		actual = append(actual, item)
+		return len(actual) < 3
+	})
+	require.Equal(t, []string{"10", "20", "30"}, actual)
+
+}
+
+func TestUntil(t *testing.T) {
+	t.Parallel()
+
+	// Regular operation
+	out, err := Collect(Until(
+		Slice([]int{1, 2, 3, 4, 5, 6}),
+		func(item int) bool {
+			return item > 3
+		},
+	))
+
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3}, out)
+
+	out, err = Collect(Until(
+		Slice([]int{1, 2, 3, 4, 5, 6}),
+		func(_ int) bool {
+			return false
+		},
+	))
+
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3, 4, 5, 6}, out)
+
+	// Propagate error
+	out, err = Collect(Until(
+		Fail[int](fmt.Errorf("unexpected error")),
+		func(_ int) bool {
+			return false
+		},
+	))
+
+	require.Error(t, err)
+	require.Empty(t, out)
+
+	// Test early exit
+	var actual []int
+	Until(Slice([]int{1, 2, 3, 4, 5, 6}),
+		func(item int) bool { return false },
+	)(func(item int, err error) bool {
+		actual = append(actual, item)
+		return item < 3
+	})
+	require.Equal(t, []int{1, 2, 3}, actual)
+
+}
+
+func TestLimitWithCallBack(t *testing.T) {
+	t.Parallel()
+
+	// Normal usecase
+	testLast := -1
+	out, err := Collect(LimitWithCallBack(Slice([]int{1, 2, 3, 4, 5, 6}),
+		3,
+		func(last int) {
+			testLast = last
+		},
+	))
+
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3}, out)
+	require.Equal(t, 4, testLast)
+
+	// No limit hit
+	out, err = Collect(LimitWithCallBack(Slice([]int{1, 2, 3, 4, 5, 6}),
+		10,
+		func(last int) {
+			panic("unexpected callback")
+		},
+	))
+
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3, 4, 5, 6}, out)
+
+	// Bad limit
+	out, err = Collect(LimitWithCallBack(Slice([]int{1, 2, 3, 4, 5, 6}),
+		-1,
+		func(last int) {
+			panic("unexpected callback")
+		},
+	))
+
+	require.Error(t, err)
+	require.Empty(t, out)
+
+	// No callback on empty
+	out, err = Collect(LimitWithCallBack(Empty[int](),
+		1,
+		func(last int) {
+			panic("unexpected callback")
+		},
+	))
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	// No callback on fail
+	out, err = Collect(LimitWithCallBack(
+		Fail[int](fmt.Errorf("unexpected error")),
+		1,
+		func(last int) {
+			panic("unexpected callback")
+		},
+	))
+	require.ErrorContains(t, err, "unexpected")
+	require.Empty(t, out)
+
+	// Test early exit
+	var actual []int
+	LimitWithCallBack(Slice([]int{1, 2, 3, 4, 5, 6}),
+		10,
+		func(last int) {},
+	)(func(item int, err error) bool {
+		actual = append(actual, item)
+		return item < 3
+	})
+	require.Equal(t, []int{1, 2, 3}, actual)
+}

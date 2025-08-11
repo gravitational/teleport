@@ -277,7 +277,14 @@ type ReadProxyAccessPoint interface {
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 
 	// GetDatabases returns all database resources.
+	// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 	GetDatabases(ctx context.Context) ([]types.Database, error)
+
+	// ListDatabases returns a page of database resources.
+	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
+
+	// RangeDatabases returns database resources within the range [start, end).
+	RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error]
 
 	// GetDatabase returns the specified database resource.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
@@ -644,7 +651,14 @@ type ReadDatabaseAccessPoint interface {
 	GetProxies() ([]types.Server, error)
 
 	// GetDatabases returns all database resources.
+	// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 	GetDatabases(ctx context.Context) ([]types.Database, error)
+
+	// ListDatabases returns a page of database resources.
+	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
+
+	// RangeDatabases returns database resources within the range [start, end).
+	RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error]
 
 	// GetDatabase returns the specified database resource.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
@@ -751,7 +765,15 @@ type ReadDiscoveryAccessPoint interface {
 	GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error)
 
 	// GetDatabases returns all database resources.
+	// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 	GetDatabases(ctx context.Context) ([]types.Database, error)
+
+	// ListDatabases returns a page of database resources.
+	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
+
+	// RangeDatabases returns database resources within the range [start, end).
+	RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error]
+
 	// GetDatabase returns a database resource with the given name if it exists.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
 
@@ -1100,7 +1122,14 @@ type Cache interface {
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 
 	// GetDatabases returns all database resources.
+	// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 	GetDatabases(ctx context.Context) ([]types.Database, error)
+
+	// ListDatabases returns a page of database resources.
+	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
+
+	// RangeDatabases returns database resources within the range [start, end).
+	RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error]
 
 	// GetDatabase returns the specified database resource.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
