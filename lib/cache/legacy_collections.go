@@ -743,7 +743,7 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				return nil, trace.BadParameter("missing upstream IdentityCenter collection")
 			}
 			collections.identityCenterAccounts = &genericCollection[
-				services.IdentityCenterAccount,
+				*identitycenterv1.Account,
 				identityCenterAccountGetter,
 				identityCenterAccountExecutor,
 			]{
@@ -771,7 +771,7 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				return nil, trace.BadParameter("missing parameter IdentityCenter")
 			}
 			collections.identityCenterAccountAssignments = &genericCollection[
-				services.IdentityCenterAccountAssignment,
+				*identitycenterv1.AccountAssignment,
 				identityCenterAccountAssignmentGetter,
 				identityCenterAccountAssignmentExecutor,
 			]{
