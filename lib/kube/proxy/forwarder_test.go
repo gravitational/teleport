@@ -28,6 +28,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"slices"
 	"sort"
 	"sync/atomic"
 	"testing"
@@ -1594,8 +1595,8 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.args.ctx.eventClusterMeta(tt.args.req)
-			sort.Strings(got.KubernetesGroups)
-			sort.Strings(got.KubernetesGroups)
+			slices.Sort(got.KubernetesUsers)
+			slices.Sort(got.KubernetesGroups)
 			require.Equal(t, tt.want, got)
 		})
 	}
