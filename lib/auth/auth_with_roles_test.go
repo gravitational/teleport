@@ -78,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/okta/oktatest"
@@ -2864,10 +2865,32 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
+	dbs, next, err := devClt.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff([]types.Database{devDatabase}, dbs,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
 	// Admin should see both.
 	dbs, err = adminClt.GetDatabases(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Database{adminDatabase, devDatabase}, dbs,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	dbs, next, err = adminClt.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff([]types.Database{adminDatabase, devDatabase}, dbs,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	// With limit, next should be dev
+	dbs, next, err = adminClt.ListDatabases(ctx, 1, "")
+	require.NoError(t, err)
+	require.Equal(t, devDatabase.GetName(), next)
+	require.Empty(t, cmp.Diff([]types.Database{adminDatabase}, dbs,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
@@ -2959,6 +2982,14 @@ func mustGetDatabases(t *testing.T, client *authclient.Client, wantDatabases []t
 	t.Helper()
 
 	actualDatabases, err := client.GetDatabases(context.Background())
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff(wantDatabases, actualDatabases,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.EquateEmpty(),
+	))
+
+	actualDatabases, err = stream.Collect(client.RangeDatabases(t.Context(), "", ""))
 	require.NoError(t, err)
 
 	require.Empty(t, cmp.Diff(wantDatabases, actualDatabases,
