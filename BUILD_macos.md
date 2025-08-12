@@ -166,3 +166,16 @@ and updates are welcome!
     ```shell
     ulimit -n 2560 # 10x default
     ```
+
+1. Test the environment by building development artifacts and running tests:
+
+    ```shell
+    make all test
+    ```
+
+Congrats! Your MacOS environment is now ready for development 🎉
+
+If you encounter any issues, please refer to the [official
+documentation](https://goteleport.com/docs/) or [open an
+issue](https://github.com/gravitational/teleport/issues) in the repository for
+assistance.
