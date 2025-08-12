@@ -71,8 +71,8 @@ export function useResourceLock(opts: {
   } = useMutation({
     mutationFn: deleteLock,
     onSuccess: (_, vars) => {
-      queryClient.setQueryData(listLocksQueryKey(queryVars), existingData => {
-        return existingData?.filter(lock => lock.name !== vars.uuid);
+      queryClient.setQueryData(listLocksQueryKey(queryVars), existingLocks => {
+        return existingLocks?.filter(lock => lock.name !== vars.uuid);
       });
     },
   });
@@ -83,9 +83,9 @@ export function useResourceLock(opts: {
     error: lockError,
   } = useMutation({
     mutationFn: createLock,
-    onSuccess: newData => {
-      queryClient.setQueryData(listLocksQueryKey(queryVars), existingData => {
-        return existingData ? [...existingData, newData] : [newData];
+    onSuccess: newLock => {
+      queryClient.setQueryData(listLocksQueryKey(queryVars), existingLocks => {
+        return existingLocks ? [...existingLocks, newLock] : [newLock];
       });
     },
   });
