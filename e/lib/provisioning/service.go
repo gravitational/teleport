@@ -368,6 +368,41 @@ func (svc *Service) Run(ctx context.Context) (err error) {
 	return nil
 }
 
+// SetUserStateLabel sets a label on the user's Provisioning State record.
+func (svc *Service) SetUserStateLabel(ctx context.Context, username string, key, value string) error {
+	return trace.Wrap(svc.SetProvisioningStateLabel(ctx, getIDForUserName(username), key, value))
+}
+
+// SetAccessListStateLabel sets a label on the Access List's Provisioning State
+// record.
+func (svc *Service) SetAccessListStateLabel(ctx context.Context, aclName string, key, value string) error {
+	return trace.Wrap(svc.SetProvisioningStateLabel(ctx, getIDForAccessListName(aclName), key, value))
+}
+
+// SetProvisioningStateLabel sets a label on the specified Provisioning State
+// record.
+func (svc *Service) SetProvisioningStateLabel(ctx context.Context, id services.ProvisioningStateID, key, value string) error {
+	originalState, err := svc.stateSvc.GetProvisioningState(ctx, svc.downstreamID, id)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	setLabel := func(state *provisioningv1.PrincipalState) error {
+		if state.Metadata.Labels == nil {
+			state.Metadata.Labels = make(map[string]string)
+		}
+		state.Metadata.Labels[key] = value
+		return nil
+	}
+
+	_, err = updateProvisioningState(ctx, svc.stateSvc, originalState, setLabel)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 func (svc *Service) init(ctx context.Context) error {
 	svc.log.DebugContext(ctx, "Building lock cache")
 	for user, err := range allUsers(ctx, svc.usersSvcCache) {

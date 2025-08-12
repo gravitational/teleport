@@ -24,6 +24,28 @@ func WithDisplayNameFilter(displayName string) QueryOption {
 	}
 }
 
+// WithFilter returns a QueryOption with arbitrary filter expression
+func WithFilter(filterExpression string) QueryOption {
+	return func(o *QueryOptions) {
+		o.filter = stringPtr(filterExpression)
+	}
+}
+
+// WithStartIndex sets the query start index. Default value is defined by the SCIM server.
+func WithStartIndex(n int) QueryOption {
+	return func(o *QueryOptions) {
+		o.startIndex = intPtr(n)
+	}
+}
+
+// WithCount sets the page size for the returned results. Actual returned page size may
+// be smaller, depending on the SCIM server. Default value is defined by the SCM server.
+func WithCount(n int) QueryOption {
+	return func(o *QueryOptions) {
+		o.count = intPtr(n)
+	}
+}
+
 // QueryOptions represents the options for a SCIM query.
 type QueryOptions struct {
 	filter     *string
@@ -53,4 +75,22 @@ func stringPtr(s string) *string {
 }
 func intPtr(i int) *int {
 	return &i
+}
+
+// StartIndex fetches and validates the QueryOptions start index. Also returns a flag
+// indicating that the value has been set, similar to a `map` read.
+func (o *QueryOptions) StartIndex() (int, bool) {
+	if o.startIndex == nil {
+		return 0, false
+	}
+	return max(*o.startIndex, 1), true
+}
+
+// StartIndex fetches the QueryOptions page size. Also returns a flag indicating that the
+// value has been set, similar to a `map` read.
+func (o *QueryOptions) Count() (int, bool) {
+	if o.count == nil {
+		return 0, false
+	}
+	return *o.count, true
 }

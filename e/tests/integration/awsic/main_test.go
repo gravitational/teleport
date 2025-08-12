@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/integration/helpers"
 )
@@ -16,6 +17,10 @@ func TestMain(m *testing.M) {
 	// This will almost certainly time out any affected tests. Using this shorter
 	// interval brings that interval down into a sensible range for integration tests.
 	plugins.LeaderLockRetryInterval = 50 * time.Millisecond
+
+	// The Identity Center event handler processes events in 30s batches in order
+	// to discard duplicate events. This is obviously too long for our tests.
+	identitycenter.EventBatchDuration = 50 * time.Millisecond
 
 	helpers.TestMainImplementation(m)
 }

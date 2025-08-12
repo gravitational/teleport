@@ -17,6 +17,16 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+// EventBatchDuration specifies how long the event aggregator will collect and
+// aggregate resource events before acting on the them. Shorter durations make
+// the service more responsive, but longer durations are  able to discard more
+// work and are thus more efficient.
+//
+// There is no particular data behind the initial 30s value, other than being
+// short enough to make the service still feel responsive while being long
+// enough to reliably aggregate work from sync events and access list updates.
+var EventBatchDuration = 30 * time.Second
+
 // resourceEventLoop handles events from the resource monitor.
 func (svc *Service) resourceEventLoop(ctx context.Context) error {
 	fullRefreshTimer := svc.clock.NewTimer(retryutils.SeventhJitter(svc.assignmentSyncInterval))
@@ -38,21 +48,8 @@ func (svc *Service) resourceEventLoop(ctx context.Context) error {
 		}
 	}()
 
-	const (
-		// batchDuration specifies how long the event aggregator will collect
-		// and aggregate resource events before acting on the them. Shorter
-		// durations make the service more responsive, but longer durations are
-		// able to discard more work and are thus more efficient.
-		//
-		// There is no particular data behind the initial 30s value, other than
-		// being short enough to make the service still feel responsive while
-		// being long enough to reliably aggregate work from sync events and
-		// access list updates.
-		batchDuration = 30 * time.Second
-	)
-
 	for {
-		pendingEvents, doFullRefresh, readOK := svc.batchReadEvents(ctx, batchDuration)
+		pendingEvents, doFullRefresh, readOK := svc.batchReadEvents(ctx, EventBatchDuration)
 		if !readOK {
 			return nil
 		}

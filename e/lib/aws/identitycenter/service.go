@@ -115,18 +115,20 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 	}
 
 	svc.provisioner, err = provisioning.NewService(provisioning.ServiceConfig{
-		DownstreamID:           IdentityCenterDownstreamID,
-		SCIMClient:             config.Provisioning.SCIMClient,
-		StateSvc:               config.Provisioning.StateSvc,
-		StateSvcCache:          config.Provisioning.StateSvcCache,
-		UsersCache:             config.Provisioning.UsersSvcCache,
-		AccessListsCache:       config.Provisioning.AccessListsSvcCache,
-		Locks:                  config.Provisioning.LocksSvc,
-		EventsClient:           config.EventsClient,
-		UserPredicate:          config.UserPredicate,
-		AccessListPredicate:    aclPredicate,
-		OnPrincipalProvisioned: svc.onPrincipalProvisioned,
-		Logger:                 config.Log.With(teleport.ComponentKey, eteleport.ComponentAWSICPrincipalProvisioner),
+		DownstreamID:              IdentityCenterDownstreamID,
+		SCIMClient:                config.Provisioning.SCIMClient,
+		StateSvc:                  config.Provisioning.StateSvc,
+		StateSvcCache:             config.Provisioning.StateSvcCache,
+		UsersCache:                config.Provisioning.UsersSvcCache,
+		AccessListsCache:          config.Provisioning.AccessListsSvcCache,
+		Locks:                     config.Provisioning.LocksSvc,
+		EventsClient:              config.EventsClient,
+		UserPredicate:             config.UserPredicate,
+		AccessListPredicate:       aclPredicate,
+		OnPrincipalProvisioning:   svc.onPrincipalProvisioning,
+		OnPrincipalProvisioned:    svc.onPrincipalProvisioned,
+		OnPrincipalDeprovisioning: svc.onPrincipalDeprovisioning,
+		Logger:                    config.Log.With(teleport.ComponentKey, eteleport.ComponentAWSICPrincipalProvisioner),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating provisioner")
@@ -272,6 +274,22 @@ func (svc *Service) onPrincipalProvisioned(ctx context.Context, principal *provi
 		return nil
 	}
 	svc.queueResourceEvent(ctx, event)
+	return nil
+}
+
+func (svc *Service) onPrincipalProvisioning(ctx context.Context, state *provisioningv1.PrincipalState) error {
+	svc.log.DebugContext(ctx, "onPrincipalProvisioning invoked", "principal", state.Metadata.GetName())
+	if state.Metadata.Labels[principalDeleteLabel] == principalDeleteModeTeleportOnly {
+		return trace.Wrap(provisioning.ErrDoNotProvision)
+	}
+	return nil
+}
+
+func (svc *Service) onPrincipalDeprovisioning(ctx context.Context, state *provisioningv1.PrincipalState) error {
+	svc.log.DebugContext(ctx, "onPrincipalDeprovisioning invoked", "principal", state.Metadata.GetName())
+	if state.Metadata.Labels[principalDeleteLabel] == principalDeleteModeTeleportOnly {
+		return trace.Wrap(provisioning.ErrDoNotProvision)
+	}
 	return nil
 }
 

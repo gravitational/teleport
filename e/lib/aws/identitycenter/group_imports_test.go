@@ -8,15 +8,20 @@ import (
 	"testing"
 	"time"
 
+	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
+	iciter "github.com/gravitational/teleport/e/lib/aws/identitycenter/iter"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	icfixture "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
 	"github.com/gravitational/teleport/e/lib/provisioning"
@@ -467,6 +472,156 @@ func TestGroupImportTriggers(t *testing.T) {
 			stopService()
 		})
 	}
+}
+
+func requireEventually(t *testing.T, condition func(collect *assert.CollectT)) {
+	const (
+		defaultWaitFor = time.Second * 10
+		defaultTick    = time.Millisecond * 50
+	)
+	require.EventuallyWithT(t, condition, defaultWaitFor, defaultTick)
+}
+
+func downstreamGroupsMatch(ctx context.Context, icClient icsdk.Client, expectedGroups ...string) func(*assert.CollectT) {
+	return func(collect *assert.CollectT) {
+		gs, err := icClient.ListGroups(ctx)
+		if !assert.NoError(collect, err) {
+			return
+		}
+		assert.ElementsMatch(collect, expectedGroups, collectGroupIDs(gs))
+	}
+}
+
+func accessListsMatch(ctx context.Context, svc services.AccessListsGetter, expectedACLs ...string) func(*assert.CollectT) {
+	return func(collect *assert.CollectT) {
+		var actualACLs []string
+		for acl, err := range iciter.AllAccessLists(ctx, svc) {
+			if !assert.NoError(collect, err) {
+				return
+			}
+			actualACLs = append(actualACLs, acl.GetName())
+		}
+		assert.ElementsMatch(collect, expectedACLs, actualACLs)
+	}
+}
+
+func accessListsAreMarkedAsProvisioned(ctx context.Context, svc services.DownstreamProvisioningStateGetter, expectedGroups ...string) func(*assert.CollectT) {
+	return func(collect *assert.CollectT) {
+		for _, gid := range expectedGroups {
+			pState, err := svc.GetProvisioningState(ctx, IdentityCenterDownstreamID, services.ProvisioningStateID("acl-"+gid))
+			if !assert.NoError(collect, err, "No provisioning state exists for ACL %s", gid) {
+				return
+			}
+			assert.Equal(collect,
+				provisioningv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED,
+				pState.GetStatus().GetProvisioningState(),
+				"Provisioning state for ACL %q is %s", gid, pState.GetStatus().GetProvisioningState().String())
+		}
+	}
+}
+
+func accessListsHaveNoProvisioningState(ctx context.Context, svc services.DownstreamProvisioningStateGetter, expectedGroups ...string) func(*assert.CollectT) {
+	return func(collect *assert.CollectT) {
+		for _, gid := range expectedGroups {
+			_, err := svc.GetProvisioningState(ctx, IdentityCenterDownstreamID, services.ProvisioningStateID("acl-"+gid))
+			if !assert.True(collect, trace.IsNotFound(err), "No provisioning state must exist for ACL %s", gid) {
+				return
+			}
+		}
+	}
+}
+
+func TestGroupDeletesAreSuppressed(t *testing.T) {
+	slog.SetLogLoggerLevel(slog.LevelDebug)
+	logger := slog.Default()
+	ctx := t.Context()
+
+	// GIVEN an Identity Center service managing several Access Lists that were
+	// imported from the downstream Identity Center instance
+	logger.InfoContext(ctx, ">>> Setting up test environment")
+	const idStoreID = "test-identity-store"
+	awsICState := icsdk.MockedAWSStateType{
+		Info: icsdk.InstanceInfo{
+			OwnerAccountID:  "2222222222",
+			Name:            "Mock Identity Center Instance",
+			IdentityStoreID: idStoreID,
+			Status:          ssoadmintypes.InstanceStatusActive,
+		},
+		Groups: []*icsdk.Group{
+			{DisplayName: "Alpha", ID: "alpha", IdentityStoreID: idStoreID},
+			{DisplayName: "Bravo", ID: "bravo", IdentityStoreID: idStoreID},
+			{DisplayName: "Charlie", ID: "charlie", IdentityStoreID: idStoreID},
+			{DisplayName: "Delta", ID: "delta", IdentityStoreID: idStoreID},
+		},
+		Users: []*icsdk.User{
+			{UserName: "alice@example.com", ID: "alice"},
+			{UserName: "bob@example.com", ID: "bob"},
+			{UserName: "carol@example.com", ID: "carol"},
+		},
+		GroupMemberships: map[string][]*icsdk.GroupMember{
+			"alpha":   {{MemberID: "alice"}, {MemberID: "bob"}, {MemberID: "carol"}},
+			"bravo":   {{MemberID: "alice"}, {MemberID: "bob"}, {MemberID: "carol"}},
+			"charlie": {{MemberID: "alice"}, {MemberID: "bob"}, {MemberID: "carol"}},
+			"delta":   {{MemberID: "alice"}, {MemberID: "bob"}, {MemberID: "carol"}},
+		},
+	}
+	fixture := icfixture.NewFixture(t,
+		icfixture.WithAWSState(&awsICState),
+		icfixture.WithStartedCache,
+		icfixture.WithWriteThroughStatusSink)
+	runClock(ctx, fixture.Clock.(*clockwork.FakeClock), 500*time.Millisecond, time.Minute)
+	fixture.CreatePluginResource(t)
+
+	logger.InfoContext(ctx, ">>> Creating service for import")
+	_, stopService := runNewTestService(t, ctx, fixture, withLogger(logger.With("phase", "setup")))
+	defer stopService()
+
+	logger.InfoContext(ctx, ">>> Waiting on import confirmation...")
+	allGroups := []string{"alpha", "bravo", "charlie", "delta"}
+	requireEventually(t, downstreamGroupsMatch(ctx, fixture.ICClient, allGroups...))
+	requireEventually(t, accessListsAreMarkedAsProvisioned(ctx, fixture.Auth.Cache, allGroups...))
+
+	logger.InfoContext(ctx, ">>> Stopping setup service")
+	stopService()
+
+	// WHEN I change the Identity Center group import filters such that only two
+	// of the downstream groups are imported, and start the service (implicitly
+	// triggering a new import), and re-start the service
+	logger.InfoContext(ctx, ">>> Modifying import filters")
+	pr := fixture.MustGetPluginResource(t)
+	pr.Spec.GetAwsIc().GroupSyncFilters = icfilters.Filters{
+		{Include: &types.AWSICResourceFilter_Id{Id: "bravo"}},
+		{Include: &types.AWSICResourceFilter_Id{Id: "delta"}},
+	}
+	pr.Status.GetAwsIc().GroupImportStatus.StatusCode = types.AWSICGroupImportStatusCode_REIMPORT_REQUESTED
+	fixture.MustUpdatePluginResource(t, pr)
+
+	logger.InfoContext(ctx, ">>> Starting test service initial import")
+	_, stopService = runNewTestService(t, ctx, fixture, withLogger(logger.With("phase", "test")))
+	defer stopService()
+
+	// EXPECT that the now-excluded Access Lists have been deleted and their
+	// Principal State records have been destroyed, but that they still exist
+	// as Groups in the downstream system
+	requireEventually(t, accessListsMatch(ctx, fixture.Auth, "bravo", "delta"))
+	requireEventually(t, accessListsHaveNoProvisioningState(ctx, fixture.Auth.Cache, "alpha", "charlie"))
+	requireEventually(t, downstreamGroupsMatch(ctx, fixture.ICClient, allGroups...))
+
+	// WHEN I explicitly delete an IC-sourced access list
+	err := fixture.Auth.AccessLists.DeleteAccessList(ctx, "delta")
+	require.NoError(t, err, "test requires deletion to succeed")
+
+	// Expect that the downstream group is deleted actually deleted
+	requireEventually(t, accessListsMatch(ctx, fixture.Auth, "bravo"))
+	requireEventually(t, downstreamGroupsMatch(ctx, fixture.ICClient, "alpha", "bravo", "charlie"))
+}
+
+func collectGroupIDs(groups []*icsdk.Group) []string {
+	var result []string
+	for _, g := range groups {
+		result = append(result, g.ID)
+	}
+	return result
 }
 
 func countICOriginatedList(in []listWithMembersAndRoles) int {

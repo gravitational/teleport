@@ -4,10 +4,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	iciter "github.com/gravitational/teleport/e/lib/aws/identitycenter/iter"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -17,7 +20,7 @@ import (
 // and reverts the change in the test cleanup function.
 // It must not be used in parallel tests.
 // )
-func setupMockAWSICEnvironment(t *testing.T, icMock *icsdk.ClientMock, scimMock *scimsdk.ClientMock) {
+func setupMockAWSICEnvironment(t *testing.T, icMock *icsdk.ClientMock, scimMock scimsdk.Client) {
 	defaultSCIM := scimsdk.ClientProvider
 	defaultIC := icsdk.ClientProvider
 
@@ -32,7 +35,6 @@ func setupMockAWSICEnvironment(t *testing.T, icMock *icsdk.ClientMock, scimMock 
 }
 
 func mustSetupAWSIdentityCenterIntegration(t *testing.T, authClient authclient.ClientI) {
-	t.Helper()
 	_, err := authClient.CreateIntegration(t.Context(), awsOIDCIntegration())
 	require.NoError(t, err)
 
@@ -175,4 +177,23 @@ func mustUpdatePlugin(t *testing.T, authClient authclient.ClientI, updateFn func
 	plugin.Spec.Settings = &types.PluginSpecV1_AwsIc{AwsIc: settings}
 	_, err = authClient.PluginsClient().UpdatePlugin(t.Context(), &pluginspb.UpdatePluginRequest{Plugin: plugin})
 	require.NoError(t, err)
+}
+
+func getAccessListByTitle(ctx context.Context, lister iciter.AccessListLister, title string) (*accesslist.AccessList, error) {
+	for acl, err := range iciter.AllAccessLists(ctx, lister) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if acl.Spec.Title == title {
+			return acl, nil
+		}
+	}
+	return nil, trace.NotFound("no Access List with title %q", title)
+}
+
+func mustGetAccessListByTitle(ctx context.Context, t *testing.T, lister iciter.AccessListLister, title string) *accesslist.AccessList {
+	acl, err := getAccessListByTitle(ctx, lister, title)
+	require.NoError(t, err)
+	return acl
 }

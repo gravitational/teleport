@@ -223,6 +223,82 @@ func TestUnifiedClientMock(t *testing.T) {
 		requireGroupsDoNotExist(t, client, "group1")
 		requireGroupsExist(t, client, "group2")
 	})
+
+	t.Run("List Groups", func(t *testing.T) {
+		client := NewUnifiedMockClient(sdk.MockedAWSStateType{
+			Users: []*sdk.User{
+				{ID: "alice", UserName: "alice@example.com"},
+				{ID: "bob", UserName: "bob@example.com"},
+				{ID: "carol", UserName: "carol@example.com"},
+			},
+			Groups: []*sdk.Group{
+				{DisplayName: "Group 1", ID: "group1", IdentityStoreID: "store1"},
+				{DisplayName: "Group 2", ID: "group2", IdentityStoreID: "store1"},
+				{DisplayName: "Group 3", ID: "group3", IdentityStoreID: "store1"},
+				{DisplayName: "Group 4", ID: "group4", IdentityStoreID: "store1"},
+			},
+			GroupMemberships: map[string][]*sdk.GroupMember{
+				"group1": {
+					{MemberID: "alice"},
+					{MemberID: "bob"},
+				},
+				"group2": {
+					{MemberID: "carol"},
+					{MemberID: "bob"},
+				},
+			},
+		})
+
+		t.Run("default", func(t *testing.T) {
+			resp, err := client.ViaSCIM().ListGroups(t.Context())
+			require.NoError(t, err)
+
+			var actualGroups []string
+			for _, g := range resp.Groups {
+				actualGroups = append(actualGroups, g.ID)
+			}
+			require.ElementsMatch(t, actualGroups, []string{"group1", "group2", "group3", "group4"})
+		})
+
+		t.Run("with start index", func(t *testing.T) {
+			resp, err := client.ViaSCIM().ListGroups(t.Context(), scimsdk.WithCount(2))
+			require.NoError(t, err)
+
+			var actualGroups []string
+			for _, g := range resp.Groups {
+				actualGroups = append(actualGroups, g.ID)
+			}
+			require.ElementsMatch(t, actualGroups, []string{"group1", "group2"})
+		})
+
+		t.Run("with count", func(t *testing.T) {
+			resp, err := client.ViaSCIM().ListGroups(t.Context(), scimsdk.WithStartIndex(3))
+			require.NoError(t, err)
+
+			var actualGroups []string
+			for _, g := range resp.Groups {
+				actualGroups = append(actualGroups, g.ID)
+			}
+			require.ElementsMatch(t, actualGroups, []string{"group3", "group4"})
+		})
+
+		t.Run("start index out of bounds", func(t *testing.T) {
+			resp, err := client.ViaSCIM().ListGroups(t.Context(), scimsdk.WithStartIndex(100))
+			require.NoError(t, err)
+			require.Empty(t, resp.Groups)
+		})
+
+		t.Run("count index out of bounds", func(t *testing.T) {
+			resp, err := client.ViaSCIM().ListGroups(t.Context(), scimsdk.WithStartIndex(4), scimsdk.WithCount(100))
+			require.NoError(t, err)
+
+			var actualGroups []string
+			for _, g := range resp.Groups {
+				actualGroups = append(actualGroups, g.ID)
+			}
+			require.ElementsMatch(t, actualGroups, []string{"group4"})
+		})
+	})
 }
 
 func requireGroupsExist(t *testing.T, client *UnifiedClientMock, groupIDs ...string) {

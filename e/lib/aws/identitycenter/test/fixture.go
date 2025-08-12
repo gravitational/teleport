@@ -247,6 +247,12 @@ func (f *Fixture) GetPluginResource() (*types.PluginV1, error) {
 	return p.(*types.PluginV1), nil
 }
 
+func (f *Fixture) MustUpdatePluginResource(t *testing.T, p *types.PluginV1) *types.PluginV1 {
+	updated, err := f.PluginService.UpdatePlugin(t.Context(), p)
+	require.NoError(t, err)
+	return updated.(*types.PluginV1)
+}
+
 // ICCreatedData defines resource names for each test resource type.
 type ICResource struct {
 	Accounts             []string

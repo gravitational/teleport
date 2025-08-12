@@ -126,7 +126,7 @@ func (svc *Service) startGroupsAndGroupMembersImport(ctx context.Context) error 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	accessListReconciler, err := accessListReconciler(svc.accessListSvc, existingList, newList)
+	accessListReconciler, err := accessListReconciler(svc.accessListSvc, existingList, newList, svc.provisioner, svc.log)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -367,10 +367,12 @@ type member struct {
 func memberWithIDAndUsername(members []*icsdk.GroupMember, usermap icsdk.UserMap) []member {
 	out := make([]member, 0, len(members))
 	for _, m := range members {
-		out = append(out, member{
-			ID:       m.MemberID,
-			UserName: usermap[m.MemberID].UserName,
-		})
+		if user, ok := usermap[m.MemberID]; ok {
+			out = append(out, member{
+				ID:       m.MemberID,
+				UserName: user.UserName,
+			})
+		}
 	}
 	return out
 }
@@ -406,23 +408,38 @@ func accessListReconciler(
 	service services.AccessLists,
 	listInTeleport map[string]*accesslist.AccessList,
 	newListFromIC map[string]*accesslist.AccessList,
+	scimProvisioner *provisioning.Service,
+	logger *slog.Logger,
 ) (*services.Reconciler[*accesslist.AccessList], error) {
+	onDelete := func(ctx context.Context, al *accesslist.AccessList) error {
+		// Before we actually do anything here, we need to mark the access
+		// list as "condemned" by the import service, meaning that they
+		// should not be de-provisioned downstream by the provisioning service
+		err := scimProvisioner.SetAccessListStateLabel(ctx, al.GetName(), principalDeleteLabel, principalDeleteModeTeleportOnly)
+		if err != nil && !trace.IsNotFound(err) {
+			// it's possible that we're attempting to remove a list before it has
+			// even been provisioned, so not finding the record and receiving a
+			// NotFound error is a legitimate condition. Otherwise...
+			return trace.Wrap(err)
+		}
+		err = service.DeleteAccessList(ctx, al.GetName())
+		return trace.Wrap(err)
+	}
+
 	return services.NewReconciler(services.ReconcilerConfig[*accesslist.AccessList]{
 		Matcher:             matchByOriginAWSIdentityCenterLabel[*accesslist.AccessList],
 		GetCurrentResources: func() map[string]*accesslist.AccessList { return listInTeleport },
 		GetNewResources:     func() map[string]*accesslist.AccessList { return newListFromIC },
+		Logger:              logger,
 		OnCreate: func(ctx context.Context, al *accesslist.AccessList) error {
 			_, err := service.UpsertAccessList(ctx, al)
 			return trace.Wrap(err)
 		},
-		OnUpdate: func(ctx context.Context, incoming *accesslist.AccessList, existing *accesslist.AccessList) error {
+		OnUpdate: func(ctx context.Context, incoming *accesslist.AccessList, _ *accesslist.AccessList) error {
 			_, err := service.UpsertAccessList(ctx, incoming)
 			return trace.Wrap(err)
 		},
-		OnDelete: func(ctx context.Context, al *accesslist.AccessList) error {
-			err := service.DeleteAccessList(ctx, al.GetName())
-			return trace.Wrap(err)
-		},
+		OnDelete: onDelete,
 	})
 }
 

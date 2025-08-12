@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 
+	scimschema "github.com/elimity-com/scim/schema"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
@@ -15,6 +16,11 @@ import (
 // via bth the AWS API abd SCIM that manipulates the same data set
 type UnifiedClientMock struct {
 	icsdk.ClientMock
+
+	// IncludeMembersInGroupListing some SCIM servers include a member list
+	// in their group listing, others don't. Switch this behavior on and of as
+	// the test demands.
+	IncludeMembersInGroupListing bool
 }
 
 // scimClientMock wraps a UnifiedClientMock to expose the [scimsdk.Client]
@@ -194,7 +200,15 @@ func (s *scimClientMock) DeleteUser(_ context.Context, id string) error {
 
 // UpdateUser updates a user.
 func (s *scimClientMock) UpdateUser(_ context.Context, user *scimsdk.User) (*scimsdk.User, error) {
-	return nil, trace.NotImplemented("UnifiedClientMock.UpdateUser")
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+
+	icUser := s.getUserByID(user.ExternalID)
+	if icUser == nil {
+		return nil, trace.NotFound("No such user")
+	}
+	icUser.UserName = user.UserName
+	return s.toSCIMUser(icUser), nil
 }
 
 // ListUsers lists all Users.
@@ -222,9 +236,56 @@ func (s *scimClientMock) DeleteGroup(_ context.Context, id string) error {
 	return nil
 }
 
-// ListGroups lists all Groups.
+// ListGroups fetches the list of known groups from the server
 func (s *scimClientMock) ListGroups(_ context.Context, queryOptions ...scimsdk.QueryOption) (*scimsdk.ListGroupResponse, error) {
-	return nil, trace.NotImplemented("UnifiedClientMock.ListGroups")
+	const maxPageSize = 10
+
+	options := scimsdk.QueryOptions{}
+	for _, fn := range queryOptions {
+		fn(&options)
+	}
+
+	startIndex := 1
+	pageSize := maxPageSize
+
+	if i, ok := options.StartIndex(); ok {
+		startIndex = i
+	}
+	startIndex-- // SCIM start indices are 1-based, converting to slice index
+
+	if c, ok := options.Count(); ok {
+		pageSize = min(maxPageSize, c)
+	}
+
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+
+	// Clip the group list to the requested range
+	var srcPage []*icsdk.Group
+	if startIndex < len(s.Groups) {
+		srcPage = s.Groups[startIndex:]
+	}
+	srcPage = srcPage[:min(pageSize, len(srcPage))]
+
+	// Convert the page of IC groups into SCIM groups
+	dstPage := make([]*scimsdk.Group, len(srcPage))
+	for i, icGroup := range srcPage {
+		scimGroup := s.toSCIMGroup(icGroup)
+		if !s.IncludeMembersInGroupListing {
+			scimGroup.Members = nil
+		}
+		dstPage[i] = scimGroup
+	}
+
+	response := &scimsdk.ListGroupResponse{
+		Schemas:      []string{scimschema.CoreGroupSchema().ID},
+		TotalResults: int32(len(s.Groups)),
+		StartIndex:   int32(startIndex + 1),
+		ItemsPerPage: maxPageSize,
+		Groups:       dstPage,
+	}
+
+	return response, nil
 }
 
 // ReplaceGroupName replaces a group's name.
