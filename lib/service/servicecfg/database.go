@@ -168,7 +168,8 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			ProjectID:  d.GCP.ProjectID,
 			InstanceID: d.GCP.InstanceID,
 			AlloyDB: types.AlloyDB{
-				Endpoint: d.GCP.AlloyDB.Endpoint,
+				EndpointType:     d.GCP.AlloyDB.EndpointType,
+				EndpointOverride: d.GCP.AlloyDB.EndpointOverride,
 			},
 		},
 		DynamicLabels: types.LabelsToV2(d.DynamicLabels),
@@ -295,8 +296,10 @@ type DatabaseGCP struct {
 
 // DatabaseGCPAlloyDB contains GCP specific settings for AlloyDB databases.
 type DatabaseGCPAlloyDB struct {
-	// Endpoint is the database endpoint to use. Can be one of predefined endpoint types or an IP address.
-	Endpoint string
+	// EndpointType is the database endpoint type to use.
+	EndpointType types.AlloyDBEndpointType
+	// EndpointOverride is an override of endpoint address to use.
+	EndpointOverride string
 }
 
 // DatabaseAD contains database Active Directory configuration.

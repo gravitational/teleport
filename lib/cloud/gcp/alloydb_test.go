@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	gcputils "github.com/gravitational/teleport/api/utils/gcp"
 )
 
@@ -62,14 +63,14 @@ func TestAlloyDBGetEndpointAddress(t *testing.T) {
 		},
 	}
 
-	addrInfo := map[string]string{
-		gcputils.AlloyDBEndpointTypePrivate: "11.22.33.44",
-		gcputils.AlloyDBEndpointTypePublic:  "22.33.44.44",
-		gcputils.AlloyDBEndpointTypePSC:     "dsc.internal.example.com",
+	addrInfo := map[types.AlloyDBEndpointType]string{
+		types.AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_PRIVATE: "11.22.33.44",
+		types.AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_PUBLIC:  "22.33.44.44",
+		types.AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_PSC:     "dsc.internal.example.com",
 	}
 
 	for endpointType, wantAddr := range addrInfo {
-		t.Run(endpointType, func(t *testing.T) {
+		t.Run(endpointType.String(), func(t *testing.T) {
 			resp, err := client.GetEndpointAddress(context.Background(), instance, endpointType)
 			require.NoError(t, err)
 			require.Equal(t, wantAddr, resp)

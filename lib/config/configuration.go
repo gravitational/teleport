@@ -180,8 +180,10 @@ type CommandLineFlags struct {
 	DatabaseGCPProjectID string
 	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
 	DatabaseGCPInstanceID string
-	// DatabaseGCPAlloyDBEndpoint is the database endpoint to use. Can be one of predefined endpoint types or an IP address.
-	DatabaseGCPAlloyDBEndpoint string
+	// DatabaseGCPAlloyDBEndpointType is the AlloyDB database endpoint type to use.
+	DatabaseGCPAlloyDBEndpointType string
+	// DatabaseGCPAlloyDBEndpointOverride is the AlloyDB endpoint address override.
+	DatabaseGCPAlloyDBEndpointOverride string
 	// DatabaseADKeytabFile is the path to Kerberos keytab file.
 	DatabaseADKeytabFile string
 	// DatabaseADKrb5File is the path to krb5.conf file.
@@ -1806,6 +1808,11 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			return trace.Wrap(err)
 		}
 
+		alloyDBEndpointType, err := types.AlloyDBEndpointTypeFromString(database.GCP.AlloyDB.EndpointType)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		db := servicecfg.Database{
 			Name:          database.Name,
 			Description:   database.Description,
@@ -1859,7 +1866,8 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				ProjectID:  database.GCP.ProjectID,
 				InstanceID: database.GCP.InstanceID,
 				AlloyDB: servicecfg.DatabaseGCPAlloyDB{
-					Endpoint: database.GCP.AlloyDB.Endpoint,
+					EndpointType:     alloyDBEndpointType,
+					EndpointOverride: database.GCP.AlloyDB.EndpointOverride,
 				},
 			},
 			AD: servicecfg.DatabaseAD{
@@ -2497,6 +2505,12 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				return trace.Wrap(err)
 			}
 		}
+
+		alloyDBEndpointType, err := types.AlloyDBEndpointTypeFromString(clf.DatabaseGCPAlloyDBEndpointType)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		db := servicecfg.Database{
 			Name:         clf.DatabaseName,
 			Description:  clf.DatabaseDescription,
@@ -2534,7 +2548,8 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				ProjectID:  clf.DatabaseGCPProjectID,
 				InstanceID: clf.DatabaseGCPInstanceID,
 				AlloyDB: servicecfg.DatabaseGCPAlloyDB{
-					Endpoint: clf.DatabaseGCPAlloyDBEndpoint,
+					EndpointType:     alloyDBEndpointType,
+					EndpointOverride: clf.DatabaseGCPAlloyDBEndpointOverride,
 				},
 			},
 			AD: servicecfg.DatabaseAD{

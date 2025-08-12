@@ -34,7 +34,6 @@ import (
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgproto3/v2"
 	"github.com/jackc/pgx/v4"
-	"golang.org/x/time/rate"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -76,46 +75,26 @@ func newAlloyDBEndpointsResolver(db types.Database, clients endpoints.GCPClients
 		return nil, trace.Wrap(err)
 	}
 
-	// endpoint is either endpoint type or IP address
-	endpoint := db.GetGCP().AlloyDB.Endpoint
-	if gcputils.IsAlloyDBKnownEndpointType(endpoint) {
-		var addr string
-		// update the address every hour
-		sometimes := rate.Sometimes{Interval: 1 * time.Hour}
-		var lastErr error
-
-		resolveFun := endpoints.ResolverFn(func(ctx context.Context) ([]string, error) {
-			sometimes.Do(func() {
-				adminClient, err := clients.GetGCPAlloyDBClient(ctx)
-				if err != nil {
-					lastErr = trace.Wrap(err)
-					return
-				}
-
-				// resolve the database address of particular type (public/private/PSC).
-				addr, err = adminClient.GetEndpointAddress(ctx, *info, endpoint)
-				if err != nil {
-					lastErr = trace.Wrap(err)
-					return
-				}
-
-				addr = net.JoinHostPort(addr, serverPort)
-			})
-
-			if lastErr != nil {
-				return nil, lastErr
-			}
+	if db.GetGCP().AlloyDB.EndpointOverride != "" {
+		addr := net.JoinHostPort(db.GetGCP().AlloyDB.EndpointOverride, serverPort)
+		return endpoints.ResolverFn(func(context.Context) ([]string, error) {
 			return []string{addr}, nil
-		})
-
-		return resolveFun, nil
+		}), nil
 	}
 
-	// literal address, not endpoint type
-	addr := net.JoinHostPort(endpoint, serverPort)
-	return endpoints.ResolverFn(func(context.Context) ([]string, error) {
-		return []string{addr}, nil
-	}), nil
+	resolveFun := endpoints.ResolverFn(func(ctx context.Context) ([]string, error) {
+		adminClient, err := clients.GetGCPAlloyDBClient(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		addr, err := adminClient.GetEndpointAddress(ctx, *info, db.GetGCP().AlloyDB.EndpointType)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return []string{net.JoinHostPort(addr, serverPort)}, nil
+	})
+
+	return resolveFun, nil
 }
 
 func newEndpointsResolver(uri string) (endpoints.Resolver, error) {
@@ -252,17 +231,17 @@ func (c *connector) getConnectConfig(ctx context.Context) (*pgconn.Config, error
 			return nil, trace.BadParameter("failed to parse root certificate")
 		}
 
-		// endpoint is either endpoint type or IP address
-		endpoint := c.database.GetGCP().AlloyDB.Endpoint
-		if gcputils.IsAlloyDBKnownEndpointType(endpoint) {
+		dbOpts := c.database.GetGCP().AlloyDB
+
+		if dbOpts.EndpointOverride != "" {
+			// respect override
+			config.Host = dbOpts.EndpointOverride
+		} else {
 			// resolve the database address of particular type (public/private/PSC).
-			config.Host, err = adminClient.GetEndpointAddress(ctx, *info, endpoint)
+			config.Host, err = adminClient.GetEndpointAddress(ctx, *info, dbOpts.EndpointType)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-		} else {
-			// literal address, not endpoint type
-			config.Host = endpoint
 		}
 
 		tlsConfig := &tls.Config{
@@ -290,6 +269,8 @@ func (c *connector) getConnectConfig(ctx context.Context) (*pgconn.Config, error
 
 			err = metadataExchangeAlloyDB(token, tlsConn)
 			if err != nil {
+				_ = tlsConn.Close() // best effort
+
 				c.log.WarnContext(ctx, "Metadata exchange failed", "err", err)
 
 				// special case for "IAM check failed" error
@@ -311,8 +292,6 @@ func (c *connector) getConnectConfig(ctx context.Context) (*pgconn.Config, error
 	 Note that IAM changes may take a few minutes to propagate.
 	 `, err, c.databaseUser)
 				}
-
-				_ = tlsConn.Close() // best effort
 				return nil, trace.Wrap(err)
 			}
 			return tlsConn, nil

@@ -207,7 +207,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|endpoint|string|Endpoint is the database endpoint to use. Can be one of predefined endpoint types or an IP address. Mandatory for AlloyDB databases.  It supports two types of values: - An enum: one of "private", "public" or "psc". Corresponding type of address will be looked up using GCP API. - IP address. This address will be used directly, without querying the GCP API.|
+|endpoint_override|string|EndpointOverride is an override of endpoint address to use.|
+|endpoint_type|string or integer|EndpointType is the database endpoint type to use. Can be either the string or the integer representation of each option.|
 
 ### spec.mongo_atlas
 

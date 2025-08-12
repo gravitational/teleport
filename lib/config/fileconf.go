@@ -2081,8 +2081,11 @@ type DatabaseGCP struct {
 
 // DatabaseGCPAlloyDB contains GCP specific settings for AlloyDB databases.
 type DatabaseGCPAlloyDB struct {
-	// Endpoint is the database endpoint to use. Can be one of predefined endpoint types or an IP address.
-	Endpoint string `yaml:"endpoint,omitempty"`
+	// EndpointType is the database endpoint type to use. Available types are 'private', 'public' and 'psc'.
+	// 'private' is the default type.
+	EndpointType string `yaml:"endpoint_type,omitempty"`
+	// EndpointOverride is an override of endpoint address to use.
+	EndpointOverride string `yaml:"endpoint_override,omitempty"`
 }
 
 // DatabaseAzure contains Azure database configuration.

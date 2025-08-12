@@ -26,32 +26,6 @@ func TestIsAlloyDBConnectionURI(t *testing.T) {
 	require.False(t, IsAlloyDBConnectionURI("just/some/stuff"))
 }
 
-func TestIsAlloyDBKnownEndpointType(t *testing.T) {
-	t.Run("all endpoint types in slice are accepted", func(t *testing.T) {
-		for _, endpointType := range AlloyDBEndpointTypes {
-			require.True(t, IsAlloyDBKnownEndpointType(endpointType))
-		}
-	})
-	t.Run("well-known endpoint types", func(t *testing.T) {
-		for _, endpointType := range []string{"private", "public", "psc"} {
-			require.True(t, IsAlloyDBKnownEndpointType(endpointType))
-		}
-	})
-	t.Run("non-lowercase types are not accepted", func(t *testing.T) {
-		for _, endpointType := range []string{"Private", "PUBLIC", "Psc"} {
-			require.False(t, IsAlloyDBKnownEndpointType(endpointType))
-		}
-	})
-	t.Run("empty string is not accepted", func(t *testing.T) {
-		require.False(t, IsAlloyDBKnownEndpointType(""))
-	})
-	t.Run("unrelated strings are not accepted", func(t *testing.T) {
-		for _, endpointType := range []string{"dummy", "GIRAFFE", "?"} {
-			require.False(t, IsAlloyDBKnownEndpointType(endpointType))
-		}
-	})
-}
-
 func TestParseAlloyDBConnectionURI(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -142,4 +116,15 @@ func TestParseAlloyDBConnectionURI(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAlloyDBResourceNames(t *testing.T) {
+	info := AlloyDBFullInstanceName{
+		ProjectID:  "my-project-123456",
+		Location:   "europe-west1",
+		ClusterID:  "my-cluster",
+		InstanceID: "my-instance",
+	}
+	require.Equal(t, "projects/my-project-123456/locations/europe-west1/clusters/my-cluster", info.ParentClusterName())
+	require.Equal(t, "projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance", info.InstanceName())
 }

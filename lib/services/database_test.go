@@ -21,6 +21,8 @@ package services
 import (
 	"bufio"
 	"fmt"
+	"maps"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -33,8 +35,24 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// TestDatabaseUnmarshal verifies a database resource can be unmarshaled.
-func TestDatabaseUnmarshal(t *testing.T) {
+// TestDatabaseUnmarshalTLSModes verifies database resource unmarshalling for both string and integer representation of DatabaseTLSMode enum.
+func TestDatabaseUnmarshalTLSModes(t *testing.T) {
+	const databaseYAML = `---
+kind: db
+version: v3
+metadata:
+  name: test-database
+  description: "Test description"
+  labels:
+    env: dev
+spec:
+  protocol: "postgres"
+  uri: "localhost:5432"
+  tls:
+    mode: %v
+  ca_cert: |-
+%v`
+
 	t.Parallel()
 	tlsModes := map[string]types.DatabaseTLSMode{
 		"":            types.DatabaseTLSMode_VERIFY_FULL,
@@ -72,6 +90,67 @@ func TestDatabaseUnmarshal(t *testing.T) {
 			actual, err = UnmarshalDatabase(data)
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(expected, actual))
+		})
+	}
+}
+
+// TestDatabaseUnmarshalAlloyDBEndpointType verifies database resource unmarshalling for both string and integer representation of AlloyDBEndpointType enum.
+func TestDatabaseUnmarshalAlloyDBEndpointType(t *testing.T) {
+	t.Parallel()
+
+	const databaseYAML = `---
+kind: db
+version: v3
+metadata:
+  name: test-database
+  description: "Test description"
+  labels:
+    env: dev
+spec:
+  protocol: "postgres"
+  uri: "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance"
+  gcp:
+    alloydb:
+      endpoint_type: %v
+`
+	// all strings from types.AlloyDBEndpointTypeMap plus the empty string ""
+	mapping := map[string]types.AlloyDBEndpointType{
+		"": types.AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_DEFAULT,
+	}
+	maps.Copy(mapping, types.AlloyDBEndpointTypeMap)
+
+	for stringRepr, value := range mapping {
+		t.Run("value "+strconv.Quote(stringRepr), func(t *testing.T) {
+			expected, err := types.NewDatabaseV3(types.Metadata{
+				Name:        "test-database",
+				Description: "Test description",
+				Labels:      map[string]string{"env": "dev"},
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				GCP: types.GCPCloudSQL{
+					AlloyDB: types.AlloyDB{
+						EndpointType: value,
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			t.Run("parse string", func(t *testing.T) {
+				data, err := utils.ToJSON([]byte(fmt.Sprintf(databaseYAML, stringRepr)))
+				require.NoError(t, err)
+				actual, err := UnmarshalDatabase(data)
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(expected, actual))
+			})
+
+			t.Run("parse integer", func(t *testing.T) {
+				data, err := utils.ToJSON([]byte(fmt.Sprintf(databaseYAML, int32(value))))
+				require.NoError(t, err)
+				actual, err := UnmarshalDatabase(data)
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(expected, actual))
+			})
 		})
 	}
 }
@@ -492,6 +571,14 @@ func TestValidateDatabase(t *testing.T) {
 			},
 			expectError: false,
 		},
+		{
+			inputName: "valid-alloy-db",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+			},
+			expectError: false,
+		},
 	}
 
 	for _, test := range tests {
@@ -543,19 +630,3 @@ func indent(s string, spaces int) string {
 	}
 	return strings.Join(lines, "\n")
 }
-
-var databaseYAML = `---
-kind: db
-version: v3
-metadata:
-  name: test-database
-  description: "Test description"
-  labels:
-    env: dev
-spec:
-  protocol: "postgres"
-  uri: "localhost:5432"
-  tls:
-    mode: %v
-  ca_cert: |-
-%v`

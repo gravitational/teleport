@@ -602,12 +602,22 @@ message GCPCloudSQL {
 
 // AlloyDB contains AlloyDB specific configuration elements.
 message AlloyDB {
-  // Endpoint is the database endpoint to use. Can be one of predefined endpoint types or an IP address. Mandatory for AlloyDB databases.
-  //
-  // It supports two types of values:
-  // - An enum: one of "private", "public" or "psc". Corresponding type of address will be looked up using GCP API.
-  // - IP address. This address will be used directly, without querying the GCP API.
-  string Endpoint = 1 [(gogoproto.jsontag) = "endpoint,omitempty"];
+  // EndpointType is the database endpoint type to use.
+  AlloyDBEndpointType EndpointType = 1 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
+  // EndpointOverride is an override of endpoint address to use.
+  string EndpointOverride = 2 [(gogoproto.jsontag) = "endpoint_override,omitempty"];
+}
+
+// AlloyDBEndpointType represents the AlloyDB endpoint type.
+enum AlloyDBEndpointType {
+  // ALLOYDB_ENDPOINT_TYPE_DEFAULT is default endpoint type value. It is up to the implementation to choose one of the other endpoint types.
+  ALLOYDB_ENDPOINT_TYPE_DEFAULT = 0;
+  // ALLOYDB_ENDPOINT_TYPE_PRIVATE is private endpoint type.
+  ALLOYDB_ENDPOINT_TYPE_PRIVATE = 1;
+  // ALLOYDB_ENDPOINT_TYPE_PUBLIC is public endpoint type.
+  ALLOYDB_ENDPOINT_TYPE_PUBLIC = 2;
+  // ALLOYDB_ENDPOINT_TYPE_PSC is PSC endpoint type.
+  ALLOYDB_ENDPOINT_TYPE_PSC = 3;
 }
 
 // Azure contains Azure specific database metadata.

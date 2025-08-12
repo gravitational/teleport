@@ -21,8 +21,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"net"
+	"maps"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -991,18 +992,9 @@ func (d *DatabaseV3) IsEqual(i Database) bool {
 
 // handleAlloyDBConfig validates AlloyDB configuration.
 func (d *DatabaseV3) handleAlloyDBConfig() error {
-	// default to private endpoint type.
-	if d.Spec.GCP.AlloyDB.Endpoint == "" {
-		d.Spec.GCP.AlloyDB.Endpoint = gcputils.AlloyDBEndpointTypePrivate
-	}
-	endpoint := d.Spec.GCP.AlloyDB.Endpoint
-
-	switch {
-	case gcputils.IsAlloyDBKnownEndpointType(endpoint):
-	case net.ParseIP(endpoint) != nil:
-	default:
-		// this is neither a valid IP address nor any of the endpoint types
-		return trace.BadParameter("invalid AlloyDB endpoint %q, expected one of: %v or a valid IP address", endpoint, gcputils.AlloyDBEndpointTypes)
+	// default to private endpoint type, but only if override isn't set.
+	if d.Spec.GCP.AlloyDB.EndpointType == AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_DEFAULT && d.Spec.GCP.AlloyDB.EndpointOverride == "" {
+		d.Spec.GCP.AlloyDB.EndpointType = AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_PRIVATE
 	}
 
 	info, err := gcputils.ParseAlloyDBConnectionURI(d.Spec.URI)
@@ -1010,25 +1002,14 @@ func (d *DatabaseV3) handleAlloyDBConfig() error {
 		return trace.Wrap(err, "failed to parse AlloyDB connection URI")
 	}
 
-	// these fields can be derived from connection URI; make sure there is no discrepancy
-	if d.Spec.GCP.InstanceID == "" {
-		d.Spec.GCP.InstanceID = info.InstanceID
-	} else {
-		if d.Spec.GCP.InstanceID != info.InstanceID {
-			return trace.BadParameter("database %q GCP instance ID %q does not match the configured URI instance ID %q, "+
-				"omit the gcp.instance_id field and it will be derived automatically",
-				d.GetName(), d.Spec.GCP.InstanceID, info.InstanceID)
-		}
+	// ensure the GCP fields are empty: we want to avoid redundant information in the database spec.
+	if d.Spec.GCP.InstanceID != "" {
+		return trace.BadParameter("database %q the gcp.instance_id field should be empty but is %q instead; the GCP instance ID configured through URI %q will be automatically used instead",
+			d.GetName(), d.Spec.GCP.InstanceID, info.InstanceID)
 	}
-
-	if d.Spec.GCP.ProjectID == "" {
-		d.Spec.GCP.ProjectID = info.ProjectID
-	} else {
-		if d.Spec.GCP.ProjectID != info.ProjectID {
-			return trace.BadParameter("database %q GCP project ID %q does not match the configured URI project ID %q, "+
-				"omit the gcp.project_id field and it will be derived automatically",
-				d.GetName(), d.Spec.GCP.ProjectID, info.ProjectID)
-		}
+	if d.Spec.GCP.ProjectID != "" {
+		return trace.BadParameter("database %q the gcp.project_id field should be empty but is %q instead; the GCP project ID configured through URI %q will be automatically used instead",
+			d.GetName(), d.Spec.GCP.ProjectID, info.ProjectID)
 	}
 
 	return nil
@@ -1362,6 +1343,69 @@ func (d *DatabaseTLSMode) decodeName(name string) error {
 		return nil
 	}
 	return trace.BadParameter("DatabaseTLSMode invalid value %v", d)
+}
+
+// AlloyDBEndpointTypeMap is a mapping from string representation to enum value for AlloyDBEndpointType.
+var AlloyDBEndpointTypeMap = map[string]AlloyDBEndpointType{
+	"public":  AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_PUBLIC,
+	"private": AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_PRIVATE,
+	"psc":     AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_PSC,
+}
+
+// AlloyDBEndpointTypeFromString parses given string as AlloyDBEndpointType.
+func AlloyDBEndpointTypeFromString(str string) (AlloyDBEndpointType, error) {
+	return enumFromMap(str, AlloyDBEndpointTypeMap)
+}
+
+func (a *AlloyDBEndpointType) UnmarshalJSON(data []byte) error {
+	unmarshal := func(v any) error {
+		return json.Unmarshal(data, v)
+	}
+	result, err := unmarshalProtoEnum[AlloyDBEndpointType](AlloyDBEndpointTypeMap, unmarshal)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	*a = result
+	return nil
+}
+
+func (a *AlloyDBEndpointType) UnmarshalYAML(unmarshal func(any) error) error {
+	result, err := unmarshalProtoEnum[AlloyDBEndpointType](AlloyDBEndpointTypeMap, unmarshal)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	*a = result
+	return nil
+}
+
+func unmarshalProtoEnum[enumT ~int32](mapping map[string]enumT, unmarshal func(any) error) (enumT, error) {
+	// try as number first.
+	var value int32
+	if err := unmarshal(&value); err == nil {
+		return enumT(value), nil
+	}
+
+	// fallback to string.
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return enumFromMap(str, mapping)
+}
+
+func enumFromMap[enumT ~int32](str string, mapping map[string]enumT) (enumT, error) {
+	// always map the empty string to the default value.
+	if str == "" {
+		return 0, nil
+	}
+
+	enum, found := mapping[str]
+	if !found {
+		keys := slices.Sorted(maps.Keys(mapping))
+		return 0, trace.BadParameter("%T invalid value %v, expected one of %v", enumT(0), str, keys)
+	}
+	return enum, nil
 }
 
 // MarshalJSON supports marshaling enum value into it's string value.

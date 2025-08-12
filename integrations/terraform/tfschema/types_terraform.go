@@ -464,11 +464,18 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 				"gcp": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"alloydb": {
-							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"endpoint": {
-								Description: "Endpoint is the database endpoint to use. Can be one of predefined endpoint types or an IP address. Mandatory for AlloyDB databases.  It supports two types of values: - An enum: one of \"private\", \"public\" or \"psc\". Corresponding type of address will be looked up using GCP API. - IP address. This address will be used directly, without querying the GCP API.",
-								Optional:    true,
-								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-							}}),
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"endpoint_override": {
+									Description: "EndpointOverride is an override of endpoint address to use.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"endpoint_type": {
+									Description: "EndpointType is the database endpoint type to use.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+								},
+							}),
 							Description: "AlloyDB contains AlloyDB specific configuration elements.",
 							Optional:    true,
 						},
@@ -6362,19 +6369,36 @@ func CopyDatabaseV3FromTerraform(_ context.Context, tf github_com_hashicorp_terr
 													tf := v
 													obj := &obj.AlloyDB
 													{
-														a, ok := tf.Attrs["endpoint"]
+														a, ok := tf.Attrs["endpoint_type"]
 														if !ok {
-															diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.GCP.AlloyDB.Endpoint"})
+															diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.GCP.AlloyDB.EndpointType"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.GCP.AlloyDB.EndpointType", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+															} else {
+																var t github_com_gravitational_teleport_api_types.AlloyDBEndpointType
+																if !v.Null && !v.Unknown {
+																	t = github_com_gravitational_teleport_api_types.AlloyDBEndpointType(v.Value)
+																}
+																obj.EndpointType = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["endpoint_override"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.GCP.AlloyDB.EndpointOverride"})
 														} else {
 															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 															if !ok {
-																diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.GCP.AlloyDB.Endpoint", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.GCP.AlloyDB.EndpointOverride", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 															} else {
 																var t string
 																if !v.Null && !v.Unknown {
 																	t = string(v.Value)
 																}
-																obj.Endpoint = t
+																obj.EndpointOverride = t
 															}
 														}
 													}
@@ -8702,25 +8726,47 @@ func CopyDatabaseV3ToTerraform(ctx context.Context, obj *github_com_gravitationa
 													obj := obj.AlloyDB
 													tf := &v
 													{
-														t, ok := tf.AttrTypes["endpoint"]
+														t, ok := tf.AttrTypes["endpoint_type"]
 														if !ok {
-															diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.GCP.AlloyDB.Endpoint"})
+															diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.GCP.AlloyDB.EndpointType"})
 														} else {
-															v, ok := tf.Attrs["endpoint"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															v, ok := tf.Attrs["endpoint_type"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
 															if !ok {
 																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																if err != nil {
-																	diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.GCP.AlloyDB.Endpoint", err})
+																	diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.GCP.AlloyDB.EndpointType", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.GCP.AlloyDB.EndpointType", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+																}
+																v.Null = int64(obj.EndpointType) == 0
+															}
+															v.Value = int64(obj.EndpointType)
+															v.Unknown = false
+															tf.Attrs["endpoint_type"] = v
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["endpoint_override"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.GCP.AlloyDB.EndpointOverride"})
+														} else {
+															v, ok := tf.Attrs["endpoint_override"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.GCP.AlloyDB.EndpointOverride", err})
 																}
 																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
 																if !ok {
-																	diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.GCP.AlloyDB.Endpoint", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																	diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.GCP.AlloyDB.EndpointOverride", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																}
-																v.Null = string(obj.Endpoint) == ""
+																v.Null = string(obj.EndpointOverride) == ""
 															}
-															v.Value = string(obj.Endpoint)
+															v.Value = string(obj.EndpointOverride)
 															v.Unknown = false
-															tf.Attrs["endpoint"] = v
+															tf.Attrs["endpoint_override"] = v
 														}
 													}
 												}

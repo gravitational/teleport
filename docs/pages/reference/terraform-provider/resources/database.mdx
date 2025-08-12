@@ -250,7 +250,8 @@ Optional:
 
 Optional:
 
-- `endpoint` (String) Endpoint is the database endpoint to use. Can be one of predefined endpoint types or an IP address. Mandatory for AlloyDB databases.  It supports two types of values: - An enum: one of "private", "public" or "psc". Corresponding type of address will be looked up using GCP API. - IP address. This address will be used directly, without querying the GCP API.
+- `endpoint_override` (String) EndpointOverride is an override of endpoint address to use.
+- `endpoint_type` (Number) EndpointType is the database endpoint type to use.
 
 
 

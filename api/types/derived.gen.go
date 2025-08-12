@@ -61,7 +61,8 @@ func deriveTeleportEqualGCPCloudSQL(this, that *GCPCloudSQL) bool {
 func deriveTeleportEqualAlloyDB(this, that *AlloyDB) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
-			this.Endpoint == that.Endpoint
+			this.EndpointType == that.EndpointType &&
+			this.EndpointOverride == that.EndpointOverride
 }
 
 // deriveTeleportEqualAzure returns whether this and that are equal.

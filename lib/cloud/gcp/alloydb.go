@@ -19,7 +19,6 @@ package gcp
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"strings"
 	"time"
 
@@ -29,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	"github.com/gravitational/teleport/api/types"
 	gcputils "github.com/gravitational/teleport/api/utils/gcp"
 	"github.com/gravitational/teleport/api/utils/keys"
 )
@@ -38,7 +38,7 @@ type AlloyDBAdminClient interface {
 	// GenerateClientCertificate returns a new PEM-encoded client certificate and Root CA suitable for connecting to particular AlloyDB instance.
 	GenerateClientCertificate(ctx context.Context, info gcputils.AlloyDBFullInstanceName, certExpiry time.Time, pkey *keys.PrivateKey) (*tls.Certificate, string, error)
 	// GetEndpointAddress returns endpoint address for given AlloyDB instance and chosen endpoint type.
-	GetEndpointAddress(ctx context.Context, info gcputils.AlloyDBFullInstanceName, endpointType gcputils.AlloyDBEndpointType) (string, error)
+	GetEndpointAddress(ctx context.Context, info gcputils.AlloyDBFullInstanceName, endpointType types.AlloyDBEndpointType) (string, error)
 }
 
 // NewAlloyDBAdminClient returns a AlloyDBAdminClient interface.
@@ -70,9 +70,7 @@ func (g *gcpAlloyDBAdminClient) GenerateClientCertificate(ctx context.Context, i
 	}
 
 	req := &alloydbpb.GenerateClientCertificateRequest{
-		Parent: fmt.Sprintf(
-			"projects/%s/locations/%s/clusters/%s", info.ProjectID, info.Location, info.ClusterID,
-		),
+		Parent:              info.ParentClusterName(),
 		CertDuration:        durationpb.New(time.Until(certExpiry)),
 		PublicKey:           string(keyPEM),
 		UseMetadataExchange: true,
@@ -106,12 +104,8 @@ func (g *gcpAlloyDBAdminClient) GenerateClientCertificate(ctx context.Context, i
 }
 
 // GetEndpointAddress returns endpoint address for given AlloyDB instance and chosen endpoint type. Returns an error if chosen endpoint type is not available.
-func (g *gcpAlloyDBAdminClient) GetEndpointAddress(ctx context.Context, info gcputils.AlloyDBFullInstanceName, endpointType gcputils.AlloyDBEndpointType) (string, error) {
-	req := &alloydbpb.GetConnectionInfoRequest{
-		Parent: fmt.Sprintf(
-			"projects/%s/locations/%s/clusters/%s/instances/%s", info.ProjectID, info.Location, info.ClusterID, info.InstanceID,
-		),
-	}
+func (g *gcpAlloyDBAdminClient) GetEndpointAddress(ctx context.Context, info gcputils.AlloyDBFullInstanceName, endpointType types.AlloyDBEndpointType) (string, error) {
+	req := &alloydbpb.GetConnectionInfoRequest{Parent: info.InstanceName()}
 
 	resp, err := g.apiClient.GetConnectionInfo(ctx, req)
 	if err != nil {
@@ -134,14 +128,14 @@ func (g *gcpAlloyDBAdminClient) GetEndpointAddress(ctx context.Context, info gcp
 	var addr string
 
 	switch endpointType {
-	case gcputils.AlloyDBEndpointTypePublic:
-		addr = resp.GetPublicIpAddress()
-	case gcputils.AlloyDBEndpointTypePrivate:
+	case types.AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_DEFAULT, types.AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_PRIVATE:
 		addr = resp.GetIpAddress()
-	case gcputils.AlloyDBEndpointTypePSC:
+	case types.AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_PUBLIC:
+		addr = resp.GetPublicIpAddress()
+	case types.AlloyDBEndpointType_ALLOYDB_ENDPOINT_TYPE_PSC:
 		addr = resp.GetPscDnsName()
 	default:
-		return "", trace.BadParameter("unknown endpoint type: %v", endpointType)
+		return "", trace.BadParameter("unknown endpoint type: %v", endpointType.String())
 	}
 
 	if addr == "" {

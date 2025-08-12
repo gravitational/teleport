@@ -15,6 +15,7 @@
 package gcp
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -34,19 +35,30 @@ type AlloyDBFullInstanceName struct {
 	InstanceID string
 }
 
-const (
-	// AlloyDBScheme is the custom URI scheme used to disambiguate AlloyDB URIs from all others.
-	AlloyDBScheme = "alloydb"
+// ParentClusterName returns the full name of parent cluster.
+func (info AlloyDBFullInstanceName) ParentClusterName() string {
+	return fmt.Sprintf(
+		"projects/%s/locations/%s/clusters/%s", info.ProjectID, info.Location, info.ClusterID,
+	)
+}
 
-	// alloyDBSchemePrefix is AlloyDBScheme with `://`
-	alloyDBSchemePrefix = AlloyDBScheme + "://"
+// InstanceName returns a full name of the instance.
+func (info AlloyDBFullInstanceName) InstanceName() string {
+	return fmt.Sprintf(
+		"projects/%s/locations/%s/clusters/%s/instances/%s", info.ProjectID, info.Location, info.ClusterID, info.InstanceID,
+	)
+}
+
+const (
+	// alloyDBScheme is the custom URI scheme used to disambiguate AlloyDB URIs from all others.
+	alloyDBScheme = "alloydb://"
 )
 
 // IsAlloyDBConnectionURI returns true if the uri can possibly be parsed as AlloyDB connection URI.
 //
 // It doesn't try to parse it; it merely searches for the presence of the custom `alloydb://` scheme.
 func IsAlloyDBConnectionURI(uri string) bool {
-	return strings.HasPrefix(uri, alloyDBSchemePrefix)
+	return strings.HasPrefix(uri, alloyDBScheme)
 }
 
 // ParseAlloyDBConnectionURI parses "connection URI" (as it is called by GCP in some places) into the full instance name.
@@ -58,9 +70,9 @@ func ParseAlloyDBConnectionURI(connectionURI string) (*AlloyDBFullInstanceName, 
 		return nil, trace.BadParameter("connection URI cannot be empty")
 	}
 
-	uriNoPrefix, found := strings.CutPrefix(connectionURI, alloyDBSchemePrefix)
+	uriNoPrefix, found := strings.CutPrefix(connectionURI, alloyDBScheme)
 	if !found {
-		return nil, trace.BadParameter("invalid connection URI %q: should start with %v", connectionURI, alloyDBSchemePrefix)
+		return nil, trace.BadParameter("invalid connection URI %q: should start with %v", connectionURI, alloyDBScheme)
 	}
 
 	parts := strings.Split(uriNoPrefix, "/")
@@ -103,34 +115,4 @@ func ParseAlloyDBConnectionURI(connectionURI string) (*AlloyDBFullInstanceName, 
 		ClusterID:  cluster,
 		InstanceID: instance,
 	}, nil
-}
-
-// AlloyDBEndpointType is AlloyDB endpoint type.
-type AlloyDBEndpointType = string
-
-const (
-	// AlloyDBEndpointTypePrivate specifies the connection through the private IP address.
-	//
-	// See: https://cloud.google.com/alloydb/docs/private-ip
-	AlloyDBEndpointTypePrivate = AlloyDBEndpointType("private")
-	// AlloyDBEndpointTypePSC specifies the connection through the Private Service Connect (PSC) address.
-	//
-	// See: https://cloud.google.com/alloydb/docs/private-ip
-	AlloyDBEndpointTypePSC = AlloyDBEndpointType("psc")
-	// AlloyDBEndpointTypePublic specifies the connection through the public IP address.
-	//
-	// See: https://cloud.google.com/alloydb/docs/connect-public-ip
-	AlloyDBEndpointTypePublic = AlloyDBEndpointType("public")
-)
-
-// AlloyDBEndpointTypes is the collection of all recognized AlloyDB endpoint types.
-var AlloyDBEndpointTypes = []AlloyDBEndpointType{AlloyDBEndpointTypePrivate, AlloyDBEndpointTypePSC, AlloyDBEndpointTypePublic}
-
-// IsAlloyDBKnownEndpointType returns true if the given endpoint type is one of the known ones.
-func IsAlloyDBKnownEndpointType(endpointType string) bool {
-	switch endpointType {
-	case AlloyDBEndpointTypePrivate, AlloyDBEndpointTypePublic, AlloyDBEndpointTypePSC:
-		return true
-	}
-	return false
 }
