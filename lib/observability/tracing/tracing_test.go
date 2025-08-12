@@ -38,7 +38,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 func generateTLSCertificate() (tls.Certificate, error) {
@@ -371,6 +373,83 @@ func TestTraceProvider(t *testing.T) {
 			require.GreaterOrEqual(t, len(spans), 0)
 		})
 	}
+}
+
+// TestDelayedAttributes tests that all static and delayed attributes are
+// traced when GetDelayedAttributes is used.
+func TestDelayedAttributes(t *testing.T) {
+	collector, err := NewCollector(CollectorConfig{})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer shutdownCancel()
+		require.NoError(t, collector.Shutdown(shutdownCtx))
+	})
+	go func() {
+		collector.Start()
+	}()
+
+	unblockDelayedAttributes := make(chan struct{})
+	cfg := Config{
+		Service:      "test",
+		SamplingRate: 1.0,
+		ExporterURL:  collector.GRPCAddr(),
+		DialTimeout:  time.Second,
+		StaticAttributes: []attribute.KeyValue{
+			{Key: "static", Value: attribute.IntValue(1)},
+		},
+		GetDelayedAttributes: func(ctx context.Context) ([]attribute.KeyValue, error) {
+			<-unblockDelayedAttributes
+			return []attribute.KeyValue{
+				{Key: "delayed", Value: attribute.IntValue(1)},
+			}, nil
+		},
+	}
+	provider, err := NewTraceProvider(t.Context(), cfg)
+	require.NoError(t, err)
+	tracer := provider.Tracer("test")
+
+	expectedSpans := make(map[string]struct{})
+
+	// Spans created before GetDelayedAttributes returns will not be exported.
+	for i := range 4 {
+		spanName := fmt.Sprintf("unready%d", i)
+		_, span := tracer.Start(t.Context(), spanName)
+		span.End()
+	}
+
+	unblockDelayedAttributes <- struct{}{}
+	<-provider.ready
+
+	// Spans created after GetDelayedAttributes returns and the real provider
+	// is created must be exported.
+	for i := range 4 {
+		spanName := fmt.Sprintf("ready%d", i)
+		_, span := tracer.Start(t.Context(), spanName)
+		span.End()
+		expectedSpans[spanName] = struct{}{}
+	}
+
+	require.NoError(t, provider.Shutdown(t.Context()))
+
+	expectedResourceAttrs := map[string]struct{}{
+		"delayed": {},
+		"static":  {},
+	}
+	resourceSpans := collector.ResourceSpans()
+	for _, resourceSpan := range resourceSpans {
+		for _, attr := range resourceSpan.Resource.Attributes {
+			delete(expectedResourceAttrs, attr.Key)
+		}
+		for _, scopeSpan := range resourceSpan.ScopeSpans {
+			for _, span := range scopeSpan.Spans {
+				delete(expectedSpans, span.Name)
+			}
+		}
+	}
+	assert.Empty(t, expectedResourceAttrs, "traced resource attributes did not contain all expected attributes")
+	assert.Empty(t, expectedSpans, "not all expected spans were exported")
 }
 
 func TestConfig_CheckAndSetDefaults(t *testing.T) {
