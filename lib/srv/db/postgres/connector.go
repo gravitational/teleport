@@ -236,12 +236,14 @@ func (c *connector) getConnectConfig(ctx context.Context) (*pgconn.Config, error
 		if dbOpts.EndpointOverride != "" {
 			// respect override
 			config.Host = dbOpts.EndpointOverride
+			c.log.DebugContext(ctx, "Using database endpoint override", "address", config.Host)
 		} else {
 			// resolve the database address of particular type (public/private/PSC).
 			config.Host, err = adminClient.GetEndpointAddress(ctx, *info, dbOpts.EndpointType)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			c.log.DebugContext(ctx, "Resolved database endpoint address", "address", config.Host)
 		}
 
 		tlsConfig := &tls.Config{
