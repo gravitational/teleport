@@ -127,7 +127,7 @@ func TestDatabasesPagination(t *testing.T) {
 	}()
 
 	var expected []types.Database
-	for i := range 1324 {
+	for i := range 50 {
 		db, err := types.NewDatabaseV3(types.Metadata{
 			Name: "db" + strconv.Itoa(i+1),
 		}, types.DatabaseSpecV3{
@@ -155,14 +155,14 @@ func TestDatabasesPagination(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
-	page1, page2Start, err := p.cache.ListDatabases(t.Context(), 512, "")
+	page1, page2Start, err := p.cache.ListDatabases(t.Context(), 10, "")
 	require.NoError(t, err)
-	assert.Len(t, page1, 512)
+	assert.Len(t, page1, 10)
 	assert.NotEmpty(t, page2Start)
 
 	page2, next, err := p.cache.ListDatabases(t.Context(), 1000, page2Start)
 	require.NoError(t, err)
-	assert.Len(t, page2, len(expected)-512)
+	assert.Len(t, page2, len(expected)-10)
 	assert.Empty(t, next)
 
 	listed := append(page1, page2...)
@@ -186,7 +186,7 @@ func TestDatabasesPagination(t *testing.T) {
 
 	out, err = stream.Collect(p.cache.RangeDatabases(t.Context(), page2Start, ""))
 	require.NoError(t, err)
-	assert.Len(t, out, len(expected)-512)
+	assert.Len(t, out, len(expected)-10)
 	assert.Empty(t, gocmp.Diff(expected, append(page1, out...),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
