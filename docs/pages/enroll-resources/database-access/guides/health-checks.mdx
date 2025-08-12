@@ -172,7 +172,7 @@ You can click on a highlighted database to view some health check failure detail
 In this AWS RDS database example the health check error is a connection dial timeout, which is commonly caused by AWS security groups blocking connections to the database.
 
 You can use `tctl` to view more information about the affected Teleport Database Service.
-For example, the affected Teleport Database Service instances in the screenshot were deployed using the [Teleport AWS RDS enrollment wizard](../../../admin-guides/management/guides/awsoidc-integration-rds.mdx), which is indicated by the `teleport.dev/awsoidc-agent` label:
+For example, the affected Teleport Database Service instances in the screenshot were deployed using the [Teleport AWS RDS enrollment wizard](../../../zero-trust-access/management/guides/awsoidc-integration-rds.mdx), which is indicated by the `teleport.dev/awsoidc-agent` label:
 
 ```code
 $ tctl get db_service/22c8ecba-69fc-4c15-b94e-e8815236b9f0

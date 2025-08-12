@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -357,7 +357,7 @@ func deleteResources[T kubeObjectInterface](
 		allowedKubeUsers, allowedKubeGroups = fillDefaultKubePrincipalDetails(allowedKubeUsers, allowedKubeGroups, params.authCtx.User.GetName())
 
 		impersonatedUsers, impersonatedGroups, err := computeImpersonatedPrincipals(
-			utils.StringsSet(allowedKubeUsers), utils.StringsSet(allowedKubeGroups),
+			set.New(allowedKubeUsers...), set.New(allowedKubeGroups...),
 			params.header,
 		)
 		if err != nil {
