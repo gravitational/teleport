@@ -7326,7 +7326,7 @@ message PluginSCIMSettings {
   // SamlConnectorName is the name of the SAML Connector that users provisioned
   // by this SCIM plugin will use to log in to Teleport.
   // DEPRECATED: Use ConnectorInfo instead.
-  // This is old filed added when the OKta SCIM plugin was created
+  // This is old field added when the Okta SCIM plugin was created
   // and was limited usage to SAML connectors only.
   string saml_connector_name = 1 [deprecated = true];
 
@@ -7338,9 +7338,8 @@ message PluginSCIMSettings {
     option (gogoproto.equal) = true;
     // Name is the name of the connector.
     string name = 1 [(gogoproto.jsontag) = "name"];
-    // Type is the type of the connector.
-    // Can be SAML or OIDC.
-    // Note: The name of the connect is not unique across types OIDC and SAML types.
+    // Type is the type of the connector: types.KindSAML, types.KindOIDC, etc.
+    // Note: The name of the connect is not unique across types.
     string type = 2 [(gogoproto.jsontag) = "type"];
   }
 
