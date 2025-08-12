@@ -39,8 +39,16 @@ instead of this workflow.
    Teleport account or Teleport Proxy Service:
 
    ```code
-   $ curl https://<Var name="teleport.example.com:443" />/webapi/automaticupgrades/channel/stable/cloud/version
-   v15.2.1
+   $ curl https://<Var name="teleport.example.com:443" />/webapi/find
+     ...
+     "auto_update": {
+       "tools_version": "15.2.1",
+       "tools_auto_update": true,
+       "agent_version": "15.2.1",
+       "agent_auto_update": true,
+       "agent_update_jitter_seconds": 60
+     },
+     ...
    ```
 
 1. Use the `tctl inventory ls` command to list connected agents along with their
