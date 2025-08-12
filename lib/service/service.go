@@ -2758,6 +2758,7 @@ func (process *TeleportProcess) initAuthService() error {
 	awsRolesAnywhereProfileSyncProcessName := "aws-roles-anywhere.profile-sync"
 	process.RegisterFunc("auth."+awsRolesAnywhereProfileSyncProcessName+".service", func() error {
 		ctx := process.GracefulExitContext()
+		syncInterval := 5 * time.Minute
 		logger := process.logger.With("process", awsRolesAnywhereProfileSyncProcessName)
 
 		if _, err := process.WaitForEvent(ctx, TeleportReadyEvent); err != nil {
@@ -2773,6 +2774,7 @@ func (process *TeleportProcess) initAuthService() error {
 			StatusReporter:    authServer.Services,
 			AppServerUpserter: authServer.Services,
 			HostUUID:          process.Config.HostUUID,
+			SyncPollInterval:  syncInterval,
 		}
 
 		runWhileLockedConfig := backend.RunWhileLockedConfig{
@@ -2780,6 +2782,7 @@ func (process *TeleportProcess) initAuthService() error {
 				Backend:            process.backend,
 				LockNameComponents: []string{awsRolesAnywhereProfileSyncProcessName},
 				TTL:                1 * time.Minute,
+				RetryInterval:      syncInterval,
 			},
 			RefreshLockInterval: 20 * time.Second,
 		}
