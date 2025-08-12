@@ -105,6 +105,8 @@ func (c *CertificateStoreClient) Update(ctx context.Context, tc *tls.Config) err
 	// All authorities are missing CRL, let's fall back to legacy behavior
 	// TODO(probakowski): DELETE IN v21.0.0
 	if !hasCRL {
+		c.cfg.Logger.WarnContext(ctx, "No existing certificate authorities had an associated CRL. "+
+			"If you are using HSM or KMS for private key material, please update your auth server.")
 		crlDER, err := c.cfg.AccessPoint.GenerateCertAuthorityCRL(ctx, caType)
 		if err != nil {
 			return trace.Wrap(err, "generating CRL")
