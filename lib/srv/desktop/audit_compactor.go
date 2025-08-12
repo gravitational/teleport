@@ -224,7 +224,7 @@ func (r *readEvent) GetLength() uint64 {
 }
 
 func (r *readEvent) GetOffset() uint64 {
-	return uint64(r.Offset)
+	return r.Offset
 }
 
 func (r *readEvent) GetPath() string {
@@ -256,7 +256,7 @@ func (r *writeEvent) GetLength() uint64 {
 }
 
 func (r *writeEvent) GetOffset() uint64 {
-	return uint64(r.Offset)
+	return r.Offset
 }
 
 func (r *writeEvent) GetPath() string {
