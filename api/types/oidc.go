@@ -19,6 +19,7 @@ package types
 import (
 	"net/netip"
 	"net/url"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -575,8 +576,13 @@ func (o *OIDCConnectorV3) WithMFASettings() error {
 	o.Spec.ClientSecret = o.Spec.MFASettings.ClientSecret
 	o.Spec.ACR = o.Spec.MFASettings.AcrValues
 	o.Spec.Prompt = o.Spec.MFASettings.Prompt
-	o.Spec.MaxAge = &MaxAge{
-		Value: o.Spec.MFASettings.MaxAge,
+	// In rare cases, some providers will complain about the presence of the 'max_age'
+	// parameter in auth requests. Provide users with a workaround to omit it.
+	omitMaxAge := os.Getenv("TELEPORT_OIDC_OMIT_MFA_MAX_AGE") == "true"
+	if !omitMaxAge {
+		o.Spec.MaxAge = &MaxAge{
+			Value: o.Spec.MFASettings.MaxAge,
+		}
 	}
 	return nil
 }
