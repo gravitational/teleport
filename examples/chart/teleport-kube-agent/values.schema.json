@@ -403,8 +403,7 @@
                     "$id": "#/properties/highAvailability/properties/podDisruptionBudget",
                     "type": "object",
                     "required": [
-                        "enabled",
-                        "minAvailable"
+                        "enabled"
                     ],
                     "properties": {
                         "enabled": {
@@ -416,6 +415,11 @@
                             "$id": "#/properties/highAvailability/properties/podDisruptionBudget/properties/minAvailable",
                             "type": "integer",
                             "default": 1
+                        },
+                        "maxUnavailable": {
+                            "$id": "#/properties/highAvailability/properties/podDisruptionBudget/properties/maxUnavailable",
+                            "type": "integer",
+                            "default": null
                         }
                     }
                 },
