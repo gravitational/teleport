@@ -197,7 +197,7 @@ func NewNamespace(ctx context.Context, log *slog.Logger, name, installDir string
 			installDir:           installDir,
 			defaultPathDir:       linkDir,
 			teleportDataDir:      defaults.DataDir,
-			teleportServiceFile:  filepath.Join("/", serviceDir, serviceName),
+			teleportServiceFile:  filepath.Join("/", serviceDir, serviceName), // /lib for backwards-compat
 			teleportConfigFile:   defaults.ConfigFilePath,
 			teleportPIDFile:      filepath.Join(systemdPIDDir, "teleport.pid"),
 			updaterIDFile:        filepath.Join(os.TempDir(), BinaryName+".id"),
@@ -206,6 +206,9 @@ func NewNamespace(ctx context.Context, log *slog.Logger, name, installDir string
 			teleportDropInFile:   filepath.Join(systemdAdminDir, "teleport.service.d", BinaryName+".conf"),
 			deprecatedDropInFile: filepath.Join(systemdAdminDir, deprecatedServiceName+".d", BinaryName+".conf"),
 			teleportNRConfigFile: filepath.Join(needrestartConfDir, BinaryName+".conf"),
+			tbotServiceFile:      filepath.Join(systemdAdminDir, "tbot.service"),
+			tbotConfigFile:       filepath.Join("/etc", "tbot.yaml"),
+			tbotPIDFile:          filepath.Join(systemdPIDDir, "tbot.pid"),
 		}, nil
 	}
 
@@ -225,6 +228,9 @@ func NewNamespace(ctx context.Context, log *slog.Logger, name, installDir string
 		updaterTimerFile:     filepath.Join(systemdAdminDir, BinaryName+"_"+name+".timer"),
 		teleportDropInFile:   filepath.Join(systemdAdminDir, prefix+".service.d", BinaryName+"_"+name+".conf"),
 		teleportNRConfigFile: filepath.Join(needrestartConfDir, BinaryName+"_"+name+".conf"),
+		tbotServiceFile:      filepath.Join(systemdAdminDir, "tbot_"+name+".service"),
+		tbotConfigFile:       filepath.Join("/etc", "tbot_"+name+".yaml"),
+		tbotPIDFile:          filepath.Join(systemdPIDDir, "tbot_"+name+".pid"),
 		// no deprecatedDropInFile, as teleport-upgrade does not conflict with namespaced installs
 	}, nil
 }
