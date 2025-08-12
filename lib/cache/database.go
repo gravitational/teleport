@@ -133,9 +133,7 @@ func (c *Cache) ListDatabases(ctx context.Context, limit int, startKey string) (
 		collection:   c.collections.dbs,
 		index:        databaseNameIndex,
 		upstreamList: c.Config.Databases.ListDatabases,
-		nextToken: func(db types.Database) string {
-			return db.GetName()
-		},
+		nextToken: types.Database.GetName,
 	}
 	out, next, err := lister.list(ctx, limit, startKey)
 	return out, next, trace.Wrap(err)
