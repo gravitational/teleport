@@ -44,11 +44,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -602,7 +604,10 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, s.ProvisioningS.UpsertToken(ctx, tok))
 
-	tokens, err := s.ProvisioningS.GetTokens(ctx)
+	tokens, err := stream.Collect(clientutils.Resources(ctx,
+		func(ctx context.Context, pageSize int, pageKey string) ([]types.ProvisionToken, string, error) {
+			return s.ProvisioningS.ListProvisionTokens(ctx, pageSize, pageKey, nil, "")
+		}))
 	require.NoError(t, err)
 	require.Len(t, tokens, 2)
 
@@ -612,7 +617,10 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 	err = s.ProvisioningS.DeleteToken(ctx, tokens[1].GetName())
 	require.NoError(t, err)
 
-	tokens, err = s.ProvisioningS.GetTokens(ctx)
+	tokens, err = stream.Collect(clientutils.Resources(ctx,
+		func(ctx context.Context, pageSize int, pageKey string) ([]types.ProvisionToken, string, error) {
+			return s.ProvisioningS.ListProvisionTokens(ctx, pageSize, pageKey, nil, "")
+		}))
 	require.NoError(t, err)
 	require.Empty(t, tokens)
 }
@@ -1103,6 +1111,7 @@ func (s *ServicesTestSuite) SessionRecordingConfig(t *testing.T) {
 }
 
 func (s *ServicesTestSuite) StaticTokens(t *testing.T) {
+	ctx := t.Context()
 	// set static tokens
 	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{
@@ -1118,14 +1127,14 @@ func (s *ServicesTestSuite) StaticTokens(t *testing.T) {
 	err = s.ConfigS.SetStaticTokens(staticTokens)
 	require.NoError(t, err)
 
-	out, err := s.ConfigS.GetStaticTokens()
+	out, err := s.ConfigS.GetStaticTokens(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(staticTokens, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	err = s.ConfigS.DeleteStaticTokens()
 	require.NoError(t, err)
 
-	_, err = s.ConfigS.GetStaticTokens()
+	_, err = s.ConfigS.GetStaticTokens(ctx)
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -1551,7 +1560,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				err = s.LocalConfigS.SetStaticTokens(staticTokens)
 				require.NoError(t, err)
 
-				out, err := s.LocalConfigS.GetStaticTokens()
+				out, err := s.LocalConfigS.GetStaticTokens(ctx)
 				require.NoError(t, err)
 
 				err = s.LocalConfigS.DeleteStaticTokens()

@@ -41,7 +41,7 @@ configuration retained in DynamoDB indefinitely, and session recordings retained
 Customers whose subscriptions lapse will have all session recordings, audit logs, and
 cluster state deleted between 7 and 30 days after the lapse.
 
-Customers can configure [External Audit Storage](../../admin-guides/management/external-audit-storage.mdx) to store audit logs and session recordings in their
+Customers can configure [External Audit Storage](../../zero-trust-access/management/external-audit-storage.mdx) to store audit logs and session recordings in their
 own AWS account where retention period can be managed independently.
 
 ## High Availability
@@ -98,6 +98,13 @@ notifications.
 
 ## Service Level Agreement
 
-Teleport Enterprise Cloud commits to an SLA of (=cloud.sla.monthly_percentage=) of monthly uptime,
+Teleport Cloud commits to an SLA of (=cloud.sla.monthly_percentage=) of monthly uptime,
 a maximum of (=cloud.sla.monthly_downtime=) of downtime per month. As we continue to invest in the
 cloud product and infrastructure, the SLA will be increased.
+
+In Teleport Cloud accounts that enable multi-region high availability, the SLA
+increases to 99.99%. 
+
+For more information on Teleport Cloud SLAs, see the [Teleport Enterprise
+Edition Pricing
+Guide](https://goteleport.com/api/files/teleport-pricing-guide.pdf) (PDF).

@@ -23,14 +23,17 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
@@ -374,3 +377,50 @@ func LoadIdentity(ctx context.Context, d destination.Destination, kinds ...Artif
 
 	return ReadIdentityFromStore(&params, &certs)
 }
+
+// LogValue implements slog.LogValuer.
+func (i *Identity) LogValue() slog.Value {
+	failedToDescribe := slog.StringValue("failed-to-describe")
+
+	cert := i.X509Cert
+	if cert == nil {
+		log.WarnContext(context.TODO(), "Attempted to describe TLS identity without TLS credentials.")
+		return failedToDescribe
+	}
+
+	tlsIdent, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		log.WarnContext(context.TODO(), "Bot TLS certificate can not be parsed as an identity", "error", err)
+		return failedToDescribe
+	}
+
+	var principals []string
+	for _, principal := range tlsIdent.Principals {
+		if !strings.HasPrefix(principal, constants.NoLoginPrefix) {
+			principals = append(principals, principal)
+		}
+	}
+
+	botDesc := ""
+	if tlsIdent.BotInstanceID != "" {
+		botDesc = fmt.Sprintf(", id=%s", tlsIdent.BotInstanceID)
+	}
+
+	duration := cert.NotAfter.Sub(cert.NotBefore)
+	description := fmt.Sprintf(
+		"%s%s | valid: after=%v, before=%v, duration=%s | kind=tls, renewable=%v, disallow-reissue=%v, roles=%v, principals=%v, generation=%v",
+		tlsIdent.BotName,
+		botDesc,
+		cert.NotBefore.Format(time.RFC3339),
+		cert.NotAfter.Format(time.RFC3339),
+		duration,
+		tlsIdent.Renewable,
+		tlsIdent.DisallowReissue,
+		tlsIdent.Groups,
+		principals,
+		tlsIdent.Generation,
+	)
+	return slog.StringValue(description)
+}
+
+var _ slog.LogValuer = (*Identity)(nil)

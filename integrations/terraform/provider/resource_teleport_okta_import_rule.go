@@ -108,6 +108,7 @@ func (r resourceTeleportOktaImportRule) Create(ctx context.Context, req tfsdk.Cr
 		
 	// Not really an inferface, just using the same name for easier templating.
 	var oktaImportRuleI apitypes.OktaImportRule
+	// Try getting the resource until it exists.
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
@@ -115,12 +116,13 @@ func (r resourceTeleportOktaImportRule) Create(ctx context.Context, req tfsdk.Cr
 		oktaImportRuleI, err = r.p.Client.OktaClient().GetOktaImportRule(ctx, id)
 		if trace.IsNotFound(err) {
 			if bErr := backoff.Do(ctx); bErr != nil {
-				resp.Diagnostics.Append(diagFromWrappedErr("Error reading OktaImportRule", trace.Wrap(bErr), "okta_import_rule"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading OktaImportRule", trace.Wrap(err), "okta_import_rule"))
 				return
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading OktaImportRule (tried %d times) - state outdated, please import resource", tries)
 				resp.Diagnostics.AddError(diagMessage, "okta_import_rule")
+				return
 			}
 			continue
 		}

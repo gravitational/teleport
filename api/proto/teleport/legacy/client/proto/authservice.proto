@@ -432,6 +432,24 @@ message CreateResetPasswordTokenRequest {
   ];
 }
 
+// ListResetPasswordTokenRequest is a request for a page of user tokens.
+message ListResetPasswordTokenRequest {
+  // PageSize is the maximum amount of resources to retrieve.
+  int32 page_size = 1;
+  // StartKey is used to start listing resources from a specific spot. It
+  // should be set to the previous NextKey value if using pagination, or
+  // left empty.
+  string page_token = 2;
+}
+
+// ListResetPasswordTokenResponse contains a page of user tokens.
+message ListResetPasswordTokenResponse {
+  // UserTokens is a list of user tokens.
+  repeated types.UserTokenV3 user_tokens = 1;
+  // NextKey is the key for the next page of user tokens.
+  string next_page_token = 2;
+}
+
 // RenewableCertsRequest is a request to generate a first set of renewable
 // certificates from a bot join token.
 message RenewableCertsRequest {
@@ -2846,6 +2864,9 @@ service AuthService {
   // Only local users may be reset.
   rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest) returns (types.UserTokenV3);
 
+  // ListResetPasswordTokens returns a page of user tokens.
+  rpc ListResetPasswordTokens(ListResetPasswordTokenRequest) returns (ListResetPasswordTokenResponse);
+
   // GetUser gets a user resource by name.
   //
   // Deprecated: Use [teleport.users.v1.UsersService] instead.
@@ -3198,7 +3219,13 @@ service AuthService {
   // GetToken retrieves a token described by the given request.
   rpc GetToken(types.ResourceRequest) returns (types.ProvisionTokenV2);
   // GetToken retrieves all tokens.
-  rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
+  // Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
+  // TODO(hugoShaka): DELETE IN 21.0.0
+  rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List) {
+    option deprecated = true;
+  }
+  // GetStaticTokens retrieves all static tokens.
+  rpc GetStaticTokens(google.protobuf.Empty) returns (types.StaticTokensV2);
   // ListToken retrieves a paginated list of filtered provision tokens.
   rpc ListProvisionTokens(ListProvisionTokensRequest) returns (ListProvisionTokensResponse);
   // CreateTokenV2 creates a token in a backend.

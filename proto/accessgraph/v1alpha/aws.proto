@@ -77,6 +77,8 @@ message AWSResource {
     AWSSAMLProviderV1 saml_provider = 19;
     // oidc_provider is an AWS IAM OpenID Connect Identity Provider
     AWSOIDCProviderV1 oidc_provider = 20;
+    // kms_key is an AWS KMS key.
+    AWSKMSKeyV1 kms_key = 21;
   }
 }
 
@@ -583,4 +585,32 @@ message AWSOIDCProviderV1 {
   string url = 7;
   // last_sync_time is the time when the resource was last synced.
   google.protobuf.Timestamp last_sync_time = 8;
+}
+
+// AWSKMSKeyV1 defines the KMS key details.
+message AWSKMSKeyV1 {
+  // arn is the key ARN.
+  string arn = 1;
+  // created_at is the time when the key was created.
+  google.protobuf.Timestamp created_at = 2;
+  // tags is the list of tags that are attached to the key.
+  repeated AWSTag tags = 3;
+  // account_id is the ID of the AWS account that the key belongs to.
+  string account_id = 4;
+  // last_sync_time is the time when the resource was last synced.
+  google.protobuf.Timestamp last_sync_time = 5;
+  // aliases is the list of aliases that are attached to the key.
+  // they are prefixed with "alias/", for example "alias/my-key-alias".
+  repeated string aliases = 6;
+  // policy_document is the JSON document that defines the Key Policy. Every KMS
+  // key must have exactly one key policy.
+  bytes policy_document = 7;
+  // region is the AWS region that the key belongs to. For multi-region keys,
+  // this is the region where the current key, primary or replica, is located.
+  string region = 8;
+  // multi_region_key_type is the type of the multi-region key.
+  // It is set to "PRIMARY", "REPLICA" or left empty for single region keys.
+  string multi_region_key_type = 9;
+  // hsm_cluster_id is the ID of the HSM cluster that the key belongs to, if any.
+  string hsm_cluster_id = 10;
 }
