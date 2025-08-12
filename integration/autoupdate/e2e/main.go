@@ -1,3 +1,6 @@
+//go:build e2e
+// +build e2e
+
 /*
  * Teleport
  * Copyright (C) 2025  Gravitational, Inc.
