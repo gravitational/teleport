@@ -17,6 +17,7 @@
  */
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
 
 import { LockResourceKind } from 'teleport/LocksV2/NewLock/common';
 import {
@@ -65,7 +66,7 @@ export function useResourceLock(opts: {
   });
 
   const {
-    mutateAsync: unlock,
+    mutateAsync: removeLock,
     isPending: unlockPending,
     error: unlockError,
   } = useMutation({
@@ -78,7 +79,7 @@ export function useResourceLock(opts: {
   });
 
   const {
-    mutateAsync: lock,
+    mutateAsync: addLock,
     isPending: lockPending,
     error: lockError,
   } = useMutation({
@@ -102,7 +103,24 @@ export function useResourceLock(opts: {
       true
     );
 
+  const unlock = useCallback(() => {
+    if (!canUnlock) return;
+    return removeLock({ uuid: data[0].name });
+  }, [canUnlock, data, removeLock]);
+
   const canLock = hasAddPermission;
+
+  const lock = useCallback(
+    (message: string, ttl: string) => {
+      if (!canLock) return;
+      return addLock({
+        message,
+        ttl,
+        targets: { [targetKind]: targetName },
+      });
+    },
+    [canLock, addLock, targetKind, targetName]
+  );
 
   return {
     isLoading,
@@ -110,21 +128,11 @@ export function useResourceLock(opts: {
     locks: isSuccess ? data : null,
     error,
     canUnlock,
-    unlock() {
-      if (!canUnlock) return;
-      return unlock({ uuid: data[0].name });
-    },
+    unlock,
     unlockPending,
     unlockError,
     canLock,
-    lock(message: string, ttl: string) {
-      if (!canLock) return;
-      return lock({
-        message,
-        ttl,
-        targets: { [targetKind]: targetName },
-      });
-    },
+    lock,
     lockPending,
     lockError,
   };
