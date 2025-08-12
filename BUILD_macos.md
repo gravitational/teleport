@@ -84,12 +84,6 @@ and updates are welcome!
         node --version
         ```
 
-    1. Enable `pnpm` using the bundled `corepack`:
-
-        ```shell
-        corepack enable pnpm
-        ```
-
 1. Install `wasm-pack`:
     1. Find the required wasm-pack version in
     [`build.assets/versions.mk`](/build.assets/versions.mk)
@@ -154,12 +148,6 @@ and updates are welcome!
           ```shell
           bats --version
           ```
-
-1. Install `buf`:
-
-    ```shell
-    brew install bufbuild/buf/buf
-    ```
 
 1. Increase the maximum number of open files:
 
