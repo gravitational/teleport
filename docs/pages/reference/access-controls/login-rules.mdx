@@ -807,7 +807,9 @@ func jsonpath(path string) set
 `jsonpath` returns a new [`set`](#set-type) interpolated from the user's original IdP
 claims using the given [jsonpath query](https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html).
 This is intended for use with traditionally unmapped arbitrary JSON claims which are
-used in some custom OIDC solutions. See the example below.
+used in some custom OIDC solutions.
+
+See [this guide](../../../zero-trust-access/sso/sso.mdx#using-an-oidc-provider-with-arbitrary-non-standard-json-claims) for more context.
 
 #### Arguments
 
@@ -823,7 +825,7 @@ Type | Description
 
 #### Examples
 
-The examples below operate on the given IdP claims object.
+The examples below operates on the given IdP claims object.
 ```json
 {
   // normal claim - string list
