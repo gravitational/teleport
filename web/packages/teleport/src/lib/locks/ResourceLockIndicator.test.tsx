@@ -16,14 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
 import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 
-import darkTheme from 'design/theme/themes/darkTheme';
-import { ConfiguredThemeProvider } from 'design/ThemeProvider';
-import { testQueryClient, userEvent } from 'design/utils/testing';
+import {
+  Providers,
+  render,
+  screen,
+  testQueryClient,
+  userEvent,
+  waitFor,
+} from 'design/utils/testing';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
@@ -124,13 +127,11 @@ describe('ResourceUnlockDialog', () => {
 function makeWrapper() {
   const ctx = createTeleportContext();
   return (props: PropsWithChildren) => (
-    <QueryClientProvider client={testQueryClient}>
+    <Providers>
       <TeleportProviderBasic teleportCtx={ctx}>
-        <ConfiguredThemeProvider theme={darkTheme}>
-          {props.children}
-        </ConfiguredThemeProvider>
+        {props.children}
       </TeleportProviderBasic>
-    </QueryClientProvider>
+    </Providers>
   );
 }
 
