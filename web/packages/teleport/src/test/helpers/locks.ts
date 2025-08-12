@@ -19,25 +19,7 @@
 import { http, HttpResponse } from 'msw';
 
 import cfg from 'teleport/config';
-import { CreateLockRequest } from 'teleport/services/locks/types';
-
-type ApiLock = {
-  name: string;
-  message: string;
-  expires: string;
-  createdAt?: string;
-  createdBy?: string;
-  targets: Partial<{
-    user: string;
-    role: string;
-    login: string;
-    node: string;
-    mfa_device: string;
-    windows_desktop: string;
-    device: string;
-    access_request: string;
-  }>;
-};
+import { ApiLock, CreateLockRequest } from 'teleport/services/locks/types';
 
 export const listV2LocksSuccess = (options?: { locks?: ApiLock[] }) => {
   const { locks = [] } = options ?? {};

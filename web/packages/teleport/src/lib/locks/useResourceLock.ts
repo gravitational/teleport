@@ -17,6 +17,7 @@
  */
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
 
 import { LockResourceKind } from 'teleport/LocksV2/NewLock/common';
 import {
@@ -65,27 +66,27 @@ export function useResourceLock(opts: {
   });
 
   const {
-    mutateAsync: _unlock,
+    mutateAsync: removeLock,
     isPending: unlockPending,
     error: unlockError,
   } = useMutation({
     mutationFn: deleteLock,
     onSuccess: (_, vars) => {
-      queryClient.setQueryData(listLocksQueryKey(queryVars), existingData => {
-        return existingData?.filter(lock => lock.name !== vars.uuid);
+      queryClient.setQueryData(listLocksQueryKey(queryVars), existingLocks => {
+        return existingLocks?.filter(lock => lock.name !== vars.uuid);
       });
     },
   });
 
   const {
-    mutateAsync: _lock,
+    mutateAsync: addLock,
     isPending: lockPending,
     error: lockError,
   } = useMutation({
     mutationFn: createLock,
-    onSuccess: newData => {
-      queryClient.setQueryData(listLocksQueryKey(queryVars), existingData => {
-        return existingData ? [...existingData, newData] : [newData];
+    onSuccess: newLock => {
+      queryClient.setQueryData(listLocksQueryKey(queryVars), existingLocks => {
+        return existingLocks ? [...existingLocks, newLock] : [newLock];
       });
     },
   });
@@ -102,21 +103,24 @@ export function useResourceLock(opts: {
       true
     );
 
-  const unlock = () => {
+  const unlock = useCallback(() => {
     if (!canUnlock) return;
-    return _unlock({ uuid: data[0].name });
-  };
+    return removeLock({ uuid: data[0].name });
+  }, [canUnlock, data, removeLock]);
 
   const canLock = hasAddPermission;
 
-  const lock = (message: string, ttl: string) => {
-    if (!canLock) return;
-    return _lock({
-      message,
-      ttl,
-      targets: { [targetKind]: targetName },
-    });
-  };
+  const lock = useCallback(
+    (message: string, ttl: string) => {
+      if (!canLock) return;
+      return addLock({
+        message,
+        ttl,
+        targets: { [targetKind]: targetName },
+      });
+    },
+    [canLock, addLock, targetKind, targetName]
+  );
 
   return {
     isLoading,

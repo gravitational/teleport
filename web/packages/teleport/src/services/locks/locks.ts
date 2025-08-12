@@ -20,7 +20,7 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
 import { withGenericUnsupportedError } from '../version/unsupported';
-import { CreateLockRequest, Lock, LockKind } from './types';
+import { ApiLock, CreateLockRequest, Lock, LockKind } from './types';
 
 export const lockService = {
   async fetchLocks() {
@@ -87,13 +87,12 @@ export async function deleteLock(
   );
 }
 
-export function makeLocks(json: any): Lock[] {
+export function makeLocks(json: { items: ApiLock[] }): Lock[] {
   const { items = [] } = json ?? {};
   return items.map(makeLock);
 }
 
-function makeLock(json: any): Lock {
-  json = json || {};
+function makeLock(json: ApiLock): Lock {
   const {
     name,
     message,
@@ -103,7 +102,7 @@ function makeLock(json: any): Lock {
     targets: targetLookup,
   } = json;
 
-  let targets: { kind: LockKind; name: string }[] = [];
+  let targets: Lock['targets'] = [];
   if (targetLookup) {
     targets = Object.entries<string>(targetLookup).map(([key, value]) => ({
       kind: key as LockKind,

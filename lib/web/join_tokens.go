@@ -38,8 +38,10 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/ui"
@@ -99,9 +101,60 @@ func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httpr
 		return nil, trace.Wrap(err)
 	}
 
-	tokens, err := clt.GetTokens(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// There are 3 tokens types:
+	// - provision tokens
+	// - static tokens
+	// - user tokens
+	// This endpoint returns all 3 for compatibility reasons.
+	// Before, all 3 tokens were returned by the same "GetTokens" RPC, now we are using
+	// separate RPCs, with pagination. However, we don't know if the auth we are talking
+	// to supports the new RPCs. As the static token one got introduced last, we
+	// try to use it.If it works, we consume the two other RPCs. If it doesn't,
+	// we fallback to the legacy all-in-one RPC.
+	var tokens []types.ProvisionToken
+
+	// Trying to get static tokens
+	staticTokens, err := clt.GetStaticTokens(r.Context())
+	if err != nil && !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err, "getting static tokens")
+	}
+
+	// TODO(hugoShaka): DELETE IN 19.0.0
+	if trace.IsNotImplemented(err) {
+		// We are connected to an old auth, that doesn't support the per-token type RPCs
+		// so we fallback to the legacy all-in-one RPC.
+		tokens, err = clt.GetTokens(r.Context())
+		if err != nil {
+			return nil, trace.Wrap(err, "getting all tokens through the legacy RPC")
+		}
+	} else {
+		// We are connected to a modern auth, we must collect all 3 tokens types.
+		// Getting the provision tokens.
+		provisionTokens, err := stream.Collect(clientutils.Resources(r.Context(),
+			func(ctx context.Context, pageSize int, pageKey string) ([]types.ProvisionToken, string, error) {
+				return clt.ListProvisionTokens(ctx, pageSize, pageKey, nil, "")
+			},
+		))
+		if err != nil {
+			return nil, trace.Wrap(err, "getting provision tokens")
+		}
+		tokens = append(staticTokens.GetStaticTokens(), provisionTokens...)
+
+		// Getting the user tokens.
+		userTokens, err := stream.Collect(clientutils.Resources(r.Context(), clt.ListResetPasswordTokens))
+		if err != nil {
+			return nil, trace.Wrap(err, "getting user tokens")
+		}
+		// Converting the user tokens as provision tokens for presentation and
+		// backward compatibility.
+		for _, t := range userTokens {
+			roles := types.SystemRoles{types.RoleSignup}
+			tok, err := types.NewProvisionToken(t.GetName(), roles, t.Expiry())
+			if err != nil {
+				return nil, trace.Wrap(err, "converting user token as a provision token")
+			}
+			tokens = append(tokens, tok)
+		}
 	}
 
 	uiTokens, err := webui.MakeJoinTokens(tokens)

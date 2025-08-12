@@ -60,8 +60,8 @@ type CreateBotRequest struct {
 
 // listBots returns a list of bots for a given cluster site. It does not leverage pagination from the UI. Due to the
 // nature of the bot:user relationship, pagination is not yet supported. This endpoint will return all bots.
-func (h *Handler) listBots(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
-	clt, err := sctx.GetUserClient(r.Context(), site)
+func (h *Handler) listBots(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -89,13 +89,13 @@ func (h *Handler) listBots(w http.ResponseWriter, r *http.Request, p httprouter.
 }
 
 // createBot creates a bot
-func (h *Handler) createBot(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) createBot(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	var req *CreateBotRequest
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -122,8 +122,8 @@ func (h *Handler) createBot(w http.ResponseWriter, r *http.Request, p httprouter
 	return OK(), nil
 }
 
-func (h *Handler) deleteBot(_ http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
-	clt, err := sctx.GetUserClient(r.Context(), site)
+func (h *Handler) deleteBot(_ http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -156,7 +156,7 @@ type CreateBotJoinTokenRequest struct {
 }
 
 // createBotJoinToken creates a bot join token
-func (h *Handler) createBotJoinToken(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) createBotJoinToken(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	var req *CreateBotJoinTokenRequest
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -166,7 +166,7 @@ func (h *Handler) createBotJoinToken(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -198,13 +198,13 @@ func (h *Handler) createBotJoinToken(w http.ResponseWriter, r *http.Request, p h
 }
 
 // getBot retrieves a bot by name
-func (h *Handler) getBot(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) getBot(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	botName := p.ByName("name")
 	if botName == "" {
 		return nil, trace.BadParameter("empty name")
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -221,7 +221,7 @@ func (h *Handler) getBot(w http.ResponseWriter, r *http.Request, p httprouter.Pa
 // updateBot updates a bot with provided roles. The only supported change via this endpoint today is roles.
 // TODO(nicholasmarais1158) DELETE IN v20.0.0 - replaced by updateBotV2
 // MUST delete with related code found in `web/packages/teleport/src/services/bot/bot.ts`
-func (h *Handler) updateBot(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) updateBot(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	var request updateBotRequest
 	if err := httplib.ReadResourceJSON(r, &request); err != nil {
 		return nil, trace.Wrap(err)
@@ -232,7 +232,7 @@ func (h *Handler) updateBot(w http.ResponseWriter, r *http.Request, p httprouter
 		return nil, trace.BadParameter("empty name")
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -267,7 +267,7 @@ type updateBotRequest struct {
 }
 
 // updateBotV2 updates a bot with provided roles, traits and max_session_ttl.
-func (h *Handler) updateBotV2(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) updateBotV2(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	var request updateBotRequestV2
 	if err := httplib.ReadResourceJSON(r, &request); err != nil {
 		return nil, trace.Wrap(err)
@@ -278,7 +278,7 @@ func (h *Handler) updateBotV2(w http.ResponseWriter, r *http.Request, p httprout
 		return nil, trace.BadParameter("empty name")
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -351,7 +351,7 @@ type updateBotRequestTrait struct {
 }
 
 // getBotInstance retrieves a bot instance by id
-func (h *Handler) getBotInstance(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) getBotInstance(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	botName := p.ByName("name")
 	instanceId := p.ByName("id")
 	if botName == "" {
@@ -361,7 +361,7 @@ func (h *Handler) getBotInstance(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.BadParameter("empty id")
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -390,8 +390,8 @@ type GetBotInstanceResponse struct {
 }
 
 // listBotInstances returns a list of bot instances for a given cluster site.
-func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
-	clt, err := sctx.GetUserClient(r.Context(), site)
+func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
