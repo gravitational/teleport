@@ -742,17 +742,33 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 	// These are valid for 10 years and regenerated on CA rotation.
 	updated := false
 	for _, kp := range ca.GetActiveKeys().TLS {
-		if kp.CRL != nil {
-			continue
-		}
-		certBytes, signer, err := asrv.keyStore.GetTLSCertAndSigner(ctx, ca)
-		if err != nil {
-			asrv.logger.WarnContext(ctx, "Couldn't get CA certificate", "ca_type", caID.Type, "error", err)
-			continue
-		}
-		cert, err := tlsca.ParseCertificatePEM(certBytes)
+		cert, err := tlsca.ParseCertificatePEM(kp.Cert)
 		if err != nil {
 			asrv.logger.WarnContext(ctx, "Couldn't parse CA certificate", "ca_type", caID.Type, "error", err)
+			continue
+		}
+
+		needsNewCRL := len(kp.CRL) == 0
+		if !needsNewCRL {
+			// An earlier version of this code generated CRLs that may have been signed with the wrong keypair.
+			// To fix this, we must also validate the signature of existing CRLs.
+			if crl, err := x509.ParseRevocationList(kp.CRL); err != nil {
+				needsNewCRL = true
+			} else if err := crl.CheckSignatureFrom(cert); err != nil {
+				asrv.logger.WarnContext(ctx, "Detected CRL with invalid signature, regenerating", "ca_type", caID.Type, "ca", ca.GetName(), "error", err)
+				needsNewCRL = true
+			}
+		}
+
+		if !needsNewCRL {
+			continue
+		}
+
+		signer, err := asrv.keyStore.TLSSigner(ctx, kp)
+		if err != nil {
+			if !errors.Is(err, keystore.ErrUnusableKey) {
+				asrv.logger.WarnContext(ctx, "Couldn't get TLS signer for CA", "ca", ca.GetName(), "ca_type", caID.Type, "error", err)
+			}
 			continue
 		}
 
