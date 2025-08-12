@@ -7,8 +7,7 @@ state: implemented
 
 ## Required Approvers
 
-* Engineering: @zmb3 || @rosstimothy
-* Product: @klizhentas
+* Engineering: @rosstimothy && (@zmb3 || @nklaassen)
 
 ## What
 
