@@ -2231,11 +2231,6 @@ func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (remote
 		func(err error) bool {
 			// If the error is a known upgrade failure, we can retry with the other protocol.
 			result := httpstream.IsUpgradeFailure(err) || httpstream.IsHTTPSProxyError(err) || kubeerrors.IsForbidden(err) || isTeleportUpgradeFailure(err)
-			if result {
-				// If the error is a known upgrade failure, we can retry with the other protocol.
-				// To do that, we need to reset the connection monitor context.
-				sess.connCtx, sess.connMonitorCancel = context.WithCancelCause(req.Context())
-			}
 			return result
 		})
 }
@@ -2287,10 +2282,6 @@ func (f *Forwarder) getPortForwardDialer(sess *clusterSession, req *http.Request
 
 	return portforward.NewFallbackDialer(wsDialer, spdyDialer, func(err error) bool {
 		result := httpstream.IsUpgradeFailure(err) || httpstream.IsHTTPSProxyError(err) || kubeerrors.IsForbidden(err) || isTeleportUpgradeFailure(err)
-		if result {
-			// If the error is a known upgrade failure, we can retry with the other protocol.
-			sess.connCtx, sess.connMonitorCancel = context.WithCancelCause(req.Context())
-		}
 		return result
 	}), nil
 }
@@ -2407,11 +2398,13 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (n
 		return nil, trace.Wrap(err)
 	}
 
+	ctx, cancel := context.WithCancelCause(s.connCtx)
+
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    conn,
 		Clock:   s.parent.cfg.Clock,
-		Context: s.connCtx,
-		Cancel:  s.connMonitorCancel,
+		Context: ctx,
+		Cancel:  cancel,
 	})
 	if err != nil {
 		s.connMonitorCancel(err)
@@ -2435,7 +2428,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (n
 		Clock:                 s.parent.cfg.Clock,
 		Tracker:               tc,
 		Conn:                  tc,
-		Context:               s.connCtx,
+		Context:               ctx,
 		TeleportUser:          s.User.GetName(),
 		ServerID:              s.parent.cfg.HostID,
 		Logger:                s.parent.log,
