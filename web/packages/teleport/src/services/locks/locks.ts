@@ -87,13 +87,12 @@ export async function deleteLock(
   );
 }
 
-export function makeLocks(json: any): Lock[] {
+export function makeLocks(json: { items: ApiLock[] }): Lock[] {
   const { items = [] } = json ?? {};
   return items.map(makeLock);
 }
 
-function makeLock(json: any): Lock {
-  json = json || {};
+function makeLock(json: ApiLock): Lock {
   const {
     name,
     message,
@@ -103,7 +102,7 @@ function makeLock(json: any): Lock {
     targets: targetLookup,
   } = json;
 
-  let targets: { kind: LockKind; name: string }[] = [];
+  let targets: Lock['targets'] = [];
   if (targetLookup) {
     targets = Object.entries<string>(targetLookup).map(([key, value]) => ({
       kind: key as LockKind,
@@ -130,3 +129,21 @@ function makeLock(json: any): Lock {
     },
   };
 }
+
+export type ApiLock = {
+  name: string;
+  message: string;
+  expires: string;
+  createdAt?: string;
+  createdBy?: string;
+  targets: Partial<{
+    user: string;
+    role: string;
+    login: string;
+    node: string;
+    mfa_device: string;
+    windows_desktop: string;
+    device: string;
+    access_request: string;
+  }>;
+};
