@@ -132,8 +132,8 @@ function makeLock(json: ApiLock): Lock {
 
 export type ApiLock = {
   name: string;
-  message: string;
-  expires: string;
+  message?: string;
+  expires?: string;
   createdAt?: string;
   createdBy?: string;
   targets: Partial<{
