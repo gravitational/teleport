@@ -277,3 +277,7 @@ jobs:
 
       - name: Lint licenses
         run: make lint-license
+
+      - name: Check icons
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make icons-up-to-date
