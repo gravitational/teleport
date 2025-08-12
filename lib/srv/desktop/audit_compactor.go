@@ -11,12 +11,15 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 )
 
-type streamId struct {
+// streamID uniquely identifies a stream
+type streamID struct {
 	path        string
 	directoryID directoryID
 	write       bool
 }
 
+// streamEvent is an abstraction of read/write events
+// so that we need only one compactor implementation.
 type streamEvent interface {
 	Base() events.AuditEvent
 	IsWriteEvent() bool
@@ -27,6 +30,8 @@ type streamEvent interface {
 	SetLength(uint64)
 }
 
+// stream identifies a set of reads/writes
+// to a particular file within some period of time.
 type stream struct {
 	expireTime time.Time
 	events     []streamEvent
@@ -34,21 +39,22 @@ type stream struct {
 	done       chan struct{}
 }
 
+// auditCompactor tracks streams within a particular desktop session
+type auditCompactor struct {
+	refreshInterval  time.Duration
+	maxDelayInterval time.Duration
+	emitFn           func(context.Context, events.AuditEvent)
+	streams          map[streamID]*stream
+	streamLock       sync.Mutex
+}
+
 func newAuditCompactor(refreshInterval, maxDelayInterval time.Duration, emitFn func(context.Context, events.AuditEvent)) auditCompactor {
 	return auditCompactor{
 		refreshInterval:  refreshInterval,
 		maxDelayInterval: maxDelayInterval,
 		emitFn:           emitFn,
-		streams:          map[streamId]*stream{},
+		streams:          map[streamID]*stream{},
 	}
-}
-
-type auditCompactor struct {
-	refreshInterval  time.Duration
-	maxDelayInterval time.Duration
-	emitFn           func(context.Context, events.AuditEvent)
-	streams          map[streamId]*stream
-	streamLock       sync.Mutex
 }
 
 func (s *stream) emitEvents(ctx context.Context, emitFn func(ctx context.Context, evnt events.AuditEvent)) {
@@ -77,7 +83,8 @@ func (s *stream) compactEvents() []streamEvent {
 		for _, subsequent := range sequentialEvents {
 			offset := subsequent.GetOffset()
 			evnts := offsetMapping[offset]
-			evnts = slices.Delete(evnts, slices.Index(evnts, subsequent), 1)
+			deleteIdx := slices.Index(evnts, subsequent)
+			evnts = slices.Delete(evnts, deleteIdx, deleteIdx+1)
 			if len(evnts) > 0 {
 				offsetMapping[offset] = evnts
 			} else {
@@ -91,21 +98,27 @@ func (s *stream) compactEvents() []streamEvent {
 	return finalEvents
 }
 
-func (s *stream) compact(evnt streamEvent, sortedEvents map[uint64][]streamEvent) ([]streamEvent, uint64) {
+// compact finds the longest contiguous set of reads/writes following the given 'evnt'
+func (s *stream) compact(evnt streamEvent, eventsByOffset map[uint64][]streamEvent) ([]streamEvent, uint64) {
+	// Determine the offset at which the next contiguous segment must start.
 	offset := evnt.GetOffset() + evnt.GetLength()
-	if len(sortedEvents[offset]) > 0 {
+	// Consule the map for any events with this offset.
+	if len(eventsByOffset[offset]) > 0 {
 		// There may be multiple candidate segments to follow.
 		// Try each of them out and select the longest contiguous set of segments
 		var winner []streamEvent
 		var maxLength uint64
-		for _, choice := range sortedEvents[offset] {
-			option, length := s.compact(choice, sortedEvents)
+		for _, choice := range eventsByOffset[offset] {
+			// TODO: We could probably speed this up with memoization/dynamic programmming,
+			// but this code is fairly readable as-is and it's probably not likely that
+			// we'll end up with too many possible paths in production.
+			// Recursively evaluate each option.
+			option, length := s.compact(choice, eventsByOffset)
 			if length > maxLength {
 				winner = option
 				maxLength = length
 			}
 		}
-
 		return append([]streamEvent{evnt}, winner...), maxLength + evnt.GetLength()
 	}
 	return []streamEvent{evnt}, evnt.GetLength()
@@ -117,7 +130,7 @@ func (s *stream) addEvent(evnt streamEvent) {
 
 func (a *auditCompactor) handleEvent(ctx context.Context, evnt streamEvent) {
 	// Does the event exist in the stream?
-	key := streamId{
+	key := streamID{
 		write:       evnt.IsWriteEvent(),
 		directoryID: evnt.GetDirectoryID(),
 		path:        evnt.GetPath(),
@@ -133,29 +146,22 @@ func (a *auditCompactor) handleEvent(ctx context.Context, evnt streamEvent) {
 		alreadyFired := !stream.timer.Stop()
 		if !alreadyFired {
 			// Update the current stream. It is a continuation of the current stream
-			// and the timer has not yet fired for it
-			// TODO: Should we update the timestamp of the audit event?
+			// and the timer has not yet fired for it.
 			stream.addEvent(evnt)
 			// Reset the timer either to the refresh interval, or until
 			// the stream's expiration time
 			stream.timer.Reset(time.Duration(math.Min(float64(a.refreshInterval), float64(time.Until(stream.expireTime)))))
 			newStream = false
 		} else {
-			// Reset timer to run immediately and emit the consolidated
-			// audit event represented by this stream. Stop tracking this stream
-			// This is a no-op if the timer has already fired and
-			// *this invariant must hold*.
-			stream.timer.Reset(0)
+			// The timer has already fired. Stop tracking this stream.
+			// A new stream will be created below to handle this event.
 			delete(a.streams, key)
 		}
 	}
 
 	// We need to create a new stream due to one of the following:
 	//   - We are not tracking any such stream yet.
-	//   - We are tracking this stream, but the incoming read/write event
-	//     is not *continuous*.
-	//   - We are tracking this stream, and the read/write is continuous,
-	//     but the timer has already fired.
+	//   - We were tracking this stream but the timer has already fired.
 	if newStream {
 		s := &stream{
 			done:       make(chan struct{}),
@@ -163,43 +169,47 @@ func (a *auditCompactor) handleEvent(ctx context.Context, evnt streamEvent) {
 			events:     []streamEvent{evnt},
 		}
 		s.timer = time.AfterFunc(a.refreshInterval, func() {
-			// Only needed for shutting down / flushing
+			// Close done channel so that the 'flush' function can
+			// verify that this goroutine has completed its work.
 			defer close(s.done)
 			a.streamLock.Lock()
 			delete(a.streams, key)
 			a.streamLock.Unlock()
-			s.emitEvents(context.TODO(), a.emitFn)
+			s.emitEvents(ctx, a.emitFn)
 
 		})
 		a.streams[key] = s
 	}
 }
 
+// flush immediately compacts and emits audit events for all
+// in-progress streams and blocks until completion.
 func (a *auditCompactor) flush(ctx context.Context) {
 	a.streamLock.Lock()
 	wait := []chan struct{}{}
-	for streamId, stream := range a.streams {
+	for streamID, stream := range a.streams {
 		if stream.timer.Stop() {
 			// If we successfully stop the timer before it fires,
-			// go ahead and emit the audit event
+			// go ahead and emit the audit event.
 			stream.emitEvents(ctx, a.emitFn)
-			delete(a.streams, streamId)
+			delete(a.streams, streamID)
 		} else {
 			// The timer was already firing, so wait until
-			// the emitFn as been executed by the underlying goroutine
+			// the emitFn as been executed by the underlying goroutine.
 			wait = append(wait, stream.done)
 		}
 	}
+	// Unlock so that we may unblock timer functions.
 	a.streamLock.Unlock()
 	// Wait for pending timers to complete
 	// We use our own "done" channel rather than the timer's
-	// because we need to know that the timer's underlying goroutine
+	// because we need to know that the timer's underlying goroutine.
 	for _, doneChan := range wait {
 		<-doneChan
 	}
 }
 
-// Adapters for current read/write audit events
+// Adapters for current read/write audit events.
 
 type readEvent struct {
 	*events.DesktopSharedDirectoryRead
