@@ -16,6 +16,7 @@ inputs:
       # excluded by buf-gogo.gen.yaml
       - api/proto/teleport/legacy/client/proto/event.proto
       - api/proto/teleport/legacy/client/proto/inventory.proto
+      - api/proto/teleport/legacy/client/proto/requestable_roles.proto
 
 plugins:
   - local:
