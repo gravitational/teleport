@@ -65,7 +65,7 @@ export function useResourceLock(opts: {
   });
 
   const {
-    mutateAsync: _unlock,
+    mutateAsync: unlock,
     isPending: unlockPending,
     error: unlockError,
   } = useMutation({
@@ -78,7 +78,7 @@ export function useResourceLock(opts: {
   });
 
   const {
-    mutateAsync: _lock,
+    mutateAsync: lock,
     isPending: lockPending,
     error: lockError,
   } = useMutation({
@@ -102,21 +102,7 @@ export function useResourceLock(opts: {
       true
     );
 
-  const unlock = () => {
-    if (!canUnlock) return;
-    return _unlock({ uuid: data[0].name });
-  };
-
   const canLock = hasAddPermission;
-
-  const lock = (message: string, ttl: string) => {
-    if (!canLock) return;
-    return _lock({
-      message,
-      ttl,
-      targets: { [targetKind]: targetName },
-    });
-  };
 
   return {
     isLoading,
@@ -124,11 +110,21 @@ export function useResourceLock(opts: {
     locks: isSuccess ? data : null,
     error,
     canUnlock,
-    unlock,
+    unlock() {
+      if (!canUnlock) return;
+      return unlock({ uuid: data[0].name });
+    },
     unlockPending,
     unlockError,
     canLock,
-    lock,
+    lock(message: string, ttl: string) {
+      if (!canLock) return;
+      return lock({
+        message,
+        ttl,
+        targets: { [targetKind]: targetName },
+      });
+    },
     lockPending,
     lockError,
   };
