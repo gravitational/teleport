@@ -682,7 +682,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		as.k8sJWKSValidator = kubetoken.ValidateTokenWithJWKS
 	}
 	if as.k8sOIDCValidator == nil {
-		as.k8sOIDCValidator = kubetoken.ValidateTokenWithOIDC
+		as.k8sOIDCValidator = kubetoken.NewKubernetesOIDCTokenValidator()
 	}
 
 	if as.gcpIDTokenValidator == nil {
@@ -1125,7 +1125,7 @@ type Server struct {
 	k8sJWKSValidator k8sJWKSValidator
 	// k8sOIDCValidator allows tokens from Kubernetes to be validated by the
 	// auth server using a known OIDC endpoint. It can be overridden in tests.
-	k8sOIDCValidator k8sOIDCValidator
+	k8sOIDCValidator *kubetoken.KubernetesOIDCTokenValidator
 
 	// gcpIDTokenValidator allows ID tokens from GCP to be validated by the auth
 	// server. It can be overridden for the purpose of tests.
