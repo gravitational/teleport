@@ -182,14 +182,26 @@ All actions should require re-authn with a webauthn device.
 
 Use Discover Wizard to enroll new resources and access them:
 
-- [ ] SSH Server using Teleport Service
-- [ ] Self-Hosted PostgreSQL and Mongo
-- [ ] Kubernetes
-- [ ] Using an AWS OIDC Integration
+- [ ] SSH Server using download script (any "one" is fine)
+- [ ] Self-Hosted PostgreSQL and Mysql
+- [ ] Self-Hosted Kubernetes
+- Web Application
+  - [ ] Can enroll using download script
+  - [ ] Can launch afterwards
+- Using an AWS OIDC Integration
   - [ ] EC2 Auto Enrollment (SSM)
-  - [ ] RDS flow: single database
-  - [ ] RDS flow: Auto Enrollment (by VPC)
-  - [ ] EKS Clusters
+  - RDS, test with at least 2 resources
+    - [ ] Single enrollment (without auto discover)
+    - [ ] With auto discover
+  - EKS Clusters, test with at least 2 resources
+    - [ ] Single enrollment (without auto discover)
+    - [ ] With auto discover
+    - [ ] Test with auto application discovery
+    - [ ] Test without auto application discovery
+    - [ ] Test enrolling EKS manually with helm chart
+  - AWS CLI / Console Access
+    - [ ] Enroll access app
+    - [ ] Test acessing with selected arn is correct
 - [ ] Non-guided cards link out to correct docs
 
 #### Access Lists
