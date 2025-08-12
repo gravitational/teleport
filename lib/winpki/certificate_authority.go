@@ -21,7 +21,6 @@ package winpki
 import (
 	"context"
 	"crypto/tls"
-	"encoding/base32"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -94,9 +93,8 @@ func (c *CertificateStoreClient) Update(ctx context.Context, tc *tls.Config) err
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			subjectID := base32.HexEncoding.EncodeToString(cert.SubjectKeyId)
-			issuer := subjectID + "_" + c.cfg.ClusterName
-			if err := c.updateCRL(ctx, issuer, keyPair.CRL, caType, tc); err != nil {
+
+			if err := c.updateCRL(ctx, c.cfg.ClusterName, cert.SubjectKeyId, keyPair.CRL, caType, tc); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -110,14 +108,14 @@ func (c *CertificateStoreClient) Update(ctx context.Context, tc *tls.Config) err
 			return trace.Wrap(err, "generating CRL")
 		}
 
-		if err := c.updateCRL(ctx, c.cfg.ClusterName, crlDER, caType, tc); err != nil {
+		if err := c.updateCRL(ctx, c.cfg.ClusterName, nil, crlDER, caType, tc); err != nil {
 			return trace.Wrap(err, "updating CRL over LDAP")
 		}
 	}
 	return nil
 }
 
-func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuer string, crlDER []byte, caType types.CertAuthType, tc *tls.Config) error {
+func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuerCN string, issuerSKID []byte, crlDER []byte, caType types.CertAuthType, tc *tls.Config) error {
 	// Publish the CRL for current cluster CA. For trusted clusters, their
 	// respective windows_desktop_services will publish CRLs of their CAs so we
 	// don't have to do it here.
@@ -132,7 +130,7 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuer string, c
 	// CA will be placed at:
 	// ... > CDP > Teleport > prod
 	containerDN := crlContainerDN(c.cfg.Domain, caType)
-	crlDN := CRLDN(issuer, c.cfg.Domain, caType)
+	crlDN := CRLDN(issuerCN, issuerSKID, c.cfg.Domain, caType)
 
 	ldapClient, err := DialLDAP(ctx, c.cfg.LC, tc)
 	if err != nil {
