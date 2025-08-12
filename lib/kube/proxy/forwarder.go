@@ -2230,15 +2230,10 @@ func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (remote
 		spdyExec,
 		func(err error) bool {
 			// If the error is a known upgrade failure, we can retry with the other protocol.
-			result := httpstream.IsUpgradeFailure(err) || httpstream.IsHTTPSProxyError(err) || kubeerrors.IsForbidden(err) || isTeleportUpgradeFailure(err)
-			if result {
-				// If the error is a known upgrade failure, we can retry with the other protocol.
-				// To do that, we need to reset the connection monitor context.
-				sess.connMonitorMu.Lock()
-				sess.connCtx, sess.connMonitorCancel = context.WithCancelCause(req.Context())
-				sess.connMonitorMu.Unlock()
-			}
-			return result
+			return httpstream.IsUpgradeFailure(err) ||
+				httpstream.IsHTTPSProxyError(err) ||
+				kubeerrors.IsForbidden(err) ||
+				isTeleportUpgradeFailure(err)
 		})
 }
 
@@ -2288,14 +2283,11 @@ func (f *Forwarder) getPortForwardDialer(sess *clusterSession, req *http.Request
 	}
 
 	return portforward.NewFallbackDialer(wsDialer, spdyDialer, func(err error) bool {
-		result := httpstream.IsUpgradeFailure(err) || httpstream.IsHTTPSProxyError(err) || kubeerrors.IsForbidden(err) || isTeleportUpgradeFailure(err)
-		if result {
-			// If the error is a known upgrade failure, we can retry with the other protocol.
-			sess.connMonitorMu.Lock()
-			sess.connCtx, sess.connMonitorCancel = context.WithCancelCause(req.Context())
-			sess.connMonitorMu.Unlock()
-		}
-		return result
+		// If the error is a known upgrade failure, we can retry with the other protocol.
+		return httpstream.IsUpgradeFailure(err) ||
+			httpstream.IsHTTPSProxyError(err) ||
+			kubeerrors.IsForbidden(err) ||
+			isTeleportUpgradeFailure(err)
 	}), nil
 }
 
@@ -2391,41 +2383,45 @@ type clusterSession struct {
 	// rbacSupportedResources is the list of resources that support RBAC for the
 	// current cluster.
 	rbacSupportedResources rbacSupportedResources
-	// connCtx is the context used to monitor the connection.
-	connCtx context.Context
-	// connMonitorCancel is the conn monitor connMonitorCancel function.
-	connMonitorCancel context.CancelCauseFunc
-	// connMonitorMu guards connMonitorCancel.
-	connMonitorMu sync.Mutex
+
+	// TODO: DELETE
+	// // sessionCtx is the context used to monitor the connection.
+	// sessionCtx context.Context
+	// // connMonitorCancel is the conn monitor connMonitorCancel function.
+	// connMonitorCancel context.CancelCauseFunc
+
+	// sessionCtx is the context used to monitor the connection.
+	sessionCtx context.Context
+	// sessionCancel is the conn monitor sessionCancel function.
+	sessionCancel context.CancelCauseFunc
 	// sendErrStatus is a function that sends an error status to the client.
 	sendErrStatus func(status *kubeerrors.StatusError) error
 }
 
-// close cancels the connection monitor context if available.
+// close cancels connection monitoring contexts.
 func (s *clusterSession) close() {
-	s.connMonitorMu.Lock()
-	defer s.connMonitorMu.Unlock()
-
-	if s.connMonitorCancel != nil {
-		s.connMonitorCancel(io.EOF)
-	}
+	s.sessionCancel(io.EOF)
 }
 
 func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (net.Conn, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.connMonitorMu.Lock()
-	defer s.connMonitorMu.Unlock()
+
+	// Create a connection context from the session context.
+	// This separates session lifecycle from the connection attempt lifecycle.
+	// There may be multiple connection attempts within a session using FallbackExecutor/FallbackDialer.
+	// The approach avoids a potential race condition for s.sessionCancel.
+	connCtx, connCancel := context.WithCancelCause(s.sessionCtx)
 
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    conn,
 		Clock:   s.parent.cfg.Clock,
-		Context: s.connCtx,
-		Cancel:  s.connMonitorCancel,
+		Context: connCtx,
+		Cancel:  connCancel,
 	})
 	if err != nil {
-		s.connMonitorCancel(err)
+		connCancel(err)
 		return nil, trace.Wrap(err)
 	}
 	lockTargets := s.LockTargets()
@@ -2446,7 +2442,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (n
 		Clock:                 s.parent.cfg.Clock,
 		Tracker:               tc,
 		Conn:                  tc,
-		Context:               s.connCtx,
+		Context:               s.sessionCtx,
 		TeleportUser:          s.User.GetName(),
 		ServerID:              s.parent.cfg.HostID,
 		Logger:                s.parent.log,
@@ -2530,7 +2526,7 @@ func (f *Forwarder) newClusterSession(ctx context.Context, authCtx authContext) 
 
 func (f *Forwarder) newClusterSessionRemoteCluster(ctx context.Context, authCtx authContext) (*clusterSession, error) {
 	f.log.DebugContext(ctx, "Forwarding kubernetes session to remote cluster", "auth_context", logutils.StringerAttr(authCtx))
-	connCtx, cancel := context.WithCancelCause(ctx)
+	sessionCtx, sessionCancel := context.WithCancelCause(ctx)
 	return &clusterSession{
 		parent:      f,
 		authContext: authCtx,
@@ -2538,10 +2534,10 @@ func (f *Forwarder) newClusterSessionRemoteCluster(ctx context.Context, authCtx 
 		// and the targetKubernetes cluster endpoint is determined from the identity
 		// encoded in the TLS certificate. We're setting the dial endpoint to a hardcoded
 		// `kube.teleport.cluster.local` value to indicate this is a Kubernetes proxy request
-		targetAddr:        reversetunnelclient.LocalKubernetes,
-		requestContext:    ctx,
-		connCtx:           connCtx,
-		connMonitorCancel: cancel,
+		targetAddr:     reversetunnelclient.LocalKubernetes,
+		requestContext: ctx,
+		sessionCtx:     sessionCtx,
+		sessionCancel:  sessionCancel,
 	}, nil
 }
 
@@ -2577,7 +2573,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx context.Context, authCtx authCont
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connCtx, cancel := context.WithCancelCause(ctx)
+	sessionCtx, sessionCancel := context.WithCancelCause(ctx)
 	f.log.DebugContext(ctx, "Handling kubernetes session using local credentials", "auth_context", logutils.StringerAttr(authCtx))
 	return &clusterSession{
 		parent:                 f,
@@ -2587,19 +2583,19 @@ func (f *Forwarder) newClusterSessionLocal(ctx context.Context, authCtx authCont
 		requestContext:         ctx,
 		codecFactory:           codecFactory,
 		rbacSupportedResources: rbacSupportedResources,
-		connCtx:                connCtx,
-		connMonitorCancel:      cancel,
+		sessionCtx:             sessionCtx,
+		sessionCancel:          sessionCancel,
 	}, nil
 }
 
 func (f *Forwarder) newClusterSessionDirect(ctx context.Context, authCtx authContext) (*clusterSession, error) {
-	connCtx, cancel := context.WithCancelCause(ctx)
+	sessionCtx, sessionCancel := context.WithCancelCause(ctx)
 	return &clusterSession{
-		parent:            f,
-		authContext:       authCtx,
-		requestContext:    ctx,
-		connCtx:           connCtx,
-		connMonitorCancel: cancel,
+		parent:         f,
+		authContext:    authCtx,
+		requestContext: ctx,
+		sessionCtx:     sessionCtx,
+		sessionCancel:  sessionCancel,
 	}, nil
 }
 
