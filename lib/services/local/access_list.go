@@ -208,6 +208,10 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 	if err := accessList.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// When creating/upserting an Access List, changing Expires on the ResourceHeader isn't supported.
+	if !accessList.GetMetadata().Expires.IsZero() {
+		return nil, trace.BadParameter("cannot set expires on access list resources")
+	}
 
 	var upserted *accesslist.AccessList
 	var existingAccessList *accesslist.AccessList
@@ -227,6 +231,7 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 		} else if err != nil {
 			return trace.Wrap(err)
 		}
+
 		preserveAccessListFields(existingAccessList, accessList)
 
 		listMembers, err := a.memberService.WithPrefix(accessList.GetName()).GetResources(ctx)
@@ -683,6 +688,10 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 	if err := accessList.CheckAndSetDefaults(); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	// When creating/upserting an Access List, changing Expires on the ResourceHeader isn't supported.
+	if !accessList.GetMetadata().Expires.IsZero() {
+		return nil, nil, trace.BadParameter("cannot set expires on access list resources")
+	}
 
 	for _, m := range membersIn {
 		if err := m.CheckAndSetDefaults(); err != nil {
@@ -695,6 +704,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
+
 		preserveAccessListFields(existingAccessList, accessList)
 
 		if err := accesslists.ValidateAccessListWithMembers(ctx, existingAccessList, accessList, membersIn, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {

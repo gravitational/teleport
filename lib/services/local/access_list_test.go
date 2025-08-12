@@ -110,7 +110,7 @@ func TestAccessListCRUD(t *testing.T) {
 	require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
 
 	// Update an access list.
-	accessList1.SetExpiry(clock.Now().Add(30 * time.Minute))
+	accessList1.SetOrigin("okta")
 	accessList, err = service.UpsertAccessList(ctx, accessList1)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(accessList1, accessList, cmpOpts...))
@@ -152,6 +152,38 @@ func requireAccessDenied(t require.TestingT, err error, i ...any) {
 		trace.IsAccessDenied(err),
 		"err should be access denied, was: %s", err,
 	)
+}
+
+func Test_AccessList_validation_Expires(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	// creation with expires should fail
+	accessList1 := newAccessList(t, "accessList1", clock)
+	accessList1.SetExpiry(clock.Now().Add(2 * time.Hour))
+	_, err = service.UpsertAccessList(ctx, accessList1)
+	require.ErrorIs(t, err, trace.BadParameter("cannot set expires on access list resources"))
+
+	// reset to zero, creation should now succeed
+	accessList1.SetExpiry(time.Time{})
+	_, err = service.UpsertAccessList(ctx, accessList1)
+	require.NoError(t, err)
+
+	accessList1.SetExpiry(clock.Now().Add(2 * time.Hour))
+	_, err = service.UpdateAccessList(ctx, accessList1)
+	require.ErrorIs(t, err, trace.BadParameter("cannot set expires on access list resources"))
+
+	// upserting with members should also fail
+	al1m1 := newAccessListMember(t, accessList1.GetName(), "alice")
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{al1m1})
+	require.ErrorIs(t, err, trace.BadParameter("cannot set expires on access list resources"))
 }
 
 func Test_AccessList_validation_noTypeChange(t *testing.T) {

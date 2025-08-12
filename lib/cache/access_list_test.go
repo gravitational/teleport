@@ -55,6 +55,9 @@ func TestAccessList(t *testing.T) {
 			_, err := p.accessLists.UpsertAccessList(ctx, item)
 			return trace.Wrap(err)
 		},
+		changeResource: func(item *accesslist.AccessList) {
+			item.SetOrigin("okta")
+		},
 		list: func(ctx context.Context) ([]*accesslist.AccessList, error) {
 			return stream.Collect(clientutils.Resources(ctx, p.accessLists.ListAccessLists))
 		},
