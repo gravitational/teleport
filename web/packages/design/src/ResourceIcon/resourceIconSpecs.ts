@@ -226,6 +226,7 @@ export const resourceIconSpecs = {
   openid: forAllThemes(i.openid),
   opsgenie: forAllThemes(i.opsgenie),
   'orbit.love': forAllThemes(i.orbitLove),
+  oracle: forAllThemes(i.oracle),
   orcasecurity: { dark: i.orcasecurityDark, light: i.orcasecurityLight },
   'outreach.io': forAllThemes(i.outreachIo),
 

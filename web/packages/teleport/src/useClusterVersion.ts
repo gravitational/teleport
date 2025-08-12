@@ -22,17 +22,17 @@ import useTeleport from 'teleport/useTeleport';
 
 /**
  * **useClusterVersion** returns the cluster (auth) version and a comparison
- * utility (`check`). The check utility can be used to compare the provided
- * client version to the cluster/control-plane version. An indication of
- * cluster compatibility is returned.
+ * utility (`checkCompatibility`). The check utility can be used to compare the
+ * providedclient version to the cluster/control-plane version. An indication
+ * of cluster compatibility is returned.
  *
  * @returns the cluster (auth) version and a comparison utility (diff)
  */
 export function useClusterVersion(): {
   clusterVersion: string;
   /**
-   * **check** compares the provided client version to the cluster/control-
-   * plane version. An indication of cluster compatibility is returned.
+   * **checkCompatibility** compares the provided client version to the cluster/
+   * control-plane version. An indication of cluster compatibility is returned.
    * @param version the compare version as string.
    * @returns an indication of cluster compatibility
    */
@@ -59,7 +59,8 @@ export type ClientCompatibility =
       /**
        * match - versions are the same.
        * upgrade-major - the client is one version behind.
-       * upgrade-minor - the major version is the same, but older on minor or patch.
+       * upgrade-minor - the major version is the same, but older on minor or
+       * patch.
        */
       reason: 'match' | 'upgrade-major' | 'upgrade-minor';
     }
