@@ -50,7 +50,7 @@
     "cspell": "^9.2.0",
     "jest": "^30.0.5",
     "jsdom-testing-mocks": "^1.15.2",
-    "msw": "^2.10.4",
+    "msw": "2.10.1",
     "msw-storybook-addon": "^2.0.5",
     "node-gyp": "^11.2.0",
     "playwright": "^1.54.2",
