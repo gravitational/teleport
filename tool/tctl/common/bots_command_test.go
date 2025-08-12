@@ -34,8 +34,10 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -256,7 +258,9 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 
-	tokens, err := client.GetTokens(ctx)
+	tokens, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]types.ProvisionToken, string, error) {
+		return client.ListProvisionTokens(ctx, pageSize, pageKey, nil, "")
+	}))
 	require.NoError(t, err)
 	require.Empty(t, tokens)
 
