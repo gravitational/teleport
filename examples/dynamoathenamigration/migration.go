@@ -361,9 +361,14 @@ func (t *task) getDataObjectsInfo(ctx context.Context, manifestPath string) ([]d
 }
 
 func (t *task) getEventsFromDataFiles(ctx context.Context, exportInfo *exportInfo, eventsC chan<- apievents.AuditEvent) error {
+	// TODO(Joerger): Rather than loading the checkpoint and prompting the user after completing the export step,
+	// this should be done at the beginning of program execution.
 	checkpoint, err := t.loadEmitterCheckpoint(ctx, exportInfo.ExportARN)
 	if err != nil {
-		return trace.Wrap(err)
+		_, err := prompt.Confirmation(ctx, os.Stdout, prompt.Stdin(), fmt.Sprintf("It seems that a previous migration %s stopped with error and there was an issue resuming it: %v. Would you like to start a new migration?", exportInfo.ExportARN, err))
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	if checkpoint != nil {
@@ -773,13 +778,11 @@ func (t *task) loadEmitterCheckpoint(ctx context.Context, exportARN string) (*ch
 			return nil, nil
 		}
 		return nil, trace.Wrap(err)
-	} else if len(bb) == 0 {
-		// If the file is empty, ignore it. This may occur due to OOM errors.
-		return nil, nil
 	}
+
 	var out checkpointData
 	if err := json.Unmarshal(bb, &out); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "failed to load checkpoint file %q from previous migration attempt", t.CheckpointPath)
 	}
 
 	// There are checkpoints for different export, assume there is no checkpoint saved.
