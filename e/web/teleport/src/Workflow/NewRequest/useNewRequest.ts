@@ -340,8 +340,6 @@ export function useNewRequest(ctx: Ctx) {
     setAddedResources(newResources);
   }
 
-  const requestableRoles = ctx.storeUser.getRequestableRoles();
-
   /**
    * Used with bulk actions (eg: add/remove all)
    * Does not support bulk adding for:
@@ -412,7 +410,6 @@ export function useNewRequest(ctx: Ctx) {
     addOrRemoveResources,
     clearAddedResources,
     setAddedResources,
-    requestableRoles,
     resourceRequestsDisabled,
     fetchUsage,
     fetchUsageAttempt,

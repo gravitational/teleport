@@ -50,6 +50,19 @@ beforeEach(() => {
     .mockResolvedValue(['access', 'editor', 'auditor']);
 
   jest
+    .spyOn(ctx.resourceService, 'fetchRequestableRoles')
+    .mockImplementation(() =>
+      Promise.resolve({
+        items: [
+          { name: 'role-1', description: 'test1' },
+          { name: 'role-2', description: 'test2' },
+          { name: 'role-3', description: 'test3' },
+        ],
+        startKey: '',
+      })
+    );
+
+  jest
     .spyOn(ctx.workflowService, 'createAccessRequest')
     .mockResolvedValue(dryRunResponse);
 
@@ -129,10 +142,9 @@ test('add and remove a resource from table', async () => {
   );
 
   await screen.findByText('Proceed to Request');
+  await screen.findByText('role-1');
   let rows = screen.getAllByText(/role-/i);
-  expect(rows).toHaveLength(
-    userContext.accessCapabilities.requestableRoles.length
-  );
+  expect(rows).toHaveLength(3);
 
   // No resources selected yet.
   let checkoutFooter = screen.getByTestId('checkout-footer');
@@ -475,6 +487,67 @@ test('created requests specifiable fields are respected on checkout (not overwri
     suggestedReviewers: ['bob', 'cat', 'george washington'],
   });
 }, 20000);
+
+test('serverside pagination works for roles', async () => {
+  const mockFirstPageResponse = {
+    items: [
+      { name: 'role-1', description: 'test1' },
+      { name: 'role-2', description: 'test2' },
+    ],
+    startKey: 'next-page-key',
+  };
+
+  const mockSecondPageResponse = {
+    items: [
+      { name: 'role-3', description: 'test3' },
+      { name: 'role-4', description: 'test4' },
+    ],
+    startKey: '',
+  };
+
+  const fetchRequestableRolesSpy = jest
+    .spyOn(ctx.resourceService, 'fetchRequestableRoles')
+    .mockResolvedValueOnce(mockFirstPageResponse)
+    .mockResolvedValueOnce(mockSecondPageResponse);
+
+  render(Component);
+
+  await selectEvent.select(
+    within(screen.getByTestId('resource-selector')).getByRole('combobox'),
+    'Roles'
+  );
+
+  await waitFor(() => {
+    expect(fetchRequestableRolesSpy).toHaveBeenCalledWith(
+      {
+        search: '',
+        limit: 20,
+      },
+      ['role-1', 'role-2', 'role-3']
+    );
+  });
+
+  expect(screen.getByText('role-1')).toBeInTheDocument();
+  expect(screen.getByText('role-2')).toBeInTheDocument();
+
+  const nextPageButton = screen.getByTitle('Next page');
+  await userEvent.click(nextPageButton);
+
+  // Verify second request uses the startKey from first response
+  await waitFor(() => {
+    expect(fetchRequestableRolesSpy).toHaveBeenCalledWith(
+      {
+        search: '',
+        limit: 20,
+        startKey: 'next-page-key',
+      },
+      ['role-1', 'role-2', 'role-3']
+    );
+  });
+
+  expect(screen.getByText('role-3')).toBeInTheDocument();
+  expect(screen.getByText('role-4')).toBeInTheDocument();
+});
 
 const defaultUserInfo = {
   cluster: {

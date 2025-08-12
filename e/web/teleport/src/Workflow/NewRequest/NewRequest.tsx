@@ -22,7 +22,6 @@ import {
 } from 'design/Icon';
 import Link from 'design/Link';
 import { HoverTooltip } from 'design/Tooltip';
-import { Roles } from 'shared/components/AccessRequests/NewRequest';
 import Select from 'shared/components/Select';
 import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
 import {
@@ -55,6 +54,7 @@ import { useUser } from 'teleport/User/UserContext';
 
 import { AppRequestButton, RequestButton } from './RequestButton';
 import { RequestCheckout } from './RequestCheckout';
+import { Roles } from './Roles';
 import {
   AccessRequestKind,
   getResourceId,
@@ -120,7 +120,6 @@ function NewRequest(props: State) {
     updateAccessRequestKind,
     clearAddedResources,
     dryRunAttempt,
-    requestableRoles,
     fetchUsageAttempt,
     fetchUsage,
     ctx,
@@ -352,7 +351,8 @@ function NewRequest(props: State) {
         )}
       {selectedAccessRequestKind === 'role' && (
         <Roles
-          requestable={requestableRoles}
+          fetchFunc={ctx.resourceService.fetchRequestableRoles}
+          allRequestableRoles={ctx.storeUser.getRequestableRoles()}
           requested={new Set(Object.keys(addedResources.role))}
           onToggleRole={role =>
             addOrRemoveResources(requestItems('role', role))
