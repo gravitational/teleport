@@ -26,10 +26,18 @@ import history from 'teleport/services/history';
 import type { AgentStepProps } from '../../types';
 import celebratePamPng from './celebrate-pam.png';
 
-export function Finished(props: AgentStepProps) {
+//  Message fields will optionally override defaults and agent-based logic
+type Message = {
+  title?: string;
+  resourceText?: string;
+  redirect?: string;
+};
+
+export function Finished(props: AgentStepProps & Message) {
   let title = 'Resource Successfully Added';
   let resourceText =
     'You can start accessing this resource right away or add another resource.';
+  let redirect = cfg.routes.root;
 
   if (props.agentMeta) {
     if (props.agentMeta.autoDiscovery) {
@@ -39,6 +47,16 @@ export function Finished(props: AgentStepProps) {
       resourceText = `Resource [${props.agentMeta.resourceName}] has been successfully added to
       this Teleport Cluster. ${resourceText}`;
     }
+  }
+
+  if (props.title) {
+    title = props.title;
+  }
+  if (props.resourceText) {
+    resourceText = props.resourceText;
+  }
+  if (props.redirect) {
+    redirect = props.redirect;
   }
 
   return (
@@ -52,7 +70,7 @@ export function Finished(props: AgentStepProps) {
         <ButtonPrimary
           width="270px"
           size="large"
-          onClick={() => history.push(cfg.routes.root, true)}
+          onClick={() => history.push(redirect, true)}
           mr={3}
         >
           Browse Existing Resources

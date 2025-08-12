@@ -43,7 +43,7 @@ import (
 // - deniedResources: excluded if (namespace,name) matches an entry even if it matches
 // the allowedResources's list.
 // - allowedResources: excluded if (namespace,name) not match a single entry.
-func newResourceFilterer(kind, group, verb string, isClusterWideResource bool, codecs *serializer.CodecFactory, allowedResources, deniedResources []types.KubernetesResource, log *slog.Logger) responsewriters.FilterWrapper {
+func newResourceFilterer(mr metaResource, codecs *serializer.CodecFactory, allowedResources, deniedResources []types.KubernetesResource, log *slog.Logger) responsewriters.FilterWrapper {
 	// If the list of allowed resources contains a wildcard and no deniedResources, then we
 	// don't need to filter anything.
 	if containsWildcard(allowedResources) && len(deniedResources) == 0 {
@@ -56,18 +56,15 @@ func newResourceFilterer(kind, group, verb string, isClusterWideResource bool, c
 			return nil, trace.Wrap(err)
 		}
 		return &resourceFilterer{
-			encoder:               encoder,
-			decoder:               decoder,
-			contentType:           contentType,
-			responseCode:          responseCode,
-			negotiator:            negotiator,
-			allowedResources:      allowedResources,
-			deniedResources:       deniedResources,
-			log:                   log,
-			kind:                  kind,
-			group:                 group,
-			verb:                  verb,
-			isClusterWideResource: isClusterWideResource,
+			encoder:          encoder,
+			decoder:          decoder,
+			contentType:      contentType,
+			responseCode:     responseCode,
+			negotiator:       negotiator,
+			allowedResources: allowedResources,
+			deniedResources:  deniedResources,
+			log:              log,
+			metaResource:     mr,
 		}, nil
 	}
 }
@@ -99,26 +96,24 @@ func containsWildcard(resources []types.KubernetesResource) bool {
 type resourceFilterer struct {
 	encoder runtime.Encoder
 	decoder runtime.Decoder
+
 	// contentType is the response "Content-Type" header.
 	contentType string
 	// responseCode is the response status code.
 	responseCode int
 	// negotiator is an instance of a client negotiator.
 	negotiator runtime.ClientNegotiator
+
 	// allowedResources is the list of kubernetes resources the user has access to.
 	allowedResources []types.KubernetesResource
 	// deniedResources is the list of kubernetes resources the user must not access.
 	deniedResources []types.KubernetesResource
+
 	// log is the logger.
 	log *slog.Logger
-	// kind is the type of the resource.
-	kind string
-	// group is the api group of the resource.
-	group string
-	// verb is the kube API verb based on HTTP verb.
-	verb string
-	// isClusterWideResource is true if the resource is cluster wide.
-	isClusterWideResource bool
+
+	// metaResource contains the information about the resource being filtered.
+	metaResource metaResource
 }
 
 // FilterBuffer receives a byte array, decodes the response into the appropriate
@@ -138,15 +133,14 @@ func (d *resourceFilterer) FilterBuffer(buf []byte, output io.Writer) error {
 		return trace.Wrap(err)
 	}
 
-	switch allowed, isList, err := d.FilterObj(obj); {
-	case err != nil:
+	if allowed, isList, err := d.FilterObj(obj); err != nil {
 		return trace.Wrap(err)
-	case isList:
-	case !allowed:
+	} else if !isList && !allowed {
 		// if the object is not a list and it's not allowed, then we should
 		// return an error.
 		return trace.AccessDenied("access denied")
 	}
+
 	// encode the filterer response back to the user.
 	return d.encode(obj, output)
 }
@@ -172,9 +166,9 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 			return hasElemts, true, nil
 		}
 
-		r := getKubeResource(d.kind, d.group, d.verb, o)
+		r := getKubeResource(d.metaResource.requestedResource.resourceKind, d.metaResource.requestedResource.apiGroup, d.metaResource.verb, o)
 		result, err := matchKubernetesResource(
-			r, d.isClusterWideResource,
+			r, d.metaResource.isClusterWideResource(),
 			d.allowedResources, d.deniedResources,
 		)
 		if err != nil {
@@ -189,8 +183,9 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 			return false, false, trace.Wrap(err)
 		}
 		return len(o.Rows) > 0, true, nil
+
 	default:
-		if isListObj(o) {
+		if _, ok := obj.(metav1.ListInterface); ok {
 			output, err := getItemsUsingReflection(obj)
 			if err != nil {
 				return false, false, trace.Wrap(err, "failed to get items from list object")
@@ -213,11 +208,6 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// extensions could result in information disclosures.
 		return false, false, trace.BadParameter("unexpected type received; got %T", obj)
 	}
-}
-
-func isListObj(obj runtime.Object) bool {
-	_, ok := obj.(metav1.ListInterface)
-	return ok
 }
 
 // decode decodes the buffer into the appropriate type if the responseCode
@@ -289,8 +279,8 @@ type kubeObjectInterface interface {
 // filterResource validates if the user should access the current resource.
 func (d *resourceFilterer) filterResource(resource kubeObjectInterface) (bool, error) {
 	result, err := matchKubernetesResource(
-		getKubeResource(d.kind, d.group, d.verb, resource),
-		d.isClusterWideResource,
+		getKubeResource(d.metaResource.requestedResource.resourceKind, d.metaResource.requestedResource.apiGroup, d.metaResource.verb, resource),
+		d.metaResource.isClusterWideResource(),
 		d.allowedResources, d.deniedResources,
 	)
 	return result, trace.Wrap(err)
@@ -315,11 +305,11 @@ func (d *resourceFilterer) filterMetaV1Table(table *metav1.Table, allowedResourc
 		if err := d.decodePartialObjectMetadata(row); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		resource, err := getKubeResourcePartialMetadataObject(d.kind, d.group, d.verb, row.Object.Object)
+		resource, err := getKubeResourcePartialMetadataObject(d.metaResource.requestedResource.resourceKind, d.metaResource.requestedResource.apiGroup, d.metaResource.verb, row.Object.Object)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if result, err := matchKubernetesResource(resource, d.isClusterWideResource, allowedResources, deniedResources); err == nil && result {
+		if result, err := matchKubernetesResource(resource, d.metaResource.isClusterWideResource(), allowedResources, deniedResources); err == nil && result {
 			resources = append(resources, *row)
 		} else if err != nil {
 			d.log.WarnContext(context.Background(), "Unable to compile regex expression", "error", err)
@@ -438,9 +428,7 @@ func filterBuffer(filterWrapper responsewriters.FilterWrapper, src *responsewrit
 // that the user must not have access to.
 // The filtered list is re-assigned to `obj.Object["items"]`.
 func (d *resourceFilterer) filterUnstructuredList(obj *unstructured.Unstructured) (hasElems bool) {
-	const (
-		itemsKey = "items"
-	)
+	const itemsKey = "items"
 	if obj == nil || obj.Object == nil {
 		return false
 	}
@@ -454,9 +442,9 @@ func (d *resourceFilterer) filterUnstructuredList(obj *unstructured.Unstructured
 	filteredList := make([]any, 0, len(objList.Items))
 	for _, resource := range objList.Items {
 		gvk := resource.GroupVersionKind()
-		r := getKubeResource(d.kind, gvk.Group, d.verb, &resource)
+		r := getKubeResource(d.metaResource.requestedResource.resourceKind, gvk.Group, d.metaResource.verb, &resource)
 		if result, err := matchKubernetesResource(
-			r, d.isClusterWideResource,
+			r, d.metaResource.isClusterWideResource(),
 			d.allowedResources, d.deniedResources,
 		); result {
 			filteredList = append(filteredList, resource.Object)

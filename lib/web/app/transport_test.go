@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func Test_transport_rewriteRedirect(t *testing.T) {
@@ -219,12 +220,12 @@ func Test_transport_rewriteRedirect(t *testing.T) {
 type fakeTunnel struct {
 	reversetunnelclient.Tunnel
 
-	fakeSite *reversetunnelclient.FakeRemoteSite
-	err      error
+	fakeCluster *reversetunnelclient.FakeCluster
+	err         error
 }
 
-func (f fakeTunnel) GetSite(domainName string) (reversetunnelclient.RemoteSite, error) {
-	return f.fakeSite, f.err
+func (f fakeTunnel) GetSite(domainName string) (reversetunnelclient.Cluster, error) {
+	return f.fakeCluster, f.err
 }
 
 func TestTransport_DialContextNoServersAvailable(t *testing.T) {
@@ -239,7 +240,7 @@ func TestTransport_DialContextNoServersAvailable(t *testing.T) {
 				&types.AppServerV3{Spec: types.AppServerSpecV3{App: &types.AppV3{}}},
 				&types.AppServerV3{Spec: types.AppServerSpecV3{App: &types.AppV3{}}},
 			},
-			log: utils.NewSlogLoggerForTests(),
+			log: logtest.NewLogger(),
 		},
 	}
 

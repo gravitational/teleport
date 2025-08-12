@@ -757,3 +757,43 @@ func (k *Key) SignPayload(payload []byte, opts *jose.SignerOptions) (*jose.JSONW
 	}
 	return signature, nil
 }
+
+// PluginTokenParam defines the parameters needed to sign a JWT token for a Teleport plugin.
+type PluginTokenParam struct {
+	// Audience is the Audience for the Token.
+	Audience []string
+	// Issuer is the issuer of the token.
+	Issuer string
+	// Subject is the system that is going to use the token.
+	Subject string
+	// Expires is the time to live for the token.
+	Expires time.Time
+}
+
+// SignPluginToken signs a JWT token for a Teleport plugin.
+func (k *Key) SignPluginToken(p PluginTokenParam) (string, error) {
+	claims := jwt.Claims{
+		Subject:   p.Subject,
+		Issuer:    p.Issuer,
+		Audience:  p.Audience,
+		NotBefore: jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+		IssuedAt:  jwt.NewNumericDate(k.config.Clock.Now()),
+		Expiry:    jwt.NewNumericDate(p.Expires),
+	}
+
+	// RFC 7517 requires that `kid` be present in the JWT header if there are multiple keys in the JWKS.
+	// We ignore the error because go-jose omits the kid if it is empty.
+	kid, _ := KeyID(k.config.PublicKey)
+	return k.sign(claims, (&jose.SignerOptions{}).WithHeader("kid", kid))
+}
+
+// VerifyPluginToken verifies a JWT token for a Teleport plugin.
+func (k *Key) VerifyPluginToken(token string, claims PluginTokenParam) (*Claims, error) {
+	expectedClaims := jwt.Expected{
+		Issuer:   claims.Issuer,
+		Subject:  claims.Subject,
+		Audience: claims.Audience,
+		Time:     k.config.Clock.Now(),
+	}
+	return k.verify(token, expectedClaims)
+}

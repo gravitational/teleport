@@ -74,9 +74,9 @@ func (p *appProvider) newAppCertSigner(cert []byte, appKey *vnetv1.AppKey, targe
 	}, nil
 }
 
-// OnNewConnection reports a new TCP connection to the target app.
-func (p *appProvider) OnNewConnection(ctx context.Context, appKey *vnetv1.AppKey) error {
-	if err := p.clt.OnNewConnection(ctx, appKey); err != nil {
+// OnNewAppConnection reports a new TCP connection to the target app.
+func (p *appProvider) OnNewAppConnection(ctx context.Context, appKey *vnetv1.AppKey) error {
+	if err := p.clt.OnNewAppConnection(ctx, appKey); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types/autoupdate"
 )
@@ -63,20 +64,10 @@ func TriggerGroups(rollout *autoupdatev1pb.AutoUpdateAgentRollout, reports []*au
 		return trace.Wrap(err)
 	}
 
-	switch desiredState {
-	case autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED:
-		// When unspecified, we default to active
-		desiredState = autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE
-	case autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE:
-	default:
-		return trace.BadParameter("unsupported desired state: %s, supported states are 'unspecified' and 'active'", desiredState)
-	}
-
 	// filter out expired reports
 	validReports := make([]*autoupdatev1pb.AutoUpdateAgentReport, len(reports))
 	for _, report := range reports {
-		// TODO replace time.minute by the auth periodic operation constant
-		if now.Sub(report.GetSpec().GetTimestamp().AsTime()) <= time.Minute {
+		if now.Sub(report.GetSpec().GetTimestamp().AsTime()) <= constants.AutoUpdateAgentReportPeriod {
 			validReports = append(validReports, report)
 		}
 	}
@@ -87,6 +78,15 @@ func TriggerGroups(rollout *autoupdatev1pb.AutoUpdateAgentRollout, reports []*au
 	if len(groups) == 0 {
 		return trace.BadParameter("rollout has no groups")
 	}
+	var initialCount, upToDateCount int
+
+	switch desiredState {
+	case autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED,
+		autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY,
+		autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE:
+	default:
+		return trace.BadParameter("unsupported desired state: %s, supported states are 'unspecified', 'canary' and 'active'", desiredState)
+	}
 
 	// Part where we do the real work, doing a state transition for every requested group.
 	for groupName := range groupsToTrigger {
@@ -95,10 +95,18 @@ func TriggerGroups(rollout *autoupdatev1pb.AutoUpdateAgentRollout, reports []*au
 			return trace.Wrap(err)
 		}
 
+		if groupName == groups[len(groups)-1].GetName() {
+			initialCount, upToDateCount = countCatchAll(rollout.GetStatus(), countByGroup, upToDateByGroup)
+		} else {
+			initialCount = countByGroup[groupName]
+			upToDateCount = upToDateByGroup[groupName]
+		}
+
 		// We check if the group state transition is legal.
 		switch group.GetState() {
 		case autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED,
 			autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
+			autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY,
 			autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK:
 		case autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE:
 			return trace.AlreadyExists("group %q is already active", groupName)
@@ -108,14 +116,22 @@ func TriggerGroups(rollout *autoupdatev1pb.AutoUpdateAgentRollout, reports []*au
 			return trace.BadParameter("group %q in unexpected state %s", groupName, group.GetState())
 		}
 
-		var initialCount, upToDateCount int
-		setGroupState(group, desiredState, updateReasonManualTrigger, now)
-		if groupName == groups[len(groups)-1].GetName() {
-			initialCount, upToDateCount = countCatchAll(rollout.GetStatus(), countByGroup, upToDateByGroup)
-		} else {
-			initialCount = countByGroup[groupName]
-			upToDateCount = upToDateByGroup[groupName]
+		switch desiredState {
+		case autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED:
+			if shouldUseCanaries(group) {
+				// We switch to the canary state but we don't sample canaries now.
+				// Canary sampling will happen during the next reconciliation.
+				desiredState = autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY
+			} else {
+				desiredState = autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE
+			}
+		case autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY,
+			autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE:
+		default:
+			return trace.BadParameter("unsupported desired state: %s, supported states are 'unspecified' and 'active'", desiredState)
 		}
+
+		setGroupState(group, desiredState, updateReasonManualTrigger, now)
 		group.UpToDateCount = uint64(upToDateCount)
 		group.InitialCount = uint64(initialCount)
 		group.PresentCount = uint64(initialCount)
@@ -158,7 +174,8 @@ func ForceGroupsDone(rollout *autoupdatev1pb.AutoUpdateAgentRollout, groupsToFor
 		case autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED,
 			autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 			autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
-			autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE:
+			autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
+			autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY:
 		case autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:
 			return trace.AlreadyExists("group %q is already done", groupName)
 		default:
@@ -179,6 +196,7 @@ func GetStartedGroups(rollout *autoupdatev1pb.AutoUpdateAgentRollout) GroupSet {
 	for _, group := range groups {
 		switch group.GetState() {
 		case autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
+			autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY,
 			autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:
 			startedGroups[group.GetName()] = struct{}{}
 		}

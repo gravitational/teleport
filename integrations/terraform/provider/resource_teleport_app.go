@@ -108,6 +108,7 @@ func (r resourceTeleportApp) Create(ctx context.Context, req tfsdk.CreateResourc
 		
 	// Not really an inferface, just using the same name for easier templating.
 	var appI apitypes.Application
+	// Try getting the resource until it exists.
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
@@ -115,12 +116,13 @@ func (r resourceTeleportApp) Create(ctx context.Context, req tfsdk.CreateResourc
 		appI, err = r.p.Client.GetApp(ctx, id)
 		if trace.IsNotFound(err) {
 			if bErr := backoff.Do(ctx); bErr != nil {
-				resp.Diagnostics.Append(diagFromWrappedErr("Error reading App", trace.Wrap(bErr), "app"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading App", trace.Wrap(err), "app"))
 				return
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading App (tried %d times) - state outdated, please import resource", tries)
 				resp.Diagnostics.AddError(diagMessage, "app")
+				return
 			}
 			continue
 		}

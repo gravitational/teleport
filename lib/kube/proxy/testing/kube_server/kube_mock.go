@@ -393,14 +393,23 @@ func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httpro
 	}
 	defer proxy.Close()
 
+	var outStream, errStream io.Writer
+	if request.tty {
+		outStream = proxy.stdoutStream
+		errStream = proxy.stderrStream
+	} else {
+		outStream = bytes.NewBuffer(nil)
+		errStream = bytes.NewBuffer(nil)
+	}
+
 	if request.stdout {
-		if _, err := proxy.stdoutStream.Write([]byte(request.containerName + "\n")); err != nil {
+		if _, err := outStream.Write([]byte(request.containerName + "\n")); err != nil {
 			s.log.ErrorContext(request.context, "unable to send to stdout", "error", err)
 		}
 	}
 
 	if request.stderr {
-		if _, err := proxy.stderrStream.Write([]byte(request.containerName + "\n")); err != nil {
+		if _, err := errStream.Write([]byte(request.containerName + "\n")); err != nil {
 			s.log.ErrorContext(request.context, "unable to send to stderr", "error", err)
 		}
 	}
@@ -430,19 +439,26 @@ func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httpro
 			}
 
 			if request.stdout {
-				if _, err := proxy.stdoutStream.Write(buffer); err != nil {
+				if _, err := outStream.Write(buffer); err != nil {
 					s.log.ErrorContext(request.context, "unable to send to stdout", "error", err)
 				}
 			}
 
 			if request.stderr {
-				if _, err := proxy.stderrStream.Write(buffer); err != nil {
-					s.log.ErrorContext(request.context, "unable to send to stdout", "error", err)
+				if _, err := errStream.Write(buffer); err != nil {
+					s.log.ErrorContext(request.context, "unable to send to stderr", "error", err)
 				}
 			}
-
 		}
+	}
 
+	if !request.tty {
+		if _, err := io.Copy(proxy.stdoutStream, outStream.(*bytes.Buffer)); err != nil {
+			s.log.ErrorContext(request.context, "unable to copy to stdout", "error", err)
+		}
+		if _, err := io.Copy(proxy.stderrStream, errStream.(*bytes.Buffer)); err != nil {
+			s.log.ErrorContext(request.context, "unable to copy to stderr", "error", err)
+		}
 	}
 
 	return nil, nil
@@ -876,7 +892,6 @@ func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p
 		}
 		upgrader := spdystream.NewResponseUpgraderWithPings(defaults.HighResPollingPeriod)
 		conn = upgrader.UpgradeResponse(w, req, httpStreamReceived(req.Context(), streamChan))
-
 	}
 
 	if conn == nil {
@@ -884,36 +899,118 @@ func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p
 		return nil, err
 	}
 	defer conn.Close()
-	var (
-		data      httpstream.Stream
-		errStream httpstream.Stream
-	)
+
+	// Create a context for managing goroutines.
+	ctx, cancel := context.WithCancel(req.Context())
+	defer cancel()
+
+	// Wait for all active port forwards to complete before returning.
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	// Get pod name
+	podName := p.ByName("name")
+
+	type portStream struct {
+		data       httpstream.Stream
+		error      httpstream.Stream
+		processing bool // Prevent duplicate handlers
+	}
+
+	portStreams := make(map[string]*portStream)
+	var streamsMu sync.Mutex
 
 	for {
 		select {
+		case <-ctx.Done():
+			s.log.InfoContext(ctx, "Context canceled")
+			return nil, nil
 		case <-conn.CloseChan():
+			s.log.InfoContext(ctx, "Connection closed")
 			return nil, nil
 		case stream := <-streamChan:
+			port := stream.Headers().Get(portHeader)
+			if port == "" {
+				s.log.WarnContext(ctx, "Skipping a stream without a port header")
+				continue
+			}
+
+			streamsMu.Lock()
+			if _, ok := portStreams[port]; !ok {
+				portStreams[port] = &portStream{}
+			}
+
+			ps := portStreams[port]
+
 			switch stream.Headers().Get(StreamType) {
 			case StreamTypeError:
-				errStream = stream
+				ps.error = stream
 			case StreamTypeData:
-				data = stream
+				ps.data = stream
+			default:
+				s.log.WarnContext(ctx, "Unknown stream type", "type", stream.Headers().Get(StreamType))
+			}
+
+			// Check whether the port is ready to process.
+			if ps.data != nil && ps.error != nil && !ps.processing {
+				ps.processing = true
+
+				// Process each port.
+				// Use a separate goroutine with each port for concurrency testing.
+				wg.Add(1)
+				go s.handlePortForward(ctx, &wg, port, podName, ps.data, ps.error)
+			}
+
+			streamsMu.Unlock()
+		}
+	}
+}
+
+// handlePortForward reads and writes to a port-forward stream.
+func (s *KubeMockServer) handlePortForward(ctx context.Context, wg *sync.WaitGroup, port string, podName string, dataStream, errorStream httpstream.Stream) {
+	defer wg.Done()
+	defer errorStream.Close()
+
+	// Unblock stream read when the context cancels.
+	stop := context.AfterFunc(ctx, func() { dataStream.Close() })
+	defer func() {
+		// Ensure that dataStream closes only once.
+		// httpstream.Stream.Close is not idempotent.
+		// stop() is true when AfterFunc hasn't run.
+		if stop() {
+			dataStream.Close()
+		}
+	}()
+
+	// Read from source.
+	buf := make([]byte, 1024)
+	n, readErr := dataStream.Read(buf)
+
+	// Process any data received, regardless of error.
+	// Behavior is based on the io.Reader contract.
+	// Handles the case where Read returns data and io.EOF.
+	if n > 0 {
+		// Write to target.
+		_, writeErr := fmt.Fprint(dataStream, PortForwardPayload, podName, string(buf[:n]))
+		if writeErr != nil {
+			s.log.ErrorContext(ctx, "Unable to write response", "error", writeErr)
+			if _, errWriteErr := errorStream.Write([]byte(writeErr.Error())); errWriteErr != nil {
+				s.log.ErrorContext(ctx, "Unable to write error", "error", errWriteErr)
 			}
 		}
-		if errStream != nil && data != nil {
-			break
-		}
+		return
 	}
 
-	buf := make([]byte, 1024)
-	n, err := data.Read(buf)
-	if err != nil {
-		errStream.Write([]byte(err.Error()))
-		return nil, nil
+	// Check for read error.
+	if readErr != nil && !errors.Is(readErr, io.EOF) {
+		s.log.ErrorContext(ctx, "Read error", "port", port, "error", readErr)
+		if _, writeErr := errorStream.Write([]byte(readErr.Error())); writeErr != nil {
+			s.log.ErrorContext(ctx, "Unable to write error", "error", writeErr)
+		}
+		return
 	}
-	fmt.Fprint(data, PortForwardPayload, p.ByName("name"), string(buf[:n]))
-	return nil, nil
+
+	s.log.InfoContext(ctx, "Port forward completed", "port", port)
 }
 
 // httpStreamReceived is the httpstream.NewStreamHandler for port

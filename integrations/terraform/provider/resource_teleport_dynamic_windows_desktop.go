@@ -108,6 +108,7 @@ func (r resourceTeleportDynamicWindowsDesktop) Create(ctx context.Context, req t
 		
 	// Not really an inferface, just using the same name for easier templating.
 	var desktopI apitypes.DynamicWindowsDesktop
+	// Try getting the resource until it exists.
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
@@ -115,12 +116,13 @@ func (r resourceTeleportDynamicWindowsDesktop) Create(ctx context.Context, req t
 		desktopI, err = r.p.Client.DynamicDesktopClient().GetDynamicWindowsDesktop(ctx, id)
 		if trace.IsNotFound(err) {
 			if bErr := backoff.Do(ctx); bErr != nil {
-				resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Wrap(bErr), "dynamic_windows_desktop"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Wrap(err), "dynamic_windows_desktop"))
 				return
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading DynamicWindowsDesktop (tried %d times) - state outdated, please import resource", tries)
 				resp.Diagnostics.AddError(diagMessage, "dynamic_windows_desktop")
+				return
 			}
 			continue
 		}

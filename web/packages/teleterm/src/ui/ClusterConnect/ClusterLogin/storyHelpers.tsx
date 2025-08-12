@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ArgTypes } from '@storybook/react';
+import { ArgTypes } from '@storybook/react-vite';
 import { FC, PropsWithChildren } from 'react';
 
 import Dialog from 'design/Dialog';

@@ -19,7 +19,7 @@
 package rdpclient
 
 /*
-#include <librdprs.h>
+#include <librdpclient.h>
 */
 import "C"
 

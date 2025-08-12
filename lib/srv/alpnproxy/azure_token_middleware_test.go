@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestAzureTokenMiddlewareHandleRequest(t *testing.T) {
@@ -69,7 +69,7 @@ func testAzureTokenMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algori
 		Identity: "azureTestIdentity",
 		TenantID: "cafecafe-cafe-4aaa-cafe-cafecafecafe",
 		ClientID: "decaffff-cafe-4aaa-cafe-cafecafecafe",
-		Log:      utils.NewSlogLoggerForTests(),
+		Log:      logtest.NewLogger(),
 		Clock:    clockwork.NewFakeClockAt(time.Date(2022, 1, 1, 9, 0, 0, 0, time.UTC)),
 		Secret:   "my-secret",
 	}

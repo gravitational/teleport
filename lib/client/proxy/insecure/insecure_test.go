@@ -35,7 +35,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/fixtures"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -51,7 +51,7 @@ func TestVerifyALPNUpgradedConn(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestTLSServer(t)
-	proxy, err := auth.NewServerIdentity(srv.Auth(), "test-proxy", types.RoleProxy)
+	proxy, err := authtest.NewServerIdentity(srv.Auth(), "test-proxy", types.RoleProxy)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -92,8 +92,8 @@ func TestVerifyALPNUpgradedConn(t *testing.T) {
 	}
 }
 
-func newTestTLSServer(t testing.TB) *auth.TestTLSServer {
-	as, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+func newTestTLSServer(t testing.TB) *authtest.TLSServer {
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
 	})

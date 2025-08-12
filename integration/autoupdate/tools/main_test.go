@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/integration/helpers/archive"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 const (
@@ -61,7 +62,7 @@ var (
 
 func TestMain(m *testing.M) {
 	modules.SetInsecureTestMode(true)
-	modules.SetModules(&modules.TestModules{TestBuildType: modules.BuildCommunity})
+	modules.SetModules(&modulestest.Modules{TestBuildType: modules.BuildCommunity})
 	ctx := context.Background()
 	tmp, err := os.MkdirTemp(os.TempDir(), testBinaryName)
 	if err != nil {

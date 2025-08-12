@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestBundleSet_Clone(t *testing.T) {
@@ -159,7 +159,7 @@ func makeSPIFFEBundle(t *testing.T, td string) *spiffebundle.Bundle {
 func TestTrustBundleCache_Run(t *testing.T) {
 	t.Parallel()
 
-	logger := utils.NewSlogLoggerForTests()
+	logger := logtest.NewLogger()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

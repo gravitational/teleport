@@ -129,6 +129,7 @@ func TestSessionStartEvent(t *testing.T) {
 			RemoteAddr: testDesktop.GetAddr(),
 			Protocol:   libevents.EventProtocolTDP,
 		},
+		CertMetadata: new(events.WindowsCertificateMetadata),
 		Status: events.Status{
 			Success: true,
 		},

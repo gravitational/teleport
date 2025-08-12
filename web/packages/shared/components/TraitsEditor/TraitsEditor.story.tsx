@@ -26,13 +26,8 @@ export default {
   title: 'Shared/TraitsEditor',
 };
 
-export const TraitsEditorWithoutToolTip = () => {
-  const [traits, setTraits] = useState<TraitsOption[]>([
-    {
-      traitKey: { label: 'logins', value: 'logins' },
-      traitValues: [{ label: 'root', value: 'root' }],
-    },
-  ]);
+export const TraitsEditorBasic = () => {
+  const [traits, setTraits] = useState<TraitsOption[]>(mockConfiguredTraits);
 
   return (
     <Validation>
@@ -76,3 +71,26 @@ export const TraitsEditorWithToolTip = () => {
     </Validation>
   );
 };
+
+export const TraitsEditorWithCustomLabels = () => {
+  const [traits, setTraits] = useState<TraitsOption[]>(mockConfiguredTraits);
+
+  return (
+    <Validation>
+      <TraitsEditor
+        isLoading={false}
+        configuredTraits={traits}
+        setConfiguredTraits={setTraits}
+        addActionLabel="Custom Action"
+        addActionSubsequentLabel="Custom Subsequent Action"
+      />
+    </Validation>
+  );
+};
+
+const mockConfiguredTraits = [
+  {
+    traitKey: { label: 'logins', value: 'logins' },
+    traitValues: [{ label: 'root', value: 'root' }],
+  },
+];

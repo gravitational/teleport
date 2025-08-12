@@ -53,11 +53,7 @@ func createCertificate(principal string, certType uint32, algo cryptosuites.Algo
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	caPublicKey, err := ssh.NewPublicKey(caKey.Public())
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	caSigner, err := ssh.NewSignerFromKey(caKey)
+	caSigner, err := ssh.NewSignerFromSigner(caKey)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -81,7 +77,6 @@ func createCertificate(principal string, certType uint32, algo cryptosuites.Algo
 		KeyId:           principal,
 		ValidPrincipals: []string{principal},
 		Key:             publicKey,
-		SignatureKey:    caPublicKey,
 		ValidAfter:      uint64(time.Now().UTC().Add(-1 * time.Minute).Unix()),
 		ValidBefore:     uint64(time.Now().UTC().Add(1 * time.Minute).Unix()),
 		CertType:        certType,

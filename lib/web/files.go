@@ -39,9 +39,9 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
-	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -66,10 +66,10 @@ type fileTransferRequest struct {
 	moderatedSessionID string
 }
 
-func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	query := r.URL.Query()
 	req := fileTransferRequest{
-		cluster:               site.GetName(),
+		cluster:               cluster.GetName(),
 		login:                 p.ByName("login"),
 		serverID:              p.ByName("server"),
 		remoteLocation:        query.Get("location"),
@@ -98,7 +98,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.BadParameter("fileTransferRequestId and moderatedSessionId must both be included in the same request.")
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -160,7 +160,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		ctx = context.WithValue(ctx, sftp.ModeratedSessionID, req.moderatedSessionID)
 	}
 
-	accessPoint, err := site.CachingAccessPoint()
+	accessPoint, err := cluster.CachingAccessPoint()
 	if err != nil {
 		h.logger.DebugContext(r.Context(), "Unable to get auth access point", "error", err)
 		return nil, trace.Wrap(err)
@@ -171,9 +171,8 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.Wrap(err)
 	}
 
-	getAgent := func() (teleagent.Agent, error) {
-		return teleagent.NopCloser(tc.LocalAgent()), nil
-	}
+	getAgent := sshagent.NewStaticClientGetter(tc.LocalAgent())
+
 	cert, err := sctx.GetSSHCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)

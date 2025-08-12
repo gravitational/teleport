@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { getBotType } from './consts';
+import { canUseV1Edit, getBotType } from './consts';
 import { BotUiFlow } from './types';
 
 describe('getBotType', () => {
@@ -43,5 +43,18 @@ describe('getBotType', () => {
       Object.entries({ 'unrelated-label': 'github-actions-ssh' })
     );
     expect(getBotType(labels)).toBeNull();
+  });
+});
+
+describe('canUseV1Edit', () => {
+  it.each`
+    name                                   | req                                               | expected
+    ${'empty'}                             | ${{}}                                             | ${true}
+    ${'only roles'}                        | ${{ roles: [] }}                                  | ${true}
+    ${'only traits'}                       | ${{ traits: [] }}                                 | ${false}
+    ${'only max_session_ttl'}              | ${{ max_session_ttl: '' }}                        | ${false}
+    ${'roles, traits and max_session_ttl'} | ${{ roles: [], traits: [], max_session_ttl: '' }} | ${false}
+  `('$name', ({ req, expected }) => {
+    expect(canUseV1Edit(req)).toBe(expected);
   });
 });

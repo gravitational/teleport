@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { action } from '@storybook/addon-actions';
-import { useArgs } from '@storybook/preview-api';
-import type { Meta, StoryFn, StoryObj } from '@storybook/react';
+import type { Meta, StoryFn, StoryObj } from '@storybook/react-vite';
+import { action } from 'storybook/actions';
+import { useArgs } from 'storybook/preview-api';
 
 import { Flex } from 'design';
 

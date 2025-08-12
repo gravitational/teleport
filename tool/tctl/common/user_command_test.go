@@ -85,7 +85,9 @@ func TestUserAdd(t *testing.T) {
 	}
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
 	ctx := context.Background()
-	client := testenv.MakeDefaultAuthClient(t, process)
+	client, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
 
 	tests := []struct {
 		name string
@@ -189,6 +191,13 @@ func TestUserAdd(t *testing.T) {
 				require.ErrorContains(t, err, "GCP service account \"foobar\" is invalid")
 			},
 		},
+		{
+			name: "mcp tools",
+			args: []string{"--mcp-tools", "aa,bb", "--mcp-tools", "get_*"},
+			wantTraits: map[string][]string{
+				constants.TraitMCPTools: {"aa", "bb", "get_*"},
+			},
+		},
 	}
 
 	for ix, tc := range tests {
@@ -237,7 +246,9 @@ func TestUserUpdate(t *testing.T) {
 	}
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
 	ctx := context.Background()
-	client := testenv.MakeDefaultAuthClient(t, process)
+	client, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
 
 	baseUser, err := types.NewUser("test-user")
 	require.NoError(t, err)
@@ -350,6 +361,13 @@ func TestUserUpdate(t *testing.T) {
 			args: []string{"--set-gcp-service-accounts", "foobar"},
 			errorChecker: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "GCP service account \"foobar\" is invalid")
+			},
+		},
+		{
+			name: "mcp tools",
+			args: []string{"--set-mcp-tools", "aa,bb", "--set-mcp-tools", "get_*"},
+			wantTraits: map[string][]string{
+				constants.TraitMCPTools: {"aa", "bb", "get_*"},
 			},
 		},
 	}

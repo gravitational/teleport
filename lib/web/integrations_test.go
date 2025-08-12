@@ -40,9 +40,10 @@ import (
 	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	libui "github.com/gravitational/teleport/lib/ui"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -170,9 +171,10 @@ func TestIntegrationsCRUDRolesAnywhere(t *testing.T) {
 		AWSRA: &ui.IntegrationAWSRASpec{
 			TrustAnchorARN: updatedTrustAnchor,
 			ProfileSyncConfig: ui.AWSRAProfileSync{
-				Enabled:    true,
-				ProfileARN: syncProfileARN,
-				RoleARN:    syncRoleARN,
+				Enabled:            true,
+				ProfileARN:         syncProfileARN,
+				RoleARN:            syncRoleARN,
+				ProfileNameFilters: []string{"ExposedProfile-*"},
 			},
 		},
 	}
@@ -196,6 +198,8 @@ func TestIntegrationsCRUDRolesAnywhere(t *testing.T) {
 	require.True(t, integrationObject.AWSRA.ProfileSyncConfig.Enabled)
 	require.Equal(t, syncProfileARN, integrationObject.AWSRA.ProfileSyncConfig.ProfileARN)
 	require.Equal(t, syncRoleARN, integrationObject.AWSRA.ProfileSyncConfig.RoleARN)
+	require.Len(t, integrationObject.AWSRA.ProfileSyncConfig.ProfileNameFilters, 1)
+	require.Equal(t, "ExposedProfile-*", integrationObject.AWSRA.ProfileSyncConfig.ProfileNameFilters[0])
 
 	// Delete Integration
 	err = wPack.server.Auth().DeleteIntegration(ctx, integrationName)
@@ -242,7 +246,7 @@ func (m *mockUserTasksLister) ListUserTasks(ctx context.Context, pageSize int64,
 
 func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 	ctx := context.Background()
-	logger := utils.NewSlogLoggerForTests()
+	logger := logtest.NewLogger()
 
 	integrationName := "my-integration"
 	integration, err := types.NewIntegrationAWSOIDC(
@@ -793,7 +797,7 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 // The test cases in this test are performed sequentially and each test case
 // depends on the previous state.
 func TestGitHubIntegration(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	wPack := newWebPack(t, 1 /* proxies */)
 	proxy := wPack.proxies[0]

@@ -20,6 +20,7 @@ package events
 
 import (
 	"context"
+	"iter"
 	"log/slog"
 	"sync/atomic"
 
@@ -73,6 +74,14 @@ func (d *DiscardAuditLog) StreamSessionEvents(ctx context.Context, sessionID ses
 	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
 	close(c)
 	return c, e
+}
+
+func (d *DiscardAuditLog) UploadEncryptedRecording(ctx context.Context, sessionID string, parts iter.Seq2[[]byte, error]) error {
+	return nil
+}
+
+func (d *DiscardAuditLog) GetMultipartUploader() MultipartUploader {
+	return nil
 }
 
 // NewDiscardRecorder returns a [SessionRecorderChecker] that discards events.

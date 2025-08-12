@@ -148,11 +148,13 @@ export function FilterPanel({
           />
         </HoverTooltip>
         <MultiselectMenu
-          options={availableKinds.map(({ kind, disabled }) => ({
-            value: kind,
-            label: kindToLabel[kind],
-            disabled: disabled,
-          }))}
+          options={availableKinds.map(
+            ({ kind, disabled }: { kind: string; disabled: boolean }) => ({
+              value: kind,
+              label: kindToLabel[kind],
+              disabled: disabled,
+            })
+          )}
           selected={kinds || []}
           onChange={onKindsChanged}
           label="Types"

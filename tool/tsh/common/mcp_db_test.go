@@ -48,13 +48,13 @@ func TestMCPDBCommand(t *testing.T) {
 	connector := mockConnector(t)
 	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
-	alice.SetDatabaseUsers([]string{"postgres"})
-	alice.SetDatabaseNames([]string{"postgres"})
+	alice.SetDatabaseUsers([]string{"postgres", "root"})
+	alice.SetDatabaseNames([]string{"postgres", "defaultdb"})
 	alice.SetRoles([]string{"access"})
 
-	authProcess := testserver.MakeTestServer(
-		t,
-		testserver.WithClusterName(t, "root"),
+	authProcess, err := testserver.NewTeleportProcess(
+		t.TempDir(),
+		testserver.WithClusterName("root"),
 		testserver.WithBootstrap(connector, alice),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
@@ -71,6 +71,11 @@ func TestMCPDBCommand(t *testing.T) {
 					URI:      "external-pg:5432",
 				},
 				{
+					Name:     "cockroach",
+					Protocol: defaults.ProtocolCockroachDB,
+					URI:      "external-cockroach:5432",
+				},
+				{
 					Name:     "mysql-local",
 					Protocol: defaults.ProtocolMySQL,
 					URI:      "external-mysql:3306",
@@ -78,6 +83,11 @@ func TestMCPDBCommand(t *testing.T) {
 			}
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authProcess.Close())
+		require.NoError(t, authProcess.Wait())
+	})
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
@@ -104,13 +114,29 @@ func TestMCPDBCommand(t *testing.T) {
 			"start",
 			"teleport://clusters/root/databases/postgres1?dbUser=postgres&dbName=postgres",
 			"teleport://clusters/root/databases/postgres2?dbUser=postgres&dbName=postgres",
+			"teleport://clusters/root/databases/cockroach?dbUser=root&dbName=defaultdb",
 		}, setHomePath(tmpHomePath), func(c *CLIConf) error {
 			c.overrideStdin = stdin
 			c.OverrideStdout = stdout
 			// MCP server logs are going to be discarded.
 			c.overrideStderr = io.Discard
+
+			// Fake a query tool for each database.
+			addDBQueryTool := func(protocol string, nsc *dbmcp.NewServerConfig) {
+				nsc.RootServer.AddTool(
+					mcp.NewTool(dbmcp.ToolName(protocol, "query")),
+					func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+						return nil, trace.NotImplemented("not implemented")
+					},
+				)
+			}
 			c.databaseMCPRegistryOverride = map[string]dbmcp.NewServerFunc{
 				defaults.ProtocolPostgres: func(ctx context.Context, nsc *dbmcp.NewServerConfig) (dbmcp.Server, error) {
+					addDBQueryTool(defaults.ProtocolPostgres, nsc)
+					return &testDatabaseMCP{}, nil
+				},
+				defaults.ProtocolCockroachDB: func(ctx context.Context, nsc *dbmcp.NewServerConfig) (dbmcp.Server, error) {
+					addDBQueryTool(defaults.ProtocolCockroachDB, nsc)
 					return &testDatabaseMCP{}, nil
 				},
 			}
@@ -134,7 +160,19 @@ func TestMCPDBCommand(t *testing.T) {
 		require.NoError(collect, clt.Ping(t.Context()))
 	}, time.Second, 100*time.Millisecond)
 
-	// Stop the MCP server command and wait until it is finshed.
+	tools, err := clt.ListTools(t.Context(), mcp.ListToolsRequest{})
+	require.NoError(t, err)
+	var toolNames []string
+	for _, tool := range tools.Tools {
+		toolNames = append(toolNames, tool.Name)
+	}
+	require.ElementsMatch(t, []string{
+		"teleport_list_databases",
+		"teleport_postgres_query",
+		"teleport_cockroachdb_query",
+	}, toolNames)
+
+	// Stop the MCP server command and wait until it is finished.
 	cancel()
 	select {
 	case err := <-executionCh:
@@ -155,9 +193,9 @@ func TestMCPDBCommandFailures(t *testing.T) {
 	alice.SetRoles([]string{"access"})
 	clusterName := "root"
 
-	authProcess := testserver.MakeTestServer(
-		t,
-		testserver.WithClusterName(t, clusterName),
+	authProcess, err := testserver.NewTeleportProcess(
+		t.TempDir(),
+		testserver.WithClusterName(clusterName),
 		testserver.WithBootstrap(connector, alice),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
@@ -181,6 +219,11 @@ func TestMCPDBCommandFailures(t *testing.T) {
 			}
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authProcess.Close())
+		require.NoError(t, authProcess.Wait())
+	})
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)

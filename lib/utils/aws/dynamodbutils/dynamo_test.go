@@ -21,7 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/utils/aws/dynamodbutils"
 )
 
@@ -54,7 +54,7 @@ func TestIsFIPSEnabled(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Setenv("TELEPORT_UNSTABLE_DISABLE_AWS_FIPS", test.envVarValue)
 
-			modules.SetTestModules(t, &modules.TestModules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				FIPS: test.fips,
 			})
 

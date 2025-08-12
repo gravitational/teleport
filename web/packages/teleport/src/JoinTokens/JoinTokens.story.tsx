@@ -37,7 +37,7 @@ export const Loaded = () => (
 Loaded.parameters = {
   msw: {
     handlers: [
-      http.get(cfg.api.joinTokensPath, () => {
+      http.get(cfg.api.joinToken.list, () => {
         return HttpResponse.json({ items: tokens });
       }),
       http.put(cfg.api.joinTokenYamlPath, () => {

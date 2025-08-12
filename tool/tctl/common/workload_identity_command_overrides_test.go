@@ -215,7 +215,7 @@ func TestOverrideSign(t *testing.T) {
 
 	l, err := out.ReadString('\n')
 	require.NoError(t, err)
-	require.Equal(t, "CN=csr1\n", l)
+	require.Equal(t, "CN=c1\n", l)
 	b, rest := pem.Decode(out.Bytes())
 	require.NotNil(t, b)
 	require.Equal(t, "CERTIFICATE REQUEST", b.Type)
@@ -224,12 +224,68 @@ func TestOverrideSign(t *testing.T) {
 
 	l, err = out.ReadString('\n')
 	require.NoError(t, err)
-	require.Equal(t, "CN=csr2\n", l)
+	require.Equal(t, "CN=c2\n", l)
 	b, rest = pem.Decode(out.Bytes())
 	require.NotNil(t, b)
 	require.Equal(t, "CERTIFICATE REQUEST", b.Type)
 	require.Equal(t, csr2, b.Bytes)
 	out.Next(out.Len() - len(rest))
+
+	require.Zero(t, out.Len())
+
+	clt = runFakeAPIServer(t, func(s *grpc.Server) {
+		proto.RegisterAuthServiceServer(s, &domainNameServer{
+			domainName: "clustername",
+		})
+		trustv1.RegisterTrustServiceServer(s, &caServer{
+			cas: map[types.CertAuthID]*types.CertAuthorityV2{
+				{Type: types.SPIFFECA, DomainName: "clustername"}: {
+					Spec: types.CertAuthoritySpecV2{
+						ActiveKeys: types.CAKeySet{
+							TLS: []*types.TLSKeyPair{
+								{Cert: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: c1.Leaf.Raw})},
+								{Cert: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: c2.Leaf.Raw})},
+							},
+						},
+					},
+				},
+			},
+		})
+		workloadidentityv1.RegisterX509OverridesServiceServer(s, &csrServer{
+			resp: map[string][]byte{
+				string(c1.Leaf.Raw): csr1,
+			},
+		})
+	})
+
+	out.Reset()
+
+	err = runCommand(t, clt, &WorkloadIdentityCommand{stdout: out}, []string{
+		"workload-identity", "x509-issuer-overrides", "sign-csrs",
+	})
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
+	require.Zero(t, out.Len())
+
+	err = runCommand(t, clt, &WorkloadIdentityCommand{stdout: out}, []string{
+		"workload-identity", "x509-issuer-overrides", "sign-csrs", "--force",
+	})
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
+
+	l, err = out.ReadString('\n')
+	require.NoError(t, err)
+	require.Equal(t, "CN=c1\n", l)
+	b, rest = pem.Decode(out.Bytes())
+	require.NotNil(t, b)
+	require.Equal(t, "CERTIFICATE REQUEST", b.Type)
+	require.Equal(t, csr1, b.Bytes)
+	out.Next(out.Len() - len(rest))
+
+	l, err = out.ReadString('\n')
+	require.NoError(t, err)
+	require.Equal(t, "CN=c2\n", l)
+	l, err = out.ReadString('\n')
+	require.NoError(t, err)
+	require.Equal(t, signKeyNotFoundMessage+"\n", l)
 
 	require.Zero(t, out.Len())
 }
@@ -292,13 +348,15 @@ type csrServer struct {
 	resp map[string][]byte
 }
 
+const signKeyNotFoundMessage = "key not found or something idk"
+
 func (s *csrServer) SignX509IssuerCSR(ctx context.Context, req *workloadidentityv1.SignX509IssuerCSRRequest) (*workloadidentityv1.SignX509IssuerCSRResponse, error) {
 	if req.GetCsrCreationMode() == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "")
 	}
 	csr, ok := s.resp[string(req.GetIssuer())]
 	if !ok {
-		return nil, status.Errorf(codes.NotFound, "")
+		return nil, status.Errorf(codes.NotFound, signKeyNotFoundMessage)
 	}
 	return &workloadidentityv1.SignX509IssuerCSRResponse{Csr: csr}, nil
 }

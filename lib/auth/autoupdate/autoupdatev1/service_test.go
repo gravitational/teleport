@@ -38,6 +38,7 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
@@ -879,12 +880,12 @@ func generateGroups(n int, days []string) []*autoupdatev1pb.AgentAutoUpdateGroup
 }
 
 func TestValidateServerSideAgentConfig(t *testing.T) {
-	cloudModules := &modules.TestModules{
+	cloudModules := modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud: true,
 		},
 	}
-	cloudUnlimitedModules := &modules.TestModules{
+	cloudUnlimitedModules := modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud: true,
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -892,7 +893,7 @@ func TestValidateServerSideAgentConfig(t *testing.T) {
 			},
 		},
 	}
-	selfHostedModules := &modules.TestModules{
+	selfHostedModules := modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud: false,
 		},
@@ -900,7 +901,7 @@ func TestValidateServerSideAgentConfig(t *testing.T) {
 	tests := []struct {
 		name      string
 		config    *autoupdatev1pb.AutoUpdateConfigSpecAgents
-		modules   modules.Modules
+		modules   modulestest.Modules
 		expectErr require.ErrorAssertionFunc
 	}{
 		{
@@ -1049,7 +1050,7 @@ func TestValidateServerSideAgentConfig(t *testing.T) {
 					Agents: tt.config,
 				})
 			require.NoError(t, err)
-			modules.SetTestModules(t, tt.modules)
+			modulestest.SetTestModules(t, tt.modules)
 
 			// Test execution.
 			tt.expectErr(t, validateServerSideAgentConfig(config))

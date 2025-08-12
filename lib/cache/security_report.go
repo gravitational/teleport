@@ -24,6 +24,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/secreports"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -46,26 +48,13 @@ func newAuditQueryCollection(upstream services.SecReports, w types.WatchKind) (*
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*secreports.AuditQuery, error) {
-			var out []*secreports.AuditQuery
-			var nextToken string
-			for {
-				var page []*secreports.AuditQuery
-				var err error
-
-				page, nextToken, err = upstream.ListSecurityAuditQueries(ctx, 0 /* default page size */, nextToken)
-				if err != nil {
-					// AccessDenied is returned if the cluster is not licensed for access monitoring.
-					if trace.IsAccessDenied(err) {
-						return nil, nil
-					}
-					return nil, trace.Wrap(err)
-				}
-				out = append(out, page...)
-				if nextToken == "" {
-					break
-				}
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListSecurityAuditQueries))
+			// AccessDenied is returned if the cluster is not licensed for access monitoring.
+			if trace.IsAccessDenied(err) {
+				return nil, nil
 			}
-			return out, nil
+
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *secreports.AuditQuery {
 			return &secreports.AuditQuery{
@@ -158,27 +147,13 @@ func newSecurityReportCollection(upstream services.SecReports, w types.WatchKind
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*secreports.Report, error) {
-			var out []*secreports.Report
-			var nextToken string
-			for {
-				var page []*secreports.Report
-				var err error
-
-				page, nextToken, err = upstream.ListSecurityReports(ctx, 0 /* default page size */, nextToken)
-				if err != nil {
-					// AccessDenied is returned if the cluster is not licensed for access monitoring.
-					if trace.IsAccessDenied(err) {
-						return nil, nil
-					}
-
-					return nil, trace.Wrap(err)
-				}
-				out = append(out, page...)
-				if nextToken == "" {
-					break
-				}
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListSecurityReports))
+			// AccessDenied is returned if the cluster is not licensed for access monitoring.
+			if trace.IsAccessDenied(err) {
+				return nil, nil
 			}
-			return out, nil
+
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *secreports.Report {
 			return &secreports.Report{
@@ -271,27 +246,12 @@ func newSecurityReportStateCollection(upstream services.SecReports, w types.Watc
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*secreports.ReportState, error) {
-			var out []*secreports.ReportState
-			var nextToken string
-			for {
-				var page []*secreports.ReportState
-				var err error
-
-				page, nextToken, err = upstream.ListSecurityReportsStates(ctx, 0 /* default page size */, nextToken)
-				if err != nil {
-					// AccessDenied is returned if the cluster is not licensed for access monitoring.
-					if trace.IsAccessDenied(err) {
-						return nil, nil
-					}
-
-					return nil, trace.Wrap(err)
-				}
-				out = append(out, page...)
-				if nextToken == "" {
-					break
-				}
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListSecurityReportsStates))
+			// AccessDenied is returned if the cluster is not licensed for access monitoring.
+			if trace.IsAccessDenied(err) {
+				return nil, nil
 			}
-			return out, nil
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *secreports.ReportState {
 			return &secreports.ReportState{

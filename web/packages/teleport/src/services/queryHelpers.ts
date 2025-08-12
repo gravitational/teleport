@@ -252,12 +252,6 @@ export function createQueryHook<
       variables?: TVariables,
       options?: Omit<UseQueryOptions<TData, TError>, 'queryKey' | 'queryFn'>
     ) {
-      const key = [...queryKey];
-
-      if (variables) {
-        key.push(JSON.stringify(variables));
-      }
-
       return reactQuery.useQuery({
         ...wrapped.createQuery(variables),
         ...options,

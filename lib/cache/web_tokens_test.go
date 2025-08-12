@@ -17,6 +17,7 @@
 package cache
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -32,13 +33,15 @@ func TestWebTokens(t *testing.T) {
 	testResources(t, p, testFuncs[types.WebToken]{
 		newResource: func(name string) (types.WebToken, error) {
 			return types.NewWebToken(time.Now().Add(time.Hour), types.WebTokenSpecV3{
-				Token: "test",
+				Token: name,
 				User:  "llama",
 			})
 		},
-		create:    p.webTokenS.Upsert,
-		list:      p.webTokenS.List,
-		cacheList: p.cache.GetWebTokens,
+		create: p.webTokenS.Upsert,
+		list:   p.webTokenS.List,
+		cacheList: func(ctx context.Context, pageSize int) ([]types.WebToken, error) {
+			return p.cache.GetWebTokens(ctx)
+		},
 		deleteAll: p.webTokenS.DeleteAll,
 	})
 }

@@ -29,12 +29,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestPlainFileOpsReservations(t *testing.T) {
 	ctx := context.Background()
-	rec := NewPlainFileRecorder(utils.NewSlogLoggerForTests(), os.OpenFile)
+	rec := NewPlainFileRecorder(logtest.NewLogger(), os.OpenFile)
 	base := t.TempDir()
 	reservation := filepath.Join(base, "reservation")
 	var fileSize int64 = 512
@@ -58,7 +58,7 @@ func TestPlainFileOpsReservations(t *testing.T) {
 
 func TestPlainFileOpsCombineParts(t *testing.T) {
 	ctx := context.Background()
-	rec := NewPlainFileRecorder(utils.NewSlogLoggerForTests(), os.OpenFile)
+	rec := NewPlainFileRecorder(logtest.NewLogger(), os.OpenFile)
 	base := t.TempDir()
 	parts := []string{"part1", "part2", "part3"}
 	partPaths := make([]string, len(parts))

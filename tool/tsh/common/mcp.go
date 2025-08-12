@@ -58,14 +58,16 @@ type mcpClientConfigFlags struct {
 
 const (
 	mcpClientConfigClaude = "claude"
+	mcpClientConfigCursor = "cursor"
 )
 
 func (m *mcpClientConfigFlags) addToCmd(cmd *kingpin.CmdClause) {
 	cmd.Flag(
 		"client-config",
 		fmt.Sprintf(
-			"If specified, update the specified client config. %q for default Claude Desktop config, or specify a JSON file path. Can also be set with environment variable %s.",
+			"If specified, update the specified client config. %q for default Claude Desktop config, %q for global Cursor MCP servers config, or specify a JSON file path. Can also be set with environment variable %s.",
 			mcpClientConfigClaude,
+			mcpClientConfigCursor,
 			mcpClientConfigEnvVar,
 		)).
 		Envar(mcpClientConfigEnvVar).
@@ -92,6 +94,8 @@ func (m *mcpClientConfigFlags) loadConfig() (*claude.FileConfig, error) {
 	switch m.clientConfig {
 	case mcpClientConfigClaude:
 		return claude.LoadConfigFromDefaultPath()
+	case mcpClientConfigCursor:
+		return claude.LoadConfigFromGlobalCursor()
 	default:
 		return claude.LoadConfigFromFile(m.clientConfig)
 	}
@@ -107,9 +111,7 @@ func (m *mcpClientConfigFlags) jsonFormatOptions() []string {
 }
 
 func (m *mcpClientConfigFlags) printHint(w io.Writer) error {
-	_, err := fmt.Fprintln(w, `Tip: use --client-config=claude to update your Claude Desktop configuration.
-You can also specify a custom config path with --client-config=<path> to update
-a config file compatible with the "mcpServer" mapping.`)
+	_, err := fmt.Fprintln(w, mcpConfigHint)
 	return trace.Wrap(err)
 }
 
@@ -149,3 +151,11 @@ func getLoggingOptsForMCPServer(cf *CLIConf) loggingOpts {
 		debug: true,
 	})
 }
+
+// mcpConfigHint is the hint message displayed when the configuration is shown
+// to users.
+const mcpConfigHint = `Tip: You can use this command to update your MCP servers configuration file automatically.
+- For Claude Desktop, use --client-config=claude to update the default configuration.
+- For Cursor, use --client-config=cursor to update the global MCP servers configuration.
+In addition, you can use --client-config=<path> to specify a config file location that is compatible with the "mcpServers" mapping.
+For example, you can update a Cursor project using --client-config=<path-to-project>/.cursor/mcp.json`

@@ -13,14 +13,14 @@ Install Teleport on your Linux server:
    with the updater:
 
    ```code
-   $ TELEPORT_DOMAIN=<Var name="example.teleport.com" />
+   $ TELEPORT_DOMAIN=<Var name="teleport.example.com" />
    $ TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/automaticupgrades/channel/default/version | sed 's/v//')"
    ```
    
    Otherwise, get the version of your Teleport cluster:
    
    ```code 
-   $ TELEPORT_DOMAIN=<Var name="example.teleport.com" />
+   $ TELEPORT_DOMAIN=<Var name="teleport.example.com" />
    $ TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/ping | jq -r '.server_version')"
    ```
 
@@ -33,5 +33,5 @@ Install Teleport on your Linux server:
    The installation script detects the package manager on your Linux server and
    uses it to install Teleport binaries. To customize your installation, learn
    about the Teleport package repositories in the [installation
-   guide](../installation.mdx#linux).
+   guide](../installation/linux.mdx).
 

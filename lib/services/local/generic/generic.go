@@ -158,13 +158,18 @@ func (s *Service[T]) CountResources(ctx context.Context) (uint, error) {
 	rangeEnd := backend.RangeEnd(rangeStart)
 
 	count := uint(0)
-	err := backend.IterateRange(ctx, s.backend, rangeStart, rangeEnd, int(s.pageLimit),
-		func(items []backend.Item) (stop bool, err error) {
-			count += uint(len(items))
-			return false, nil
-		})
+	for _, err := range s.backend.Items(ctx, backend.ItemsParams{
+		StartKey: rangeStart,
+		EndKey:   rangeEnd,
+	}) {
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
 
-	return count, trace.Wrap(err)
+		count++
+	}
+
+	return count, nil
 }
 
 // GetResources returns a list of all resources.

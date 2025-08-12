@@ -27,86 +27,72 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestHasParentDir(t *testing.T) {
+func TestFindParentMatching(t *testing.T) {
 	tests := []struct {
-		name       string
-		path       string
-		parent     string
-		wantResult bool
+		name   string
+		path   string
+		parent string
+		rpos   int
+		result string
 	}{
 		{
-			name:       "Has valid parent directory",
-			path:       "/opt/teleport/dir/test",
-			parent:     "/opt/teleport",
-			wantResult: true,
+			name:   "Has valid parent directory",
+			path:   "/opt/teleport/default/versions/v1.2.3/bin/teleport",
+			parent: "versions",
+			rpos:   4,
+			result: "/opt/teleport/default",
 		},
 		{
-			name:       "Has valid parent directory with slash",
-			path:       "/opt/teleport/dir/test",
-			parent:     "/opt/teleport/",
-			wantResult: true,
+			name:   "Parent too close",
+			path:   "/opt/teleport/default/versions/bin/teleport",
+			parent: "versions",
+			rpos:   4,
 		},
 		{
-			name:       "Parent directory is root",
-			path:       "/opt/teleport/dir",
-			parent:     "/",
-			wantResult: true,
+			name:   "Parent too far",
+			path:   "/opt/teleport/default/versions/v1.2.3/extra/bin/teleport",
+			parent: "versions",
+			rpos:   4,
 		},
 		{
-			name:       "Parent is the same as the path",
-			path:       "/opt/teleport/dir",
-			parent:     "/opt/teleport/dir",
-			wantResult: false,
+			name:   "Parent missing",
+			path:   "/opt/teleport/default/version/v1.2.3/bin/teleport",
+			parent: "versions",
+			rpos:   4,
 		},
 		{
-			name:       "Parent the same as the path but without slash",
-			path:       "/opt/teleport/dir/",
-			parent:     "/opt/teleport/dir",
-			wantResult: false,
+			name:   "Parent at root",
+			path:   "/versions/v1.2.3/bin/teleport",
+			parent: "versions",
+			rpos:   4,
+			result: "/",
 		},
 		{
-			name:       "Parent the same as the path but with slash",
-			path:       "/opt/teleport/dir",
-			parent:     "/opt/teleport/dir/",
-			wantResult: false,
+			name:   "Position past root",
+			path:   "/v1.2.3/bin/teleport",
+			parent: "versions",
+			rpos:   4,
 		},
 		{
-			name:       "Parent is substring of the path",
-			path:       "/opt/teleport/dir-place",
-			parent:     "/opt/teleport/dir",
-			wantResult: false,
+			name: "Empty",
 		},
 		{
-			name:       "Parent is in path",
-			path:       "/opt/teleport",
-			parent:     "/opt/teleport/dir",
-			wantResult: false,
+			name:   "Empty path",
+			parent: "versions",
+			rpos:   4,
 		},
 		{
-			name:       "Empty parent",
-			path:       "/opt/teleport/dir",
-			parent:     "",
-			wantResult: false,
-		},
-		{
-			name:       "Empty path",
-			path:       "",
-			parent:     "/opt/teleport",
-			wantResult: false,
-		},
-		{
-			name:       "Both empty",
-			path:       "",
-			parent:     "",
-			wantResult: false,
+			name:   "Empty parent",
+			path:   "/v1.2.3/bin/teleport",
+			parent: "",
+			rpos:   4,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := hasParentDir(tt.path, tt.parent)
-			require.NoError(t, err)
-			require.Equal(t, tt.wantResult, result)
+			result := findParentMatching(tt.path, tt.parent, tt.rpos)
+			require.Equal(t, tt.result, result)
 		})
 	}
 }

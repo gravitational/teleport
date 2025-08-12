@@ -1,6 +1,9 @@
 ---
 title: Access Monitoring Rule Reference
 description: An explanation and overview of Access Monitoring Rules.
+labels:
+ - reference
+ - identity-governance
 ---
 
 Access Monitoring Rules allow administrators to monitor Access Requests and apply
@@ -29,12 +32,14 @@ spec:
   # monitoring rule. The condition accepts a predicate expression which must
   # evaluate to a boolean value.
   #
-  # This condition would be satisfied by an Access Request if all requested roles
-  # are either `access` or `editor`, and if the requester user has the `team: dev`
-  # or `team: stage" user trait.
+  # This condition would be satisfied if:
+  # - `access` role is requested
+  # - all requested resources have the label `env: dev`
+  # - requesting user has the `team: dev` user trait.
   condition: |-
-    contains_all(set("access", "editor"), access_request.spec.roles) &&
-    contains_any(user.traits["team"], set("dev", "stage"))
+    contains_all(set("access"), access_request.spec.roles) &&
+    access_request.spec.resource_labels_intersection["env"].contains("dev") &&
+    contains_any(user.traits["team"], set("dev"))
 
   # Optional: desired_state specifies the desired reconciled state of the Access
   # Request after the rule is applied. This field must be set to "reviewed" to
@@ -171,22 +176,46 @@ spec:
     decision: APPROVED
 ```
 
+### Example automatic review rule for resources
+
+If the following rule is configured, any Access Request for the `access` role and
+resources labeled `env: dev` will be automatically approved.
+
+```yaml
+kind: access_monitoring_rule
+version: v1
+metadata:
+  name: env-dev-approval
+spec:
+  subjects:
+  - access_request
+  condition: |-
+    contains_all(set("access"), access_request.spec.roles) &&
+    access_request.spec.resource_labels_intersection["env"].contains("dev")
+  desired_state: reviewed
+  automatic_review:
+    integration: builtin
+    decision: APPROVED
+```
+
 ## Condition
 
 The `condition` field is a predicate expression that evaluates to a boolean value
 and determines which Access Requests the rule applies to.
 
 Accepted fields within the condition predicate expression:
-| Field                                   | Description                                    |
-| --------------------------------------- | ---------------------------------------------- |
-| access_request.spec.roles               | The set of roles requested.                    |
-| access_request.spec.suggested_reviewers | The set of reviewers specified in the request. |
-| access_request.spec.system_annotations  | A map of system annotations on the request.    |
-| access_request.spec.user                | The requesting user.                           |
-| access_request.spec.request_reason      | The request reason.                            |
-| access_request.spec.creation_time       | The creation time of the request.              |
-| access_request.spec.expiry              | The expiry time of the request.                |
-| user.traits                             | A map of traits of the requesting user.        |
+| Field                                            | Description                                                         |
+| ------------------------------------------------ | ------------------------------------------------------------------- |
+| access_request.spec.roles                        | The set of roles requested.                                         |
+| access_request.spec.suggested_reviewers          | The set of reviewers specified in the request.                      |
+| access_request.spec.system_annotations           | A map of system annotations on the request.                         |
+| access_request.spec.user                         | The requesting user.                                                |
+| access_request.spec.request_reason               | The request reason.                                                 |
+| access_request.spec.creation_time                | The creation time of the request.                                   |
+| access_request.spec.expiry                       | The expiry time of the request.                                     |
+| access_request.spec.resource_labels_intersection | A map containing the intersection of all requested resource labels. |
+| access_request.spec.resource_labels_union        | A map containing the union of all requested resource labels.        |
+| user.traits                                      | A map of traits of the requesting user.                             |
 
 Examples:
 
@@ -205,6 +234,12 @@ condition: set("role_1", "role_2").contains_all(access_request.spec.roles)
 
 # Applies if the user has trait "team: dev" or "team: stage".
 condition: contains_any(user.traits["team"], set("dev". "stage"))
+
+# Applies if all requested resources have the `env: dev` label.
+condition: access_request.spec.resource_labels_intersection["env"].contains("dev")
+
+# Applies if any requested resources has the `env: prod` label.
+condition: access_request.spec.resource_labels_union["env"].contains("prod")
 ```
 
 See [Predicate Language](../predicate-language.mdx) for more details.
@@ -253,7 +288,7 @@ spec:
 ```
 
 Trait mapping depends on the SSO provider. For configuration instructions, see:
-[Configure Single Sign-On](../../admin-guides/access-controls/sso/sso.mdx)
+[Configure Single Sign-On](../../zero-trust-access/sso/sso.mdx)
 
 ## Access Monitoring Rule with infrastructure as code
 

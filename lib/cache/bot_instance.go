@@ -20,6 +20,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
@@ -28,13 +29,15 @@ import (
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 type botInstanceIndex string
 
 const (
-	botInstanceNameIndex botInstanceIndex = "name"
+	botInstanceNameIndex     botInstanceIndex = "name"
+	botInstanceActiveAtIndex botInstanceIndex = "active_at_latest"
 )
 
 func keyForNameIndex(botInstance *machineidv1.BotInstance) string {
@@ -46,6 +49,22 @@ func keyForNameIndex(botInstance *machineidv1.BotInstance) string {
 
 func makeNameIndexKey(botName string, instanceID string) string {
 	return botName + "/" + instanceID
+}
+
+func keyForActiveAtIndex(botInstance *machineidv1.BotInstance) string {
+	var recordedAt time.Time
+
+	initialHeartbeatTime := botInstance.GetStatus().GetInitialHeartbeat().GetRecordedAt()
+	if initialHeartbeatTime != nil {
+		recordedAt = initialHeartbeatTime.AsTime()
+	}
+
+	latestHeartbeats := botInstance.GetStatus().GetLatestHeartbeats()
+	if len(latestHeartbeats) > 0 {
+		recordedAt = latestHeartbeats[len(latestHeartbeats)-1].GetRecordedAt().AsTime()
+	}
+
+	return recordedAt.Format(time.RFC3339) + "/" + botInstance.GetMetadata().GetName()
 }
 
 func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) (*collection[*machineidv1.BotInstance, botInstanceIndex], error) {
@@ -60,19 +79,16 @@ func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) 
 			map[botInstanceIndex]func(*machineidv1.BotInstance) string{
 				// Index on a combination of bot name and instance name
 				botInstanceNameIndex: keyForNameIndex,
+				// Index on a combination of most recent heartbeat time and instance name
+				botInstanceActiveAtIndex: keyForActiveAtIndex,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*machineidv1.BotInstance, error) {
-			var out []*machineidv1.BotInstance
-			clientutils.IterateResources(ctx,
+			out, err := stream.Collect(clientutils.Resources(ctx,
 				func(ctx context.Context, limit int, start string) ([]*machineidv1.BotInstance, string, error) {
-					return upstream.ListBotInstances(ctx, "", limit, start, "")
+					return upstream.ListBotInstances(ctx, "", limit, start, "", nil)
 				},
-				func(hcc *machineidv1.BotInstance) error {
-					out = append(out, hcc)
-					return nil
-				},
-			)
-			return out, nil
+			))
+			return out, trace.Wrap(err)
 		},
 		watch: w,
 	}, nil
@@ -97,23 +113,42 @@ func (c *Cache) GetBotInstance(ctx context.Context, botName, instanceID string) 
 }
 
 // ListBotInstances returns a page of BotInstance resources.
-func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string) ([]*machineidv1.BotInstance, string, error) {
+func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string, sort *types.SortBy) ([]*machineidv1.BotInstance, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListBotInstances")
 	defer span.End()
+
+	index := botInstanceNameIndex
+	keyFn := keyForNameIndex
+	var isDesc bool
+	if sort != nil {
+		isDesc = sort.IsDesc
+
+		switch sort.Field {
+		case "bot_name":
+			index = botInstanceNameIndex
+			keyFn = keyForNameIndex
+		case "active_at_latest":
+			index = botInstanceActiveAtIndex
+			keyFn = keyForActiveAtIndex
+		default:
+			return nil, "", trace.BadParameter("unsupported sort %q but expected bot_name or active_at_latest", sort.Field)
+		}
+	}
 
 	lister := genericLister[*machineidv1.BotInstance, botInstanceIndex]{
 		cache:           c,
 		collection:      c.collections.botInstances,
-		index:           botInstanceNameIndex,
+		index:           index,
+		isDesc:          isDesc,
 		defaultPageSize: defaults.DefaultChunkSize,
 		upstreamList: func(ctx context.Context, limit int, start string) ([]*machineidv1.BotInstance, string, error) {
-			return c.Config.BotInstanceService.ListBotInstances(ctx, botName, limit, start, search)
+			return c.Config.BotInstanceService.ListBotInstances(ctx, botName, limit, start, search, sort)
 		},
 		filter: func(b *machineidv1.BotInstance) bool {
 			return matchBotInstance(b, botName, search)
 		},
 		nextToken: func(b *machineidv1.BotInstance) string {
-			return keyForNameIndex(b)
+			return keyFn(b)
 		},
 	}
 	out, next, err := lister.list(ctx,

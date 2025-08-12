@@ -10,6 +10,8 @@ resource "teleport_login_rule" "example" {
 
   version  = "v1"
   priority = 0
+
+  # Either traits_map or traits_expression must be provided, but not both.
   traits_map = {
     "logins" = {
       values = [
@@ -23,4 +25,10 @@ resource "teleport_login_rule" "example" {
       ]
     }
   }
+  #   # This traits_expression is functionally equivalent to the traits_map above.
+  #   traits_expression = <<EOF
+  # dict(
+  #   pair("logins", union(external.logins, external.username))
+  #   pair("groups", external.groups))
+  # EOF
 }

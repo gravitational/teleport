@@ -223,7 +223,7 @@ func TestValidateConfigSpec(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateConfigSpec(&tt.config, OverrideConfig{UpdateSpec: tt.override})
+			err := updateConfigSpec(&tt.config, OverrideConfig{UpdateSpec: tt.override})
 			if tt.errMatch != "" {
 				require.ErrorContains(t, err, tt.errMatch)
 				return

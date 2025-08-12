@@ -23,6 +23,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -43,23 +45,8 @@ func newReverseTunnelCollection(upstream services.Presence, w types.WatchKind) (
 				reverseTunnelNameIndex: types.ReverseTunnel.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.ReverseTunnel, error) {
-			var out []types.ReverseTunnel
-			var nextToken string
-			for {
-				var page []types.ReverseTunnel
-				var err error
-
-				const defaultPageSize = 0
-				page, nextToken, err = upstream.ListReverseTunnels(ctx, defaultPageSize, nextToken)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				out = append(out, page...)
-				if nextToken == "" {
-					break
-				}
-			}
-			return out, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListReverseTunnels))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.ReverseTunnel {
 			return &types.ReverseTunnelV2{

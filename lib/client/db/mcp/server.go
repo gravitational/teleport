@@ -61,6 +61,10 @@ func NewRootServer(logger *slog.Logger) *RootServer {
 }
 
 // ListDatabases tool function used to list all available/served databases.
+//
+// Note: Given some MCP clients not fully support resources of any kind (including
+// embedded and references), we must return the databases as plain text result so
+// the tool keeps working on those clients.
 func (s *RootServer) ListDatabases(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -76,7 +80,7 @@ func (s *RootServer) ListDatabases(ctx context.Context, request mcp.CallToolRequ
 			s.logger.ErrorContext(ctx, "error while list databases", "error", err)
 			return mcp.NewToolResultError(FormatErrorMessage(err).Error()), nil
 		}
-		res = append(res, mcp.EmbeddedResource{Type: "resource", Resource: contents})
+		res = append(res, mcp.NewTextContent(contents))
 	}
 
 	return &mcp.CallToolResult{
@@ -99,7 +103,11 @@ func (s *RootServer) GetDatabaseResource(ctx context.Context, request mcp.ReadRe
 		return nil, trace.Wrap(err)
 	}
 
-	return []mcp.ResourceContents{encodedDb}, nil
+	return []mcp.ResourceContents{mcp.TextResourceContents{
+		URI:      request.Params.URI,
+		MIMEType: databaseResourceMIMEType,
+		Text:     encodedDb,
+	}}, nil
 }
 
 // RegisterDatabase register a database on the root server. This make it
@@ -130,18 +138,14 @@ func buildDatabaseResource(db *Database) DatabaseResource {
 	}
 }
 
-func encodeDatabaseResource(db *Database) (mcp.ResourceContents, error) {
+func encodeDatabaseResource(db *Database) (string, error) {
 	resource := buildDatabaseResource(db)
 	out, err := yaml.Marshal(resource)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
-	return mcp.TextResourceContents{
-		URI:      resource.URI,
-		MIMEType: databaseResourceMIMEType,
-		Text:     string(out),
-	}, nil
+	return string(out), nil
 }
 
 const (

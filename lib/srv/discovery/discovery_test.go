@@ -80,6 +80,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
@@ -95,7 +96,8 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
-	libutils "github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 func TestMain(m *testing.M) {
@@ -313,46 +315,6 @@ func TestDiscoveryServer(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	discoveryConfigForUserTaskEKSTestName := uuid.NewString()
-	discoveryConfigForUserTaskEKSTest, err := discoveryconfig.NewDiscoveryConfig(
-		header.Metadata{Name: discoveryConfigForUserTaskEKSTestName},
-		discoveryconfig.Spec{
-			DiscoveryGroup: defaultDiscoveryGroup,
-			AWS: []types.AWSMatcher{{
-				Types:       []string{"eks"},
-				Regions:     []string{"eu-west-2"},
-				Tags:        map[string]utils.Strings{"RunDiscover": {"Please"}},
-				Integration: "my-integration",
-			}},
-		},
-	)
-	require.NoError(t, err)
-
-	discoveryConfigWithAndWithoutAppDiscoveryTestName := uuid.NewString()
-	discoveryConfigWithAndWithoutAppDiscovery, err := discoveryconfig.NewDiscoveryConfig(
-		header.Metadata{Name: discoveryConfigWithAndWithoutAppDiscoveryTestName},
-		discoveryconfig.Spec{
-			DiscoveryGroup: defaultDiscoveryGroup,
-			AWS: []types.AWSMatcher{
-				{
-					Types:            []string{"eks"},
-					Regions:          []string{"eu-west-2"},
-					Tags:             map[string]utils.Strings{"EnableAppDiscovery": {"No"}},
-					Integration:      "my-integration",
-					KubeAppDiscovery: false,
-				},
-				{
-					Types:            []string{"eks"},
-					Regions:          []string{"eu-west-2"},
-					Tags:             map[string]utils.Strings{"EnableAppDiscovery": {"Yes"}},
-					Integration:      "my-integration",
-					KubeAppDiscovery: true,
-				},
-			},
-		},
-	)
-	require.NoError(t, err)
-
 	tcs := []struct {
 		name string
 		// presentInstances is a list of servers already present in teleport.
@@ -360,8 +322,6 @@ func TestDiscoveryServer(t *testing.T) {
 		foundEC2Instances         []ec2types.Instance
 		ssm                       *mockSSMClient
 		emitter                   *mockEmitter
-		eksClusters               []*ekstypes.Cluster
-		eksEnroller               eksClustersEnroller
 		discoveryConfig           *discoveryconfig.DiscoveryConfig
 		staticMatchers            Matchers
 		wantInstalledInstances    []string
@@ -718,139 +678,6 @@ func TestDiscoveryServer(t *testing.T) {
 				require.Equal(t, defaultDiscoveryGroup, taskInstance.DiscoveryGroup)
 			},
 		},
-		{
-			name:              "multiple EKS clusters failed to autoenroll and user tasks are created",
-			presentInstances:  []types.Server{},
-			foundEC2Instances: []ec2types.Instance{},
-			ssm:               &mockSSMClient{},
-			eksClusters: []*ekstypes.Cluster{
-				{
-					Name:   aws.String("cluster01"),
-					Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster01"),
-					Status: ekstypes.ClusterStatusActive,
-					Tags: map[string]string{
-						"RunDiscover": "Please",
-					},
-				},
-				{
-					Name:   aws.String("cluster02"),
-					Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster02"),
-					Status: ekstypes.ClusterStatusActive,
-					Tags: map[string]string{
-						"RunDiscover": "Please",
-					},
-				},
-			},
-			eksEnroller: &mockEKSClusterEnroller{
-				resp: &integrationpb.EnrollEKSClustersResponse{
-					Results: []*integrationpb.EnrollEKSClusterResult{
-						{
-							EksClusterName: "cluster01",
-							Error:          "access endpoint is not reachable",
-							IssueType:      "eks-cluster-unreachable",
-						},
-						{
-							EksClusterName: "cluster02",
-							Error:          "access endpoint is not reachable",
-							IssueType:      "eks-cluster-unreachable",
-						},
-					},
-				},
-				err: nil,
-			},
-			emitter:                &mockEmitter{},
-			staticMatchers:         Matchers{},
-			discoveryConfig:        discoveryConfigForUserTaskEKSTest,
-			wantInstalledInstances: []string{},
-			userTasksDiscoverCheck: func(t *testing.T, userTasksClt services.UserTasks) {
-				atLeastOneUserTask := 1
-				atLeastTwoTaskItems := 2
-				existingTasks := fetchAllUserTasks(t, userTasksClt, atLeastOneUserTask, atLeastTwoTaskItems)
-				existingTask := existingTasks[0]
-
-				require.Equal(t, "OPEN", existingTask.GetSpec().State)
-				require.Equal(t, "my-integration", existingTask.GetSpec().Integration)
-				require.Equal(t, "eks-cluster-unreachable", existingTask.GetSpec().IssueType)
-				require.Equal(t, "123456789012", existingTask.GetSpec().GetDiscoverEks().GetAccountId())
-				require.Equal(t, "us-west-2", existingTask.GetSpec().GetDiscoverEks().GetRegion())
-
-				taskClusters := existingTask.GetSpec().GetDiscoverEks().Clusters
-				require.Contains(t, taskClusters, "cluster01")
-				taskCluster := taskClusters["cluster01"]
-
-				require.Equal(t, "cluster01", taskCluster.Name)
-				require.Equal(t, discoveryConfigForUserTaskEKSTestName, taskCluster.DiscoveryConfig)
-				require.Equal(t, defaultDiscoveryGroup, taskCluster.DiscoveryGroup)
-			},
-		},
-		{
-			name:              "multiple EKS clusters with different KubeAppDiscovery setting failed to autoenroll and user tasks are created",
-			presentInstances:  []types.Server{},
-			foundEC2Instances: []ec2types.Instance{},
-			ssm:               &mockSSMClient{},
-			eksClusters: []*ekstypes.Cluster{
-				{
-					Name:   aws.String("cluster01"),
-					Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster01"),
-					Status: ekstypes.ClusterStatusActive,
-					Tags: map[string]string{
-						"EnableAppDiscovery": "Yes",
-					},
-				},
-				{
-					Name:   aws.String("cluster02"),
-					Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster02"),
-					Status: ekstypes.ClusterStatusActive,
-					Tags: map[string]string{
-						"EnableAppDiscovery": "No",
-					},
-				},
-			},
-			eksEnroller: &mockEKSClusterEnroller{
-				resp: &integrationpb.EnrollEKSClustersResponse{
-					Results: []*integrationpb.EnrollEKSClusterResult{
-						{
-							EksClusterName: "cluster01",
-							Error:          "access endpoint is not reachable",
-							IssueType:      "eks-cluster-unreachable",
-						},
-						{
-							EksClusterName: "cluster02",
-							Error:          "access endpoint is not reachable",
-							IssueType:      "eks-cluster-unreachable",
-						},
-					},
-				},
-				err: nil,
-			},
-			emitter:                &mockEmitter{},
-			staticMatchers:         Matchers{},
-			discoveryConfig:        discoveryConfigWithAndWithoutAppDiscovery,
-			wantInstalledInstances: []string{},
-			userTasksDiscoverCheck: func(t *testing.T, userTasksClt services.UserTasks) {
-				atLeastOneUserTask := 2
-				atLeastTwoTaskItems := 2
-				existingTasks := fetchAllUserTasks(t, userTasksClt, atLeastOneUserTask, atLeastTwoTaskItems)
-				existingTask := existingTasks[0]
-				if existingTask.Spec.DiscoverEks.AppAutoDiscover == false {
-					existingTask = existingTasks[1]
-				}
-
-				require.Equal(t, "OPEN", existingTask.GetSpec().State)
-				require.Equal(t, "my-integration", existingTask.GetSpec().Integration)
-				require.Equal(t, "eks-cluster-unreachable", existingTask.GetSpec().IssueType)
-				require.Equal(t, "123456789012", existingTask.GetSpec().GetDiscoverEks().GetAccountId())
-				require.Equal(t, "us-west-2", existingTask.GetSpec().GetDiscoverEks().GetRegion())
-
-				taskClusters := existingTask.GetSpec().GetDiscoverEks().Clusters
-				require.Contains(t, taskClusters, "cluster01")
-				taskCluster := taskClusters["cluster01"]
-
-				require.Equal(t, "cluster01", taskCluster.Name)
-				require.Equal(t, discoveryConfigWithAndWithoutAppDiscoveryTestName, taskCluster.DiscoveryConfig)
-				require.Equal(t, defaultDiscoveryGroup, taskCluster.DiscoveryGroup)
-			},
-		},
 	}
 
 	for _, tc := range tcs {
@@ -870,7 +697,7 @@ func TestDiscoveryServer(t *testing.T) {
 			}
 
 			// Create and start test auth server.
-			testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir: t.TempDir(),
 			})
 			require.NoError(t, err)
@@ -896,7 +723,7 @@ func TestDiscoveryServer(t *testing.T) {
 			require.NoError(t, err)
 
 			// Auth client for discovery service.
-			identity := auth.TestServerID(types.RoleDiscovery, "hostID")
+			identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
 			authClient, err := tlsServer.NewClient(identity)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
@@ -906,7 +733,7 @@ func TestDiscoveryServer(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			logger := libutils.NewSlogLoggerForTests()
+			logger := logtest.NewLogger()
 
 			reporter := &mockUsageReporter{}
 			installer := &mockSSMInstaller{
@@ -918,11 +745,6 @@ func TestDiscoveryServer(t *testing.T) {
 			if tc.discoveryConfig != nil {
 				_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, tc.discoveryConfig)
 				require.NoError(t, err)
-			}
-
-			var eksEnroller eksClustersEnroller = authClient.IntegrationAWSOIDCClient()
-			if tc.eksEnroller != nil {
-				eksEnroller = tc.eksEnroller
 			}
 
 			fakeConfigProvider := mocks.AWSConfigProvider{
@@ -938,11 +760,10 @@ func TestDiscoveryServer(t *testing.T) {
 				AWSConfigProvider: &fakeConfigProvider,
 				AWSFetchersClients: &mockFetchersClients{
 					AWSConfigProvider: fakeConfigProvider,
-					eksClusters:       tc.eksClusters,
 				},
 				ClusterFeatures:  func() proto.Features { return proto.Features{} },
 				KubernetesClient: fake.NewSimpleClientset(),
-				AccessPoint:      getDiscoveryAccessPointWithEKSEnroller(tlsServer.Auth(), authClient, eksEnroller),
+				AccessPoint:      getDiscoveryAccessPointWithEKSEnroller(tlsServer.Auth(), authClient, authClient.IntegrationAWSOIDCClient()),
 				Matchers:         tc.staticMatchers,
 				Emitter:          tc.emitter,
 				Log:              logger,
@@ -1039,7 +860,7 @@ func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTas
 func TestDiscoveryServerConcurrency(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := libutils.NewSlogLoggerForTests()
+	logger := logtest.NewLogger()
 
 	defaultDiscoveryGroup := "dg01"
 	awsMatcher := types.AWSMatcher{
@@ -1091,7 +912,7 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 	}
 
 	// Create and start test auth server.
-	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)
@@ -1102,7 +923,7 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
 	// Auth client for discovery service.
-	identity := auth.TestServerID(types.RoleDiscovery, "hostID")
+	identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
 	authClient, err := tlsServer.NewClient(identity)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
@@ -1298,7 +1119,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 
 			ctx := context.Background()
 			// Create and start test auth server.
-			testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir: t.TempDir(),
 			})
 			require.NoError(t, err)
@@ -1309,7 +1130,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
 			// Auth client for discovery service.
-			authClient, err := tlsServer.NewClient(auth.TestServerID(types.RoleDiscovery, "hostID"))
+			authClient, err := tlsServer.NewClient(authtest.TestServerID(types.RoleDiscovery, "hostID"))
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
 
@@ -1606,7 +1427,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 
 			ctx := context.Background()
 			// Create and start test auth server.
-			testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir: t.TempDir(),
 			})
 			require.NoError(t, err)
@@ -1617,7 +1438,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
 			// Auth client for discovery service.
-			identity := auth.TestServerID(types.RoleDiscovery, "hostID")
+			identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
 			authClient, err := tlsServer.NewClient(identity)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
@@ -1633,7 +1454,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				require.NoError(t, r.Close())
 				require.NoError(t, w.Close())
 			})
-			logger := libutils.NewSlogLoggerForTests()
+			logger := logtest.NewLogger()
 
 			clustersNotUpdated := make(chan string, 10)
 			go func() {
@@ -1691,17 +1512,17 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			t.Cleanup(discServer.Stop)
 			go discServer.Start()
 
-			clustersNotUpdatedMap := sliceToSet(tc.clustersNotUpdated)
+			clustersNotUpdatedMap := set.New(tc.clustersNotUpdated...)
 			clustersFoundInAuth := false
 			require.Eventually(t, func() bool {
 			loop:
 				for {
 					select {
 					case cluster := <-clustersNotUpdated:
-						if _, ok := clustersNotUpdatedMap[cluster]; !ok {
+						if !clustersNotUpdatedMap.Contains(cluster) {
 							require.Failf(t, "expected Action for cluster %s but got no action from reconciler", cluster)
 						}
-						delete(clustersNotUpdatedMap, cluster)
+						clustersNotUpdatedMap.Remove(cluster)
 					default:
 						kubeClusters, err := tlsServer.Auth().GetKubernetesClusters(ctx)
 						require.NoError(t, err)
@@ -2039,14 +1860,6 @@ func mustConvertAKSToKubeCluster(t *testing.T, azureCluster *azure.AKSCluster, d
 func modifyKubeCluster(cluster types.KubeCluster) types.KubeCluster {
 	cluster.GetStaticLabels()["test"] = "test"
 	return cluster
-}
-
-func sliceToSet[T comparable](slice []T) map[T]struct{} {
-	set := map[T]struct{}{}
-	for _, v := range slice {
-		set[v] = struct{}{}
-	}
-	return set
 }
 
 func mustConvertKubeServiceToApp(t *testing.T, discoveryGroup, protocol string, kubeService *corev1.Service, port corev1.ServicePort) types.Application {
@@ -2536,7 +2349,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 			t.Cleanup(cancel)
 
 			// Create and start test auth server.
-			testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir: t.TempDir(),
 			})
 			require.NoError(t, err)
@@ -2564,7 +2377,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 			require.NoError(t, err)
 
 			// Auth client for discovery service.
-			identity := auth.TestServerID(types.RoleDiscovery, "hostID")
+			identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
 			authClient, err := tlsServer.NewClient(identity)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
@@ -2738,7 +2551,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// Create and start test auth server.
-	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)
@@ -2749,7 +2562,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
 	// Auth client for discovery service.
-	identity := auth.TestServerID(types.RoleDiscovery, "hostID")
+	identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
 	authClient, err := tlsServer.NewClient(identity)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
@@ -3169,7 +2982,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir: t.TempDir(),
 			})
 			require.NoError(t, err)
@@ -3180,7 +2993,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
 			// Auth client for discovery service.
-			identity := auth.TestServerID(types.RoleDiscovery, "hostID")
+			identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
 			authClient, err := tlsServer.NewClient(identity)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
@@ -3190,7 +3003,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			logger := libutils.NewSlogLoggerForTests()
+			logger := logtest.NewLogger()
 
 			emitter := &mockEmitter{}
 			reporter := &mockUsageReporter{}
@@ -3476,7 +3289,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir: t.TempDir(),
 			})
 			require.NoError(t, err)
@@ -3487,7 +3300,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
 			// Auth client for discovery service.
-			identity := auth.TestServerID(types.RoleDiscovery, "hostID")
+			identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
 			authClient, err := tlsServer.NewClient(identity)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
@@ -3497,7 +3310,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			logger := libutils.NewSlogLoggerForTests()
+			logger := logtest.NewLogger()
 			emitter := &mockEmitter{}
 			reporter := &mockUsageReporter{}
 			installer := &mockGCPInstaller{
@@ -3558,7 +3371,7 @@ func TestServer_onCreate(t *testing.T) {
 		Config: &Config{
 			DiscoveryGroup: "test-cluster",
 			AccessPoint:    accessPoint,
-			Log:            libutils.NewSlogLoggerForTests(),
+			Log:            logtest.NewLogger(),
 		},
 	}
 
@@ -3672,7 +3485,7 @@ func TestEmitUsageEvents(t *testing.T) {
 		AzureVirtualMachines: &mockAzureClient{},
 		AzureRunCommand:      &mockAzureRunCommandClient{},
 	}
-	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)
@@ -3683,7 +3496,7 @@ func TestEmitUsageEvents(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
 	// Auth client for discovery service.
-	identity := auth.TestServerID(types.RoleDiscovery, "hostID")
+	identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
 	authClient, err := tlsServer.NewClient(identity)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
@@ -3726,26 +3539,6 @@ func TestEmitUsageEvents(t *testing.T) {
 
 type eksClustersEnroller interface {
 	EnrollEKSClusters(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)
-}
-
-type mockEKSClusterEnroller struct {
-	resp *integrationpb.EnrollEKSClustersResponse
-	err  error
-}
-
-func (m *mockEKSClusterEnroller) EnrollEKSClusters(ctx context.Context, req *integrationpb.EnrollEKSClustersRequest, opt ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
-	ret := &integrationpb.EnrollEKSClustersResponse{
-		Results: []*integrationpb.EnrollEKSClusterResult{},
-	}
-	// Filter out non-requested clusters.
-	for _, clusterName := range req.EksClusterNames {
-		for _, mockClusterResult := range m.resp.Results {
-			if clusterName == mockClusterResult.EksClusterName {
-				ret.Results = append(ret.Results, mockClusterResult)
-			}
-		}
-	}
-	return ret, m.err
 }
 
 type combinedDiscoveryClient struct {

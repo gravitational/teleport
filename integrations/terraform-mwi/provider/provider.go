@@ -31,8 +31,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	apitypes "github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/tbot"
-	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 )
 
 var (
@@ -78,7 +80,7 @@ func (p *Provider) Schema(ctx context.Context, req provider.SchemaRequest, resp 
 				MarkdownDescription: "The join method to use to authenticate to the Teleport cluster.",
 				Required:            true,
 				Validators: []validator.String{
-					stringvalidator.OneOf(config.SupportedJoinMethods...),
+					stringvalidator.OneOf(onboarding.SupportedJoinMethods...),
 					// Explicitly prohibit the use of the token join method
 					// as we won't be able to persist state for it to work
 					// effectively.
@@ -98,7 +100,7 @@ func (p *Provider) Schema(ctx context.Context, req provider.SchemaRequest, resp 
 }
 
 type providerData struct {
-	newBotConfig func() *config.BotConfig
+	newBotConfig func() bot.Config
 }
 
 func (p *Provider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
@@ -109,28 +111,20 @@ func (p *Provider) Configure(ctx context.Context, req provider.ConfigureRequest,
 	}
 
 	// Shared internal store for the bot.
-	botInternalStore := config.DestinationMemory{}
-	if err := botInternalStore.CheckAndSetDefaults(); err != nil {
-		resp.Diagnostics.AddError(
-			"Error setting defaults for bot internal store",
-			"Failed to set defaults for bot internal store: "+err.Error(),
-		)
-		return
-	}
-
-	newBotConfig := func() *config.BotConfig {
-		return &config.BotConfig{
-			Version:     "v2",
-			ProxyServer: data.ProxyServer.ValueString(),
-			Storage: &config.StorageConfig{
-				Destination: &botInternalStore,
+	botInternalStore := destination.NewMemory()
+	newBotConfig := func() bot.Config {
+		return bot.Config{
+			Connection: connection.Config{
+				Address:     data.ProxyServer.ValueString(),
+				AddressKind: connection.AddressKindProxy,
+				Insecure:    data.Insecure.ValueBool(),
 			},
-			Onboarding: config.OnboardingConfig{
+			Onboarding: onboarding.Config{
 				JoinMethod: apitypes.JoinMethod(data.JoinMethod.ValueString()),
 				TokenValue: data.JoinToken.ValueString(),
 			},
-			Oneshot:  true,
-			Insecure: data.Insecure.ValueBool(),
+			InternalStorage: botInternalStore,
+			Logger:          slog.Default(),
 		}
 	}
 
@@ -142,10 +136,18 @@ func (p *Provider) Configure(ctx context.Context, req provider.ConfigureRequest,
 		)
 		return
 	}
-	bot := tbot.New(botCfg, slog.Default())
+
+	bot, err := bot.New(botCfg)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error creating tbot",
+			"Failed to create tbot: "+err.Error(),
+		)
+		return
+	}
 
 	// Run bot just to validate that the configuration is correct.
-	if err := bot.Run(ctx); err != nil {
+	if err := bot.OneShot(ctx); err != nil {
 		resp.Diagnostics.AddError(
 			"Error running tbot in provider",
 			"Failed to run tbot\n"+trace.DebugReport(err),

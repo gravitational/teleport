@@ -59,7 +59,7 @@ func (h *Handler) sessionLengthHandle(
 	r *http.Request,
 	p httprouter.Params,
 	sctx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	cluster reversetunnelclient.Cluster,
 ) (any, error) {
 	sID := p.ByName("sid")
 	if sID == "" {
@@ -69,9 +69,14 @@ func (h *Handler) sessionLengthHandle(
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	clt, err := sctx.GetUserClient(ctx, site)
+	clt, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	type response struct {
+		Duration      int64  `json:"durationMs"`
+		RecordingType string `json:"recordingType"`
 	}
 
 	evts, errs := clt.StreamSessionEvents(ctx, session.ID(sID), 0)
@@ -83,13 +88,14 @@ func (h *Handler) sessionLengthHandle(
 			if !ok {
 				return nil, trace.NotFound("could not find end event for session %v", sID)
 			}
+
 			switch evt := evt.(type) {
 			case *events.SessionEnd:
-				return map[string]any{"durationMs": evt.EndTime.Sub(evt.StartTime).Milliseconds()}, nil
+				return response{evt.EndTime.Sub(evt.StartTime).Milliseconds(), "ssh"}, nil
 			case *events.WindowsDesktopSessionEnd:
-				return map[string]any{"durationMs": evt.EndTime.Sub(evt.StartTime).Milliseconds()}, nil
+				return response{evt.EndTime.Sub(evt.StartTime).Milliseconds(), "desktop"}, nil
 			case *events.DatabaseSessionEnd:
-				return map[string]any{"durationMs": evt.EndTime.Sub(evt.StartTime).Milliseconds()}, nil
+				return response{evt.EndTime.Sub(evt.StartTime).Milliseconds(), "database"}, nil
 			}
 		}
 	}
@@ -100,14 +106,14 @@ func (h *Handler) ttyPlaybackHandle(
 	r *http.Request,
 	p httprouter.Params,
 	sctx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	cluster reversetunnelclient.Cluster,
 ) (any, error) {
 	sID := p.ByName("sid")
 	if sID == "" {
 		return nil, trace.BadParameter("missing session ID in request URL")
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

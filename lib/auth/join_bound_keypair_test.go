@@ -16,17 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"context"
 	"crypto"
+	"crypto/tls"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client"
@@ -34,9 +37,10 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/boundkeypair"
-	"github.com/gravitational/teleport/lib/boundkeypair/boundkeypairexperiment"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -96,10 +100,9 @@ func parseJoinState(t *testing.T, state []byte) *boundkeypair.JoinState {
 }
 
 func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
 
-	// TODO: This prevents parallel execution; remove along with the experiment.
-	boundkeypairexperiment.SetEnabled(true)
+	ctx := context.Background()
 
 	_, correctPublicKey := testBoundKeypair(t)
 	_, rotatedPublicKey := testBoundKeypair(t)
@@ -109,19 +112,19 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 	startTime := clock.Now()
 
 	srv := newTestTLSServer(t, withClock(clock))
-	auth := srv.Auth()
-	auth.createBoundKeypairValidator = func(subject, clusterName string, publicKey crypto.PublicKey) (boundKeypairValidator, error) {
+	authServer := srv.Auth()
+	authServer.SetCreateBoundKeypairValidator(func(subject, clusterName string, publicKey crypto.PublicKey) (auth.BoundKeypairValidator, error) {
 		return &mockBoundKeypairValidator{
 			subject:     subject,
 			clusterName: clusterName,
 			publicKey:   publicKey,
 		}, nil
-	}
+	})
 
-	_, err := CreateRole(ctx, auth, "example", types.RoleSpecV6{})
+	_, err := authtest.CreateRole(ctx, authServer, "example", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	adminClient, err := srv.NewClient(TestAdmin())
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
 	_, err = adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
@@ -140,16 +143,16 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
-	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 
-	jwtCA, err := auth.GetCertAuthority(ctx, types.CertAuthID{
+	jwtCA, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.BoundKeypairCA,
 		DomainName: srv.ClusterName(),
 	}, /* loadKeys */ true)
 	require.NoError(t, err)
 
-	jwtSigner, err := auth.GetKeyStore().GetJWTSigner(ctx, jwtCA)
+	jwtSigner, err := authServer.GetKeyStore().GetJWTSigner(ctx, jwtCA)
 	require.NoError(t, err)
 
 	// An invalid signer for signing "fake" JWTs.
@@ -162,11 +165,8 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 				Roles:      []types.SystemRole{types.RoleBot},
 				BotName:    "test",
 				BoundKeypair: &types.ProvisionTokenSpecV2BoundKeypair{
-					Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
-						InitialPublicKey: correctPublicKey,
-					},
+					Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{},
 					Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
-						// Only insecure is supported for now.
 						Mode: boundkeypair.RecoveryModeInsecure,
 					},
 				},
@@ -187,6 +187,18 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			v2.Spec.BoundKeypair.Recovery.Limit = limit
 			v2.Status.BoundKeypair.RecoveryCount = count
 			v2.Status.BoundKeypair.BoundBotInstanceID = botInstanceID
+		}
+	}
+
+	withInitialKey := func(key string) func(*types.ProvisionTokenV2) {
+		return func(v2 *types.ProvisionTokenV2) {
+			v2.Spec.BoundKeypair.Onboarding.InitialPublicKey = key
+		}
+	}
+
+	withBoundKey := func(key string) func(*types.ProvisionTokenV2) {
+		return func(v2 *types.ProvisionTokenV2) {
+			v2.Status.BoundKeypair.BoundPublicKey = key
 		}
 	}
 
@@ -319,11 +331,11 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 		assertSolverState func(t *testing.T, s *wrappedSolver)
 	}{
 		{
-			// no bound key, no bound bot instance, aka initial join without
-			// secret
+			// an initial key but no bound key, and no bound bot instance. aka,
+			// initial join with preregistered key
 			name: "initial-join-success",
 
-			token:   makeToken(),
+			token:   makeToken(withInitialKey(correctPublicKey)),
 			initReq: makeInitReq(),
 			solver:  makeSolver(correctPublicKey),
 
@@ -340,7 +352,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			// secret
 			name: "initial-join-with-wrong-key",
 
-			token:   makeToken(),
+			token:   makeToken(withInitialKey(correctPublicKey)),
 			initReq: makeInitReq(),
 			solver:  makeSolver(incorrectPublicKey),
 
@@ -353,8 +365,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			// bound key, valid bound bot instance, aka "soft join"
 			name: "reauth-success",
 
-			token: makeToken(func(v2 *types.ProvisionTokenV2) {
-				v2.Status.BoundKeypair.BoundPublicKey = correctPublicKey
+			token: makeToken(withBoundKey(correctPublicKey), func(v2 *types.ProvisionTokenV2) {
 				v2.Status.BoundKeypair.BoundBotInstanceID = "asdf"
 			}),
 			initReq: makeInitReq(func(r *proto.RegisterUsingBoundKeypairInitialRequest) {
@@ -373,8 +384,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			// (should be impossible, but should fail anyway)
 			name: "reauth-with-wrong-key",
 
-			token: makeToken(func(v2 *types.ProvisionTokenV2) {
-				v2.Status.BoundKeypair.BoundPublicKey = correctPublicKey
+			token: makeToken(withBoundKey(correctPublicKey), func(v2 *types.ProvisionTokenV2) {
 				v2.Status.BoundKeypair.BoundBotInstanceID = "asdf"
 			}),
 			initReq: makeInitReq(func(r *proto.RegisterUsingBoundKeypairInitialRequest) {
@@ -392,8 +402,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			// expired and triggered a hard rejoin
 			name: "rejoin-success",
 
-			token: makeToken(func(v2 *types.ProvisionTokenV2) {
-				v2.Status.BoundKeypair.BoundPublicKey = correctPublicKey
+			token: makeToken(withBoundKey(correctPublicKey), func(v2 *types.ProvisionTokenV2) {
 				v2.Status.BoundKeypair.BoundBotInstanceID = "asdf"
 			}),
 			initReq: makeInitReq(),
@@ -413,9 +422,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			// This should fail and prompt the user to recreate the token.
 			name: "bound-key-no-instance",
 
-			token: makeToken(func(v2 *types.ProvisionTokenV2) {
-				v2.Status.BoundKeypair.BoundPublicKey = correctPublicKey
-			}),
+			token:   makeToken(withBoundKey(correctPublicKey)),
 			initReq: makeInitReq(),
 			solver:  makeSolver(correctPublicKey),
 
@@ -445,7 +452,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 		},
 		{
 			name:        "standard-initial-recovery-success",
-			token:       makeToken(withRecovery("standard", 0, 1, "")),
+			token:       makeToken(withRecovery("standard", 0, 1, ""), withInitialKey(correctPublicKey)),
 			initReq:     makeInitReq(),
 			solver:      makeSolver(correctPublicKey),
 			assertError: require.NoError,
@@ -458,7 +465,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 		},
 		{
 			name:        "standard-success-second-recovery",
-			token:       makeToken(withRecovery("standard", 1, 2, "id")),
+			token:       makeToken(withRecovery("standard", 1, 2, "id"), withInitialKey(correctPublicKey)),
 			initReq:     makeInitReq(withJoinState(jwtSigner, withToken(withRecovery("standard", 1, 2, "id")))),
 			solver:      makeSolver(correctPublicKey),
 			assertError: require.NoError,
@@ -471,11 +478,11 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 		},
 		{
 			name:    "standard-failure-missing-join-state",
-			token:   makeToken(withRecovery("standard", 1, 2, "id")),
+			token:   makeToken(withRecovery("standard", 1, 2, "id"), withBoundKey(correctPublicKey)),
 			initReq: makeInitReq(),
 			solver:  makeSolver(correctPublicKey),
 			assertError: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorContains(tt, err, "previous join state is required")
+				require.ErrorContains(tt, err, "join state verification failed")
 			},
 		},
 		{
@@ -490,7 +497,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 		{
 			// Attempts to join with an outdated join state document should fail.
 			name:    "standard-failure-recovery-count-mismatch",
-			token:   makeToken(withRecovery("standard", 2, 3, "id")),
+			token:   makeToken(withRecovery("standard", 2, 3, "id"), withBoundKey(correctPublicKey)),
 			initReq: makeInitReq(withJoinState(jwtSigner, withToken(withRecovery("standard", 1, 3, "id")))),
 			solver:  makeSolver(correctPublicKey),
 			assertError: func(tt require.TestingT, err error, i ...any) {
@@ -499,7 +506,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 		},
 		{
 			name:  "standard-failure-invalid-jwt",
-			token: makeToken(withRecovery("standard", 1, 2, "id")),
+			token: makeToken(withRecovery("standard", 1, 2, "id"), withBoundKey(correctPublicKey)),
 			initReq: makeInitReq(func(r *proto.RegisterUsingBoundKeypairInitialRequest) {
 				r.PreviousJoinState = []byte("asdf")
 			}),
@@ -510,7 +517,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 		},
 		{
 			name:    "standard-failure-invalid-jwt-signature",
-			token:   makeToken(withRecovery("standard", 1, 2, "id")),
+			token:   makeToken(withRecovery("standard", 1, 2, "id"), withBoundKey(correctPublicKey)),
 			initReq: makeInitReq(withJoinState(invalidJWTSigner, withToken(withRecovery("standard", 1, 2, "id")))),
 			solver:  makeSolver(correctPublicKey),
 			assertError: func(tt require.TestingT, err error, i ...any) {
@@ -519,7 +526,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 		},
 		{
 			name:    "standard-failure-invalid-instance-id",
-			token:   makeToken(withRecovery("standard", 1, 2, "foo")),
+			token:   makeToken(withRecovery("standard", 1, 2, "foo"), withBoundKey(correctPublicKey)),
 			initReq: makeInitReq(withJoinState(jwtSigner, withToken(withRecovery("standard", 1, 2, "id")))),
 			solver:  makeSolver(correctPublicKey),
 			assertError: func(tt require.TestingT, err error, i ...any) {
@@ -528,7 +535,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 		},
 		{
 			name:  "standard-failure-invalid-cluster",
-			token: makeToken(withRecovery("standard", 1, 2, "foo")),
+			token: makeToken(withRecovery("standard", 1, 2, "foo"), withBoundKey(correctPublicKey)),
 			initReq: makeInitReq(withJoinState(jwtSigner, withToken(withRecovery("standard", 1, 2, "id")), func(s *boundkeypair.JoinStateParams) {
 				s.ClusterName = "wrong-cluster"
 			})),
@@ -539,7 +546,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 		},
 		{
 			name:        "relaxed-success-count-over-limit",
-			token:       makeToken(withRecovery("relaxed", 1, 0, "id")),
+			token:       makeToken(withRecovery("relaxed", 1, 0, "id"), withBoundKey(correctPublicKey)),
 			initReq:     makeInitReq(withJoinState(jwtSigner, withToken(withRecovery("relaxed", 1, 0, "id")))),
 			solver:      makeSolver(correctPublicKey),
 			assertError: require.NoError,
@@ -856,14 +863,14 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			// note: we only override CreateToken in ServerWithRoles, so we'll
 			// need to call CreateBoundKeypairToken() directly to ensure
 			// computed fields (i.e. registration secrets) are handled properly.
-			require.NoError(t, auth.CreateBoundKeypairToken(ctx, token))
+			require.NoError(t, authServer.CreateBoundKeypairToken(ctx, token))
 			tt.initReq.JoinRequest.Token = tt.name
 
-			response, err := auth.RegisterUsingBoundKeypairMethod(ctx, tt.initReq, tt.solver.wrapped)
+			response, err := authServer.RegisterUsingBoundKeypairMethod(ctx, tt.initReq, tt.solver.wrapped)
 			tt.assertError(t, err)
 
 			if tt.assertResponse != nil {
-				pt, err := auth.GetToken(ctx, tt.name)
+				pt, err := authServer.GetToken(ctx, tt.name)
 				require.NoError(t, err)
 
 				ptv2, ok := pt.(*types.ProvisionTokenV2)
@@ -919,8 +926,15 @@ func newMockSolver(t *testing.T, pubKey string) *mockSolver {
 	}
 }
 
-func testExtractBotParamsFromCerts(t *testing.T, certs *proto.Certs) (string, uint64) {
-	t.Helper()
+type tHelper interface {
+	Helper()
+}
+
+func testExtractBotParamsFromCerts(t require.TestingT, certs *proto.Certs) (string, uint64) {
+	// we might not have .Helper() available for require.CollectT
+	if h, ok := t.(tHelper); ok {
+		h.Helper()
+	}
 
 	parsed, err := tlsca.ParseCertificatePEM(certs.TLS)
 	require.NoError(t, err)
@@ -931,14 +945,13 @@ func testExtractBotParamsFromCerts(t *testing.T, certs *proto.Certs) (string, ui
 }
 
 func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
 
-	// TODO: This prevents parallel execution; remove along with the experiment.
-	boundkeypairexperiment.SetEnabled(true)
+	ctx := context.Background()
 
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
-	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 
 	_, correctPublicKey := testBoundKeypair(t)
@@ -946,19 +959,19 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 	clock := clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC())
 
 	srv := newTestTLSServer(t, withClock(clock))
-	auth := srv.Auth()
-	auth.createBoundKeypairValidator = func(subject, clusterName string, publicKey crypto.PublicKey) (boundKeypairValidator, error) {
+	authServer := srv.Auth()
+	authServer.SetCreateBoundKeypairValidator(func(subject, clusterName string, publicKey crypto.PublicKey) (auth.BoundKeypairValidator, error) {
 		return &mockBoundKeypairValidator{
 			subject:     subject,
 			clusterName: clusterName,
 			publicKey:   publicKey,
 		}, nil
-	}
+	})
 
-	_, err = CreateRole(ctx, auth, "example", types.RoleSpecV6{})
+	_, err = authtest.CreateRole(ctx, authServer, "example", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	adminClient, err := srv.NewClient(TestAdmin())
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
 	_, err = adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
@@ -994,7 +1007,7 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 		&types.ProvisionTokenStatusV2{},
 	)
 	require.NoError(t, err)
-	require.NoError(t, auth.CreateBoundKeypairToken(ctx, token))
+	require.NoError(t, authServer.CreateBoundKeypairToken(ctx, token))
 
 	makeInitReq := func(mutators ...func(r *proto.RegisterUsingBoundKeypairInitialRequest)) *proto.RegisterUsingBoundKeypairInitialRequest {
 		req := &proto.RegisterUsingBoundKeypairInitialRequest{
@@ -1018,7 +1031,7 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 		}
 	}
 
-	withBotParamsFromIdent := func(t *testing.T, certs *proto.Certs) func(r *proto.RegisterUsingBoundKeypairInitialRequest) {
+	withBotParamsFromIdent := func(t require.TestingT, certs *proto.Certs) func(r *proto.RegisterUsingBoundKeypairInitialRequest) {
 		id, gen := testExtractBotParamsFromCerts(t, certs)
 
 		return func(r *proto.RegisterUsingBoundKeypairInitialRequest) {
@@ -1028,7 +1041,7 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 	}
 
 	solver := newMockSolver(t, correctPublicKey)
-	response, err := auth.RegisterUsingBoundKeypairMethod(ctx, makeInitReq(), solver.solver())
+	response, err := authServer.RegisterUsingBoundKeypairMethod(ctx, makeInitReq(), solver.solver())
 	require.NoError(t, err)
 
 	instance, generation := testExtractBotParamsFromCerts(t, response.Certs)
@@ -1038,7 +1051,7 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 
 	// Register several times.
 	for i := range 10 {
-		response, err = auth.RegisterUsingBoundKeypairMethod(
+		response, err = authServer.RegisterUsingBoundKeypairMethod(
 			ctx,
 			makeInitReq(withJoinState(response.JoinState), withBotParamsFromIdent(t, response.Certs)),
 			solver.solver(),
@@ -1051,7 +1064,7 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 	}
 
 	// Perform a recovery to get a new instance and reset the counter.
-	response, err = auth.RegisterUsingBoundKeypairMethod(ctx, makeInitReq(withJoinState(response.JoinState)), solver.solver())
+	response, err = authServer.RegisterUsingBoundKeypairMethod(ctx, makeInitReq(withJoinState(response.JoinState)), solver.solver())
 	require.NoError(t, err)
 
 	instance, generation = testExtractBotParamsFromCerts(t, response.Certs)
@@ -1062,7 +1075,7 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 
 	// Register several more times.
 	for i := range 10 {
-		response, err = auth.RegisterUsingBoundKeypairMethod(
+		response, err = authServer.RegisterUsingBoundKeypairMethod(
 			ctx,
 			makeInitReq(withJoinState(response.JoinState), withBotParamsFromIdent(t, response.Certs)),
 			solver.solver(),
@@ -1074,8 +1087,17 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 		require.Equal(t, secondInstance, instance)
 	}
 
+	// Try an API call with these certs.
+	tlsCert, err := tls.X509KeyPair(response.Certs.TLS, sshPrivateKey)
+	require.NoError(t, err)
+
+	client, err := srv.NewClientWithCert(tlsCert)
+	require.NoError(t, err)
+	_, err = client.Ping(ctx)
+	require.NoError(t, err)
+
 	// Provide an incorrect generation counter value.
-	response, err = auth.RegisterUsingBoundKeypairMethod(
+	nextResponse, err := authServer.RegisterUsingBoundKeypairMethod(
 		ctx,
 		makeInitReq(
 			withJoinState(response.JoinState),
@@ -1086,13 +1108,193 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 		),
 		solver.solver(),
 	)
-	require.Nil(t, response)
-	require.ErrorContains(t, err, "renewable cert generation mismatch")
+	require.Nil(t, nextResponse)
 
-	// The bot user should now be locked.
+	// Note: exact error message depends on lock enforcement which may take some
+	// time, especially in CI. We'll check the exact message later.
+	require.Error(t, err)
+
+	// The token should now be locked.
 	locks, err := srv.Auth().GetLocks(ctx, true, types.LockTarget{
-		User: "bot-test",
+		JoinToken: "bound-keypair-test",
 	})
 	require.NoError(t, err)
-	require.NotEmpty(t, locks)
+	require.Len(t, locks, 1, "only one lock should be generated")
+	require.Contains(t, locks[0].Message(), "certificate generation mismatch")
+
+	// Using the previously working client, make sure API calls no longer work.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err = client.Ping(ctx)
+		assert.ErrorContains(t, err, "access denied")
+	}, 5*time.Second, 100*time.Millisecond)
+
+	// Try registering again now that we know the lock is properly in force.
+	// This should produce a new error message.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		nextResponse, err := authServer.RegisterUsingBoundKeypairMethod(
+			ctx,
+			makeInitReq(
+				withJoinState(response.JoinState),
+				withBotParamsFromIdent(t, response.Certs),
+				func(r *proto.RegisterUsingBoundKeypairInitialRequest) {
+					r.JoinRequest.BotGeneration = 1
+				},
+			),
+			solver.solver(),
+		)
+		require.Nil(t, nextResponse)
+		require.ErrorContains(t, err, "have been locked due to a certificate generation mismatch")
+	}, 5*time.Second, 100*time.Millisecond)
+}
+
+func TestServer_RegisterUsingBoundKeypairMethod_JoinStateFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	require.NoError(t, err)
+
+	_, correctPublicKey := testBoundKeypair(t)
+
+	clock := clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC())
+
+	srv := newTestTLSServer(t, withClock(clock))
+	authServer := srv.Auth()
+	authServer.SetCreateBoundKeypairValidator(func(subject, clusterName string, publicKey crypto.PublicKey) (auth.BoundKeypairValidator, error) {
+		return &mockBoundKeypairValidator{
+			subject:     subject,
+			clusterName: clusterName,
+			publicKey:   publicKey,
+		}, nil
+	})
+
+	_, err = authtest.CreateRole(ctx, authServer, "example", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	_, err = adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "test",
+			},
+			Spec: &machineidv1pb.BotSpec{
+				Roles: []string{"example"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	token, err := types.NewProvisionTokenFromSpecAndStatus(
+		"bound-keypair-test",
+		time.Now().Add(2*time.Hour),
+		types.ProvisionTokenSpecV2{
+			JoinMethod: types.JoinMethodBoundKeypair,
+			Roles:      []types.SystemRole{types.RoleBot},
+			BotName:    "test",
+			BoundKeypair: &types.ProvisionTokenSpecV2BoundKeypair{
+				Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
+					InitialPublicKey: correctPublicKey,
+				},
+				Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
+					Limit: 3,
+				},
+			},
+		},
+		&types.ProvisionTokenStatusV2{},
+	)
+	require.NoError(t, err)
+	require.NoError(t, authServer.CreateBoundKeypairToken(ctx, token))
+
+	makeInitReq := func(mutators ...func(r *proto.RegisterUsingBoundKeypairInitialRequest)) *proto.RegisterUsingBoundKeypairInitialRequest {
+		req := &proto.RegisterUsingBoundKeypairInitialRequest{
+			JoinRequest: &types.RegisterUsingTokenRequest{
+				HostID:       "host-id",
+				Role:         types.RoleBot,
+				PublicTLSKey: tlsPublicKey,
+				PublicSSHKey: sshPublicKey,
+				Token:        "bound-keypair-test",
+			},
+		}
+		for _, mutator := range mutators {
+			mutator(req)
+		}
+		return req
+	}
+
+	withJoinState := func(state []byte) func(r *proto.RegisterUsingBoundKeypairInitialRequest) {
+		return func(r *proto.RegisterUsingBoundKeypairInitialRequest) {
+			r.PreviousJoinState = state
+		}
+	}
+
+	// Perform the initial registration.
+	solver := newMockSolver(t, correctPublicKey)
+	firstResponse, err := authServer.RegisterUsingBoundKeypairMethod(ctx, makeInitReq(), solver.solver())
+	require.NoError(t, err)
+
+	// Perform a recovery, this time with a join state.
+	secondResponse, err := authServer.RegisterUsingBoundKeypairMethod(
+		ctx,
+		makeInitReq(withJoinState(firstResponse.JoinState)),
+		solver.solver(),
+	)
+	require.NotNil(t, secondResponse)
+	require.NoError(t, err)
+
+	// Try an API call with these certs.
+	tlsCert, err := tls.X509KeyPair(secondResponse.Certs.TLS, sshPrivateKey)
+	require.NoError(t, err)
+
+	client, err := srv.NewClientWithCert(tlsCert)
+	require.NoError(t, err)
+	_, err = client.Ping(ctx)
+	require.NoError(t, err)
+
+	// Try once more, but this time with the first join state.
+	thirdResponse, err := authServer.RegisterUsingBoundKeypairMethod(
+		ctx,
+		makeInitReq(withJoinState(firstResponse.JoinState)),
+		solver.solver(),
+	)
+	require.Nil(t, thirdResponse)
+
+	// Note: Exact error message depends on whether or not the lock is in
+	// effect, so we won't check it right now.
+	require.Error(t, err)
+
+	// The token should now be locked - but only once.
+	locks, err := srv.Auth().GetLocks(ctx, true, types.LockTarget{
+		JoinToken: "bound-keypair-test",
+	})
+	require.NoError(t, err)
+	require.Len(t, locks, 1, "only one lock should be generated")
+	require.Contains(t, locks[0].Message(), "failed to verify its join state")
+
+	// The previously working client should be locked.
+	require.Eventually(t, func() bool {
+		_, err = client.Ping(ctx)
+		return err != nil && strings.Contains(err.Error(), "access denied")
+	}, 5*time.Second, 100*time.Millisecond)
+
+	// Repeat the above but with an Eventually() to consistently check the error
+	// message. Depending on exact timing / cache propagation / etc the lock may
+	// or may not be in force, but we also need to be absolutely certain to try
+	// to generate at least 2 locking events.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		nextResponse, err := authServer.RegisterUsingBoundKeypairMethod(
+			ctx,
+			makeInitReq(withJoinState(firstResponse.JoinState)),
+			solver.solver(),
+		)
+		require.Nil(t, nextResponse)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "a client failed to verify its join state")
+	}, 5*time.Second, 100*time.Millisecond)
 }

@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -277,8 +277,7 @@ func getItemsUsingReflection(obj runtime.Object) (getItemsUsingReflectionOutput,
 func setItemsUsingReflection(itemsR reflect.Value, underlyingType reflect.Type, items []kubeObjectInterface) {
 	// make a new slice of the same type as the original one.
 	slice := reflect.MakeSlice(itemsR.Type(), len(items), len(items))
-	for i := range items {
-		item := items[i]
+	for i, item := range items {
 		// convert the item to the underlying type of the slice.
 		// this is needed because items is a slice of pointers that
 		// satisfy the kubeObjectInterface interface.
@@ -294,16 +293,15 @@ func setItemsUsingReflection(itemsR reflect.Value, underlyingType reflect.Type, 
 // newImpersonatedKubeClient creates a new Kubernetes Client that impersonates
 // a username and the groups.
 func newImpersonatedKubeClient(creds kubeCreds, username string, groups []string) (*dynamic.DynamicClient, error) {
-	c := &rest.Config{}
 	// clone cluster's rest config.
-	*c = *creds.getKubeRestConfig()
+	c := *creds.getKubeRestConfig()
 	// change the impersonated headers.
 	c.Impersonate = rest.ImpersonationConfig{
 		UserName: username,
 		Groups:   groups,
 	}
 	// TODO(tigrato): reuse the http client.
-	client, err := dynamic.NewForConfig(c)
+	client, err := dynamic.NewForConfig(&c)
 	return client, trace.Wrap(err)
 }
 
@@ -359,7 +357,7 @@ func deleteResources[T kubeObjectInterface](
 		allowedKubeUsers, allowedKubeGroups = fillDefaultKubePrincipalDetails(allowedKubeUsers, allowedKubeGroups, params.authCtx.User.GetName())
 
 		impersonatedUsers, impersonatedGroups, err := computeImpersonatedPrincipals(
-			utils.StringsSet(allowedKubeUsers), utils.StringsSet(allowedKubeGroups),
+			set.New(allowedKubeUsers...), set.New(allowedKubeGroups...),
 			params.header,
 		)
 		if err != nil {

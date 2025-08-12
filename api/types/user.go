@@ -44,6 +44,10 @@ func (f *UserFilter) Match(user *UserV2) bool {
 		}
 	}
 
+	if f.SkipSystemUsers && IsSystemResource(user) {
+		return false
+	}
+
 	return true
 }
 
@@ -123,6 +127,8 @@ type User interface {
 	SetHostUserUID(uid string)
 	// SetHostUserGID sets the GID for host users
 	SetHostUserGID(gid string)
+	// SetMCPTools sets a list of allowed MCP tools for the user
+	SetMCPTools(mcpTools []string)
 	// GetCreatedBy returns information about user
 	GetCreatedBy() CreatedBy
 	// SetCreatedBy sets created by information
@@ -415,6 +421,11 @@ func (u *UserV2) SetHostUserUID(uid string) {
 // SetHostUserGID sets the host user GID
 func (u *UserV2) SetHostUserGID(uid string) {
 	u.setTrait(constants.TraitHostUserGID, []string{uid})
+}
+
+// SetMCPTools sets a list of allowed MCP tools for the user
+func (u *UserV2) SetMCPTools(mcpTools []string) {
+	u.setTrait(constants.TraitMCPTools, mcpTools)
 }
 
 // GetStatus returns login status of the user

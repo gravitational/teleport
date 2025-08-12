@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react';
+import { Meta } from '@storybook/react-vite';
 
 import { SlidingSidePanel } from 'shared/components/SlidingSidePanel';
 import { InfoGuideContainer } from 'shared/components/SlidingSidePanel/InfoGuide';

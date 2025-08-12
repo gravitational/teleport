@@ -174,7 +174,7 @@ func ConfigureAccessGraphSyncIAM(ctx context.Context, clt AccessGraphIAMConfigur
 		statements = append(statements, awslib.StatementAccessGraphAWSSyncSQS(arnString))
 	}
 	if req.CloudTrailBucketARN != "" {
-		statements = append(statements, awslib.StatementAccessGraphAWSSyncS3BucketDownload(req.CloudTrailBucketARN))
+		statements = append(statements, awslib.StatementsAccessGraphAWSSyncS3BucketDownload(req.CloudTrailBucketARN)...)
 	}
 
 	if len(req.KMSKeyARNs) > 0 {

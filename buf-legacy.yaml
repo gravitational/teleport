@@ -21,6 +21,7 @@ lint:
     # - COMMENT_MESSAGE
     - COMMENT_RPC
     - COMMENT_SERVICE
+    - PAGINATION_REQUIRED
   except:
     # MINIMAL
     - PACKAGE_DIRECTORY_MATCH
@@ -35,3 +36,12 @@ lint:
     - RPC_REQUEST_RESPONSE_UNIQUE
     - RPC_REQUEST_STANDARD_NAME
     - RPC_RESPONSE_STANDARD_NAME
+plugins:
+  - plugin:
+      - env
+      - GOWORK=off
+      - go
+      - -C
+      - ./build.assets/tooling
+      - run
+      - ./cmd/buf-plugin-linters

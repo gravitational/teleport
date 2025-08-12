@@ -109,6 +109,7 @@ func (r resourceTeleportAccessList) Create(ctx context.Context, req tfsdk.Create
 		return
 	}
 		var accessListI = accessListResource
+	// Try getting the resource until it exists.
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
@@ -116,12 +117,13 @@ func (r resourceTeleportAccessList) Create(ctx context.Context, req tfsdk.Create
 		accessListI, err = r.p.Client.AccessListClient().GetAccessList(ctx, id)
 		if trace.IsNotFound(err) {
 			if bErr := backoff.Do(ctx); bErr != nil {
-				resp.Diagnostics.Append(diagFromWrappedErr("Error reading AccessList", trace.Wrap(bErr), "access_list"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading AccessList", trace.Wrap(err), "access_list"))
 				return
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading AccessList (tried %d times) - state outdated, please import resource", tries)
 				resp.Diagnostics.AddError(diagMessage, "access_list")
+				return
 			}
 			continue
 		}

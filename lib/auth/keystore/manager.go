@@ -25,14 +25,15 @@ import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"io"
 	"log/slog"
-	"maps"
-	"slices"
+	"math/big"
+	"time"
 
 	kms "cloud.google.com/go/kms/apiv1"
 	"github.com/gravitational/trace"
@@ -49,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -172,6 +174,9 @@ type backend interface {
 	// keys this backend uses.
 	keyTypeDescription() string
 
+	// findDecryptersByLabel returns all known decrypters identified by the given label
+	findDecryptersByLabel(ctx context.Context, label *types.KeyLabel) ([]crypto.Decrypter, error)
+
 	// name returns the name of the backend.
 	name() string
 }
@@ -190,11 +195,15 @@ type Options struct {
 	FIPS bool
 	// OAEPHash function to use with keystores that support OAEP with a configurable hash.
 	OAEPHash crypto.Hash
+	// RSAKeyPairSource is an optional function used by the software keystore when
+	// generating RSA keys.
+	RSAKeyPairSource RSAKeyPairSource
 
 	awsKMSClient kmsClient
 	mrkClient    mrkClient
 	awsSTSClient stsClient
 	kmsClient    *kms.KeyManagementClient
+	awsRGTClient rgtClient
 
 	clockworkOverride clockwork.Clock
 	// GCPKMS uses a special fake clock that seemed more testable at the time.
@@ -232,7 +241,7 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 		return nil, trace.Wrap(err)
 	}
 
-	softwareBackend := newSoftwareKeyStore(&softwareConfig{})
+	softwareBackend := newSoftwareKeyStore(&softwareConfig{rsaKeyPairSource: opts.RSAKeyPairSource})
 	var backendForNewKeys backend = softwareBackend
 	usableBackends := []backend{softwareBackend}
 
@@ -535,6 +544,25 @@ func (m *Manager) GetDecrypter(ctx context.Context, keyPair *types.EncryptionKey
 	return nil, trace.NotFound("no compatible backend found for keypair")
 }
 
+// FindDecryptersByLabels returns a slice of all [crypto.Decrypter] keys identified by the given labels across all
+// usable backends.
+func (m *Manager) FindDecryptersByLabels(ctx context.Context, labels ...*types.KeyLabel) ([]crypto.Decrypter, error) {
+	var decrypters []crypto.Decrypter
+	for _, backend := range m.usableBackends {
+		for _, label := range labels {
+			decs, err := backend.findDecryptersByLabel(ctx, label)
+			if err != nil {
+				m.logger.DebugContext(ctx, "could not find key for label", "backend", backend.name(), "label_type", label.Type, "label", label.Label, "error", err)
+				continue
+			}
+
+			decrypters = append(decrypters, decs...)
+		}
+	}
+
+	return decrypters, nil
+}
+
 // NewSSHKeyPair generates a new SSH keypair in the keystore backend and returns it.
 func (m *Manager) NewSSHKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.SSHKeyPair, error) {
 	alg, err := cryptosuites.AlgorithmForKey(ctx, m.currentSuiteGetter, purpose)
@@ -595,15 +623,41 @@ func (m *Manager) newTLSKeyPair(ctx context.Context, clusterName string, alg cry
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	certificate, err := tlsca.ParseCertificatePEM(tlsCert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	crl, err := GenerateCRL(certificate, signer)
+	if err != nil {
+		return nil, err
+	}
 	return &types.TLSKeyPair{
 		Cert:    tlsCert,
 		Key:     tlsKey,
 		KeyType: keyType(tlsKey),
+		CRL:     crl,
 	}, nil
 }
 
-// New JWTKeyPair create a new JWT keypair in the keystore backend and returns
-// it.
+// GenerateCRL generates an empty x509 certificate revocation list.
+func GenerateCRL(caCert *x509.Certificate, signer crypto.Signer) ([]byte, error) {
+	revocationList := &x509.RevocationList{
+		Number:     big.NewInt(1),
+		ThisUpdate: time.Now().Add(-1 * time.Minute), // 1 min in the past to account for clock skew.
+
+		// Note the 10 year expiration date. CRLs are always empty, so they don't need to change frequently.
+		NextUpdate: time.Now().Add(10 * 365 * 24 * time.Hour),
+	}
+	crl, err := x509.CreateRevocationList(rand.Reader, revocationList, caCert, signer)
+	if err != nil {
+		return nil, trace.Wrap(err, "generating CRL")
+	}
+	return crl, nil
+}
+
+// NewJWTKeyPair create a new JWT keypair in the keystore backend and returns it.
 func (m *Manager) NewJWTKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.JWTKeyPair, error) {
 	alg, err := cryptosuites.AlgorithmForKey(ctx, m.currentSuiteGetter, purpose)
 	if err != nil {
@@ -770,15 +824,15 @@ func (m *Manager) hasUsableKeys(ctx context.Context, keySet types.CAKeySet) (*Us
 			allRawKeys = append(allRawKeys, jwtKeyPair.PrivateKey)
 		}
 	}
-	caKeyTypes := make(map[string]struct{})
+	caKeyTypes := set.New[string]()
 	for _, rawKey := range allRawKeys {
 		desc, err := keyDescription(rawKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		caKeyTypes[desc] = struct{}{}
+		caKeyTypes.Add(desc)
 	}
-	result.CAKeyTypes = slices.Collect(maps.Keys(caKeyTypes))
+	result.CAKeyTypes = caKeyTypes.Elements()
 	return result, nil
 }
 

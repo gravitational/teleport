@@ -76,7 +76,7 @@ export function StatefulSection<Model, ValidationResult>({
   );
 }
 
-const minimalRole = withDefaults({
+export const minimalRole = withDefaults({
   metadata: { name: 'foobar' },
   version: defaultRoleVersion,
 });

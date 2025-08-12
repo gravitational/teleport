@@ -97,6 +97,7 @@ func (o *OptionFile) Upsert(profile profile.ConnectProfile) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	section.NewBooleanKey("skip-password")
 	section.NewKey("host", profile.Host)
 	section.NewKey("port", strconv.Itoa(profile.Port))
 	if profile.User != "" {

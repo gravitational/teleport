@@ -24,6 +24,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -48,6 +49,7 @@ const (
 )
 
 // UpdateConfig describes the update.yaml file schema.
+// Pointer values should be replaced and not mutated, see Copy.
 type UpdateConfig struct {
 	// Version of the configuration file
 	Version string `yaml:"version"`
@@ -59,7 +61,16 @@ type UpdateConfig struct {
 	Status UpdateStatus `yaml:"status"`
 }
 
+// Copy an UpdateConfig. Pointers are not copied.
+func (cfg *UpdateConfig) Copy() *UpdateConfig {
+	if cfg == nil {
+		return &UpdateConfig{}
+	}
+	return toPtr(*cfg)
+}
+
 // UpdateSpec describes the spec field in update.yaml.
+// Pointer values should be replaced and not mutated, see Copy.
 type UpdateSpec struct {
 	// Proxy address
 	Proxy string `yaml:"proxy"`
@@ -73,9 +84,13 @@ type UpdateSpec struct {
 	Enabled bool `yaml:"enabled"`
 	// Pinned controls whether the active_version is pinned.
 	Pinned bool `yaml:"pinned"`
+	// SELinuxSSH controls whether an SELinux module will be installed to
+	// constrain Teleport SSH.
+	SELinuxSSH bool `yaml:"selinux_ssh,omitempty"`
 }
 
 // UpdateStatus describes the status field in update.yaml.
+// Pointer values should be replaced and not mutated, see Copy.
 type UpdateStatus struct {
 	// IDFile is the path to a temporary file containing the updater ID.
 	IDFile string `yaml:"id_file,omitempty"`
@@ -153,6 +168,7 @@ func NewRevisionFromDir(dir string) (Revision, error) {
 }
 
 // Dir returns the directory path name of a Revision.
+// These are unambiguous for semver and may be parsed with NewRevisionFromDir.
 func (r Revision) Dir() string {
 	// Do not change the order of these statements.
 	// Otherwise, installed versions will no longer match update.yaml.
@@ -167,6 +183,7 @@ func (r Revision) Dir() string {
 }
 
 // String returns a human-readable description of a Teleport revision.
+// These are semver-ambiguous and should not be parsed.
 func (r Revision) String() string {
 	if flags := r.Flags.Strings(); len(flags) > 0 {
 		return fmt.Sprintf("%s+%s", r.Version, strings.Join(flags, "+"))
@@ -207,7 +224,7 @@ func writeConfig(filename string, cfg *UpdateConfig) error {
 	}))
 }
 
-func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
+func updateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 	if override.Proxy != "" {
 		spec.Proxy = override.Proxy
 	}
@@ -225,6 +242,12 @@ func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 	}
 	if override.Pinned {
 		spec.Pinned = true
+	}
+	if override.SELinuxSSHChanged {
+		spec.SELinuxSSH = override.SELinuxSSH
+	}
+	if spec.SELinuxSSH && runtime.GOOS != "linux" {
+		return trace.BadParameter("SELinux is only supported on Linux")
 	}
 	return nil
 }

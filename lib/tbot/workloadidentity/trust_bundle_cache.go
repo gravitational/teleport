@@ -34,12 +34,15 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"go.opentelemetry.io/otel"
 
+	"github.com/gravitational/teleport"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	trustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/spiffe")
@@ -176,7 +179,8 @@ type TrustBundleCache struct {
 	clusterName        string
 	botIdentityReadyCh <-chan struct{}
 
-	logger *slog.Logger
+	logger         *slog.Logger
+	statusReporter readyz.Reporter
 
 	mu        sync.RWMutex
 	bundleSet *BundleSet
@@ -198,6 +202,63 @@ type TrustBundleCacheConfig struct {
 	ClusterName        string
 	Logger             *slog.Logger
 	BotIdentityReadyCh <-chan struct{}
+	StatusReporter     readyz.Reporter
+}
+
+// TrustBundleCacheFacade wraps a TrustBundleCache to provide lazy initialization
+// using its BuildService method. It allows you to create a cache and pass it to
+// service builders before it has been initialized by running the bot.
+type TrustBundleCacheFacade struct {
+	mu          sync.Mutex
+	ready       chan struct{}
+	bundleCache *TrustBundleCache
+}
+
+// NewTrustBundleCacheFacade creates a new TrustBundleCacheFacade.
+func NewTrustBundleCacheFacade() *TrustBundleCacheFacade {
+	return &TrustBundleCacheFacade{ready: make(chan struct{})}
+}
+
+// BuildService implements bot.ServiceBuilder to build the TrustBundleCache once
+// when the bot starts up.
+func (f *TrustBundleCacheFacade) BuildService(deps bot.ServiceDependencies) (bot.Service, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.bundleCache == nil {
+		var err error
+		f.bundleCache, err = NewTrustBundleCache(TrustBundleCacheConfig{
+			FederationClient:   deps.Client.SPIFFEFederationServiceClient(),
+			TrustClient:        deps.Client.TrustClient(),
+			EventsClient:       deps.Client,
+			ClusterName:        deps.BotIdentity().ClusterName,
+			BotIdentityReadyCh: deps.BotIdentityReadyCh,
+			Logger: deps.Logger.With(
+				teleport.ComponentKey,
+				teleport.Component(teleport.ComponentTBot, "spiffe-trust-bundle-cache"),
+			),
+			StatusReporter: deps.StatusRegistry.AddService("spiffe-trust-bundle-cache"),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		close(f.ready)
+	}
+
+	return f.bundleCache, nil
+}
+
+func (f *TrustBundleCacheFacade) GetBundleSet(ctx context.Context) (*BundleSet, error) {
+	select {
+	case <-f.ready:
+		f.mu.Lock()
+		cache := f.bundleCache
+		f.mu.Unlock()
+
+		return cache.GetBundleSet(ctx)
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 // NewTrustBundleCache creates a new TrustBundleCache.
@@ -214,6 +275,9 @@ func NewTrustBundleCache(cfg TrustBundleCacheConfig) (*TrustBundleCache, error) 
 	case cfg.Logger == nil:
 		return nil, trace.BadParameter("missing Logger")
 	}
+	if cfg.StatusReporter == nil {
+		cfg.StatusReporter = readyz.NoopReporter()
+	}
 	return &TrustBundleCache{
 		federationClient:   cfg.FederationClient,
 		trustClient:        cfg.TrustClient,
@@ -221,6 +285,7 @@ func NewTrustBundleCache(cfg TrustBundleCacheConfig) (*TrustBundleCache, error) 
 		clusterName:        cfg.ClusterName,
 		logger:             cfg.Logger,
 		botIdentityReadyCh: cfg.BotIdentityReadyCh,
+		statusReporter:     cfg.StatusReporter,
 		initialized:        make(chan struct{}),
 	}, nil
 }
@@ -259,6 +324,7 @@ func (m *TrustBundleCache) Run(ctx context.Context) error {
 				"error", err,
 				"backoff", trustBundleInitFailureBackoff,
 			)
+			m.statusReporter.ReportReason(readyz.Unhealthy, err.Error())
 		}
 		select {
 		case <-ctx.Done():
@@ -310,6 +376,8 @@ func (m *TrustBundleCache) watch(ctx context.Context) error {
 	case <-watcher.Done():
 		return trace.Wrap(watcher.Error(), "watcher closed before initialization")
 	}
+
+	m.statusReporter.Report(readyz.Healthy)
 
 	// Now that we know our watcher is streaming events, we can fetch the
 	// current point-in-time list of resources.

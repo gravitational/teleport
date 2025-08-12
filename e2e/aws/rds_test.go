@@ -22,6 +22,8 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -563,7 +565,8 @@ func connectAsRDSMySQLAdmin(t *testing.T, ctx context.Context, instanceID string
 		})
 		return nil
 	}
-	endpoint := fmt.Sprintf("%s:%d", info.address, info.port)
+
+	endpoint := net.JoinHostPort(info.address, strconv.Itoa(info.port))
 	conn, err := mysqlclient.Connect(endpoint, info.username, info.password, dbName, opt)
 	require.NoError(t, err)
 	t.Cleanup(func() {

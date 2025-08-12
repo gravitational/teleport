@@ -1,7 +1,10 @@
 ---
-title: Deploy Machine ID
-description: Explains how to deploy Machine ID on your platform and join it to your Teleport cluster.
+title: Deploy tbot
+description: Explains how to deploy tbot on your platform and join it to your Teleport cluster.
 tocDepth: 3
+labels:
+ - conceptual
+ - mwi
 ---
 
 The first step to set up Machine ID is to deploy the `tbot` binary and join a
@@ -52,14 +55,15 @@ and [Architecture](../../../reference/architecture/machine-id-architecture.mdx) 
 Read the following guides for how to deploy Machine ID on your cloud platform or
 on-prem infrastructure.
 
-| Platform                                  | Installation method                             | Join method                                         |
-|-------------------------------------------|-------------------------------------------------|-----------------------------------------------------|
-| [Linux](linux.mdx)           | Package manager or TAR archive                  | Static join token                                   |
-| [Linux (TPM)](linux-tpm.mdx) | Package manager or TAR archive                  | Attestation from TPM 2.0                            |
-| [GCP](gcp.mdx)               | Package manager, TAR archive, or Kubernetes pod | Identity document signed by GCP                     |
-| [AWS](aws.mdx)               | Package manager, TAR archive, or Kubernetes pod | Identity document signed by AWS                     |
-| [Azure](azure.mdx)           | Package manager or TAR archive                  | Identity document signed by Azure                   |
-| [Kubernetes](kubernetes.mdx) | Kubernetes pod                                  | Identity document signed by your Kubernetes cluster |
+| Platform                               | Installation method                             | Join method                                         |
+|----------------------------------------|-------------------------------------------------|-----------------------------------------------------|
+| [Linux](linux.mdx)                     | Package manager or TAR archive                  | Static join token                                   |
+| [Linux (TPM)](linux-tpm.mdx)           | Package manager or TAR archive                  | Attestation from TPM 2.0                            |
+| [Linux (Bound Keypair)][bound-keypair] | Package manager or TAR archive                  | Bound Keypair                                       |
+| [GCP](gcp.mdx)                         | Package manager, TAR archive, or Kubernetes pod | Identity document signed by GCP                     |
+| [AWS](aws.mdx)                         | Package manager, TAR archive, or Kubernetes pod | Identity document signed by AWS                     |
+| [Azure](azure.mdx)                     | Package manager or TAR archive                  | Identity document signed by Azure                   |
+| [Kubernetes](kubernetes.mdx)           | Kubernetes pod                                  | Identity document signed by your Kubernetes cluster |
 
 ### CI/CD
 
@@ -74,6 +78,8 @@ integration and continuous deployment platform
 | [GitLab](gitlab.mdx)                                                                                   | TAR archive                                                   | GitLab-signed identity document          |
 | [GitHub Actions](github-actions.mdx)                                                                   | Teleport job available through the GitHub Actions marketplace | GitHub-signed identity document.         |
 | [Jenkins](jenkins.mdx)                                                                                 | Package manager or TAR archive                                | Static join token                        |
-| [Spacelift](../../../admin-guides/infrastructure-as-code/terraform-provider/spacelift.mdx)             | Docker Image                                                  | Spacelift-signed identity document       |
-| [Terraform Cloud](../../../admin-guides/infrastructure-as-code/terraform-provider/terraform-cloud.mdx) | Teleport Terraform Provider via Teleport's Terraform Registry | Terraform Cloud-signed identity document |
+| [Spacelift](../../../zero-trust-access/infrastructure-as-code/terraform-provider/spacelift.mdx)             | Docker Image                                                  | Spacelift-signed identity document       |
+| [Terraform Cloud](../../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-cloud.mdx) | Teleport Terraform Provider via Teleport's Terraform Registry | Terraform Cloud-signed identity document |
 
+
+[bound-keypair]: ../../../reference/machine-id/bound-keypair/getting-started.mdx

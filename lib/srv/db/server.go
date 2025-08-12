@@ -547,7 +547,7 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 	}
 	// Heartbeat will periodically report the presence of this proxied database
 	// to the auth server.
-	if err := s.startHeartbeat(ctx, database); err != nil {
+	if err := s.startHeartbeat(database); err != nil {
 		return trace.Wrap(err)
 	}
 	// Setup managed users for database.
@@ -571,7 +571,7 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 }
 
 // stopDatabase uninitializes the database with the specified name.
-func (s *Server) stopDatabase(ctx context.Context, db types.Database) error {
+func (s *Server) stopDatabase(ctx context.Context, db types.Database, unregistering bool) error {
 	// Stop database object importer.
 	if err := s.cfg.DatabaseObjects.StopImporter(db.GetName()); err != nil {
 		s.log.WarnContext(ctx, "Failed to stop database object importer",
@@ -582,9 +582,10 @@ func (s *Server) stopDatabase(ctx context.Context, db types.Database) error {
 	s.stopDynamicLabels(db.GetName())
 
 	var errors []error
-	if err := s.stopHeartbeat(db.GetName()); err != nil {
+	if err := s.stopHeartbeat(ctx, db, unregistering); err != nil {
 		s.log.WarnContext(ctx, "Failed to stop database heartbeat",
 			"db", log.StringerAttr(db),
+			"unregistering", unregistering,
 			"error", err,
 		)
 		errors = append(errors, err)
@@ -678,7 +679,8 @@ func (s *Server) registerDatabase(ctx context.Context, database types.Database) 
 // updateDatabase updates database that is already registered.
 func (s *Server) updateDatabase(ctx context.Context, database types.Database) error {
 	// Stop heartbeat and dynamic labels before starting new ones.
-	if err := s.stopDatabase(ctx, database); err != nil {
+	const unregistering = false
+	if err := s.stopDatabase(ctx, database, unregistering); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := s.registerDatabase(ctx, database); err != nil {
@@ -694,28 +696,10 @@ func (s *Server) unregisterDatabase(ctx context.Context, database types.Database
 	if err := s.cfg.CloudIAM.Teardown(ctx, database); err != nil {
 		s.log.WarnContext(ctx, "Failed to teardown IAM.", "db", database.GetName(), "error", err)
 	}
-	// Stop heartbeat, labels, etc.
-	if err := s.stopProxyingAndDeleteDatabase(ctx, database); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// stopProxyingAndDeleteDatabase stops and deletes the database, then
-// unregisters it from the list of proxied databases.
-func (s *Server) stopProxyingAndDeleteDatabase(ctx context.Context, database types.Database) error {
 	// Stop heartbeat and dynamic labels updates.
-	if err := s.stopDatabase(ctx, database); err != nil {
+	const unregistering = true
+	if err := s.stopDatabase(ctx, database, unregistering); err != nil {
 		return trace.Wrap(err)
-	}
-	// stopping the upstream inventory heartbeat may incur a backend write
-	// to delete the heartbeat, which is unnecessary when updating a DB,
-	// since we will upsert a new heartbeat
-	if err := s.stopUpstreamInventoryHeartbeat(ctx, database); err != nil {
-		s.log.WarnContext(ctx, "Failed to stop upstream inventory database heartbeat",
-			"db", log.StringerAttr(database),
-			"error", err,
-		)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -769,7 +753,7 @@ func (s *Server) copyDatabaseWithUpdatedLabelsLocked(database types.Database) *t
 }
 
 // startHeartbeat starts the registration heartbeat to the auth server.
-func (s *Server) startHeartbeat(ctx context.Context, database types.Database) error {
+func (s *Server) startHeartbeat(database types.Database) error {
 	heartbeat, err := srv.NewDatabaseServerHeartbeat(srv.HeartbeatV2Config[*types.DatabaseServerV3]{
 		InventoryHandle: s.cfg.InventoryHandle,
 		GetResource:     s.getServerInfoFunc(database),
@@ -786,43 +770,73 @@ func (s *Server) startHeartbeat(ctx context.Context, database types.Database) er
 }
 
 // stopHeartbeat stops the heartbeat for the specified database.
-func (s *Server) stopHeartbeat(name string) error {
+func (s *Server) stopHeartbeat(ctx context.Context, db types.Database, deleteFromUpstream bool) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	heartbeat, ok := s.heartbeats[name]
+	heartbeat, ok := s.heartbeats[db.GetName()]
 	if !ok {
+		s.mu.Unlock()
 		return nil
 	}
-	delete(s.heartbeats, name)
-	return heartbeat.Close()
+	delete(s.heartbeats, db.GetName())
+	s.mu.Unlock()
+
+	if err := heartbeat.Close(); err != nil {
+		s.log.WarnContext(ctx, "Failed to close database heartbeat",
+			"db", log.StringerAttr(db),
+			"error", err,
+		)
+		return trace.Wrap(err)
+	}
+
+	// stopping the upstream inventory heartbeat or deleting it manually
+	// will incur a backend write, so we should only do it when the database
+	// is being unregistered
+	if !deleteFromUpstream {
+		return nil
+	}
+
+	if err := s.sendUpstreamInventoryStopHeartbeat(ctx, db.GetName()); err != nil {
+		s.log.WarnContext(ctx, "Failed to stop upstream inventory database heartbeat, falling back to deleting the database heartbeat",
+			"db", log.StringerAttr(db),
+			"error", err,
+		)
+		// if upstream doesn't support graceful stop and we don't remove this
+		// database server, it can linger for up to ~10m until its TTL expires.
+		// TODO(gavin): DELETE IN 20.0.0
+		if err := s.deleteDatabaseServer(ctx, db.GetName()); err != nil {
+			s.log.WarnContext(ctx, "Failed to delete database heartbeat",
+				"db", log.StringerAttr(db),
+				"error", err,
+			)
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
 }
 
-// stopUpstreamInventoryHeartbeat stops the upstream inventory control stream
-// heartbeat for a single database.
+// sendUpstreamInventoryStopHeartbeat tells the upstream inventory controller
+// to stop the database heartbeat, unregistering its keepalives and deleting the
+// heartbeat from the backend.
 // https://github.com/gravitational/teleport/issues/50237
-func (s *Server) stopUpstreamInventoryHeartbeat(ctx context.Context, db types.Database) error {
+func (s *Server) sendUpstreamInventoryStopHeartbeat(ctx context.Context, name string) error {
 	if _, ok := s.cfg.InventoryHandle.GetSender(); ok {
 		select {
 		// get latest sender
 		case sender := <-s.cfg.InventoryHandle.Sender():
-			if sender.Hello().Capabilities.DatabaseHeartbeatGracefulStop {
+			if sender.Hello().GetCapabilities().GetDatabaseHeartbeatGracefulStop() {
 				err := sender.Send(ctx, &proto.UpstreamInventoryStopHeartbeat{
 					Kind: proto.StopHeartbeatKind_STOP_HEARTBEAT_KIND_DATABASE_SERVER,
-					Name: db.GetName(),
+					Name: name,
 				})
 				return trace.Wrap(err)
 			}
+			return trace.BadParameter("upstream inventory controller does not support database heartbeat graceful stop")
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
 		}
 	}
-	// if upstream doesn't support graceful stop and we don't remove this
-	// database server, it can linger for up to ~10m until its TTL expires.
-	// TODO(gavin): DELETE IN 20.0.0
-	if err := s.deleteDatabaseServer(ctx, db.GetName()); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.NotFound("inventory control stream not established")
 }
 
 // getServerInfoFunc returns function that the heartbeater uses to report the

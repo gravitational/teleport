@@ -54,6 +54,79 @@ export const Connect = () => {
   return <DocumentDbWrapper ctx={ctx} consoleCtx={consoleCtx} doc={baseDoc} />;
 };
 
+export const ConnectWithEmptyDatabaseName = () => {
+  const { ctx, consoleCtx } = getContexts(
+    Promise.resolve({
+      agents: [
+        {
+          kind: 'db',
+          name: 'mydb',
+          description: '',
+          type: '',
+          protocol: 'mysql',
+          labels: [],
+          names: ['users', 'orders'],
+          users: ['alice', 'bob'],
+          roles: ['reader', 'all'],
+          hostname: '',
+          supportsInteractive: true,
+        },
+      ],
+    })
+  );
+
+  return <DocumentDbWrapper ctx={ctx} consoleCtx={consoleCtx} doc={baseDoc} />;
+};
+
+export const ConnectWithoutAllowedDatabaseNames = () => {
+  const { ctx, consoleCtx } = getContexts(
+    Promise.resolve({
+      agents: [
+        {
+          kind: 'db',
+          name: 'mydb',
+          description: '',
+          type: '',
+          protocol: 'mysql',
+          labels: [],
+          users: ['alice', 'bob'],
+          roles: ['reader', 'all'],
+          hostname: '',
+          supportsInteractive: true,
+        },
+      ],
+    })
+  );
+
+  return <DocumentDbWrapper ctx={ctx} consoleCtx={consoleCtx} doc={baseDoc} />;
+};
+
+export const ConnectWithDatabaseNamesUnsupported = () => {
+  const { ctx, consoleCtx } = getContexts(
+    Promise.resolve({
+      agents: [
+        {
+          kind: 'db',
+          name: 'mydb',
+          description: '',
+          type: '',
+          // as of writing, we don't even have a Cassandra web client, but we
+          // should test that protocols without database name support render
+          // without an input for database name.
+          protocol: 'cassandra',
+          labels: [],
+          users: ['alice', 'bob'],
+          roles: ['reader', 'all'],
+          hostname: '',
+          supportsInteractive: true,
+        },
+      ],
+    })
+  );
+
+  return <DocumentDbWrapper ctx={ctx} consoleCtx={consoleCtx} doc={baseDoc} />;
+};
+
 export const ConnectWithoutRoles = () => {
   const { ctx, consoleCtx } = getContexts(
     Promise.resolve({

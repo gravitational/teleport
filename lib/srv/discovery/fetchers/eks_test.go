@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestEKSFetcher(t *testing.T) {
@@ -123,7 +123,7 @@ func TestEKSFetcher(t *testing.T) {
 				AssumeRole:   tt.assumeRole,
 				FilterLabels: tt.args.filterLabels,
 				Region:       tt.args.region,
-				Logger:       utils.NewSlogLoggerForTests(),
+				Logger:       logtest.NewLogger(),
 			}
 			fetcher, err := NewEKSFetcher(cfg)
 			require.NoError(t, err)

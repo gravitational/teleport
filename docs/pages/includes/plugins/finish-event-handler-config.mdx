@@ -39,7 +39,7 @@ url = "https://fluentd.example.com:8888/test.log"
 session-url = "https://fluentd.example.com:8888/session"
 
 [teleport]
-addr = "example.teleport.com:443"
+addr = "teleport.example.com:443"
 identity = "identity"
 ```
 
@@ -79,7 +79,7 @@ eventHandler:
   skipSessionTypes: []
 
 teleport:
-  address: "example.teleport.com:443"
+  address: "teleport.example.com:443"
   identitySecretName: teleport-event-handler-identity
   identitySecretPath: identity
 

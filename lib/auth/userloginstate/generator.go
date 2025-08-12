@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -152,8 +153,8 @@ func (g *Generator) generate(ctx context.Context, user types.User, ulsService se
 		originalTraits = make(map[string][]string, len(user.GetTraits()))
 		traits = make(map[string][]string, len(user.GetTraits()))
 		for k, v := range user.GetTraits() {
-			originalTraits[k] = utils.CopyStrings(v)
-			traits[k] = utils.CopyStrings(v)
+			originalTraits[k] = slices.Clone(v)
+			traits[k] = slices.Clone(v)
 		}
 	}
 
@@ -171,9 +172,9 @@ func (g *Generator) generate(ctx context.Context, user types.User, ulsService se
 			Name:   user.GetName(),
 			Labels: user.GetAllLabels(),
 		}, userloginstate.Spec{
-			OriginalRoles:  utils.CopyStrings(user.GetRoles()),
+			OriginalRoles:  slices.Clone(user.GetRoles()),
 			OriginalTraits: originalTraits,
-			Roles:          utils.CopyStrings(user.GetRoles()),
+			Roles:          slices.Clone(user.GetRoles()),
 			Traits:         traits,
 			UserType:       user.GetUserType(),
 			GitHubIdentity: githubIdentity,

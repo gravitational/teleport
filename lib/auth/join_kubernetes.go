@@ -35,6 +35,13 @@ type k8sTokenReviewValidator interface {
 
 type k8sJWKSValidator func(now time.Time, jwksData []byte, clusterName string, token string) (*kubetoken.ValidationResult, error)
 
+type k8sOIDCValidator func(
+	ctx context.Context,
+	issuerURL string,
+	clusterName string,
+	token string,
+) (*kubetoken.ValidationResult, error)
+
 func (a *Server) checkKubernetesJoinRequest(
 	ctx context.Context,
 	req *types.RegisterUsingTokenRequest,
@@ -68,6 +75,16 @@ func (a *Server) checkKubernetesJoinRequest(
 		)
 		if err != nil {
 			return nil, trace.WrapWithMessage(err, "reviewing kubernetes token with static_jwks")
+		}
+	case types.KubernetesJoinTypeOIDC:
+		result, err = a.k8sOIDCValidator(
+			ctx,
+			token.Spec.Kubernetes.OIDC.Issuer,
+			clusterName,
+			req.IDToken,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "reviewing kubernetes token with oidc")
 		}
 	case types.KubernetesJoinTypeInCluster, types.KubernetesJoinTypeUnspecified:
 		result, err = a.k8sTokenReviewValidator.Validate(ctx, req.IDToken, clusterName)

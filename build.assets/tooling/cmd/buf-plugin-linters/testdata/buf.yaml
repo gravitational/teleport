@@ -1,0 +1,6 @@
+version: v2
+
+lint:
+  ignore:
+    # Ignore all test data
+    - .

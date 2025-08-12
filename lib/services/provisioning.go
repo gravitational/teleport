@@ -45,6 +45,8 @@ type Provisioner interface {
 	DeleteToken(ctx context.Context, token string) error
 
 	// GetTokens returns all non-expired tokens
+	// Deprecated: use [ListProvisionTokens] instead.
+	// TODO(hugoShaka): DELETE IN 19.0.0
 	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
 
 	// PatchToken performs a conditional update on the named token using
@@ -54,6 +56,9 @@ type Provisioner interface {
 		token string,
 		updateFn func(types.ProvisionToken) (types.ProvisionToken, error),
 	) (types.ProvisionToken, error)
+
+	// ListProvisionTokens retrieves a paginated list of provision tokens.
+	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
 }
 
 // MustCreateProvisionToken returns a new valid provision token

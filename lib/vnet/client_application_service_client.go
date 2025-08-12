@@ -134,13 +134,13 @@ func (c *clientApplicationServiceClient) SignForApp(ctx context.Context, req *vn
 	return resp.GetSignature(), nil
 }
 
-// OnNewConnection reports a new TCP connection to the target app.
-func (c *clientApplicationServiceClient) OnNewConnection(ctx context.Context, appKey *vnetv1.AppKey) error {
-	_, err := c.clt.OnNewConnection(ctx, &vnetv1.OnNewConnectionRequest{
+// OnNewAppConnection reports a new TCP connection to the target app.
+func (c *clientApplicationServiceClient) OnNewAppConnection(ctx context.Context, appKey *vnetv1.AppKey) error {
+	_, err := c.clt.OnNewAppConnection(ctx, &vnetv1.OnNewAppConnectionRequest{
 		AppKey: appKey,
 	})
 	if err != nil {
-		return trace.Wrap(err, "calling OnNewConnection rpc")
+		return trace.Wrap(err, "calling OnNewAppConnection rpc")
 	}
 	return nil
 }

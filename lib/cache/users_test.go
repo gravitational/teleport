@@ -19,8 +19,11 @@ package cache
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -36,7 +39,7 @@ func TestUsers(t *testing.T) {
 	t.Run("GetUsers", func(t *testing.T) {
 		testResources(t, p, testFuncs[types.User]{
 			newResource: func(name string) (types.User, error) {
-				return types.NewUser("bob")
+				return types.NewUser(name)
 			},
 			create: func(ctx context.Context, user types.User) error {
 				_, err := p.usersS.UpsertUser(ctx, user)
@@ -45,7 +48,7 @@ func TestUsers(t *testing.T) {
 			list: func(ctx context.Context) ([]types.User, error) {
 				return p.usersS.GetUsers(ctx, false)
 			},
-			cacheList: func(ctx context.Context) ([]types.User, error) {
+			cacheList: func(ctx context.Context, pageSize int) ([]types.User, error) {
 				return p.cache.GetUsers(ctx, false)
 			},
 			update: func(ctx context.Context, user types.User) error {
@@ -61,7 +64,7 @@ func TestUsers(t *testing.T) {
 	t.Run("ListUsers", func(t *testing.T) {
 		testResources(t, p, testFuncs[types.User]{
 			newResource: func(name string) (types.User, error) {
-				return types.NewUser("bob")
+				return types.NewUser(name)
 			},
 			create: func(ctx context.Context, user types.User) error {
 				_, err := p.usersS.UpsertUser(ctx, user)
@@ -88,9 +91,11 @@ func TestUsers(t *testing.T) {
 
 				return out, nil
 			},
-			cacheList: func(ctx context.Context) ([]types.User, error) {
+			cacheList: func(ctx context.Context, pageSize int) ([]types.User, error) {
 				var out []types.User
-				req := &userspb.ListUsersRequest{}
+				req := &userspb.ListUsersRequest{
+					PageSize: int32(pageSize),
+				}
 				for {
 					resp, err := p.cache.ListUsers(ctx, req)
 					if err != nil {
@@ -119,4 +124,44 @@ func TestUsers(t *testing.T) {
 		})
 	})
 
+	t.Run("ListUsers pagination", func(t *testing.T) {
+		err := p.usersS.DeleteAllUsers(t.Context())
+		require.NoError(t, err)
+
+		waitForUsersCacheLen := func(expected int) {
+			require.EventuallyWithT(t, func(c *assert.CollectT) {
+				got, err := p.cache.GetUsers(t.Context(), false)
+				require.NoError(c, err)
+				require.Len(c, got, expected)
+			}, 3*time.Second, time.Millisecond*100)
+		}
+		waitForUsersCacheLen(0)
+
+		usersToCreate := []string{"bob", "alice"}
+		for _, userName := range usersToCreate {
+			user, err := types.NewUser(userName)
+			require.NoError(t, err)
+			_, err = p.usersS.UpsertUser(t.Context(), user)
+			require.NoError(t, err)
+		}
+
+		waitForUsersCacheLen(len(usersToCreate))
+
+		var allUsers []*types.UserV2
+		req := &userspb.ListUsersRequest{
+			PageSize: 1,
+		}
+		for {
+			resp, err := p.cache.ListUsers(t.Context(), req)
+			require.NoError(t, err)
+			require.Len(t, resp.Users, 1)
+
+			allUsers = append(allUsers, resp.Users...)
+			if resp.NextPageToken == "" {
+				break
+			}
+			req.PageToken = resp.NextPageToken
+		}
+		require.Len(t, allUsers, len(usersToCreate))
+	})
 }

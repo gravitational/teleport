@@ -44,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/forward"
-	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -563,7 +563,7 @@ func (s *remoteSite) updateCertAuthorities(retry retryutils.Retry, remoteWatcher
 				s.logger.DebugContext(s.ctx, "Remote cluster does not support cert authorities rotation yet")
 			case trace.IsCompareFailed(err):
 				s.logger.InfoContext(s.ctx, "Remote cluster has updated certificate authorities, going to force reconnect")
-				if err := s.srv.onSiteTunnelClose(&alwaysClose{RemoteSite: s}); err != nil {
+				if err := s.srv.onSiteTunnelClose(&alwaysClose{Cluster: s}); err != nil {
 					s.logger.WarnContext(s.ctx, "Failed to close remote site", "error", err)
 				}
 				return
@@ -856,7 +856,7 @@ func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ ne
 	)
 
 	// request user agent connection if a SSH user agent is set
-	var userAgent teleagent.Agent
+	var userAgent sshagent.Client
 	if params.GetUserAgent != nil {
 		ua, err := params.GetUserAgent()
 		if err != nil {

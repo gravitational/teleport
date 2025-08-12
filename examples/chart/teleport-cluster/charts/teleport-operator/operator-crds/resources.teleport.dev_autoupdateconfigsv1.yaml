@@ -60,6 +60,15 @@ spec:
                         description: regular schedules for non-critical versions.
                         items:
                           properties:
+                            canary_count:
+                              description: canary_count is the number of canary agents
+                                that will be updated before the whole group is updated.
+                                when set to 0, the group does not enter the canary
+                                phase. This number is capped to 5. This number must
+                                always be lower than the total number of agents in
+                                the group, else the rollout will be stuck.
+                              format: int32
+                              type: integer
                             days:
                               description: days when the update can run. Supported
                                 values are "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",

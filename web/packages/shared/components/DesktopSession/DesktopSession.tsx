@@ -49,7 +49,7 @@ import {
 } from 'shared/libs/tdp';
 import { TdpError } from 'shared/libs/tdp/client';
 
-import { KeyboardHandler } from './KeyboardHandler';
+import { InputHandler } from './InputHandler';
 import TopBar from './TopBar';
 import useDesktopSession, {
   clipboardSharingMessage,
@@ -109,9 +109,9 @@ export function DesktopSession({
   const [tdpConnectionStatus, setTdpConnectionStatus] =
     useState<TdpConnectionStatus>({ status: '' });
 
-  const keyboardHandler = useRef(new KeyboardHandler());
+  const inputHandler = useRef(new InputHandler());
   useEffect(() => {
-    return () => keyboardHandler.current.dispose();
+    return () => inputHandler.current.dispose();
   }, []);
 
   const [
@@ -143,19 +143,20 @@ export function DesktopSession({
 
   useListener(client.onClipboardData, onClipboardData);
 
-  const handleFatalError = useCallback(
-    (error: Error) => {
+  const handleConnectionClose = useCallback(
+    (error?: Error) => {
       clearSharing();
       setTdpConnectionStatus({
         status: 'disconnected',
         fromTdpError: error instanceof TdpError,
-        message: error.message,
+        message: error?.message || '',
       });
       initialTdpConnectionSucceeded.current = false;
     },
     [clearSharing]
   );
-  useListener(client.onError, handleFatalError);
+  useListener(client.onError, handleConnectionClose);
+  useListener(client.onTransportClose, handleConnectionClose);
 
   const addWarning = useCallback(
     (warning: string) => {
@@ -182,19 +183,6 @@ export function DesktopSession({
     )
   );
 
-  useListener(
-    client.onTransportClose,
-    useCallback(
-      error => {
-        setTdpConnectionStatus({
-          status: 'disconnected',
-          message: error?.message,
-        });
-        initialTdpConnectionSucceeded.current = false;
-      },
-      [setTdpConnectionStatus]
-    )
-  );
   useListener(
     client.onTransportOpen,
     useCallback(() => {
@@ -255,7 +243,7 @@ export function DesktopSession({
   }, [client, shouldConnect, keyboardLayout]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    keyboardHandler.current.handleKeyboardEvent({
+    inputHandler.current.handleInputEvent({
       cli: client,
       e: e.nativeEvent,
       state: ButtonState.DOWN,
@@ -274,7 +262,7 @@ export function DesktopSession({
   }
 
   function handleKeyUp(e: React.KeyboardEvent) {
-    keyboardHandler.current.handleKeyboardEvent({
+    inputHandler.current.handleInputEvent({
       cli: client,
       e: e.nativeEvent,
       state: ButtonState.UP,
@@ -282,7 +270,7 @@ export function DesktopSession({
   }
 
   function handleBlur() {
-    keyboardHandler.current.onFocusOut();
+    inputHandler.current.onFocusOut();
   }
 
   function handleMouseMove(e: React.MouseEvent) {
@@ -293,9 +281,11 @@ export function DesktopSession({
   }
 
   function handleMouseDown(e: React.MouseEvent) {
-    if (e.button === 0 || e.button === 1 || e.button === 2) {
-      client.sendMouseButton(e.button, ButtonState.DOWN);
-    }
+    inputHandler.current.handleInputEvent({
+      cli: client,
+      e: e.nativeEvent,
+      state: ButtonState.DOWN,
+    });
 
     // Opportunistically sync local clipboard to remote while
     // transient user activation is in effect.
@@ -304,9 +294,11 @@ export function DesktopSession({
   }
 
   function handleMouseUp(e: React.MouseEvent) {
-    if (e.button === 0 || e.button === 1 || e.button === 2) {
-      client.sendMouseButton(e.button, ButtonState.UP);
-    }
+    inputHandler.current.handleInputEvent({
+      cli: client,
+      e: e.nativeEvent,
+      state: ButtonState.UP,
+    });
   }
 
   function handleMouseWheel(e: WheelEvent) {
@@ -361,7 +353,6 @@ export function DesktopSession({
       <TopBar
         isConnected={screenState.state === 'canvas-visible'}
         onDisconnect={() => {
-          clearSharing();
           client.shutdown();
         }}
         userHost={`${username} on ${desktop}`}

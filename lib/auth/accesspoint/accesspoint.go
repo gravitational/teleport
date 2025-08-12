@@ -73,7 +73,7 @@ type Config struct {
 	AccessLists             services.AccessLists
 	AccessMonitoringRules   services.AccessMonitoringRules
 	AppSession              services.AppSession
-	Apps                    services.Apps
+	Applications            services.Applications
 	BotInstance             services.BotInstance
 	ClusterConfig           services.ClusterConfiguration
 	CrownJewels             services.CrownJewels
@@ -113,6 +113,7 @@ type Config struct {
 	GitServers              services.GitServers
 	HealthCheckConfig       services.HealthCheckConfigReader
 	RecordingEncryption     services.RecordingEncryption
+	Plugin                  services.Plugins
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -158,7 +159,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		AccessLists:             cfg.AccessLists,
 		AccessMonitoringRules:   cfg.AccessMonitoringRules,
 		AppSession:              cfg.AppSession,
-		Apps:                    cfg.Apps,
+		Apps:                    cfg.Applications,
 		ClusterConfig:           cfg.ClusterConfig,
 		AutoUpdateService:       cfg.AutoUpdateService,
 		CrownJewels:             cfg.CrownJewels,
@@ -198,6 +199,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		HealthCheckConfig:       cfg.HealthCheckConfig,
 		BotInstanceService:      cfg.BotInstance,
 		RecordingEncryption:     cfg.RecordingEncryption,
+		Plugin:                  cfg.Plugin,
 	}
 
 	return cache.New(cfg.Setup(cacheCfg))

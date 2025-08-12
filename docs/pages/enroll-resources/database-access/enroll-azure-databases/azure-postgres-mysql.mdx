@@ -2,7 +2,17 @@
 title: Database Access with Azure PostgreSQL and MySQL
 sidebar_label: Azure PostgreSQL/MySQL
 description: How to configure Teleport database access with Azure Database for PostgreSQL and MySQL.
+labels:
+ - how-to
+ - zero-trust
 ---
+
+{/*
+Don't lint the presence of "Azure AD" until we change the guide to apply to
+Entra ID: https://github.com/gravitational/teleport/issues/47776
+*/}
+
+{/* vale 3rd-party-products.former-names = NO */}
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Azure PostgreSQL or MySQL" dbConfigure="with Microsoft Entra ID-based authentication"!)
 

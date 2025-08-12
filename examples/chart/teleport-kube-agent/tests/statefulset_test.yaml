@@ -893,3 +893,61 @@ tests:
       - equal:
           path: spec.template.spec.terminationGracePeriodSeconds
           value: 3600
+
+  - it: should mount a projected SA token when teleportClusterName is set
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      teleportClusterName: teleport.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: join-sa-token
+            projected:
+              sources:
+                - serviceAccountToken:
+                    path: join-sa-token
+                    expirationSeconds: 600
+                    audience: teleport.example.com
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+              mountPath: /var/run/secrets/tokens
+              name: join-sa-token
+              readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KUBERNETES_TOKEN_PATH
+            value: /var/run/secrets/tokens/join-sa-token
+
+  - it: should not mount a projected SA token when teleportClusterName is not set
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      teleportClusterName: ""
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: join-sa-token
+            projected:
+              sources:
+                - serviceAccountToken:
+                    path: join-sa-token
+                    expirationSeconds: 600
+                    audience: ""
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/run/secrets/tokens
+            name: join-sa-token
+            readOnly: true
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KUBERNETES_TOKEN_PATH
+            value: /var/run/secrets/tokens/join-sa-token

@@ -113,6 +113,9 @@ type ConnectionsHandlerConfig struct {
 
 	// Logger is the slog.Logger.
 	Logger *slog.Logger
+
+	// MCPDemoServer enables the "Teleport Demo" MCP server.
+	MCPDemoServer bool
 }
 
 // CheckAndSetDefaults validates the config values and sets defaults.
@@ -276,10 +279,11 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 
 	// Handle MCP servers.
 	c.mcpServer, err = mcp.NewServer(mcp.ServerConfig{
-		Emitter:       c.cfg.Emitter,
-		ParentContext: c.closeContext,
-		HostID:        c.cfg.HostID,
-		AccessPoint:   c.cfg.AccessPoint,
+		Emitter:          c.cfg.Emitter,
+		ParentContext:    c.closeContext,
+		HostID:           c.cfg.HostID,
+		AccessPoint:      c.cfg.AccessPoint,
+		EnableDemoServer: c.cfg.MCPDemoServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

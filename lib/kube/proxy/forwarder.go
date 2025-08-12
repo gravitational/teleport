@@ -87,6 +87,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // KubeServiceType specifies a Teleport service type which can forward Kubernetes requests
@@ -481,8 +482,8 @@ func (c *authContext) eventClusterMeta(req *http.Request) apievents.KubernetesCl
 		kubeUsers = []string{impersonateUser}
 		kubeGroups = impersonateGroups
 	} else {
-		kubeUsers = utils.StringsSliceFromSet(c.kubeUsers)
-		kubeGroups = utils.StringsSliceFromSet(c.kubeGroups)
+		kubeUsers = slices.Collect(maps.Keys(c.kubeUsers))
+		kubeGroups = slices.Collect(maps.Keys(c.kubeGroups))
 	}
 
 	return apievents.KubernetesClusterMetadata{
@@ -965,8 +966,7 @@ func (f *Forwarder) getKubeAccessDetails(
 	accessChecker services.AccessChecker,
 	kubeClusterName string,
 	sessionTTL time.Duration,
-	kubeResource *types.KubernetesResource,
-	isClusterWideResource bool,
+	mr metaResource,
 ) (kubeAccessDetails, error) {
 	// Find requested kubernetes cluster name and get allowed kube users/groups names.
 	for _, s := range kubeServers {
@@ -995,11 +995,13 @@ func (f *Forwarder) getKubeAccessDetails(
 		// results in the intersection of roles that match the "kubernetes_labels" and
 		// roles that allow access to the desired "kubernetes_resource".
 		// If from the intersection results an empty set, the request is denied.
-		if kubeResource != nil {
-			matchers = append(
-				matchers,
-				services.NewKubernetesResourceMatcher(*kubeResource, isClusterWideResource),
-			)
+		if !mr.isList {
+			if kubeResource := mr.rbacResource(); kubeResource != nil {
+				matchers = append(
+					matchers,
+					services.NewKubernetesResourceMatcher(*kubeResource, mr.isClusterWideResource()),
+				)
+			}
 		}
 		// accessChecker.CheckKubeGroupsAndUsers returns the accumulated kubernetes_groups
 		// and kubernetes_users that satisfy te provided matchers.
@@ -1064,16 +1066,18 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 
 	notFoundMessage := fmt.Sprintf("kubernetes cluster %q not found", actx.kubeClusterName)
 	var roleMatchers services.RoleMatchers
-	if rbacResource := actx.metaResource.rbacResource(); rbacResource != nil {
-		notFoundMessage = f.kubeResourceDeniedAccessMsg(
-			actx.User.GetName(),
-			actx.metaResource.verb,
-			actx.metaResource.requestedResource,
-		)
-		roleMatchers = services.RoleMatchers{
-			// Append a matcher that validates if the Kubernetes resource is allowed
-			// by the roles that satisfy the Kubernetes Cluster.
-			services.NewKubernetesResourceMatcher(*rbacResource, actx.metaResource.isClusterWideResource()),
+	if !actx.metaResource.isList {
+		if rbacResource := actx.metaResource.rbacResource(); rbacResource != nil {
+			notFoundMessage = f.kubeResourceDeniedAccessMsg(
+				actx.User.GetName(),
+				actx.metaResource.verb,
+				actx.metaResource.requestedResource,
+			)
+			roleMatchers = services.RoleMatchers{
+				// Append a matcher that validates if the Kubernetes resource is allowed
+				// by the roles that satisfy the Kubernetes Cluster.
+				services.NewKubernetesResourceMatcher(*rbacResource, actx.metaResource.isClusterWideResource()),
+			}
 		}
 	}
 	var kubeUsers, kubeGroups []string
@@ -1088,8 +1092,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 			actx.Checker,
 			actx.kubeClusterName,
 			actx.sessionTTL,
-			actx.metaResource.rbacResource(),
-			actx.metaResource.isClusterWideResource(),
+			actx.metaResource,
 		)
 		if err != nil && !trace.IsNotFound(err) {
 			if actx.metaResource.resourceDefinition != nil {
@@ -1113,8 +1116,8 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	// fillDefaultKubePrincipalDetails fills the default details in order to keep
 	// the correct behavior when forwarding the request to the Kubernetes API.
 	kubeUsers, kubeGroups = fillDefaultKubePrincipalDetails(kubeUsers, kubeGroups, actx.User.GetName())
-	actx.kubeUsers = utils.StringsSet(kubeUsers)
-	actx.kubeGroups = utils.StringsSet(kubeGroups)
+	actx.kubeUsers = set.New(kubeUsers...)
+	actx.kubeGroups = set.New(kubeGroups...)
 
 	// Check authz against the first match.
 	//
@@ -1136,17 +1139,19 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		// If the user has active Access requests we need to validate that they allow
 		// the kubeResource.
 		// This is required because CheckAccess does not validate the subresource type.
-		if rbacResource := actx.metaResource.rbacResource(); rbacResource != nil && len(actx.Checker.GetAllowedResourceIDs()) > 0 {
-			// GetKubeResources returns the allowed and denied Kubernetes resources
-			// for the user. Since we have active access requests, the allowed
-			// resources will be the list of pods that the user requested access to if he
-			// requested access to specific pods or the list of pods that his roles
-			// allow if the user requested access a kubernetes cluster. If the user
-			// did not request access to any Kubernetes resource type, the allowed
-			// list will be empty.
-			allowed, denied := actx.Checker.GetKubeResources(ks)
-			if result, err := matchKubernetesResource(*rbacResource, actx.metaResource.isClusterWideResource(), allowed, denied); err != nil || !result {
-				return trace.AccessDenied("%s", notFoundMessage)
+		if !actx.metaResource.isList {
+			if rbacResource := actx.metaResource.rbacResource(); rbacResource != nil && len(actx.Checker.GetAllowedResourceIDs()) > 0 {
+				// GetKubeResources returns the allowed and denied Kubernetes resources
+				// for the user. Since we have active access requests, the allowed
+				// resources will be the list of pods that the user requested access to if he
+				// requested access to specific pods or the list of pods that his roles
+				// allow if the user requested access a kubernetes cluster. If the user
+				// did not request access to any Kubernetes resource type, the allowed
+				// list will be empty.
+				allowed, denied := actx.Checker.GetKubeResources(ks)
+				if result, err := matchKubernetesResource(*rbacResource, actx.metaResource.isClusterWideResource(), allowed, denied); err != nil || !result {
+					return trace.AccessDenied("%s", notFoundMessage)
+				}
 			}
 		}
 		// store a copy of the Kubernetes Cluster.
@@ -1809,11 +1814,22 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 	}
 
 	auditSent := map[string]bool{} // Set of `addr`. Can be multiple ports on single call. Using bool to simplify the check.
+	var auditSentMu sync.Mutex
 	onPortForward := func(addr string, success bool) {
-		if !sess.isLocalKubernetesCluster || auditSent[addr] {
+		if !sess.isLocalKubernetesCluster {
 			return
 		}
-		auditSent[addr] = true
+
+		auditSentMu.Lock()
+		isAuditSent := auditSent[addr]
+		if !isAuditSent {
+			auditSent[addr] = true
+		}
+		auditSentMu.Unlock()
+		if isAuditSent {
+			return
+		}
+
 		portForward := &apievents.PortForward{
 			Metadata: apievents.Metadata{
 				Type: events.PortForwardEvent,
@@ -2123,7 +2139,7 @@ func (f *Forwarder) catchAll(authCtx *authContext, w http.ResponseWriter, req *h
 	// isWatchingCollectionRequest is true when the request is a watch request and
 	// the resource is a collection of resources, e.g. /api/v1/pods?watch=true.
 	// authCtx.kubeResource is only set when the request targets a single resource.
-	isWatchingCollectionRequest := authCtx.metaResource.verb == types.KubeVerbWatch && authCtx.metaResource.resourceDefinition == nil
+	isWatchingCollectionRequest := authCtx.metaResource.verb == types.KubeVerbWatch && authCtx.metaResource.isList
 
 	switch {
 	case isListRequest || isWatchingCollectionRequest:

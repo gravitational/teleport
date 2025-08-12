@@ -86,7 +86,7 @@ func TestCLICommandBuilderGetExecCommand(t *testing.T) {
 			name:     "mysql",
 			protocol: defaults.ProtocolMySQL,
 			opts:     []ConnectCommandFunc{WithNoTLS()},
-			cmd:      []string{"mysql", "--user", "db-user", "--database", "db-name", "--port", "12345", "--host", "localhost", "--protocol", "TCP", "-e", "select 1"},
+			cmd:      []string{"mysql", "--skip-password", "--user", "db-user", "--database", "db-name", "--port", "12345", "--host", "localhost", "--protocol", "TCP", "-e", "select 1"},
 			wantErr:  false,
 		},
 	}

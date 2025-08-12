@@ -46,6 +46,7 @@ const (
 	PluginService_SearchPluginStaticCredentials_FullMethodName = "/teleport.plugins.v1.PluginService/SearchPluginStaticCredentials"
 	PluginService_NeedsCleanup_FullMethodName                  = "/teleport.plugins.v1.PluginService/NeedsCleanup"
 	PluginService_Cleanup_FullMethodName                       = "/teleport.plugins.v1.PluginService/Cleanup"
+	PluginService_CreatePluginOauthToken_FullMethodName        = "/teleport.plugins.v1.PluginService/CreatePluginOauthToken"
 )
 
 // PluginServiceClient is the client API for PluginService service.
@@ -80,6 +81,11 @@ type PluginServiceClient interface {
 	NeedsCleanup(ctx context.Context, in *NeedsCleanupRequest, opts ...grpc.CallOption) (*NeedsCleanupResponse, error)
 	// Cleanup will clean up the resources for the given plugin type.
 	Cleanup(ctx context.Context, in *CleanupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// CreatePluginOauthToken issues a short-lived OAuth access token for the specified plugin.
+	//
+	// This endpoint supports the OAuth 2.0 "client_credentials" grant type, where the plugin
+	// authenticates using its client ID and client secret
+	CreatePluginOauthToken(ctx context.Context, in *CreatePluginOauthTokenRequest, opts ...grpc.CallOption) (*CreatePluginOauthTokenResponse, error)
 }
 
 type pluginServiceClient struct {
@@ -200,6 +206,16 @@ func (c *pluginServiceClient) Cleanup(ctx context.Context, in *CleanupRequest, o
 	return out, nil
 }
 
+func (c *pluginServiceClient) CreatePluginOauthToken(ctx context.Context, in *CreatePluginOauthTokenRequest, opts ...grpc.CallOption) (*CreatePluginOauthTokenResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreatePluginOauthTokenResponse)
+	err := c.cc.Invoke(ctx, PluginService_CreatePluginOauthToken_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PluginServiceServer is the server API for PluginService service.
 // All implementations must embed UnimplementedPluginServiceServer
 // for forward compatibility.
@@ -232,6 +248,11 @@ type PluginServiceServer interface {
 	NeedsCleanup(context.Context, *NeedsCleanupRequest) (*NeedsCleanupResponse, error)
 	// Cleanup will clean up the resources for the given plugin type.
 	Cleanup(context.Context, *CleanupRequest) (*emptypb.Empty, error)
+	// CreatePluginOauthToken issues a short-lived OAuth access token for the specified plugin.
+	//
+	// This endpoint supports the OAuth 2.0 "client_credentials" grant type, where the plugin
+	// authenticates using its client ID and client secret
+	CreatePluginOauthToken(context.Context, *CreatePluginOauthTokenRequest) (*CreatePluginOauthTokenResponse, error)
 	mustEmbedUnimplementedPluginServiceServer()
 }
 
@@ -274,6 +295,9 @@ func (UnimplementedPluginServiceServer) NeedsCleanup(context.Context, *NeedsClea
 }
 func (UnimplementedPluginServiceServer) Cleanup(context.Context, *CleanupRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Cleanup not implemented")
+}
+func (UnimplementedPluginServiceServer) CreatePluginOauthToken(context.Context, *CreatePluginOauthTokenRequest) (*CreatePluginOauthTokenResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreatePluginOauthToken not implemented")
 }
 func (UnimplementedPluginServiceServer) mustEmbedUnimplementedPluginServiceServer() {}
 func (UnimplementedPluginServiceServer) testEmbeddedByValue()                       {}
@@ -494,6 +518,24 @@ func _PluginService_Cleanup_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PluginService_CreatePluginOauthToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreatePluginOauthTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PluginServiceServer).CreatePluginOauthToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PluginService_CreatePluginOauthToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PluginServiceServer).CreatePluginOauthToken(ctx, req.(*CreatePluginOauthTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PluginService_ServiceDesc is the grpc.ServiceDesc for PluginService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -544,6 +586,10 @@ var PluginService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Cleanup",
 			Handler:    _PluginService_Cleanup_Handler,
+		},
+		{
+			MethodName: "CreatePluginOauthToken",
+			Handler:    _PluginService_CreatePluginOauthToken_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

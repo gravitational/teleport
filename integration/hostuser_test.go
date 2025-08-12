@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
@@ -172,9 +173,9 @@ func TestRootHostUsersBackend(t *testing.T) {
 		require.NoError(t, sudoersbk.WriteSudoersFile("user.name", validSudoersEntry))
 		_, err = os.Stat(filepath.Join(sudoersTestDir, "teleport-hostuuid-user_name"))
 		require.NoError(t, err)
+
 		require.NoError(t, sudoersbk.RemoveSudoersFile("user.name"))
-		_, err = os.Stat(filepath.Join(sudoersTestDir, "teleport-hostuuid-user_name"))
-		require.True(t, os.IsNotExist(err))
+		require.NoFileExists(t, filepath.Join(sudoersTestDir, "teleport-hostuuid-user_name"))
 	})
 
 	t.Run("Test CreateHomeDirectory does not follow symlinks", func(t *testing.T) {
@@ -343,16 +344,14 @@ func TestRootHostUsers(t *testing.T) {
 		// delete the user and ensure the sudoers file got deleted
 		require.NoError(t, closer.Close())
 		require.NoError(t, sudoers.RemoveSudoers(testuser))
-		_, err = os.Stat(sudoersPath(testuser, uuid))
-		require.True(t, os.IsNotExist(err))
+		require.NoFileExists(t, sudoersPath(testuser, uuid))
 
 		// ensure invalid sudoers entries dont get written
 		err = sudoers.WriteSudoers(testuser,
 			[]string{"badsudoers entry!!!"},
 		)
 		require.Error(t, err)
-		_, err = os.Stat(sudoersPath(testuser, uuid))
-		require.True(t, os.IsNotExist(err))
+		require.NoFileExists(t, sudoersPath(testuser, uuid))
 	})
 
 	t.Run("test delete all users in teleport service group", func(t *testing.T) {
@@ -652,7 +651,7 @@ func TestRootLoginAsHostUser(t *testing.T) {
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	})
 
 	// Create a user that can create a host user.
@@ -752,7 +751,7 @@ func TestRootStaticHostUsers(t *testing.T) {
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	})
 
 	require.NoError(t, instance.Create(t, nil, false))

@@ -130,9 +130,12 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 		return trace.Wrap(err)
 	}
 
-	downstreamRW, err := streamutils.NewReadWriter(&clientStream{
-		stream: stream,
-	})
+	downstreamRW, err := streamutils.NewReadWriter(
+		&clientStream{
+			stream: stream,
+		},
+		streamutils.WithDisabledChunking(),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}

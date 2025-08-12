@@ -17,7 +17,7 @@ package hardwarekey
 import (
 	"bytes"
 
-	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
 	"github.com/gravitational/trace"
 
 	attestationv1 "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"

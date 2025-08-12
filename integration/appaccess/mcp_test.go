@@ -34,7 +34,7 @@ func testMCP(pack *Pack, t *testing.T) {
 		testMCPDialStdioNoServerFound(t, pack)
 	})
 
-	t.Run("DialMCPSererver stdio success", func(t *testing.T) {
+	t.Run("DialMCPServer stdio success", func(t *testing.T) {
 		testMCPDialStdio(t, pack)
 	})
 }
@@ -49,7 +49,7 @@ func testMCPDialStdioNoServerFound(t *testing.T, pack *Pack) {
 func testMCPDialStdio(t *testing.T, pack *Pack) {
 	require.NoError(t, pack.tc.SaveProfile(false))
 
-	serverConn, err := pack.tc.DialMCPServer(context.Background(), libmcp.InMemoryServerName)
+	serverConn, err := pack.tc.DialMCPServer(context.Background(), libmcp.DemoServerName)
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -60,5 +60,5 @@ func testMCPDialStdio(t *testing.T, pack *Pack) {
 
 	listTools, err := stdioClient.ListTools(ctx, mcp.ListToolsRequest{})
 	require.NoError(t, err)
-	require.Len(t, listTools.Tools, 2)
+	require.Len(t, listTools.Tools, 3)
 }

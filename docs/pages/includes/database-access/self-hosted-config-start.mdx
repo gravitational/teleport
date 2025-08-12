@@ -47,7 +47,7 @@ To configure the Teleport Database Service to trust a custom CA:
 
 
 If your database servers use certificates that are signed by a public CA such
-as ComodoCA or DigiCert, you can use the `trust_system_cert_pool` option
+as ComodoCA or DigiCert, you can use the `trust-system-cert-pool` option
 without exporting the CA:
 ```code
 $ sudo teleport db configure create \
@@ -57,7 +57,7 @@ $ sudo teleport db configure create \
    --name={{ dbName }} \
    --protocol={{ dbProtocol }} \
    --uri={{ databaseAddress }} \
-   --trust_system_cert_pool \
+   --trust-system-cert-pool \
    --labels=env=dev
 ```
 

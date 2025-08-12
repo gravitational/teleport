@@ -57,6 +57,18 @@ func DefaultConfigPath() (string, error) {
 	}
 }
 
+// GlobalCursorPath returns the default path for Cursor global MCP configuration.
+//
+// https://docs.cursor.com/context/mcp#configuration-locations
+func GlobalCursorPath() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return filepath.Join(homeDir, ".cursor", "mcp.json"), nil
+}
+
 // MCPServer contains details to launch an MCP server.
 //
 // https://modelcontextprotocol.io/quickstart/user
@@ -235,6 +247,17 @@ func LoadConfigFromDefaultPath() (*FileConfig, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "finding Claude Desktop config path")
 	}
+	config, err := LoadConfigFromFile(configPath)
+	return config, trace.Wrap(err)
+}
+
+// LoadConfigFromGlobalCursor loads the Cursor global MCP server configuration.
+func LoadConfigFromGlobalCursor() (*FileConfig, error) {
+	configPath, err := GlobalCursorPath()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	config, err := LoadConfigFromFile(configPath)
 	return config, trace.Wrap(err)
 }

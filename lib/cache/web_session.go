@@ -23,6 +23,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/sortcache"
 )
@@ -126,29 +128,21 @@ func newAppSessionCollection(upstream services.AppSession, w types.WatchKind) (*
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WebSession, error) {
-			var startKey string
-			var sessions []types.WebSession
+			out, err := stream.Collect(
+				stream.FilterMap(
+					clientutils.Resources(ctx,
+						func(ctx context.Context, size int, startKey string) ([]types.WebSession, string, error) {
+							return upstream.ListAppSessions(ctx, size, startKey, "")
+						}),
+					func(ws types.WebSession) (types.WebSession, bool) {
+						if !loadSecrets {
+							return ws.WithoutSecrets(), true
+						}
 
-			for {
-				webSessions, nextKey, err := upstream.ListAppSessions(ctx, 0, startKey, "")
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				if !loadSecrets {
-					for i := range webSessions {
-						webSessions[i] = webSessions[i].WithoutSecrets()
-					}
-				}
-
-				sessions = append(sessions, webSessions...)
-
-				if nextKey == "" {
-					break
-				}
-				startKey = nextKey
-			}
-			return sessions, nil
+						return ws, true
+					}),
+			)
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.WebSession {
 			return &types.WebSessionV2{

@@ -22,7 +22,6 @@ import (
 	"context"
 	"log/slog"
 	"net"
-	"os"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -54,9 +53,10 @@ type ServerConfig struct {
 	HostID string
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint AccessPoint
+	// EnableDemoServer enables the "Teleport Demo" MCP server.
+	EnableDemoServer bool
 
-	clock          clockwork.Clock
-	inMemoryServer bool
+	clock clockwork.Clock
 }
 
 // CheckAndSetDefaults checks values and sets defaults
@@ -79,7 +79,6 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 	if c.clock == nil {
 		c.clock = clockwork.NewRealClock()
 	}
-	c.inMemoryServer = os.Getenv(InMemoryServerEnvVar) == "true"
 	return nil
 }
 
@@ -104,8 +103,8 @@ func (s *Server) HandleSession(ctx context.Context, sessionCtx SessionCtx) error
 	if err := sessionCtx.checkAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if s.cfg.inMemoryServer && isInMemoryServerApp(sessionCtx.App) {
-		return trace.Wrap(s.handleInMemoryServerSession(ctx, sessionCtx))
+	if s.cfg.EnableDemoServer && isDemoServerApp(sessionCtx.App) {
+		return trace.Wrap(s.handleStdio(ctx, sessionCtx, makeDemoServerRunner))
 	}
 	return trace.Wrap(s.handleStdio(ctx, sessionCtx, makeExecServerRunner))
 }

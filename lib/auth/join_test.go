@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"context"
@@ -34,6 +34,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -82,7 +84,7 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 
 	testcases := []struct {
@@ -262,7 +264,7 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 				if tc.waitTokenDeleted {
 					require.Eventually(t, func() bool {
 						_, err := p.a.ValidateToken(ctx, tc.req.Token)
-						return err != nil && strings.Contains(err.Error(), TokenExpiredOrNotFound)
+						return err != nil && strings.Contains(err.Error(), auth.TokenExpiredOrNotFound)
 					}, time.Millisecond*100, time.Millisecond*10)
 				}
 				return

@@ -27,12 +27,12 @@ import * as Icon from 'design/Icon';
 import { SingleRowBox } from 'design/MultiRowBox';
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 import Select from 'shared/components/Select';
+import { useToastNotifications } from 'shared/components/ToastNotification';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import { useUser } from 'teleport/User/UserContext';
 
 import { Header } from './Header';
-import { useNotification } from './NotificationContext';
 import DarkThemeIcon from './ThemeImages/dark_theme.svg';
 import LightThemeIcon from './ThemeImages/light_theme.svg';
 import SystemThemeIcon from './ThemeImages/system_theme.svg';
@@ -221,7 +221,7 @@ export interface PreferencesProps {
 export function Preferences({ setErrorMessage }: PreferencesProps) {
   const { preferences, updatePreferences } = useUser();
   const theme = useTheme();
-  const { addNotification } = useNotification();
+  const toastNotification = useToastNotifications();
 
   const layout = preferences.keyboardLayout;
   const layoutValue =
@@ -333,9 +333,11 @@ export function Preferences({ setErrorMessage }: PreferencesProps) {
                     runUpdatePreference({
                       keyboardLayout: selected.value,
                     });
-                    addNotification('success', {
-                      title: 'Change saved',
-                      isAutoRemovable: true,
+                    toastNotification.add({
+                      severity: 'success',
+                      content: {
+                        title: 'Change saved',
+                      },
                     });
                   }}
                   isDisabled={updatePreferenceAttempt.status === 'processing'}

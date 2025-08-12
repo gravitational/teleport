@@ -149,13 +149,14 @@ function DeviceTrustMessage(props: { status: DeviceTrustStatus }) {
         <>
           <ShieldWarning color="warning.main" size="small" mb="2px" />
           <P3>
-            Full access requires a trusted device.{' '}
+            Full access requires a trusted device. Learn how to{' '}
             <Link
-              href="https://goteleport.com/docs/admin-guides/access-controls/device-trust/guide/#step-22-enroll-device"
+              href="https://goteleport.com/docs/identity-governance/device-trust/device-management/#create-a-device-enrollment-token"
               target="_blank"
             >
-              Learn how to enroll your device.
+              enroll your device
             </Link>
+            .
           </P3>
         </>
       );

@@ -24,10 +24,14 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
 
 	"github.com/gravitational/trace"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 )
 
@@ -47,11 +51,13 @@ var SupportedProfiles = map[string]struct{}{
 
 // Client represents the debug service client.
 type Client struct {
-	clt *http.Client
+	clt        *http.Client
+	socketPath string
 }
 
 // NewClient generates a new debug service client.
-func NewClient(socketPath string) *Client {
+func NewClient(dataDir string) *Client {
+	socketPath := filepath.Join(dataDir, teleport.DebugServiceSocketName)
 	return &Client{
 		clt: &http.Client{
 			Timeout: apidefaults.DefaultIOTimeout,
@@ -66,7 +72,13 @@ func NewClient(socketPath string) *Client {
 				return trace.Errorf("redirect via socket not allowed")
 			},
 		},
+		socketPath: socketPath,
 	}
+}
+
+// SocketPath returns the absolute path to the UNIX socket that the debug service is exposed on.
+func (c *Client) SocketPath() string {
+	return c.socketPath
 }
 
 // SetLogLevel changes the application's log level and a change status message.
@@ -171,6 +183,22 @@ func (c *Client) GetReadiness(ctx context.Context) (Readiness, error) {
 		return ready, trace.Wrap(err)
 	}
 	return ready, nil
+}
+
+// GetMetrics returns prometheus metrics as a map keyed by metric name.
+func (c *Client) GetMetrics(ctx context.Context) (map[string]*dto.MetricFamily, error) {
+	resp, err := c.do(ctx, http.MethodGet, url.URL{Path: "/metrics"}, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+	var parser expfmt.TextParser
+	metrics, err := parser.TextToMetricFamilies(resp.Body)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return metrics, nil
 }
 
 func (c *Client) do(ctx context.Context, method string, u url.URL, body []byte) (*http.Response, error) {

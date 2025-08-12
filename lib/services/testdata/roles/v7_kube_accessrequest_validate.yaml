@@ -1,0 +1,252 @@
+# Set of v7 roles for Kubernetes related tests.
+# Make sure to maintain `v7-kube-` prefix in all names.
+---
+kind: role
+version: v7
+metadata:
+  name: v7-kube-access-wildcard
+spec:
+  allow:
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+    - kind: '*'
+      name: '*'
+      namespace: '*'
+      verbs:
+      - '*'
+  deny: {}
+---
+kind: role
+version: v7
+metadata:
+  name: v7-kube-no-access
+spec:
+  allow: {}
+  deny: {}
+---
+kind: role
+version: v7
+metadata:
+  name: v7-kube-access-namespace
+spec:
+  allow:
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+    - kind: 'namespace'
+      name: '*'
+      namespace: '*'
+      verbs:
+      - '*'
+  deny: {}
+---
+kind: role
+version: v7
+metadata:
+  name: v7-kube-access-pod
+spec:
+  allow:
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+    - kind: 'pod'
+      name: '*'
+      namespace: '*'
+      verbs:
+      - '*'
+  deny: {}
+---
+kind: role
+version: v7
+metadata:
+  name: v7-kube-access-deployment
+spec:
+  allow:
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+    - kind: 'deployment'
+      name: '*'
+      namespace: '*'
+      verbs:
+      - '*'
+  deny: {}
+---
+kind: role
+version: v7
+metadata:
+  name: v7-kube-db-access-wildcard
+spec:
+  allow:
+    db_labels:
+      '*': '*'
+  deny: {}
+---
+kind: role
+version: v7
+metadata:
+  name: v7-kube-request-undefined_search-wildcard
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v7-kube-access-wildcard
+      - v7-kube-db-access-wildcard
+  deny: {}
+---
+kind: role
+version: v7
+metadata:
+  name: v7-kube-request-pod_search-as-roles-undefined
+spec:
+  allow:
+    request:
+      kubernetes_resources:
+      - kind: 'pod'
+  deny: {}
+---
+kind: role
+version: v7
+metadata:
+  name: v7-kube-request-namespace_search-namespace
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v7-kube-access-namespace
+      - v7-kube-db-access-wildcard
+      kubernetes_resources:
+      - kind: 'namespace'
+  deny: {}
+---
+kind: role
+version: v7
+metadata:
+  name: v7-kube-request-wildcard_search-wildcard
+  description: Allows requesting for any subresources, but NOT kube_cluster
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v7-kube-access-wildcard
+      - v7-kube-db-access-wildcard
+      kubernetes_resources:
+      - kind: '*'
+  deny: {}
+---
+kind: role
+version: v7
+metadata:
+  name: v7-kube-request-secret_search-wildcard
+  description: Allows wildcard search, but should only accept kube secret
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v7-kube-access-wildcard
+      kubernetes_resources:
+      - kind: 'secret'
+  deny: {}
+---
+kind: role
+version: v7
+metadata:
+  name: v7-kube-request-pod_search-pods
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v7-kube-access-pod
+      kubernetes_resources:
+      - kind: 'pod'
+  deny: {}
+---
+kind: role
+version: v7
+metadata:
+  name: v7-kube-request-deployment_search-deployment
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v7-kube-access-deployment
+      kubernetes_resources:
+      - kind: 'deployment'
+  deny: {}
+---
+kind: role
+version: v7
+metadata:
+  name: v7-kube-request-deployment-pod_search-deployment-pod
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v7-kube-access-deployment
+      - v7-kube-access-pod
+      kubernetes_resources:
+      - kind: 'deployment'
+      - kind: 'pod'
+  deny: {}
+---
+kind: role
+version: v7
+metadata:
+  name: v7-kube-request-namespace-but-no-access
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v7-kube-db-access-wildcard
+      - v7-kube-no-access
+      kubernetes_resources:
+      - kind: 'namespace'
+  deny: {}
+---
+kind: role
+version: v7
+metadata:
+  name: v7-kube-request-namespace_search-namespace_deny-secret
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v7-kube-access-namespace
+      kubernetes_resources:
+      - kind: 'namespace'
+  deny:
+    request:
+      kubernetes_resources:
+      - kind: 'secret'
+---
+kind: role
+version: v7
+metadata:
+  name: v7-kube-request-undefined_search-wildcard_deny-deployment-pod
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v7-kube-access-wildcard
+  deny:
+    request:
+      kubernetes_resources:
+      - kind: 'deployment'
+      - kind: 'pod'
+---
+kind: role
+version: v7
+metadata:
+  name: v7-kube-request-wildcard-cancels-deny-wildcard
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v7-kube-access-namespace
+      kubernetes_resources:
+      - kind: '*'
+  deny:
+    request:
+      kubernetes_resources:
+      - kind: '*'

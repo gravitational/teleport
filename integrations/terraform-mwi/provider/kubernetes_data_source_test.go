@@ -25,16 +25,21 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestAccKubernetesDataSource(t *testing.T) {
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 	ctx := t.Context()
 
 	process, kubeMock := setupKubernetesHarness(t, log)
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	if err != nil {
+		t.Fatalf("failed to create auth client: %v", err)
+	}
+	t.Cleanup(func() { _ = rootClient.Close() })
+
 	_, pt := setupKubernetesAccessBot(ctx, t, rootClient)
 
 	config := fmt.Sprintf(`

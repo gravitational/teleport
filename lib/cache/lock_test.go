@@ -48,7 +48,7 @@ func TestLocks(t *testing.T) {
 			return results, err
 		},
 		cacheGet: p.cache.GetLock,
-		cacheList: func(ctx context.Context) ([]types.Lock, error) {
+		cacheList: func(ctx context.Context, pageSize int) ([]types.Lock, error) {
 			results, err := p.cache.GetLocks(ctx, false)
 			return results, err
 		},

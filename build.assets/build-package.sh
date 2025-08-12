@@ -305,9 +305,6 @@ if [[ "${PACKAGE_TYPE}" != "pkg" ]]; then
     mv -v ${TAR_PATH}/examples/systemd/post-install ${PACKAGE_TEMPDIR}
     mv -v ${TAR_PATH}/examples/systemd/before-remove ${PACKAGE_TEMPDIR}
 
-    # create versions folder
-    mkdir -p ${PACKAGE_TEMPDIR}/buildroot${LINUX_DATA_DIR}/versions
-
     # /var/lib/teleport
     # shellcheck disable=SC2174
     mkdir -p -m0700 ${PACKAGE_TEMPDIR}/buildroot${LINUX_DATA_DIR}

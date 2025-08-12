@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { formatSortType } from 'design/DataTable/sort';
 import { SortType } from 'design/DataTable/types';
 import { ResourceHealthStatus } from 'shared/components/UnifiedResources';
 
@@ -45,7 +46,7 @@ export function encodeUrlQueryParams({
   }
 
   if (sort) {
-    urlParams.append('sort', `${sort.fieldName}:${sort.dir.toLowerCase()}`);
+    urlParams.append('sort', formatSortType(sort));
   }
 
   if (pinnedOnly !== undefined) {

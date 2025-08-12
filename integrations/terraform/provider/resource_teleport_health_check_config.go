@@ -103,6 +103,7 @@ func (r resourceTeleportHealthCheckConfig) Create(ctx context.Context, req tfsdk
 		return
 	}
 		var healthCheckConfigI *healthcheckconfigv1.HealthCheckConfig
+	// Try getting the resource until it exists.
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
@@ -110,12 +111,13 @@ func (r resourceTeleportHealthCheckConfig) Create(ctx context.Context, req tfsdk
 		healthCheckConfigI, err = r.p.Client.GetHealthCheckConfig(ctx, id)
 		if trace.IsNotFound(err) {
 			if bErr := backoff.Do(ctx); bErr != nil {
-				resp.Diagnostics.Append(diagFromWrappedErr("Error reading HealthCheckConfig", trace.Wrap(bErr), "health_check_config"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading HealthCheckConfig", trace.Wrap(err), "health_check_config"))
 				return
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading HealthCheckConfig (tried %d times) - state outdated, please import resource", tries)
 				resp.Diagnostics.AddError(diagMessage, "health_check_config")
+				return
 			}
 			continue
 		}

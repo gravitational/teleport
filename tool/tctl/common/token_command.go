@@ -21,6 +21,7 @@ package common
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -36,11 +37,14 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -386,6 +390,71 @@ func (c *TokensCommand) Del(ctx context.Context, client *authclient.Client) erro
 	return nil
 }
 
+// The caller MUST make sure the MFA ceremony has been performed and is stored in the context
+// Else this function will cause several MFA prompts.
+// The MFa ceremony cannot be done in this function because we don't know if
+// the caller already attempted one (e.g. tctl get all)
+func getAllTokens(ctx context.Context, clt *authclient.Client) ([]types.ProvisionToken, error) {
+	// There are 3 tokens types:
+	// - provision tokens
+	// - static tokens
+	// - user tokens
+	// This endpoint returns all 3 for compatibility reasons.
+	// Before, all 3 tokens were returned by the same "GetTokens" RPC, now we are using
+	// separate RPCs, with pagination. However, we don't know if the auth we are talking
+	// to supports the new RPCs. As the static token one got introduced last, we
+	// try to use it.If it works, we consume the two other RPCs. If it doesn't,
+	// we fallback to the legacy all-in-one RPC.
+	var tokens []types.ProvisionToken
+
+	// Trying to get static tokens
+	staticTokens, err := clt.GetStaticTokens(ctx)
+	if err != nil && !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err, "getting static tokens")
+	}
+
+	// TODO(hugoShaka): DELETE IN 19.0.0
+	if trace.IsNotImplemented(err) {
+		// We are connected to an old auth, that doesn't support the per-token type RPCs
+		// so we fallback to the legacy all-in-one RPC.
+		tokens, err := clt.GetTokens(ctx)
+		return tokens, trace.Wrap(err, "getting all tokens through the legacy RPC")
+	}
+
+	// We are connected to a modern auth, we must collect all 3 tokens types.
+	// Getting the provision tokens.
+	provisionTokens, err := stream.Collect(clientutils.Resources(ctx,
+		func(ctx context.Context, pageSize int, pageKey string) ([]types.ProvisionToken, string, error) {
+			return clt.ListProvisionTokens(ctx, pageSize, pageKey, nil, "")
+		},
+	))
+	if err != nil {
+		return nil, trace.Wrap(err, "getting provision tokens")
+	}
+	tokens = append(staticTokens.GetStaticTokens(), provisionTokens...)
+
+	// Getting the user tokens.
+	userTokens, err := stream.Collect(clientutils.Resources(ctx, clt.ListResetPasswordTokens))
+	if err != nil && !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err, "getting user tokens")
+	}
+	// Converting the user tokens as provision tokens for presentation and
+	// backward compatibility.
+	for _, t := range userTokens {
+		roles := types.SystemRoles{types.RoleSignup}
+		tok, err := types.NewProvisionToken(t.GetName(), roles, t.Expiry())
+		if err != nil {
+			return nil, trace.Wrap(err, "converting user token as a provision token")
+		}
+		tokens = append(tokens, tok)
+	}
+
+	return tokens, nil
+}
+
 // List is called to execute "tokens ls" command.
 func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) error {
 	labels, err := libclient.ParseLabelSpec(c.labels)
@@ -393,7 +462,15 @@ func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) err
 		return trace.Wrap(err)
 	}
 
-	tokens, err := client.GetTokens(ctx)
+	// Because getAllTokens do up to 3 calls, we want to perform the MFA ceremony
+	// once and put it in the context. Else the users will get 3 MFA prompts.
+	if mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/); err == nil {
+		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+	} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
+		return trace.Wrap(err)
+	}
+
+	tokens, err := getAllTokens(ctx, client)
 	if err != nil {
 		return trace.Wrap(err)
 	}

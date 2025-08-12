@@ -49,7 +49,7 @@ export default class RecordingsService {
   fetchRecordingDuration(
     clusterId: string,
     sessionId: string
-  ): Promise<{ durationMs: number }> {
+  ): Promise<{ durationMs: number; recordingType: string }> {
     return api.get(cfg.getSessionDurationUrl(clusterId, sessionId));
   }
 }

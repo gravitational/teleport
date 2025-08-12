@@ -16,7 +16,7 @@
   | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
 
   # Provide your Teleport domain to query the latest compatible Teleport version
-  $ export TELEPORT_DOMAIN=<Var name="example.teleport.com" />
+  $ export TELEPORT_DOMAIN=<Var name="teleport.example.com" />
   $ export TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/automaticupgrades/channel/default/version | sed 's/v//')"
 
   # Update the repo and install Teleport and the Teleport updater
@@ -38,7 +38,7 @@
   $ sudo yum-config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/cloud/teleport-yum.repo")"
 
   # Provide your Teleport domain to query the latest compatible Teleport version
-  $ export TELEPORT_DOMAIN=<Var name="example.teleport.com" />
+  $ export TELEPORT_DOMAIN=<Var name="teleport.example.com" />
   $ export TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/automaticupgrades/channel/default/version | sed 's/v//')"
 
   # Install Teleport and the Teleport updater
@@ -60,7 +60,7 @@
   $ sudo dnf config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/cloud/teleport-yum.repo")"
 
   # Provide your Teleport domain to query the latest compatible Teleport version
-  $ export TELEPORT_DOMAIN=<Var name="example.teleport.com" />
+  $ export TELEPORT_DOMAIN=<Var name="teleport.example.com" />
   $ export TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/automaticupgrades/channel/default/version | sed 's/v//')"
   
   # Install Teleport and the Teleport updater
@@ -82,7 +82,7 @@
   $ sudo zypper addrepo --refresh --repo $(rpm --eval "https://zypper.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/cloud/teleport-zypper.repo")
 
   # Provide your Teleport domain to query the latest compatible Teleport version
-  $ export TELEPORT_DOMAIN=<Var name="example.teleport.com" />
+  $ export TELEPORT_DOMAIN=<Var name="teleport.example.com" />
   $ export TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/automaticupgrades/channel/default/version | sed 's/v//')"
   
   # Install Teleport and the Teleport updater

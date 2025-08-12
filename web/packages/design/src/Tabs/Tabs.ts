@@ -19,16 +19,29 @@
 import { NavLink } from 'react-router-dom';
 import styled from 'styled-components';
 
-export const TabsContainer = styled.div`
+import { space, SpaceProps } from 'design/system';
+
+interface TabsContainerProps extends SpaceProps {
+  /**
+   * It's an underlying background border bottom that
+   * renders underneath the currently active tab border
+   * bottom.
+   */
+  withBottomBorder?: boolean;
+}
+
+export const TabsContainer = styled.div<TabsContainerProps>`
   position: relative;
   display: flex;
   gap: ${p => p.theme.space[5]}px;
   align-items: center;
-  padding: 0 ${p => p.theme.space[5]}px;
-  border-bottom: 1px solid ${p => p.theme.colors.spotBackground[0]};
+  border-bottom: ${p =>
+    p.withBottomBorder ? `1px solid ${p.theme.colors.spotBackground[0]}` : 0};
+
+  ${space}
 `;
 
-export const TabContainer = styled(NavLink)<{ selected?: boolean }>`
+export const TabContainer = styled.div<{ selected?: boolean }>`
   padding: ${p => p.theme.space[1] + p.theme.space[2]}px
     ${p => p.theme.space[2]}px;
   position: relative;
@@ -47,6 +60,10 @@ export const TabContainer = styled(NavLink)<{ selected?: boolean }>`
     opacity: 1;
   }
 `;
+
+export const TabContainerNavLink = styled(TabContainer).attrs({
+  as: NavLink,
+})``;
 
 export const TabBorder = styled.div`
   position: absolute;

@@ -108,6 +108,7 @@ func (r resourceTeleportUser) Create(ctx context.Context, req tfsdk.CreateResour
 		
 	// Not really an inferface, just using the same name for easier templating.
 	var userI apitypes.User
+	// Try getting the resource until it exists.
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
@@ -115,12 +116,13 @@ func (r resourceTeleportUser) Create(ctx context.Context, req tfsdk.CreateResour
 		userI, err = r.p.Client.GetUser(ctx, id, false)
 		if trace.IsNotFound(err) {
 			if bErr := backoff.Do(ctx); bErr != nil {
-				resp.Diagnostics.Append(diagFromWrappedErr("Error reading User", trace.Wrap(bErr), "user"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading User", trace.Wrap(err), "user"))
 				return
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading User (tried %d times) - state outdated, please import resource", tries)
 				resp.Diagnostics.AddError(diagMessage, "user")
+				return
 			}
 			continue
 		}

@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/suite"
 )
 
 type configContext struct {
@@ -64,7 +63,7 @@ func TestAuthPreference(t *testing.T) {
 	clusterConfig, err := NewClusterConfigurationService(tt.bk)
 	require.NoError(t, err)
 
-	suite := &suite.ServicesTestSuite{
+	suite := &ServicesTestSuite{
 		ConfigS: clusterConfig,
 	}
 	suite.AuthPreference(t)
@@ -76,7 +75,7 @@ func TestAccessGraphSettings(t *testing.T) {
 	clusterConfig, err := NewClusterConfigurationService(tt.bk)
 	require.NoError(t, err)
 
-	suite := &suite.ServicesTestSuite{
+	suite := &ServicesTestSuite{
 		ConfigS: clusterConfig,
 	}
 	suite.AccessGraphSettings(t)
@@ -88,7 +87,7 @@ func TestClusterName(t *testing.T) {
 	clusterConfig, err := NewClusterConfigurationService(tt.bk)
 	require.NoError(t, err)
 
-	suite := &suite.ServicesTestSuite{
+	suite := &ServicesTestSuite{
 		ConfigS:      clusterConfig,
 		LocalConfigS: clusterConfig,
 	}
@@ -101,7 +100,7 @@ func TestClusterNetworkingConfig(t *testing.T) {
 	clusterConfig, err := NewClusterConfigurationService(tt.bk)
 	require.NoError(t, err)
 
-	suite := &suite.ServicesTestSuite{
+	suite := &ServicesTestSuite{
 		ConfigS: clusterConfig,
 	}
 	suite.ClusterNetworkingConfig(t)
@@ -113,7 +112,7 @@ func TestClusterAuditConfig(t *testing.T) {
 	clusterConfig, err := NewClusterConfigurationService(tt.bk)
 	require.NoError(t, err)
 
-	suite := &suite.ServicesTestSuite{
+	suite := &ServicesTestSuite{
 		ConfigS: clusterConfig,
 	}
 	suite.ClusterNetworkingConfig(t)
@@ -125,7 +124,7 @@ func TestSessionRecordingConfig(t *testing.T) {
 	clusterConfig, err := NewClusterConfigurationService(tt.bk)
 	require.NoError(t, err)
 
-	suite := &suite.ServicesTestSuite{
+	suite := &ServicesTestSuite{
 		ConfigS: clusterConfig,
 	}
 	suite.SessionRecordingConfig(t)
@@ -137,7 +136,7 @@ func TestStaticTokens(t *testing.T) {
 	clusterConfig, err := NewClusterConfigurationService(tt.bk)
 	require.NoError(t, err)
 
-	suite := &suite.ServicesTestSuite{
+	suite := &ServicesTestSuite{
 		ConfigS: clusterConfig,
 	}
 	suite.StaticTokens(t)

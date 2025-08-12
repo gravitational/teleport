@@ -86,6 +86,41 @@ func listRoles(clt resourcesAPIGetter, values url.Values) (*listResourcesWithout
 	}, nil
 }
 
+// listRequestableRolesHandle is the web handler for listing requestable roles.
+// Under the hood this just calls the `ListRoles` method with a filter for requestable roles,
+// we have this as a separate endpoint because the response needs to be formatted differently.
+func (h *Handler) listRequestableRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	values := r.URL.Query()
+
+	limit, err := QueryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rolesReq := &proto.ListRequestableRolesRequest{
+		PageSize:  limit,
+		PageToken: values.Get("startKey"),
+		Filter: &proto.ListRequestableRolesRequest_Filter{
+			SearchKeywords: client.ParseSearchKeywords(values.Get("search"), ' '),
+		},
+	}
+
+	resp, err := clt.ListRequestableRoles(r.Context(), rolesReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &listResourcesWithoutCountGetResponse{
+		Items:    ui.RequestableRolesFromProto(resp.Roles),
+		StartKey: resp.NextPageToken,
+	}, nil
+}
+
 func (h *Handler) deleteRole(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
@@ -626,6 +661,8 @@ type resourcesAPIGetter interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 	// ListRoles returns a paginated list of roles.
 	ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
+	// ListRequestableRoles returns a paginated list of requestable roles.
+	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
 	// UpsertRole creates or updates role
 	UpsertRole(ctx context.Context, role types.Role) (types.Role, error)
 	// GetGithubConnectors returns all configured Github connectors

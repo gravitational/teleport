@@ -26,6 +26,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 func TestGitServers(t *testing.T) {
@@ -37,7 +39,7 @@ func TestGitServers(t *testing.T) {
 
 	testResources(t, p, testFuncs[types.Server]{
 		newResource: func(name string) (types.Server, error) {
-			return types.NewGitHubServer(
+			return types.NewGitHubServerWithName(name,
 				types.GitHubServerMetadata{
 					Integration:  name,
 					Organization: name,
@@ -48,17 +50,15 @@ func TestGitServers(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]types.Server, error) {
-			servers, _, err := p.gitServers.ListGitServers(ctx, 0, "")
-			return servers, trace.Wrap(err)
+			return stream.Collect(clientutils.Resources(ctx, p.gitServers.ListGitServers))
 		},
 		update: func(ctx context.Context, server types.Server) error {
 			_, err := p.gitServers.UpdateGitServer(ctx, server)
 			return trace.Wrap(err)
 		},
 		deleteAll: p.gitServers.DeleteAllGitServers,
-		cacheList: func(ctx context.Context) ([]types.Server, error) {
-			servers, _, err := p.cache.ListGitServers(ctx, 0, "")
-			return servers, trace.Wrap(err)
+		cacheList: func(ctx context.Context, pageSize int) ([]types.Server, error) {
+			return stream.Collect(clientutils.Resources(ctx, p.cache.ListGitServers))
 		},
 		cacheGet: p.cache.GetGitServer,
 	})

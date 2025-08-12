@@ -110,6 +110,7 @@ func (r resourceTeleportServer) Create(ctx context.Context, req tfsdk.CreateReso
 		
 	// Not really an inferface, just using the same name for easier templating.
 	var serverI apitypes.Server
+	// Try getting the resource until it exists.
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
@@ -117,12 +118,13 @@ func (r resourceTeleportServer) Create(ctx context.Context, req tfsdk.CreateReso
 		serverI, err = r.p.Client.GetNode(ctx, defaults.Namespace, id)
 		if trace.IsNotFound(err) {
 			if bErr := backoff.Do(ctx); bErr != nil {
-				resp.Diagnostics.Append(diagFromWrappedErr("Error reading Server", trace.Wrap(bErr), "node"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading Server", trace.Wrap(err), "node"))
 				return
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading Server (tried %d times) - state outdated, please import resource", tries)
 				resp.Diagnostics.AddError(diagMessage, "node")
+				return
 			}
 			continue
 		}

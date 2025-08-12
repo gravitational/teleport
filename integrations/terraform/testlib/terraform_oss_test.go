@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 )
 
 func TestTerraformOSS(t *testing.T) {
@@ -37,7 +37,7 @@ func TestTerraformOSSWithCache(t *testing.T) {
 	suite.Run(t, &TerraformSuiteOSSWithCache{
 		TerraformBaseSuite: TerraformBaseSuite{
 			AuthHelper: &integration.MinimalAuthHelper{
-				AuthConfig: auth.TestAuthServerConfig{CacheEnabled: true},
+				AuthConfig: authtest.AuthServerConfig{CacheEnabled: true},
 			},
 		},
 	})

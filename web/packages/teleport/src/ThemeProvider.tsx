@@ -27,6 +27,8 @@ import { KeysEnum, storageService } from 'teleport/services/storageService';
 
 const customThemes = {
   bblp: bblpTheme,
+  // Lock mc to light theme, and flag it as a custom theme to disable the theme switcher.
+  mc: { ...lightTheme, isCustomTheme: true },
 };
 
 export const ThemeProvider = (props: { children?: ReactNode }) => {

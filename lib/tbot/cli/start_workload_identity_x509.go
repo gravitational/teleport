@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 )
 
 // WorkloadIdentityX509Command implements `tbot start workload-identity-x509` and
@@ -81,7 +82,7 @@ func (c *WorkloadIdentityX509Command) ApplyConfig(cfg *config.BotConfig, l *slog
 		return trace.Wrap(err)
 	}
 
-	svc := &config.WorkloadIdentityX509Service{
+	svc := &workloadidentity.X509OutputConfig{
 		Destination:                  dest,
 		IncludeFederatedTrustBundles: c.IncludeFederatedTrustBundles,
 	}

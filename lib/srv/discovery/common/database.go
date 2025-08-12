@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
+	"strconv"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -330,7 +332,7 @@ func NewDatabaseFromRDSV2Instance(instance *rdstypes.DBInstance) (types.Database
 	uri := ""
 	if instance.Endpoint != nil && instance.Endpoint.Address != nil {
 		if instance.Endpoint.Port != nil {
-			uri = fmt.Sprintf("%s:%d", aws.ToString(instance.Endpoint.Address), *instance.Endpoint.Port)
+			uri = net.JoinHostPort(aws.ToString(instance.Endpoint.Address), strconv.Itoa(int(*instance.Endpoint.Port)))
 		} else {
 			uri = aws.ToString(instance.Endpoint.Address)
 		}
@@ -734,7 +736,7 @@ func NewDatabaseFromRDSProxy(dbProxy *rdstypes.DBProxy, tags []rdstypes.Tag) (ty
 		}, aws.ToString(dbProxy.DBProxyName)),
 		types.DatabaseSpecV3{
 			Protocol: protocol,
-			URI:      fmt.Sprintf("%s:%d", aws.ToString(dbProxy.Endpoint), port),
+			URI:      net.JoinHostPort(aws.ToString(dbProxy.Endpoint), strconv.Itoa(port)),
 			AWS:      *metadata,
 		})
 }
@@ -757,7 +759,7 @@ func NewDatabaseFromRDSProxyCustomEndpoint(dbProxy *rdstypes.DBProxy, customEndp
 		}, aws.ToString(dbProxy.DBProxyName), aws.ToString(customEndpoint.DBProxyEndpointName)),
 		types.DatabaseSpecV3{
 			Protocol: protocol,
-			URI:      fmt.Sprintf("%s:%d", aws.ToString(customEndpoint.Endpoint), port),
+			URI:      net.JoinHostPort(aws.ToString(customEndpoint.Endpoint), strconv.Itoa(port)),
 			AWS:      *metadata,
 
 			// RDS proxies serve wildcard certificates like this:

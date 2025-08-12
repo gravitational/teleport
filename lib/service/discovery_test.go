@@ -29,6 +29,7 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/discovery"
 )
@@ -68,7 +69,7 @@ func TestTeleportProcessIntegrationsOnly(t *testing.T) {
 				},
 			}
 
-			modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
+			modulestest.SetTestModules(t, modulestest.Modules{TestFeatures: modules.Features{
 				Cloud: tt.inputFeatureCloud,
 			}})
 

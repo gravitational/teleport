@@ -20,6 +20,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { History } from 'history';
 import React, { Suspense, useEffect } from 'react';
 
+import { ToastNotificationProvider } from 'shared/components/ToastNotification';
+
 import Authenticated from 'teleport/components/Authenticated';
 import { CatchError } from 'teleport/components/CatchError';
 import { Route, Router, Switch } from 'teleport/components/Router';
@@ -101,15 +103,17 @@ const Teleport: React.FC<Props> = props => {
                   <Route path={cfg.routes.root}>
                     <Authenticated>
                       <UserContextProvider>
-                        <TeleportContextProvider ctx={ctx}>
-                          <Switch>
-                            <Route
-                              path={cfg.routes.appLauncher}
-                              component={AppLauncher}
-                            />
-                            <Route>{createPrivateRoutes()}</Route>
-                          </Switch>
-                        </TeleportContextProvider>
+                        <ToastNotificationProvider>
+                          <TeleportContextProvider ctx={ctx}>
+                            <Switch>
+                              <Route
+                                path={cfg.routes.appLauncher}
+                                component={AppLauncher}
+                              />
+                              <Route>{createPrivateRoutes()}</Route>
+                            </Switch>
+                          </TeleportContextProvider>
+                        </ToastNotificationProvider>
                       </UserContextProvider>
                     </Authenticated>
                   </Route>

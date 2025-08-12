@@ -166,9 +166,9 @@ func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 
 		// Expect that we get all the things we have created
 		for _, created := range createdObjects {
-			slices.ContainsFunc(page, func(federation *machineidv1.SPIFFEFederation) bool {
+			require.True(t, slices.ContainsFunc(page, func(federation *machineidv1.SPIFFEFederation) bool {
 				return proto.Equal(created, federation)
-			})
+			}))
 		}
 	})
 	t.Run("pagination", func(t *testing.T) {
@@ -190,9 +190,9 @@ func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 		require.Len(t, fetched, 49)
 		// Expect that we get all the things we have created
 		for _, created := range createdObjects {
-			slices.ContainsFunc(fetched, func(federation *machineidv1.SPIFFEFederation) bool {
+			require.True(t, slices.ContainsFunc(fetched, func(federation *machineidv1.SPIFFEFederation) bool {
 				return proto.Equal(created, federation)
-			})
+			}))
 		}
 	})
 }

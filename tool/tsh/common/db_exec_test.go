@@ -250,7 +250,7 @@ func TestDatabaseExec(t *testing.T) {
 				read, err = utils.ReadPath(filepath.Join(dir, "test-output", "mysql.output"))
 				require.NoError(t, err)
 				require.Equal(t, "db-query executed", strings.TrimSpace(string(read)))
-				require.True(t, utils.FileExists(filepath.Join(dir, "test-output", "summary.json")))
+				require.FileExists(t, filepath.Join(dir, "test-output", "summary.json"))
 			},
 		},
 	}
