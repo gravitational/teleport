@@ -276,21 +276,20 @@ func (c *connector) getConnectConfig(ctx context.Context) (*pgconn.Config, error
 				// special case for "IAM check failed" error
 				if strings.Contains(err.Error(), `IAM check failed`) {
 					return nil, trace.AccessDenied(`Could not connect to database:
-			
-	   %v
 
-	 Make sure that AlloyDB user %q exists and has the following permissions:
-	 - alloydb.instances.connect
-	 - alloydb.users.login
-	 - serviceusage.services.use
+  %v
 
-     You can create a custom role with these permissions, or grant the following roles:
-	 - Cloud AlloyDB Database User
-	 - Cloud AlloyDB Client
-	 - Service Usage Consumer
+Make sure that AlloyDB user %q exists and has the following permissions:
+- alloydb.instances.connect
+- alloydb.users.login
+- serviceusage.services.use
 
-	 Note that IAM changes may take a few minutes to propagate.
-	 `, err, c.databaseUser)
+You can create a custom role with these permissions, or grant the following roles:
+- Cloud AlloyDB Database User
+- Cloud AlloyDB Client
+- Service Usage Consumer
+
+Note that IAM changes may take a few minutes to propagate.`, err, c.databaseUser)
 				}
 				return nil, trace.Wrap(err)
 			}
