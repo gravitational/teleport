@@ -371,6 +371,101 @@ func TestAccessListReminders_Batched(t *testing.T) {
 	advanceAndLookForRecipients(t, bot, as, clock, oneDay*7, accessLists, "owner1", "owner2")
 }
 
+func TestAccessListReminders_NestedOwners(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+	})
+
+	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
+	srv := newTestAuth(t)
+	as := srv.Auth()
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+
+	bot := &mockMessagingBot{
+		recipients: map[string]*common.Recipient{
+			"nested-owner-user": {Name: "nested-owner-user", ID: "nested-owner-user"},
+		},
+	}
+
+	app := common.NewApp(&mockPluginConfig{client: as, bot: bot}, "test-plugin")
+	app.Clock = clock
+	ctx := context.Background()
+	go func() { app.Run(ctx) }()
+
+	ready, err := app.WaitReady(ctx)
+	require.NoError(t, err)
+	require.True(t, ready)
+
+	t.Cleanup(func() {
+		app.Terminate()
+		<-app.Done()
+		require.NoError(t, app.Err())
+	})
+
+	now := clock.Now()
+
+	child, err := accesslist.NewAccessList(header.Metadata{
+		Name: "child-list",
+	}, accesslist.Spec{
+		Type:   accesslist.Default,
+		Title:  "child",
+		Owners: []accesslist.Owner{{Name: "nested-owner-user"}},
+		Grants: accesslist.Grants{Roles: []string{"role"}},
+		Audit: accesslist.Audit{
+			NextAuditDate: now.Add(oneDay * 21),
+			Notifications: accesslist.Notifications{Start: oneDay * 14},
+		},
+	})
+	require.NoError(t, err)
+	_, err = as.UpsertAccessList(ctx, child)
+	require.NoError(t, err)
+
+	ownerMember, err := accesslist.NewAccessListMember(header.Metadata{
+		Name: "nested-owner-user",
+	}, accesslist.AccessListMemberSpec{
+		AccessList: "child-list",
+		Name:       "nested-owner-user",
+		Joined:     now,
+		AddedBy:    "someone",
+	})
+	require.NoError(t, err)
+
+	_, err = as.UpsertAccessListMember(ctx, ownerMember)
+	require.NoError(t, err)
+
+	parent, err := accesslist.NewAccessList(header.Metadata{
+		Name: "parent-list",
+	}, accesslist.Spec{
+		Type:  accesslist.Default,
+		Title: "parent",
+		Owners: []accesslist.Owner{
+			{Name: "child-list", MembershipKind: accesslist.MembershipKindList},
+		},
+		Grants: accesslist.Grants{Roles: []string{"role"}},
+		Audit: accesslist.Audit{
+			NextAuditDate: now.Add(oneDay * 14),
+			Notifications: accesslist.Notifications{Start: oneDay * 14},
+		},
+	})
+	require.NoError(t, err)
+	_, err = as.UpsertAccessList(ctx, parent)
+	require.NoError(t, err)
+
+	// Trigger the scheduler tick without entering the child's window.
+	bot.resetLastRecipients()
+	clock.Advance(30 * time.Second)
+	err = clock.BlockUntilContext(ctx, 1)
+	require.NoError(t, err)
+	require.ElementsMatch(t,
+		[]common.Recipient{{Name: "nested-owner-user", ID: "nested-owner-user"}},
+		bot.getLastRecipients(),
+	)
+}
+
 type mockClient struct {
 	mock.Mock
 	teleport.Client
