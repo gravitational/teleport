@@ -97,7 +97,7 @@ data "http" "teleport_version" {
 locals {
   discovery_group = "aws-prod"
   teleport_image = format("public.ecr.aws/gravitational/teleport-ent-distroless:%s",
-    trimprefix(data.http.teleport_version.response_body,"v")
+    trimprefix(data.http.teleport_version.response_body, "v")
   )
 }
 
