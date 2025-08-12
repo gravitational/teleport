@@ -36,3 +36,6 @@ shellEmulator: true
 # affect performance outside of docker.
 # https://github.com/gravitational/teleport/issues/46019
 packageImportMethod: clone-or-copy
+patchedDependencies:
+  # Needed after the upgrade to TypeScript 5.9.2.
+  '@types/wicg-file-system-access@2023.10.6': web/patches/@types__wicg-file-system-access@2023.10.6.patch

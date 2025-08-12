@@ -6,6 +6,11 @@ settings:
 
 pnpmfileChecksum: sha256-UhbfH9wqbTOi0Lx+Gm0eQ8EkqLSQxYCWXAFDAbl28uo=
 
+patchedDependencies:
+  '@types/wicg-file-system-access@2023.10.6':
+    hash: d78cdc47c763f4a23344955ac2c09be11b33372d0f77eb4d6384f1286a75ece8
+    path: web/patches/@types__wicg-file-system-access@2023.10.6.patch
+
 importers:
 
   .:
@@ -157,7 +162,7 @@ importers:
         version: 4.4.12(@types/react@19.1.9)
       '@types/wicg-file-system-access':
         specifier: ^2023.10.6
-        version: 2023.10.6
+        version: 2023.10.6(patch_hash=d78cdc47c763f4a23344955ac2c09be11b33372d0f77eb4d6384f1286a75ece8)
       cspell:
         specifier: ^9.2.0
         version: 9.2.0
@@ -9715,7 +9720,7 @@ snapshots:
 
   '@types/which@3.0.4': {}
 
-  '@types/wicg-file-system-access@2023.10.6': {}
+  '@types/wicg-file-system-access@2023.10.6(patch_hash=d78cdc47c763f4a23344955ac2c09be11b33372d0f77eb4d6384f1286a75ece8)': {}
 
   '@types/yargs-parser@21.0.3': {}
 
