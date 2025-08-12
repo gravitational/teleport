@@ -388,8 +388,8 @@ var ErrUnusableKey = errors.New("unable to sign with requested key")
 // It returns ErrUnusableKey if unable to create a signer from the given keypair,
 // e.g. if it is stored in an HSM or KMS this auth service is not configured to use.
 func (m *Manager) TLSSigner(ctx context.Context, keypair *types.TLSKeyPair) (crypto.Signer, error) {
-	for _, backend := range m.usableBackends {
-		canUse, err := backend.canUseKey(ctx, keypair.Key, keypair.KeyType)
+	for _, backend := range m.usableSigningBackends {
+		canUse, err := backend.canSignWithKey(ctx, keypair.Key, keypair.KeyType)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
