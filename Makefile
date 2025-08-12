@@ -1543,10 +1543,11 @@ BUF := buf
 # Install buf to lint, format and generate code from protobuf files.
 #
 .PHONY: ensure-buf
+ensure-buf: NEED_VERSION = $(shell $(MAKE) --no-print-directory -s -C build.assets print-buf-version)
 ensure-buf:
 # Install buf if it's not already installed.
 ifeq (, $(shell command -v $(BUF)))
-	go install github.com/bufbuild/buf/cmd/buf@latest
+	go install github.com/bufbuild/buf/cmd/buf@$(NEED_VERSION)
 endif
 
 # protos/all runs build, lint and format on all protos.
