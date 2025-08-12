@@ -529,7 +529,13 @@ func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authComma
 	for i, keypair := range tlsKeys {
 		crl := keypair.CRL
 		if len(crl) == 0 {
-			fmt.Fprintf(os.Stderr, "keypair %v is missing CRL for %v authority %v, generating legacy fallback", i, authority.GetType(), authority.GetName())
+			// WARNING: GenerateCertAuthorityCRL will find any suitable keypair for signing the CRL,
+			// it is not guaranteed to use _this_ particular keypair.
+			fmt.Fprintf(os.Stderr, "Keypair %v is missing CRL for %v authority %v, generating legacy fallback.",
+				i, authority.GetType(), authority.GetName())
+			if len(tlsKeys) > 1 {
+				fmt.Fprintf(os.Stderr, "If you are using HSM or KMS for private key material, please update your auth server and re-export CRLs.")
+			}
 			crl, err = clusterAPI.GenerateCertAuthorityCRL(ctx, certType)
 			if err != nil {
 				return trace.Wrap(err)
