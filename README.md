@@ -154,7 +154,7 @@ instructions](/BUILD_macos.md).
 ##### Linux 64-bit ARM Dependencies
 
 1. On Linux aarch64 (64-bit ARM), you may need to manually install
-   [`binaryen`](https://github.com/wasmerio/binaryen). Check with `which
+   [`binaryen`](https://github.com/WebAssembly/binaryen). Check with `which
    wasm-opt`. If not found, install with `apt-get install binaryen`
    (Debian-based systems). On other platforms, `wasm-pack` installs it
    automatically.
