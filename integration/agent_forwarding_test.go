@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
-	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/sshagent"
 )
 
 func TestAgentSocketPermissions(t *testing.T) {
@@ -36,7 +36,7 @@ func TestAgentSocketPermissions(t *testing.T) {
 		t.Skip("This test will be skipped because tests are not being run as root.")
 	}
 
-	agentServer := teleagent.NewServer(nil)
+	agentServer := sshagent.NewServer(nil)
 
 	agentServer.SetTestPermissions(func() {
 		// ListenUnixSocket should not have its uid changed from root
