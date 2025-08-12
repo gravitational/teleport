@@ -40,7 +40,7 @@ export function BotOptionsCell({
           Delete...
         </MenuItem>
         {bot.type === BotUiFlow.GitHubActionsSsh && (
-          <MenuItem onClick={onClickView}>View...</MenuItem>
+          <MenuItem onClick={onClickView}>View GitHub example...</MenuItem>
         )}
       </MenuButton>
     </Cell>
