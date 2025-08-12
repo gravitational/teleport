@@ -111,6 +111,7 @@ func (r resourceTeleportMember) Create(ctx context.Context, req tfsdk.CreateReso
 		return
 	}
 		var accessListMemberI = accessListMemberResource
+	// Try getting the resource until it exists.
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
@@ -118,12 +119,13 @@ func (r resourceTeleportMember) Create(ctx context.Context, req tfsdk.CreateReso
 		accessListMemberI, err = r.p.Client.AccessListClient().GetStaticAccessListMember(ctx, idPrefix, id)
 		if trace.IsNotFound(err) {
 			if bErr := backoff.Do(ctx); bErr != nil {
-				resp.Diagnostics.Append(diagFromWrappedErr("Error reading Member", trace.Wrap(bErr), "access_list_member"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading Member", trace.Wrap(err), "access_list_member"))
 				return
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading Member (tried %d times) - state outdated, please import resource", tries)
 				resp.Diagnostics.AddError(diagMessage, "access_list_member")
+				return
 			}
 			continue
 		}
