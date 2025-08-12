@@ -53,6 +53,10 @@ func ValidateToken[C oidc.Claims](
 	)
 }
 
+// ValidateTokenWithClient validates an OIDC token against a generic claim type,
+// but accepts a custom HTTP client. This custom client can be used in tandem
+// with the client returned by `NewCachingHTTPClient()` to cache OpenID and JWKS
+// responses.
 func ValidateTokenWithClient[C oidc.Claims](
 	ctx context.Context,
 	httpClient *http.Client,
@@ -76,7 +80,7 @@ func ValidateTokenWithClient[C oidc.Claims](
 
 	// TODO(noah): Ideally we'd cache the remote keyset across joins/join tokens
 	// based on the issuer.
-	ks := rp.NewRemoteKeySet(otelhttp.DefaultClient, dc.JwksURI)
+	ks := rp.NewRemoteKeySet(httpClient, dc.JwksURI)
 	verifier := rp.NewIDTokenVerifier(issuerURL, audience, ks, opts...)
 	// TODO(noah): It'd be ideal if we could extend the verifier to use an
 	// injected "now" time.
