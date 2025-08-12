@@ -206,7 +206,7 @@ func NewWithConfig(ctx context.Context, conf Config) (*Backend, error) {
 	}
 	// NOTE: This will trigger an actual Create() since we don't have a resource version set.
 	// If we have an AlreadyExists error, discard it and move on as it can happen with rapid restarts/rollouts/agent name collisions.
-	if err := b.createSecret(ctx); err != nil && !trace.IsAlreadyExists(err) {
+	if err := b.createSecret(ctx); err != nil && !kubeerrors.IsAlreadyExists(trace.Unwrap(err)) {
 		return nil, trace.Wrap(err)
 	}
 	return b, nil
