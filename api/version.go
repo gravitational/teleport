@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.1.4"
+const Version = "18.1.5-dev.hugooidc.1"
 
 const VersionMajor = 18
 const VersionMinor = 1
-const VersionPatch = 4
-const VersionPreRelease = ""
+const VersionPatch = 5
+const VersionPreRelease = "dev.hugooidc.1"
 const VersionMetadata = ""
