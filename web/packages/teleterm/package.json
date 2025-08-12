@@ -40,7 +40,7 @@
     "@gravitational/design": "workspace:*",
     "@gravitational/shared": "workspace:*",
     "@protobuf-ts/grpc-transport": "^2.11.1",
-    "@types/node-forge": "^1.3.11",
+    "@types/node-forge": "^1.3.13",
     "@types/tar-fs": "^2.0.4",
     "@types/whatwg-url": "^13.0.0",
     "@xterm/addon-fit": "^0.10.0",
