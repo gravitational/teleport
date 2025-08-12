@@ -205,6 +205,7 @@ func MigrateWithAWS(ctx context.Context, cfg Config, awsCfg aws.Config) error {
 		return trace.Wrap(err)
 	}
 
+	// TODO(Joerger): Take the exportARN from the checkpoint file rather than starting a new export.
 	exportInfo, err := t.GetOrStartExportAndWaitForResults(ctx)
 	if err != nil {
 		return trace.Wrap(err)
