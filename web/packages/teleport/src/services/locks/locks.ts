@@ -20,7 +20,7 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
 import { withGenericUnsupportedError } from '../version/unsupported';
-import { CreateLockRequest, Lock, LockKind } from './types';
+import { ApiLock, CreateLockRequest, Lock, LockKind } from './types';
 
 export const lockService = {
   async fetchLocks() {
@@ -129,21 +129,3 @@ function makeLock(json: ApiLock): Lock {
     },
   };
 }
-
-export type ApiLock = {
-  name: string;
-  message?: string;
-  expires?: string;
-  createdAt?: string;
-  createdBy?: string;
-  targets: Partial<{
-    user: string;
-    role: string;
-    login: string;
-    node: string;
-    mfa_device: string;
-    windows_desktop: string;
-    device: string;
-    access_request: string;
-  }>;
-};
