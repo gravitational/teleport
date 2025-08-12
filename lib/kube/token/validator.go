@@ -368,6 +368,8 @@ type KubernetesOIDCTokenValidator struct {
 	client *http.Client
 }
 
+// NewKubernetesOIDCTokenValidator returns a token validator populated with a
+// caching HTTP client.
 func NewKubernetesOIDCTokenValidator() *KubernetesOIDCTokenValidator {
 	return &KubernetesOIDCTokenValidator{
 		client: oidc.NewCachingHTTPClient(),
