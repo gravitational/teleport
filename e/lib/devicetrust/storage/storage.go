@@ -9,7 +9,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"testing"
 	"time"
 
 	"github.com/google/uuid"
@@ -70,8 +69,7 @@ type Params struct {
 	Backend      backend.Backend
 	UsersService UsersService
 
-	// BCryptCostOverride allows overriding the default bcrypt cost for tests.
-	// Do not set in production code.
+	// BCryptCostOverride allows overriding the default bcrypt cost.
 	BCryptCostOverride int
 }
 
@@ -94,9 +92,6 @@ func New(params Params) (*S, error) {
 
 	cost := bcrypt.DefaultCost
 	if params.BCryptCostOverride > 0 {
-		if !testing.Testing() {
-			panic("params.BCryptCostOverride can only be used for testing")
-		}
 		cost = params.BCryptCostOverride
 	}
 
