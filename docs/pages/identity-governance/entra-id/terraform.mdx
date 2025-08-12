@@ -1,0 +1,233 @@
+---
+title:  Configure Entra ID integration using Terraform
+description: Describes how to set up Entra ID integration with Terraform
+sidebar_position: 3
+labels:
+ - how-to
+ - identity-governance
+ - terraform
+---
+
+This guide shows Entra ID integration configuration using Terraform and `tctl`.
+See [getting started with Entra ID integration](getting-started.mdx) for a guided Entra ID configuration. 
+
+The set up is based on the [OIDC IdP authentication method](entra-id.mdx#choosing-the-microsoft-graph-api-authentication-method).
+
+## Prerequisites
+
+- Teleport Identity Governance enabled for your Teleport cluster.
+- Your user must have privileged administrator permissions in the Microsoft Entra ID tenant.
+- Terraform with `azuread` [provider](https://registry.terraform.io/providers/hashicorp/azuread/latest/docs).
+
+## Step 1/5. Create enterprise application
+
+```hcl
+resource "azuread_application" "teleport-entraid-iac" {
+  display_name = "teleport-entraid-iac"
+
+  # These resources will be updated later and should not 
+  # be overridden.
+  lifecycle {
+    ignore_changes = [
+      identifier_uris,
+      required_resource_access,
+    ]
+  }
+
+  feature_tags {
+    enterprise            = true
+    custom_single_sign_on = true
+  }
+}
+```
+
+
+## Step 2/5. Configure SAML SSO
+
+Configure Entra ID enterprise application as an SAML SSO provider for Teleport.
+```hcl
+resource "azuread_service_principal" "teleport-entraid-iac-sp" {
+  client_id = azuread_application.teleport-entraid-iac.client_id
+
+  preferred_single_sign_on_mode = "saml"
+
+  login_url = "https://sshah0825entra.cloud.gravitational.io/v1/webapi/saml/acs/entra-id"
+
+  feature_tags {
+    enterprise            = true
+    custom_single_sign_on = true
+  }
+}
+```
+
+Configure a certificate to be used for SAML assertion signing.
+```hcl
+resource "azuread_service_principal_token_signing_certificate" "teleport-entraid-iac-saml-cert" {
+  service_principal_id = azuread_service_principal.teleport-entraid-iac-sp.id
+  display_name         = "CN=teleport-tf-example-sso"
+  end_date             = "2026-05-01T01:02:03Z"
+}
+```
+
+Configure `identifier_uri`, which will be used as the "Entity ID" value for the SAML service provider. 
+```hcl
+resource "azuread_application_identifier_uri" "teleport-entraid-iac" {
+  application_id = azuread_application.teleport-entraid-iac.id
+
+  # Configures SAML Entity ID.
+  identifier_uri = "https://sshah0825entra.cloud.gravitational.io/v1/webapi/saml/acs/entra-id"
+}
+```
+
+Now, you will need to update the enterprise application you created in Step 1 
+with `group_membership_claims` and `redirect_uris` values. 
+
+```hcl
+resource "azuread_application" "teleport-entraid-iac" {
+  display_name = "teleport-entraid-iac"
+
+  # Adds group attribute to SAML response.
+  group_membership_claims = ["SecurityGroup"]
+
+  # Redirect URI configures SAML Assertion Consumer Service URL. 
+  web {
+    redirect_uris = ["https://sshah0825entra.cloud.gravitational.io/v1/webapi/saml/acs/entra-id"]
+  }
+
+  lifecycle {
+    ignore_changes = [
+      identifier_uris,
+      required_resource_access,
+    ]
+  }
+
+  feature_tags {
+    enterprise            = true
+    custom_single_sign_on = true
+  }
+}
+```
+
+By default, the `azuread` provider configures `NameID` format of `emailAddress` type. 
+Teleport expects the format to be of `unspecified` type. To change this value, you 
+will need to create a new claim policy and attach it to the service principal we 
+created in Step 2.
+```hcl
+resource "azuread_claims_mapping_policy" "teleport-entraid-iac-nameid" {
+  definition = [
+    jsonencode(
+      {
+        ClaimsMappingPolicy = {
+          ClaimsSchema = [
+            {
+              ID            = "userprincipalname"
+              SamlClaimType = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"
+              Source        = "user"
+            },
+          ]
+          IncludeBasicClaimSet = "true"
+          Version              = 1
+        }
+      }
+    ),
+  ]
+  display_name = "teleport-entraid-iac-nameid"
+}
+
+
+resource "azuread_service_principal_claims_mapping_policy_assignment" "teleport-entraid-iac-nameid-policy-assignment" {
+  claims_mapping_policy_id = azuread_claims_mapping_policy.teleport-entraid-iac-nameid.id
+  service_principal_id     = azuread_service_principal.teleport-entraid-iac-sp.id
+}
+```
+
+## Step 3/5. Configure OIDC IdP
+In this step, you configure Teleport as an OIDC IdP for the enterprise application 
+you created in Step 1. This trust allows Teleport Entra ID client to authenticate 
+with the Microsoft Graph API.
+```hcl
+resource "azuread_application_federated_identity_credential" "teleport-entraid-iac-oidc-idp" {
+  application_id = azuread_application.teleport-entraid-iac.id
+  display_name   = "teleport-entraid-iac-oidc"
+  description    = "Teleport as an OIDC IdP"
+  audiences      = ["api://AzureADTokenExchange"]
+  issuer         = "https://sshah0825entra.cloud.gravitational.io"
+  subject        = "teleport-azure"
+}
+```
+
+## Step 4/5. Configure API permissions
+Finally, grant Microsoft Graph API permission to the application.
+These permissions allows Teleport Entra ID client to pull users and groups 
+from Entra ID to Teleport.
+
+```hcl
+data "azuread_application_published_app_ids" "well_known" {}
+
+data "azuread_service_principal" "graph-api" {
+  client_id = data.azuread_application_published_app_ids.well_known.result["MicrosoftGraph"]
+}
+
+# Assign API permissions. 
+resource "azuread_application_api_access" "teleport-entraid-iac-graph-permission" {
+  application_id = azuread_application.teleport-entraid-iac.id
+  api_client_id  = data.azuread_application_published_app_ids.well_known.result["MicrosoftGraph"]
+
+  role_ids = [
+    data.azuread_service_principal.graph-api.app_role_ids["Application.ReadWrite.OwnedBy"],
+    data.azuread_service_principal.graph-api.app_role_ids["Group.Read.All"],
+    data.azuread_service_principal.graph-api.app_role_ids["User.Read.All"],
+  ]
+}
+
+# Grant admin consent to each permissions assigned above.
+resource "azuread_app_role_assignment" "teleport-entraid-iac-app" {
+  app_role_id         = data.azuread_service_principal.graph-api.app_role_ids["Application.ReadWrite.OwnedBy"]
+  principal_object_id = azuread_service_principal.teleport-entraid-iac-sp.object_id
+  resource_object_id  = data.azuread_service_principal.graph-api.object_id
+}
+
+resource "azuread_app_role_assignment" "teleport-entraid-iac-group" {
+  app_role_id         = data.azuread_service_principal.graph-api.app_role_ids["Group.Read.All"]
+  principal_object_id = azuread_service_principal.teleport-entraid-iac-sp.object_id
+  resource_object_id  = data.azuread_service_principal.graph-api.object_id
+}
+
+resource "azuread_app_role_assignment" "teleport-entraid-iac-user" {
+  app_role_id         = data.azuread_service_principal.graph-api.app_role_ids["User.Read.All"]
+  principal_object_id = azuread_service_principal.teleport-entraid-iac-sp.object_id
+  resource_object_id  = data.azuread_service_principal.graph-api.object_id
+}
+```
+
+## Step 5/5. Install the Entra ID plugin
+
+Now run the `tctl plugins install entraid` command.
+
+```code
+$ tctl plugins install entraid \
+    --name entra-id-default \
+    --auth-connector-name entra-id \
+    --default-owner=<Var name="Access List Owner"/> \
+    --no-access-graph \
+    –-manual-setup
+```
+
+The `--name` flag specifies the resource name of the Entra ID plugin. 
+The `--auth-connector-name` flag specifies the name of the auth connector this integration will create.
+The `--default-owner` flag specifies default owners for the Access Lists that will be created
+in Teleport based on the groups imported from the Entra ID.
+The `--no-access-graph` flag specifies Identity Security integration is to be skipped.
+The `--manual-setup` flag specifies a manual Entra ID configuration is selected by the user.
+
+`tctl` will then prompt for Entra ID tenant ID and application ID of the enterprise 
+application created in step 1.
+
+After you enter these values, Entra ID plugin will be installed with the OIDC IdP based authentication method.
+
+## Next steps
+
+- Take a deeper look into setting up [Entra ID auth connector](../../zero-trust-access/sso/azuread.mdx). 
+- Learn more about [Access List](../access-lists/access-lists.mdx) management.
+- Learn how the [Identity Security integration with Entra ID](../../identity-security/integrations/entra-id.mdx) works. 
+- See [FAQs](faq.mdx) related to the Teleport Entra ID integration. 
