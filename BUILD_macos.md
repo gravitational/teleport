@@ -8,16 +8,16 @@ latest Homebrew version.
 The instructions below are provided on a best-effort basis. PRs with corrections
 and updates are welcome!
 
-1. **Install [Homebrew](https://brew.sh/)**
+1. Install [Homebrew](https://brew.sh/)
 
-1. **Install Go**
+1. Install Go
 
       ```shell
       brew install go
       ```
 
-1. **Install Rust**
-    1. **Install rustup**
+1. Install Rust
+    1. Install rustup
 
         Install rustup with Homebrew:
 
@@ -28,7 +28,7 @@ and updates are welcome!
         # Accept defaults
         ```
 
-    1. **Install and configure Rust toolchain**
+    1. Install and configure Rust toolchain
         1. Find the required Rust version in
             [`build.assets/versions.mk`](/build.assets/versions.mk)
             (`RUST_VERSION`).
@@ -58,7 +58,7 @@ and updates are welcome!
             rustc --version
             ```
 
-1. **Install Node.js**
+1. Install Node.js
     1. Find the required Node version in
       [`build.assets/versions.mk`](/build.assets/versions.mk) (`NODE_VERSION`).
 
@@ -90,81 +90,79 @@ and updates are welcome!
         corepack enable pnpm
         ```
 
-1. **Install additional build dependencies**
-   1. Install `wasm-pack`:
-      1. Find the required wasm-pack version in
-      [`build.assets/versions.mk`](/build.assets/versions.mk)
-      (`WASM_PACK_VERSION`).
+1. Install `wasm-pack`:
+    1. Find the required wasm-pack version in
+    [`build.assets/versions.mk`](/build.assets/versions.mk)
+    (`WASM_PACK_VERSION`).
 
-      1. Install wasm-pack globally:
+    1. Install wasm-pack globally:
+
+        ```shell
+        # Replace <version> with the value of WASM_PACK_VERSION from build.assets/versions.mk (e.g., 0.12.1)
+        npm install --global wasm-pack@<version>
+        ```
+
+    1. Verify wasm-pack version:
+
+        ```shell
+        wasm-pack --version
+        ```
+
+1. Install `libfido2`:
+
+    ```shell
+    brew install libfido2
+    ```
+
+1. Install `pkg-config`:
+
+    ```shell
+    brew install pkg-config
+    ```
+
+1. Install `helm` and the `helm-unittest` plugin:
+
+    ```shell
+    brew install helm
+
+    helm plugin install https://github.com/quintush/helm-unittest --version 0.2.11
+    ```
+
+1. Install `bats`:
+    1. Find the required `bats-core` version from
+        [`build.assets/Dockerfile`](/build.assets/Dockerfile) (search for
+        `bats-core`).
+    1. Set the version variable and install `bats-core`:
+
+        ```shell
+        # Replace <version> with the required bats-core version (e.g., 1.12.0)
+        BATS_VERSION=1.12.0
+
+        curl -L https://github.com/bats-core/bats-core/archive/v${BATS_VERSION}.tar.gz -o ~/Downloads/bats.tar.gz
+        cd ~/Downloads
+        tar xzvf bats.tar.gz
+        sudo mkdir -p /usr/local/libexec
+        sudo chown $USER /usr/local/libexec
+        cd bats-core-${BATS_VERSION}
+        sudo ./install.sh /usr/local
+        cd ../
+        rm -rf bats-core-${BATS_VERSION} bats.tar.gz
+        ```
+
+    1. Verify `bats` installation:
 
           ```shell
-          # Replace <version> with the value of WASM_PACK_VERSION from build.assets/versions.mk (e.g., 0.12.1)
-          npm install --global wasm-pack@<version>
+          bats --version
           ```
 
-      1. Verify wasm-pack version:
+1. Install `buf`:
 
-          ```shell
-          wasm-pack --version
-          ```
+    ```shell
+    brew install bufbuild/buf/buf
+    ```
 
-   1. Install `libfido2` (pulls `openssl 3` as dependency):
+1. Increase the maximum number of open files:
 
-      ```shell
-      brew install libfido2
-      ```
-
-   1. Install `pkg-config`:
-
-      ```shell
-      brew install pkg-config
-      ```
-
-1. **Install test dependencies (optional)**
-    1. Install `helm` and the `helm-unittest` plugin:
-
-        ```shell
-        brew install helm
-
-        helm plugin install https://github.com/quintush/helm-unittest --version 0.2.11
-        ```
-
-    1. Install `bats`:
-        1. Find the required `bats-core` version from
-            [`build.assets/Dockerfile`](/build.assets/Dockerfile) (search for
-            `bats-core`).
-        1. Set the version variable and install `bats-core`:
-
-            ```shell
-            # Replace <version> with the required bats-core version (e.g., 1.12.0)
-            BATS_VERSION=1.12.0
-
-            curl -L https://github.com/bats-core/bats-core/archive/v${BATS_VERSION}.tar.gz -o ~/Downloads/bats.tar.gz
-            cd ~/Downloads
-            tar xzvf bats.tar.gz
-            sudo mkdir -p /usr/local/libexec
-            sudo chown $USER /usr/local/libexec
-            cd bats-core-${BATS_VERSION}
-            sudo ./install.sh /usr/local
-            cd ../
-            rm -rf bats-core-${BATS_VERSION} bats.tar.gz
-            ```
-
-        1. Verify `bats` installation:
-
-              ```shell
-              bats --version
-              ```
-
-    1. Install `buf`:
-
-        ```shell
-        brew install bufbuild/buf/buf
-        ```
-
-    1. Increase the maximum number of open files:
-
-        ```shell
-        ulimit -n 2560 # 10x default
-        ```
+    ```shell
+    ulimit -n 2560 # 10x default
+    ```
