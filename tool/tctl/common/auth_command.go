@@ -170,7 +170,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	a.authLS = auth.Command("ls", "List connected auth servers.")
 	a.authLS.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&a.format)
 
-	a.authCRL = auth.Command("crl", "Export empty certificate revocation list (CRL) for certificate authorities.")
+	a.authCRL = auth.Command("crl", "Export empty certificate revocation list (CRL) for Teleport certificate authorities.")
 	a.authCRL.Flag("type", fmt.Sprintf("Certificate authority type, one of: %s", strings.Join(allowedCRLCertificateTypes, ", "))).Required().EnumVar(&a.caType, allowedCRLCertificateTypes...)
 	a.authCRL.Flag("out", "If set, writes exported revocation lists to files with the given path prefix").StringVar(&a.output)
 }
@@ -193,7 +193,7 @@ func (a *AuthCommand) TryRun(ctx context.Context, cmd string, clientFunc commonc
 	case a.authLS.FullCommand():
 		commandFunc = a.ListAuthServers
 	case a.authCRL.FullCommand():
-		commandFunc = a.GenerateCRLForCA
+		commandFunc = a.ExportCRL
 	default:
 		return false, nil
 	}
@@ -495,9 +495,9 @@ func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI authComman
 	return nil
 }
 
-// GenerateCRLForCA generates a certificate revocation list for a certificate
-// authority.
-func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authCommandClient) error {
+// ExportCRL exports an empty certificate revocation list for a
+// Teleport certificate authority.
+func (a *AuthCommand) ExportCRL(ctx context.Context, clusterAPI authCommandClient) error {
 	certType := types.CertAuthType(a.caType)
 	if err := certType.Check(); err != nil {
 		return trace.Wrap(err)
