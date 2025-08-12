@@ -1604,16 +1604,23 @@ func TestServer_ValidateSAMLResponse_MFA(t *testing.T) {
 		},
 	})
 
-	srv := testserver.MakeTestServer(t, testserver.WithConfig(func(cfg *servicecfg.Config) {
-		cfg.Clock = clock
-	}))
+	srv, err := testserver.NewTeleportProcess(
+		t.TempDir(),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Clock = clock
+		}))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, srv.Close())
+		require.NoError(t, srv.Wait())
+	})
 	a := srv.GetAuthServer()
 
 	mockEmitter := &eventstest.MockRecorderEmitter{}
 	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a, License: ValidLicense{}, Emitter: mockEmitter})
 
 	// create role referenced in request.
-	_, err := authtest.CreateRole(ctx, a, "access", types.RoleSpecV6{
+	_, err = authtest.CreateRole(ctx, a, "access", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{"dummy"},
 		},

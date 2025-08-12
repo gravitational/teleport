@@ -22,13 +22,21 @@ import (
 func TestSignX509IssuerCSR(t *testing.T) {
 	ctx := t.Context()
 
-	process := testenv.MakeTestServer(t, testenv.WithConfig(func(cfg *servicecfg.Config) {
-		cfg.PluginRegistry = plugin.NewRegistry()
-		authPlugin, err := eauth.NewPlugin(eauth.Config{License: eauth.ValidLicense{}})
-		require.NoError(t, err)
-		err = cfg.PluginRegistry.Add(authPlugin)
-		require.NoError(t, err)
-	}))
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		testenv.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.PluginRegistry = plugin.NewRegistry()
+			authPlugin, err := eauth.NewPlugin(eauth.Config{License: eauth.ValidLicense{}})
+			require.NoError(t, err)
+			err = cfg.PluginRegistry.Add(authPlugin)
+			require.NoError(t, err)
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 
 	clusterName, err := process.GetAuthServer().GetDomainName()
 	require.NoError(t, err)
@@ -51,7 +59,9 @@ func TestSignX509IssuerCSR(t *testing.T) {
 		require.Len(t, ca.GetAdditionalTrustedKeys().TLS, 1)
 	}, 5*time.Second, 50*time.Millisecond)
 
-	client := testenv.MakeDefaultAuthClient(t, process)
+	client, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
 
 	const loadSigningKeysFalse = false
 	ca, err := client.GetCertAuthority(ctx, types.CertAuthID{

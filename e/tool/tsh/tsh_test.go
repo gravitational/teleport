@@ -84,7 +84,8 @@ func TestNodeAccess(t *testing.T) {
 
 	connector := mockConnector(t)
 
-	process := testserver.MakeTestServer(t,
+	process, err := testserver.NewTeleportProcess(
+		t.TempDir(),
 		testserver.WithBootstrap(connector),
 		testserver.WithHostname("node01"),
 		testserver.WithSSHLabel("env", "staging"),
@@ -108,6 +109,11 @@ func TestNodeAccess(t *testing.T) {
 			}
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 
 	authServer := process.GetAuthServer()
 	_, err = authServer.UpsertAuthPreference(ctx, &types.AuthPreferenceV2{

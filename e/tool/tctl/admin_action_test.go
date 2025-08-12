@@ -388,7 +388,8 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	require.NoError(t, err)
 	authPref.SetOrigin(types.OriginDefaults)
 
-	process := testserver.MakeTestServer(t,
+	process, err := testserver.NewTeleportProcess(
+		t.TempDir(),
 		testserver.WithAuthPreference(authPref),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.PluginRegistry = plugin.NewRegistry()
@@ -402,6 +403,11 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 			require.NoError(t, err)
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 	proxyAddr, err := process.ProxyWebAddr()
 	require.NoError(t, err)
 	authAddr, err := process.AuthAddr()
