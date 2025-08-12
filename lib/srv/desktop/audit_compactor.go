@@ -30,9 +30,8 @@ type streamEvent interface {
 type stream struct {
 	expireTime time.Time
 	events     []streamEvent
-	//events     map[uint64]streamEvent
-	timer *time.Timer
-	done  chan struct{}
+	timer      *time.Timer
+	done       chan struct{}
 }
 
 func newAuditCompactor(refreshInterval, maxDelayInterval time.Duration, emitFn func(context.Context, events.AuditEvent)) auditCompactor {
@@ -66,17 +65,16 @@ func (s *stream) compactEvents() []streamEvent {
 
 	var finalEvents []streamEvent
 	for len(offsetMapping) > 0 {
+		// Find the read/write event with the lowest offset
+		// so that we may greedily search for the longest
+		// contiguous segment we can produce
 		smallestKey := slices.Sorted(maps.Keys(offsetMapping))
-		if len(smallestKey) == 0 {
-			continue
-		}
 		evnt := offsetMapping[smallestKey[0]][0]
-		sequentialEvents := s.compact(evnt, offsetMapping)
+		sequentialEvents, sequenceLength := s.compact(evnt, offsetMapping)
 		base := sequentialEvents[0]
-		for i, subsequent := range sequentialEvents {
-			if i > 0 {
-				base.SetLength(base.GetLength() + subsequent.GetLength())
-			}
+
+		// Remove each event in this sequence from the map
+		for _, subsequent := range sequentialEvents {
 			offset := subsequent.GetOffset()
 			evnts := offsetMapping[offset]
 			evnts = slices.Delete(evnts, slices.Index(evnts, subsequent), 1)
@@ -86,49 +84,36 @@ func (s *stream) compactEvents() []streamEvent {
 				delete(offsetMapping, offset)
 			}
 		}
+		base.SetLength(sequenceLength)
 		finalEvents = append(finalEvents, base)
 	}
 
 	return finalEvents
 }
 
-func (s *stream) compact(evnt streamEvent, sortedEvents map[uint64][]streamEvent) []streamEvent {
+func (s *stream) compact(evnt streamEvent, sortedEvents map[uint64][]streamEvent) ([]streamEvent, uint64) {
 	offset := evnt.GetOffset() + evnt.GetLength()
 	if len(sortedEvents[offset]) > 0 {
-		// Pick the longest
-		var results [][]streamEvent
+		// There may be multiple candidate segments to follow.
+		// Try each of them out and select the longest contiguous set of segments
+		var winner []streamEvent
+		var maxLength uint64
 		for _, choice := range sortedEvents[offset] {
-			results = append(results, s.compact(choice, sortedEvents))
+			option, length := s.compact(choice, sortedEvents)
+			if length > maxLength {
+				winner = option
+				maxLength = length
+			}
 		}
-		winner := slices.MaxFunc(results, func(a, b []streamEvent) int {
-			return len(a) - len(b)
-		})
 
-		return append([]streamEvent{evnt}, winner...)
+		return append([]streamEvent{evnt}, winner...), maxLength + evnt.GetLength()
 	}
-	return []streamEvent{evnt}
+	return []streamEvent{evnt}, evnt.GetLength()
 }
 
 func (s *stream) addEvent(evnt streamEvent) {
 	s.events = append(s.events, evnt)
 }
-
-//func (s *stream) emitEvents(ctx context.Context, emitFn func(context.Context, events.AuditEvent)) {
-//	// Examine the events in the stream and attempt to compact them
-//	for _, evnt := range s.events {
-//		emitFn(ctx, evnt.Base())
-//	}
-//}
-//
-//func (s *stream) addEvent(evnt streamEvent) {
-//	if base, exists := s.events[evnt.GetOffset()]; exists {
-//		delete(s.events, evnt.GetOffset())
-//		base.SetLength(base.GetLength() + evnt.GetLength())
-//		s.events[base.GetOffset()+base.GetLength()] = base
-//	} else {
-//		s.events[evnt.GetOffset()+evnt.GetLength()] = evnt
-//	}
-//}
 
 func (a *auditCompactor) handleEvent(ctx context.Context, evnt streamEvent) {
 	// Does the event exist in the stream?
@@ -146,8 +131,6 @@ func (a *auditCompactor) handleEvent(ctx context.Context, evnt streamEvent) {
 		// We're currently tracking this stream
 		// Temporarily stop the timer (if possible)
 		alreadyFired := !stream.timer.Stop()
-		// Is this read/write a continuation of a previous event?
-		//expectedOffset := stream.base.GetOffset() + stream.base.GetLength()
 		if !alreadyFired {
 			// Update the current stream. It is a continuation of the current stream
 			// and the timer has not yet fired for it
