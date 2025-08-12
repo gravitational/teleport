@@ -19,7 +19,7 @@
 import { http, HttpResponse } from 'msw';
 
 import cfg from 'teleport/config';
-import { ApiLock } from 'teleport/services/locks/locks';
+import { ApiLock } from 'teleport/services/locks/types';
 
 export const listV2LocksSuccess = (options?: { locks?: ApiLock[] }) => {
   const { locks = [] } = options ?? {};
