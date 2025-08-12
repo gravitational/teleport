@@ -1296,7 +1296,7 @@ func TestBotDeviceTrust(t *testing.T) {
 
 	// Start a test server with `device.trust.mode="required-for-humans"`.
 	process := testenv.MakeTestServer(t,
-		defaultTestServerOpts(t, log),
+		defaultTestServerOpts(log),
 		testenv.WithAuthConfig(func(cfg *servicecfg.AuthConfig) {
 			cfg.Preference.SetDeviceTrust(&types.DeviceTrust{
 				Mode: constants.DeviceTrustModeRequiredForHumans,
@@ -1311,7 +1311,7 @@ func TestBotDeviceTrust(t *testing.T) {
 		t, process, onboarding,
 		config.ServiceConfigs{
 			&config.IdentityOutput{
-				Destination: &destination.Memory{},
+				Destination: &config.DestinationMemory{},
 			},
 		},
 		defaultBotConfigOpts{
