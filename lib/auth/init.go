@@ -778,6 +778,8 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 
 	// Add [empty] CRLs to any issuers that are missing them.
 	// These are valid for 10 years and regenerated on CA rotation.
+	// DELETE IN v20(probakowski, zmb3): by v20 all auths will have
+	// at least been on v19, and all versions of 19 backfill missing CRLs.
 	updated := false
 	for _, kp := range ca.GetActiveKeys().TLS {
 		cert, err := tlsca.ParseCertificatePEM(kp.Cert)

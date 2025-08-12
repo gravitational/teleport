@@ -541,6 +541,8 @@ func (a *AuthCommand) ExportCRL(ctx context.Context, clusterAPI authCommandClien
 	var results []output
 	for i, keypair := range tlsKeys {
 		crl := keypair.CRL
+		// DELETE IN v19 (probakowski, zmb3): tctl v19 means the server is either v19 or v20,
+		// both of which are guaranteed to have CRLs already in place.
 		if len(crl) == 0 {
 			// WARNING: GenerateCertAuthorityCRL will find any suitable keypair for signing the CRL,
 			// it is not guaranteed to use _this_ particular keypair.
