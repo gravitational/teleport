@@ -19,12 +19,11 @@
 import { ReactNode, useState } from 'react';
 
 import { Alert } from 'design/Alert';
-import { CheckboxInput } from 'design/Checkbox';
-import { Stack } from 'design/Flex';
+import Flex, { Stack } from 'design/Flex';
 import { Cog } from 'design/Icon';
 import Link from 'design/Link';
 import { RadioGroup } from 'design/RadioGroup';
-import Text from 'design/Text';
+import { H3, P3 } from 'design/Text';
 import { pluralize } from 'shared/utils/text';
 
 import {
@@ -35,11 +34,7 @@ import {
 } from 'teleterm/services/appUpdater';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
-import {
-  ClusterGetter,
-  clusterNameGetter,
-  makeUnreachableClusterText,
-} from './common';
+import { ClusterGetter, clusterNameGetter } from './common';
 
 const listFormatter = new Intl.ListFormat('en', {
   style: 'long',
@@ -55,36 +50,19 @@ export function AutoUpdatesManagement(props: {
 }) {
   const { status } = props;
 
-  const { unreachableClusters } = status.options;
   const getClusterName = clusterNameGetter(props.clusterGetter);
-  const unreachableClustersText = makeUnreachableClusterText(
-    unreachableClusters,
-    getClusterName
-  );
   const content =
     status.enabled === true
       ? makeContentForEnabledAutoUpdates(status, getClusterName)
-      : makeContentForDisabledAutoUpdates(status, unreachableClustersText);
-  const hasUnreachableClusters = unreachableClusters.length > 0;
-  const refreshButton = {
-    content: 'Refresh',
+      : makeContentForDisabledAutoUpdates(status);
+  const retryButton = {
+    content: 'Retry',
     onClick: props.onCheckForUpdates,
     disabled: props.updateEventKind === 'download-progress',
   };
 
   return (
     <>
-      {hasUnreachableClusters && !content.isUnreachableError && (
-        <Alert
-          width="100%"
-          mb={0}
-          kind="warning"
-          primaryAction={refreshButton}
-          details={unreachableClustersText}
-        >
-          Unreachable clusters
-        </Alert>
-      )}
       {content && (
         <Alert
           width="100%"
@@ -92,7 +70,7 @@ export function AutoUpdatesManagement(props: {
           icon={content.kind === 'neutral' ? Cog : undefined}
           kind={content.kind}
           details={content.description}
-          primaryAction={content.isUnreachableError && refreshButton}
+          primaryAction={content.showRetry && retryButton}
         >
           {'title' in content ? content.title : ''}
         </Alert>
@@ -102,6 +80,7 @@ export function AutoUpdatesManagement(props: {
         changeManagingCluster={props.changeManagingCluster}
         isCheckingForUpdates={props.updateEventKind === 'checking-for-update'}
         getClusterName={getClusterName}
+        onRetry={props.onCheckForUpdates}
         // Resets localIsAutoManaged checkbox.
         key={JSON.stringify(status)}
       />
@@ -114,89 +93,56 @@ function ManagingClusterSelector({
   isCheckingForUpdates,
   changeManagingCluster,
   getClusterName,
+  onRetry,
 }: {
   autoUpdatesStatus: AutoUpdatesStatus;
   isCheckingForUpdates: boolean;
   changeManagingCluster(clusterUri: RootClusterUri | undefined): void;
   getClusterName(clusterUri: RootClusterUri): string;
+  onRetry(): void;
 }) {
-  const isAutoManaged =
-    autoUpdatesStatus.enabled &&
-    autoUpdatesStatus.source === 'highest-compatible';
-  // A local state allows us to unselect the checkbox without choosing any managing cluster.
-  // Additionally, the cluster can be selected in the UI optimistically, without waiting for
-  // autoUpdatesStatus refresh.
-  // True means selected checkbox, false - unselected, string value - selected cluster.
+  // Allows optimistic UI updates without waiting for autoUpdatesStatus.
   const [optimisticManagingCluster, setOptimisticManagingCluster] = useState<
-    boolean | RootClusterUri
-  >(isAutoManaged || autoUpdatesStatus.options.managingClusterUri || false);
+    '' | RootClusterUri
+  >(autoUpdatesStatus.options.managingClusterUri || '');
 
-  const isMostCompatibleCheckboxDisabled =
-    isCheckingForUpdates || !autoUpdatesStatus.options.highestCompatibleVersion;
-  const disabledClusterSelection =
-    optimisticManagingCluster === true || isCheckingForUpdates;
   const options = makeOptions({
     status: autoUpdatesStatus,
-    getClusterName: getClusterName,
-    disabled: disabledClusterSelection,
+    getClusterName,
+    disabled: isCheckingForUpdates,
+    highestCompatibleVersion:
+      autoUpdatesStatus.options.highestCompatibleVersion,
+    onRetry,
   });
 
   return (
     <>
-      {(options.length > 1 || autoUpdatesStatus.options.managingClusterUri) && (
-        <Stack width="100%">
-          <label
-            css={`
-              gap: ${p => p.theme.space[1]}px;
-              display: flex;
-            `}
-          >
-            <CheckboxInput
-              checked={
-                typeof optimisticManagingCluster === 'boolean'
-                  ? optimisticManagingCluster
-                  : false
-              }
-              disabled={isMostCompatibleCheckboxDisabled}
-              onChange={e => {
-                setOptimisticManagingCluster(e.target.checked);
-                if (e.target.checked) {
-                  changeManagingCluster(undefined);
-                }
-              }}
-            />
-            Use the highest compatible version from your clusters
-          </label>
-          <>
-            <Text
-              color={disabledClusterSelection ? 'text.disabled' : undefined}
-            >
-              Choose which cluster should manage updates:
-            </Text>
-            <RadioGroup
-              gap={0}
-              name="managingCluster"
-              size="small"
-              value={
-                typeof optimisticManagingCluster === 'boolean'
-                  ? null
-                  : optimisticManagingCluster
-              }
-              onChange={clusterUri => {
-                setOptimisticManagingCluster(clusterUri);
-                changeManagingCluster(clusterUri);
-              }}
-              options={options}
-            />
-          </>
-          <hr
-            css={`
-              border-color: ${props => props.theme.colors.spotBackground[2]};
-              border-style: solid;
-              width: 100%;
-              margin-bottom: 0;
-              margin-top: ${p => p.theme.space[2]}px;
-            `}
+      {/* Two because there is always 'Use highest compatible version' option */}
+      {(options.length > 2 || autoUpdatesStatus.options.managingClusterUri) && (
+        <Stack
+          width="100%"
+          gap={2}
+          p={3}
+          borderRadius={2}
+          css={`
+            background-color: ${p =>
+              p.theme.colors.interactive.tonal.neutral[0]};
+          `}
+        >
+          <Stack gap={0}>
+            <H3>Updates source</H3>
+            <P3>Multiple clusters can manage Teleport Connect version.</P3>
+          </Stack>
+          <RadioGroup
+            gap={2}
+            name="managingCluster"
+            size="small"
+            value={optimisticManagingCluster}
+            onChange={clusterUri => {
+              setOptimisticManagingCluster(clusterUri);
+              changeManagingCluster(clusterUri || undefined);
+            }}
+            options={options}
           />
         </Stack>
       )}
@@ -207,25 +153,43 @@ function ManagingClusterSelector({
 function makeOptions({
   status,
   getClusterName,
+  highestCompatibleVersion,
   disabled,
+  onRetry,
 }: {
   status: AutoUpdatesStatus;
   getClusterName: (clusterUri: RootClusterUri) => string;
   disabled: boolean;
+  highestCompatibleVersion: string;
+  onRetry(): void;
 }) {
+  const highestCompatible = {
+    label: 'Use highest compatible version from your clusters',
+    helperText: !highestCompatibleVersion ? (
+      <TextWithWarning text="No cluster provides version compatible with all other clusters." />
+    ) : (
+      `Teleport Connect ${highestCompatibleVersion} · Compatible with all clusters.`
+    ),
+    disabled: disabled,
+    value: '',
+  };
+
   const candidateClusters = status.options.clusters
     .filter(c => c.toolsAutoUpdate)
     .map(c => {
-      const otherNames = c.otherCompatibleClusters.map(c => getClusterName(c));
-      const compatibility =
-        otherNames.length === 0
-          ? 'only compatible with this cluster'
-          : `also compatible with ${listFormatter.format(otherNames)}`;
+      const otherCompatibleClusters = c.otherCompatibleClusters.map(c =>
+        getClusterName(c)
+      );
+      const compatibility = otherCompatibleClusters.length
+        ? `Also compatible with ${pluralize(otherCompatibleClusters.length, 'cluster')} ${listFormatter.format(otherCompatibleClusters.toSorted())}.`
+        : '';
 
       return {
         disabled,
-        label: getClusterName(c.clusterUri),
-        helperText: `${c.toolsVersion} client, ${compatibility}.`,
+        label: `Use version from cluster ${getClusterName(c.clusterUri)}`,
+        helperText: [`Teleport Connect ${c.toolsVersion}`, compatibility]
+          .filter(Boolean)
+          .join(' · '),
         value: c.clusterUri,
       };
     });
@@ -235,13 +199,12 @@ function makeOptions({
     .map(c => {
       return {
         disabled,
-        label: getClusterName(c.clusterUri),
+        label: `Use version from cluster ${getClusterName(c.clusterUri)}`,
         helperText: (
           <>
-            {c.toolsVersion} client.
+            Teleport Connect {c.toolsVersion}
             <br />
-            ⚠︎ Cannot provide updates, automatic client tools updates are
-            disabled on this cluster.
+            <TextWithWarning text="Automatic client tools updates are disabled on this cluster." />
           </>
         ),
         value: c.clusterUri,
@@ -251,23 +214,76 @@ function makeOptions({
   const unreachableClusters = status.options.unreachableClusters.map(
     cluster => ({
       disabled,
-      label: getClusterName(cluster.clusterUri),
+      label: `Use version from cluster ${getClusterName(cluster.clusterUri)}`,
       helperText: (
-        <>
-          ⚠︎ Cannot provide updates, cluster is unreachable.
-          <br />
-          {cluster.errorMessage}
-        </>
+        <UnreachableClusterHelper
+          onRetry={onRetry}
+          error={cluster.errorMessage}
+        />
       ),
       value: cluster.clusterUri,
     })
   );
 
   return [
+    highestCompatible,
     ...candidateClusters,
     ...nonCandidateClusters,
     ...unreachableClusters,
   ];
+}
+
+function TextWithWarning(props: { text: string }) {
+  return (
+    <span>
+      <span
+        css={`
+          color: ${props => props.theme.colors.error.main};
+        `}
+      >
+        ⚠︎︎
+      </span>{' '}
+      {props.text}
+    </span>
+  );
+}
+
+function UnreachableClusterHelper(props: { error: string; onRetry(): void }) {
+  const [showsMore, setShowsMore] = useState(false);
+
+  return (
+    <Stack
+      alignItems="start"
+      justifyContent="space-between"
+      width="100%"
+      gap={0}
+    >
+      <TextWithWarning text="Version unavailable · Cluster is unreachable." />
+      {showsMore ? <span>{props.error}</span> : ''}
+      <Flex gap={1}>
+        {/* These buttons unfortunately trigger hover of the entire radio option */}
+        {/* because they are inside the label element.*/}
+        <Link
+          onClick={e => {
+            e.stopPropagation();
+            e.preventDefault();
+            setShowsMore(v => !v);
+          }}
+        >
+          {showsMore ? 'Show Less' : 'Show More'}
+        </Link>
+        <Link
+          onClick={e => {
+            e.stopPropagation();
+            e.preventDefault();
+            props.onRetry();
+          }}
+        >
+          Retry
+        </Link>
+      </Flex>
+    </Stack>
+  );
 }
 
 function makeContentForEnabledAutoUpdates(
@@ -276,7 +292,7 @@ function makeContentForEnabledAutoUpdates(
 ): {
   description: string;
   kind: 'neutral' | 'warning';
-  isUnreachableError?: boolean;
+  showRetry?: boolean;
 } {
   switch (status.source) {
     case 'env-var':
@@ -285,40 +301,29 @@ function makeContentForEnabledAutoUpdates(
         description: `The app is set to stay on version ${status.version} by your device settings.`,
       };
     case 'managing-cluster':
-      return {
-        kind: 'neutral',
-        description: `App updates are managed by the cluster ${getClusterName(status.options.managingClusterUri)}, which requires client version ${status.version}.`,
-      };
+      return;
     case 'highest-compatible':
       const providingClusters = status.options.clusters
         .filter(c => c.toolsAutoUpdate && c.toolsVersion === status.version)
         .map(c => getClusterName(c.clusterUri));
-      // There's only one cluster.
-      if (status.options.clusters.length === 1) {
+      // Show info if there's only one cluster.
+      if (
+        status.options.clusters.length === 1 &&
+        status.options.unreachableClusters.length === 0
+      ) {
         return {
           kind: 'neutral',
           description: `App updates are managed by the cluster ${providingClusters}, which requires client version ${status.version}.`,
         };
       }
-
-      return {
-        kind: 'neutral',
-        description:
-          `Version ${status.version} from the ${pluralize(providingClusters.length, 'cluster')}` +
-          ` ${listFormatter.format(providingClusters.map(c => c))} was chosen as the highest compatible.`,
-      };
   }
 }
 
-function makeContentForDisabledAutoUpdates(
-  updateSource: AutoUpdatesDisabled,
-  unreachableClustersText: string
-): {
+function makeContentForDisabledAutoUpdates(updateSource: AutoUpdatesDisabled): {
   title?: string;
   description?: ReactNode;
   kind: 'danger' | 'neutral';
-  /** Determines if the notification shows an unreachable error so it shouldn't be shown separately. */
-  isUnreachableError?: boolean;
+  showRetry?: boolean;
 } {
   switch (updateSource.reason) {
     case 'disabled-by-env-var':
@@ -327,7 +332,7 @@ function makeContentForDisabledAutoUpdates(
         description: 'App updates are disabled by your device settings.',
       };
     case 'no-cluster-with-auto-update':
-      // There's only one cluster and it's unreachable.
+      // There's only one cluster and it's unreachable, show error inline.
       if (
         updateSource.options.unreachableClusters.length === 1 &&
         updateSource.options.clusters.length === 0
@@ -335,18 +340,16 @@ function makeContentForDisabledAutoUpdates(
         return {
           kind: 'danger',
           title: 'App updates are disabled, the cluster is unreachable',
-          isUnreachableError: true,
           description:
             updateSource.options.unreachableClusters.at(0).errorMessage,
+          showRetry: true,
         };
       }
       // There is no cluster with updates enabled and some clusters cannot be reached.
       if (updateSource.options.unreachableClusters.length > 1) {
         return {
           kind: 'danger',
-          title: 'App updates are disabled',
-          isUnreachableError: true,
-          description: unreachableClustersText,
+          title: 'App updates are disabled.',
         };
       }
       // All clusters have updates disabled.
@@ -364,19 +367,9 @@ function makeContentForDisabledAutoUpdates(
         ),
       };
     case 'managing-cluster-unable-to-manage':
-      const isManagingClusterUnreachable =
-        updateSource.options.unreachableClusters.some(
-          c => c.clusterUri === updateSource.options.managingClusterUri
-        );
       return {
         kind: 'danger',
-        title: 'The chosen cluster cannot provide app updates',
-        // If managing cluster cannot provide updates because it's unreachable,
-        // the error needs to be shown here, instead of in a separate alert.
-        isUnreachableError: isManagingClusterUnreachable,
-        description: isManagingClusterUnreachable
-          ? unreachableClustersText
-          : undefined,
+        title: 'App updates are disabled.',
       };
     case 'no-compatible-version':
       return {

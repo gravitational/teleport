@@ -168,12 +168,12 @@ function UpdaterState({
     case 'error':
       return (
         <Stack gap={3} width="100%">
-          <Alert width="100%" mb={0} details={event.error.message}>
-            An error occurred
-          </Alert>
           {event.update && (
             <AvailableUpdate update={event.update} platform={platform} />
           )}
+          <Alert mb={1} details={event.error.message}>
+            {event.update ? 'Update failed' : 'Unable to check for app updates'}
+          </Alert>
           <ButtonSecondary block onClick={onCheckForAppUpdates}>
             Try Again
           </ButtonSecondary>
@@ -219,6 +219,7 @@ function AvailableUpdate(props: { update: UpdateInfo; platform: Platform }) {
 
   return (
     <Stack>
+      <Text>A new version is available.</Text>
       <Flex gap={1} alignItems="center">
         {props.platform === 'darwin' ? (
           <img alt="App icon" height="50px" src={iconMac} />

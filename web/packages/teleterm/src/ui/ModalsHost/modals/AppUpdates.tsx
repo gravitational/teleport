@@ -58,7 +58,7 @@ export function AppUpdates(props: { hidden?: boolean; onClose(): void }) {
         width: '100%',
       })}
     >
-      <DialogHeader justifyContent="space-between" mb={4} alignItems="baseline">
+      <DialogHeader justifyContent="space-between" mb={3} alignItems="baseline">
         <H2>App Updates</H2>
         <ButtonIcon
           type="button"
