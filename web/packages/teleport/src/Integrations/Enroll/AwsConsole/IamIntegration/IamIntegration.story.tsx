@@ -19,7 +19,7 @@
 import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
 
-import { Info } from '@gravitational/design/src/Alert';
+import { Info } from 'design/Alert';
 import { CollapsibleInfoSection as CollapsibleInfoSectionComponent } from 'design/CollapsibleInfoSection';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
@@ -30,10 +30,10 @@ import { MockAwsOidcStatusProvider } from 'teleport/Integrations/status/AwsOidc/
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 
 export default {
-  title: 'Teleport/Integrations/Enroll/AwsConsole',
+  title: 'Teleport/Integrations/Enroll/AwsConsole/IamIntegration',
 };
 
-export const PageOneIamIntegration = () => (
+export const Loaded = () => (
   <MockAwsOidcStatusProvider value={makeAwsOidcStatusContextState()} path="">
     <InfoGuidePanelProvider>
       <MemoryRouter>
@@ -71,7 +71,7 @@ arn:aws:iam::123456789012:role/baz`}
     </InfoGuidePanelProvider>
   </MockAwsOidcStatusProvider>
 );
-PageOneIamIntegration.parameters = {
+Loaded.parameters = {
   msw: {
     handlers: [
       http.post(cfg.getAwsRolesAnywherePingUrl('test'), () => {
