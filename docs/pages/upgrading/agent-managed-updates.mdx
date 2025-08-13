@@ -444,7 +444,7 @@ deployment.  The `teleport-kube-agent` Helm chart owns the version of the
 image version of the `teleport-agent` resource, the GitOps tool will detect a
 drift or a diff in the `teleport-agent` resource.
 
-### ArgoCD deployments
+#### ArgoCD deployments
 
 After a managed update, ArgoCD reports the `teleport-agent` resource as `OutOfSync`.
 As a workaround to this problem use a [Diff Customization](https://argo-cd.readthedocs.io/en/stable/user-guide/diffing/#diffing-customization)
@@ -468,7 +468,7 @@ spec:
 ...
 ```
 
-### FluxCD deployments
+#### FluxCD deployments
 
 After a managed update, FluxCD reports a `DriftDetected` event. As a workaround
 to this problem modify the [drift detection](https://fluxcd.io/flux/components/helm/helmreleases/#drift-detection)
