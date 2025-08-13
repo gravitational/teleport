@@ -49,7 +49,6 @@ variable "teleport_proxy_server" {
   description = "The Teleport Proxy server address. Example: tenant.teleport.sh:443"
 }
 
-
 variable "teleport_iam_token_name" {
   type        = string
   default     = "iam-join-token"
