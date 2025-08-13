@@ -24,6 +24,8 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -44,7 +46,26 @@ func newUserCollection(u services.UsersService, w types.WatchKind) (*collection[
 				userNameIndex: types.User.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.User, error) {
-			return u.GetUsers(ctx, loadSecrets)
+			out, err := stream.Collect(
+				clientutils.Resources(ctx, func(ctx context.Context, i int, nextToken string) ([]types.User, string, error) {
+					rsp, err := u.ListUsers(
+						ctx,
+						&userspb.ListUsersRequest{
+							PageSize:    int32(i),
+							PageToken:   nextToken,
+							WithSecrets: loadSecrets,
+						},
+					)
+					if err != nil {
+						return nil, "", trace.Wrap(err)
+					}
+					users := make([]types.User, 0, len(rsp.Users))
+					for _, user := range rsp.Users {
+						users = append(users, user)
+					}
+					return users, rsp.NextPageToken, nil
+				}))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.User {
 			return &types.UserV2{
