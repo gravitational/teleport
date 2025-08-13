@@ -19,9 +19,13 @@
 package reverseproxy
 
 import (
+	"bytes"
 	"context"
+	"crypto/tls"
+	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -29,8 +33,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/net/http2"
 )
 
 // TestRequestCancelWithoutPanic tests that canceling a request does not
@@ -72,9 +78,7 @@ func TestRequestCancelWithoutPanic(t *testing.T) {
 
 	t.Cleanup(backend.Close)
 
-	backendURL, err := url.Parse(backend.URL)
-	require.NoError(t, err)
-	proxyHandler := newSingleHostReverseProxy(backendURL)
+	proxyHandler := newSingleHostReverseProxy(t, backend)
 
 	wg.Add(1)
 	frontend := httptest.NewServer(http.HandlerFunc(
@@ -116,10 +120,128 @@ func TestRequestCancelWithoutPanic(t *testing.T) {
 
 }
 
-func newSingleHostReverseProxy(target *url.URL) *Forwarder {
-	return &Forwarder{
-		ReverseProxy: httputil.NewSingleHostReverseProxy(target),
-		logger:       slog.Default(),
+func newSingleHostReverseProxy(t *testing.T, target *httptest.Server) *Forwarder {
+	targetURL, err := url.Parse(target.URL)
+	require.NoError(t, err)
+	transport := target.Client().Transport.(*http.Transport)
+	transport.MaxIdleConnsPerHost = -1
+	fwd := &Forwarder{
+		ReverseProxy:   httputil.NewSingleHostReverseProxy(targetURL),
+		logger:         slog.Default(),
+		withBodyRewind: true,
+		transport:      transport,
+	}
+	fwd.ReverseProxy.Transport = transport
+	return fwd
+}
+
+// TestClientReceivedGOAWAY tests the in-flight watch requests will not be affected and new requests use a new
+// connection after client received GOAWAY.
+func TestClientReceivedGOAWAY(t *testing.T) {
+	backend := httptest.NewUnstartedServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Println(r.Proto)
+			if r.RequestURI == "/goaway" {
+				w.Header().Set("Connection", "close")
+			}
+
+			data, err := io.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("failed to read request body: %v", err),
+					http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			w.Write(data)
+		},
+		))
+
+	t.Cleanup(backend.Close)
+
+	http2Options := &http2.Server{}
+
+	http2.ConfigureServer(backend.Config, http2Options)
+
+	backend.TLS = backend.Config.TLSConfig
+	backend.EnableHTTP2 = true
+	backend.StartTLS()
+
+	var newConn atomic.Int32
+
+	// create the http client
+	dialFn := func(network, addr string, cfg *tls.Config) (conn net.Conn, err error) {
+		conn, err = tls.Dial(network, addr, cfg)
+		if err != nil {
+			t.Fatalf("unexpect connection err: %v", err)
+		}
+
+		newConn.Add(1)
+		return
+	}
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: true,
+		NextProtos:         []string{http2.NextProtoTLS},
+	}
+	tr := &http.Transport{
+		TLSHandshakeTimeout: 10 * time.Second,
+		TLSClientConfig:     tlsConfig,
+		// Disable connection pooling to avoid additional connections
+		// that cause the test to flake
+		MaxIdleConnsPerHost: -1,
+		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return dialFn(network, addr, tlsConfig)
+		},
+	}
+	if err := http2.ConfigureTransport(tr); err != nil {
+		t.Fatalf("failed to configure http transport, err: %v", err)
 	}
 
+	proxyHandler := newSingleHostReverseProxy(t, backend)
+	proxyHandler.Transport = tr
+	proxyHandler.ReverseProxy.Transport = tr
+	frontend := httptest.NewUnstartedServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			proxyHandler.ServeHTTP(w, r)
+		}),
+	)
+
+	frontend.EnableHTTP2 = true
+	frontend.StartTLS()
+
+	frontendClient := frontend.Client()
+
+	wg := &sync.WaitGroup{}
+	wg.Add(50)
+	for range 50 {
+		go func() {
+			defer wg.Done()
+			for range 5 {
+				for _, url := range []string{"/", "/goaway"} {
+					t.Logf("Sending request to %s", url)
+					payload := bytes.NewReader([]byte("Hello, world!"))
+					getReq, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, frontend.URL+url, payload)
+
+					res, err := frontendClient.Do(getReq)
+					require.NoError(t, err)
+					t.Cleanup(func() {
+						io.Copy(io.Discard, res.Body) // Drain the body to avoid resource leaks.
+						_ = res.Body.Close()          // Ensure we close the response body to avoid resource leaks.
+					})
+
+					if url == "/goaway" {
+						require.Equal(t, http.StatusOK, res.StatusCode)
+					}
+
+					require.Equal(t, http.StatusOK, res.StatusCode)
+
+					receivedPayload, err := io.ReadAll(res.Body)
+					require.NoError(t, err)
+					// Ensure we read the expected response.
+					require.Equal(t, "Hello, world!", string(receivedPayload))
+
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }

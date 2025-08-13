@@ -20,6 +20,7 @@ package reverseproxy
 
 import (
 	"context"
+	"io"
 	"log"
 	"log/slog"
 	"net/http"
@@ -63,8 +64,9 @@ type Forwarder struct {
 	passHostHeader bool
 	headerRewriter Rewriter
 	*httputil.ReverseProxy
-	logger    *slog.Logger
-	transport http.RoundTripper
+	logger         *slog.Logger
+	transport      http.RoundTripper
+	withBodyRewind bool
 }
 
 // New returns a new reverse proxy that forwards to the given url.
@@ -133,11 +135,66 @@ func (f *Forwarder) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			nil,
 		),
 	)
+
+	defer func() {
+		if r.Body != nil {
+			_, _ = io.Copy(io.Discard, r.Body) // Drain the body to avoid resource leaks.
+			if err := r.Body.Close(); err != nil {
+				f.logger.ErrorContext(r.Context(), "Failed to close request body",
+					"error", err,
+				)
+			}
+		}
+	}()
+
+	if f.withBodyRewind && r.Body != nil && r.GetBody == nil {
+		// Rewind the body to allow it to be read again.
+		// This is useful for cases where the request body is read
+		// by the server and then the server sends a GOAWAY response,
+		// which requires the request to be retried.
+		// The body will be reset to its original state.
+		// TODO(asdad): improve this if the body is smaller than 5MB to use a buffer instead of a file.
+		tmpFile, clean, err := f.createTemporaryFileForRewind(r.Context())
+		if err != nil {
+			f.logger.ErrorContext(r.Context(), "Failed to create temporary file for request body rewind",
+				"error", err,
+			)
+			http.Error(w, "Failed to create temporary file for request body rewind", http.StatusInternalServerError)
+			return
+		}
+		defer clean()
+
+		// Create a new ReadCloser that reads from the original body
+		// and writes to the temporary file.
+		originalBody := r.Body
+		treeReader := io.TeeReader(originalBody, tmpFile)
+		r.Body = io.NopCloser(treeReader)
+		// Set the GetBody function to return a new ReadCloser
+		// that reads from the temporary file.
+		// This allows the request body to be rewound and retried
+		// if the server sends a GOAWAY response.
+		r.GetBody = func() (io.ReadCloser, error) {
+			// Rewind the temporary file to the beginning.
+			if _, err := tmpFile.Seek(0, io.SeekStart); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			// Return a new ReadCloser that reads from the temporary file.
+			return io.NopCloser(io.MultiReader(tmpFile, treeReader)), nil
+		}
+	}
 	f.ReverseProxy.ServeHTTP(w, r)
 }
 
 // Option is a functional option for the forwarder.
 type Option func(*Forwarder)
+
+// WithRequestBodyRewind sets whether the request body should be rewound
+// if the server sends a GOAWAY response.
+func WithRequestBodyRewind() Option {
+	return func(rp *Forwarder) {
+		rp.withBodyRewind = true
+	}
+}
 
 // WithFlushInterval sets the flush interval for the forwarder.
 func WithFlushInterval(interval time.Duration) Option {

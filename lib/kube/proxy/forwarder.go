@@ -2618,7 +2618,10 @@ func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*reverseproxy.Fo
 		// that is returned when the user tries to access a GKE Autopilot cluster
 		// with system:masters group impersonation.
 		//nolint:bodyclose // the caller closes the response body in httputils.ReverseProxy
-		opts = append(opts, reverseproxy.WithResponseModifier(f.rewriteResponseForbidden(sess)))
+		opts = append(opts,
+			reverseproxy.WithRequestBodyRewind(),
+			reverseproxy.WithResponseModifier(f.rewriteResponseForbidden(sess)),
+		)
 	}
 
 	forwarder, err := reverseproxy.New(
