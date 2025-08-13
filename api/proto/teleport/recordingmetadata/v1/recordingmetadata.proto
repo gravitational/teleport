@@ -17,14 +17,16 @@ syntax = "proto3";
 
 package teleport.recordingmetadata.v1;
 
+import "google/protobuf/duration.proto";
+
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1;recordingmetadatav1";
 
 // SessionRecordingEvent represents an event that occurred during a session recording.
 message SessionRecordingEvent {
-  // StartTime is the start time of the event, relative to the start of the session.
-  int64 start_time = 1;
-  // EndTime is the end time of the event, relative to the start of the session.
-  int64 end_time = 2;
+  // StartOffset is the start time of the event, relative to the start of the session.
+  google.protobuf.Duration start_offset = 1;
+  // EndOffset is the end time of the event, relative to the start of the session.
+  google.protobuf.Duration end_offset = 2;
 
   oneof event {
     // Inactivity is an event that indicates inactivity during the session.
@@ -55,22 +57,29 @@ message SessionRecordingResizeEvent {
 
 // SessionRecordingMetadata contains metadata for a session recording.
 message SessionRecordingMetadata {
-  // Duration is the duration of the session in seconds.
-  int64 duration = 1;
+  // Duration is the duration of the session recording.
+  google.protobuf.Duration duration = 1;
+  // Events is the events that occurred during the session.
+  repeated SessionRecordingEvent events = 2;
+  // StartCols is the number of columns in the terminal at the start of the session.
+  int32 start_cols = 3;
+  // StartRows is the number of rows in the terminal at the start of the session.
+  int32 start_rows = 4;
+}
+
+// SessionRecordingMetadataWithFrames contains metadata and frames for a session recording.
+// This is used to store the metadata and frames together in a single message.
+message SessionRecordingMetadataWithFrames {
+  // Metadata is the metadata of the session recording.
+  SessionRecordingMetadata metadata = 1;
   // Frames is the frames captured during the session recording.
   repeated SessionRecordingThumbnail frames = 2;
-  // Events is the events that occurred during the session.
-  repeated SessionRecordingEvent events = 3;
-  // StartCols is the number of columns in the terminal at the start of the session.
-  int32 start_cols = 4;
-  // StartRows is the number of rows in the terminal at the start of the session.
-  int32 start_rows = 5;
 }
 
 // SessionRecordingThumbnail is a thumbnail of a session recording.
 message SessionRecordingThumbnail {
   // SVG is the SVG image of the thumbnail.
-  string svg = 1;
+  bytes svg = 1;
   // Cols is the number of columns in the terminal.
   int32 cols = 2;
   // Rows is the number of rows in the terminal.
@@ -79,8 +88,8 @@ message SessionRecordingThumbnail {
   int32 cursor_x = 4;
   // CursorY is the Y coordinate of the cursor.
   int32 cursor_y = 5;
-  // StartTime is the start time of the thumbnail, relative to the start of the session.
-  int64 start_time = 6;
-  // EndTime is the end time of the thumbnail, relative to the start of the session.
-  int64 end_time = 7;
+  // StartOffset is the start time of the thumbnail, relative to the start of the session.
+  google.protobuf.Duration start_offset = 6;
+  // EndOffset is the end time of the thumbnail, relative to the start of the session.
+  google.protobuf.Duration end_offset = 7;
 }
