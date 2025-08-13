@@ -212,7 +212,6 @@ func (d *DBCertGetter) GetCertificateBytes(ctx context.Context) (*WindowsCAAndKe
 		ClusterName:        clusterName.GetClusterName(),
 		AuthClient:         d.Auth,
 		ActiveDirectorySID: sid,
-		OmitCDP:            true,
 	}
 
 	certPEM, keyPEM, caCerts, err := windows.DatabaseCredentials(ctx, req)
