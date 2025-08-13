@@ -120,7 +120,7 @@ func TestEmitExecAuditEvent(t *testing.T) {
 		require.Equal(t, "abc", execEvent.ForwardedBy)
 		require.Equal(t, expectedHostname, execEvent.ServerHostname)
 		require.Equal(t, "testNamespace", execEvent.ServerNamespace)
-		require.Equal(t, "xxx", execEvent.SessionID)
+		require.NotEqual(t, "xxx", execEvent.SessionID)
 		require.Equal(t, "10.0.0.5:4817", execEvent.RemoteAddr)
 		require.Equal(t, "127.0.0.1:3022", execEvent.LocalAddr)
 		require.NotEmpty(t, events.EventID)

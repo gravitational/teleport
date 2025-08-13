@@ -28,7 +28,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,9 +69,8 @@ func TestNewSession(t *testing.T) {
 	ses, err = newSession(ctx, nc, nil, env, nil, nil, nil, true)
 	require.NoError(t, err)
 	require.NotNil(t, ses)
-	require.Empty(t, cmp.Diff(ses.env, env))
-	// the session ID must be taken from tne environ map, if passed:
-	require.Equal(t, "session-id", string(ses.id))
+	// the session ID must be unset from tne environ map, if we are not joining a session:
+	require.Empty(t, ses.id)
 }
 
 // TestProxyConnection verifies that client or server-side disconnect
