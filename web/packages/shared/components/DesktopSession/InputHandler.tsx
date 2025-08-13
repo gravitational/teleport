@@ -37,6 +37,18 @@ export class InputHandler {
   private syncBeforeNextKey: boolean = true;
   private static isMac: boolean = getPlatform() === Platform.macOS;
 
+  /**
+   * Keep track of the remote state of modifier keys.
+   * This is used to mitigate stuck key issues when local
+   * and remote modifier states are out of sync.
+   */
+  private remoteModifierState = new Map<string, ButtonState>([
+    ['Shift', ButtonState.UP],
+    ['Control', ButtonState.UP],
+    ['Alt', ButtonState.UP],
+    ['Meta', ButtonState.UP],
+  ]);
+
   constructor() {
     // Bind finishHandlingInputEvent to this instance so it can be passed
     // as a callback to the Withholder.
@@ -47,13 +59,14 @@ export class InputHandler {
    * Primary method for handling input events.
    */
   public handleInputEvent(params: InputEventParams) {
-    const { e, cli } = params;
+    const { e, cli, state } = params;
     if (e instanceof KeyboardEvent) {
       // Only prevent default for KeyboardEvents.
       // If preventDefault is done on MouseEvents,
       // it breaks focus and keys won't be registered.
       e.preventDefault();
       this.handleSyncBeforeNextKey(cli, e);
+      this.updateModifierState(e.code, state);
     }
     this.withholder.handleInputEvent(params, this.finishHandlingInputEvent);
   }
@@ -100,6 +113,9 @@ export class InputHandler {
   private finishHandlingInputEvent(params: InputEventParams): void {
     const { cli, e, state } = params;
 
+    // Synchronize local and remote modifier state before sending the input event.
+    this.synchronizeModifierState(cli, e);
+
     // If this is a mouse event no special handling is needed.
     if (e instanceof MouseEvent) {
       cli.sendMouseButton(e.button as MouseButton, state);
@@ -116,6 +132,78 @@ export class InputHandler {
       // Otherwise, just pass the event through normally to the server.
       cli.sendKeyboardInput(e.code, state);
     }
+  }
+
+  /**
+   * Updates the locally tracked remote modifier state.
+   *
+   * @param keyCode The key code of the key.
+   * @param state The state of the key.
+   */
+  private updateModifierState(keyCode: string, state: ButtonState) {
+    switch (keyCode) {
+      case 'ShiftLeft':
+      case 'ShiftRight':
+        this.remoteModifierState.set('Shift', state);
+        break;
+      case 'ControlLeft':
+      case 'ControlRight':
+        this.remoteModifierState.set('Control', state);
+        break;
+      case 'AltLeft':
+      case 'AltRight':
+        this.remoteModifierState.set('Alt', state);
+        break;
+      case 'MetaLeft':
+      case 'MetaRight':
+        this.remoteModifierState.set('Meta', state);
+        break;
+    }
+  }
+
+  /**
+   * Checks if the given key is a modifier key.
+   *
+   * @param key The key to check.
+   * @returns True if the key is a modifier key, false otherwise.
+   */
+  private isModifierKey(key: string): boolean {
+    return ['Shift', 'Control', 'Alt', 'Meta'].some(modifier =>
+      key.startsWith(modifier)
+    );
+  }
+
+  /**
+   * Synchronizes the local modifier state with the remote machine.
+   * This is called when key or mouse click/scroll events occur to ensure
+   * that the remote machine has the correct state of modifier keys.
+   * If not, it sends the current state.
+   *
+   * @param cli The TdpClient instance used to send the state.
+   * @param e The KeyboardEvent or MouseEvent that triggered the synchronization.
+   */
+  public synchronizeModifierState(
+    cli: TdpClient,
+    e: KeyboardEvent | MouseEvent
+  ) {
+    // Don't process modifier keys themselves
+    if (e instanceof KeyboardEvent && this.isModifierKey(e.code)) {
+      return;
+    }
+
+    this.remoteModifierState.forEach((state, modifier) => {
+      const localState = e.getModifierState(modifier)
+        ? ButtonState.DOWN
+        : ButtonState.UP;
+
+      if (localState !== state) {
+        // If the local state is different from the remote state, send the updates.
+        cli.sendKeyboardInput(modifier + 'Left', localState);
+        cli.sendKeyboardInput(modifier + 'Right', localState);
+        // Update the remote state to match the local state.
+        this.remoteModifierState.set(modifier, localState);
+      }
+    });
   }
 
   /**
