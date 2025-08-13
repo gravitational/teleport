@@ -1269,9 +1269,9 @@ message EncryptionKeyPair {
   uint32 hash = 4 [(gogoproto.jsontag) = "hash,omitempty"];
 }
 
-// AgeEncryptionKey is a Bech32 encoded age X25519 public key.
+// A public key to be used as a recipient during age encryption of session recordings.
 message AgeEncryptionKey {
-  // PublicKey is a Bech32 encoded age X25519 public key.
+  // A PEM encoded public key used for key wrapping during age encryption. Expected to be RSA 4096.
   bytes public_key = 1 [(gogoproto.jsontag) = "public_key"];
 }
 

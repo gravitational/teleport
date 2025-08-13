@@ -178,7 +178,6 @@ func (d *dbCertGetter) getCertificate(ctx context.Context, username string) (*ge
 		TTL:                time.Minute * 10,
 		Domain:             d.domain,
 		ClusterName:        clusterName.GetClusterName(),
-		OmitCDP:            true,
 		Username:           username,
 		ActiveDirectorySID: sid,
 	}

@@ -98,7 +98,10 @@ class ResourceService {
       }));
   }
 
-  async setDefaultAuthConnector(req: DefaultAuthConnector | { type: 'local' }) {
+  async setDefaultAuthConnector(
+    req: DefaultAuthConnector | { type: 'local' },
+    abortSignal?: AbortSignal
+  ) {
     // This is an admin action that needs an mfa challenge with reuse allowed.
     const challenge = await auth.getMfaChallenge({
       scope: MfaChallengeScope.ADMIN_ACTION,
@@ -110,7 +113,12 @@ class ResourceService {
 
     const challengeResponse = await auth.getMfaChallengeResponse(challenge);
 
-    return api.put(cfg.api.defaultConnectorPath, req, challengeResponse);
+    return api.put(
+      cfg.api.defaultConnectorPath,
+      req,
+      abortSignal,
+      challengeResponse
+    );
   }
 
   async getUserMatchedAuthConnectors(
