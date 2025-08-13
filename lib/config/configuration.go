@@ -181,6 +181,10 @@ type CommandLineFlags struct {
 	DatabaseGCPProjectID string
 	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
 	DatabaseGCPInstanceID string
+	// DatabaseGCPAlloyDBEndpointType is the AlloyDB database endpoint type to use.
+	DatabaseGCPAlloyDBEndpointType string
+	// DatabaseGCPAlloyDBEndpointOverride is the AlloyDB endpoint address override.
+	DatabaseGCPAlloyDBEndpointOverride string
 	// DatabaseADKeytabFile is the path to Kerberos keytab file.
 	DatabaseADKeytabFile string
 	// DatabaseADKrb5File is the path to krb5.conf file.
@@ -1812,6 +1816,11 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			return trace.Wrap(err)
 		}
 
+		alloyDBEndpointType, err := types.AlloyDBEndpointTypeFromString(database.GCP.AlloyDB.EndpointType)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		db := servicecfg.Database{
 			Name:          database.Name,
 			Description:   database.Description,
@@ -1864,6 +1873,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			GCP: servicecfg.DatabaseGCP{
 				ProjectID:  database.GCP.ProjectID,
 				InstanceID: database.GCP.InstanceID,
+				AlloyDB: servicecfg.DatabaseGCPAlloyDB{
+					EndpointType:     alloyDBEndpointType,
+					EndpointOverride: database.GCP.AlloyDB.EndpointOverride,
+				},
 			},
 			AD: servicecfg.DatabaseAD{
 				KeytabFile:             database.AD.KeytabFile,
@@ -2500,6 +2513,12 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				return trace.Wrap(err)
 			}
 		}
+
+		alloyDBEndpointType, err := types.AlloyDBEndpointTypeFromString(clf.DatabaseGCPAlloyDBEndpointType)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		db := servicecfg.Database{
 			Name:         clf.DatabaseName,
 			Description:  clf.DatabaseDescription,
@@ -2536,6 +2555,10 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 			GCP: servicecfg.DatabaseGCP{
 				ProjectID:  clf.DatabaseGCPProjectID,
 				InstanceID: clf.DatabaseGCPInstanceID,
+				AlloyDB: servicecfg.DatabaseGCPAlloyDB{
+					EndpointType:     alloyDBEndpointType,
+					EndpointOverride: clf.DatabaseGCPAlloyDBEndpointOverride,
+				},
 			},
 			AD: servicecfg.DatabaseAD{
 				KeytabFile: clf.DatabaseADKeytabFile,
