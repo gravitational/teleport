@@ -92,6 +92,14 @@ func parseBytes(s string) (int, error) {
 //
 // By default 4MB is returned, to overwrite this, set `TELEPORT_UNSTABLE_GRPC_RECV_SIZE` envriroment
 // variable. If the value cannot be parsed or exceeds int32 limits, the default value is returned.
+//
+// The result of this call can be passed directly into `grpc.MaxCallRecvMsgSize`, example:
+//
+//	conn, err := grpc.DialContext(ctx, target,
+//		grpc.WithDefaultCallOptions(
+//			grpc.MaxCallRecvMsgSize(grpcutils.MaxClientRecvMsgSize()),
+//		),
+//	)
 func MaxClientRecvMsgSize() int {
 
 	val := os.Getenv("TELEPORT_UNSTABLE_GRPC_RECV_SIZE")
