@@ -166,3 +166,32 @@ stringData:
       }
     }
 ```
+
+### Helm chart
+
+It's likely that users are running `tbot` in Kubernetes with the provided Helm
+chart, rather than managing the container themselves.
+
+Today, the chart allows you to either provide a full `tbot` configuration file
+(`tbotConfig`), a set of outputs/services (`outputs` and `services`) or to
+enable the "default" output (`defaultOutput`) that writes a Teleport identity
+file to a Kubernetes secret.
+
+We'll add an `argocd` configuration option which enables the new service. For
+simplicity, it will be mutually-exclusive with the other options that control
+`tbot`'s services (e.g. `defaultOutput`).
+
+#### Example values file
+
+```yaml
+clusterName: "asteroid.earth"
+teleportProxyAddress: "asteroid.earth:443"
+token: "my-join-token"
+
+argocd:
+  enabled: true
+  clusterSelectors:
+    - name: k8s-cluster-1
+    - labels:
+      environment: production
+```
