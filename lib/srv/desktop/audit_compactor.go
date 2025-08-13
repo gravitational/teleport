@@ -91,10 +91,15 @@ func (s *stream) compactEvents() []streamEvent {
 	for len(offsetMapping) > 0 {
 		// Find the read/write event with the lowest offset
 		// so that we may greedily search for the longest
-		// contiguous segment we can produce
-		smallestKey := slices.Sorted(maps.Keys(offsetMapping))
-		evnt := offsetMapping[smallestKey[0]][0]
+		// contiguous segment we can produce.
+		smallestKey := slices.Min(slices.Collect(maps.Keys(offsetMapping)))
+		// The audit event at which we will begin our search.
+		evnt := offsetMapping[smallestKey][0]
+		// compact returns the longest slice of contiguous read/write audit events.
+		// It always a slice of at least length 1, containing the starting event.
 		sequentialEvents, sequenceLength := s.compact(evnt, offsetMapping)
+		// base is the first event in the sequence. We will mutate this
+		// event with the updated length and emit it.
 		base := sequentialEvents[0]
 
 		// Remove each event in this sequence from the map
@@ -116,7 +121,7 @@ func (s *stream) compactEvents() []streamEvent {
 	return finalEvents
 }
 
-// compact finds the longest contiguous set of reads/writes following the given 'evnt'
+// compact finds the longest contiguous set of reads/writes following the given 'evnt'.
 func (s *stream) compact(evnt streamEvent, eventsByOffset map[uint64][]streamEvent) ([]streamEvent, uint64) {
 	// Determine the offset at which the next contiguous segment must start.
 	offset := evnt.GetOffset() + evnt.GetLength()
