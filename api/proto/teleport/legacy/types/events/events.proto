@@ -4843,6 +4843,8 @@ message OneOf {
     events.BoundKeypairRecovery BoundKeypairRecovery = 220;
     events.BoundKeypairRotation BoundKeypairRotation = 221;
     events.BoundKeypairJoinStateVerificationFailed BoundKeypairJoinStateVerificationFailed = 222;
+    events.SessionRecordingThumbnailsAccess SessionRecordingThumbnailsAccess = 223;
+    events.SessionRecordingMetadataAccess SessionRecordingMetadataAccess = 224;
   }
 }
 
@@ -8828,4 +8830,52 @@ message BoundKeypairJoinStateVerificationFailed {
   string TokenName = 4 [(gogoproto.jsontag) = "token_name"];
   // BotName is the name of the bot attempting to join, if any.
   string BotName = 5 [(gogoproto.jsontag) = "bot_name,omitempty"];
+}
+
+// SessionRecordingMetadataAccess is emitted when a session recording's metadata
+// is accessed, allowing the view to be included in the audit log.
+// The session recording metadata contains frames captured from the session
+// recording, so it's important to log this event the same way as we
+// log the access of the session recording itself.
+message SessionRecordingMetadataAccess {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionID is the ID of the session.
+  string SessionID = 2 [(gogoproto.jsontag) = "sid"];
+  // UserMetadata is a common user event metadata.
+  UserMetadata UserMetadata = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// SessionRecordingThumbnailsAccess is emitted when the thumbnails for
+// multiple sessions are accessed, allowing the view of the thumbnails
+// to be included in the audit log.
+// A session recording thumbnail is a single frame captured from the
+// session recording, so it's important to log this event the same way as we
+// log the access of the session recording itself.
+// A single event is used to avoid excessive logging when viewing the list of
+// sessions in the UI, which can result in many individual thumbnail access
+// events being logged.
+message SessionRecordingThumbnailsAccess {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionIDs are the ID of the sessions for which thumbnails are accessed.
+  repeated string SessionIDs = 2 [(gogoproto.jsontag) = "sids"];
+  // UserMetadata is a common user event metadata.
+  UserMetadata UserMetadata = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
