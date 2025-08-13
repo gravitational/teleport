@@ -68,6 +68,11 @@ func TestMaxRecvSize(t *testing.T) {
 			bytes: 8 * 1000 * 1000,
 		},
 		{
+			desc:  "Floats",
+			size:  "2.5kb",
+			bytes: 2500,
+		},
+		{
 			desc:  "Human kb",
 			size:  "8kb",
 			bytes: 8 * 1000,
