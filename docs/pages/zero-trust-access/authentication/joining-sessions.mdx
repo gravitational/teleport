@@ -139,7 +139,7 @@ ubuntu@prod.teleport.example.com %
 Because this session is an SSH session, Alice could also join from the
 Teleport Web UI. For example:
 
-![Join Server Session from UI](../../../../img/webui-active-session.png)
+![Join Server Session from UI](../../../img/webui-active-session.png)
 
 ### Access controls
 
@@ -248,7 +248,7 @@ unless the mapped leaf role also requires moderation. To require moderated sessi
 you must include the `require_session_join` policy in the mapped role defined on the leaf cluster.
 
 For more information about configuring trust relationships and role mapping between root and leaf
-clusters, see [Configure Trusted Clusters](../../management/admin/trustedclusters.mdx).
+clusters, see [Configure Trusted Clusters](../management/admin/trustedclusters.mdx).
 
 ### Multifactor authentication
 
@@ -289,7 +289,7 @@ during the file transfer initiation to receive the file transfer request notific
 After the file transfer has been requested, all session participants and notified
 and prompted to approve or deny the file transfer request.
 
-![Approve/Deny Prompt](../../../../img/moderated-file-transfer-dialog.png)
+![Approve/Deny Prompt](../../../img/moderated-file-transfer-dialog.png)
 
 If a moderator denies the file transfer request, the request is immediately removed and
 all session participants are notified.
