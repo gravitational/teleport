@@ -45,6 +45,7 @@ import (
 const (
 	// GCP does not allow "." or "/" in labels
 	hostLabel                      = "teleport_auth_host"
+	encryptedHostLabel             = "teleport_encryption_auth_host"
 	gcpkmsPrefix                   = "gcpkms:"
 	gcpOAEPHash                    = crypto.SHA256
 	defaultGCPRequestTimeout       = 30 * time.Second
@@ -120,13 +121,18 @@ func (g *gcpKMSKeyStore) generateKey(ctx context.Context, algorithm cryptosuites
 	keyUUID := uuid.NewString()
 	g.log.InfoContext(ctx, "Creating new GCP KMS keypair.", "id", keyUUID, "algorithm", alg.String())
 
+	label := hostLabel
+	if usage == keyUsageDecrypt {
+		label = encryptedHostLabel
+	}
+
 	req := &kmspb.CreateCryptoKeyRequest{
 		Parent:      g.keyRing,
 		CryptoKeyId: keyUUID,
 		CryptoKey: &kmspb.CryptoKey{
 			Purpose: usage.toGCP(),
 			Labels: map[string]string{
-				hostLabel: g.hostUUID,
+				label: g.hostUUID,
 			},
 			VersionTemplate: &kmspb.CryptoKeyVersionTemplate{
 				ProtectionLevel: g.protectionLevel,
