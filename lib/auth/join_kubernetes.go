@@ -35,13 +35,6 @@ type k8sTokenReviewValidator interface {
 
 type k8sJWKSValidator func(now time.Time, jwksData []byte, clusterName string, token string) (*kubetoken.ValidationResult, error)
 
-type k8sOIDCValidator func(
-	ctx context.Context,
-	issuerURL string,
-	clusterName string,
-	token string,
-) (*kubetoken.ValidationResult, error)
-
 func (a *Server) checkKubernetesJoinRequest(
 	ctx context.Context,
 	req *types.RegisterUsingTokenRequest,

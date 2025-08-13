@@ -38,12 +38,12 @@ const (
 	discoveryTTL = time.Hour
 
 	// keySetTTL is the maximum duration a particular keyset will be allowed to
-	// exist, before being purged. The underlying library may update its
+	// exist before being purged. The underlying library may update its
 	// internal cache of keys within this window.
 	keySetTTL = time.Hour * 24
 
 	// validatorTTL is a maximum time a particular validator instance should
-	// remain in memory before being recycled if left unused.
+	// remain in memory before being pruned if left unused.
 	validatorTTL = time.Hour * 24 * 2
 
 	// freshnessCheckMinInterval is the minimum period to wait before
@@ -60,7 +60,8 @@ type validatorKey struct {
 // CachingTokenValidator is a wrapper on top of `CachingValidatorInstance` that
 // automatically manages and prunes validator instances for a given
 // (issuer, audience) pair. This helps to ensure validators and key sets don't
-// remain in memory indefinitely if e.g. a token is modified or removed
+// remain in memory indefinitely if e.g. a Teleport auth token is modified to
+// use a different issuer or removed outright.
 type CachingTokenValidator[C oidc.Claims] struct {
 	clock clockwork.Clock
 
@@ -223,7 +224,9 @@ func (v *CachingValidatorInstance[C]) ValidateToken(
 
 	// Note: VerifyIDToken() may mutate the KeySet (if the keyset is empty or if
 	// it encounters an unknown `kid`). The keyset manages a mutex of its own,
-	// so we don't need to protect this operation.
+	// so we don't need to protect this operation. It's acceptable for this
+	// keyset to be swapped in another thread and still used here; it will just
+	// be GC'd afterward.
 	claims, err := rp.VerifyIDToken[C](timeoutCtx, token, verifier)
 	if err != nil {
 		return nilClaims, trace.Wrap(err, "verifying token")
@@ -235,6 +238,9 @@ func (v *CachingValidatorInstance[C]) ValidateToken(
 // IsStale returns true if this validator has not been asked to validate any
 // tokens for at least `validatorTTL` and is eligible to be pruned.
 func (v *CachingValidatorInstance[C]) IsStale() bool {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
 	return v.clock.Now().After(v.validatorExpires)
 }
 
