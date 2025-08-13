@@ -400,6 +400,7 @@ values to match your identity provider:
 
 - `adfs` (SAML): Required for compatibility with Active Directory (ADFS); refer
   to the full [ADFS guide](adfs.mdx) for details.
+- `jumpcloud` (SAML): Required for compatibility with JumpCloud.
 - `netiq` (OIDC): Used to enable NetIQ-specific ACR value processing; refer to
   the [OIDC guide](oidc.mdx) for details.
 - `ping` (SAML and OIDC): Required for compatibility with Ping Identity (including
@@ -415,9 +416,9 @@ SSO provider as an alternative to registering MFA devices directly with the Tele
 This allows Teleport users to use MFA devices and custom flows configured in the SSO provider
 to carry out privileged actions in Teleport, such as:
 
-- [Per-session MFA](../../admin-guides/access-controls/guides/per-session-mfa.mdx)
-- [Moderated sessions](../../admin-guides/access-controls/guides/joining-sessions.mdx)
-- [Admin actions](../../admin-guides/access-controls/guides/mfa-for-admin-actions.mdx)
+- [Per-session MFA](../access-controls/guides/per-session-mfa.mdx)
+- [Moderated sessions](../access-controls/guides/joining-sessions.mdx)
+- [Admin actions](../access-controls/guides/mfa-for-admin-actions.mdx)
 
 Administrators may want to consider enabling this feature in order to:
 

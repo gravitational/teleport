@@ -43,7 +43,7 @@ Teleport cluster.
 1. Back up your Teleport cluster state as a precaution against any unforeseen
    incidents while upgrading the Auth Service, which may perform data
    migrations on its backend. Follow the instructions in [Backup and
-   Restore](../admin-guides/management/operations/backup-restore.mdx).
+   Restore](../zero-trust-access/management/operations/backup-restore.mdx).
 1. Upgrade all **Auth Service** instances to the **target version first**.
    Auth Service instances may be upgraded in any sequence or at the same time. After
    the upgrade **confirm** that the cluster is in a healthy state before continuing.
@@ -70,6 +70,18 @@ upgrade from v10 to v11.
    trust—first.
 1. Verify the upgrade was successful.
 1. Upgrade the trusted leaf clusters.
+
+## Downgrading major versions
+
+In order to safely downgrade from one major version to another, i.e. from v17 to v16,
+you must restore the Teleport backend to the back up taken prior to upgrading. First,
+roll back all components to the exact version they were running prior to the upgrade in
+reverse order of the upgrade sequence above until only the Auth Service instances are running
+the new major version. Then stop the Auth Service and follow the
+[Backup and Restore](../zero-trust-access/management/operations/backup-restore.mdx) guidance
+to restore the backend to a point in time prior to the upgrade. Once the backup has been
+restored, downgrade the Auth Service instances to the exact version of Teleport
+they were running prior to the upgrade attempt, then start them again.
 
 ## Next steps
 

@@ -26,6 +26,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 
 	"github.com/gravitational/teleport/lib/client/debug"
+	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -36,6 +37,7 @@ import (
 // Teleport /metrics endpoint and displays diagnostic
 // information an easy to consume way.
 type Command struct {
+	global        *tctlcfg.GlobalCLIFlags
 	config        *servicecfg.Config
 	top           *kingpin.CmdClause
 	diagURL       string
@@ -45,8 +47,9 @@ type Command struct {
 const defaultDiagAddr = "http://127.0.0.1:3000"
 
 // Initialize sets up the "tctl top" command.
-func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
+func (c *Command) Initialize(app *kingpin.Application, global *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
+	c.global = global
 	c.top = app.Command("top", "Report diagnostic information.")
 	c.top.Arg("diag-addr", "Diagnostic HTTP URL").StringVar(&c.diagURL)
 	c.top.Arg("refresh", "Refresh period").Default("5s").DurationVar(&c.refreshPeriod)
@@ -93,10 +96,47 @@ func (c *Command) newMetricsClient(ctx context.Context) (string, MetricsClient, 
 		"connecting to Teleport metrics server")
 }
 
+// initConfig populates the [*servicecfg.Config]
+//
+// This is required by `tctl top` as it does not make use of the [commonclient.InitFunc]
+// which lazy loads the configuration during client creation, meaning the required configuration
+// fields are not initilized as this command uses a standalone metrics client instead on a local connection.
+//
+// TODO(okraport): remove this workaround once the caller can safely parse the teleport config file without common client.
+func (c *Command) initConfig() error {
+	var fileConf *config.FileConfig
+	var err error
+	if c.global.ConfigFile != "" {
+		fileConf, err = config.ReadConfigFile(c.global.ConfigFile)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if c.global.ConfigString != "" {
+		fileConf, err = config.ReadFromString(c.global.ConfigString)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if fileConf != nil {
+		if err = config.ApplyFileConfig(fileConf, c.config); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
 // TryRun attempts to run subcommands.
 func (c *Command) TryRun(ctx context.Context, cmd string, _ commonclient.InitFunc) (match bool, err error) {
 	if cmd != c.top.FullCommand() {
 		return false, nil
+	}
+
+	if err := c.initConfig(); err != nil {
+		return true, trace.Wrap(err)
 	}
 
 	addr, metricsClient, err := c.newMetricsClient(ctx)

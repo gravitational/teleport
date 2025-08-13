@@ -36,7 +36,7 @@ type ConnectionConfig struct {
 	DesktopsGetter DesktopsGetter
 	// Site represents a remote teleport site that can be accessed via
 	// a teleport tunnel or directly by proxy.
-	Site reversetunnelclient.RemoteSite
+	Site reversetunnelclient.Cluster
 	// ClientSrcAddr is the original observed client address.
 	ClientSrcAddr net.Addr
 	// ClientDstAddr is the original client's destination address.

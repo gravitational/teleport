@@ -827,10 +827,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// All other commands and flags may change between versions, so full parsing
 	// should be performed only after managed updates are applied.
 	var proxyArg string
-	muApp := utils.InitCLIParser("tsh", "")
+	muApp := utils.InitHiddenCLIParser()
 	muApp.Flag("proxy", "Teleport proxy address").Envar(proxyEnvVar).Hidden().StringVar(&proxyArg)
 	muApp.Flag("check-update", "Check for availability of managed update.").Envar(toolsCheckUpdateEnvVar).Hidden().BoolVar(&cf.checkManagedUpdates)
-
 	if _, err := muApp.Parse(utils.FilterArguments(args, muApp.Model())); err != nil {
 		slog.WarnContext(ctx, "can't identify current profile", "error", err)
 	}

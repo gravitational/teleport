@@ -20,7 +20,11 @@ package token
 
 import (
 	"context"
+	"crypto"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -31,6 +35,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zitadel/oidc/v3/pkg/oidc"
 	"google.golang.org/protobuf/testing/protocmp"
 	v1 "k8s.io/api/authentication/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -676,4 +681,291 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 			}
 		})
 	}
+}
+
+// fakeIDP provides a minimal fake OIDC provider for use in tests
+type fakeIDP struct {
+	t         *testing.T
+	signer    jose.Signer
+	publicKey crypto.PublicKey
+	server    *httptest.Server
+	audience  string
+}
+
+func newFakeIDP(t *testing.T, audience string) *fakeIDP {
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
+	require.NoError(t, err)
+
+	signer, err := jose.NewSigner(
+		jose.SigningKey{Algorithm: jose.RS256, Key: privateKey},
+		(&jose.SignerOptions{}).WithType("JWT"),
+	)
+	require.NoError(t, err)
+
+	f := &fakeIDP{
+		signer:    signer,
+		publicKey: privateKey.Public(),
+		t:         t,
+		audience:  audience,
+	}
+
+	providerMux := http.NewServeMux()
+	providerMux.HandleFunc(
+		"/.well-known/openid-configuration",
+		f.handleOpenIDConfig,
+	)
+	providerMux.HandleFunc(
+		"/.well-known/jwks",
+		f.handleJWKSEndpoint,
+	)
+
+	srv := httptest.NewServer(providerMux)
+	t.Cleanup(srv.Close)
+	f.server = srv
+	return f
+}
+
+func (f *fakeIDP) issuer() string {
+	return f.server.URL
+}
+
+func (f *fakeIDP) handleOpenIDConfig(w http.ResponseWriter, r *http.Request) {
+	// mimic `kubectl get --raw /.well-known/openid-configuration` for an EKS cluster
+	response := map[string]any{
+		"claims_supported": []string{
+			"sub",
+			"iss",
+		},
+		"id_token_signing_alg_values_supported": []string{"RS256"},
+		"issuer":                                f.issuer(),
+		"jwks_uri":                              f.issuer() + "/.well-known/jwks",
+		"response_types_supported":              []string{"id_token"},
+		"scopes_supported":                      []string{"openid"},
+		"subject_types_supported":               []string{"public"},
+	}
+	responseBytes, err := json.Marshal(response)
+	require.NoError(f.t, err)
+	_, err = w.Write(responseBytes)
+	require.NoError(f.t, err)
+}
+
+func (f *fakeIDP) handleJWKSEndpoint(w http.ResponseWriter, r *http.Request) {
+	jwks := jose.JSONWebKeySet{
+		Keys: []jose.JSONWebKey{
+			{
+				Key: f.publicKey,
+			},
+		},
+	}
+	responseBytes, err := json.Marshal(jwks)
+	require.NoError(f.t, err)
+	_, err = w.Write(responseBytes)
+	require.NoError(f.t, err)
+}
+
+func (f *fakeIDP) issueToken(
+	t *testing.T,
+	issuer,
+	audience,
+	sub string,
+	issuedAt time.Time,
+	expiry time.Time,
+	k8s *KubernetesSubClaim,
+) string {
+	claims := OIDCServiceAccountClaims{
+		TokenClaims: oidc.TokenClaims{
+			Issuer:     issuer,
+			Subject:    sub,
+			Audience:   oidc.Audience{audience},
+			IssuedAt:   oidc.FromTime(issuedAt),
+			NotBefore:  oidc.FromTime(issuedAt),
+			Expiration: oidc.FromTime(expiry),
+		},
+		Kubernetes: k8s,
+	}
+
+	token, err := jwt.Signed(f.signer).
+		Claims(claims).
+		CompactSerialize()
+	require.NoError(t, err)
+
+	return token
+}
+
+func TestValidateTokenWithOIDC(t *testing.T) {
+	t.Parallel()
+
+	const idpAudience = "example.teleport.sh"
+	idp := newFakeIDP(t, idpAudience)
+
+	wrongIDP := newFakeIDP(t, idpAudience)
+
+	k8sClaim := &KubernetesSubClaim{
+		Namespace: "default",
+		ServiceAccount: &ServiceAccountSubClaim{
+			Name: "example",
+			UID:  "abcd-1234",
+		},
+		Pod: &PodSubClaim{
+			Name: "example-pod",
+			UID:  "zxcv-1234",
+		},
+	}
+
+	tests := []struct {
+		name     string
+		audience string
+		token    string
+
+		assertError require.ErrorAssertionFunc
+		want        *ValidationResult
+	}{
+		{
+			name:     "simple",
+			audience: idpAudience,
+			token: idp.issueToken(
+				t,
+				idp.issuer(),
+				idp.audience,
+				"example",
+				time.Now().Add(-5*time.Minute),
+				time.Now().Add(5*time.Minute),
+				k8sClaim,
+			),
+			assertError: require.NoError,
+			want: &ValidationResult{
+				Username: "example",
+				Type:     types.KubernetesJoinTypeOIDC,
+				Raw: &OIDCServiceAccountClaims{
+					TokenClaims: oidc.TokenClaims{
+						Issuer:   idp.issuer(),
+						Subject:  "example",
+						Audience: oidc.Audience{idpAudience},
+					},
+					Kubernetes: k8sClaim,
+				},
+			},
+		},
+		{
+			name:     "invalid-audience",
+			audience: idpAudience,
+			token: idp.issueToken(
+				t,
+				idp.issuer(),
+				"invalid-audience.example.com",
+				"example",
+				time.Now().Add(-5*time.Minute),
+				time.Now().Add(5*time.Minute),
+				k8sClaim,
+			),
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "audience is not valid")
+			},
+			want: nil,
+		},
+		{
+			name:     "invalid-issuer",
+			audience: idpAudience,
+			token: idp.issueToken(
+				t,
+				"invalid-issuer",
+				idp.audience,
+				"example",
+				time.Now().Add(-5*time.Minute),
+				time.Now().Add(5*time.Minute),
+				k8sClaim,
+			),
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "issuer does not match")
+			},
+			want: nil,
+		},
+		{
+			name:     "expired",
+			audience: idpAudience,
+			token: idp.issueToken(
+				t,
+				idp.issuer(),
+				idp.audience,
+				"example",
+				time.Now().Add(-10*time.Minute),
+				time.Now().Add(-5*time.Minute),
+				k8sClaim,
+			),
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "token has expired")
+			},
+			want: nil,
+		},
+		{
+			name:     "ttl-too-long",
+			audience: idpAudience,
+			token: idp.issueToken(
+				t,
+				idp.issuer(),
+				idp.audience,
+				"example",
+				time.Now().Add(-5*time.Minute),
+				time.Now().Add(30*time.Minute),
+				k8sClaim,
+			),
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "token with a TTL of less than")
+			},
+			want: nil,
+		},
+		{
+			name:     "missing-k8s-attrs",
+			audience: idpAudience,
+			token: idp.issueToken(
+				t,
+				idp.issuer(),
+				idp.audience,
+				"example",
+				time.Now().Add(-5*time.Minute),
+				time.Now().Add(5*time.Minute),
+				nil,
+			),
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "requires the use of a projected pod")
+			},
+			want: nil,
+		},
+		{
+			name:     "imposter-idp",
+			audience: idpAudience,
+			token: wrongIDP.issueToken(
+				t,
+				idp.issuer(),
+				idp.audience,
+				"example",
+				time.Now().Add(-5*time.Minute),
+				time.Now().Add(5*time.Minute),
+				k8sClaim,
+			),
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "signature verification failed")
+			},
+			want: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			issuer := fmt.Sprintf("http://%s", idp.server.Listener.Addr().String())
+
+			result, err := ValidateTokenWithOIDC(ctx, issuer, tt.audience, tt.token)
+			tt.assertError(t, err)
+
+			require.Empty(t, cmp.Diff(
+				result, tt.want,
+				// Ignore some standard fields handled by the OIDC library.
+				cmpopts.IgnoreFields(oidc.TokenClaims{}, "Expiration", "IssuedAt", "NotBefore", "SignatureAlg"),
+				cmpopts.IgnoreUnexported(ValidationResult{}),
+			))
+		})
+	}
+
 }

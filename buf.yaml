@@ -17,6 +17,7 @@ lint:
     - COMMENT_RPC
     - COMMENT_SERVICE
     - PACKAGE_NO_IMPORT_CYCLE
+    - PAGINATION_REQUIRED
     - UNARY_RPC
   except:
     - FIELD_NOT_REQUIRED
@@ -83,3 +84,13 @@ breaking:
   ignore:
     # TODO(codingllama): Remove ignore once the PDP API is stable.
     - api/proto/teleport/decision/v1alpha1
+
+plugins:
+  - plugin:
+      - env
+      - GOWORK=off
+      - go
+      - -C
+      - ./build.assets/tooling
+      - run
+      - ./cmd/buf-plugin-linters

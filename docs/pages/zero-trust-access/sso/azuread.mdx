@@ -6,6 +6,13 @@ labels:
  - zero-trust
 ---
 
+{/* 
+Don't lint the presence of "Azure AD" until we change the guide to apply to
+Entra ID: https://github.com/gravitational/teleport/issues/47776
+*/}
+
+{/* vale 3rd-party-products.former-names = NO */}
+
 This guide will cover how to configure Microsoft Entra ID to issue credentials
 to specific groups of users with a SAML Authentication Connector. When used in
 combination with role-based access control (RBAC), it allows Teleport

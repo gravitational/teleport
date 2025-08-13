@@ -77,6 +77,7 @@ const (
 	AuthService_Ping_FullMethodName                                = "/proto.AuthService/Ping"
 	AuthService_GetResetPasswordToken_FullMethodName               = "/proto.AuthService/GetResetPasswordToken"
 	AuthService_CreateResetPasswordToken_FullMethodName            = "/proto.AuthService/CreateResetPasswordToken"
+	AuthService_ListResetPasswordTokens_FullMethodName             = "/proto.AuthService/ListResetPasswordTokens"
 	AuthService_GetUser_FullMethodName                             = "/proto.AuthService/GetUser"
 	AuthService_GetCurrentUser_FullMethodName                      = "/proto.AuthService/GetCurrentUser"
 	AuthService_GetCurrentUserRoles_FullMethodName                 = "/proto.AuthService/GetCurrentUserRoles"
@@ -137,6 +138,7 @@ const (
 	AuthService_GenerateSnowflakeJWT_FullMethodName                = "/proto.AuthService/GenerateSnowflakeJWT"
 	AuthService_GetRole_FullMethodName                             = "/proto.AuthService/GetRole"
 	AuthService_ListRoles_FullMethodName                           = "/proto.AuthService/ListRoles"
+	AuthService_ListRequestableRoles_FullMethodName                = "/proto.AuthService/ListRequestableRoles"
 	AuthService_CreateRole_FullMethodName                          = "/proto.AuthService/CreateRole"
 	AuthService_UpdateRole_FullMethodName                          = "/proto.AuthService/UpdateRole"
 	AuthService_UpsertRoleV2_FullMethodName                        = "/proto.AuthService/UpsertRoleV2"
@@ -188,6 +190,7 @@ const (
 	AuthService_DeleteTrustedCluster_FullMethodName                = "/proto.AuthService/DeleteTrustedCluster"
 	AuthService_GetToken_FullMethodName                            = "/proto.AuthService/GetToken"
 	AuthService_GetTokens_FullMethodName                           = "/proto.AuthService/GetTokens"
+	AuthService_GetStaticTokens_FullMethodName                     = "/proto.AuthService/GetStaticTokens"
 	AuthService_ListProvisionTokens_FullMethodName                 = "/proto.AuthService/ListProvisionTokens"
 	AuthService_CreateTokenV2_FullMethodName                       = "/proto.AuthService/CreateTokenV2"
 	AuthService_UpsertTokenV2_FullMethodName                       = "/proto.AuthService/UpsertTokenV2"
@@ -396,6 +399,8 @@ type AuthServiceClient interface {
 	//
 	// Only local users may be reset.
 	CreateResetPasswordToken(ctx context.Context, in *CreateResetPasswordTokenRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error)
+	// ListResetPasswordTokens returns a page of user tokens.
+	ListResetPasswordTokens(ctx context.Context, in *ListResetPasswordTokenRequest, opts ...grpc.CallOption) (*ListResetPasswordTokenResponse, error)
 	// Deprecated: Do not use.
 	// GetUser gets a user resource by name.
 	//
@@ -550,6 +555,8 @@ type AuthServiceClient interface {
 	GetRole(ctx context.Context, in *GetRoleRequest, opts ...grpc.CallOption) (*types.RoleV6, error)
 	// ListRoles is a paginated role getter.
 	ListRoles(ctx context.Context, in *ListRolesRequest, opts ...grpc.CallOption) (*ListRolesResponse, error)
+	// ListRequestableRoles is a paginated requestable role getter.
+	ListRequestableRoles(ctx context.Context, in *ListRequestableRolesRequest, opts ...grpc.CallOption) (*ListRequestableRolesResponse, error)
 	// CreateRole creates a new role.
 	CreateRole(ctx context.Context, in *CreateRoleRequest, opts ...grpc.CallOption) (*types.RoleV6, error)
 	// UpdateRole updates an existing role.
@@ -704,8 +711,13 @@ type AuthServiceClient interface {
 	DeleteTrustedCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetToken retrieves a token described by the given request.
 	GetToken(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.ProvisionTokenV2, error)
+	// Deprecated: Do not use.
 	// GetToken retrieves all tokens.
+	// Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
+	// TODO(hugoShaka): DELETE IN 21.0.0
 	GetTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ProvisionTokenV2List, error)
+	// GetStaticTokens retrieves all static tokens.
+	GetStaticTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.StaticTokensV2, error)
 	// ListToken retrieves a paginated list of filtered provision tokens.
 	ListProvisionTokens(ctx context.Context, in *ListProvisionTokensRequest, opts ...grpc.CallOption) (*ListProvisionTokensResponse, error)
 	// CreateTokenV2 creates a token in a backend.
@@ -1480,6 +1492,16 @@ func (c *authServiceClient) CreateResetPasswordToken(ctx context.Context, in *Cr
 	return out, nil
 }
 
+func (c *authServiceClient) ListResetPasswordTokens(ctx context.Context, in *ListResetPasswordTokenRequest, opts ...grpc.CallOption) (*ListResetPasswordTokenResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListResetPasswordTokenResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListResetPasswordTokens_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // Deprecated: Do not use.
 func (c *authServiceClient) GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*types.UserV2, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -2123,6 +2145,16 @@ func (c *authServiceClient) ListRoles(ctx context.Context, in *ListRolesRequest,
 	return out, nil
 }
 
+func (c *authServiceClient) ListRequestableRoles(ctx context.Context, in *ListRequestableRolesRequest, opts ...grpc.CallOption) (*ListRequestableRolesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRequestableRolesResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListRequestableRoles_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) CreateRole(ctx context.Context, in *CreateRoleRequest, opts ...grpc.CallOption) (*types.RoleV6, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.RoleV6)
@@ -2645,10 +2677,21 @@ func (c *authServiceClient) GetToken(ctx context.Context, in *types.ResourceRequ
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ProvisionTokenV2List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.ProvisionTokenV2List)
 	err := c.cc.Invoke(ctx, AuthService_GetTokens_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) GetStaticTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.StaticTokensV2, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(types.StaticTokensV2)
+	err := c.cc.Invoke(ctx, AuthService_GetStaticTokens_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -3860,6 +3903,8 @@ type AuthServiceServer interface {
 	//
 	// Only local users may be reset.
 	CreateResetPasswordToken(context.Context, *CreateResetPasswordTokenRequest) (*types.UserTokenV3, error)
+	// ListResetPasswordTokens returns a page of user tokens.
+	ListResetPasswordTokens(context.Context, *ListResetPasswordTokenRequest) (*ListResetPasswordTokenResponse, error)
 	// Deprecated: Do not use.
 	// GetUser gets a user resource by name.
 	//
@@ -4014,6 +4059,8 @@ type AuthServiceServer interface {
 	GetRole(context.Context, *GetRoleRequest) (*types.RoleV6, error)
 	// ListRoles is a paginated role getter.
 	ListRoles(context.Context, *ListRolesRequest) (*ListRolesResponse, error)
+	// ListRequestableRoles is a paginated requestable role getter.
+	ListRequestableRoles(context.Context, *ListRequestableRolesRequest) (*ListRequestableRolesResponse, error)
 	// CreateRole creates a new role.
 	CreateRole(context.Context, *CreateRoleRequest) (*types.RoleV6, error)
 	// UpdateRole updates an existing role.
@@ -4168,8 +4215,13 @@ type AuthServiceServer interface {
 	DeleteTrustedCluster(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
 	// GetToken retrieves a token described by the given request.
 	GetToken(context.Context, *types.ResourceRequest) (*types.ProvisionTokenV2, error)
+	// Deprecated: Do not use.
 	// GetToken retrieves all tokens.
+	// Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
+	// TODO(hugoShaka): DELETE IN 21.0.0
 	GetTokens(context.Context, *emptypb.Empty) (*types.ProvisionTokenV2List, error)
+	// GetStaticTokens retrieves all static tokens.
+	GetStaticTokens(context.Context, *emptypb.Empty) (*types.StaticTokensV2, error)
 	// ListToken retrieves a paginated list of filtered provision tokens.
 	ListProvisionTokens(context.Context, *ListProvisionTokensRequest) (*ListProvisionTokensResponse, error)
 	// CreateTokenV2 creates a token in a backend.
@@ -4598,6 +4650,9 @@ func (UnimplementedAuthServiceServer) GetResetPasswordToken(context.Context, *Ge
 func (UnimplementedAuthServiceServer) CreateResetPasswordToken(context.Context, *CreateResetPasswordTokenRequest) (*types.UserTokenV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateResetPasswordToken not implemented")
 }
+func (UnimplementedAuthServiceServer) ListResetPasswordTokens(context.Context, *ListResetPasswordTokenRequest) (*ListResetPasswordTokenResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListResetPasswordTokens not implemented")
+}
 func (UnimplementedAuthServiceServer) GetUser(context.Context, *GetUserRequest) (*types.UserV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUser not implemented")
 }
@@ -4778,6 +4833,9 @@ func (UnimplementedAuthServiceServer) GetRole(context.Context, *GetRoleRequest) 
 func (UnimplementedAuthServiceServer) ListRoles(context.Context, *ListRolesRequest) (*ListRolesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListRoles not implemented")
 }
+func (UnimplementedAuthServiceServer) ListRequestableRoles(context.Context, *ListRequestableRolesRequest) (*ListRequestableRolesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListRequestableRoles not implemented")
+}
 func (UnimplementedAuthServiceServer) CreateRole(context.Context, *CreateRoleRequest) (*types.RoleV6, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateRole not implemented")
 }
@@ -4930,6 +4988,9 @@ func (UnimplementedAuthServiceServer) GetToken(context.Context, *types.ResourceR
 }
 func (UnimplementedAuthServiceServer) GetTokens(context.Context, *emptypb.Empty) (*types.ProvisionTokenV2List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTokens not implemented")
+}
+func (UnimplementedAuthServiceServer) GetStaticTokens(context.Context, *emptypb.Empty) (*types.StaticTokensV2, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetStaticTokens not implemented")
 }
 func (UnimplementedAuthServiceServer) ListProvisionTokens(context.Context, *ListProvisionTokensRequest) (*ListProvisionTokensResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListProvisionTokens not implemented")
@@ -5930,6 +5991,24 @@ func _AuthService_CreateResetPasswordToken_Handler(srv interface{}, ctx context.
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).CreateResetPasswordToken(ctx, req.(*CreateResetPasswordTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListResetPasswordTokens_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListResetPasswordTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListResetPasswordTokens(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListResetPasswordTokens_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListResetPasswordTokens(ctx, req.(*ListResetPasswordTokenRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -6982,6 +7061,24 @@ func _AuthService_ListRoles_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListRequestableRoles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRequestableRolesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListRequestableRoles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListRequestableRoles_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListRequestableRoles(ctx, req.(*ListRequestableRolesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_CreateRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateRoleRequest)
 	if err := dec(in); err != nil {
@@ -7867,6 +7964,24 @@ func _AuthService_GetTokens_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetTokens(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GetStaticTokens_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetStaticTokens(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_GetStaticTokens_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetStaticTokens(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -9937,6 +10052,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_CreateResetPasswordToken_Handler,
 		},
 		{
+			MethodName: "ListResetPasswordTokens",
+			Handler:    _AuthService_ListResetPasswordTokens_Handler,
+		},
+		{
 			MethodName: "GetUser",
 			Handler:    _AuthService_GetUser_Handler,
 		},
@@ -10161,6 +10280,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_ListRoles_Handler,
 		},
 		{
+			MethodName: "ListRequestableRoles",
+			Handler:    _AuthService_ListRequestableRoles_Handler,
+		},
+		{
 			MethodName: "CreateRole",
 			Handler:    _AuthService_CreateRole_Handler,
 		},
@@ -10351,6 +10474,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetTokens",
 			Handler:    _AuthService_GetTokens_Handler,
+		},
+		{
+			MethodName: "GetStaticTokens",
+			Handler:    _AuthService_GetStaticTokens_Handler,
 		},
 		{
 			MethodName: "ListProvisionTokens",

@@ -7,6 +7,8 @@ labels:
  - identity-governance
 ---
 
+{/* lint disable page-structure remark-lint */}
+
 With Teleport's Opsgenie integration, engineers can access the infrastructure
 they need to resolve alerts quickly, without longstanding admin permissions
 that can become a vector for attacks.
@@ -77,13 +79,7 @@ Create a user called `myuser` who has the `requester` role. Later in this
 guide, you will create an Access Request as this user to test the Opsgenie
 plugin:
 
-To create a user first navigate to Management -> Access -> Users
-
-![Add user one](../../../img/enterprise/plugins/opsgenie/add-user-one.png)
-
-Then select 'Create New User' and create a user with the requester role.
-
-![Add user two](../../../img/enterprise/plugins/opsgenie/add-user-two.png)
+To create a user, first navigate to Zero Trust Access -> Users.
 
 ## Step 3/5. Set up an Opsgenie API key
 
@@ -97,10 +93,9 @@ See https://support.atlassian.com/opsgenie/docs/create-a-default-api-integration
 ## Step 4/5. Configure the Opsgenie plugin
 
 At this point, you have generated credentials that the Opsgenie plugin will use
-to connect to the Opsgenie API. To configure the plugin to use this API key navigate
-to Management -> Integrations -> Enroll New Integration.
-
-![Integrations page](../../../img/enterprise/plugins/opsgenie/opsgenie-integration-page.png)
+to connect to the Opsgenie API. To configure the plugin to use this API key, 
+navigate to **Add New** in the Web UI; in the left pane, click **Integration**.
+Click the Opsgenie tile.
 
 ## Step 5/5. Test the Opsgenie plugin
 

@@ -118,11 +118,119 @@ export const HappyWithEmpty: Story = {
           },
         }),
         listV2TokensSuccess({
-          isEmpty: true,
+          tokens: [],
         }),
         mfaAuthnChallengeSuccess(),
         listBotInstancesSuccess({
           bot_instances: [],
+          next_page_token: '',
+        }),
+        successGetRoles({
+          startKey: '',
+          items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
+            content: `role-${r}`,
+            id: `role-${r}`,
+            name: `role-${r}`,
+            kind: 'role',
+          })),
+        }),
+        editBotSuccess(),
+      ],
+    },
+  },
+};
+
+export const HappyWithTypical: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        getBotSuccess({
+          name: 'ansible-worker',
+          roles: ['access'],
+          traits: [],
+          max_session_ttl: {
+            seconds: 43200,
+          },
+        }),
+        listV2TokensSuccess({
+          tokens: ['kubernetes'],
+        }),
+        mfaAuthnChallengeSuccess(),
+        listBotInstancesSuccess({
+          bot_instances: [
+            {
+              bot_name: 'bot-1',
+              instance_id: '6570dbf1-3530-4e13-a8c7-497bb9927994',
+              active_at_latest: new Date().toISOString(),
+              host_name_latest:
+                'my-svc.my-namespace.svc.cluster-domain.example',
+              join_method_latest: 'kubernetes',
+              os_latest: 'linux',
+              version_latest: '18.1.0',
+            },
+          ],
+          next_page_token: '',
+        }),
+        successGetRoles({
+          startKey: '',
+          items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
+            content: `role-${r}`,
+            id: `role-${r}`,
+            name: `role-${r}`,
+            kind: 'role',
+          })),
+        }),
+        editBotSuccess(),
+      ],
+    },
+  },
+};
+
+export const HappyWithLongValues: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        getBotSuccess({
+          name: 'ansibleworkeransibleworkeransibleworkeransibleworkeransibleworkeransibleworker',
+          roles: [
+            'rolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerole',
+          ],
+          traits: [
+            {
+              name: 'traittraittraittraittraittraittraittraittraittraittraittraittraittraittrait',
+              values: ['value'],
+            },
+            {
+              name: 'name',
+              values: [
+                'valuevaluevaluevaluevaluevaluevaluevaluevaluevaluevaluevaluevaluevaluevaluevalue',
+              ],
+            },
+          ],
+          max_session_ttl: {
+            seconds: 43200,
+          },
+        }),
+        listV2TokensSuccess({
+          tokens: [
+            'tokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentoken',
+          ],
+        }),
+        mfaAuthnChallengeSuccess(),
+        listBotInstancesSuccess({
+          bot_instances: [
+            {
+              bot_name: '',
+              instance_id:
+                '04241a2a66b904241a2a66b904241a2a66b904241a2a66b904241a2a66b9',
+              host_name_latest:
+                'hotnamehotnamehotnamehotnamehotnamehotnamehotnamehotnamehotname',
+              active_at_latest: '2025-01-01T00:00:00Z',
+              join_method_latest: 'github',
+              os_latest: 'linux',
+              version_latest: '17.2.6-04241a2',
+            },
+          ],
           next_page_token: '',
         }),
         successGetRoles({
@@ -381,7 +489,7 @@ function Wrapper(props?: {
         <TeleportProviderBasic teleportCtx={ctx}>
           <Router history={history}>
             <Route path={cfg.routes.bot}>
-              <Box height={800} overflow={'auto'}>
+              <Box height={820} overflow={'auto'}>
                 <BotDetails />
               </Box>
             </Route>
