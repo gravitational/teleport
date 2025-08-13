@@ -20,10 +20,9 @@ import { ComponentType } from 'react';
 
 import { ButtonPrimary, ButtonSecondary, Flex, P3, Stack, Text } from 'design';
 import { Alert } from 'design/Alert';
-import { Info, Warning } from 'design/Icon';
+import { Info } from 'design/Icon';
 import { IconProps } from 'design/Icon/Icon';
 import { UnreachableCluster } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
-import { getErrorMessage } from 'shared/utils/error';
 
 import { Platform } from 'teleterm/mainProcess/types';
 import {
@@ -54,6 +53,7 @@ export function WidgetView(props: {
   updateEvent: AppUpdateEvent;
   platform: Platform;
   clusterGetter: ClusterGetter;
+  mx?: string | number;
   onMore(): void;
   onDownload(): void;
   onInstall(): void;
@@ -62,17 +62,16 @@ export function WidgetView(props: {
   const { updateEvent } = props;
   const { autoUpdatesStatus } = updateEvent;
 
-  const issueRequiringAttention = findAutoUpdatesIssuesRequiringAttention(
-    autoUpdatesStatus,
-    getClusterName
-  );
+  const issueRequiringAttention =
+    autoUpdatesStatus &&
+    findAutoUpdatesIssuesRequiringAttention(autoUpdatesStatus, getClusterName);
 
   if (issueRequiringAttention) {
     return (
       <Alert
         kind="danger"
-        width="100%"
         mb={0}
+        mx={props.mx}
         details={issueRequiringAttention}
         secondaryAction={{
           content: 'Resolve',
@@ -89,8 +88,8 @@ export function WidgetView(props: {
     return (
       <Alert
         kind="danger"
-        width="100%"
         mb={0}
+        mx={props.mx}
         details={updateEvent.error.message}
         secondaryAction={{
           content: 'More',
@@ -134,13 +133,14 @@ export function WidgetView(props: {
       primaryButton={
         button ? { name: button.name, onClick: button.action } : undefined
       }
+      mx={props.mx}
     />
   );
 }
 
 function AvailableUpdate(props: {
   version: string;
-  description: string | { Icon: ComponentType<IconProps>; text: string };
+  description: string;
   unreachableClusters: UnreachableCluster[];
   downloadHost: string;
   platform: Platform;
@@ -150,6 +150,7 @@ function AvailableUpdate(props: {
     name: string;
     onClick(): void;
   };
+  mx: string | number | undefined;
 }) {
   const hasUnreachableClusters = !!props.unreachableClusters.length;
   const isNonTeleportServer =
@@ -160,13 +161,13 @@ function AvailableUpdate(props: {
     <Stack
       justifyContent="space-between"
       gap={1}
-      width="100%"
       css={`
         border: 1px solid ${props => props.theme.colors.text.disabled};
         background: ${props => props.theme.colors.interactive.tonal.neutral[0]};
       `}
       borderRadius={3}
       px={3}
+      mx={props.mx}
       py="12px"
     >
       <Flex width="100%" alignItems="center" justifyContent="space-between">
@@ -183,14 +184,7 @@ function AvailableUpdate(props: {
           )}
           <Stack gap={0}>
             <Text bold>Teleport Connect {props.version}</Text>
-            {typeof props.description === 'object' ? (
-              <Flex gap={1}>
-                <props.description.Icon size="small" />
-                <P3>{props.description.text}</P3>
-              </Flex>
-            ) : (
-              <P3>{props.description}</P3>
-            )}
+            <P3>{props.description}</P3>
           </Stack>
         </Flex>
         <Flex gap={2}>
@@ -208,7 +202,7 @@ function AvailableUpdate(props: {
         <Stack ml={1}>
           {hasUnreachableClusters && (
             <IconAndText
-              Icon={Warning}
+              Icon={Info}
               text="Unable to retrieve accepted client versions from some clusters."
             />
           )}
@@ -248,7 +242,7 @@ function makeUpdaterContent({
   onDownload(): void;
   onInstall(): void;
 }): {
-  description: string | { Icon: ComponentType<IconProps>; text: string };
+  description: string;
   button?: {
     name: string;
     action(): void;
@@ -283,10 +277,7 @@ function makeUpdaterContent({
       };
     case 'error':
       return {
-        description: {
-          Icon: Warning,
-          text: getErrorMessage(updateEvent.error),
-        },
+        description: 'Update failed',
       };
   }
 }

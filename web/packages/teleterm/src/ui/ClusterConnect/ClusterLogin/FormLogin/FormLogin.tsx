@@ -27,7 +27,10 @@ import { Attempt } from 'shared/hooks/useAsync';
 import type { PrimaryAuthType } from 'shared/services';
 
 import { Platform } from 'teleterm/mainProcess/types';
+import { AppUpdateEvent } from 'teleterm/services/appUpdater';
+import { ClusterGetter, WidgetView } from 'teleterm/ui/AppUpdater';
 import * as types from 'teleterm/ui/services/clusters/types';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { outermostPadding } from '../../spacing';
 import type { PasswordlessLoginState } from '../useClusterLogin';
@@ -68,6 +71,19 @@ export default function LoginForm(props: Props) {
     shouldSkipVersionCheck: props.shouldSkipVersionCheck,
     disableVersionCheck: props.disableVersionCheck,
     platform: props.platform,
+    isAnyClusterProvidingUpdates:
+      props.appUpdateEvent.autoUpdatesStatus?.options.clusters.some(
+        c => c.toolsAutoUpdate
+      ),
+    onSwitchToAppUpdateDetails: props.switchToAppUpdateDetails,
+  };
+  const appUpdateWidgetViewProps = {
+    updateEvent: props.appUpdateEvent,
+    onDownload: () => props.downloadAppUpdate(),
+    onInstall: () => props.quitAndInstallAppUpdate(),
+    platform: props.platform,
+    onMore: () => props.switchToAppUpdateDetails(),
+    clusterGetter: props.clusterGetter,
   };
   const ssoEnabled = authProviders?.length > 0;
 
@@ -82,6 +98,7 @@ export default function LoginForm(props: Props) {
           </Alerts.Danger>
         )}
         <CompatibilityWarning {...compatibilityWarningProps} />
+        <WidgetView {...appUpdateWidgetViewProps} />
         <FormSso {...props} />
       </FlexBordered>
     );
@@ -97,6 +114,7 @@ export default function LoginForm(props: Props) {
           Login has not been enabled
         </Alerts.Danger>
         <CompatibilityWarning {...compatibilityWarningProps} />
+        <WidgetView {...appUpdateWidgetViewProps} />
       </FlexBordered>
     );
   }
@@ -120,6 +138,7 @@ export default function LoginForm(props: Props) {
         mx={outermostPadding}
         {...compatibilityWarningProps}
       />
+      <WidgetView mx={outermostPadding} {...appUpdateWidgetViewProps} />
       <StepSlider<typeof loginViews>
         flows={loginViews}
         currFlow={'default'}
@@ -321,6 +340,14 @@ export type Props = {
   shouldSkipVersionCheck: boolean;
   disableVersionCheck(): void;
   platform: Platform;
+  switchToAppUpdateDetails(): void;
+  appUpdateEvent: AppUpdateEvent;
+  downloadAppUpdate(): Promise<void>;
+  cancelAppUpdateDownload(): Promise<void>;
+  checkForAppUpdates(): Promise<void>;
+  quitAndInstallAppUpdate(): void;
+  changeAppUpdatesManagingCluster(clusterUri: RootClusterUri): Promise<void>;
+  clusterGetter: ClusterGetter;
 };
 
 const OutermostPadding = styled(Box).attrs({ px: outermostPadding })``;
