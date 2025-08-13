@@ -19,7 +19,7 @@
 import { http, HttpResponse } from 'msw';
 
 import cfg from 'teleport/config';
-import { ApiLock } from 'teleport/services/locks/types';
+import { ApiLock, CreateLockRequest } from 'teleport/services/locks/types';
 
 export const listV2LocksSuccess = (options?: { locks?: ApiLock[] }) => {
   const { locks = [] } = options ?? {};
@@ -44,8 +44,32 @@ export const removeLockSuccess = () => {
   });
 };
 
-export const createLockSuccess = (lock: ApiLock) => {
-  return http.put(cfg.api.locks.create, () => {
-    return HttpResponse.json(lock, { status: 200 });
+export const createLockSuccess = (overrides?: Partial<CreateLockRequest>) => {
+  return http.put(cfg.api.locks.create, async ({ request }) => {
+    const req = (await request.clone().json()) as CreateLockRequest;
+    const {
+      targets = req.targets,
+      message = req.message,
+      ttl = req.ttl,
+    } = overrides ?? {};
+
+    const now = new Date();
+    const expires = !ttl
+      ? undefined
+      : ttl === '12h'
+        ? new Date(now.getTime() + 43200 * 1000)
+        : now;
+
+    return HttpResponse.json(
+      {
+        name: '0aac8a56-5ce0-427a-90ad-5a6973c1216e',
+        message,
+        expires: expires?.toISOString(),
+        targets,
+        createdAt: now.toISOString(),
+        createdBy: 'admin',
+      },
+      { status: 200 }
+    );
   });
 };

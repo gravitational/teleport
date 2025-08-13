@@ -328,16 +328,5 @@ function withUnlockSuccess() {
 }
 
 function withLockSuccess() {
-  server.use(
-    createLockSuccess({
-      name: '0aac8a56-5ce0-427a-90ad-5a6973c1216e',
-      message: 'This is a test message',
-      expires: '2023-12-31T23:59:59Z',
-      targets: {
-        user: 'test-user',
-      },
-      createdAt: '2023-01-01T00:00:00Z',
-      createdBy: 'admin',
-    })
-  );
+  server.use(createLockSuccess());
 }
