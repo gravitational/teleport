@@ -524,9 +524,11 @@ func (*RotateKeyResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{9}
 }
 
-// The empty body of a GetRotationState request.
+// The body of a GetRotationState request.
 type GetRotationStateRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	PageSize      int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageToken     string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -559,6 +561,20 @@ func (x *GetRotationStateRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use GetRotationStateRequest.ProtoReflect.Descriptor instead.
 func (*GetRotationStateRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *GetRotationStateRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *GetRotationStateRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
 }
 
 // A public key fingerprint coupled with its current state.
@@ -618,9 +634,10 @@ func (x *FingerprintWithState) GetState() KeyPairState {
 
 // The current state of all active encryption key pairs.
 type GetRotationStateResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NextPageToken string                 `protobuf:"bytes,1,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	// The state of all active encryption key pairs.
-	KeyPairStates []*FingerprintWithState `protobuf:"bytes,1,rep,name=key_pair_states,json=keyPairStates,proto3" json:"key_pair_states,omitempty"`
+	KeyPairStates []*FingerprintWithState `protobuf:"bytes,2,rep,name=key_pair_states,json=keyPairStates,proto3" json:"key_pair_states,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -653,6 +670,13 @@ func (x *GetRotationStateResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use GetRotationStateResponse.ProtoReflect.Descriptor instead.
 func (*GetRotationStateResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *GetRotationStateResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
 }
 
 func (x *GetRotationStateResponse) GetKeyPairStates() []*FingerprintWithState {
@@ -841,13 +865,17 @@ const file_teleport_recordingencryption_v1_recording_encryption_service_proto_ra
 	"\x05parts\x18\x02 \x03(\v2%.teleport.recordingencryption.v1.PartR\x05parts\"\x18\n" +
 	"\x16CompleteUploadResponse\"\x12\n" +
 	"\x10RotateKeyRequest\"\x13\n" +
-	"\x11RotateKeyResponse\"\x19\n" +
-	"\x17GetRotationStateRequest\"}\n" +
+	"\x11RotateKeyResponse\"U\n" +
+	"\x17GetRotationStateRequest\x12\x1b\n" +
+	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\"}\n" +
 	"\x14FingerprintWithState\x12 \n" +
 	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12C\n" +
-	"\x05state\x18\x02 \x01(\x0e2-.teleport.recordingencryption.v1.KeyPairStateR\x05state\"y\n" +
-	"\x18GetRotationStateResponse\x12]\n" +
-	"\x0fkey_pair_states\x18\x01 \x03(\v25.teleport.recordingencryption.v1.FingerprintWithStateR\rkeyPairStates\"\x19\n" +
+	"\x05state\x18\x02 \x01(\x0e2-.teleport.recordingencryption.v1.KeyPairStateR\x05state\"\xa1\x01\n" +
+	"\x18GetRotationStateResponse\x12&\n" +
+	"\x0fnext_page_token\x18\x01 \x01(\tR\rnextPageToken\x12]\n" +
+	"\x0fkey_pair_states\x18\x02 \x03(\v25.teleport.recordingencryption.v1.FingerprintWithStateR\rkeyPairStates\"\x19\n" +
 	"\x17CompleteRotationRequest\"\x1a\n" +
 	"\x18CompleteRotationResponse\"\x19\n" +
 	"\x17RollbackRotationRequest\"\x1a\n" +

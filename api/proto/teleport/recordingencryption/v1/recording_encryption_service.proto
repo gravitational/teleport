@@ -105,8 +105,11 @@ message RotateKeyRequest {}
 // The empty return value of a RotateKey request.
 message RotateKeyResponse {}
 
-// The empty body of a GetRotationState request.
-message GetRotationStateRequest {}
+// The body of a GetRotationState request.
+message GetRotationStateRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
 
 // A public key fingerprint coupled with its current state.
 message FingerprintWithState {
@@ -118,8 +121,9 @@ message FingerprintWithState {
 
 // The current state of all active encryption key pairs.
 message GetRotationStateResponse {
+  string next_page_token = 1;
   // The state of all active encryption key pairs.
-  repeated FingerprintWithState key_pair_states = 1;
+  repeated FingerprintWithState key_pair_states = 2;
 }
 
 // The empty body of a CompleteRotation request.
