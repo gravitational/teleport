@@ -102,7 +102,7 @@
     },
     {
       "source": "/admin-guides/access-controls/guides/moderated-sessions/",
-      "destination": "/admin-guides/access-controls/guides/joining-sessions/",
+      "destination": "/zero-trust-access/access-controls/guides/joining-sessions/",
       "permanent": true
     },
     {
@@ -1242,7 +1242,7 @@
     },
     {
       "source": "/access-controls/guides/u2f/",
-      "destination": "/admin-guides/access-controls/guides/webauthn/",
+      "destination": "/zero-trust-access/access-controls/guides/webauthn/",
       "permanent": true
     },
     {
@@ -1467,37 +1467,32 @@
     },
     {
       "source": "/access-controls/getting-started/",
-      "destination": "/admin-guides/access-controls/getting-started/",
+      "destination": "/zero-trust-access/access-controls/getting-started/",
       "permanent": true
     },
     {
       "source": "/access-controls/guides/",
-      "destination": "/admin-guides/access-controls/guides/",
+      "destination": "/zero-trust-access/access-controls/guides/",
       "permanent": true
     },
     {
       "source": "/access-controls/guides/dual-authz/",
-      "destination": "/admin-guides/access-controls/guides/dual-authz/",
+      "destination": "/zero-trust-access/access-controls/guides/dual-authz/",
       "permanent": true
     },
     {
       "source": "/access-controls/guides/hardware-key-support/",
-      "destination": "/admin-guides/access-controls/guides/hardware-key-support/",
-      "permanent": true
-    },
-    {
-      "source": "/access-controls/guides/headless/",
-      "destination": "/admin-guides/access-controls/guides/headless/",
+      "destination": "/zero-trust-access/access-controls/guides/hardware-key-support/",
       "permanent": true
     },
     {
       "source": "/access-controls/guides/impersonation/",
-      "destination": "/admin-guides/access-controls/guides/impersonation/",
+      "destination": "/zero-trust-access/access-controls/guides/impersonation/",
       "permanent": true
     },
     {
       "source": "/access-controls/guides/ip-pinning/",
-      "destination": "/admin-guides/access-controls/guides/ip-pinning/",
+      "destination": "/zero-trust-access/access-controls/guides/ip-pinning/",
       "permanent": true
     },
     {
@@ -1507,57 +1502,32 @@
     },
     {
       "source": "/access-controls/guides/mfa-for-admin-actions/",
-      "destination": "/admin-guides/access-controls/guides/mfa-for-admin-actions/",
+      "destination": "/zero-trust-access/access-controls/guides/mfa-for-admin-actions/",
       "permanent": true
     },
     {
       "source": "/access-controls/guides/moderated-sessions/",
-      "destination": "/admin-guides/access-controls/guides/joining-sessions/",
+      "destination": "/zero-trust-access/access-controls/guides/joining-sessions/",
       "permanent": true
     },
     {
       "source": "/access-controls/guides/passwordless/",
-      "destination": "/admin-guides/access-controls/guides/passwordless/",
+      "destination": "/zero-trust-access/access-controls/guides/passwordless/",
       "permanent": true
     },
     {
       "source": "/access-controls/guides/per-session-mfa/",
-      "destination": "/admin-guides/access-controls/guides/per-session-mfa/",
-      "permanent": true
-    },
-    {
-      "source": "/access-controls/guides/role-templates/",
-      "destination": "/admin-guides/access-controls/guides/role-templates/",
+      "destination": "/zero-trust-access/access-controls/guides/per-session-mfa/",
       "permanent": true
     },
     {
       "source": "/access-controls/guides/webauthn/",
-      "destination": "/admin-guides/access-controls/guides/webauthn/",
+      "destination": "/zero-trust-access/access-controls/guides/webauthn/",
       "permanent": true
     },
     {
       "source": "/access-controls/idps/",
-      "destination": "/admin-guides/access-controls/idps/",
-      "permanent": true
-    },
-    {
-      "source": "/access-controls/idps/saml-attribute-mapping/",
-      "destination": "/admin-guides/access-controls/idps/saml-attribute-mapping/",
-      "permanent": true
-    },
-    {
-      "source": "/access-controls/idps/saml-gcp-workforce-identity-federation/",
-      "destination": "/admin-guides/access-controls/idps/saml-gcp-workforce-identity-federation/",
-      "permanent": true
-    },
-    {
-      "source": "/access-controls/idps/saml-grafana/",
-      "destination": "/admin-guides/access-controls/idps/saml-grafana/",
-      "permanent": true
-    },
-    {
-      "source": "/access-controls/idps/saml-guide/",
-      "destination": "/admin-guides/access-controls/idps/saml-guide/",
+      "destination": "/identity-governance/idps/",
       "permanent": true
     },
     {
@@ -1567,17 +1537,17 @@
     },
     {
       "source": "/access-controls/introduction/",
-      "destination": "/admin-guides/access-controls/",
+      "destination": "/zero-trust-access/access-controls/",
       "permanent": true
     },
     {
       "source": "/access-controls/login-rules/",
-      "destination": "/admin-guides/access-controls/login-rules/",
+      "destination": "/zero-trust-access/access-controls/login-rules/",
       "permanent": true
     },
     {
       "source": "/access-controls/login-rules/guide/",
-      "destination": "/admin-guides/access-controls/login-rules/guide/",
+      "destination": "/zero-trust-access/access-controls/login-rules/guide/",
       "permanent": true
     },
     {
@@ -2471,6 +2441,11 @@
       "permanent": true
     },
     {
+      "source": "/access-controls/guides/role-templates/",
+      "destination": "/zero-trust-access/access-controls/guides/role-templates/",
+      "permanent": true
+    },
+    {
       "source": "/setup/admin/",
       "destination": "/admin-guides/",
       "permanent": true
@@ -2478,6 +2453,11 @@
     {
       "source": "/setup/operations/scaling/",
       "destination": "/admin-guides/management/operations/scaling/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/guides/headless/",
+      "destination": "/zero-trust-access/access-controls/guides/headless/",
       "permanent": true
     },
     {
@@ -3143,6 +3123,111 @@
     {
       "source": "/admin-guides/management/export-audit-events/splunk/",
       "destination": "/zero-trust-access/export-audit-events/splunk/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/",
+      "destination": "/zero-trust-access/access-controls/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/getting-started/",
+      "destination": "/zero-trust-access/access-controls/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/dual-authz/",
+      "destination": "/zero-trust-access/access-controls/guides/dual-authz/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/",
+      "destination": "/zero-trust-access/access-controls/guides/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/hardware-key-support/",
+      "destination": "/zero-trust-access/access-controls/guides/hardware-key-support/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/headless/",
+      "destination": "/zero-trust-access/access-controls/guides/headless/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/impersonation/",
+      "destination": "/zero-trust-access/access-controls/guides/impersonation/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/ip-pinning/",
+      "destination": "/zero-trust-access/access-controls/guides/ip-pinning/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/joining-sessions/",
+      "destination": "/zero-trust-access/access-controls/guides/joining-sessions/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/mfa-for-admin-actions/",
+      "destination": "/zero-trust-access/access-controls/guides/mfa-for-admin-actions/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/passwordless/",
+      "destination": "/zero-trust-access/access-controls/guides/passwordless/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/per-session-mfa/",
+      "destination": "/zero-trust-access/access-controls/guides/per-session-mfa/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/role-templates/",
+      "destination": "/zero-trust-access/access-controls/guides/role-templates/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/webauthn/",
+      "destination": "/zero-trust-access/access-controls/guides/webauthn/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/idps/saml-attribute-mapping/",
+      "destination": "/identity-governance/idps/saml-attribute-mapping/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/idps/saml-gcp-workforce-identity-federation/",
+      "destination": "/identity-governance/idps/saml-gcp-workforce-identity-federation/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/idps/saml-grafana/",
+      "destination": "/identity-governance/idps/saml-grafana/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/idps/saml-guide/",
+      "destination": "/identity-governance/idps/saml-guide/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/login-rules/guide/",
+      "destination": "/zero-trust-access/access-controls/login-rules/guide/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/login-rules/",
+      "destination": "/zero-trust-access/access-controls/login-rules/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/idps/",
+      "destination": "/identity-governance/idps/",
       "permanent": true
     }
   ]
