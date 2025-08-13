@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/metadata"
+	grpcutils "github.com/gravitational/teleport/api/utils/grpc"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
@@ -296,6 +297,8 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 		return nil, trace.Wrap(err)
 	}
 
+	msgSize := grpcutils.MaxRecvSize()
+
 	conn, err := grpc.DialContext(
 		dialCtx,
 		cfg.ProxyAddress,
@@ -319,6 +322,9 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 					metadata.StreamClientInterceptor,
 					interceptors.GRPCClientStreamErrorInterceptor,
 				)...,
+			),
+			grpc.WithDefaultCallOptions(
+				grpc.MaxCallRecvMsgSize(msgSize),
 			),
 		}, cfg.DialOpts...)...,
 	)
