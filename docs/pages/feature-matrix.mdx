@@ -70,7 +70,7 @@ across distributed infrastructures.
 |**User identity.** Authenticate users without passwords:||||
 | [Single Sign-On](zero-trust-access/sso/sso.mdx)| GitHub, Google Workspace, Microsoft Entra ID, Okta, OIDC, SAML, Teleport | GitHub, Google Workspace, Microsoft Entra ID, Okta, OIDC, SAML, Teleport | GitHub |
 | User & Group Provisioning & Deprovisioning (SCIM & Custom Protocols), including Okta and Entra | Available In Teleport Identity Governance | Available In Teleport Identity Governance | ✖ |
-| [Hardware Private Key Support](./admin-guides/access-controls/guides/hardware-key-support.mdx) (e.g., via YubiKey) | ✔ (External-connected HSM/KMS coming soon) | ✔ | ✖ |
+| [Hardware Private Key Support](zero-trust-access/access-controls/guides/hardware-key-support.mdx) (e.g., via YubiKey) | ✔ (External-connected HSM/KMS coming soon) | ✔ | ✖ |
 |**Resource identity.** Assign a cryptographic identity to every Teleport Protected Resource:||||
 | Protecting: [Applications](./enroll-resources/application-access/getting-started.mdx), [Databases](./enroll-resources/database-access/getting-started.mdx), [Kubernetes Clusters](./enroll-resources/kubernetes-access/getting-started.mdx), [Linux Servers](./enroll-resources/server-access/getting-started.mdx), [Windows Servers](./enroll-resources/desktop-access/introduction.mdx), [Windows Desktops](./enroll-resources/desktop-access/introduction.mdx), Cloud Consoles & Resources (AWS, Azure, GCP), [GitHub](./admin-guides/management/guides/github-integration.mdx) | ✔ | ✔ | ✔ (does not include Oracle support) |
 |**Secure remote access.** Zero-trust, auditable access to your infrastructure:||||
@@ -78,10 +78,10 @@ across distributed infrastructures.
 | Supports SSH, RDP, Kubernetes, Databases, AWS, Azure, GCP API and CLI, Web applications and services, TCP endpoints for Linux, Windows and MacOS. | ✔ | ✔ | ✔ |
 | [Machines](machine-workload-identity/machine-id/machine-id.mdx) and [workloads](machine-workload-identity/workload-identity/introduction.mdx) | Available in Teleport Machine & Workload Identity | Available in Teleport Machine & Workload Identity | Available in Teleport Machine & Workload Identity |
 | Agentless Integration with [OpenSSH Servers](./enroll-resources/server-access/openssh/openssh-agentless.mdx) | ✔ | ✔ | ✔ |
-| [IP-Based Restrictions](./admin-guides/access-controls/guides/ip-pinning.mdx) | ✔ | ✔ | ✖ |
+| [IP-Based Restrictions](zero-trust-access/access-controls/guides/ip-pinning.mdx) | ✔ | ✔ | ✖ |
 | [Teleport VNet](./connect-your-client/vnet.mdx) | ✔ | ✔ | ✔ |
 |**Short-lived privileges.** Ephemeral authorization granted through short-lived certificates:||||
-| [Role-Based Access Control](./admin-guides/access-controls/guides/role-templates.mdx) | ✔ | ✔ | ✔ |
+| [Role-Based Access Control](zero-trust-access/access-controls/guides/role-templates.mdx) | ✔ | ✔ | ✔ |
 | [Just-in-Time Access Requests & Reviews](identity-governance/access-requests/resource-requests.mdx) | Available in Teleport Identity Governance | Available in Teleport Identity Governance | Only can request roles through CLI  |
 |**Session recording and interactive controls.** Record, replay, join, and moderate interactive sessions:||||
 | [Session Recording with Playback](./reference/architecture/session-recording.mdx) | ✔ | ✔ | ✔ |
@@ -89,8 +89,8 @@ across distributed infrastructures.
 | [Recording Proxy Mode](./enroll-resources/server-access/guides/recording-proxy-mode.mdx) | ✖ | ✔ | ✔ |
 | Live Sessions View | SSH, Kubernetes, Desktops, Databases | SSH, Kubernetes, Desktops, Databases | SSH, Kubernetes, Desktops, Databases |
 | Protocol-Level Events, for all supported resources | ✔ | ✔ | ✔ |
-| [Dual Authorization](./admin-guides/access-controls/guides/dual-authz.mdx) | ✔ | ✔ | ✖ |
-| [Session Sharing & Moderation](./admin-guides/access-controls/guides/joining-sessions.mdx) | ✔ | ✔ | ✖ |
+| [Dual Authorization](zero-trust-access/access-controls/guides/dual-authz.mdx) | ✔ | ✔ | ✖ |
+| [Session Sharing & Moderation](zero-trust-access/access-controls/guides/joining-sessions.mdx) | ✔ | ✔ | ✖ |
 |**Identity-based audit events:** ||||
 | [Structured Audit Logs](./reference/monitoring/audit.mdx) | ✔ | ✔ | ✔ |
 | [Export to SIEM](zero-trust-access/export-audit-events/export-audit-events.mdx) | ✔ | ✔ | ✔ |
@@ -125,7 +125,7 @@ and non-human identities.
 
 |  | **Enterprise (Cloud)** | **Enterprise (Self-Hosted)** | **Community Edition** |
 |---|:---:|:---:|:---:|
-| [JIT Access Requests](./admin-guides/access-controls/guides/dual-authz.mdx): Grant only those privileges necessary to complete the task at hand. Remove the need for super-privileged accounts. | ✔ | ✔ | Only can request roles through CLI  |
+| [JIT Access Requests](zero-trust-access/access-controls/guides/dual-authz.mdx): Grant only those privileges necessary to complete the task at hand. Remove the need for super-privileged accounts. | ✔ | ✔ | Only can request roles through CLI  |
 | Automatic Access Requests & Approvals: Automate pre-defined workflows based on RBAC, ABAC, or context-based authorization. | ✔ | ✔ | ✖ |
 | [Access Lists & Access Reviews](identity-governance/access-lists/access-lists.mdx): Review access requests using Slack, PagerDuty, Microsoft Teams, Jira and ServiceNow. Assign managers, automate mandatory reviews, and implement custom review logic using our API and Go SDK. Integrates with AWS Identity Center. | ✔ | ✔ | ✖ |
 | [Session & Identity Locks](identity-governance/locking.mdx): Lock suspicious or compromised identities and stop all their activity across all protocols and services. | ✔ | ✔ | ✖ |
@@ -158,7 +158,7 @@ and non-human identities.
 | Security Information & Event Management (SIEM): Elastic, Splunk, Panther, and anything else that integrates with Fluentd | ✔ | ✔ | ✔ |
 | ITSM: ServiceNow, JIRA | ✔ | ✔ | ✖ |
 | Access Request Integration: Slack, Teams, Discord, Mattermost, PagerDuty, Opsgenie, Email | ✔ | ✔ | ✔ |
-| [Hardware Private Key Support](./admin-guides/access-controls/guides/hardware-key-support.mdx) (e.g., via YubiKey) | ✔ (External-connected HSM/KMS coming soon) | ✔ | ✖ |
+| [Hardware Private Key Support](zero-trust-access/access-controls/guides/hardware-key-support.mdx) (e.g., via YubiKey) | ✔ (External-connected HSM/KMS coming soon) | ✔ | ✖ |
 | [Hardware Security Module support](./admin-guides/deploy-a-cluster/hsm.mdx) for encryption at rest | ✔ (External-connected HSM/KMS coming soon) | ✔ | ✖ |
 | **Management and licensing:** ||||
 | Annual or multi-year contracts, volume discounts | ✔ | ✔ | ✖ |
