@@ -85,26 +85,6 @@ func CollectPages[T any, S ~[]T](stream Stream[S]) ([]T, error) {
 	return c, nil
 }
 
-// Filter filters a stream of type T for items matching predicate
-func Filter[T any](stream Stream[T], predicate func(T) bool) Stream[T] {
-	return func(yield func(T, error) bool) {
-		for item, err := range stream {
-			if err != nil {
-				yield(*new(T), trace.Wrap(err))
-				return
-			}
-
-			if !predicate(item) {
-				continue
-			}
-
-			if !yield(item, nil) {
-				return
-			}
-		}
-	}
-}
-
 // FilterMap maps a stream of type A into a stream of type B, filtering out
 // items when fn returns false.
 func FilterMap[A, B any](stream Stream[A], fn func(A) (B, bool)) Stream[B] {
@@ -118,28 +98,6 @@ func FilterMap[A, B any](stream Stream[A], fn func(A) (B, bool)) Stream[B] {
 			mapped, ok := fn(item)
 			if !ok {
 				continue
-			}
-
-			if !yield(mapped, nil) {
-				return
-			}
-		}
-	}
-}
-
-// Map maps a stream of type A into a stream of type B, propagating any errors.
-func Map[A, B any](stream Stream[A], fn func(A) (B, error)) Stream[B] {
-	return func(yield func(B, error) bool) {
-		for item, err := range stream {
-			if err != nil {
-				yield(*new(B), trace.Wrap(err))
-				return
-			}
-
-			mapped, err := fn(item)
-			if err != nil {
-				yield(*new(B), trace.Wrap(err))
-				return
 			}
 
 			if !yield(mapped, nil) {
@@ -447,8 +405,8 @@ func MergeStreams[T any](
 	}
 }
 
-// Until iterates the stream, returning early if a predicate return true for a given item.
-func Until[T any](stream Stream[T], predicate func(T) bool) Stream[T] {
+// TakeWhile iterates the stream taking items while predicate returns true
+func TakeWhile[T any](stream Stream[T], predicate func(T) bool) Stream[T] {
 	return func(yield func(T, error) bool) {
 		for item, err := range stream {
 			if err != nil {
@@ -456,7 +414,7 @@ func Until[T any](stream Stream[T], predicate func(T) bool) Stream[T] {
 				return
 			}
 
-			if predicate(item) {
+			if !predicate(item) {
 				return
 			}
 
@@ -464,34 +422,6 @@ func Until[T any](stream Stream[T], predicate func(T) bool) Stream[T] {
 				return
 			}
 
-		}
-	}
-}
-
-// LimitWithCallBack reads first N items from a stream, if a number of read items exceeds N, invoke callback with next item and quit.
-func LimitWithCallBack[T any](stream Stream[T], limit int, callback func(T)) Stream[T] {
-	if limit <= 0 {
-		return Fail[T](trace.BadParameter("bad stream limit: %d", limit))
-	}
-
-	return func(yield func(T, error) bool) {
-		remaining := limit
-		for item, err := range stream {
-			if err != nil {
-				yield(*new(T), trace.Wrap(err))
-				return
-			}
-
-			if remaining > 0 {
-				remaining--
-				if !yield(item, nil) {
-					return
-				}
-			} else {
-				// On (limit+1)th item, invoke user callback and break
-				callback(item)
-				return
-			}
 		}
 	}
 }

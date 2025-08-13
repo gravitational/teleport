@@ -63,7 +63,7 @@ import (
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
-	streamv2 "github.com/gravitational/teleport/lib/itertools/stream"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -6556,16 +6556,25 @@ func (a *ServerWithRoles) ListDatabases(ctx context.Context, limit int, startKey
 	}
 
 	var next string
-	out, err := streamv2.Collect(
-		streamv2.LimitWithCallBack(
-			streamv2.Filter(
+	var seen int
+	out, err := iterstream.Collect(
+		iterstream.TakeWhile(
+			iterstream.FilterMap(
 				a.authServer.RangeDatabases(ctx, startKey, ""),
-				func(db types.Database) bool {
-					return a.checkAccessToDatabase(db) == nil
+				func(db types.Database) (types.Database, bool) {
+					if a.checkAccessToDatabase(db) == nil {
+						return db, true
+					}
+					return nil, false
 				},
 			),
-			limit, func(db types.Database) {
+			func(db types.Database) bool {
+				if seen < limit {
+					seen++
+					return true
+				}
 				next = db.GetName()
+				return false
 			},
 		),
 	)
