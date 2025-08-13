@@ -2,8 +2,8 @@
 title: Teleport Session Recording
 description: An overview of Teleport's session recording and its configuration
 labels:
- - conceptual
- - zero-trust
+  - conceptual
+  - zero-trust
 ---
 
 This page provides an overview of how Teleport records sessions and the various
@@ -46,7 +46,7 @@ informally referred to as "chunks."
 
 ### Database sessions
 
-Teleport captures database queries and a stream of audit events 
+Teleport captures database queries and a stream of audit events
 related to the database being accessed.
 
 ## Session recording configurations
@@ -80,6 +80,43 @@ For this reason, the Teleport Windows, Database, and Kubernetes Services treat
 and `proxy-sync` identically (perform synchronous recording).
 
 </Admonition>
+
+### Encryption
+
+Teleport supports at-rest encryption of session recordings for all 4 recording
+modes. It can be enabled through the `teleport.yaml` configuration or
+dynamically through the `session_recording_config` resource. Any required
+encryption keys are provisioned using the CA key storage backend which is
+configured by setting `ca_key_params` in the `auth_service` section of the
+`teleport.yaml`. Similar to CAs, when no `ca_key_params` are provided then the
+encryption keys will be software generated and saved in Teleport's storage
+backend.
+
+<Admonition type="note">
+In distributed HA environments where the Teleport Auth Service is composed of multiple
+Auth Service instances, it is important that all instances have access to the same key
+storage backend and keys. Otherwise the availlability of session replay may become
+unstable. This holds true even when using [Manual Encryption Key Management]
+</Admonition>
+
+An example of enabling encryption using the `teleport.yaml`:
+
+```yaml
+teleport:
+  auth_service:
+    session_recording_cofing:
+      encryption:
+        enabled: yes
+```
+
+And using the dynamic `session_recording_config` resource:
+
+```yaml
+kind: session_recording_config
+spec:
+  encryption:
+    enabled: yes
+```
 
 ### Record at the SSH node
 
@@ -137,22 +174,26 @@ or terminated due to temporary connection loss.
 
 In synchronous recording modes, the Auth Service receives a stream of recording
 events and is responsible for assembling them into the final artifact and uploading
-it to the storage backend. Since data is streamed directly to the Auth Service,
-Teleport administrators don't need to be concerned with disk space on their
-Teleport SSH Service and Proxy Service instances, as no recording data is
-written to those disks.
+it to the storage backend. If recording encryption is enabled, the Auth Service
+is also responsible for encrypting the event stream prior to upload. Since data
+is streamed directly to the Auth Service, Teleport administrators don't need to
+be concerned with disk space on their Teleport SSH Service and Proxy Service
+instances, as no recording data is written to those disks.
 
 ### Asynchronous recording
 
-When asynchronous, recording events are written to the local filesystem
-during the session. When the session completes, Teleport assembles the parts into a
-complete recording and submits the entire recording to the Auth Service for storage.
+When asynchronous recording is enabled, recording events are written to the
+local filesystem during the session. When the session completes, Teleport
+assembles the parts into a complete recording and submits the entire recording
+to the Auth Service for storage.
 
 Since recording data is flushed to disk, administrators should be careful to ensure
 that the system has enough disk space to accommodate the expected number of Teleport
 sessions. Additionally, since recording data is temporarily stored on disk, there
 is a greater chance that it can be tampered with, deleted, or otherwise corrupted
-before the upload completes.
+before the upload completes. Enabling recording encryption for asynchronous
+modes ensures that events are encrypted before being written to the local
+filesystem, which can help prevent tampering.
 
 The advantage of asynchronous recording is that it doesn't require a persistent
 connection to the Auth Service. For example, an SSH session can continue to operate
@@ -185,7 +226,8 @@ audit log storage, which supports a different set of services (SQLite, DynamoDB,
 
 A Teleport session recording is an ordered sequence of structured events associated
 with a session. Each event is an encoded [Protocol Buffer](https://developers.google.com/protocol-buffers)
-and the complete session is compressed with gzip before being written to the storage backend.
+and the complete session is compressed with gzip, and optionally encrypted,
+before being written to the storage backend.
 
 These recordings have a `.tar` extension for backwards compatibility reasons, but it
 should be noted that they are not TAR archives and cannot be read using the `tar` utility.
@@ -208,7 +250,7 @@ order to play recordings.
 
 ## Upload completer
 
-Every Teleport process runs a service called the *upload completer* which periodically
+Every Teleport process runs a service called the _upload completer_ which periodically
 checks for abandoned uploads and completes them if there is not an active session tracker
 for the session associated with the recording. By default, the upload completer runs
 every 5 minutes, and session trackers have a 30 minute expiration period. This means it
@@ -225,6 +267,104 @@ to storage. If the Auth Service goes down during a session, the uncompleted uplo
 as a series of parts (in cloud storage or on an Auth Service instance's disk) and it is the
 responsibility of the Auth Service's upload completer to detect the abandoned upload and
 complete it.
+
+## Key Rotation
+
+Rotation of session recording encryption keys is facilitated through `tctl`.
+
+1. Begin the key rotation. This will fail if a rotation is already in progress.
+
+```code
+$ tctl recordings encryption rotate
+```
+
+1. Check status to confirm rotation is in progress
+
+```code
+$ tctl recordings encryption status
+Rotation in progress
+Key Pair Fingerprint                                             State
+---------------------------------------------------------------- --------
+48303729235b962c69940fe4cc9d47fcd6f5dd3bcbd149a6d4944098ce01b84c rotating
+8a8581543c70cd2ed5e993080670aefec2c620ef792730f020cb463350adeccb active
+```
+
+1. Either complete the key rotation or rollback to the previous key
+
+```code
+$ tctl recordings encryption complete-rotation
+```
+
+```code
+$ tctl recordings encryption rollback-rotation
+```
+
+## Manual Encryption Key Management
+
+<Admonition type="note">
+Manual encryption key management places all responsibility and complexity of managing
+keys on the administrator. This comes with much more risk of a misconfiguration impacting
+Teleport's ability to record or replay sessions. It's for this reason that Teleport Cloud
+does not allow configuring manual encryption key management, and it is not recommended
+for use unless it is explicitly requried.
+</Admonition>
+
+By default, Teleport will automatically provision and manage session recording encryption
+keys. However there may be cases where automatic management is not possible or desired,
+such as environments where Teleport lacks sufficient privileges to manage keys directly.
+For this reason, it is possible to instead configure Teleport to use existing keys. This
+is controlled using the `encryption.manual_key_management` config in either the
+`teleport.yaml` config file or the dynamic `session_recording_config` resource.
+
+As an example, we will configure Teleport to use existing keys stored in a PKCS#11
+compliant HSM backend. The active key in the HSM is labeled with `session_recording_002`
+and a previously rotated key was labeled with `session_recording_001`.
+
+```yaml
+encryption:
+  enabled: yes
+  manual_key_management:
+    enabled: yes
+    active_keys:
+      - type: pkcs11
+        label: 'session_recordings_002'
+    rotated_keys:
+      - type: pkcs11
+        label: 'session_recordings_001'
+```
+
+Teleport will search the HSM for the keys described in both `active_keys` and
+`rotated_keys`. The active keys will be used during encryption and replay of any new
+session recordings. The rotated keys will be used during replay of historical session
+recordings, but will not be used for any further encryptions.
+
+Key rotations are also left to be managed manually, but can be achieved by modifying
+which labels appear in which list. For example, if introducing a new
+`session_recordings_003` key, you might update your configuration accordingly:
+
+```yaml
+encryption:
+  enabled: yes
+  manual_key_management:
+    enabled: yes
+    active_keys:
+      - type: pkcs11
+        label: 'session_recordings_003'
+
+    rotated_keys:
+      - type: pkcs11
+        label: 'session_recordings_002'
+      - type: pkcs11
+        label: 'session_recordings_001'
+```
+
+<Admonition type="warning">
+Session recording encryption relies on a form of envelope encryption using OAEP with
+4096-bit RSA key pairs. This means RSA 4096 is the only key type eligible for use with
+`manual_key_management`. It is also important that these keys can be used for decryption
+which varies per key storage backend. What this means can vary per key storage backend,
+but generally must be defined when the key is first provisioned.
+</Admonition>
 
 ## Related reading
 
