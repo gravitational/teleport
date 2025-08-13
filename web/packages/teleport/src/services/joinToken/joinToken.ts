@@ -20,6 +20,7 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
 import { makeLabelMapOfStrArrs } from '../agents/make';
+import auth from '../auth/auth';
 import { MfaChallengeResponse } from '../mfa';
 import { withUnsupportedLabelFeatureErrorConversion } from '../version/unsupported';
 import makeJoinToken from './makeJoinToken';
@@ -119,19 +120,27 @@ class JoinTokenService {
 
   async editJoinToken(
     req: CreateJoinTokenRequest,
-    mfaResponse: MfaChallengeResponse
+    mfaResponse: MfaChallengeResponse,
+    abortSignal?: AbortSignal
   ) {
     const json = await api.put(
       cfg.getJoinTokenUrl({ action: 'update' }),
       req,
+      abortSignal,
       mfaResponse
     );
     return makeJoinToken(json);
   }
 
-  fetchJoinTokens(signal: AbortSignal = null): Promise<{ items: JoinToken[] }> {
+  async fetchJoinTokens(signal: AbortSignal = null) {
+    // Fetching all join tokens calls multiple RPCs internally, so we need a
+    // reusable mfa response.
+    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(
+      true /* allow re-use */
+    );
+
     return api
-      .get(cfg.getJoinTokenUrl({ action: 'list' }), signal)
+      .get(cfg.getJoinTokenUrl({ action: 'list' }), signal, mfaResponse)
       .then(resp => {
         return {
           items: resp.items?.map(makeJoinToken) || [],

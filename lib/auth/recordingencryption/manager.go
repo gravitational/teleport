@@ -121,7 +121,7 @@ func (m *Manager) CreateSessionRecordingConfig(ctx context.Context, cfg types.Se
 				return err
 			}
 
-			_ = cfg.SetEncryptionKeys(getAgeEncryptionKeys(encryption.GetSpec().ActiveKeys))
+			_ = cfg.SetEncryptionKeys(getAgeEncryptionKeys(encryption.GetSpec().ActiveKeyPairs))
 		}
 
 		sessionRecordingConfig, err = m.ClusterConfigurationInternal.CreateSessionRecordingConfig(ctx, cfg)
@@ -147,7 +147,7 @@ func (m *Manager) UpdateSessionRecordingConfig(ctx context.Context, cfg types.Se
 				return err
 			}
 
-			_ = cfg.SetEncryptionKeys(getAgeEncryptionKeys(encryption.GetSpec().ActiveKeys))
+			_ = cfg.SetEncryptionKeys(getAgeEncryptionKeys(encryption.GetSpec().ActiveKeyPairs))
 		}
 
 		sessionRecordingConfig, err = m.ClusterConfigurationInternal.UpdateSessionRecordingConfig(ctx, cfg)
@@ -173,7 +173,7 @@ func (m *Manager) UpsertSessionRecordingConfig(ctx context.Context, cfg types.Se
 				return err
 			}
 
-			_ = cfg.SetEncryptionKeys(getAgeEncryptionKeys(encryption.GetSpec().ActiveKeys))
+			_ = cfg.SetEncryptionKeys(getAgeEncryptionKeys(encryption.GetSpec().ActiveKeyPairs))
 		}
 
 		sessionRecordingConfig, err = m.ClusterConfigurationInternal.UpsertSessionRecordingConfig(ctx, cfg)
@@ -233,22 +233,22 @@ func (m *Manager) ensureManualEncryptionKeys(manualKeyCfg types.ManualKeyManagem
 		}
 	})
 
-	var encryptionKeys []*recordingencryptionv1.WrappedKey
+	var encryptionKeys []*recordingencryptionv1.KeyPair
 	for _, decrypter := range activeDecrypters {
 		pubKey, err := keys.MarshalPublicKey(decrypter.Public())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		encryptionKeys = append(encryptionKeys, &recordingencryptionv1.WrappedKey{
-			RecordingEncryptionPair: &types.EncryptionKeyPair{
+		encryptionKeys = append(encryptionKeys, &recordingencryptionv1.KeyPair{
+			KeyPair: &types.EncryptionKeyPair{
 				PublicKey: pubKey,
 			},
 		})
 	}
 	return &recordingencryptionv1.RecordingEncryption{
 		Spec: &recordingencryptionv1.RecordingEncryptionSpec{
-			ActiveKeys: encryptionKeys,
+			ActiveKeyPairs: encryptionKeys,
 		},
 	}, nil
 }
@@ -274,12 +274,12 @@ func (m *Manager) ensureRecordingEncryptionKey(ctx context.Context, encryptionCf
 		persistFn = m.RecordingEncryption.CreateRecordingEncryption
 	}
 
-	activeKeys := encryption.GetSpec().ActiveKeys
-	if len(activeKeys) > 0 {
-		for _, key := range activeKeys {
+	activePairs := encryption.GetSpec().ActiveKeyPairs
+	if len(activePairs) > 0 {
+		for _, pair := range activePairs {
 			// fetch the decrypter to ensure we have access to it
-			if _, err := m.keyStore.GetDecrypter(ctx, key.RecordingEncryptionPair); err != nil {
-				fp, _ := fingerprintPEM(key.RecordingEncryptionPair.PublicKey)
+			if _, err := m.keyStore.GetDecrypter(ctx, pair.KeyPair); err != nil {
+				fp, _ := fingerprintPEM(pair.KeyPair.PublicKey)
 				m.logger.DebugContext(ctx, "key not accessible", "fingerprint", fp)
 				continue
 			}
@@ -295,10 +295,10 @@ func (m *Manager) ensureRecordingEncryptionKey(ctx context.Context, encryptionCf
 		return nil, trace.Wrap(err, "generating wrapping key")
 	}
 
-	wrappedKey := recordingencryptionv1.WrappedKey{
-		RecordingEncryptionPair: encryptionPair,
+	wrappedKey := recordingencryptionv1.KeyPair{
+		KeyPair: encryptionPair,
 	}
-	encryption.Spec.ActiveKeys = []*recordingencryptionv1.WrappedKey{&wrappedKey}
+	encryption.Spec.ActiveKeyPairs = []*recordingencryptionv1.KeyPair{&wrappedKey}
 	encryption, err = persistFn(ctx, encryption)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -346,13 +346,13 @@ func (m *Manager) UnwrapKey(ctx context.Context, in UnwrapInput) ([]byte, error)
 	}
 
 	// TODO (eriktate): search rotated keys as well once rotation is implemented
-	activeKeys := encryption.GetSpec().ActiveKeys
-	for _, key := range activeKeys {
-		if key.GetRecordingEncryptionPair() == nil {
+	activePairs := encryption.GetSpec().ActiveKeyPairs
+	for _, key := range activePairs {
+		if key.GetKeyPair() == nil {
 			continue
 		}
 
-		activeFP, err := fingerprintPEM(key.RecordingEncryptionPair.PublicKey)
+		activeFP, err := fingerprintPEM(key.KeyPair.PublicKey)
 		if err != nil {
 			m.logger.ErrorContext(ctx, "failed to fingerprint active public key", "error", err)
 			continue
@@ -362,7 +362,7 @@ func (m *Manager) UnwrapKey(ctx context.Context, in UnwrapInput) ([]byte, error)
 			continue
 		}
 
-		decrypter, err := m.keyStore.GetDecrypter(ctx, key.RecordingEncryptionPair)
+		decrypter, err := m.keyStore.GetDecrypter(ctx, key.KeyPair)
 		if err != nil {
 			continue
 		}
@@ -487,7 +487,7 @@ func (m *Manager) resolveRecordingEncryption(ctx context.Context, shouldRetryFn 
 				return trace.Wrap(err)
 			}
 
-			if sessionRecordingConfig.SetEncryptionKeys(getAgeEncryptionKeys(encryption.GetSpec().ActiveKeys)) {
+			if sessionRecordingConfig.SetEncryptionKeys(getAgeEncryptionKeys(encryption.GetSpec().ActiveKeyPairs)) {
 				if _, err := m.ClusterConfigurationInternal.UpdateSessionRecordingConfig(ctx, sessionRecordingConfig); err != nil {
 					return trace.Wrap(err)
 				}
@@ -507,15 +507,15 @@ func (m *Manager) resolveRecordingEncryption(ctx context.Context, shouldRetryFn 
 
 // getAgeEncryptionKeys returns an iterator of AgeEncryptionKeys from a list of WrappedKeys. This is for use in
 // populating the EncryptionKeys field of SessionRecordingConfigStatus.
-func getAgeEncryptionKeys(keys []*recordingencryptionv1.WrappedKey) iter.Seq[*types.AgeEncryptionKey] {
+func getAgeEncryptionKeys(keys []*recordingencryptionv1.KeyPair) iter.Seq[*types.AgeEncryptionKey] {
 	return func(yield func(*types.AgeEncryptionKey) bool) {
 		for _, key := range keys {
-			if key.RecordingEncryptionPair == nil {
+			if key.KeyPair == nil {
 				continue
 			}
 
 			if !yield(&types.AgeEncryptionKey{
-				PublicKey: key.RecordingEncryptionPair.PublicKey,
+				PublicKey: key.KeyPair.PublicKey,
 			}) {
 				return
 			}

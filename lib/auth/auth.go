@@ -38,7 +38,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"maps"
 	mathrand "math/rand/v2"
 	"net"
 	"os"
@@ -81,6 +80,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -114,6 +114,7 @@ import (
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/inventory"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
@@ -138,6 +139,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/lib/versioncontrol/github"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
@@ -5340,9 +5342,20 @@ func (a *Server) DeleteToken(ctx context.Context, token string) (err error) {
 
 // GetTokens returns all tokens (machine provisioning ones and user tokens). Machine
 // tokens usually have "node roles", like auth,proxy,node and user invitation tokens have 'signup' role
-func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) (tokens []types.ProvisionToken, err error) {
+// Deprecated: Use [ListProvisionTokens], [ListUserTokens], and [GetStaticTokens] instead.
+// TODO(hugoShaka): DELETE IN 21.0.0
+func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]types.ProvisionToken, error) {
 	// get node tokens:
-	tokens, err = a.Services.GetTokens(ctx)
+	tokens, err := iterstream.Collect(
+		clientutils.Resources(
+			ctx,
+			// ListProvisionTokens take too many arguments for [clientutils.Resources]
+			// so we wrap it to get the usual paginated signature.
+			func(ctx context.Context, pageSize int, pageKey string) ([]types.ProvisionToken, string, error) {
+				return a.Services.ListProvisionTokens(ctx, pageSize, pageKey, nil, "")
+			},
+		),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5355,9 +5368,9 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 		tokens = append(tokens, tkns.GetStaticTokens()...)
 	}
 	// get user tokens:
-	userTokens, err := a.GetUserTokens(ctx)
+	userTokens, err := iterstream.Collect(clientutils.Resources(ctx, a.Services.ListUserTokens))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "retrieving user tokens")
 	}
 	// convert user tokens to machine tokens:
 	for _, t := range userTokens {
@@ -5617,7 +5630,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 // appendImplicitlyRequiredResources examines the set of requested resources and adds
 // any extra resources that are implicitly required by the request.
 func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resources []types.ResourceID) ([]types.ResourceID, error) {
-	addedApps := utils.NewSet[string]()
+	addedApps := set.New[string]()
 	var userGroups []types.ResourceID
 	var accountAssignments []types.ResourceID
 
@@ -5651,7 +5664,7 @@ func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resource
 		}
 	}
 
-	icAccounts := utils.NewSet[string]()
+	icAccounts := set.New[string]()
 	for _, resource := range accountAssignments {
 		// The UI needs access to the account associated with an Account Assignment
 		// in order to display the enclosing Account, otherwise the user will not
@@ -5713,7 +5726,7 @@ func updateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.A
 	}
 
 	// For promotions, add in access list owners as additional suggested reviewers
-	additionalReviewers := map[string]struct{}{}
+	additionalReviewers := set.New[string]()
 
 	// Iterate through the promotions, adding the owners of the corresponding access lists as reviewers.
 	for _, promotion := range promotions.Promotions {
@@ -5724,13 +5737,13 @@ func updateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.A
 		}
 
 		for _, owner := range allOwners {
-			additionalReviewers[owner.Name] = struct{}{}
+			additionalReviewers.Add(owner.Name)
 		}
 	}
 
 	// Only modify the original request if additional reviewers were found.
-	if len(additionalReviewers) > 0 {
-		req.SetSuggestedReviewers(append(req.GetSuggestedReviewers(), slices.Collect(maps.Keys(additionalReviewers))...))
+	if additionalReviewers.Len() > 0 {
+		req.SetSuggestedReviewers(append(req.GetSuggestedReviewers(), additionalReviewers.Elements()...))
 	}
 }
 
@@ -6638,11 +6651,10 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 			}
 		}
 
-		// Create a map of identifiers for quick lookup
-		identifiersMap := make(map[string]struct{})
+		accessListIDs := set.New[string]()
 		for _, id := range identifiers {
 			// id.Spec.UniqueIdentifier is the access list ID
-			identifiersMap[id.Spec.UniqueIdentifier] = struct{}{}
+			accessListIDs.Add(id.Spec.UniqueIdentifier)
 		}
 
 		// owners is the combined list of owners for relevant access lists we are creating the notification for.
@@ -6659,7 +6671,7 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 				return
 			}
 
-			if _, exists := identifiersMap[accessList.GetName()]; !exists {
+			if !accessListIDs.Contains(accessList.GetName()) {
 				needsNotification = true
 				// Create a unique identifier for this access list so that we know it has been accounted for.
 				// Note that if the auth server crashes between creating this identifier and creating the notification,

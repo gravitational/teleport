@@ -137,24 +137,27 @@ make -C build.assets build-binaries
 
 #### Dependencies
 
-Ensure you have installed correct versions of necessary dependencies:
-* `Go` version from
-  [go.mod](https://github.com/gravitational/teleport/blob/master/go.mod#L3)
-* If you wish to build the Rust-powered features like Desktop Access, see the
-  `Rust` and `Cargo` versions in
-  [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/Makefile#L21)
-  (search for `RUST_VERSION`)
-* For `tsh` version > `10.x` with FIDO2 support, you will need `libfido2` and
-  `pkg-config` installed locally
-* To build the web UI:
-  * [`pnpm`](https://pnpm.io/installation#using-corepack). If you have Node.js installed, run `corepack enable pnpm` to make `pnpm` available.
-  * If you prefer not to install/use pnpm, but have docker available, you can run `make docker-ui` instead.
-  * The `Rust` and `Cargo` version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11) (search for `RUST_VERSION`) are required.
-  * The [`wasm-pack`](https://github.com/rustwasm/wasm-pack) version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L12) (search for `WASM_PACK_VERSION`) is required.
-  * [`binaryen`](https://github.com/WebAssembly/binaryen) (which contains `wasm-opt`) is required to be installed manually
-    on linux aarch64 (64-bit ARM). You can check if it's already installed on your system by running `which wasm-opt`. If not you can install it like `apt-get install binaryen` (for Debian-based Linux). `wasm-pack` will install this automatically on other platforms.
+The following dependencies are required to build Teleport from source. For
+maximum compatibility, install the versions of these dependencies using the
+versions listed in [`build.assets/versions.mk`](/build.assets/versions.mk):
 
-For an example of Dev Environment setup on a Mac, see [these instructions](BUILD_macos.md).
+1. [`Go`](https://golang.org/dl/)
+1. [`Rust`](https://www.rust-lang.org/tools/install)
+1. [`Node.js`](https://nodejs.org/en/download/)
+1. [`wasm-pack`](https://github.com/rustwasm/wasm-pack)
+1. [`libfido2`](https://github.com/Yubico/libfido2)
+1. [`pkg-config`](https://www.freedesktop.org/wiki/Software/pkg-config/)
+
+For an example of Dev Environment setup on a Mac, see [these
+instructions](/BUILD_macos.md).
+
+##### Linux 64-bit ARM Dependencies
+
+1. On Linux aarch64 (64-bit ARM), you may need to manually install
+   [`binaryen`](https://github.com/WebAssembly/binaryen). Check with `which
+   wasm-opt`. If not found, install with `apt-get install binaryen`
+   (Debian-based systems). On other platforms, `wasm-pack` installs it
+   automatically.
 
 #### Perform a build
 
