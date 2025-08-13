@@ -39,12 +39,89 @@ const (
 
 	// keySetTTL is the maximum duration a particular keyset will be allowed to
 	// exist, before being purged. The underlying library may update its
-	// internal cache of keys within this window,
+	// internal cache of keys within this window.
 	keySetTTL = time.Hour * 24
+
+	// validatorTTL is a maximum time a particular validator instance should
+	// remain in memory before being recycled if left unused.
+	validatorTTL = time.Hour * 24 * 2
+
+	// freshnessCheckMinInterval is the minimum period to wait before
+	// potentially purging stale validators.
+	freshnessCheckMinInterval = time.Hour
 )
 
-// CachingTokenValidator provides an issuer-specific cache
+// validatorKey is a composite key for the validator instance map
+type validatorKey struct {
+	issuer   string
+	audience string
+}
+
+// CachingTokenValidator is a wrapper on top of `CachingValidatorInstance` that
+// automatically manages and prunes validator instances for a given
+// (issuer, audience) pair. This helps to ensure validators and key sets don't
+// remain in memory indefinitely if e.g. a token is modified or removed
 type CachingTokenValidator[C oidc.Claims] struct {
+	clock clockwork.Clock
+
+	mu         sync.Mutex
+	instances  map[validatorKey]*CachingValidatorInstance[C]
+	lastPruned time.Time
+}
+
+// pruneStaleValidators removes stale validators from the internal validator
+// instance map. `v.mu` must already be held.
+func (v *CachingTokenValidator[C]) pruneStaleValidators() {
+	if v.clock.Since(v.lastPruned) < freshnessCheckMinInterval {
+		// Too soon since the last prune, don't bother.
+		return
+	}
+
+	retained := map[validatorKey]*CachingValidatorInstance[C]{}
+	for k, v := range v.instances {
+		if v.IsStale() {
+			continue
+		}
+
+		retained[k] = v
+	}
+
+	v.instances = retained
+	v.lastPruned = v.clock.Now()
+}
+
+// GetValidator retreives a validator for the given issuer and audience. This
+// will create a new validator instance if necessary, and will occasionally
+// prune old instances that have not been used to validate any tokens in some
+// time.
+func (v *CachingTokenValidator[C]) GetValidator(issuer, audience string) *CachingValidatorInstance[C] {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
+	v.pruneStaleValidators()
+
+	key := validatorKey{issuer: issuer, audience: audience}
+	if validator, ok := v.instances[key]; ok {
+		return validator
+	}
+
+	validator := &CachingValidatorInstance[C]{
+		clock:            v.clock,
+		issuer:           issuer,
+		audience:         audience,
+		validatorExpires: v.clock.Now().Add(validatorTTL),
+	}
+
+	v.instances[key] = validator
+
+	return validator
+}
+
+// CachingValidatorInstance provides an issuer-specific cache. It separately
+// caches the discovery config and `oidc.KeySet` to ensure each is reasonably
+// fresh, and purges sufficiently old key sets to ensure old keys are not
+// retained indefinitely.
+type CachingValidatorInstance[C oidc.Claims] struct {
 	issuer   string
 	audience string
 	clock    clockwork.Clock
@@ -52,26 +129,39 @@ type CachingTokenValidator[C oidc.Claims] struct {
 	mu                     sync.Mutex
 	discoveryConfig        *oidc.DiscoveryConfiguration
 	discoveryConfigExpires time.Time
-	lastJWKSURI string
+	lastJWKSURI            string
 	keySet                 oidc.KeySet
 	keySetExpires          time.Time
+
+	validatorExpires time.Time
 }
 
-func NewCachingTokenValidator[C oidc.Claims](issuer, audience string) *CachingTokenValidator[C] {
+// NewCachingTokenValidator creates a caching validator for the given issuer and
+// audience, using a real clock.
+func NewCachingTokenValidator[C oidc.Claims]() *CachingTokenValidator[C] {
+	clock := clockwork.NewRealClock()
+
 	return &CachingTokenValidator[C]{
-		issuer:   issuer,
-		audience: audience,
-		clock:    clockwork.NewRealClock(),
+		clock:      clock,
+		instances:  map[validatorKey]*CachingValidatorInstance[C]{},
+		lastPruned: clock.Now(),
 	}
 }
 
-func (v *CachingTokenValidator[C]) getKeySet(
+func (v *CachingValidatorInstance[C]) getKeySet(
 	ctx context.Context,
 ) (oidc.KeySet, error) {
+	// Note: We could consider an RWLock if perf proves to be poor here. As
+	// written, I don't expect serialized warm-cache requests to accumulate
+	// enough to be worth the added complexity.
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
 	now := v.clock.Now()
+
+	// Mark this validator as fresh.
+	v.validatorExpires = now.Add(validatorTTL)
+
 	if !v.discoveryConfigExpires.IsZero() && now.After(v.discoveryConfigExpires) {
 		// Invalidate the cached value.
 		v.discoveryConfig = nil
@@ -96,6 +186,8 @@ func (v *CachingTokenValidator[C]) getKeySet(
 		v.lastJWKSURI = dc.JwksURI
 	}
 
+	// If this upstream issue is fixed, we can remove this in favor of keeping
+	// the KeySet: https://github.com/zitadel/oidc/issues/747
 	if !v.keySetExpires.IsZero() && now.After(v.keySetExpires) {
 		// Invalidate the cached value.
 		v.keySet = nil
@@ -110,7 +202,10 @@ func (v *CachingTokenValidator[C]) getKeySet(
 	return v.keySet, nil
 }
 
-func (v *CachingTokenValidator[C]) ValidateToken(
+// ValidateToken verifies a compact encoded token against the configured
+// issuer and keys, potentially using cached OpenID configuration and JWKS
+// values.
+func (v *CachingValidatorInstance[C]) ValidateToken(
 	ctx context.Context,
 	token string,
 	opts ...rp.VerifierOption,
@@ -135,6 +230,12 @@ func (v *CachingTokenValidator[C]) ValidateToken(
 	}
 
 	return claims, nil
+}
+
+// IsStale returns true if this validator has not been asked to validate any
+// tokens for at least `validatorTTL` and is eligible to be pruned.
+func (v *CachingValidatorInstance[C]) IsStale() bool {
+	return v.clock.Now().After(v.validatorExpires)
 }
 
 func newHTTPClient() *http.Client {

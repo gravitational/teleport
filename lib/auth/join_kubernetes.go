@@ -77,7 +77,7 @@ func (a *Server) checkKubernetesJoinRequest(
 			return nil, trace.WrapWithMessage(err, "reviewing kubernetes token with static_jwks")
 		}
 	case types.KubernetesJoinTypeOIDC:
-		result, err = a.k8sOIDCValidator(
+		result, err = a.k8sOIDCValidator.ValidateToken(
 			ctx,
 			token.Spec.Kubernetes.OIDC.Issuer,
 			clusterName,
