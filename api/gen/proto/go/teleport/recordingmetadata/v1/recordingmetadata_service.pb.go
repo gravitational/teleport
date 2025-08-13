@@ -125,7 +125,7 @@ func (*GetMetadataResponseChunk_Frame) isGetMetadataResponseChunk_Chunk() {}
 type GetThumbnailsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// SessionIds are the ID of the sessions whose thumbnails are being requested.
-	SessionIds    []string `protobuf:"bytes,3,rep,name=session_ids,json=sessionIds,proto3" json:"session_ids,omitempty"`
+	SessionIds    []string `protobuf:"bytes,1,rep,name=session_ids,json=sessionIds,proto3" json:"session_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -278,7 +278,7 @@ const file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_rawDesc
 	"\x05frame\x18\x02 \x01(\v28.teleport.recordingmetadata.v1.SessionRecordingThumbnailH\x00R\x05frameB\a\n" +
 	"\x05chunk\"7\n" +
 	"\x14GetThumbnailsRequest\x12\x1f\n" +
-	"\vsession_ids\x18\x03 \x03(\tR\n" +
+	"\vsession_ids\x18\x01 \x03(\tR\n" +
 	"sessionIds\"\x8e\x01\n" +
 	"\x15GetThumbnailsResponse\x12\x1d\n" +
 	"\n" +
