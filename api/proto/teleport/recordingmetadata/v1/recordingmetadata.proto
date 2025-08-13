@@ -15,9 +15,9 @@
 
 syntax = "proto3";
 
-package teleport.recordingdetails.v1;
+package teleport.recordingmetadata.v1;
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingdetails/v1;recordingdetailsv1";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1;recordingmetadatav1";
 
 // SessionRecordingEvent represents an event that occurred during a session recording.
 message SessionRecordingEvent {
@@ -36,16 +36,16 @@ message SessionRecordingEvent {
   }
 }
 
-// InactivityEvent is an event that indicates inactivity during the session.
+// SessionRecordingInactivityEvent is an event that indicates inactivity during the session.
 message SessionRecordingInactivityEvent {}
 
-// JoinEvent is an event that indicates a user joined the session.
+// SessionRecordingJoinEvent is an event that indicates a user joined the session.
 message SessionRecordingJoinEvent {
   // User is the name of the user who joined the session.
   string user = 1;
 }
 
-// ResizeEvent is an event that indicates the terminal was resized.
+// SessionRecordingResizeEvent is an event that indicates the terminal was resized.
 message SessionRecordingResizeEvent {
   // Cols is the number of columns in the terminal.
   int32 cols = 1;
@@ -53,8 +53,8 @@ message SessionRecordingResizeEvent {
   int32 rows = 2;
 }
 
-// SessionRecordingDetails contains details about a session recording.
-message SessionRecordingDetails {
+// SessionRecordingMetadata contains details about a session recording.
+message SessionRecordingMetadata {
   // Duration is the duration of the session in seconds.
   int64 duration = 1;
   // Thumbnails are the thumbnails of the session.
@@ -67,26 +67,20 @@ message SessionRecordingDetails {
   int32 start_rows = 5;
 }
 
-// SerializedTerminal is a serialized representation of a terminal state.
-message SerializedTerminal {
-  // Cols is the number of columns in the terminal.
-  int32 cols = 1;
-  // Rows is the number of rows in the terminal.
-  int32 rows = 2;
-  // CursorX is the X coordinate of the cursor.
-  int32 cursor_x = 3;
-  // CursorY is the Y coordinate of the cursor.
-  int32 cursor_y = 4;
-  // Data is the serialized terminal data.
-  string data = 5;
-}
-
 // SessionRecordingThumbnail is a thumbnail of a session recording.
 message SessionRecordingThumbnail {
-  // Screen is the serialized terminal data.
-  SerializedTerminal terminal = 1;
+  // SVG is the SVG representation of the thumbnail.
+  string svg = 1;
+  // Cols is the number of columns in the terminal.
+  int32 cols = 2;
+  // Rows is the number of rows in the terminal.
+  int32 rows = 3;
+  // CursorX is the X coordinate of the cursor.
+  int32 cursor_x = 4;
+  // CursorY is the Y coordinate of the cursor.
+  int32 cursor_y = 5;
   // StartTime is the start time of the thumbnail, relative to the start of the session.
-  int64 start_time = 2;
+  int64 start_time = 6;
   // EndTime is the end time of the thumbnail, relative to the start of the session.
-  int64 end_time = 3;
+  int64 end_time = 7;
 }

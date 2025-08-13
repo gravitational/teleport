@@ -308,7 +308,7 @@ func (m *MemoryUploader) UploadThumbnail(ctx context.Context, sessionID session.
 
 // UploadDetails uploads session summary and returns URL with uploaded file in
 // case of success.
-func (m *MemoryUploader) UploadDetails(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error) {
+func (m *MemoryUploader) UploadMetadata(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 	_, ok := m.details[sessionID]
@@ -371,7 +371,7 @@ func (m *MemoryUploader) DownloadThumbnail(ctx context.Context, sessionID sessio
 }
 
 // DownloadDetails downloads session details and writes it to writer
-func (m *MemoryUploader) DownloadDetails(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (m *MemoryUploader) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 

@@ -309,7 +309,7 @@ func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reade
 
 // UploadDetails implements [events.UploadHandler] and uploads the session
 // details.
-func (h *Handler) UploadDetails(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+func (h *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
 	return h.uploadBlob(ctx, sessionID, h.detailsBlob(sessionID), reader)
 }
 
@@ -341,7 +341,7 @@ func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, wri
 }
 
 // DownloadDetails implements [events.UploadHandler] and downloads a session's details.
-func (h *Handler) DownloadDetails(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (h *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	return h.downloadBlob(ctx, sessionID, h.detailsBlob(sessionID), writer)
 }
 

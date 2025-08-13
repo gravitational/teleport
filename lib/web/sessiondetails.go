@@ -23,11 +23,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
-	recordingdetailsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingdetails/v1"
+	recordingmetadatav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 )
 
-func (h *Handler) getSessionRecordingDetails(
+func (h *Handler) getSessionRecordingMetadata(
 	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite,
 ) (any, error) {
 	sessionId := p.ByName("session_id")
@@ -40,14 +40,14 @@ func (h *Handler) getSessionRecordingDetails(
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := clt.RecordingDetailsServiceClient().GetDetails(r.Context(), &recordingdetailsv1.GetDetailsRequest{
+	response, err := clt.RecordingMetadataServiceClient().GetMetadata(r.Context(), &recordingmetadatav1.GetMetadataRequest{
 		SessionId: sessionId,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return convertSessionRecordingDetails(response.Details), nil
+	return convertSessionRecordingMetadata(response.Metadata), nil
 }
 
 func (h *Handler) getSessionRecordingThumbnail(
@@ -63,7 +63,7 @@ func (h *Handler) getSessionRecordingThumbnail(
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := clt.RecordingDetailsServiceClient().GetThumbnail(r.Context(), &recordingdetailsv1.GetThumbnailRequest{
+	response, err := clt.RecordingMetadataServiceClient().GetThumbnail(r.Context(), &recordingmetadatav1.GetThumbnailRequest{
 		SessionId: sessionId,
 	})
 	if err != nil {
@@ -73,7 +73,7 @@ func (h *Handler) getSessionRecordingThumbnail(
 	return response.Thumbnail, nil
 }
 
-func convertSessionRecordingDetails(details *recordingdetailsv1.SessionRecordingDetails) any {
+func convertSessionRecordingMetadata(details *recordingmetadatav1.SessionRecordingMetadata) any {
 	type baseEvent struct {
 		StartTime int64  `json:"startTime"`
 		EndTime   int64  `json:"endTime"`
@@ -95,18 +95,14 @@ func convertSessionRecordingDetails(details *recordingdetailsv1.SessionRecording
 		baseEvent
 	}
 
-	type serializedTerminal struct {
-		Cols    int32  `json:"cols"`
-		Rows    int32  `json:"rows"`
-		CursorX int32  `json:"cursorX"`
-		CursorY int32  `json:"cursorY"`
-		Data    string `json:"data"`
-	}
-
 	type thumbnail struct {
-		Terminal  serializedTerminal `json:"terminal"`
-		StartTime int64              `json:"startTime"`
-		EndTime   int64              `json:"endTime"`
+		Cols      int32  `json:"cols"`
+		Rows      int32  `json:"rows"`
+		CursorX   int32  `json:"cursorX"`
+		CursorY   int32  `json:"cursorY"`
+		Svg       string `json:"svg"`
+		StartTime int64  `json:"startTime"`
+		EndTime   int64  `json:"endTime"`
 	}
 
 	type response struct {
@@ -126,13 +122,11 @@ func convertSessionRecordingDetails(details *recordingdetailsv1.SessionRecording
 
 	for _, thumb := range details.Thumbnails {
 		result.Thumbnails = append(result.Thumbnails, thumbnail{
-			Terminal: serializedTerminal{
-				Cols:    thumb.Terminal.Cols,
-				Rows:    thumb.Terminal.Rows,
-				CursorX: thumb.Terminal.CursorX,
-				CursorY: thumb.Terminal.CursorY,
-				Data:    thumb.Terminal.Data,
-			},
+			Cols:      thumb.Cols,
+			Rows:      thumb.Rows,
+			CursorX:   thumb.CursorX,
+			CursorY:   thumb.CursorY,
+			Svg:       thumb.Svg,
 			StartTime: thumb.StartTime,
 			EndTime:   thumb.EndTime,
 		})
@@ -145,16 +139,16 @@ func convertSessionRecordingDetails(details *recordingdetailsv1.SessionRecording
 		}
 
 		switch e := event.Event.(type) {
-		case *recordingdetailsv1.SessionRecordingEvent_Inactivity:
+		case *recordingmetadatav1.SessionRecordingEvent_Inactivity:
 			base.Type = "inactivity"
 			result.Events = append(result.Events, inactivityEvent{baseEvent: base})
-		case *recordingdetailsv1.SessionRecordingEvent_Join:
+		case *recordingmetadatav1.SessionRecordingEvent_Join:
 			base.Type = "join"
 			result.Events = append(result.Events, joinEvent{
 				baseEvent: base,
 				User:      e.Join.User,
 			})
-		case *recordingdetailsv1.SessionRecordingEvent_Resize:
+		case *recordingmetadatav1.SessionRecordingEvent_Resize:
 			base.Type = "resize"
 			result.Events = append(result.Events, resizeEvent{
 				baseEvent: base,

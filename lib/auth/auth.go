@@ -85,15 +85,14 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/e/lib/auth/recordingdetails/recordingdetailsv1"
 	"github.com/gravitational/teleport/entitlements"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
-	"github.com/gravitational/teleport/lib/auth/recordingdetails"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -485,8 +484,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.SessionSummarizerProvider == nil {
 		cfg.SessionSummarizerProvider = summarizer.NewSessionSummarizerProvider()
 	}
-	if cfg.RecordingDetailsProvider == nil {
-		cfg.RecordingDetailsProvider = recordingdetails.NewRecordingDetailsProvider()
+	if cfg.RecordingMetadataProvider == nil {
+		cfg.RecordingMetadataProvider = recordingmetadata.NewRecordingMetadataProvider()
 	}
 	if cfg.WorkloadIdentityX509Revocations == nil {
 		cfg.WorkloadIdentityX509Revocations, err = local.NewWorkloadIdentityX509RevocationService(cfg.Backend)
@@ -653,7 +652,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		accessMonitoringEnabled:   cfg.AccessMonitoringEnabled,
 		logger:                    cfg.Logger,
 		sessionSummarizerProvider: cfg.SessionSummarizerProvider,
-		recordingDetailsProvider:  cfg.RecordingDetailsProvider,
+		recordingMetadataProvider: cfg.RecordingMetadataProvider,
 	}
 	as.inventory = inventory.NewController(&as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
@@ -1296,9 +1295,9 @@ type Server struct {
 	// plugin. The summarizer itself summarizes session recordings.
 	sessionSummarizerProvider *summarizer.SessionSummarizerProvider
 
-	// recordingDetailsProvider is the service that parses session recordings
+	// recordingMetadataProvider is the service that parses session recordings
 	// and creates session details (frames, events, etc.) and a thumbnail.
-	recordingDetailsProvider *recordingdetails.RecordingDetailsProvider
+	recordingMetadataProvider *recordingmetadata.RecordingMetadataProvider
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1394,13 +1393,6 @@ func (a *Server) ResetLoginHooks() {
 func (a *Server) SetSummarizerService(s summarizer.SessionSummarizer) {
 	fmt.Println("SET SUMMARIZER SERVICE")
 	a.sessionSummarizerProvider.SetSummarizer(s)
-}
-
-// SetRecordingDetailsService sets an implementation of the recording details
-// service used by this server and its underlying services.
-func (a *Server) SetRecordingDetailsService(r *recordingdetailsv1.RecordingDetailsService) {
-	fmt.Println("SET RECORDING DETAILS SERVICE")
-	a.recordingDetailsProvider.SetRecordingDetails(r)
 }
 
 // CloseContext returns the close context

@@ -121,7 +121,7 @@ func (l *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, wri
 }
 
 // DownloadDetails reads a session summary from a local directory.
-func (l *Handler) DownloadDetails(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (l *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	return downloadFile(l.detailsPath(sessionID), writer)
 }
 
@@ -154,7 +154,7 @@ func (l *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reade
 }
 
 // UploadDetails writes a session summary to a local directory.
-func (l *Handler) UploadDetails(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+func (l *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
 	return uploadFile(l.detailsPath(sessionID), reader)
 }
 

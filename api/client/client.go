@@ -89,8 +89,8 @@ import (
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	presencepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
-	recordingdetailsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingdetails/v1"
 	recordingencryptionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
+	recordingmetadatav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
@@ -931,10 +931,10 @@ func (c *Client) SummarizerServiceClient() summarizerv1.SummarizerServiceClient 
 	return summarizerv1.NewSummarizerServiceClient(c.conn)
 }
 
-// RecordingDetailsServiceClient returns an unadorned client for the session
+// RecordingMetadataServiceClient returns an unadorned client for the session
 // recording summarizer service.
-func (c *Client) RecordingDetailsServiceClient() recordingdetailsv1.RecordingDetailsServiceClient {
-	return recordingdetailsv1.NewRecordingDetailsServiceClient(c.conn)
+func (c *Client) RecordingMetadataServiceClient() recordingmetadatav1.RecordingMetadataServiceClient {
+	return recordingmetadatav1.NewRecordingMetadataServiceClient(c.conn)
 }
 
 // GetVnetConfig returns the singleton VnetConfig resource.

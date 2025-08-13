@@ -386,9 +386,9 @@ func (c *ErrorCountingSessionHandler) UploadSummary(ctx context.Context, session
 	return res, err
 }
 
-// UploadDetails calls [c.wrapped.UploadDetails] and counts the error or success.
-func (c *ErrorCountingSessionHandler) UploadDetails(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	res, err := c.wrapped.UploadDetails(ctx, sessionID, reader)
+// UploadDetails calls [c.wrapped.UploadMetadata] and counts the error or success.
+func (c *ErrorCountingSessionHandler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	res, err := c.wrapped.UploadMetadata(ctx, sessionID, reader)
 	c.uploads.observe(err)
 	return res, err
 }
@@ -414,9 +414,9 @@ func (c *ErrorCountingSessionHandler) DownloadSummary(ctx context.Context, sessi
 	return err
 }
 
-// DownloadDetails calls [c.wrapped.DownloadDetails] and counts the error or success.
-func (c *ErrorCountingSessionHandler) DownloadDetails(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	err := c.wrapped.DownloadDetails(ctx, sessionID, writer)
+// DownloadDetails calls [c.wrapped.DownloadMetadata] and counts the error or success.
+func (c *ErrorCountingSessionHandler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	err := c.wrapped.DownloadMetadata(ctx, sessionID, writer)
 	c.downloads.observe(err)
 	return err
 }

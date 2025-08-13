@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2025 Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package recordingdetails
+package recordingmetadata
 
 import (
 	"context"
@@ -23,8 +23,8 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 )
 
-// RecordingDetails defines an interface for processing session recordings.
-type RecordingDetails interface {
+// RecordingMetadata defines an interface for processing session recordings.
+type RecordingMetadata interface {
 	// ProcessSessionRecording processes the session recording associated with the
 	// provided session ID.
 	ProcessSessionRecording(ctx context.Context, sessionID session.ID) error

@@ -38,7 +38,7 @@ package events
 //	kind            types.SessionKind
 //	missingEndEvent bool
 //	startEvent      events.AuditEvent
-//	details         types.SessionRecordingDetails
+//	details         types.SessionRecordingMetadata
 //	thumbnail       *types.SessionRecordingThumbnail
 //	lastEvent       events.AuditEvent
 //	participants    []string
@@ -64,7 +64,7 @@ package events
 //
 //	processed := processedSession{
 //		missingEndEvent: true,
-//		details: types.SessionRecordingDetails{
+//		details: types.SessionRecordingMetadata{
 //			Thumbnails: make([]*types.SessionRecordingThumbnail, 0),
 //			Events:     make([]*types.SessionRecordingEvent, 0),
 //		},

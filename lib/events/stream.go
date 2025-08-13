@@ -23,7 +23,6 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"sort"
@@ -37,8 +36,8 @@ import (
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth/recordingdetails"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
@@ -133,8 +132,8 @@ type ProtoStreamerConfig struct {
 	// It can be nil or provide a nil summarizer if summarization is not needed.
 	// The summarizer itself summarizes session recordings.
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
-	// RecordingDetailsProvider is a provider of the session details service.
-	RecordingDetailsProvider *recordingdetails.RecordingDetailsProvider
+	// RecordingMetadataProvider is a provider of the session details service.
+	RecordingMetadataProvider *recordingmetadata.RecordingMetadataProvider
 }
 
 // CheckAndSetDefaults checks and sets streamer defaults
@@ -187,7 +186,7 @@ func (s *ProtoStreamer) CreateAuditStreamForUpload(ctx context.Context, sid sess
 		RetryConfig:               s.cfg.RetryConfig,
 		Encrypter:                 s.cfg.Encrypter,
 		SessionSummarizerProvider: s.cfg.SessionSummarizerProvider,
-		RecordingDetailsProvider:  s.cfg.RecordingDetailsProvider,
+		RecordingMetadataProvider: s.cfg.RecordingMetadataProvider,
 	})
 }
 
@@ -219,7 +218,7 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 		RetryConfig:               s.cfg.RetryConfig,
 		Encrypter:                 s.cfg.Encrypter,
 		SessionSummarizerProvider: s.cfg.SessionSummarizerProvider,
-		RecordingDetailsProvider:  s.cfg.RecordingDetailsProvider,
+		RecordingMetadataProvider: s.cfg.RecordingMetadataProvider,
 	})
 }
 
@@ -258,8 +257,8 @@ type ProtoStreamConfig struct {
 	// It can be nil or provide a nil summarizer if summarization is not needed.
 	// The summarizer itself summarizes session recordings.
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
-	// RecordingDetailsProvider is a provider of the recording details service.
-	RecordingDetailsProvider *recordingdetails.RecordingDetailsProvider
+	// RecordingMetadataProvider is a provider of the recording details service.
+	RecordingMetadataProvider *recordingmetadata.RecordingMetadataProvider
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -813,14 +812,11 @@ func (w *sliceWriter) completeStream() {
 			return
 		}
 
-		fmt.Println("HELLO THEREEERE")
-
-		recordingdetails := w.proto.cfg.RecordingDetailsProvider.RecordingDetails()
-
-		fmt.Printf("recordingdetails: %v\n", recordingdetails)
-
-		if err := recordingdetails.ProcessSessionRecording(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID); err != nil {
-			slog.WarnContext(w.proto.cancelCtx, "Failed to process session recording details", "error", err)
+		recordingMetadata := w.proto.cfg.RecordingMetadataProvider.RecordingMetadata()
+		// Process every session recording, as there may not be an end event.
+		// The processor will immediately return if the session recording type is not supported.
+		if err := recordingMetadata.ProcessSessionRecording(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID); err != nil {
+			slog.WarnContext(w.proto.cancelCtx, "Failed to process session recording metadata", "error", err)
 			return
 		}
 

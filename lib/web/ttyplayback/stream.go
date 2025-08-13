@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/gravitational/vt10x"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/metadata"
@@ -37,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/web/ttyplayback/vt10x"
 )
 
 const (
@@ -463,7 +463,7 @@ func (s *SessionEventsHandler) sendCurrentScreen(requestID int, timestamp int64)
 func encodeScreenEvent(vt vt10x.Terminal) []byte {
 	cols, rows := vt.Size()
 	cursor := vt.Cursor()
-	data := vt.ANSI()
+	data := terminalStateToANSI(vt.DumpState())
 
 	eventData := make([]byte, 21+len(data))
 	eventData[0] = EventTypeScreen

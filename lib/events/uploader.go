@@ -42,8 +42,8 @@ type UploadHandler interface {
 	UploadThumbnail(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
 	DownloadThumbnail(ctx context.Context, sessionID session.ID, writer RandomAccessWriter) error
 
-	UploadDetails(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
-	DownloadDetails(ctx context.Context, sessionID session.ID, writer RandomAccessWriter) error
+	UploadMetadata(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
+	DownloadMetadata(ctx context.Context, sessionID session.ID, writer RandomAccessWriter) error
 }
 
 type RandomAccessWriter interface {

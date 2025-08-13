@@ -250,7 +250,7 @@ func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reade
 
 // UploadDetails reads the session details from a reader and uploads it to a GCS
 // bucket. If successful, it returns URL of the uploaded object.
-func (h *Handler) UploadDetails(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+func (h *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
 	return h.uploadFile(ctx, h.detailsPath(sessionID), reader)
 }
 
@@ -305,7 +305,7 @@ func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, wri
 // DownloadDetails downloads a session's details from a GCS bucket and writes the
 // result into a writer. Returns trace.NotFound error if the recording is not
 // found.
-func (h *Handler) DownloadDetails(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (h *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	return h.downloadFile(ctx, h.detailsPath(sessionID), writer)
 }
 

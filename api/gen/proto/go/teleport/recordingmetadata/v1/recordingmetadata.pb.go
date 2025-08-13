@@ -17,9 +17,9 @@
 // versions:
 // 	protoc-gen-go v1.36.6
 // 	protoc        (unknown)
-// source: teleport/recordingdetails/v1/recordingdetails.proto
+// source: teleport/recordingmetadata/v1/recordingmetadata.proto
 
-package recordingdetailsv1
+package recordingmetadatav1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -55,7 +55,7 @@ type SessionRecordingEvent struct {
 
 func (x *SessionRecordingEvent) Reset() {
 	*x = SessionRecordingEvent{}
-	mi := &file_teleport_recordingdetails_v1_recordingdetails_proto_msgTypes[0]
+	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -67,7 +67,7 @@ func (x *SessionRecordingEvent) String() string {
 func (*SessionRecordingEvent) ProtoMessage() {}
 
 func (x *SessionRecordingEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_recordingdetails_v1_recordingdetails_proto_msgTypes[0]
+	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -80,7 +80,7 @@ func (x *SessionRecordingEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionRecordingEvent.ProtoReflect.Descriptor instead.
 func (*SessionRecordingEvent) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingdetails_v1_recordingdetails_proto_rawDescGZIP(), []int{0}
+	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *SessionRecordingEvent) GetStartTime() int64 {
@@ -156,7 +156,7 @@ func (*SessionRecordingEvent_Join) isSessionRecordingEvent_Event() {}
 
 func (*SessionRecordingEvent_Resize) isSessionRecordingEvent_Event() {}
 
-// InactivityEvent is an event that indicates inactivity during the session.
+// SessionRecordingInactivityEvent is an event that indicates inactivity during the session.
 type SessionRecordingInactivityEvent struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -165,7 +165,7 @@ type SessionRecordingInactivityEvent struct {
 
 func (x *SessionRecordingInactivityEvent) Reset() {
 	*x = SessionRecordingInactivityEvent{}
-	mi := &file_teleport_recordingdetails_v1_recordingdetails_proto_msgTypes[1]
+	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -177,7 +177,7 @@ func (x *SessionRecordingInactivityEvent) String() string {
 func (*SessionRecordingInactivityEvent) ProtoMessage() {}
 
 func (x *SessionRecordingInactivityEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_recordingdetails_v1_recordingdetails_proto_msgTypes[1]
+	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -190,10 +190,10 @@ func (x *SessionRecordingInactivityEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionRecordingInactivityEvent.ProtoReflect.Descriptor instead.
 func (*SessionRecordingInactivityEvent) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingdetails_v1_recordingdetails_proto_rawDescGZIP(), []int{1}
+	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP(), []int{1}
 }
 
-// JoinEvent is an event that indicates a user joined the session.
+// SessionRecordingJoinEvent is an event that indicates a user joined the session.
 type SessionRecordingJoinEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// User is the name of the user who joined the session.
@@ -204,7 +204,7 @@ type SessionRecordingJoinEvent struct {
 
 func (x *SessionRecordingJoinEvent) Reset() {
 	*x = SessionRecordingJoinEvent{}
-	mi := &file_teleport_recordingdetails_v1_recordingdetails_proto_msgTypes[2]
+	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -216,7 +216,7 @@ func (x *SessionRecordingJoinEvent) String() string {
 func (*SessionRecordingJoinEvent) ProtoMessage() {}
 
 func (x *SessionRecordingJoinEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_recordingdetails_v1_recordingdetails_proto_msgTypes[2]
+	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -229,7 +229,7 @@ func (x *SessionRecordingJoinEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionRecordingJoinEvent.ProtoReflect.Descriptor instead.
 func (*SessionRecordingJoinEvent) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingdetails_v1_recordingdetails_proto_rawDescGZIP(), []int{2}
+	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *SessionRecordingJoinEvent) GetUser() string {
@@ -239,7 +239,7 @@ func (x *SessionRecordingJoinEvent) GetUser() string {
 	return ""
 }
 
-// ResizeEvent is an event that indicates the terminal was resized.
+// SessionRecordingResizeEvent is an event that indicates the terminal was resized.
 type SessionRecordingResizeEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Cols is the number of columns in the terminal.
@@ -252,7 +252,7 @@ type SessionRecordingResizeEvent struct {
 
 func (x *SessionRecordingResizeEvent) Reset() {
 	*x = SessionRecordingResizeEvent{}
-	mi := &file_teleport_recordingdetails_v1_recordingdetails_proto_msgTypes[3]
+	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -264,7 +264,7 @@ func (x *SessionRecordingResizeEvent) String() string {
 func (*SessionRecordingResizeEvent) ProtoMessage() {}
 
 func (x *SessionRecordingResizeEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_recordingdetails_v1_recordingdetails_proto_msgTypes[3]
+	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -277,7 +277,7 @@ func (x *SessionRecordingResizeEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionRecordingResizeEvent.ProtoReflect.Descriptor instead.
 func (*SessionRecordingResizeEvent) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingdetails_v1_recordingdetails_proto_rawDescGZIP(), []int{3}
+	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *SessionRecordingResizeEvent) GetCols() int32 {
@@ -294,8 +294,8 @@ func (x *SessionRecordingResizeEvent) GetRows() int32 {
 	return 0
 }
 
-// SessionRecordingDetails contains details about a session recording.
-type SessionRecordingDetails struct {
+// SessionRecordingMetadata contains details about a session recording.
+type SessionRecordingMetadata struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Duration is the duration of the session in seconds.
 	Duration int64 `protobuf:"varint,1,opt,name=duration,proto3" json:"duration,omitempty"`
@@ -311,21 +311,21 @@ type SessionRecordingDetails struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *SessionRecordingDetails) Reset() {
-	*x = SessionRecordingDetails{}
-	mi := &file_teleport_recordingdetails_v1_recordingdetails_proto_msgTypes[4]
+func (x *SessionRecordingMetadata) Reset() {
+	*x = SessionRecordingMetadata{}
+	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *SessionRecordingDetails) String() string {
+func (x *SessionRecordingMetadata) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SessionRecordingDetails) ProtoMessage() {}
+func (*SessionRecordingMetadata) ProtoMessage() {}
 
-func (x *SessionRecordingDetails) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_recordingdetails_v1_recordingdetails_proto_msgTypes[4]
+func (x *SessionRecordingMetadata) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -336,144 +336,70 @@ func (x *SessionRecordingDetails) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SessionRecordingDetails.ProtoReflect.Descriptor instead.
-func (*SessionRecordingDetails) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingdetails_v1_recordingdetails_proto_rawDescGZIP(), []int{4}
+// Deprecated: Use SessionRecordingMetadata.ProtoReflect.Descriptor instead.
+func (*SessionRecordingMetadata) Descriptor() ([]byte, []int) {
+	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *SessionRecordingDetails) GetDuration() int64 {
+func (x *SessionRecordingMetadata) GetDuration() int64 {
 	if x != nil {
 		return x.Duration
 	}
 	return 0
 }
 
-func (x *SessionRecordingDetails) GetThumbnails() []*SessionRecordingThumbnail {
+func (x *SessionRecordingMetadata) GetThumbnails() []*SessionRecordingThumbnail {
 	if x != nil {
 		return x.Thumbnails
 	}
 	return nil
 }
 
-func (x *SessionRecordingDetails) GetEvents() []*SessionRecordingEvent {
+func (x *SessionRecordingMetadata) GetEvents() []*SessionRecordingEvent {
 	if x != nil {
 		return x.Events
 	}
 	return nil
 }
 
-func (x *SessionRecordingDetails) GetStartCols() int32 {
+func (x *SessionRecordingMetadata) GetStartCols() int32 {
 	if x != nil {
 		return x.StartCols
 	}
 	return 0
 }
 
-func (x *SessionRecordingDetails) GetStartRows() int32 {
+func (x *SessionRecordingMetadata) GetStartRows() int32 {
 	if x != nil {
 		return x.StartRows
 	}
 	return 0
 }
 
-// SerializedTerminal is a serialized representation of a terminal state.
-type SerializedTerminal struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Cols is the number of columns in the terminal.
-	Cols int32 `protobuf:"varint,1,opt,name=cols,proto3" json:"cols,omitempty"`
-	// Rows is the number of rows in the terminal.
-	Rows int32 `protobuf:"varint,2,opt,name=rows,proto3" json:"rows,omitempty"`
-	// CursorX is the X coordinate of the cursor.
-	CursorX int32 `protobuf:"varint,3,opt,name=cursor_x,json=cursorX,proto3" json:"cursor_x,omitempty"`
-	// CursorY is the Y coordinate of the cursor.
-	CursorY int32 `protobuf:"varint,4,opt,name=cursor_y,json=cursorY,proto3" json:"cursor_y,omitempty"`
-	// Data is the serialized terminal data.
-	Data          string `protobuf:"bytes,5,opt,name=data,proto3" json:"data,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SerializedTerminal) Reset() {
-	*x = SerializedTerminal{}
-	mi := &file_teleport_recordingdetails_v1_recordingdetails_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SerializedTerminal) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SerializedTerminal) ProtoMessage() {}
-
-func (x *SerializedTerminal) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_recordingdetails_v1_recordingdetails_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SerializedTerminal.ProtoReflect.Descriptor instead.
-func (*SerializedTerminal) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingdetails_v1_recordingdetails_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *SerializedTerminal) GetCols() int32 {
-	if x != nil {
-		return x.Cols
-	}
-	return 0
-}
-
-func (x *SerializedTerminal) GetRows() int32 {
-	if x != nil {
-		return x.Rows
-	}
-	return 0
-}
-
-func (x *SerializedTerminal) GetCursorX() int32 {
-	if x != nil {
-		return x.CursorX
-	}
-	return 0
-}
-
-func (x *SerializedTerminal) GetCursorY() int32 {
-	if x != nil {
-		return x.CursorY
-	}
-	return 0
-}
-
-func (x *SerializedTerminal) GetData() string {
-	if x != nil {
-		return x.Data
-	}
-	return ""
-}
-
 // SessionRecordingThumbnail is a thumbnail of a session recording.
 type SessionRecordingThumbnail struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Screen is the serialized terminal data.
-	Terminal *SerializedTerminal `protobuf:"bytes,1,opt,name=terminal,proto3" json:"terminal,omitempty"`
+	// SVG is the SVG representation of the thumbnail.
+	Svg string `protobuf:"bytes,1,opt,name=svg,proto3" json:"svg,omitempty"`
+	// Cols is the number of columns in the terminal.
+	Cols int32 `protobuf:"varint,2,opt,name=cols,proto3" json:"cols,omitempty"`
+	// Rows is the number of rows in the terminal.
+	Rows int32 `protobuf:"varint,3,opt,name=rows,proto3" json:"rows,omitempty"`
+	// CursorX is the X coordinate of the cursor.
+	CursorX int32 `protobuf:"varint,4,opt,name=cursor_x,json=cursorX,proto3" json:"cursor_x,omitempty"`
+	// CursorY is the Y coordinate of the cursor.
+	CursorY int32 `protobuf:"varint,5,opt,name=cursor_y,json=cursorY,proto3" json:"cursor_y,omitempty"`
 	// StartTime is the start time of the thumbnail, relative to the start of the session.
-	StartTime int64 `protobuf:"varint,2,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
+	StartTime int64 `protobuf:"varint,6,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
 	// EndTime is the end time of the thumbnail, relative to the start of the session.
-	EndTime       int64 `protobuf:"varint,3,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
+	EndTime       int64 `protobuf:"varint,7,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SessionRecordingThumbnail) Reset() {
 	*x = SessionRecordingThumbnail{}
-	mi := &file_teleport_recordingdetails_v1_recordingdetails_proto_msgTypes[6]
+	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -485,7 +411,7 @@ func (x *SessionRecordingThumbnail) String() string {
 func (*SessionRecordingThumbnail) ProtoMessage() {}
 
 func (x *SessionRecordingThumbnail) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_recordingdetails_v1_recordingdetails_proto_msgTypes[6]
+	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -498,14 +424,42 @@ func (x *SessionRecordingThumbnail) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionRecordingThumbnail.ProtoReflect.Descriptor instead.
 func (*SessionRecordingThumbnail) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingdetails_v1_recordingdetails_proto_rawDescGZIP(), []int{6}
+	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *SessionRecordingThumbnail) GetTerminal() *SerializedTerminal {
+func (x *SessionRecordingThumbnail) GetSvg() string {
 	if x != nil {
-		return x.Terminal
+		return x.Svg
 	}
-	return nil
+	return ""
+}
+
+func (x *SessionRecordingThumbnail) GetCols() int32 {
+	if x != nil {
+		return x.Cols
+	}
+	return 0
+}
+
+func (x *SessionRecordingThumbnail) GetRows() int32 {
+	if x != nil {
+		return x.Rows
+	}
+	return 0
+}
+
+func (x *SessionRecordingThumbnail) GetCursorX() int32 {
+	if x != nil {
+		return x.CursorX
+	}
+	return 0
+}
+
+func (x *SessionRecordingThumbnail) GetCursorY() int32 {
+	if x != nil {
+		return x.CursorY
+	}
+	return 0
 }
 
 func (x *SessionRecordingThumbnail) GetStartTime() int64 {
@@ -522,91 +476,87 @@ func (x *SessionRecordingThumbnail) GetEndTime() int64 {
 	return 0
 }
 
-var File_teleport_recordingdetails_v1_recordingdetails_proto protoreflect.FileDescriptor
+var File_teleport_recordingmetadata_v1_recordingmetadata_proto protoreflect.FileDescriptor
 
-const file_teleport_recordingdetails_v1_recordingdetails_proto_rawDesc = "" +
+const file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc = "" +
 	"\n" +
-	"3teleport/recordingdetails/v1/recordingdetails.proto\x12\x1cteleport.recordingdetails.v1\"\xdf\x02\n" +
+	"5teleport/recordingmetadata/v1/recordingmetadata.proto\x12\x1dteleport.recordingmetadata.v1\"\xe2\x02\n" +
 	"\x15SessionRecordingEvent\x12\x1d\n" +
 	"\n" +
 	"start_time\x18\x01 \x01(\x03R\tstartTime\x12\x19\n" +
-	"\bend_time\x18\x02 \x01(\x03R\aendTime\x12_\n" +
+	"\bend_time\x18\x02 \x01(\x03R\aendTime\x12`\n" +
 	"\n" +
-	"inactivity\x18\x03 \x01(\v2=.teleport.recordingdetails.v1.SessionRecordingInactivityEventH\x00R\n" +
-	"inactivity\x12M\n" +
-	"\x04join\x18\x04 \x01(\v27.teleport.recordingdetails.v1.SessionRecordingJoinEventH\x00R\x04join\x12S\n" +
-	"\x06resize\x18\x05 \x01(\v29.teleport.recordingdetails.v1.SessionRecordingResizeEventH\x00R\x06resizeB\a\n" +
+	"inactivity\x18\x03 \x01(\v2>.teleport.recordingmetadata.v1.SessionRecordingInactivityEventH\x00R\n" +
+	"inactivity\x12N\n" +
+	"\x04join\x18\x04 \x01(\v28.teleport.recordingmetadata.v1.SessionRecordingJoinEventH\x00R\x04join\x12T\n" +
+	"\x06resize\x18\x05 \x01(\v2:.teleport.recordingmetadata.v1.SessionRecordingResizeEventH\x00R\x06resizeB\a\n" +
 	"\x05event\"!\n" +
 	"\x1fSessionRecordingInactivityEvent\"/\n" +
 	"\x19SessionRecordingJoinEvent\x12\x12\n" +
 	"\x04user\x18\x01 \x01(\tR\x04user\"E\n" +
 	"\x1bSessionRecordingResizeEvent\x12\x12\n" +
 	"\x04cols\x18\x01 \x01(\x05R\x04cols\x12\x12\n" +
-	"\x04rows\x18\x02 \x01(\x05R\x04rows\"\x99\x02\n" +
-	"\x17SessionRecordingDetails\x12\x1a\n" +
-	"\bduration\x18\x01 \x01(\x03R\bduration\x12W\n" +
+	"\x04rows\x18\x02 \x01(\x05R\x04rows\"\x9c\x02\n" +
+	"\x18SessionRecordingMetadata\x12\x1a\n" +
+	"\bduration\x18\x01 \x01(\x03R\bduration\x12X\n" +
 	"\n" +
-	"thumbnails\x18\x02 \x03(\v27.teleport.recordingdetails.v1.SessionRecordingThumbnailR\n" +
-	"thumbnails\x12K\n" +
-	"\x06events\x18\x03 \x03(\v23.teleport.recordingdetails.v1.SessionRecordingEventR\x06events\x12\x1d\n" +
+	"thumbnails\x18\x02 \x03(\v28.teleport.recordingmetadata.v1.SessionRecordingThumbnailR\n" +
+	"thumbnails\x12L\n" +
+	"\x06events\x18\x03 \x03(\v24.teleport.recordingmetadata.v1.SessionRecordingEventR\x06events\x12\x1d\n" +
 	"\n" +
 	"start_cols\x18\x04 \x01(\x05R\tstartCols\x12\x1d\n" +
 	"\n" +
-	"start_rows\x18\x05 \x01(\x05R\tstartRows\"\x86\x01\n" +
-	"\x12SerializedTerminal\x12\x12\n" +
-	"\x04cols\x18\x01 \x01(\x05R\x04cols\x12\x12\n" +
-	"\x04rows\x18\x02 \x01(\x05R\x04rows\x12\x19\n" +
-	"\bcursor_x\x18\x03 \x01(\x05R\acursorX\x12\x19\n" +
-	"\bcursor_y\x18\x04 \x01(\x05R\acursorY\x12\x12\n" +
-	"\x04data\x18\x05 \x01(\tR\x04data\"\xa3\x01\n" +
-	"\x19SessionRecordingThumbnail\x12L\n" +
-	"\bterminal\x18\x01 \x01(\v20.teleport.recordingdetails.v1.SerializedTerminalR\bterminal\x12\x1d\n" +
+	"start_rows\x18\x05 \x01(\x05R\tstartRows\"\xc5\x01\n" +
+	"\x19SessionRecordingThumbnail\x12\x10\n" +
+	"\x03svg\x18\x01 \x01(\tR\x03svg\x12\x12\n" +
+	"\x04cols\x18\x02 \x01(\x05R\x04cols\x12\x12\n" +
+	"\x04rows\x18\x03 \x01(\x05R\x04rows\x12\x19\n" +
+	"\bcursor_x\x18\x04 \x01(\x05R\acursorX\x12\x19\n" +
+	"\bcursor_y\x18\x05 \x01(\x05R\acursorY\x12\x1d\n" +
 	"\n" +
-	"start_time\x18\x02 \x01(\x03R\tstartTime\x12\x19\n" +
-	"\bend_time\x18\x03 \x01(\x03R\aendTimeBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/recordingdetails/v1;recordingdetailsv1b\x06proto3"
+	"start_time\x18\x06 \x01(\x03R\tstartTime\x12\x19\n" +
+	"\bend_time\x18\a \x01(\x03R\aendTimeBfZdgithub.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1;recordingmetadatav1b\x06proto3"
 
 var (
-	file_teleport_recordingdetails_v1_recordingdetails_proto_rawDescOnce sync.Once
-	file_teleport_recordingdetails_v1_recordingdetails_proto_rawDescData []byte
+	file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescOnce sync.Once
+	file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescData []byte
 )
 
-func file_teleport_recordingdetails_v1_recordingdetails_proto_rawDescGZIP() []byte {
-	file_teleport_recordingdetails_v1_recordingdetails_proto_rawDescOnce.Do(func() {
-		file_teleport_recordingdetails_v1_recordingdetails_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_recordingdetails_v1_recordingdetails_proto_rawDesc), len(file_teleport_recordingdetails_v1_recordingdetails_proto_rawDesc)))
+func file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP() []byte {
+	file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescOnce.Do(func() {
+		file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc), len(file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc)))
 	})
-	return file_teleport_recordingdetails_v1_recordingdetails_proto_rawDescData
+	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescData
 }
 
-var file_teleport_recordingdetails_v1_recordingdetails_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
-var file_teleport_recordingdetails_v1_recordingdetails_proto_goTypes = []any{
-	(*SessionRecordingEvent)(nil),           // 0: teleport.recordingdetails.v1.SessionRecordingEvent
-	(*SessionRecordingInactivityEvent)(nil), // 1: teleport.recordingdetails.v1.SessionRecordingInactivityEvent
-	(*SessionRecordingJoinEvent)(nil),       // 2: teleport.recordingdetails.v1.SessionRecordingJoinEvent
-	(*SessionRecordingResizeEvent)(nil),     // 3: teleport.recordingdetails.v1.SessionRecordingResizeEvent
-	(*SessionRecordingDetails)(nil),         // 4: teleport.recordingdetails.v1.SessionRecordingDetails
-	(*SerializedTerminal)(nil),              // 5: teleport.recordingdetails.v1.SerializedTerminal
-	(*SessionRecordingThumbnail)(nil),       // 6: teleport.recordingdetails.v1.SessionRecordingThumbnail
+var file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_teleport_recordingmetadata_v1_recordingmetadata_proto_goTypes = []any{
+	(*SessionRecordingEvent)(nil),           // 0: teleport.recordingmetadata.v1.SessionRecordingEvent
+	(*SessionRecordingInactivityEvent)(nil), // 1: teleport.recordingmetadata.v1.SessionRecordingInactivityEvent
+	(*SessionRecordingJoinEvent)(nil),       // 2: teleport.recordingmetadata.v1.SessionRecordingJoinEvent
+	(*SessionRecordingResizeEvent)(nil),     // 3: teleport.recordingmetadata.v1.SessionRecordingResizeEvent
+	(*SessionRecordingMetadata)(nil),        // 4: teleport.recordingmetadata.v1.SessionRecordingMetadata
+	(*SessionRecordingThumbnail)(nil),       // 5: teleport.recordingmetadata.v1.SessionRecordingThumbnail
 }
-var file_teleport_recordingdetails_v1_recordingdetails_proto_depIdxs = []int32{
-	1, // 0: teleport.recordingdetails.v1.SessionRecordingEvent.inactivity:type_name -> teleport.recordingdetails.v1.SessionRecordingInactivityEvent
-	2, // 1: teleport.recordingdetails.v1.SessionRecordingEvent.join:type_name -> teleport.recordingdetails.v1.SessionRecordingJoinEvent
-	3, // 2: teleport.recordingdetails.v1.SessionRecordingEvent.resize:type_name -> teleport.recordingdetails.v1.SessionRecordingResizeEvent
-	6, // 3: teleport.recordingdetails.v1.SessionRecordingDetails.thumbnails:type_name -> teleport.recordingdetails.v1.SessionRecordingThumbnail
-	0, // 4: teleport.recordingdetails.v1.SessionRecordingDetails.events:type_name -> teleport.recordingdetails.v1.SessionRecordingEvent
-	5, // 5: teleport.recordingdetails.v1.SessionRecordingThumbnail.terminal:type_name -> teleport.recordingdetails.v1.SerializedTerminal
-	6, // [6:6] is the sub-list for method output_type
-	6, // [6:6] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+var file_teleport_recordingmetadata_v1_recordingmetadata_proto_depIdxs = []int32{
+	1, // 0: teleport.recordingmetadata.v1.SessionRecordingEvent.inactivity:type_name -> teleport.recordingmetadata.v1.SessionRecordingInactivityEvent
+	2, // 1: teleport.recordingmetadata.v1.SessionRecordingEvent.join:type_name -> teleport.recordingmetadata.v1.SessionRecordingJoinEvent
+	3, // 2: teleport.recordingmetadata.v1.SessionRecordingEvent.resize:type_name -> teleport.recordingmetadata.v1.SessionRecordingResizeEvent
+	5, // 3: teleport.recordingmetadata.v1.SessionRecordingMetadata.thumbnails:type_name -> teleport.recordingmetadata.v1.SessionRecordingThumbnail
+	0, // 4: teleport.recordingmetadata.v1.SessionRecordingMetadata.events:type_name -> teleport.recordingmetadata.v1.SessionRecordingEvent
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
-func init() { file_teleport_recordingdetails_v1_recordingdetails_proto_init() }
-func file_teleport_recordingdetails_v1_recordingdetails_proto_init() {
-	if File_teleport_recordingdetails_v1_recordingdetails_proto != nil {
+func init() { file_teleport_recordingmetadata_v1_recordingmetadata_proto_init() }
+func file_teleport_recordingmetadata_v1_recordingmetadata_proto_init() {
+	if File_teleport_recordingmetadata_v1_recordingmetadata_proto != nil {
 		return
 	}
-	file_teleport_recordingdetails_v1_recordingdetails_proto_msgTypes[0].OneofWrappers = []any{
+	file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[0].OneofWrappers = []any{
 		(*SessionRecordingEvent_Inactivity)(nil),
 		(*SessionRecordingEvent_Join)(nil),
 		(*SessionRecordingEvent_Resize)(nil),
@@ -615,17 +565,17 @@ func file_teleport_recordingdetails_v1_recordingdetails_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_recordingdetails_v1_recordingdetails_proto_rawDesc), len(file_teleport_recordingdetails_v1_recordingdetails_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc), len(file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_teleport_recordingdetails_v1_recordingdetails_proto_goTypes,
-		DependencyIndexes: file_teleport_recordingdetails_v1_recordingdetails_proto_depIdxs,
-		MessageInfos:      file_teleport_recordingdetails_v1_recordingdetails_proto_msgTypes,
+		GoTypes:           file_teleport_recordingmetadata_v1_recordingmetadata_proto_goTypes,
+		DependencyIndexes: file_teleport_recordingmetadata_v1_recordingmetadata_proto_depIdxs,
+		MessageInfos:      file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes,
 	}.Build()
-	File_teleport_recordingdetails_v1_recordingdetails_proto = out.File
-	file_teleport_recordingdetails_v1_recordingdetails_proto_goTypes = nil
-	file_teleport_recordingdetails_v1_recordingdetails_proto_depIdxs = nil
+	File_teleport_recordingmetadata_v1_recordingmetadata_proto = out.File
+	file_teleport_recordingmetadata_v1_recordingmetadata_proto_goTypes = nil
+	file_teleport_recordingmetadata_v1_recordingmetadata_proto_depIdxs = nil
 }

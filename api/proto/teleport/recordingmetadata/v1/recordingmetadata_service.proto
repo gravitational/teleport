@@ -14,18 +14,18 @@
 
 syntax = "proto3";
 
-package teleport.recordingdetails.v1;
+package teleport.recordingmetadata.v1;
 
-import "teleport/recordingdetails/v1/recordingdetails.proto";
+import "teleport/recordingmetadata/v1/recordingmetadata.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingdetails/v1;recordingdetailsv1";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1;recordingmetadatav1";
 
-// RecordingDetailsService provides methods to retrieve details about session recordings.
-service RecordingDetailsService {
+// RecordingMetadataService provides methods to retrieve details about session recordings.
+service RecordingMetadataService {
   // GetThumbnail retrieves the thumbnail for a session recording.
   rpc GetThumbnail(GetThumbnailRequest) returns (GetThumbnailResponse);
-  // GetDetails retrieves the details for a session recording.
-  rpc GetDetails(GetDetailsRequest) returns (GetDetailsResponse);
+  // GetMetadata retrieves the metadata for a session recording.
+  rpc GetMetadata(GetMetadataRequest) returns (GetMetadataResponse);
 }
 
 // GetThumbnailRequest is a request for retrieving a session's thumbnail.
@@ -37,17 +37,17 @@ message GetThumbnailRequest {
 // GetThumbnailResponse is a response for retrieving a session's thumbnail.
 message GetThumbnailResponse {
   // Thumbnail is the thumbnail of the session.
-  teleport.recordingdetails.v1.SessionRecordingThumbnail thumbnail = 1;
+  teleport.recordingmetadata.v1.SessionRecordingThumbnail thumbnail = 1;
 }
 
-// GetDetailsRequest is a request for retrieving a session's details.
-message GetDetailsRequest {
-  // SessionId is the ID of the session whose details are being requested.
+// GetMetadataRequest is a request for retrieving a session's m
+message GetMetadataRequest {
+  // SessionId is the ID of the session whose metadata is being requested.
   string session_id = 1;
 }
 
-// GetDetailsResponse is a response for retrieving a session's details.
-message GetDetailsResponse {
-  // Details contains the details of the session recording.
-  teleport.recordingdetails.v1.SessionRecordingDetails details = 1;
+// GetMetadataResponse is a response for retrieving a session's metadata.
+message GetMetadataResponse {
+  // Metadata contains the metadata of the session recording.
+  teleport.recordingmetadata.v1.SessionRecordingMetadata metadata = 1;
 }

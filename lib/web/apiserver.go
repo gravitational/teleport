@@ -1171,7 +1171,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Session recording summaries
 	h.GET("/webapi/sites/:site/session-summaries/:session_id", h.WithClusterAuth(h.getSessionRecordingSummary)) // search site session events
-	h.GET("/webapi/sites/:site/session-details/:session_id", h.WithClusterAuth(h.getSessionRecordingDetails))
+	h.GET("/webapi/sites/:site/session-details/:session_id", h.WithClusterAuth(h.getSessionRecordingMetadata))
 	h.GET("/webapi/sites/:site/session-thumbnail/:session_id", h.WithClusterAuth(h.getSessionRecordingThumbnail))
 }
 
