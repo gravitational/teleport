@@ -24,6 +24,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/gravitational/trace"
@@ -239,6 +240,12 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		DiscoveryLDAPAttributeLabels: cfg.WindowsDesktop.Discovery.LabelAttributes,
 		Hostname:                     cfg.Hostname,
 		ConnectedProxyGetter:         proxyGetter,
+
+		// For now, NLA is opt-in via an environment variable.
+		// We'll make it the default behavior in a future release.
+		// NLA code is also not FIPS-compliant so we will disable it
+		// in FIPS mode
+		NLA: !process.Config.FIPS && os.Getenv("TELEPORT_ENABLE_RDP_NLA") == "yes",
 	})
 	if err != nil {
 		return trace.Wrap(err)

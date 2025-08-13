@@ -60,11 +60,16 @@ type TrackingConn interface {
 	Close() error
 }
 
+type ConnectionMonitorAccessPoint interface {
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
+}
+
 // ConnectionMonitorConfig contains dependencies required by
 // the ConnectionMonitor.
 type ConnectionMonitorConfig struct {
 	// AccessPoint is used to retrieve cluster configuration.
-	AccessPoint AccessPoint
+	AccessPoint ConnectionMonitorAccessPoint
 	// LockWatcher ensures lock information is up to date.
 	LockWatcher *services.LockWatcher
 	// Clock is a clock, realtime or fixed in tests.

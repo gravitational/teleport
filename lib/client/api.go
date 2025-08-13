@@ -93,7 +93,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/agentconn"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -726,7 +725,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 		return trace.Wrap(err)
 	}
 
-	// Save profile to record proxy credentials
+	// Save profile to record proxy credentials.
 	if err := tc.SaveProfile(opt.makeCurrentProfile); err != nil {
 		log.Warningf("Failed to save profile: %v", err)
 		return trace.Wrap(err)
@@ -4731,19 +4730,6 @@ func loopbackPool(proxyAddr string) *x509.CertPool {
 	}
 	log.Debugf("using local pool for loopback proxy: %v, err: %v", certPath, err)
 	return certPool
-}
-
-// connectToSSHAgent connects to the system SSH agent and returns an agent.Agent.
-func connectToSSHAgent() agent.ExtendedAgent {
-	socketPath := os.Getenv(teleport.SSHAuthSock)
-	conn, err := agentconn.Dial(socketPath)
-	if err != nil {
-		log.Warnf("[KEY AGENT] Unable to connect to SSH agent on socket %q: %v", socketPath, err)
-		return nil
-	}
-
-	log.Infof("[KEY AGENT] Connected to the system agent: %q", socketPath)
-	return agent.NewClient(conn)
 }
 
 // Username returns the current user's username

@@ -165,7 +165,8 @@ existing 17.3+ agents by running `teleport-update enable`.
 edition (Community vs Enterprise), the cluster's desired version, and the correct Teleport variant (e.g. FIPS-compliant
 cryptography).
 
-You can find more information about the feature in [our documentation]().
+You can find more information about the feature in [our
+documentation](https://goteleport.com/docs/upgrading/agent-managed-updates/).
 
 ### Package layout changes
 
@@ -1957,7 +1958,7 @@ access start time up to a week in advance.
 
 The Teleport Terraform provider and Kubernetes operator now support declaring
 agentless OpenSSH and OpenSSH EC2 ICE servers. You can follow [this
-guide](docs/pages/admin-guides/infrastructure-as-code/managing-resources/agentless-ssh-servers.mdx)
+guide](docs/pages/zero-trust-access/infrastructure-as-code/managing-resources/agentless-ssh-servers.mdx)
 to register OpenSSH agents with infrastructure as code.
 
 Setting up EC2 ICE automatic discovery with IaC will come in a future update.
@@ -2337,7 +2338,7 @@ When deployed with the `teleport-cluster` chart, the operator now runs in a
 separate pod. This ensures that Teleport's availability won't be impacted if the
 operator becomes unready.
 
-See [the Standalone Operator guide](docs/pages/admin-guides/infrastructure-as-code/teleport-operator/teleport-operator-standalone.mdx)
+See [the Standalone Operator guide](docs/pages/zero-trust-access/infrastructure-as-code/teleport-operator/teleport-operator-standalone.mdx)
 for installation instructions.
 
 #### Roles v6 and v7 support for Kubernetes Operator
@@ -5150,7 +5151,7 @@ material on Yubikey devices instead of filesystem which helps prevent
 credentials exfiltration attacks.
 
 See how to enable it in the
-[documentation](docs/pages/admin-guides/access-controls/guides/hardware-key-support.mdx):
+[documentation](docs/pages/zero-trust-access/access-controls/guides/hardware-key-support.mdx):
 
 Hardware-backed private keys is an enterprise only feature, and is currently
 supported for server access only.
@@ -5330,7 +5331,7 @@ Teleport 10 introduces passwordless support to your clusters. To use passwordles
 users may register a security key with resident credentials or use a built-in
 authenticator, like Touch ID.
 
-See the [documentation](docs/pages/admin-guides/access-controls/guides/passwordless.mdx).
+See the [documentation](docs/pages/zero-trust-access/access-controls/guides/passwordless.mdx).
 
 ### Resource Access Requests (Preview)
 
@@ -5485,7 +5486,7 @@ sessions remains deny-by-default but now only `join_sessions` statements are
 checked for session join RBAC.
 
 See the [Moderated Sessions
-guide](docs/pages/admin-guides/access-controls/guides/joining-sessions.mdx) for more
+guide](docs/pages/zero-trust-access/access-controls/guides/joining-sessions.mdx) for more
 details.
 
 #### GitHub connectors
@@ -5944,7 +5945,7 @@ With Moderated Sessions, Teleport administrators can define policies that allow
 users to invite other users to participate in SSH or Kubernetes sessions as
 observers, moderators or peers.
 
-[Moderated Sessions guide](docs/pages/admin-guides/access-controls/guides/joining-sessions.mdx)
+[Moderated Sessions guide](docs/pages/zero-trust-access/access-controls/guides/joining-sessions.mdx)
 
 ### Breaking Changes
 
@@ -6284,7 +6285,7 @@ Teleport 6.1 contains multiple new features, improvements, and bug fixes.
 Added support for U2F authentication on every SSH and Kubernetes "connection" (a single `tsh ssh` or `kubectl` call). This is an advanced security feature that protects users against compromises of their on-disk Teleport certificates. Per-session MFA can be enforced cluster-wide or only for some specific roles.
 
 For more details see [Per-Session
-MFA](docs/pages/admin-guides/access-controls/guides/per-session-mfa.mdx) documentation or
+MFA](docs/pages/zero-trust-access/access-controls/guides/per-session-mfa.mdx) documentation or
 [RFD
 14](https://github.com/gravitational/teleport/blob/master/rfd/0014-session-2FA.md)
 and [RFD
@@ -6656,7 +6657,7 @@ We've added two new RBAC resources; these provide the ability to limit token cre
   verbs: [list,create,read,update,delete]
 ```
 
-Learn more about [Teleport's RBAC Resources](docs/pages/admin-guides/access-controls/access-controls.mdx)
+Learn more about [Teleport's RBAC Resources](docs/pages/zero-trust-access/access-controls/access-controls.mdx)
 
 ##### Cluster Labels
 
@@ -7161,7 +7162,7 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 ### Documentation
 
 * Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](docs/pages/admin-guides/management/admin/trustedclusters.mdx).
-* Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](docs/pages/admin-guides/access-controls/compliance-frameworks/fedramp.mdx).
+* Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](docs/pages/zero-trust-access/compliance-frameworks/fedramp.mdx).
 
 ## 4.1.13 
 
@@ -7876,7 +7877,7 @@ available Teleport clusters with ease.
 #### Configuration Changes
 
 * Role templates (depreciated in Teleport 2.3) were fully removed. We recommend
-  migrating to role variables which are documented [here](docs/pages/admin-guides/access-controls/guides/role-templates.mdx)
+  migrating to role variables which are documented [here](docs/pages/zero-trust-access/access-controls/guides/role-templates.mdx)
 
 * Resource names (like roles, connectors, trusted clusters) can no longer
   contain unicode or other special characters. Update the names of all user

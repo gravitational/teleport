@@ -44,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -200,7 +200,7 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 // DialHost dials the node that matches the provided host, port and cluster. If no matching node
 // is found an error is returned. If more than one matching node is found and the cluster networking
 // configuration is not set to route to the most recent an error is returned.
-func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, accessChecker services.AccessChecker, agentGetter teleagent.Getter, signer agentless.SignerCreator) (_ net.Conn, err error) {
+func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, accessChecker services.AccessChecker, agentGetter sshagent.ClientGetter, signer agentless.SignerCreator) (_ net.Conn, err error) {
 	ctx, span := r.tracer.Start(
 		ctx,
 		"router/DialHost",

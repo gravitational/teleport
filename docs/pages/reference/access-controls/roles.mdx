@@ -25,7 +25,7 @@ resources:
 - [Custom API clients](../../admin-guides/api/rbac.mdx)
 
 To read more about managing dynamic resources, see the [Dynamic
-Resources](../../admin-guides/infrastructure-as-code/infrastructure-as-code.mdx) guide.
+Resources](../../zero-trust-access/infrastructure-as-code/infrastructure-as-code.mdx) guide.
 
 You can view all roles in your cluster on your local workstation by running the
 following commands:
@@ -90,7 +90,7 @@ There are currently five supported role versions: `v3`, `v4`, `v5`, `v6`, and `v
 `v4` and higher roles are completely backwards compatible with `v3`. The only difference
 lies in the default values which will be applied to the role if they are not explicitly set.
 Additionally, roles with version `v5` or higher do not allow joining sessions by default. The
-[Joining Sessions](../../admin-guides/access-controls/guides/joining-sessions.mdx) configuration in roles 'v5` or higher
+[Joining Sessions](../../zero-trust-access/access-controls/guides/joining-sessions.mdx) configuration in roles 'v5` or higher
 must be set to allow for joining sessions.
 
 Label              | `v3` Default   | `v4` and higher Default

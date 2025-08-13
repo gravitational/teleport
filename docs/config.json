@@ -17,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "17.5.4",
+      "version": "17.5.6",
       "major_version": "17",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -102,12 +102,12 @@
     },
     {
       "source": "/admin-guides/access-controls/guides/moderated-sessions/",
-      "destination": "/admin-guides/access-controls/guides/joining-sessions/",
+      "destination": "/zero-trust-access/access-controls/guides/joining-sessions/",
       "permanent": true
     },
     {
       "source": "/setup/admin/github-sso/",
-      "destination": "/admin-guides/access-controls/sso/github-sso/",
+      "destination": "/zero-trust-access/sso/github-sso/",
       "permanent": true
     },
     {
@@ -122,12 +122,12 @@
     },
     {
       "source": "/machine-id/deployment/spacelift/",
-      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/spacelift/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/spacelift/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/deployment/terraform/",
-      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/dedicated-server/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/dedicated-server/",
       "permanent": true
     },
     {
@@ -182,7 +182,7 @@
     },
     {
       "source": "/agents/deploy-agents-terraform/",
-      "destination": "/admin-guides/infrastructure-as-code/terraform-starter/enroll-resources/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-starter/enroll-resources/",
       "permanent": true
     },
     {
@@ -842,7 +842,7 @@
     },
     {
       "source": "/machine-id/access-guides/terraform/",
-      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/dedicated-server/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/dedicated-server/",
       "permanent": true
     },
     {
@@ -1127,12 +1127,12 @@
     },
     {
       "source": "/enterprise/sso/google-workspace/",
-      "destination": "/admin-guides/access-controls/sso/google-workspace/",
+      "destination": "/zero-trust-access/sso/google-workspace/",
       "permanent": true
     },
     {
       "source": "/enterprise/sso/",
-      "destination": "/admin-guides/access-controls/sso/",
+      "destination": "/zero-trust-access/sso/",
       "permanent": true
     },
     {
@@ -1242,7 +1242,7 @@
     },
     {
       "source": "/access-controls/guides/u2f/",
-      "destination": "/admin-guides/access-controls/guides/webauthn/",
+      "destination": "/zero-trust-access/access-controls/guides/webauthn/",
       "permanent": true
     },
     {
@@ -1427,17 +1427,17 @@
     },
     {
       "source": "/access-controls/compliance-frameworks/",
-      "destination": "/admin-guides/access-controls/compliance-frameworks/",
+      "destination": "/zero-trust-access/compliance-frameworks/",
       "permanent": true
     },
     {
       "source": "/access-controls/compliance-frameworks/fedramp/",
-      "destination": "/admin-guides/access-controls/compliance-frameworks/fedramp/",
+      "destination": "/zero-trust-access/compliance-frameworks/fedramp/",
       "permanent": true
     },
     {
       "source": "/access-controls/compliance-frameworks/soc2/",
-      "destination": "/admin-guides/access-controls/compliance-frameworks/soc2/",
+      "destination": "/zero-trust-access/compliance-frameworks/soc2/",
       "permanent": true
     },
     {
@@ -1467,37 +1467,32 @@
     },
     {
       "source": "/access-controls/getting-started/",
-      "destination": "/admin-guides/access-controls/getting-started/",
+      "destination": "/zero-trust-access/access-controls/getting-started/",
       "permanent": true
     },
     {
       "source": "/access-controls/guides/",
-      "destination": "/admin-guides/access-controls/guides/",
+      "destination": "/zero-trust-access/access-controls/guides/",
       "permanent": true
     },
     {
       "source": "/access-controls/guides/dual-authz/",
-      "destination": "/admin-guides/access-controls/guides/dual-authz/",
+      "destination": "/zero-trust-access/access-controls/guides/dual-authz/",
       "permanent": true
     },
     {
       "source": "/access-controls/guides/hardware-key-support/",
-      "destination": "/admin-guides/access-controls/guides/hardware-key-support/",
-      "permanent": true
-    },
-    {
-      "source": "/access-controls/guides/headless/",
-      "destination": "/admin-guides/access-controls/guides/headless/",
+      "destination": "/zero-trust-access/access-controls/guides/hardware-key-support/",
       "permanent": true
     },
     {
       "source": "/access-controls/guides/impersonation/",
-      "destination": "/admin-guides/access-controls/guides/impersonation/",
+      "destination": "/zero-trust-access/access-controls/guides/impersonation/",
       "permanent": true
     },
     {
       "source": "/access-controls/guides/ip-pinning/",
-      "destination": "/admin-guides/access-controls/guides/ip-pinning/",
+      "destination": "/zero-trust-access/access-controls/guides/ip-pinning/",
       "permanent": true
     },
     {
@@ -1507,57 +1502,32 @@
     },
     {
       "source": "/access-controls/guides/mfa-for-admin-actions/",
-      "destination": "/admin-guides/access-controls/guides/mfa-for-admin-actions/",
+      "destination": "/zero-trust-access/access-controls/guides/mfa-for-admin-actions/",
       "permanent": true
     },
     {
       "source": "/access-controls/guides/moderated-sessions/",
-      "destination": "/admin-guides/access-controls/guides/joining-sessions/",
+      "destination": "/zero-trust-access/access-controls/guides/joining-sessions/",
       "permanent": true
     },
     {
       "source": "/access-controls/guides/passwordless/",
-      "destination": "/admin-guides/access-controls/guides/passwordless/",
+      "destination": "/zero-trust-access/access-controls/guides/passwordless/",
       "permanent": true
     },
     {
       "source": "/access-controls/guides/per-session-mfa/",
-      "destination": "/admin-guides/access-controls/guides/per-session-mfa/",
-      "permanent": true
-    },
-    {
-      "source": "/access-controls/guides/role-templates/",
-      "destination": "/admin-guides/access-controls/guides/role-templates/",
+      "destination": "/zero-trust-access/access-controls/guides/per-session-mfa/",
       "permanent": true
     },
     {
       "source": "/access-controls/guides/webauthn/",
-      "destination": "/admin-guides/access-controls/guides/webauthn/",
+      "destination": "/zero-trust-access/access-controls/guides/webauthn/",
       "permanent": true
     },
     {
       "source": "/access-controls/idps/",
-      "destination": "/admin-guides/access-controls/idps/",
-      "permanent": true
-    },
-    {
-      "source": "/access-controls/idps/saml-attribute-mapping/",
-      "destination": "/admin-guides/access-controls/idps/saml-attribute-mapping/",
-      "permanent": true
-    },
-    {
-      "source": "/access-controls/idps/saml-gcp-workforce-identity-federation/",
-      "destination": "/admin-guides/access-controls/idps/saml-gcp-workforce-identity-federation/",
-      "permanent": true
-    },
-    {
-      "source": "/access-controls/idps/saml-grafana/",
-      "destination": "/admin-guides/access-controls/idps/saml-grafana/",
-      "permanent": true
-    },
-    {
-      "source": "/access-controls/idps/saml-guide/",
-      "destination": "/admin-guides/access-controls/idps/saml-guide/",
+      "destination": "/identity-governance/idps/",
       "permanent": true
     },
     {
@@ -1567,22 +1537,22 @@
     },
     {
       "source": "/access-controls/introduction/",
-      "destination": "/admin-guides/access-controls/",
+      "destination": "/zero-trust-access/access-controls/",
       "permanent": true
     },
     {
       "source": "/access-controls/login-rules/",
-      "destination": "/admin-guides/access-controls/login-rules/",
+      "destination": "/zero-trust-access/access-controls/login-rules/",
       "permanent": true
     },
     {
       "source": "/access-controls/login-rules/guide/",
-      "destination": "/admin-guides/access-controls/login-rules/guide/",
+      "destination": "/zero-trust-access/access-controls/login-rules/guide/",
       "permanent": true
     },
     {
       "source": "/access-controls/login-rules/kubernetes/",
-      "destination": "/admin-guides/infrastructure-as-code/managing-resources/login-rules-operator/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/login-rules-operator/",
       "permanent": true
     },
     {
@@ -1592,7 +1562,7 @@
     },
     {
       "source": "/access-controls/login-rules/terraform/",
-      "destination": "/admin-guides/infrastructure-as-code/managing-resources/login-rules-terraform/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/login-rules-terraform/",
       "permanent": true
     },
     {
@@ -1602,47 +1572,47 @@
     },
     {
       "source": "/access-controls/sso/",
-      "destination": "/admin-guides/access-controls/sso/",
+      "destination": "/zero-trust-access/sso/",
       "permanent": true
     },
     {
       "source": "/access-controls/sso/adfs/",
-      "destination": "/admin-guides/access-controls/sso/adfs/",
+      "destination": "/zero-trust-access/sso/adfs/",
       "permanent": true
     },
     {
       "source": "/access-controls/sso/azuread/",
-      "destination": "/admin-guides/access-controls/sso/azuread/",
+      "destination": "/zero-trust-access/sso/azuread/",
       "permanent": true
     },
     {
       "source": "/access-controls/sso/github-sso/",
-      "destination": "/admin-guides/access-controls/sso/github-sso/",
+      "destination": "/zero-trust-access/sso/github-sso/",
       "permanent": true
     },
     {
       "source": "/access-controls/sso/gitlab/",
-      "destination": "/admin-guides/access-controls/sso/gitlab/",
+      "destination": "/zero-trust-access/sso/gitlab/",
       "permanent": true
     },
     {
       "source": "/access-controls/sso/google-workspace/",
-      "destination": "/admin-guides/access-controls/sso/google-workspace/",
+      "destination": "/zero-trust-access/sso/google-workspace/",
       "permanent": true
     },
     {
       "source": "/access-controls/sso/oidc/",
-      "destination": "/admin-guides/access-controls/sso/oidc/",
+      "destination": "/zero-trust-access/sso/oidc/",
       "permanent": true
     },
     {
       "source": "/access-controls/sso/okta/",
-      "destination": "/admin-guides/access-controls/sso/okta/",
+      "destination": "/zero-trust-access/sso/okta/",
       "permanent": true
     },
     {
       "source": "/access-controls/sso/one-login/",
-      "destination": "/admin-guides/access-controls/sso/one-login/",
+      "destination": "/zero-trust-access/sso/one-login/",
       "permanent": true
     },
     {
@@ -2087,67 +2057,67 @@
     },
     {
       "source": "/management/dynamic-resources/",
-      "destination": "/admin-guides/infrastructure-as-code/",
+      "destination": "/zero-trust-access/infrastructure-as-code/",
       "permanent": true
     },
     {
       "source": "/management/dynamic-resources/access-list/",
-      "destination": "/admin-guides/infrastructure-as-code/managing-resources/access-list/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/access-list/",
       "permanent": true
     },
     {
       "source": "/management/dynamic-resources/agentless-ssh-servers/",
-      "destination": "/admin-guides/infrastructure-as-code/managing-resources/agentless-ssh-servers/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/agentless-ssh-servers/",
       "permanent": true
     },
     {
       "source": "/management/dynamic-resources/teleport-operator-helm/",
-      "destination": "/admin-guides/infrastructure-as-code/teleport-operator/teleport-operator-helm/",
+      "destination": "/zero-trust-access/infrastructure-as-code/teleport-operator/teleport-operator-helm/",
       "permanent": true
     },
     {
       "source": "/management/dynamic-resources/teleport-operator-standalone/",
-      "destination": "/admin-guides/infrastructure-as-code/teleport-operator/teleport-operator-standalone/",
+      "destination": "/zero-trust-access/infrastructure-as-code/teleport-operator/teleport-operator-standalone/",
       "permanent": true
     },
     {
       "source": "/management/dynamic-resources/teleport-operator/",
-      "destination": "/admin-guides/infrastructure-as-code/teleport-operator/",
+      "destination": "/zero-trust-access/infrastructure-as-code/teleport-operator/",
       "permanent": true
     },
     {
       "source": "/management/dynamic-resources/terraform-provider/",
-      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/",
       "permanent": true
     },
     {
       "source": "/management/dynamic-resources/user-and-role/",
-      "destination": "/admin-guides/infrastructure-as-code/managing-resources/user-and-role/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/user-and-role/",
       "permanent": true
     },
     {
       "source": "/management/export-audit-events/",
-      "destination": "/admin-guides/management/export-audit-events/",
+      "destination": "/zero-trust-access/export-audit-events/",
       "permanent": true
     },
     {
       "source": "/management/export-audit-events/elastic-stack/",
-      "destination": "/admin-guides/management/export-audit-events/elastic-stack/",
+      "destination": "/zero-trust-access/export-audit-events/elastic-stack/",
       "permanent": true
     },
     {
       "source": "/management/export-audit-events/fluentd/",
-      "destination": "/admin-guides/management/export-audit-events/fluentd/",
+      "destination": "/zero-trust-access/export-audit-events/fluentd/",
       "permanent": true
     },
     {
       "source": "/management/export-audit-events/panther/",
-      "destination": "/admin-guides/management/export-audit-events/panther/",
+      "destination": "/zero-trust-access/export-audit-events/panther/",
       "permanent": true
     },
     {
       "source": "/management/export-audit-events/splunk/",
-      "destination": "/admin-guides/management/export-audit-events/splunk/",
+      "destination": "/zero-trust-access/export-audit-events/splunk/",
       "permanent": true
     },
     {
@@ -2272,7 +2242,7 @@
     },
     {
       "source": "/enroll-resources/machine-id/deployment/spacelift/",
-      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/spacelift/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/spacelift/",
       "permanent": true
     },
     {
@@ -2362,7 +2332,7 @@
     },
     {
       "source": "/enterprise/sso/adfs/",
-      "destination": "/admin-guides/access-controls/sso/adfs/",
+      "destination": "/zero-trust-access/sso/adfs/",
       "permanent": true
     },
     {
@@ -2471,6 +2441,11 @@
       "permanent": true
     },
     {
+      "source": "/access-controls/guides/role-templates/",
+      "destination": "/zero-trust-access/access-controls/guides/role-templates/",
+      "permanent": true
+    },
+    {
       "source": "/setup/admin/",
       "destination": "/admin-guides/",
       "permanent": true
@@ -2478,6 +2453,11 @@
     {
       "source": "/setup/operations/scaling/",
       "destination": "/admin-guides/management/operations/scaling/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/guides/headless/",
+      "destination": "/zero-trust-access/access-controls/guides/headless/",
       "permanent": true
     },
     {
@@ -2943,6 +2923,311 @@
     {
       "source": "/enroll-resources/workload-identity/",
       "destination": "/machine-workload-identity/workload-identity/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/compliance-frameworks/",
+      "destination": "/zero-trust-access/compliance-frameworks/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/compliance-frameworks/fedramp/",
+      "destination": "/zero-trust-access/compliance-frameworks/fedramp/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/compliance-frameworks/soc2/",
+      "destination": "/zero-trust-access/compliance-frameworks/soc2/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/sso/adfs/",
+      "destination": "/zero-trust-access/sso/adfs/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/sso/azuread/",
+      "destination": "/zero-trust-access/sso/azuread/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/sso/github-sso/",
+      "destination": "/zero-trust-access/sso/github-sso/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/sso/gitlab/",
+      "destination": "/zero-trust-access/sso/gitlab/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/sso/google-workspace/",
+      "destination": "/zero-trust-access/sso/google-workspace/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/sso/oidc/",
+      "destination": "/zero-trust-access/sso/oidc/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/sso/okta/",
+      "destination": "/zero-trust-access/sso/okta/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/sso/one-login/",
+      "destination": "/zero-trust-access/sso/one-login/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/sso/",
+      "destination": "/zero-trust-access/sso/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/",
+      "destination": "/zero-trust-access/infrastructure-as-code/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/managing-resources/access-list/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/access-list/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/managing-resources/agentless-ssh-servers/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/agentless-ssh-servers/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/managing-resources/import-existing-resources/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/import-existing-resources/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/managing-resources/login-rules-operator/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/login-rules-operator/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/managing-resources/login-rules-terraform/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/login-rules-terraform/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/managing-resources/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/managing-resources/user-and-role/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/user-and-role/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/teleport-operator/secret-lookup/",
+      "destination": "/zero-trust-access/infrastructure-as-code/teleport-operator/secret-lookup/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/teleport-operator/teleport-operator-helm/",
+      "destination": "/zero-trust-access/infrastructure-as-code/teleport-operator/teleport-operator-helm/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/teleport-operator/teleport-operator-standalone/",
+      "destination": "/zero-trust-access/infrastructure-as-code/teleport-operator/teleport-operator-standalone/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/teleport-operator/",
+      "destination": "/zero-trust-access/infrastructure-as-code/teleport-operator/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/terraform-provider/ci-or-cloud/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/ci-or-cloud/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/terraform-provider/dedicated-server/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/dedicated-server/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/terraform-provider/local/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/local/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/terraform-provider/long-lived-credentials/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/long-lived-credentials/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/terraform-provider/spacelift/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/spacelift/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/terraform-provider/terraform-cloud/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/terraform-cloud/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/terraform-provider/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/terraform-starter/enroll-resources/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-starter/enroll-resources/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/terraform-starter/rbac/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-starter/rbac/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/terraform-starter/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-starter/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/export-audit-events/datadog/",
+      "destination": "/zero-trust-access/export-audit-events/datadog/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/export-audit-events/elastic-stack/",
+      "destination": "/zero-trust-access/export-audit-events/elastic-stack/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/export-audit-events/",
+      "destination": "/zero-trust-access/export-audit-events/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/export-audit-events/fluentd/",
+      "destination": "/zero-trust-access/export-audit-events/fluentd/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/export-audit-events/panther/",
+      "destination": "/zero-trust-access/export-audit-events/panther/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/export-audit-events/splunk/",
+      "destination": "/zero-trust-access/export-audit-events/splunk/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/",
+      "destination": "/zero-trust-access/access-controls/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/getting-started/",
+      "destination": "/zero-trust-access/access-controls/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/dual-authz/",
+      "destination": "/zero-trust-access/access-controls/guides/dual-authz/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/",
+      "destination": "/zero-trust-access/access-controls/guides/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/hardware-key-support/",
+      "destination": "/zero-trust-access/access-controls/guides/hardware-key-support/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/headless/",
+      "destination": "/zero-trust-access/access-controls/guides/headless/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/impersonation/",
+      "destination": "/zero-trust-access/access-controls/guides/impersonation/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/ip-pinning/",
+      "destination": "/zero-trust-access/access-controls/guides/ip-pinning/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/joining-sessions/",
+      "destination": "/zero-trust-access/access-controls/guides/joining-sessions/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/mfa-for-admin-actions/",
+      "destination": "/zero-trust-access/access-controls/guides/mfa-for-admin-actions/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/passwordless/",
+      "destination": "/zero-trust-access/access-controls/guides/passwordless/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/per-session-mfa/",
+      "destination": "/zero-trust-access/access-controls/guides/per-session-mfa/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/role-templates/",
+      "destination": "/zero-trust-access/access-controls/guides/role-templates/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/webauthn/",
+      "destination": "/zero-trust-access/access-controls/guides/webauthn/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/idps/saml-attribute-mapping/",
+      "destination": "/identity-governance/idps/saml-attribute-mapping/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/idps/saml-gcp-workforce-identity-federation/",
+      "destination": "/identity-governance/idps/saml-gcp-workforce-identity-federation/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/idps/saml-grafana/",
+      "destination": "/identity-governance/idps/saml-grafana/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/idps/saml-guide/",
+      "destination": "/identity-governance/idps/saml-guide/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/login-rules/guide/",
+      "destination": "/zero-trust-access/access-controls/login-rules/guide/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/login-rules/",
+      "destination": "/zero-trust-access/access-controls/login-rules/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/idps/",
+      "destination": "/identity-governance/idps/",
       "permanent": true
     }
   ]
