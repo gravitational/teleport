@@ -171,10 +171,17 @@ func TestTerraformJoinViaProxy(t *testing.T) {
 	require.NoError(t, os.Setenv("TF_ACC", "true"))
 
 	// Test setup: start a full Teleport process including a proxy.
-	process := testenv.MakeTestServer(t)
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	process, err := testenv.NewTeleportProcess(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 
-	var err error
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
+
 	// Test setup: get the terraform role
 	tfRole, err := clt.GetRole(t.Context(), teleport.PresetTerraformProviderRoleName)
 	require.NoError(t, err)

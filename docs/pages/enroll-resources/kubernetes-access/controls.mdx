@@ -481,6 +481,30 @@ spec:
       - myuser
 ```
 
+#### Configuring just-in-time access
+
+If you are setting up a Teleport role to enable just-in-time access to a
+specific Kubernetes resources, you should set the role's `kubernetes_groups` and
+`kubernetes_users` to a principal with a role that has no access to Kubernetes
+resource beside the Kubernetes resources that Teleport is able to restrict
+access for.
+
+This is because, if a user requests access to a Kubernetes pod, and the request
+is approved, the Teleport Kubernetes Service will use the `kubernetes_groups`
+and `kubernetes_users` fields in the role to add impersonation headers to the user's
+requests to a Kubernetes API server. Under these conditions, Teleport will be able
+to restrict access to all supported Kubernetes resources kinds except for
+the desired `pod`. 
+
+Teleport is also able to restrict access to namespaced-scoped custom resources
+but not cluster-scoped custom resources. CRDs resources that are cluster scoped
+will be accessible to the user if the principals in the `kubernetes_users` and
+`kubernetes_groups` fields have access to them.
+
+Requesting access to a Kubernetes Namespace allows you to access all resources
+in that namespace but you won't be able to access any other supported resources
+in the cluster.
+
 ### `kubernetes_resources`
 
 The `kubernetes_resources` field enables a Teleport role to configure access to

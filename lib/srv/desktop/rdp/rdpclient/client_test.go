@@ -21,10 +21,8 @@ package rdpclient
 
 import (
 	"bytes"
-	"context"
 	"log/slog"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -109,14 +107,9 @@ func TestClientNew_KeyboardLayout(t *testing.T) {
 
 func createConfig(conn *tdp.Conn) Config {
 	return Config{
-		Addr: "example.com",
-		GenerateUserCert: func(_ context.Context, _ string, _ time.Duration) ([]byte, []byte, error) {
-			return nil, nil, nil
-		},
-		AuthorizeFn: func(login string) error {
-			return nil
-		},
-		Conn:   conn,
-		Logger: slog.Default(),
+		Addr:        "example.com",
+		AuthorizeFn: func(login string) error { return nil },
+		Conn:        conn,
+		Logger:      slog.Default(),
 	}
 }

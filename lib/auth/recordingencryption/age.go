@@ -33,9 +33,6 @@ import (
 // RecordingStanza is the type used for the identifying stanza added by RecordingRecipient.
 const RecordingStanza = "teleport-recording-rsa4096"
 
-// oaepLabel must be present during encryption and decryption.
-const oaepLabel = "teleport/v1/rsa"
-
 // UnwrapInput represents a request to decrypt a wrapped file key.
 type UnwrapInput struct {
 	// Fingerprint of the public key used to find the related private key.
@@ -88,8 +85,7 @@ func (i *RecordingIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
 			WrappedKey:  stanza.Body,
 			Fingerprint: stanza.Args[0],
 			Opts: &rsa.OAEPOptions{
-				Hash:  crypto.SHA256,
-				Label: []byte(oaepLabel),
+				Hash: crypto.SHA256,
 			},
 		})
 		if err != nil {
@@ -131,7 +127,7 @@ func ParseRecordingRecipient(in []byte) (*RecordingRecipient, error) {
 // Wrap a fileKey using an RSA public key. The fingerprint of the key will be included in the stanza
 // to aid in fetching the correct private key during [Unwrap].
 func (r *RecordingRecipient) Wrap(fileKey []byte) ([]*age.Stanza, error) {
-	cipher, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, r.PublicKey, fileKey, []byte(oaepLabel))
+	cipher, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, r.PublicKey, fileKey, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

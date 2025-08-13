@@ -161,7 +161,7 @@ updated.
 In order to use new signature algorithms for your existing Certificate
 Authorities, you will need to complete a CA rotation for each authority.
 This may require manual steps to update the trust relationships in your Cluster.
-The procedure is documented in the [CA rotation guide](../admin-guides/management/operations/ca-rotation.mdx).
+The procedure is documented in the [CA rotation guide](../zero-trust-access/management/operations/ca-rotation.mdx).
 This process is optional, your cluster will continue to function with the
 existing Certificate Authority keys if you don't complete a CA rotation.
 
@@ -244,7 +244,7 @@ For these reasons we recommend continuing to use the `legacy` algorithm suite.
 
 ### My YubiHSM2 authentication key does not have capabilities for ECDSA keys, what do I do?
 
-Our [YubiHSM2 guide](../admin-guides/deploy-a-cluster/hsm.mdx) recommends
+Our [YubiHSM2 guide](../zero-trust-access/deploy-a-cluster/hsm.mdx) recommends
 creating an
 [authentication key](https://docs.yubico.com/hardware/yubihsm-2/hsm-2-user-guide/hsm2-core-concepts.html#authentication-key)
 to be used by the Teleport Auth Service to authenticate with the YubiHSM2.

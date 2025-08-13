@@ -524,15 +524,6 @@ func TestTryReadValueAsFile(t *testing.T) {
 	require.Equal(t, "shmoken", tok)
 }
 
-// TestStringsSet makes sure that nil slice returns empty set (less error prone)
-func TestStringsSet(t *testing.T) {
-	t.Parallel()
-
-	out := StringsSet(nil)
-	require.Empty(t, out)
-	require.NotNil(t, out)
-}
-
 func TestReadAtMost(t *testing.T) {
 	t.Parallel()
 

@@ -18,6 +18,7 @@
 
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
+import { AppUpdateEvent } from 'teleterm/services/appUpdater';
 import { FileStorage } from 'teleterm/services/fileStorage';
 import { Document } from 'teleterm/ui/services/workspacesService';
 import { RootClusterUri } from 'teleterm/ui/uri';
@@ -206,6 +207,23 @@ export type MainProcessClient = {
     desktopUri: string;
     login: string;
   }): Promise<string>;
+  changeAppUpdatesManagingCluster(
+    clusterUri: RootClusterUri | undefined
+  ): Promise<void>;
+  maybeRemoveAppUpdatesManagingCluster(
+    clusterUri: RootClusterUri
+  ): Promise<void>;
+  supportsAppUpdates(): boolean;
+  checkForAppUpdates(): Promise<void>;
+  downloadAppUpdate(): Promise<void>;
+  cancelAppUpdateDownload(): Promise<void>;
+  quitAndInstallAppUpdate(): Promise<void>;
+  subscribeToAppUpdateEvents(listener: (args: AppUpdateEvent) => void): {
+    cleanup: () => void;
+  };
+  subscribeToOpenAppUpdateDialog(listener: () => void): {
+    cleanup: () => void;
+  };
 };
 
 export type ChildProcessAddresses = {
@@ -311,6 +329,8 @@ export enum RendererIpc {
   NativeThemeUpdate = 'renderer-native-theme-update',
   ConnectMyComputerAgentUpdate = 'renderer-connect-my-computer-agent-update',
   DeepLinkLaunch = 'renderer-deep-link-launch',
+  OpenAppUpdateDialog = 'renderer-open-app-update-dialog',
+  AppUpdateEvent = 'renderer-app-update-event',
 }
 
 export enum MainProcessIpc {
@@ -322,6 +342,13 @@ export enum MainProcessIpc {
   SaveTextToFile = 'main-process-save-text-to-file',
   ForceFocusWindow = 'main-process-force-focus-window',
   SelectDirectoryForDesktopSession = 'main-process-select-directory-for-desktop-session',
+  CheckForAppUpdates = 'main-process-check-for-app-updates',
+  DownloadAppUpdate = 'main-process-download-app-update',
+  CancelAppUpdateDownload = 'main-process-cancel-app-update-download',
+  QuiteAndInstallAppUpdate = 'main-process-quit-and-install-app-update',
+  ChangeAppUpdatesManagingCluster = 'main-process-change-app-updates-managing-cluster',
+  MaybeRemoveAppUpdatesManagingCluster = 'main-process-maybe-remove-app-updates-managing-cluster',
+  SupportsAppUpdates = 'main-process-supports-app-updates',
 }
 
 export enum WindowsManagerIpc {
