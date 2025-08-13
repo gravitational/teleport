@@ -987,6 +987,9 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 	_, err = authtest.CreateRole(ctx, clt, "orole2", types.RoleSpecV6{})
 	require.NoError(t, err)
 
+	_, err = authtest.CreateRole(ctx, clt, "noprole", types.RoleSpecV6{})
+	require.NoError(t, err)
+
 	user, err := types.NewUser(testUser)
 	require.NoError(t, err)
 	user.AddRole(role.GetName())
@@ -2786,7 +2789,7 @@ func TestCanUpdateMembership(t *testing.T) {
 	}{
 		{
 			name:    "owner adds a new user",
-			userCtx: genUserContext(context.Background(), ownerUser, nil, nil),
+			userCtx: genUserContext(context.Background(), ownerUser, []string{"noprole"}, nil),
 			newMember: member(t, header.Metadata{Name: "new-user"}, accesslist.AccessListMemberSpec{
 				Name:             "new-user",
 				AccessList:       "access-list",
@@ -2799,7 +2802,7 @@ func TestCanUpdateMembership(t *testing.T) {
 		},
 		{
 			name:    "owner modifies a different user",
-			userCtx: genUserContext(context.Background(), ownerUser, nil, nil),
+			userCtx: genUserContext(context.Background(), ownerUser, []string{"noprole"}, nil),
 			oldMember: member(t, header.Metadata{Name: "new-user"}, accesslist.AccessListMemberSpec{
 				Name:             "new-user",
 				AccessList:       "access-list",
@@ -2821,7 +2824,7 @@ func TestCanUpdateMembership(t *testing.T) {
 		},
 		{
 			name:    "owner adds itself",
-			userCtx: genUserContext(context.Background(), ownerUser, nil, nil),
+			userCtx: genUserContext(context.Background(), ownerUser, []string{"noprole"}, nil),
 			newMember: member(t, header.Metadata{Name: ownerUser}, accesslist.AccessListMemberSpec{
 				Name:             ownerUser,
 				AccessList:       "access-list",
@@ -2836,7 +2839,7 @@ func TestCanUpdateMembership(t *testing.T) {
 		},
 		{
 			name:    "owner modifies itself",
-			userCtx: genUserContext(context.Background(), ownerUser, nil, nil),
+			userCtx: genUserContext(context.Background(), ownerUser, []string{"noprole"}, nil),
 			oldMember: member(t, header.Metadata{Name: ownerUser}, accesslist.AccessListMemberSpec{
 				Name:             ownerUser,
 				AccessList:       "access-list",
@@ -2859,7 +2862,7 @@ func TestCanUpdateMembership(t *testing.T) {
 		},
 		{
 			name:    "owner doesn't modify itself",
-			userCtx: genUserContext(context.Background(), ownerUser, nil, nil),
+			userCtx: genUserContext(context.Background(), ownerUser, []string{"noprole"}, nil),
 			oldMember: member(t, header.Metadata{Name: ownerUser}, accesslist.AccessListMemberSpec{
 				Name:             ownerUser,
 				AccessList:       "access-list",

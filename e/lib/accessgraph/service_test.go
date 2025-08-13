@@ -19,7 +19,7 @@ func TestService_Query(t *testing.T) {
 	env.createUsersAndRoles(t, ctx)
 
 	t.Run("Query is not allowed", func(t *testing.T) {
-		ctx = genUserContext(ctx, "test-user-no-perm", []string{}, map[string][]string{})
+		ctx = genUserContext(ctx, "test-user-no-perm", []string{"nop-test-role"}, map[string][]string{})
 
 		_, err := env.service.Query(ctx, &accessgraphv1alpha.QueryRequest{})
 		require.ErrorContains(t, err, "not allowed to read the access graph")
@@ -37,7 +37,7 @@ func TestService_Query(t *testing.T) {
 	})
 
 	t.Run("GetFile is always allowed", func(t *testing.T) {
-		ctx = genUserContext(ctx, "test-user-no-perm", []string{}, map[string][]string{})
+		ctx = genUserContext(ctx, "test-user-no-perm", []string{"nop-test-role"}, map[string][]string{})
 
 		_, err := env.service.GetFile(ctx, &accessgraphv1alpha.GetFileRequest{})
 		require.NoError(t, err)

@@ -242,22 +242,23 @@ func TestAttributeMappingCommand(t *testing.T) {
 		},
 	}
 
-	userWithListVerbContext := getUserContext(ctx, "userWithListVerb")
+	userWithListVerbContext := getUserContext(ctx, "userWithListVerb", []string{"samllist"})
 	_, err := env.SamlIDPService.TestSAMLIdPAttributeMapping(userWithListVerbContext, req)
 	require.ErrorContains(t, err, "access denied")
 
-	userWithCreateVerbContext := getUserContext(ctx, "userWithCreateVerb")
+	userWithCreateVerbContext := getUserContext(ctx, "userWithCreateVerb", []string{"samlcreate"})
 	resp, err := env.SamlIDPService.TestSAMLIdPAttributeMapping(userWithCreateVerbContext, req)
 	require.NoError(t, err)
 
 	require.Equal(t, expectedResp, resp)
 }
 
-func getUserContext(ctx context.Context, username string) context.Context {
+func getUserContext(ctx context.Context, username string, roles []string) context.Context {
 	return authz.ContextWithUser(ctx, authz.LocalUser{
 		Username: username,
 		Identity: tlsca.Identity{
 			Username: username,
+			Groups:   roles,
 		},
 	})
 }

@@ -249,6 +249,12 @@ func (e env) createUsersAndRoles(t *testing.T, ctx context.Context) {
 	_, err = e.roleStorage.CreateRole(ctx, testRole)
 	require.NoError(t, err)
 
+	nopTestRole, err := types.NewRole("nop-test-role", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	_, err = e.roleStorage.CreateRole(ctx, nopTestRole)
+	require.NoError(t, err)
+
 	testUser, err := types.NewUser("test-user")
 	require.NoError(t, err)
 
