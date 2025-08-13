@@ -282,11 +282,11 @@ func TestCreateUpdateSessionRecordingConfig(t *testing.T) {
 
 	encryption, err := config.Backend.GetRecordingEncryption(ctx)
 	require.NoError(t, err)
-	activeKeys := encryption.GetSpec().GetActiveKeys()
-	require.Len(t, activeKeys, 1)
-	require.NotNil(t, activeKeys[0].RecordingEncryptionPair)
-	require.NotEmpty(t, activeKeys[0].RecordingEncryptionPair.PrivateKey)
-	require.NotEmpty(t, activeKeys[0].RecordingEncryptionPair.PublicKey)
+	activePairs := encryption.GetSpec().GetActiveKeyPairs()
+	require.Len(t, activePairs, 1)
+	require.NotNil(t, activePairs[0].KeyPair)
+	require.NotEmpty(t, activePairs[0].KeyPair.PrivateKey)
+	require.NotEmpty(t, activePairs[0].KeyPair.PublicKey)
 
 	// update should change nothing
 	src, err = manager.UpdateSessionRecordingConfig(ctx, src)
@@ -296,8 +296,8 @@ func TestCreateUpdateSessionRecordingConfig(t *testing.T) {
 
 	encryption, err = config.Backend.GetRecordingEncryption(ctx)
 	require.NoError(t, err)
-	newActiveKeys := encryption.GetSpec().GetActiveKeys()
-	require.ElementsMatch(t, newActiveKeys, activeKeys)
+	newActiveKeyPairs := encryption.GetSpec().GetActiveKeyPairs()
+	require.ElementsMatch(t, newActiveKeyPairs, activePairs)
 }
 
 func TestResolveRecordingEncryption(t *testing.T) {
@@ -327,22 +327,22 @@ func TestResolveRecordingEncryption(t *testing.T) {
 	// CASE: service A first evaluation initializes recording encryption resource
 	encryption, src, err := resolve(ctx, service, managerA)
 	require.NoError(t, err)
-	initialKeys := encryption.GetSpec().GetActiveKeys()
+	initialKeys := encryption.GetSpec().GetActiveKeyPairs()
 
 	require.Len(t, initialKeys, 1)
 	require.Len(t, src.GetEncryptionKeys(), 1)
 	key := initialKeys[0]
-	require.Equal(t, key.RecordingEncryptionPair.PublicKey, src.GetEncryptionKeys()[0].PublicKey)
-	require.NotNil(t, key.RecordingEncryptionPair)
+	require.Equal(t, key.KeyPair.PublicKey, src.GetEncryptionKeys()[0].PublicKey)
+	require.NotNil(t, key.KeyPair)
 
 	// CASE: service B should have access to the same key
 	encryption, src, err = resolve(ctx, service, managerB)
 	require.NoError(t, err)
 
-	activeKeys := encryption.GetSpec().ActiveKeys
+	activePairs := encryption.GetSpec().ActiveKeyPairs
 	require.Len(t, src.GetEncryptionKeys(), 1)
-	require.Equal(t, key.RecordingEncryptionPair.PublicKey, src.GetEncryptionKeys()[0].PublicKey)
-	require.ElementsMatch(t, initialKeys, activeKeys)
+	require.Equal(t, key.KeyPair.PublicKey, src.GetEncryptionKeys()[0].PublicKey)
+	require.ElementsMatch(t, initialKeys, activePairs)
 
 	// service C should error without access to the current key
 	_, _, err = resolve(ctx, service, managerC)
@@ -383,13 +383,13 @@ func TestResolveRecordingEncryptionConcurrent(t *testing.T) {
 	encryption, err := service.GetRecordingEncryption(ctx)
 	require.NoError(t, err)
 
-	activeKeys := encryption.GetSpec().ActiveKeys
+	activePairs := encryption.GetSpec().ActiveKeyPairs
 	// each service should share a single active key
-	require.Len(t, activeKeys, 1)
-	require.NotNil(t, activeKeys[0].RecordingEncryptionPair)
-	require.NotEmpty(t, activeKeys[0].RecordingEncryptionPair.PrivateKey)
-	require.NotEmpty(t, activeKeys[0].RecordingEncryptionPair.PublicKey)
-	require.Equal(t, types.PrivateKeyType_RAW, activeKeys[0].RecordingEncryptionPair.PrivateKeyType)
+	require.Len(t, activePairs, 1)
+	require.NotNil(t, activePairs[0].KeyPair)
+	require.NotEmpty(t, activePairs[0].KeyPair.PrivateKey)
+	require.NotEmpty(t, activePairs[0].KeyPair.PublicKey)
+	require.Equal(t, types.PrivateKeyType_RAW, activePairs[0].KeyPair.PrivateKeyType)
 }
 
 func TestUnwrapKey(t *testing.T) {

@@ -35,7 +35,7 @@ func newRecordingEncryption() *recordingencryptionv1.RecordingEncryption {
 			Name: types.MetaNameRecordingEncryption,
 		},
 		Spec: &recordingencryptionv1.RecordingEncryptionSpec{
-			ActiveKeys: nil,
+			ActiveKeyPairs: nil,
 		},
 	}
 }
