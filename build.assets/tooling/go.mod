@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/build.assets/tooling
 
-go 1.23.12
+go 1.24.6
 
 require (
 	buf.build/go/bufplugin v0.9.0
