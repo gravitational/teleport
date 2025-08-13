@@ -38,8 +38,13 @@ func TestMaxRecvSize(t *testing.T) {
 			bytes: defaultClientRecvSize,
 		},
 		{
-			desc:  "Massive",
+			desc:  "Unhandled units",
 			size:  "4TB",
+			bytes: defaultClientRecvSize,
+		},
+		{
+			desc:  "Too large",
+			size:  "20GB",
 			bytes: defaultClientRecvSize,
 		},
 		{
@@ -48,9 +53,34 @@ func TestMaxRecvSize(t *testing.T) {
 			bytes: defaultClientRecvSize,
 		},
 		{
-			desc:  "Human",
+			desc:  "Human mib",
 			size:  "8mib",
 			bytes: 8 * 1024 * 1024,
+		},
+		{
+			desc:  "Human kib",
+			size:  "8kib",
+			bytes: 8 * 1024,
+		},
+		{
+			desc:  "Human mb",
+			size:  "8mb",
+			bytes: 8 * 1000 * 1000,
+		},
+		{
+			desc:  "Human kb",
+			size:  "8kb",
+			bytes: 8 * 1000,
+		},
+		{
+			desc:  "Human m",
+			size:  "8m",
+			bytes: 8 * 1000 * 1000,
+		},
+		{
+			desc:  "Human k",
+			size:  "8k",
+			bytes: 8 * 1000,
 		},
 	}
 
