@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMaxRecvSize(t *testing.T) {
+func TestMaxClientRecvMsgSize(t *testing.T) {
 
 	testCases := []struct {
 		desc  string
@@ -92,7 +92,7 @@ func TestMaxRecvSize(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Setenv("TELEPORT_UNSTABLE_GRPC_RECV_SIZE", tt.size)
-			assert.Equal(t, tt.bytes, MaxRecvSize())
+			assert.Equal(t, tt.bytes, MaxClientRecvMsgSize())
 		})
 	}
 }
