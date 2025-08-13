@@ -500,7 +500,6 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	msgSize := grpcutils.MaxRecvSize()
 	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
@@ -518,7 +517,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 			breaker.StreamClientInterceptor(cb),
 		),
 		grpc.WithDefaultCallOptions(
-			grpc.MaxCallRecvMsgSize(msgSize),
+			grpc.MaxCallRecvMsgSize(grpcutils.MaxClientRecvMsgSize()),
 		),
 	)
 	// Only set transportCredentials if tlsConfig is set. This makes it possible

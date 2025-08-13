@@ -297,8 +297,6 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 		return nil, trace.Wrap(err)
 	}
 
-	msgSize := grpcutils.MaxRecvSize()
-
 	conn, err := grpc.DialContext(
 		dialCtx,
 		cfg.ProxyAddress,
@@ -324,7 +322,7 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 				)...,
 			),
 			grpc.WithDefaultCallOptions(
-				grpc.MaxCallRecvMsgSize(msgSize),
+				grpc.MaxCallRecvMsgSize(grpcutils.MaxClientRecvMsgSize()),
 			),
 		}, cfg.DialOpts...)...,
 	)
