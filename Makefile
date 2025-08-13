@@ -1539,27 +1539,38 @@ enter/arm:
 
 BUF := buf
 
+#
+# Install buf to lint, format and generate code from protobuf files.
+#
+.PHONY: ensure-buf
+ensure-buf: NEED_VERSION = $(shell $(MAKE) --no-print-directory -s -C build.assets print-buf-version)
+ensure-buf:
+# Install buf if it's not already installed.
+ifeq (, $(shell command -v $(BUF)))
+	go install github.com/bufbuild/buf/cmd/buf@$(NEED_VERSION)
+endif
+
 # protos/all runs build, lint and format on all protos.
 # Use `make grpc` to regenerate protos inside buildbox.
 .PHONY: protos/all
 protos/all: protos/build protos/lint protos/format
 
 .PHONY: protos/build
-protos/build: buf/installed
+protos/build: ensure-buf
 	$(BUF) build
 
 .PHONY: protos/format
-protos/format: buf/installed
+protos/format: ensure-buf
 	$(BUF) format -w
 
 .PHONY: protos/lint
-protos/lint: buf/installed
+protos/lint: ensure-buf
 	$(BUF) lint
 	$(BUF) lint --config=buf-legacy.yaml api/proto
 
 .PHONY: protos/breaking
 protos/breaking: BASE=origin/master
-protos/breaking: buf/installed
+protos/breaking: ensure-buf
 	@echo Checking compatibility against BASE=$(BASE)
 	buf breaking . --against '.git#branch=$(BASE)'
 
@@ -1568,13 +1579,6 @@ lint-protos: protos/lint
 
 .PHONY: lint-breaking
 lint-breaking: protos/breaking
-
-.PHONY: buf/installed
-buf/installed:
-	@if ! type -p $(BUF) >/dev/null; then \
-		echo 'Buf is required to build/format/lint protos. Follow https://docs.buf.build/installation.'; \
-		exit 1; \
-	fi
 
 GODERIVE := $(TOOLINGDIR)/bin/goderive
 # derive will generate derived functions for our API.

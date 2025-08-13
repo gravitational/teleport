@@ -719,6 +719,7 @@ type mockedResourceAPIGetter struct {
 	mockGetRole               func(ctx context.Context, name string) (types.Role, error)
 	mockGetRoles              func(ctx context.Context) ([]types.Role, error)
 	mockListRoles             func(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
+	mockListRequestableRoles  func(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
 	mockUpsertRole            func(ctx context.Context, role types.Role) (types.Role, error)
 	mockGetGithubConnectors   func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
 	mockGetGithubConnector    func(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error)
@@ -751,6 +752,13 @@ func (m *mockedResourceAPIGetter) ListRoles(ctx context.Context, req *proto.List
 		return m.mockListRoles(ctx, req)
 	}
 	return nil, trace.NotImplemented("mockListRoles not implemented")
+}
+
+func (m *mockedResourceAPIGetter) ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error) {
+	if m.mockListRequestableRoles != nil {
+		return m.mockListRequestableRoles(ctx, req)
+	}
+	return nil, trace.NotImplemented("mockListRequestableRoles not implemented")
 }
 
 func (m *mockedResourceAPIGetter) UpsertRole(ctx context.Context, role types.Role) (types.Role, error) {
@@ -915,6 +923,69 @@ func Test_newKubeListRequest(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// TestListRequestableRoles tests the /webapi/requestableroles endpoint
+func TestListRequestableRoles(t *testing.T) {
+	ctx := t.Context()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+
+	// Create a user role that can request another role
+	userRole, err := types.NewRole("user-role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins: []string{"user"},
+			Request: &types.AccessRequestConditions{
+				Roles: []string{"role-requestable"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create a requestable role
+	requestableRole, err := types.NewRole("role-requestable", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins: []string{"123"},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create a role that they can't request
+	nonRequestableRole, err := types.NewRole("admin-role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins: []string{"admin"},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create the roles in the backend
+	_, err = env.server.Auth().CreateRole(ctx, userRole)
+	require.NoError(t, err)
+	_, err = env.server.Auth().CreateRole(ctx, requestableRole)
+	require.NoError(t, err)
+	_, err = env.server.Auth().CreateRole(ctx, nonRequestableRole)
+	require.NoError(t, err)
+
+	pack := proxy.authPack(t, "test-user", []types.Role{userRole})
+
+	resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "requestableroles"), url.Values{})
+	require.NoError(t, err)
+
+	var response expectedRequestableRoleResponse
+	err = json.Unmarshal(resp.Bytes(), &response)
+	require.NoError(t, err)
+
+	require.Len(t, response.Items, 1)
+
+	roleName := response.Items[0].Name
+	require.Equal(t, "role-requestable", roleName)
+
+	require.Empty(t, response.StartKey)
+}
+
+type expectedRequestableRoleResponse struct {
+	Items    []ui.RequestableRole `json:"items"`
+	StartKey string               `json:"startKey"`
 }
 
 func makeGithubConnector(t *testing.T, name string) types.GithubConnector {
