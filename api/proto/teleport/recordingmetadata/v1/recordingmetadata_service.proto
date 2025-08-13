@@ -42,7 +42,7 @@ message GetMetadataResponseChunk {
 // GetThumbnailsRequest is a request for retrieving multiple session's thumbnails.
 message GetThumbnailsRequest {
   // SessionIds are the ID of the sessions whose thumbnails are being requested.
-  repeated string session_ids = 3;
+  repeated string session_ids = 1;
 }
 
 // GetThumbnailsResponse is a response for retrieving multiple session's thumbnails.
