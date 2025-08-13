@@ -37,8 +37,8 @@ in Teleport or, if you're using Okta, enable the
 
 ## Step 1/6. Configure AWS integration
 
-To get started, navigate to the "Add new integration" page in your Teleport
-cluster control panel and select "AWS Identity Center".
+To get started, navigate to Visit the Teleport Web UI, click **Add New** in the left sidebar, 
+click **Integration** and select **AWS IAM Identity Center**.
 
 ![Pick Identity Center integration](../../../../../img/identity-center/ic-pick-integration.png)
 
@@ -97,8 +97,6 @@ After the script has run, fill out the ARN for the role created by the script.
 On the next step, you are presented with the list of AWS accounts, groups, and
 permission sets that Teleport was able to find in your Identity Center.
 
-![Preview AWS resources](../../../../../img/identity-center/ic-step2.png)
-
 Pick the default owners that should be assigned to the Access Lists in Teleport.
 These resources will be imported into Teleport once the plugin is installed.
 
@@ -116,14 +114,10 @@ external identity source.
 Follow the instructions to change your Identity Center's identity source to
 Teleport.
 
-![Configure identity source](../../../../../img/identity-center/ic-step3.png)
-
 ## Step 4/6. Enable SCIM
 
 The final step is to enable the SCIM endpoint in your Identity Center to
 allow Teleport to push user and group changes.
-
-![Enable SCIM](../../../../../img/identity-center/ic-step4.png)
 
 Make sure to test SCIM connection after enabling it.
 
@@ -136,8 +130,6 @@ your Identity Center groups have been imported.
 It may take a few minutes for the initial sync to complete.
 </Admonition>
 
-![Access Lists view](../../../../../img/identity-center/ic-lists.png)
-
 Imported Access Lists should show the same members as their corresponding
 Identity Center groups.
 
@@ -145,8 +137,6 @@ Identity Center groups.
 
 Once the integration is up and running, you will see an application named
 `aws-identity-center` among your resources:
-
-![Connect to AWS SSO portal](../../../../../img/identity-center/ic-app.png)
 
 Clicking the "Log In" button for this app takes you to your Identity Center
 SSO start page which you can use to pick a role and connect to your AWS account

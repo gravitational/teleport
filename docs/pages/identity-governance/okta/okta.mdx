@@ -44,11 +44,10 @@ to align with the state defined by Teleport's RBAC configuration.
 
 ## Get started
 
-To start the enrolment, visit the Teleport Web UI and click **Access** and then
-**Integrations** on the menu bar at the left of the screen. Then click **Enroll
-New Integration** and select **Okta** tile.
+To start the enrolment, visit the Teleport Web UI and click **Identity Security** and then
+**Integrations** at the left of the screen. Then under **New Integration** select the **Okta** tile.
 
-![Enroll an Access Request plugin](../../../img/enterprise/plugins/enroll.png)
+![Add Integration plugin](../../../img/enterprise/plugins/integration-plugin.png)
 
 This will bring you to the SSO integration configuration screen. Read [Guided
 Okta SSO Integration](./guided-sso.mdx) for supplementary instructions as you
@@ -82,15 +81,12 @@ Security Integration directly from the status page.
 When configuring a new integration, the setup wizard provides a
 dedicated Identity Security step with guided configuration instructions.
 
-
 ## Managing integration components
 
 At any point in the guided flow, you can return to the integration status page
 to manage any component of the integration. To open the integration status page
 in the Teleport Web UI, navigate to **Access** -> **Integrations** and click
 anywhere on the Okta integration row.
-
-![Okta integration #1](../../../img/enterprise/plugins/okta/okta-status-page-1.png)
 
 ## Deleting the Okta integration
 
@@ -105,9 +101,7 @@ You can delete the Okta integration by taking the following steps:
 1. Navigate to **Access** -> **Integrations** and click anywhere on the Okta
    integration row to visit the integration status page. 
 
-1. Click **Delete Integration** .
-
-   ![Delete Okta integration](../../../img/enterprise/plugins/okta/okta-delete-integration.png)
+1. Click **Delete Integration**.
 
 1. Permanently delete the SAML connector created as part of the integration.
    Navigate to the **Auth Connectors** page in the Teleport UI and select the
