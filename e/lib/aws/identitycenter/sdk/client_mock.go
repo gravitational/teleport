@@ -7,6 +7,8 @@ import (
 
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"github.com/gravitational/trace"
+
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // NewClientMock creates and returns a new instance of ClientMock.
@@ -152,6 +154,19 @@ var DefaultMockedData = MockedAWSStateType{
 	},
 }
 
+// clonePtrSlice clones a slice of pointers to T, making 1-level-deep copies of
+// the pointed-to objects.
+func clonePtrSlice[T any](s []*T) []*T {
+	if s == nil {
+		return nil
+	}
+	cloneItem := func(src *T) *T {
+		cpy := *src
+		return &cpy
+	}
+	return sliceutils.Map(s, cloneItem)
+}
+
 // MockedAWSStateType is a struct that holds the mocked AWS state.
 type MockedAWSStateType struct {
 	// Info holds information about the Identoty Center instance
@@ -190,14 +205,14 @@ func (c *ClientMock) DescribeInstance(ctx context.Context) (*InstanceInfo, error
 func (c *ClientMock) ListAccounts(_ context.Context) ([]*Account, error) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
-	return c.Accounts, nil
+	return clonePtrSlice(c.Accounts), nil
 }
 
 // ListPermissionSetARNsForAccount returns a list of permission set ARNs assigned to an account.
-func (c *ClientMock) ListPermissionSetARNsForAccount(ctx context.Context, accountID string) ([]string, error) {
+func (c *ClientMock) ListPermissionSetARNsForAccount(_ context.Context, accountID string) ([]string, error) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
-	return c.AccountPermAssignments[accountID], nil
+	return slices.Clone(c.AccountPermAssignments[accountID]), nil
 }
 
 // ListPermissionSets returns a list of mocked permission sets.
@@ -208,53 +223,53 @@ func (c *ClientMock) ListPermissionSets(ctx context.Context) ([]*PermissionSet, 
 	if c.MonkeyPatch.ListPermissionSets != nil {
 		return c.MonkeyPatch.ListPermissionSets(ctx)
 	}
-	return c.PermissionSets, nil
+	return clonePtrSlice(c.PermissionSets), nil
 }
 
 // ListGroups returns a list of mocked groups.
 func (c *ClientMock) ListGroups(ctx context.Context) ([]*Group, error) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
-	return c.Groups, nil
+	return clonePtrSlice(c.Groups), nil
 }
 
 // ListGroupMemberships returns a list of group members for a given group ID.
 func (c *ClientMock) ListGroupMemberships(_ context.Context, groupID string) ([]*GroupMember, error) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
-	return c.GroupMemberships[groupID], nil
+	return clonePtrSlice(c.GroupMemberships[groupID]), nil
 }
 
 // ListUsers returns a list of mocked users.
 func (c *ClientMock) ListUsers(context.Context) ([]*User, error) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
-	return c.Users, nil
+	return clonePtrSlice(c.Users), nil
 }
 
 // ListUserAssignments returns a list of permission assignments for a given user ID.
-func (c *ClientMock) ListUserAssignments(ctx context.Context, userID string) ([]*Assignment, error) {
+func (c *ClientMock) ListUserAssignments(_ context.Context, userID string) ([]*Assignment, error) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
-	return c.UserAssignments[userID], nil
+	return clonePtrSlice(c.UserAssignments[userID]), nil
 }
 
 // ListGroupsAssignments returns a list of permission assignments for a given group ID.
-func (c *ClientMock) ListGroupsAssignments(ctx context.Context, groupID string) ([]*Assignment, error) {
+func (c *ClientMock) ListGroupsAssignments(_ context.Context, groupID string) ([]*Assignment, error) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
-	return c.GroupAssignments[groupID], nil
+	return clonePtrSlice(c.GroupAssignments[groupID]), nil
 }
 
 // WaitForDeleteAccountAssignmentResult waits until the account assignment creation reaches a terminal state.
-func (c *ClientMock) WaitForCreateAccountAssignmentResult(ctx context.Context, requestID string) error {
+func (c *ClientMock) WaitForCreateAccountAssignmentResult(_ context.Context, requestID string) error {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	return nil
 }
 
 // CreateAccountAssignment adds a new assignment based on the request parameters.
-func (c *ClientMock) CreateAccountAssignment(ctx context.Context, req *CreateAccountAssignmentRequest) (*AccountAssignmentResponse, error) {
+func (c *ClientMock) CreateAccountAssignment(_ context.Context, req *CreateAccountAssignmentRequest) (*AccountAssignmentResponse, error) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 
@@ -286,7 +301,7 @@ func (c *ClientMock) CreateAccountAssignment(ctx context.Context, req *CreateAcc
 }
 
 // DeleteAccountAssignment removes an assignment for the specified user.
-func (c *ClientMock) DeleteAccountAssignment(ctx context.Context, req *DeleteAccountAssignmentRequest) (*AccountAssignmentResponse, error) {
+func (c *ClientMock) DeleteAccountAssignment(_ context.Context, req *DeleteAccountAssignmentRequest) (*AccountAssignmentResponse, error) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 
@@ -325,13 +340,13 @@ func (c *ClientMock) DeleteAccountAssignment(ctx context.Context, req *DeleteAcc
 }
 
 // WaitForDeleteAccountAssignmentResult waits until the account assignment deletion reaches a terminal state.
-func (c *ClientMock) WaitForDeleteAccountAssignmentResult(ctx context.Context, requestID string) error {
+func (c *ClientMock) WaitForDeleteAccountAssignmentResult(_ context.Context, requestID string) error {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	return nil
 }
 
-func (c *ClientMock) ListAssignments(ctx context.Context, principalID string, principalType ssoadmintypes.PrincipalType) ([]*Assignment, error) {
+func (c *ClientMock) ListAssignments(_ context.Context, principalID string, principalType ssoadmintypes.PrincipalType) ([]*Assignment, error) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 
