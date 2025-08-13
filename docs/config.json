@@ -65,7 +65,6 @@
       "ca_pin": "sha256:abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678"
     },
     "teleport": {
-      "git": "api/14.0.0-gd1e081e",
       "major_version": "19",
       "version": "19.0.0-dev",
       "url": "teleport.example.com",
