@@ -60,7 +60,7 @@ func parseBytes(s string) (int, error) {
 
 	lastDigit := 0
 	for _, r := range s {
-		if !(unicode.IsDigit(r) || r == '.') {
+		if !unicode.IsDigit(r) && r != '.' {
 			break
 		}
 		lastDigit++
