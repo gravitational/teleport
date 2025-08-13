@@ -572,6 +572,11 @@ func (d *DatabaseV3) getGCPType() (string, bool) {
 		return "", false
 	}
 
+	// This check catches the case when URI is not prefixed with `alloydb://`, and yet spec.gcp.alloydb is not empty.
+	// Most likely this is due to a typo in URI or misconfiguration (copy-pasting the URI without adding the prefix).
+	//
+	// Making it clear this is AlloyDB instance will prevent CloudSQL-specific logic to fire,
+	// but also make it eligible for AlloyDB-specific validation to run, which will catch the URI problem.
 	if !gcp.AlloyDB.IsEmpty() {
 		return DatabaseTypeAlloyDB, true
 	}
