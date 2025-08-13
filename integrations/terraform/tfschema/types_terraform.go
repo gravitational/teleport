@@ -2157,7 +2157,7 @@ func GenSchemaSessionRecordingConfigV2(ctx context.Context) (github_com_hashicor
 		"status": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"encryption_keys": {
 				Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"public_key": {
-					Description: "PublicKey is a Bech32 encoded age X25519 public key.",
+					Description: "A PEM encoded public key used for key wrapping during age encryption. Expected to be RSA 4096.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				}}),
