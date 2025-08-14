@@ -6,7 +6,7 @@ labels:
  - identity-governance
 ---
 
-teleport supports automatic reviews of Access Requests. This
+Teleport supports automatic reviews of Access Requests. This
 feature enables teams to enforce a zero standing privilege policy, while
 still allowing users to receive temporary access without manual approval.
 
@@ -27,7 +27,7 @@ requests access to the `access` role.
 
 - This feature requires Teleport Identity Governance.
 
-- This guide requires at least one connected SSH Server.
+- This guide requires at least one connected SSH server.
 
 ## Step 1/5. Create a requester user
 
@@ -73,7 +73,7 @@ does not support wildcard or regular expressions.
 
 ## Step 3/5. Ensure resource labels
 
-List your SSH Servers to identify available labels.
+List your SSH servers to identify available labels:
 
 ```code
 $ tsh ls
@@ -82,12 +82,11 @@ Node Name   Address    Labels
 teleport-00 ⟵ Tunnel   env=demo
 ```
 
-This example resource has the labels `env: demo`. If your resource has not been
-labeled, reconfigure your resource with a label. Altenratively, you can add a
-label using a `server_info` resource. See [Apply resource-based labels](https://goteleport.com/docs/admin-guides/management/admin/labels/#apply-resource-based-labels)
-for more information.
+This example resource has the label `env: demo`. If your resource has not been
+labeled, reconfigure your resource with a label. Alternatively, you can add a
+label using a `server_info` resource.
 
-1. Retrieve information about the SSH Server.
+1. Retrieve information about the SSH server.
 
 ```code
 $ tctl get node/teleport-00
@@ -154,7 +153,7 @@ To verify the new automatic review rule, create an Access Request via the Telepo
 Web UI.
 1. Log in as `demo-access-requester`
 2. Go to **Identity Governance** -> **Access Requests** and click **New Access Request**
-3. Add the SSH Server you'd like to request access to.
+3. Add the SSH server you'd like to request access to.
 4. Click **Proceed to Request**, then **Submit Request**
 
 At this point, the new Access Request should have been created, automatically
@@ -181,3 +180,8 @@ both an approval rule and a denial rule, the denial rule takes precedence.
   [Terraform Resources Index](../../reference/terraform-provider/resources/access_monitoring_rule.mdx)
 - For configuration options with SSO, refer to the
   [Single Sign-On Guides](../../zero-trust-access/sso/sso.mdx)
+
+## Further reading
+
+For more details about applying resource-based labels with `server_info` resources,
+refer to [Apply resource-based labels](https://goteleport.com/docs/admin-guides/management/admin/labels/#apply-resource-based-labels).
