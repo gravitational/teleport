@@ -725,7 +725,7 @@ podSecurityPolicy:
   # and replaced since 1.23 by PodSecurityAdmission (PSA). If you are running on
   # Kubernetes 1.23 or later, it is recommended to disable PSPs and use PSAs.
   # The steps are documented in the
-  # [PSP removal guide](../../admin-guides/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp.mdx).
+  # [PSP removal guide](../../zero-trust-access/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp.mdx).
   #
   # This value will be removed in a future chart version.
   enabled: true
