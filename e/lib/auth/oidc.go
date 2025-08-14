@@ -15,8 +15,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	jose "github.com/go-jose/go-jose/v3"
+	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"github.com/zitadel/oidc/v3/pkg/client"
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 	"golang.org/x/oauth2"
@@ -34,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/loginrule"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -45,20 +49,22 @@ import (
 const authGracePeriod = time.Minute
 
 type OIDCAuthService struct {
-	auth    *auth.Server
-	emitter apievents.Emitter
-	license License
-	client  *http.Client
+	auth      *auth.Server
+	emitter   apievents.Emitter
+	license   License
+	client    *http.Client
+	getSigner JWTSignerFactory
 
 	mu  sync.Mutex
 	rps map[rpKey]relyingParty
 }
 
 type OIDCAuthServiceConfig struct {
-	Auth    *auth.Server
-	Emitter apievents.Emitter
-	License License
-	Client  *http.Client
+	Auth          *auth.Server
+	Emitter       apievents.Emitter
+	License       License
+	Client        *http.Client
+	SignerFactory JWTSignerFactory
 }
 
 func (cfg *OIDCAuthServiceConfig) CheckAndSetDefaults() error {
@@ -78,6 +84,9 @@ func (cfg *OIDCAuthServiceConfig) CheckAndSetDefaults() error {
 		}
 
 		cfg.Client = clt
+	}
+	if cfg.SignerFactory == nil {
+		cfg.SignerFactory = DefaultJWTSignerFactory(cfg.Auth)
 	}
 	return nil
 }
@@ -177,7 +186,8 @@ func NewOIDCAuthService(cfg *OIDCAuthServiceConfig) (*OIDCAuthService, error) {
 			Jar:           cfg.Client.Jar,
 			Timeout:       cfg.Client.Timeout,
 		},
-		rps: map[rpKey]relyingParty{},
+		rps:       map[rpKey]relyingParty{},
+		getSigner: cfg.SignerFactory,
 	}, nil
 }
 
@@ -185,7 +195,8 @@ func NewOIDCAuthService(cfg *OIDCAuthServiceConfig) (*OIDCAuthService, error) {
 // a [types.OIDCConnector].
 type relyingParty struct {
 	rp.RelyingParty
-	conn types.OIDCConnector
+	discoveryConfig oidc.DiscoveryConfiguration
+	conn            types.OIDCConnector
 }
 
 // rpKey is an internal key for a relying party.
@@ -210,7 +221,7 @@ func (oas *OIDCAuthService) CreateOIDCAuthRequestForMFA(ctx context.Context, req
 	return oas.createOIDCAuthRequest(ctx, req, true /*forMFA*/)
 }
 
-func (oas *OIDCAuthService) getRelyingParty(ctx context.Context, connector types.OIDCConnector, proxyAddress string, forMFA bool) (rp.RelyingParty, error) {
+func (oas *OIDCAuthService) getRelyingParty(ctx context.Context, connector types.OIDCConnector, proxyAddress string, forMFA bool) (relyingParty, error) {
 	oas.mu.Lock()
 	defer oas.mu.Unlock()
 
@@ -224,7 +235,7 @@ func (oas *OIDCAuthService) getRelyingParty(ctx context.Context, connector types
 		connector.GetIssuerURL() == cachedRP.conn.GetIssuerURL() &&
 		connector.GetAllowUnverifiedEmail() == cachedRP.conn.GetAllowUnverifiedEmail() &&
 		connector.GetUsernameClaim() == cachedRP.conn.GetUsernameClaim() {
-		return cachedRP.RelyingParty, nil
+		return cachedRP, nil
 	}
 
 	delete(oas.rps, key)
@@ -235,14 +246,24 @@ func (oas *OIDCAuthService) getRelyingParty(ctx context.Context, connector types
 	// https://example.com/id/.well-known/openid-configuration?a=b.
 	u, err := url.Parse(connector.GetIssuerURL())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return relyingParty{}, trace.Wrap(err)
 	}
 	u.Fragment = ""
 	u.Path = strings.TrimSuffix(u.Path, "/") + oidc.DiscoveryEndpoint
 
 	redirectURI, err := services.GetRedirectURL(connector, proxyAddress)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return relyingParty{}, trace.Wrap(err)
+	}
+
+	// NewRelyingPartyOIDC calls the discovery endpoint, but appears to discard much of the response
+	// It only hangs on to configured endpoints and supported ID Token signing algs
+	// Let's call it here and hang on to the full response
+	// TODO(rhammonds): We could go ahead and validate the provider's discovery advertisement against our own
+	// connector configuration to catch any incompatibilites
+	discoveryConfig, err := client.Discover(ctx, connector.GetIssuerURL(), oas.client, u.String())
+	if err != nil {
+		return relyingParty{}, trace.Wrap(err, "Error invoking discovery URL %q", u.String())
 	}
 
 	rpOIDC, err := rp.NewRelyingPartyOIDC(
@@ -257,12 +278,64 @@ func (oas *OIDCAuthService) getRelyingParty(ctx context.Context, connector types
 		rp.WithHTTPClient(oas.client),
 	)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return relyingParty{}, trace.Wrap(err)
 	}
 
-	oas.rps[key] = relyingParty{RelyingParty: rpOIDC, conn: connector}
+	newRp := relyingParty{RelyingParty: rpOIDC, conn: connector, discoveryConfig: *discoveryConfig}
+	oas.rps[key] = newRp
+	return newRp, nil
+}
 
-	return rpOIDC, nil
+// JWTSignerFactory provides a JWT key to be used by OIDCAuthService to sign JWTs.
+type JWTSignerFactory func(ctx context.Context) (jose.Signer, string, error)
+
+// DefaultJWTSignerFactory provides a default implementation for retrieving a
+// JWT signer from the 'oidc_idp' certificate authority.
+func DefaultJWTSignerFactory(auth *auth.Server) JWTSignerFactory {
+	return func(ctx context.Context) (jose.Signer, string, error) {
+		return getJWTSignerFromCertAuthority(ctx, auth)
+	}
+}
+
+func getJWTSignerFromCertAuthority(ctx context.Context, auth *auth.Server) (jose.Signer, string, error) {
+	clusterName, err := auth.GetClusterName(ctx)
+	if err != nil {
+		return nil, "", trace.Wrap(err, "Failed to obtain cluster name")
+	}
+
+	ca, err := auth.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.OIDCIdPCA,
+		DomainName: clusterName.GetClusterName(),
+	}, true /*loadKeys*/)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	signer, err := auth.GetKeyStore().GetJWTSigner(ctx, ca)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	alg, err := jwt.AlgorithmForPublicKey(signer.Public())
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	key, err := jwt.SigningKeyFromPrivateKey(signer)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	kid, err := jwt.KeyID(signer.Public())
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	joseSigner, err := jose.NewSigner(key, (&jose.SignerOptions{}).WithHeader("kid", kid))
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return joseSigner, string(alg), nil
 }
 
 func (oas *OIDCAuthService) createOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest, forMFA bool) (*types.OIDCAuthRequest, error) {
@@ -368,6 +441,53 @@ func (oas *OIDCAuthService) createOIDCAuthRequest(ctx context.Context, req types
 	if maxAge, ok := connector.GetMaxAge(); ok {
 		maxAgeSeconds := int64(maxAge / time.Second)
 		redirectQuery.Set("max_age", strconv.FormatInt(maxAgeSeconds, 10))
+	}
+
+	// Only do JWT-Secured Authorization Requests (JAR) when configured for the connector.
+	if connector.GetRequestObjectMode() == constants.OIDCRequestObjectModeSigned {
+		// RFC 9101 - https://www.rfc-editor.org/rfc/rfc9101.html#name-request-object-2
+		// "It [request object] MUST contain all the parameters (including extension parameters) used to
+		// process the OAuth 2.0 [RFC6749] authorization request except the request and
+		// request_uri parameters that are defined in this document."
+		//
+		// As the RFC states, our authorization request must contain only 'client_id' AND 'request' XOR 'request_uri' parameters.
+		// (client_id goes into both the URL *and* JWT)
+		signer, alg, err := oas.getSigner(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		if !relyingParty.discoveryConfig.RequestParameterSupported {
+			return nil, trace.Errorf("connector is configured for request_object_mode '%s' but IdP does not support request objects", connector.GetRequestObjectMode())
+		}
+
+		if !slices.Contains(relyingParty.discoveryConfig.RequestObjectSigningAlgValuesSupported, alg) {
+			return nil, trace.Errorf("Teleport signs request objects using signature algorithm '%s' which is not supported by the IdP", alg)
+		}
+
+		requestParameters := map[string]any{}
+		for key, val := range redirectQuery {
+			if len(val) == 1 {
+				requestParameters[key] = val[0]
+			} else {
+				requestParameters[key] = val
+			}
+			// Clear each query param as we set them as claims
+			// in the request object
+			delete(redirectQuery, key)
+		}
+
+		// Intentionally omit standard JWT claims. They're not explicitly
+		// required per RFC 9101, and it has been observed that the inclusion of
+		// certain claims, like "issuer", will cause some IdPs to reject our request objects.
+		signedRequestToken, err := josejwt.Signed(signer).Claims(requestParameters).CompactSerialize()
+		if err != nil {
+			return nil, trace.Wrap(err, "Failed to create request object JWT")
+		}
+		// and add back only the client_id and request_object
+		// parameters per the RFC
+		redirectQuery.Add("request", signedRequestToken)
+		redirectQuery.Add("client_id", connector.GetClientID())
 	}
 
 	redirectURL.RawQuery = redirectQuery.Encode()

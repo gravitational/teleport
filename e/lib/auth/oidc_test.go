@@ -2,6 +2,10 @@ package auth_test
 
 import (
 	"context"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -14,6 +18,8 @@ import (
 	"testing"
 	"time"
 
+	jose "github.com/go-jose/go-jose/v3"
+	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -31,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/keys"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/loginrule"
 	loginrulestorage "github.com/gravitational/teleport/e/lib/loginrule/storage"
@@ -45,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
@@ -196,12 +204,14 @@ func (s store) AuthRequestByID(ctx context.Context, id string) (op.AuthRequest, 
 }
 
 type oidcSuiteOpts struct {
-	users    []user
-	insecure bool
-	license  eauth.License
-	clock    clocki.FakeClock
-	proxy    func(http.Handler) http.Handler
-	pkceMode string
+	users             []user
+	insecure          bool
+	license           eauth.License
+	clock             clocki.FakeClock
+	proxy             func(http.Handler) http.Handler
+	pkceMode          string
+	requestObjectMode constants.OIDCRequestObjectMode
+	signerFactory     eauth.JWTSignerFactory
 }
 
 func overridePKCEMode(mode string) func(*oidcSuiteOpts) {
@@ -241,24 +251,43 @@ func proxyOP(p func(http.Handler) http.Handler) func(*oidcSuiteOpts) {
 }
 
 type OIDCSuite struct {
-	authServer  *auth.Server
-	backend     backend.Backend
-	clock       clocki.FakeClock
-	oidcService *eauth.OIDCAuthService
-	emitter     *eventstest.MockRecorderEmitter
-	idpServer   *httptest.Server
-	connector   *types.OIDCConnectorV3
-	store       *store
+	authServer       *auth.Server
+	backend          backend.Backend
+	clock            clocki.FakeClock
+	oidcService      *eauth.OIDCAuthService
+	emitter          *eventstest.MockRecorderEmitter
+	idpServer        *httptest.Server
+	connector        *types.OIDCConnectorV3
+	store            *store
+	oidcIDPPublicKey crypto.PublicKey
+}
+
+func newECDSAKey(clusterName string) (*jwt.Key, crypto.Signer, error) {
+	ecdsaKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	jwtKey, err := jwt.New(&jwt.Config{
+		PublicKey:   ecdsaKey.Public(),
+		PrivateKey:  ecdsaKey,
+		ClusterName: clusterName,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return jwtKey, ecdsaKey, err
 }
 
 func newOIDCSuite(t *testing.T, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
 	ctx := context.Background()
 
 	o := oidcSuiteOpts{
-		license:  eauth.ValidLicense{},
-		clock:    clockwork.NewFakeClock(),
-		proxy:    func(h http.Handler) http.Handler { return h },
-		pkceMode: "disabled",
+		license:           eauth.ValidLicense{},
+		clock:             clockwork.NewFakeClock(),
+		proxy:             func(h http.Handler) http.Handler { return h },
+		pkceMode:          "disabled",
+		requestObjectMode: constants.OIDCRequestObjectModeUnknown,
 	}
 
 	for _, opt := range opts {
@@ -437,6 +466,7 @@ func newOIDCSuite(t *testing.T, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
 			RedirectURLs: wrappers.Strings{
 				s.URL + "/proxy/oidc/callback",
 			},
+			RequestObjectMode: string(o.requestObjectMode),
 		},
 	}
 
@@ -491,11 +521,32 @@ func newOIDCSuite(t *testing.T, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
 	err = authServer.CreateCertAuthority(ctx, ca)
 	require.NoError(t, err)
 
+	jwtKeyPair, err := authServer.GetKeyStore().NewJWTKeyPair(ctx, cryptosuites.OIDCIdPCAJWT)
+	require.NoError(t, err)
+
+	oidcIDPPublicKey, err := keys.ParsePublicKey(jwtKeyPair.PublicKey)
+	require.NoError(t, err)
+
+	jwtCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.OIDCIdPCA,
+		ClusterName: "test.example.com",
+		ActiveKeys: types.CAKeySet{
+			JWT: []*types.JWTKeyPair{
+				jwtKeyPair,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	err = authServer.CreateCertAuthority(ctx, jwtCA)
+	require.NoError(t, err)
+
 	oidcService, err := eauth.NewOIDCAuthService(&eauth.OIDCAuthServiceConfig{
-		Auth:    authServer,
-		License: o.license,
-		Emitter: emitter,
-		Client:  s.Client(),
+		Auth:          authServer,
+		License:       o.license,
+		Emitter:       emitter,
+		Client:        s.Client(),
+		SignerFactory: o.signerFactory,
 	})
 	require.NoError(t, err)
 	authServer.SetOIDCService(oidcService)
@@ -504,14 +555,15 @@ func newOIDCSuite(t *testing.T, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
 	require.NoError(t, err)
 
 	return &OIDCSuite{
-		authServer:  authServer,
-		backend:     bk,
-		clock:       o.clock,
-		oidcService: oidcService,
-		emitter:     emitter,
-		idpServer:   s,
-		connector:   c.(*types.OIDCConnectorV3),
-		store:       opStore,
+		authServer:       authServer,
+		backend:          bk,
+		clock:            o.clock,
+		oidcService:      oidcService,
+		emitter:          emitter,
+		idpServer:        s,
+		connector:        c.(*types.OIDCConnectorV3),
+		store:            opStore,
+		oidcIDPPublicKey: oidcIDPPublicKey,
 	}
 }
 
@@ -1833,7 +1885,7 @@ func TestDiscoveryURL(t *testing.T) {
 	params.Add("c", "d")
 	u.RawQuery = params.Encode()
 
-	requestedURL := make(chan *url.URL, 1)
+	requestedURL := make(chan *url.URL, 2 /* Discovery endpoint gets called twice */)
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		requestedURL <- r.URL
@@ -1868,4 +1920,192 @@ func TestDiscoveryURL(t *testing.T) {
 	case <-time.After(20 * time.Second):
 		t.Fatal("timed out waiting for requested url")
 	}
+}
+
+func TestAuthorizationRequestObject(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	defaultSuite := newOIDCSuite(t)
+
+	clusterName, err := defaultSuite.authServer.GetClusterName(ctx)
+	require.NoError(t, err)
+
+	_, ecdsaSigner, err := newECDSAKey(clusterName.GetClusterID())
+	require.NoError(t, err)
+
+	_, err = defaultSuite.authServer.UpdateOIDCConnector(ctx, defaultSuite.connector)
+	require.NoError(t, err)
+
+	type createOIDCAuthRequestResults struct {
+		req *types.OIDCAuthRequest
+		err error
+	}
+
+	// Inspect/validate the output of each call
+	validateEquivalence := func(key crypto.PublicKey, defaultResult createOIDCAuthRequestResults, jarResult createOIDCAuthRequestResults) {
+		// first, ensure both calls succeeded
+		require.NoError(t, defaultResult.err)
+		require.NoError(t, jarResult.err)
+
+		jarURL, err := url.ParseRequestURI(jarResult.req.RedirectURL)
+		require.NoError(t, err)
+		// jar url MUST have the client id
+		clientID := jarURL.Query().Get("client_id")
+		assert.Equal(t, defaultSuite.connector.Spec.ClientID, clientID)
+		// and the request object
+		requestObject := jarURL.Query().Get("request")
+		require.NotEmpty(t, requestObject)
+
+		// Request object should be signed with the provided key
+		claimsMap, headers, err := parseAndVerifyOIDCAuthRequestToken(key, requestObject)
+		require.NoError(t, err)
+
+		// Every query parameter in the "non-jar" authorization request *should* appear in
+		// the claims set of the JWT
+		defaultURL, err := url.ParseRequestURI(defaultResult.req.RedirectURL)
+		require.NoError(t, err)
+		for key := range defaultURL.Query() {
+			assert.Contains(t, claimsMap, key, "Claims set is missing the claim '%s'", key)
+		}
+		// "kid" should also be set on the header
+		require.Len(t, headers, 1) /* Single signature only */
+		assert.NotEmpty(t, headers[0].KeyID)
+	}
+
+	tests := []struct {
+		name           string
+		input          types.OIDCAuthRequest
+		pre            func(*OIDCSuite)
+		inspectResults func(createOIDCAuthRequestResults, createOIDCAuthRequestResults)
+	}{
+		// Test default key factory and RS256 signing.
+		{
+			name:  "default key factory",
+			input: types.OIDCAuthRequest{ConnectorID: defaultSuite.connector.GetName(), StateToken: "somestate"},
+			inspectResults: func(defaultResult, jarResult createOIDCAuthRequestResults) {
+				validateEquivalence(defaultSuite.oidcIDPPublicKey, defaultResult, jarResult)
+			},
+		},
+		// Test error returned when provider does not support our signing algorithm.
+		{
+			name: "unsupported signing algorithm",
+			pre: func(suite *OIDCSuite) {
+				// Rebuild the OIDC service with a new key factory that
+				// invokes the default key factory, but swaps the reported algorithm.
+				// This way we can validate that signing with ES256 works, but work around
+				// the provider's hardcoded RS256 compatibility advertisement
+				suite.oidcService, err = eauth.NewOIDCAuthService(
+					&eauth.OIDCAuthServiceConfig{
+						Auth:    suite.authServer,
+						Emitter: suite.emitter,
+						License: eauth.ValidLicense{},
+						Client:  suite.idpServer.Client(),
+						SignerFactory: func(ctx context.Context) (jose.Signer, string, error) {
+							jwtSigner, err := joseSignerFromCrypto(ecdsaSigner)
+							return jwtSigner, "ES256", err
+						},
+					},
+				)
+				require.NoError(t, err)
+			},
+			input: types.OIDCAuthRequest{ConnectorID: defaultSuite.connector.GetName(), StateToken: "somestate"},
+			inspectResults: func(defaultResult, jarResult createOIDCAuthRequestResults) {
+				// Should fail because the provider only supports signing with RS256
+				// and we provided an ECDSA key
+				require.Error(t, jarResult.err)
+				// Should succeed since no request object is being used
+				require.NoError(t, defaultResult.err)
+			},
+		},
+		// Test signing with ECDSA key.
+		{
+			name: "ES256 signing algorithm",
+			pre: func(suite *OIDCSuite) {
+				// Rebuild the OIDC service with a new key factory that returns
+				// an ECDSA JWT key that we've generated for this test suite
+				// Validates that signing with ECDSA keys works as well
+				suite.oidcService, err = eauth.NewOIDCAuthService(
+					&eauth.OIDCAuthServiceConfig{
+						Auth:    suite.authServer,
+						Emitter: suite.emitter,
+						License: eauth.ValidLicense{},
+						Client:  suite.idpServer.Client(),
+						SignerFactory: func(ctx context.Context) (jose.Signer, string, error) {
+							jwtSigner, err := joseSignerFromCrypto(ecdsaSigner)
+							return jwtSigner, "RS256", err
+						},
+					},
+				)
+				require.NoError(t, err)
+			},
+			input: types.OIDCAuthRequest{ConnectorID: defaultSuite.connector.GetName(), StateToken: "somestate"},
+			inspectResults: func(defaultResult, jarResult createOIDCAuthRequestResults) {
+				validateEquivalence(ecdsaSigner.Public(), defaultResult, jarResult)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.pre != nil {
+				tt.pre(defaultSuite)
+			}
+
+			var defaultResult createOIDCAuthRequestResults
+			var jarResult createOIDCAuthRequestResults
+
+			// Create an OIDCAuthRequest with request objects disabled
+			defaultSuite.connector.SetRequestObjectMode(constants.OIDCRequestObjectModeNone)
+			_, err := defaultSuite.authServer.UpdateOIDCConnector(ctx, defaultSuite.connector)
+			require.NoError(t, err)
+			defaultResult.req, defaultResult.err = defaultSuite.oidcService.CreateOIDCAuthRequest(ctx, tt.input)
+
+			// Now re-enable request objects and generate a request with the same input
+			defaultSuite.connector.SetRequestObjectMode(constants.OIDCRequestObjectModeSigned)
+			_, err = defaultSuite.authServer.UpdateOIDCConnector(ctx, defaultSuite.connector)
+			require.NoError(t, err)
+			jarResult.req, jarResult.err = defaultSuite.oidcService.CreateOIDCAuthRequest(ctx, tt.input)
+
+			// Both calls should produce equivalent requests, but the latter simply pokes all of the
+			// request parameters into the claims set of a JWT
+			tt.inspectResults(defaultResult, jarResult)
+		})
+	}
+}
+
+// joseSignerFromCrypto creates a jose.Signer from a crypto.Signer
+func joseSignerFromCrypto(signer crypto.Signer) (jose.Signer, error) {
+	joseKey, err := jwt.SigningKeyFromPrivateKey(signer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	kid, err := jwt.KeyID(signer.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	joseSigner, err := jose.NewSigner(joseKey, (&jose.SignerOptions{}).WithHeader("kid", kid))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return joseSigner, nil
+}
+
+// parseAndVerifyOIDCAuthRequestToken parses the JWT and verifies the signature. It does not
+// perform any validation of claims, but returns them for further inspection.
+func parseAndVerifyOIDCAuthRequestToken(public crypto.PublicKey, rawToken string) (map[string]any, []jose.Header, error) {
+	// Parse the token.
+	tok, err := josejwt.ParseSigned(rawToken)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	out := map[string]any{}
+	// Validate the signature on the JWT token.
+	err = tok.Claims(public, &out)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return out, tok.Headers, nil
 }
