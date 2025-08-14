@@ -62,14 +62,80 @@ existing customers.
 
 ### Preset roles
 
-We will introduce the following new preset roles:
+#### Background
+
+Originally, Teleport preset roles were inspired by Kubernetes roles,
+specifically, `edit`, `cluster-admin` and `view`.
+
+- `cluster-admin` allows everything everywhere.
+- `edit` allows CRUD on most builtin resources, but not administrative
+  resources.
+  - get/list/watch pods (including attach, exec, portforward and proxy),
+    secrets and services/proxy
+  - impersonate service accounts
+  - create/delete/deletecollection/patch/update pods (including exec/attach/
+    portforward/proxy)
+  - create pods/evictions
+  - create/delete/deletecollection/patch/update configmaps, events,
+    persistentvolumeclaims, replicationcontrollers (including scale), secrets,
+    serviceaccounts, services (including proxy)
+  - create serviceaccounts/token
+  - create/delete/deletecollection/patch/update deployments (including
+    rollback, scale), replicasets (including scale), statefulsets (including
+    scale), ingresses, networkpolicies
+  - create/delete/deletecollection/patch/update horizontalpodautoscalers, cronjobs,
+    jobs, poddisruptionbudgets, leases
+  - get/list/watch controllerrevisions, daemonsets, deployments, replicasets,
+    statefulsets, horizontalpodautoscalers, cronjobs, jobs, poddisruptionbudgets,
+    ingresses, networkpolicies, leases
+- `view` allows read-only access to most builtin resources.
+  - get/list/watch pods, configmaps, endpoints, persistentvolumeclaims,
+    replicationcontrollers (including scale), serviceaccounts, services,
+    bindings, events, limitranges, namespaces, resourcequotas, endpointslices,
+    controllerrevisions, daemonset, deployments, replicasets, statefulsets,
+    horizontalpodautoscalers, cronjobs, jobs, poddisruptionbudgets, ingresses,
+    networkpolicies, leases
+
+This resulted in the following Teleport roles:
+
+- `editor`, which maps to `cluster-admin` and can do everything.
+- `access`, which maps to `edit` and can do most CRUD operations.
+- `auditor`, which maps to `view` and can do read-only operations.
+
+#### New Teleport preset roles
+
+In order to be consistent and allow for seamless use of Kubernetes within
+Teleport, we will introduce the following new preset roles:
 
 - `kube-access`: Maps to the Kubernetes preset `edit`. Can CRUD most basic
   builtin resources and read some limited administrative resources.
+  This would be used in conjunction with the `access` Teleport role to grant
+  most non-administrative access to users.
 - `kube-editor`: Maps to the Kubernetes preset `cluster-admin`. Provides full
   access to all Kubernetes resources, including CRDs.
+  This would be used in conjunction with the `editor` Teleport role to grant
+  full administrative access to users.
 - `kube-auditor`: Maps the the Kubernetes preset `view`. Provides read-only
   access to some Kubernetes resources.
+  This would be used in conjunction with the `auditor` Teleport role to grant
+  read-only access to users.
+
+#### Kubernetes Bindings
+
+On the Kubernetes side, in order to be able to use those presets, we will need
+to create the corresponding `ClusterRoleBindings` based on `kubernetes_groups`.
+
+While there is an existing binding for `cluster-admin` via `system:masters`, it
+is not available everywhere and there are no binding for `edit` nor `view`.
+For consistency and reliability, we will create one binding for each preset
+role.
+
+- `kubernetes_groups` -> `ClusterRole`
+- `teleport:preset:access` -> `edit`
+- `teleport:preset:editor` -> `cluster-admin`
+- `teleport:preset:auditor` -> `view`
+
+#### Preset definitions
 
 The Teleport roles will look like this:
 
@@ -159,6 +225,12 @@ rbac:
 Note that if a user decides to change the preset names, they will not be able
 to use the preset Teleport roles out of the box, as they will need to update
 them to match the new names.
+In case of mismatch, whether it is a result of a failure to create the
+`ClusterRoleBinding` or if the user changed the names, the error message
+surfaced to the user includes instructions to resolve the issue (verify
+groups/bindings). We will also include a check to verify the setup as part of
+the upcomming Healthcheck feature to highlight any configuration issue to the
+admins.
 
 #### Provision Script
 
