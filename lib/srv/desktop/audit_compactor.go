@@ -20,6 +20,7 @@ package desktop
 
 import (
 	"context"
+	"iter"
 	"maps"
 	"math"
 	"slices"
@@ -76,12 +77,12 @@ func newAuditCompactor(refreshInterval, maxDelayInterval time.Duration, emitFn f
 }
 
 func (s *stream) emitEvents(ctx context.Context, emitFn func(ctx context.Context, event events.AuditEvent)) {
-	for _, event := range s.compactEvents() {
+	for event := range s.compactEvents() {
 		emitFn(ctx, event.Base())
 	}
 }
 
-func (s *stream) compactEvents() []streamEvent {
+func (s *stream) compactEvents() iter.Seq[streamEvent] {
 	offsetMapping := map[uint64][]streamEvent{}
 	for _, event := range s.events {
 		offsetMapping[event.GetOffset()] = append(offsetMapping[event.GetOffset()], event)
@@ -118,7 +119,7 @@ func (s *stream) compactEvents() []streamEvent {
 		finalEvents = append(finalEvents, base)
 	}
 
-	return finalEvents
+	return slices.Values(finalEvents)
 }
 
 // compact finds the longest contiguous set of reads/writes following the given 'event'.
