@@ -238,65 +238,25 @@ type readEvent struct {
 	*events.DesktopSharedDirectoryRead
 }
 
-func (r *readEvent) SetLength(len uint64) {
-	r.Length = uint32(len)
-}
-
-func (r *readEvent) GetLength() uint64 {
-	return uint64(r.Length)
-}
-
-func (r *readEvent) GetOffset() uint64 {
-	return r.Offset
-}
-
-func (r *readEvent) GetPath() string {
-	return r.Path
-}
-
-func (r *readEvent) IsWriteEvent() bool {
-	return true
-}
-
-func (r *readEvent) GetDirectoryID() directoryID {
-	return directoryID(r.DirectoryID)
-}
-
-func (r *readEvent) Base() events.AuditEvent {
-	return r.DesktopSharedDirectoryRead
-}
+func (r *readEvent) SetLength(len uint64)        { r.Length = uint32(len) }
+func (r *readEvent) GetLength() uint64           { return uint64(r.Length) }
+func (r *readEvent) GetOffset() uint64           { return r.Offset }
+func (r *readEvent) GetPath() string             { return r.Path }
+func (r *readEvent) IsWriteEvent() bool          { return true }
+func (r *readEvent) GetDirectoryID() directoryID { return directoryID(r.DirectoryID) }
+func (r *readEvent) Base() events.AuditEvent     { return r.DesktopSharedDirectoryRead }
 
 type writeEvent struct {
 	*events.DesktopSharedDirectoryWrite
 }
 
-func (r *writeEvent) SetLength(len uint64) {
-	r.Length = uint32(len)
-}
-
-func (r *writeEvent) GetLength() uint64 {
-	return uint64(r.Length)
-}
-
-func (r *writeEvent) GetOffset() uint64 {
-	return r.Offset
-}
-
-func (r *writeEvent) GetPath() string {
-	return r.Path
-}
-
-func (r *writeEvent) IsWriteEvent() bool {
-	return false
-}
-
-func (r *writeEvent) GetDirectoryID() directoryID {
-	return directoryID(r.DirectoryID)
-}
-
-func (r *writeEvent) Base() events.AuditEvent {
-	return r.DesktopSharedDirectoryWrite
-}
+func (r *writeEvent) SetLength(len uint64)        { r.Length = uint32(len) }
+func (r *writeEvent) GetLength() uint64           { return uint64(r.Length) }
+func (r *writeEvent) GetOffset() uint64           { return r.Offset }
+func (r *writeEvent) GetPath() string             { return r.Path }
+func (r *writeEvent) IsWriteEvent() bool          { return false }
+func (r *writeEvent) GetDirectoryID() directoryID { return directoryID(r.DirectoryID) }
+func (r *writeEvent) Base() events.AuditEvent     { return r.DesktopSharedDirectoryWrite }
 
 func (a *auditCompactor) handleRead(ctx context.Context, evnt *events.DesktopSharedDirectoryRead) {
 	a.handleEvent(ctx, &readEvent{DesktopSharedDirectoryRead: evnt})
