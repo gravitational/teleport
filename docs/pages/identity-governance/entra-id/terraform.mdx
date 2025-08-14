@@ -19,7 +19,7 @@ The set up is based on the [OIDC IdP authentication method](entra-id.mdx#choosin
 - Your user must have privileged administrator permissions in the Microsoft Entra ID tenant.
 - Terraform with `azuread` [provider](https://registry.terraform.io/providers/hashicorp/azuread/latest/docs).
 
-## Step 1/5. Create enterprise application
+## Step 1/4. Create enterprise application
 
 ```hcl
 resource "azuread_application" "teleport-entraid-iac" {
@@ -42,7 +42,7 @@ resource "azuread_application" "teleport-entraid-iac" {
 ```
 
 
-## Step 2/5. Configure SAML SSO
+## Step 2/4. Configure SAML SSO
 
 Configure Entra ID enterprise application as an SAML SSO provider for Teleport.
 ```hcl
@@ -79,7 +79,7 @@ resource "azuread_application_identifier_uri" "teleport-entraid-iac" {
 }
 ```
 
-Now, you will need to update the enterprise application you created in Step 1 
+Now, you will need to update the enterprise application created in Step 1 
 with `group_membership_claims` and `redirect_uris` values. 
 
 ```hcl
@@ -110,7 +110,7 @@ resource "azuread_application" "teleport-entraid-iac" {
 
 By default, the `azuread` provider configures `NameID` format of `emailAddress` type. 
 Teleport expects the format to be of `unspecified` type. To change this value, you 
-will need to create a new claim policy and attach it to the service principal we 
+will need to create a new claim policy and attach it to the service principal 
 created in Step 2.
 ```hcl
 resource "azuread_claims_mapping_policy" "teleport-entraid-iac-nameid" {
@@ -141,10 +141,24 @@ resource "azuread_service_principal_claims_mapping_policy_assignment" "teleport-
 }
 ```
 
-## Step 3/5. Configure OIDC IdP
-In this step, you configure Teleport as an OIDC IdP for the enterprise application 
-you created in Step 1. This trust allows Teleport Entra ID client to authenticate 
-with the Microsoft Graph API.
+## Step 3/4. Set up authentication for Microsoft Graph client
+
+In this step, you configure authentication method for Microsoft Graph client used 
+by Teleport. 
+
+Recall that Teleport supports [OIDC IdP and system credential](http://localhost:4000/ver/19.x/identity-governance/entra-id/#choosing-the-microsoft-graph-api-authentication-method)
+based authentication method.
+
+For OIDC IdP method, a federated credential is set up for Teleport by configuring 
+Teleport as an OIDC IdP. For system credential method, a managed identity that is assigned to the 
+Teleport Auth service is updated with permission that grants access to the Graph API.  
+
+<Tabs>
+<TabItem default label="Teleport as an OIDC provider" name="entra-oidc">
+
+To set up Teleport as OIDC IdP, you must set up federated credential for the enterprise 
+application created in Step 1. 
+
 ```hcl
 resource "azuread_application_federated_identity_credential" "teleport-entraid-iac-oidc-idp" {
   application_id = azuread_application.teleport-entraid-iac.id
@@ -156,9 +170,8 @@ resource "azuread_application_federated_identity_credential" "teleport-entraid-i
 }
 ```
 
-## Step 4/5. Configure API permissions
-Finally, grant Microsoft Graph API permission to the application.
-These permissions allows Teleport Entra ID client to pull users and groups 
+Next, grant Microsoft Graph API permission to the enterprise application.
+These permissions allows Teleport Graph client to import users and groups 
 from Entra ID to Teleport.
 
 ```hcl
@@ -199,8 +212,76 @@ resource "azuread_app_role_assignment" "teleport-entraid-iac-user" {
   resource_object_id  = data.azuread_service_principal.graph-api.object_id
 }
 ```
+</TabItem>
+<TabItem label="System Credential" name="entra-system-cred">
 
-## Step 5/5. Install the Entra ID plugin
+To set up system credential, you need to grant Graph API permission to the Managed Identity 
+that is assigned to the Teleport Auth service. 
+
+Azure supports two kinds of Managed Identity - system assigned and user assigned. 
+For simplicity, we only demonstrate updating permission for a system assigned Managed Identity
+that is configured for a VM instance. 
+
+First, ensure that system assigned Managed Identity is enabled for you VM.
+This can be configured by using the [`identity`](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/virtual_machine#identity-1)
+block in your VM configuration. 
+
+```hcl 
+resource "azurerm_virtual_machine" "main" {
+  identity {
+    type = "SystemAssigned"
+  }
+}
+```
+
+To assign the permission, first, you will need the object ID of the Graph API permission. 
+For the three permissions we need for the integration:
+- `Application.Read.All`
+- `Group.Read.All`
+- `User.Read.All`
+
+The ID of these permissions are not directly exposed in the Azure Portal, thus needs to be 
+manually retrieved using powershell. 
+
+```bash
+# Universal UUID of the MS graph application.
+$GraphAppId = "00000003-0000-0000-c000-000000000000"  
+
+# Get service principal object of the MS graph application.
+$GraphServicePrincipal = Get-AzureADServicePrincipal -Filter "appId eq '$GraphAppId'"
+
+# API permission name
+$Permission = "Application.Read.All" # Update this value to get id for `Group.Read.All` and `User.Read.All`. 
+
+# Get service principal of the role that assigns API permission to the global graph application. 
+$AppRole = $GraphServicePrincipal.AppRoles | Where-Object { $_.Value -eq $AppPermission -and $_.AllowedMemberTypes -contains "Application" }
+
+# Printing the value of $AppRole will list the ID associated with the "Application.Read.All" permission.
+$AppRole
+```
+
+Next, update the system assigned Managed Identity with the API permission. 
+
+```hcl
+resource "azuread_app_role_assignment" "teleport-entraid-iac-permissions" {
+  # ID of the API permission retrieved using PowerShell. 
+  app_role_id         = <UUID of the permission>
+  # Principal ID of the system assigned Managed identity
+  principal_object_id = azurerm_virtual_machine.example.identity[0].principal_id
+  # Object ID of the MS graph API application. 
+  resource_object_id  = data.azuread_service_principal.graph-api.object_id
+}
+```
+
+Repeat this step to grab permission ID for `Group.Read.All` and `User.Read.All` permissions and then 
+assign the permission to the system assigned Managed Identity. 
+
+</TabItem>
+
+</Tabs>
+
+
+## Step 4/4. Install the Entra ID plugin
 
 Now run the `tctl plugins install entraid` command.
 
