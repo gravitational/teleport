@@ -37,36 +37,29 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// WrappedKey wraps the private key of a recording encryption key pair using a
-// separate asymmetric keypair.
-type WrappedKey struct {
+// A key pair used with age to wrap and unwrap file keys for session recording encryption.
+type KeyPair struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// RecordingEncryptionPair is the asymmetric keypair used with age to encrypt
-	// and decrypt filekeys. The private key is encrypted using the KeyEncryptionPair's
-	// public key and has to be decrypted before recording decryption operations can
-	// be fulfilled.
-	RecordingEncryptionPair *types.EncryptionKeyPair `protobuf:"bytes,1,opt,name=recording_encryption_pair,json=recordingEncryptionPair,proto3" json:"recording_encryption_pair,omitempty"`
-	// KeyEncryptionPair is the asymmetric keypair used to wrap (encrypt) the
-	// RecordingEncryptionPair's private key.
-	KeyEncryptionPair *types.EncryptionKeyPair `protobuf:"bytes,2,opt,name=key_encryption_pair,json=keyEncryptionPair,proto3" json:"key_encryption_pair,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// A key pair used with age to wrap and unwrap file keys for session recording encryption.
+	KeyPair       *types.EncryptionKeyPair `protobuf:"bytes,1,opt,name=key_pair,json=keyPair,proto3" json:"key_pair,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
-func (x *WrappedKey) Reset() {
-	*x = WrappedKey{}
+func (x *KeyPair) Reset() {
+	*x = KeyPair{}
 	mi := &file_teleport_recordingencryption_v1_recording_encryption_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *WrappedKey) String() string {
+func (x *KeyPair) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WrappedKey) ProtoMessage() {}
+func (*KeyPair) ProtoMessage() {}
 
-func (x *WrappedKey) ProtoReflect() protoreflect.Message {
+func (x *KeyPair) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_recordingencryption_v1_recording_encryption_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -78,21 +71,14 @@ func (x *WrappedKey) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WrappedKey.ProtoReflect.Descriptor instead.
-func (*WrappedKey) Descriptor() ([]byte, []int) {
+// Deprecated: Use KeyPair.ProtoReflect.Descriptor instead.
+func (*KeyPair) Descriptor() ([]byte, []int) {
 	return file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *WrappedKey) GetRecordingEncryptionPair() *types.EncryptionKeyPair {
+func (x *KeyPair) GetKeyPair() *types.EncryptionKeyPair {
 	if x != nil {
-		return x.RecordingEncryptionPair
-	}
-	return nil
-}
-
-func (x *WrappedKey) GetKeyEncryptionPair() *types.EncryptionKeyPair {
-	if x != nil {
-		return x.KeyEncryptionPair
+		return x.KeyPair
 	}
 	return nil
 }
@@ -100,13 +86,13 @@ func (x *WrappedKey) GetKeyEncryptionPair() *types.EncryptionKeyPair {
 // RecordingEncryptionSpec contains the active key set for encrypted session recording.
 type RecordingEncryptionSpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// AciveKeys is a list of active, wrapped X25519 keypairs. The unique set of RecordingEncryptionPair
-	// public keys are used as recipients during age encryption of session recordings. This
-	// allows any active private key to be used during decryption which guards against recordings
-	// being inaccessible to auth servers waiting for their key to rotate.
-	ActiveKeys    []*WrappedKey `protobuf:"bytes,1,rep,name=active_keys,json=activeKeys,proto3" json:"active_keys,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// A list of active key pairs used for session recording encryption. The unique set of
+	// active public keys are used as recipients during age encryption. This allows any
+	// active private key to be used during decryption which guards against recordings being
+	// inaccessible to auth servers waiting for key rotation.
+	ActiveKeyPairs []*KeyPair `protobuf:"bytes,2,rep,name=active_key_pairs,json=activeKeyPairs,proto3" json:"active_key_pairs,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *RecordingEncryptionSpec) Reset() {
@@ -139,9 +125,9 @@ func (*RecordingEncryptionSpec) Descriptor() ([]byte, []int) {
 	return file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *RecordingEncryptionSpec) GetActiveKeys() []*WrappedKey {
+func (x *RecordingEncryptionSpec) GetActiveKeyPairs() []*KeyPair {
 	if x != nil {
-		return x.ActiveKeys
+		return x.ActiveKeyPairs
 	}
 	return nil
 }
@@ -272,14 +258,11 @@ var File_teleport_recordingencryption_v1_recording_encryption_proto protoreflect
 
 const file_teleport_recordingencryption_v1_recording_encryption_proto_rawDesc = "" +
 	"\n" +
-	":teleport/recordingencryption/v1/recording_encryption.proto\x12\x1fteleport.recordingencryption.v1\x1a!teleport/header/v1/metadata.proto\x1a!teleport/legacy/types/types.proto\"\xac\x01\n" +
-	"\n" +
-	"WrappedKey\x12T\n" +
-	"\x19recording_encryption_pair\x18\x01 \x01(\v2\x18.types.EncryptionKeyPairR\x17recordingEncryptionPair\x12H\n" +
-	"\x13key_encryption_pair\x18\x02 \x01(\v2\x18.types.EncryptionKeyPairR\x11keyEncryptionPair\"g\n" +
-	"\x17RecordingEncryptionSpec\x12L\n" +
-	"\vactive_keys\x18\x01 \x03(\v2+.teleport.recordingencryption.v1.WrappedKeyR\n" +
-	"activeKeys\"\x1b\n" +
+	":teleport/recordingencryption/v1/recording_encryption.proto\x12\x1fteleport.recordingencryption.v1\x1a!teleport/header/v1/metadata.proto\x1a!teleport/legacy/types/types.proto\">\n" +
+	"\aKeyPair\x123\n" +
+	"\bkey_pair\x18\x01 \x01(\v2\x18.types.EncryptionKeyPairR\akeyPair\"\x80\x01\n" +
+	"\x17RecordingEncryptionSpec\x12R\n" +
+	"\x10active_key_pairs\x18\x02 \x03(\v2(.teleport.recordingencryption.v1.KeyPairR\x0eactiveKeyPairsJ\x04\b\x01\x10\x02R\vactive_keys\"\x1b\n" +
 	"\x19RecordingEncryptionStatus\"\xba\x02\n" +
 	"\x13RecordingEncryption\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
@@ -303,7 +286,7 @@ func file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescGZIP
 
 var file_teleport_recordingencryption_v1_recording_encryption_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_recordingencryption_v1_recording_encryption_proto_goTypes = []any{
-	(*WrappedKey)(nil),                // 0: teleport.recordingencryption.v1.WrappedKey
+	(*KeyPair)(nil),                   // 0: teleport.recordingencryption.v1.KeyPair
 	(*RecordingEncryptionSpec)(nil),   // 1: teleport.recordingencryption.v1.RecordingEncryptionSpec
 	(*RecordingEncryptionStatus)(nil), // 2: teleport.recordingencryption.v1.RecordingEncryptionStatus
 	(*RecordingEncryption)(nil),       // 3: teleport.recordingencryption.v1.RecordingEncryption
@@ -311,17 +294,16 @@ var file_teleport_recordingencryption_v1_recording_encryption_proto_goTypes = []
 	(*v1.Metadata)(nil),               // 5: teleport.header.v1.Metadata
 }
 var file_teleport_recordingencryption_v1_recording_encryption_proto_depIdxs = []int32{
-	4, // 0: teleport.recordingencryption.v1.WrappedKey.recording_encryption_pair:type_name -> types.EncryptionKeyPair
-	4, // 1: teleport.recordingencryption.v1.WrappedKey.key_encryption_pair:type_name -> types.EncryptionKeyPair
-	0, // 2: teleport.recordingencryption.v1.RecordingEncryptionSpec.active_keys:type_name -> teleport.recordingencryption.v1.WrappedKey
-	5, // 3: teleport.recordingencryption.v1.RecordingEncryption.metadata:type_name -> teleport.header.v1.Metadata
-	1, // 4: teleport.recordingencryption.v1.RecordingEncryption.spec:type_name -> teleport.recordingencryption.v1.RecordingEncryptionSpec
-	2, // 5: teleport.recordingencryption.v1.RecordingEncryption.status:type_name -> teleport.recordingencryption.v1.RecordingEncryptionStatus
-	6, // [6:6] is the sub-list for method output_type
-	6, // [6:6] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	4, // 0: teleport.recordingencryption.v1.KeyPair.key_pair:type_name -> types.EncryptionKeyPair
+	0, // 1: teleport.recordingencryption.v1.RecordingEncryptionSpec.active_key_pairs:type_name -> teleport.recordingencryption.v1.KeyPair
+	5, // 2: teleport.recordingencryption.v1.RecordingEncryption.metadata:type_name -> teleport.header.v1.Metadata
+	1, // 3: teleport.recordingencryption.v1.RecordingEncryption.spec:type_name -> teleport.recordingencryption.v1.RecordingEncryptionSpec
+	2, // 4: teleport.recordingencryption.v1.RecordingEncryption.status:type_name -> teleport.recordingencryption.v1.RecordingEncryptionStatus
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_teleport_recordingencryption_v1_recording_encryption_proto_init() }

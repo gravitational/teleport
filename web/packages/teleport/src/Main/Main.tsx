@@ -321,7 +321,6 @@ export const ContentMinWidth = ({ children }: { children: ReactNode }) => {
             sidePanelOpened: infoGuideSidePanelOpened,
             panelWidth: infoGuideConfig?.viewHasOwnSidePanel ? 0 : panelWidth,
           })}
-          position: relative;
         `}
       >
         {children}

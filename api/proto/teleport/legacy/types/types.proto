@@ -1269,9 +1269,9 @@ message EncryptionKeyPair {
   uint32 hash = 4 [(gogoproto.jsontag) = "hash,omitempty"];
 }
 
-// AgeEncryptionKey is a Bech32 encoded age X25519 public key.
+// A public key to be used as a recipient during age encryption of session recordings.
 message AgeEncryptionKey {
-  // PublicKey is a Bech32 encoded age X25519 public key.
+  // A PEM encoded public key used for key wrapping during age encryption. Expected to be RSA 4096.
   bytes public_key = 1 [(gogoproto.jsontag) = "public_key"];
 }
 
@@ -5294,6 +5294,10 @@ message OIDCConnectorSpecV3 {
   // UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should
   // match for identifier-first login.
   repeated string UserMatchers = 21 [(gogoproto.jsontag) = "user_matchers,omitempty"];
+  // RequestObjectMode determines how JWT-Secured Authorization Requests will be used for authorization
+  // requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality
+  // for authorization request parameters.
+  string RequestObjectMode = 22 [(gogoproto.jsontag) = "request_object_mode,omitempty"];
 }
 
 // MaxAge allows the max_age parameter to be nullable to preserve backwards

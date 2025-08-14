@@ -1696,12 +1696,6 @@ type ClientI interface {
 	// "not implemented" errors (as per the default gRPC behavior).
 	ExternalAuditStorageClient() *externalauditstorage.Client
 
-	// WorkloadIdentityServiceClient returns a workload identity service client.
-	// Clients connecting to  older Teleport versions, still get a client
-	// when calling this method, but all RPCs will return "not implemented" errors
-	// (as per the default gRPC behavior).
-	WorkloadIdentityServiceClient() machineidv1pb.WorkloadIdentityServiceClient
-
 	// WorkloadIdentityIssuanceClient returns a workload identity issuance service client.
 	// Clients connecting to  older Teleport versions, still get a client
 	// when calling this method, but all RPCs will return "not implemented" errors
@@ -1781,4 +1775,7 @@ type ClientI interface {
 
 	// GitServerReadOnlyClient returns the read-only client for Git servers.
 	GitServerReadOnlyClient() gitserver.ReadOnlyClient
+
+	// ListRequestableRoles is a paginated requestable role getter.
+	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
 }

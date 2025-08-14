@@ -950,12 +950,22 @@ type TestIdentity struct {
 	Generation     uint64
 }
 
-// TestUser returns TestIdentity for local user
+// TestUser returns TestIdentity for local user. Note that this constructor only produces a
+// test identity suitable for use with the `NewClient` methods defined in this file, as those helpers
+// auto-populate roles.  Prefer using TestUserWithRoles for most usecases.
 func TestUser(username string) TestIdentity {
+	return TestUserWithRoles(username, nil)
+}
+
+// TestUserWithRoles returns a local user TestIdentity with the specified username and roles.
+func TestUserWithRoles(username string, roles []string) TestIdentity {
 	return TestIdentity{
 		I: authz.LocalUser{
 			Username: username,
-			Identity: tlsca.Identity{Username: username},
+			Identity: tlsca.Identity{
+				Username: username,
+				Groups:   roles,
+			},
 		},
 	}
 }
@@ -1146,6 +1156,15 @@ func (t *TLSServer) NewClientWithCert(clientCert tls.Certificate) (*authclient.C
 
 // NewClient returns new client to test server authenticated with identity
 func (t *TLSServer) NewClient(identity TestIdentity) (*authclient.Client, error) {
+	if localUser, ok := identity.I.(authz.LocalUser); ok && len(localUser.Identity.Groups) == 0 {
+		user, err := t.AuthServer.AuthServer.GetUser(context.TODO(), localUser.Username, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		localUser.Identity.Groups = user.GetRoles()
+		identity.I = localUser
+	}
 	tlsConfig, err := t.ClientTLSConfig(identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
