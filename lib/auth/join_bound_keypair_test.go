@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"context"
@@ -32,6 +32,8 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -86,21 +88,19 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 	_, incorrectPublicKey := testBoundKeypair(t)
 
 	srv := newTestTLSServer(t)
-	auth := srv.Auth()
-	auth.createBoundKeypairValidator = func(subject, clusterName string, publicKey crypto.PublicKey) (boundKeypairValidator, error) {
+	authServer := srv.Auth()
+	authServer.SetCreateBoundKeypairValidator(func(subject, clusterName string, publicKey crypto.PublicKey) (auth.BoundKeypairValidator, error) {
 		return &mockBoundKeypairValidator{
-			//correctPublicKey: correctSigner.Public(),
-
 			subject:     subject,
 			clusterName: clusterName,
 			publicKey:   publicKey,
 		}, nil
-	}
+	})
 
-	_, err := CreateRole(ctx, auth, "example", types.RoleSpecV6{})
+	_, err := authtest.CreateRole(ctx, authServer, "example", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	adminClient, err := srv.NewClient(TestAdmin())
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
 	_, err = adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
@@ -119,7 +119,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
-	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 
 	makeToken := func(mutators ...func(v2 *types.ProvisionTokenV2)) types.ProvisionTokenV2 {
@@ -348,14 +348,14 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 				tt.name, time.Now().Add(time.Minute), tt.token.Spec, tt.token.Status,
 			)
 			require.NoError(t, err)
-			require.NoError(t, auth.CreateToken(ctx, token))
+			require.NoError(t, authServer.CreateToken(ctx, token))
 			tt.initReq.JoinRequest.Token = tt.name
 
-			_, _, err = auth.RegisterUsingBoundKeypairMethod(ctx, tt.initReq, tt.solver)
+			_, _, err = authServer.RegisterUsingBoundKeypairMethod(ctx, tt.initReq, tt.solver)
 			tt.assertError(t, err)
 
 			if tt.assertSuccess != nil {
-				pt, err := auth.GetToken(ctx, tt.name)
+				pt, err := authServer.GetToken(ctx, tt.name)
 				require.NoError(t, err)
 
 				ptv2, ok := pt.(*types.ProvisionTokenV2)
