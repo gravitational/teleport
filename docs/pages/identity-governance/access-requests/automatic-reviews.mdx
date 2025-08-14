@@ -6,7 +6,7 @@ labels:
  - identity-governance
 ---
 
-teleport supports automatic reviews of role Access Requests. This
+teleport supports automatic reviews of Access Requests. This
 feature enables teams to enforce a zero standing privilege policy, while
 still allowing users to receive temporary access without manual approval.
 
@@ -14,7 +14,8 @@ still allowing users to receive temporary access without manual approval.
 
 Automatic reviews are triggered by Access Automation Rules. These rules instruct
 Teleport to monitor Access Requests and automatically submit a review
-when certain conditions (such as requested roles or user traits) are met.
+when certain conditions (such as requested roles, user traits, or resource labels)
+are met.
 
 For example, an Access Automation Rule can perform an automatic Access Request
 approval when a user with the Teleport traits or IdP attribute `team: demo`
@@ -26,48 +27,28 @@ requests access to the `access` role.
 
 - This feature requires Teleport Identity Governance.
 
-## Step 1/4. Create a requester role and user
+- This guide requires at least one connected SSH Server.
 
-In this example, we'll first create:
-- A role named `demo-access-request`, which allows requesting access to the
-`access` role.
-- A user named `demo-access-requester`, assigned the above role.
+## Step 1/5. Create a requester user
 
-### Create the role
+In this example, we'll first create a user named `demo-access-requester` and
+assign it the preset `requester` role.
 
-Create a role configuration file named `demo-role.yaml`:
-```yaml
-# demo-role.yaml
-kind: role
-version: v7
-metadata:
-  name: demo-access-request
-spec:
-  allow:
-    request:
-      roles:
-      - access
-      search_as_roles:
-      - access
-```
-
-Create the role with:
-```code
-$ tctl create demo-role.yaml
-```
+The preset `requester` role includes the necessary permissions to allow a user
+to request access to any resource that the preset `access` role permits.
 
 ### Create the user
 
 Use the following command to create the user and assign the role:
 ```code
-$ tctl users add --roles=demo-access-request demo-access-requester
+$ tctl users add --roles=requester demo-access-requester
 ```
 
 Alternatively, you can assign the role after creating the user:
 
-  (!docs/pages/includes/add-role-to-user.mdx role="demo-access-request" user="\`demo-access-requester\`"!)
+  (!docs/pages/includes/add-role-to-user.mdx role="requester" user="\`demo-access-requester\`"!)
 
-## Step 2/4. Assign user traits
+## Step 2/5. Assign user traits
 
 To allow automatic review rules to evaluate the requesting user, assign them
 traits via the Teleport Web UI.
@@ -90,34 +71,91 @@ does not support wildcard or regular expressions.
   by the IdP.
 </Admonition>
 
-## Step 3/4. Create automatic review rule
+## Step 3/5. Ensure resource labels
+
+List your SSH Servers to identify available labels.
+
+```code
+$ tsh ls
+Node Name   Address    Labels
+----------- ---------- -------------------------------
+teleport-00 ⟵ Tunnel   env=demo
+```
+
+This example resource has the labels `env: demo`. If your resource has not been
+labeled, reconfigure your resource with a label. Altenratively, you can add a
+label using a `server_info` resource. See [Apply resource-based labels](https://goteleport.com/docs/admin-guides/management/admin/labels/#apply-resource-based-labels)
+for more information.
+
+1. Retrieve information about the SSH Server.
+
+```code
+$ tctl get node/teleport-00
+kind: node
+metadata:
+  expires: "2025-08-14T18:49:19Z"
+  name: 116b08d2-7167-4eab-85a8-cf93f054b217
+spec:
+  addr: ""
+  hostname: teleport-00
+```
+
+2. Create the corresponding `server_info.yaml` for the node above.
+
+```yaml
+# server_info.yaml
+kind: server_info
+metadata:
+  # Must match the `metadata.name` field of the node, prefixed with `si-`.
+  name: si-116b08d2-7167-4eab-85a8-cf93f054b217
+spec:
+  new_labels:
+    env: demo
+```
+
+3. Create and verify the `server_info` resource. It may take several minutes for
+the new labels to appear. Note that labels added this way will be prefixed with
+`dynamic/`.
+
+```code
+# Create the `server_info` resource
+$ tctl create server_info.yaml
+
+# Verify that the labels have been applied
+$ tsh ls
+Node Name   Address    Labels
+----------- ---------- -------------------------------
+teleport-00 ⟵ Tunnel  dynamic/env=demo
+```
+
+## Step 4/5. Create automatic review rule
 
 Next, define the automatic review rule via the Teleport Web UI.
 
 1. Go to **Identity Governance** -> **Access Requests** -> **Set Up Access Automation Rules**
 2. Click **Create New Access Automation Rule** -> **Automatic Review Rule**
 3. Configure the rule and set:
-   - **Name of roles to match**: `access`
-   - **User Traits**: `team: demo`
+   - **Name of requested roles to match**: `access`
+   - **Resource labels to match**: `env: demo` (or `dynamic/env=demo`)
+   - **User Traits to match**: `team: demo`
    - **Review decision**: `APPROVED`
 4. Click **Create Rule**
 
 ![Create Automatic Review Rule Editor](../../../img/access-controls/automatic-reviews/create-automatic-review-rule.png)
 
-This automatic review rule will ensure that Access Requests for the `access`
-role will be automatically reviewed for approval if the Teleport user traits
-requirements are satisfied. In this case, any user with the traits `team: demo`
-will satisfy the requirement.
+This automatic review rule ensures that Access Requests for the `access`
+role and for resources labeled `env: demo` are automatically reviewed for
+approval if the Teleport user traits requirements are satisfied. In this case,
+any user with the traits `team: demo` will satisfy the requirement.
 
-## Step 4/4. Verify automatic review rule
+## Step 5/5. Verify automatic review rule
 
 To verify the new automatic review rule, create an Access Request via the Teleport
 Web UI.
 1. Log in as `demo-access-requester`
-2. Go to **Access Requests** and click **New Access Request**
-3. Change the request type from **Resources** to **Roles**
-4. Add the `access` role to the Access Request
-5. Click **Proceed to Request**, then **Submit Request**
+2. Go to **Identity Governance** -> **Access Requests** and click **New Access Request**
+3. Add the SSH Server you'd like to request access to.
+4. Click **Proceed to Request**, then **Submit Request**
 
 ![Create Access Request](../../../img/access-requests/new-role-request.png)
 
