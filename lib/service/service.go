@@ -93,6 +93,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
+	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
@@ -2096,6 +2097,8 @@ func (process *TeleportProcess) initAuthService() error {
 	var uploadHandler events.MultipartHandler
 	var externalAuditStorage *externalauditstorage.Configurator
 
+	sessionSummarizerProvider := summarizer.NewSessionSummarizerProvider()
+
 	// create the audit log, which will be consuming (and recording) all events
 	// and recording all sessions.
 	if cfg.Auth.NoAudit {
@@ -2133,7 +2136,8 @@ func (process *TeleportProcess) initAuthService() error {
 			}
 		}
 		streamer, err = events.NewProtoStreamer(events.ProtoStreamerConfig{
-			Uploader: uploadHandler,
+			Uploader:                  uploadHandler,
+			SessionSummarizerProvider: sessionSummarizerProvider,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2225,47 +2229,48 @@ func (process *TeleportProcess) initAuthService() error {
 	authServer, err := auth.Init(
 		process.ExitContext(),
 		auth.InitConfig{
-			Backend:                 b,
-			VersionStorage:          process.storage,
-			SkipVersionCheck:        cfg.SkipVersionCheck || skipVersionCheckFromEnv,
-			Authority:               cfg.Keygen,
-			ClusterConfiguration:    cfg.ClusterConfiguration,
-			AutoUpdateService:       cfg.AutoUpdateService,
-			ClusterAuditConfig:      cfg.Auth.AuditConfig,
-			ClusterNetworkingConfig: cfg.Auth.NetworkingConfig,
-			SessionRecordingConfig:  cfg.Auth.SessionRecordingConfig,
-			ClusterName:             cn,
-			AuthServiceName:         cfg.Hostname,
-			DataDir:                 cfg.DataDir,
-			HostUUID:                cfg.HostUUID,
-			NodeName:                cfg.Hostname,
-			Authorities:             cfg.Auth.Authorities,
-			ApplyOnStartupResources: cfg.Auth.ApplyOnStartupResources,
-			BootstrapResources:      cfg.Auth.BootstrapResources,
-			ReverseTunnels:          cfg.ReverseTunnels,
-			Trust:                   cfg.Trust,
-			Presence:                cfg.Presence,
-			Events:                  cfg.Events,
-			Provisioner:             cfg.Provisioner,
-			Identity:                cfg.Identity,
-			Access:                  cfg.Access,
-			StaticTokens:            cfg.Auth.StaticTokens,
-			Roles:                   cfg.Auth.Roles,
-			AuthPreference:          cfg.Auth.Preference,
-			OIDCConnectors:          cfg.OIDCConnectors,
-			AuditLog:                process.auditLog,
-			CipherSuites:            cfg.CipherSuites,
-			KeyStoreConfig:          cfg.Auth.KeyStore,
-			Emitter:                 checkingEmitter,
-			Streamer:                events.NewReportingStreamer(streamer, process.Config.Testing.UploadEventsC),
-			TraceClient:             traceClt,
-			FIPS:                    cfg.FIPS,
-			LoadAllCAs:              cfg.Auth.LoadAllCAs,
-			AccessMonitoringEnabled: cfg.Auth.IsAccessMonitoringEnabled(),
-			Clock:                   cfg.Clock,
-			HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
-			Tracer:                  process.TracingProvider.Tracer(teleport.ComponentAuth),
-			Logger:                  logger,
+			Backend:                   b,
+			VersionStorage:            process.storage,
+			SkipVersionCheck:          cfg.SkipVersionCheck || skipVersionCheckFromEnv,
+			Authority:                 cfg.Keygen,
+			ClusterConfiguration:      cfg.ClusterConfiguration,
+			AutoUpdateService:         cfg.AutoUpdateService,
+			ClusterAuditConfig:        cfg.Auth.AuditConfig,
+			ClusterNetworkingConfig:   cfg.Auth.NetworkingConfig,
+			SessionRecordingConfig:    cfg.Auth.SessionRecordingConfig,
+			ClusterName:               cn,
+			AuthServiceName:           cfg.Hostname,
+			DataDir:                   cfg.DataDir,
+			HostUUID:                  cfg.HostUUID,
+			NodeName:                  cfg.Hostname,
+			Authorities:               cfg.Auth.Authorities,
+			ApplyOnStartupResources:   cfg.Auth.ApplyOnStartupResources,
+			BootstrapResources:        cfg.Auth.BootstrapResources,
+			ReverseTunnels:            cfg.ReverseTunnels,
+			Trust:                     cfg.Trust,
+			Presence:                  cfg.Presence,
+			Events:                    cfg.Events,
+			Provisioner:               cfg.Provisioner,
+			Identity:                  cfg.Identity,
+			Access:                    cfg.Access,
+			StaticTokens:              cfg.Auth.StaticTokens,
+			Roles:                     cfg.Auth.Roles,
+			AuthPreference:            cfg.Auth.Preference,
+			OIDCConnectors:            cfg.OIDCConnectors,
+			AuditLog:                  process.auditLog,
+			CipherSuites:              cfg.CipherSuites,
+			KeyStoreConfig:            cfg.Auth.KeyStore,
+			Emitter:                   checkingEmitter,
+			Streamer:                  events.NewReportingStreamer(streamer, process.Config.Testing.UploadEventsC),
+			TraceClient:               traceClt,
+			FIPS:                      cfg.FIPS,
+			LoadAllCAs:                cfg.Auth.LoadAllCAs,
+			AccessMonitoringEnabled:   cfg.Auth.IsAccessMonitoringEnabled(),
+			Clock:                     cfg.Clock,
+			HTTPClientForAWSSTS:       cfg.Auth.HTTPClientForAWSSTS,
+			Tracer:                    process.TracingProvider.Tracer(teleport.ComponentAuth),
+			Logger:                    logger,
+			SessionSummarizerProvider: sessionSummarizerProvider,
 		}, func(as *auth.Server) error {
 			if !process.Config.CachePolicy.Enabled {
 				return nil
