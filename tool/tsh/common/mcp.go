@@ -54,6 +54,7 @@ func newMCPCommands(app *kingpin.Application, cf *CLIConf) *mcpCommands {
 type mcpClientConfigFlags struct {
 	clientConfig string
 	jsonFormat   string
+	configFormat string
 }
 
 const (
@@ -67,11 +68,9 @@ func (m *mcpClientConfigFlags) addToCmd(cmd *kingpin.CmdClause) {
 	cmd.Flag(
 		"client-config",
 		fmt.Sprintf(
-			"If specified, generates config for the specified client. %q for default Claude Desktop config, %q for global Cursor MCP servers config, %q for Claude Code config, %q for VSCode config, or specify a JSON file path to automatically update the configuration. Can also be set with environment variable %s.",
+			"If specified, update the specified client config, assuming its format. %q for default Claude Desktop config, %q for global Cursor MCP servers config, or specify a JSON file path. Can also be set with environment variable %s.",
 			mcpClientConfigClaude,
 			mcpClientConfigCursor,
-			mcpClientConfigClaudeCode,
-			mcpClientConfigVSCode,
 			mcpClientConfigEnvVar,
 		)).
 		Envar(mcpClientConfigEnvVar).
@@ -88,6 +87,17 @@ func (m *mcpClientConfigFlags) addToCmd(cmd *kingpin.CmdClause) {
 		Envar(mcpConfigJSONFormatEnvVar).
 		Default(string(mcpconfig.FormatJSONAuto)).
 		EnumVar(&m.jsonFormat, m.jsonFormatOptions()...)
+
+	cmd.Flag(
+		"format",
+		fmt.Sprintf(
+			"Format specifies the configuration format. It can be used to generate proper configuration for the client without directly updating the file. Use %q for Claude and Claude Code format, or %q for VSCode format. Defaults to %s. If --client-config is specified, this flag will have not effect.",
+			mcpconfig.ConfigFormatClaude,
+			mcpconfig.ConfigFormatVSCode,
+			mcpconfig.ConfigFormatClaude,
+		)).
+		Default(string(mcpconfig.ConfigFormatClaude)).
+		StringVar(&m.configFormat)
 }
 
 func (m *mcpClientConfigFlags) loadConfig() (*mcpconfig.FileConfig, error) {
@@ -115,17 +125,15 @@ func (m *mcpClientConfigFlags) printFooterNotes(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-func (m *mcpClientConfigFlags) configFormat() mcpconfig.ConfigFormat {
-	switch m.clientConfig {
-	case mcpClientConfigClaude:
-		return mcpconfig.ConfigFormatClaude
-	case mcpClientConfigCursor:
-		return mcpconfig.ConfigFormatCursor
-	case mcpClientConfigVSCode:
-		return mcpconfig.ConfigFormatVSCode
-	default:
+func (m *mcpClientConfigFlags) format() mcpconfig.ConfigFormat {
+	if m.clientConfig != "" {
 		return mcpconfig.ConfigFormatFromPath(m.clientConfig)
 	}
+	if format, err := mcpconfig.ParseConfigFormat(m.configFormat); err == nil {
+		return format
+	}
+	// In case it is empty or a unknown format, defaults to Claude format.
+	return mcpconfig.ConfigFormatClaude
 }
 
 // runMCPConfig runs the MCP config based on flags.
@@ -191,10 +199,8 @@ func getLoggingOptsForMCPServer(cf *CLIConf) loggingOpts {
 
 // mcpConfigHint is the hint message displayed when the configuration is shown
 // to users.
-const mcpConfigHint = `Tip: You can use this command to generate your MCP servers configuration. Some clients support updating the file configuration automatically.
-- For Claude Desktop, use --client-config=claude to generate and update the default configuration.
-- For Cursor, use --client-config=cursor to generate and update the global MCP servers configuration.
-- For VSCode, use --client-config=vscode to generate the configuration.
-- For Claude Code, use --client-config=claude-code to generate the configuration.
+const mcpConfigHint = `Tip: You can use this command to update your MCP servers configuration file automatically.
+- For Claude Desktop, use --client-config=claude to update the default configuration.
+- For Cursor, use --client-config=cursor to update the global MCP servers configuration.
 In addition, you can use --client-config=<path> to specify a config file location to directly update configuration of the supported clients.
 For example, you can update a VSCode project using --client-config=<path-to-project>/.vscode/mcp.json`
