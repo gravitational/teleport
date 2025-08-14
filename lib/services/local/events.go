@@ -265,6 +265,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newHealthCheckConfigParser()
 		case types.KindRecordingEncryption:
 			parser = newRecordingEncryptionParser()
+		case types.KindRotatedKey:
+			parser = newRotatedKeyParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
