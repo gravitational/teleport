@@ -173,6 +173,20 @@ const (
 	ConfigFormatVSCode ConfigFormat = "vscode"
 )
 
+// ParseConfigFormat parses configuration format from string.
+func ParseConfigFormat(s string) (ConfigFormat, error) {
+	switch ConfigFormat(s) {
+	case ConfigFormatClaude:
+		return ConfigFormatClaude, nil
+	case ConfigFormatCursor:
+		return ConfigFormatCursor, nil
+	case ConfigFormatVSCode:
+		return ConfigFormatVSCode, nil
+	}
+
+	return ConfigFormat(""), trace.BadParameter("unsupported config format")
+}
+
 // serversKey returns the MCP servers JSON key for the format.
 func (cf ConfigFormat) serversKey() string {
 	switch cf {
@@ -191,6 +205,7 @@ func ConfigFormatFromPath(configPath string) ConfigFormat {
 	case pathContains(configPath, vsCodeProjectDir):
 		return ConfigFormatVSCode
 	case pathContains(configPath, cursorProjectDir):
+		// Works for both, global and projects settings.
 		return ConfigFormatCursor
 	default:
 		return ConfigFormatClaude

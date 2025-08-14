@@ -280,7 +280,7 @@ func (m *mcpDBConfigCommand) run() error {
 }
 
 func (m *mcpDBConfigCommand) printInstructions(w io.Writer) error {
-	config := mcpconfig.NewConfig(m.clientConfig.configFormat())
+	config := mcpconfig.NewConfig(m.clientConfig.format())
 	// Since the database is being added to a "fresh" config file the database
 	// will always be new and we can ignore the additional message as well.
 	if _, _, err := m.addDatabaseToConfig(config, m.dbURI); err != nil {
