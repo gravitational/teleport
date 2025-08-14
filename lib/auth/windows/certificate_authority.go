@@ -20,7 +20,6 @@ package windows
 
 import (
 	"context"
-	"encoding/base32"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -93,9 +92,8 @@ func (c *CertificateStoreClient) Update(ctx context.Context) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			subjectID := base32.HexEncoding.EncodeToString(cert.SubjectKeyId)
-			issuer := subjectID + "_" + c.cfg.ClusterName
-			if err := c.updateCRL(ctx, issuer, keyPair.CRL, caType); err != nil {
+
+			if err := c.updateCRL(ctx, c.cfg.ClusterName, cert.SubjectKeyId, keyPair.CRL, caType); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -109,14 +107,14 @@ func (c *CertificateStoreClient) Update(ctx context.Context) error {
 			return trace.Wrap(err, "generating CRL")
 		}
 
-		if err := c.updateCRL(ctx, c.cfg.ClusterName, crlDER, caType); err != nil {
+		if err := c.updateCRL(ctx, c.cfg.ClusterName, nil, crlDER, caType); err != nil {
 			return trace.Wrap(err, "updating CRL over LDAP")
 		}
 	}
 	return nil
 }
 
-func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuer string, crlDER []byte, caType types.CertAuthType) error {
+func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuerCN string, issuerSKID []byte, crlDER []byte, caType types.CertAuthType) error {
 	// Publish the CRL for current cluster CA. For trusted clusters, their
 	// respective windows_desktop_services will publish CRLs of their CAs so we
 	// don't have to do it here.
@@ -131,7 +129,7 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuer string, c
 	// CA will be placed at:
 	// ... > CDP > Teleport > prod
 	containerDN := crlContainerDN(c.cfg.Domain, caType)
-	crlDN := CRLDN(issuer, c.cfg.Domain, caType)
+	crlDN := CRLDN(issuerCN, issuerSKID, c.cfg.Domain, caType)
 
 	// Create the parent container.
 	if err := c.cfg.LC.CreateContainer(containerDN); err != nil {

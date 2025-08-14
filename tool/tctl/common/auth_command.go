@@ -21,7 +21,6 @@ package common
 import (
 	"context"
 	"crypto/x509"
-	"encoding/base32"
 	"encoding/pem"
 	"fmt"
 	"io"
@@ -547,7 +546,7 @@ func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authComma
 			return trace.Wrap(err)
 		}
 
-		cn := base32.HexEncoding.EncodeToString(cert.SubjectKeyId) + "_" + cert.Subject.CommonName
+		cn := windows.CRLCN(cert.Subject.CommonName, cert.SubjectKeyId)
 		filename := fmt.Sprintf("%s-%v-%v.crl", a.output, certType, cn)
 		if err := os.WriteFile(filename, out.crl, os.FileMode(0644)); err != nil {
 			return trace.Wrap(err)
