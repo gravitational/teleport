@@ -10,19 +10,52 @@
       },
       "items": [
         {
-          "type": "doc",
+          "type": "category",
           "label": "Get Started",
-          "id": "get-started"
+          "collapsible": true,
+          "link": {
+            "type": "doc",
+            "id": "get-started/get-started"
+          },
+          "items": [
+            {
+              "type": "category",
+              "label": "Step 1: Deploy a Cluster",
+              "collapsible": true,
+              "items": [
+                {
+                  "type": "doc",
+                  "id": "get-started/deploy-cloud",
+                  "label": "Enterprise Cloud"
+                },
+                {
+                  "type": "doc",
+                  "id": "get-started/deploy-community",
+                  "label": "Community Edition (Linux Demo)"
+                }
+              ]
+            },
+            {
+              "type": "doc",
+              "id": "get-started/connect",
+              "label": "Step 2: Connect Infrastructure"
+            },
+            {
+              "type": "doc",
+              "id": "get-started/access",
+              "label": "Step 3: Set Up Access Controls"
+            },
+            {
+              "type": "doc",
+              "id": "get-started/audit",
+              "label": "Step 4: Monitor Audit Logs"
+            }
+          ]
         },
         {
           "type": "doc",
           "label": "Core Concepts",
           "id": "core-concepts"
-        },
-        {
-          "type": "doc",
-          "label": "Linux Demo",
-          "id": "linux-demo"
         },
         {
           "type": "category",
