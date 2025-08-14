@@ -131,6 +131,9 @@ func (cfg *AuthServerConfig) CheckAndSetDefaults() error {
 			SecondFactor: constants.SecondFactorOff,
 		}
 	}
+	if cfg.UploadHandler == nil {
+		cfg.UploadHandler = eventstest.NewMemoryUploader()
+	}
 	return nil
 }
 
@@ -268,11 +271,6 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	// Wrap backend in sanitizer like in production.
 	srv.Backend = backend.NewSanitizer(b)
 
-	uploadHandler := cfg.UploadHandler
-	if uploadHandler == nil {
-		uploadHandler = eventstest.NewMemoryUploader()
-	}
-
 	if cfg.AuditLog != nil {
 		srv.AuditLog = cfg.AuditLog
 	} else {
@@ -280,7 +278,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 			DataDir:       cfg.Dir,
 			ServerID:      cfg.ClusterName,
 			Clock:         cfg.Clock,
-			UploadHandler: uploadHandler,
+			UploadHandler: cfg.UploadHandler,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -333,7 +331,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		AccessLists:               accessLists,
 		FIPS:                      cfg.FIPS,
 		KeyStoreConfig:            cfg.KeystoreConfig,
-		MultipartHandler:          uploadHandler,
+		MultipartHandler:          cfg.UploadHandler,
 		SessionSummarizerProvider: cfg.SessionSummarizerProvider,
 	},
 		WithClock(cfg.Clock),
