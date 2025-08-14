@@ -38,6 +38,8 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -55,6 +57,9 @@ type AWSRolesAnywhereProfileSyncerParams struct {
 
 	// Cache is used to get the current cluster name and cert authority keys.
 	Cache SyncerCache
+
+	// Backend is used access the lock primitives to ensure only one Syncer is running at any given time.
+	Backend backend.Backend
 
 	// StatusReporter is used to report the status of the syncer.
 	StatusReporter StatusReporter
@@ -125,6 +130,10 @@ func (p *AWSRolesAnywhereProfileSyncerParams) checkAndSetDefaults() error {
 		return trace.BadParameter("app server upserter is required")
 	}
 
+	if p.Backend == nil {
+		return trace.BadParameter("backend is required")
+	}
+
 	if p.SyncPollInterval == 0 {
 		p.SyncPollInterval = 5 * time.Minute
 	}
@@ -152,7 +161,7 @@ type AppServerUpserter interface {
 	UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error)
 }
 
-// RunAWSRolesAnywhereProfileSyncer starts the AWS Roles Anywhere Profile Syncer.
+// RunAWSRolesAnywhereProfileSyncerWhileLocked runs the AWS Roles Anywhere Profile Syncer.
 // It will iterate over all AWS IAM Roles Anywhere integrations, and for each one:
 // 1. Check if the Profile Sync is enabled.
 // 2. Generate AWS credentials using the integration.
@@ -160,26 +169,61 @@ type AppServerUpserter interface {
 // 4. For each profile, check if it is enabled and has associated roles.
 // 5. Create an AppServer for each profile, using the profile name as the AppServer name.
 // AppServer name can be overridden by the `TeleportApplicationName` tag on the Profile.
-func RunAWSRolesAnywhereProfileSyncer(ctx context.Context, params AWSRolesAnywhereProfileSyncerParams) error {
+//
+// This function will run the AWS Roles Anywhere Profile Syncer while holding a lock to ensure it doesn't race on multiple auth instances.
+func RunAWSRolesAnywhereProfileSyncerWhileLocked(ctx context.Context, params AWSRolesAnywhereProfileSyncerParams) error {
 	if err := params.checkAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
+	runWhileLockedConfig := backend.RunWhileLockedConfig{
+		LockConfiguration: backend.LockConfiguration{
+			Backend:            params.Backend,
+			LockNameComponents: []string{"aws-roles-anywhere.profile-sync"},
+			TTL:                time.Minute,
+			RetryInterval:      params.SyncPollInterval,
+		},
+		RefreshLockInterval: 20 * time.Second,
+	}
+
+	waitWithJitter := retryutils.SeventhJitter(time.Second * 10)
 	for {
-		if err := runProfileSyncerIteration(ctx, params); err != nil {
-			return trace.Wrap(err)
+		err := backend.RunWhileLocked(ctx, runWhileLockedConfig, runProfileSyncer(params))
+		if err != nil && ctx.Err() == nil {
+			params.Logger.ErrorContext(
+				ctx,
+				"AWS Roles Anywhere profile syncer encountered a fatal error, it will restart after backoff",
+				"error", err,
+				"restart_after", waitWithJitter,
+			)
 		}
 
 		select {
 		case <-ctx.Done():
 			return nil
-
-		case <-params.Clock.After(params.SyncPollInterval):
+		case <-time.After(waitWithJitter):
 		}
 	}
 }
 
-func runProfileSyncerIteration(ctx context.Context, params AWSRolesAnywhereProfileSyncerParams) error {
+func runProfileSyncer(params AWSRolesAnywhereProfileSyncerParams) func(context.Context) error {
+	return func(ctx context.Context) error {
+		for {
+			if err := profileSyncIteration(ctx, params); err != nil {
+				return trace.Wrap(err)
+			}
+
+			select {
+			case <-ctx.Done():
+				return nil
+
+			case <-params.Clock.After(params.SyncPollInterval):
+			}
+		}
+	}
+}
+
+func profileSyncIteration(ctx context.Context, params AWSRolesAnywhereProfileSyncerParams) error {
 	integrations, err := integrationsWithProfileSyncEnabled(ctx, params.Cache)
 	if err != nil {
 		return trace.Wrap(err)
