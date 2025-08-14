@@ -60,16 +60,19 @@ export type IntegrationLike =
   | Plugin
   | ExternalAuditStorageIntegration;
 
+// statusKinds are the integration types with status pages; we enable clicking on the row directly to route to the view
+const statusKinds = ['okta', IntegrationKind.AwsOidc, IntegrationKind.AWSRa];
+
 export function IntegrationList(props: Props) {
   const history = useHistory();
 
   function handleRowClick(row: IntegrationLike) {
-    if (row.kind !== 'okta' && row.kind !== IntegrationKind.AwsOidc) return;
+    if (!statusKinds.includes(row.kind)) return;
     history.push(cfg.getIntegrationStatusRoute(row.kind, row.name));
   }
 
   function getRowStyle(row: IntegrationLike): React.CSSProperties {
-    if (row.kind !== 'okta' && row.kind !== IntegrationKind.AwsOidc) return;
+    if (!statusKinds.includes(row.kind)) return;
     return { cursor: 'pointer' };
   }
 
@@ -119,7 +122,8 @@ export function IntegrationList(props: Props) {
           altKey: 'options-btn',
           render: item => {
             if (item.kind === IntegrationKind.AwsOidc) {
-              // do not show any action menu for aws oidc; settings are available on the dashboard
+              // do not show any action menu for aws oidc or roles anywhere;
+              // settings are available on the dashboard
               return;
             }
 
@@ -157,7 +161,8 @@ export function IntegrationList(props: Props) {
               return (
                 <Cell align="right">
                   <MenuButton>
-                    {item.kind === IntegrationKind.GitHub && (
+                    {(item.kind === IntegrationKind.GitHub ||
+                      item.kind === IntegrationKind.AWSRa) && (
                       <MenuItem
                         onClick={() =>
                           props.integrationOps.onEditIntegration(item)
@@ -361,6 +366,7 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
     switch (item.kind) {
       case IntegrationKind.AwsOidc:
       case IntegrationKind.ExternalAuditStorage:
+      case IntegrationKind.AWSRa:
         formattedText = item.name;
         icon = <IconContainer name="aws" />;
         break;
