@@ -369,13 +369,9 @@ func ValidateTokenWithJWKS(
 // giving up.
 const providerTimeout = 15 * time.Second
 
-// zoidcValidateTokenWithClient validates an OIDC token against a generic
-// claim type, but accepts a custom HTTP client. This custom client can be used
-// in tandem with the client returned by `NewCachingHTTPClient()` to cache
-// OpenID and JWKS responses.
-func zoidcValidateTokenWithClient[C zoidc.Claims](
+// zoidcValidateToken validates an OIDC token against a generic claim type.
+func zoidcValidateToken[C zoidc.Claims](
 	ctx context.Context,
-	httpClient *http.Client,
 	issuerURL string,
 	audience string,
 	token string,
@@ -397,14 +393,14 @@ func zoidcValidateTokenWithClient[C zoidc.Claims](
 	// TODO(noah): It'd be nice to cache the OIDC discovery document fairly
 	// aggressively across join tokens since this isn't going to change very
 	// regularly.
-	dc, err := client.Discover(timeoutCtx, issuerURL, httpClient)
+	dc, err := client.Discover(timeoutCtx, issuerURL, otelhttp.DefaultClient)
 	if err != nil {
 		return nilClaims, trace.Wrap(err, "discovering oidc document")
 	}
 
 	// TODO(noah): Ideally we'd cache the remote keyset across joins/join tokens
 	// based on the issuer.
-	ks := rp.NewRemoteKeySet(httpClient, dc.JwksURI)
+	ks := rp.NewRemoteKeySet(otelhttp.DefaultClient, dc.JwksURI)
 	verifier := rp.NewIDTokenVerifier(issuerURL, audience, ks, opts...)
 	// TODO(noah): It'd be ideal if we could extend the verifier to use an
 	// injected "now" time.
@@ -446,17 +442,16 @@ func NewKubernetesOIDCTokenValidator() *KubernetesOIDCTokenValidator {
 	}
 }
 
-// ValidateTokenWithJWKS validates a Kubernetes Service Account JWT using an
+// ValidateTokenWithOIDC validates a Kubernetes Service Account JWT using an
 // OIDC endpoint.
-func (v *KubernetesOIDCTokenValidator) ValidateTokenWithOIDC(
+func ValidateTokenWithOIDC(
 	ctx context.Context,
 	issuerURL string,
 	clusterName string,
 	token string,
 ) (*ValidationResult, error) {
-	claims, err := zoidcValidateTokenWithClient[*OIDCServiceAccountClaims](
+	claims, err := zoidcValidateToken[*OIDCServiceAccountClaims](
 		ctx,
-		v.client,
 		issuerURL,
 		clusterName,
 		token,
