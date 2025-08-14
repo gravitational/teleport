@@ -1319,7 +1319,7 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 		// Find the user's SID
 		filter := windows.CombineLDAPFilters([]string{
 			fmt.Sprintf("(%s=%s)", attrSAMAccountType, AccountTypeUser),
-			fmt.Sprintf("(%s=%s)", attrSAMAccountName, username),
+			fmt.Sprintf("(%s=%s)", attrSAMAccountName, ldap.EscapeFilter(username)),
 		})
 		s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username, "filter", filter)
 		domainDN := windows.DomainDN(s.cfg.LDAPConfig.Domain)
