@@ -164,6 +164,9 @@ jobs:
       - name: Check if go generated files are up to date
         run: make go-generate-up-to-date
 
+      - name: Check if test symbols are included in binaries
+        run: make lint-test-symbols
+
   lint-rust:
     name: Lint (Rust)
     runs-on: ubuntu-22.04
