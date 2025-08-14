@@ -81,7 +81,7 @@ resource "azuread_application_identifier_uri" "example_identifier_uri" {
   application_id = azuread_application.example.id
 
   # Configures SAML Entity ID.
-  identifier_uri = "local.teleport_saml_entity_id"
+  identifier_uri = local.teleport_saml_entity_id
 }
 ```
 
@@ -97,7 +97,7 @@ resource "azuread_application" "example" {
 
   # Redirect URI configures SAML Assertion Consumer Service URL. 
   web {
-    redirect_uris = ["local.teleport_saml_entity_id"]
+    redirect_uris = [local.teleport_saml_entity_id]
   }
 
   lifecycle {
@@ -157,7 +157,7 @@ based authentication method.
 
 For OIDC IdP method, a federated credential is set up for Teleport by configuring 
 Teleport as an OIDC IdP. For system credential method, a managed identity that is assigned to the 
-Teleport Auth service is updated with permission that grants access to the Graph API.  
+Teleport Auth service is updated with permissions that grants access to the Graph API.  
 
 <Tabs>
 <TabItem default label="Teleport as an OIDC provider" name="entra-oidc">
@@ -224,15 +224,15 @@ resource "azuread_app_role_assignment" "example_graph_permission_user_grant" {
 </TabItem>
 <TabItem label="System Credential" name="entra-system-cred">
 
-To set up system credential, you need to grant Graph API permission to the Managed Identity 
+To set up system credential, you need to grant Graph API permissions to the Managed Identity 
 that is assigned to the Teleport Auth service. 
 
-Azure supports two kinds of Managed Identity - system assigned and user assigned. 
-For simplicity, we only demonstrate updating permission for a system assigned Managed Identity
-that is configured for a VM instance. 
+Azure supports two kinds of Managed Identities - system assigned and user assigned. 
+For simplicity, a method to update a system assigned Managed Identity, which is assigned to a 
+VM that hosts Teleport Auth Service, is demonstrated below. 
 
-First, ensure that system assigned Managed Identity is enabled for you VM.
-This can be configured by using the [`identity`](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/virtual_machine#identity-1)
+First, ensure that system assigned Managed Identity is enabled for your VM.
+This can be configured by setting up the [`identity`](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/virtual_machine#identity-1)
 block in your VM configuration. 
 
 ```hcl 
@@ -294,7 +294,7 @@ data "azuread_service_principal" "graph_api" {
   client_id = data.azuread_application_published_app_ids.well_known.result["MicrosoftGraph"]
 }
 
-resource "azuread_app_role_assignment" "example_permissions" {
+resource "azuread_app_role_assignment" "example_permission_application" {
   # ID of the API permission retrieved using PowerShell. 
   app_role_id         = "<Var name="application-uuid"/>"
   # Object ID of the system assigned Managed identity
@@ -303,16 +303,16 @@ resource "azuread_app_role_assignment" "example_permissions" {
   resource_object_id  = data.azuread_service_principal.graph_api.object_id
 }
 
-resource "azuread_app_role_assignment" "example_permissions" {
+resource "azuread_app_role_assignment" "example_permission_group" {
   # ID of the API permission retrieved using PowerShell. 
-  app_role_id         = " <Var name="group-uuid"/>"
+  app_role_id         = "<Var name="group-uuid"/>"
   # Object ID of the system assigned Managed identity
   principal_object_id = azurerm_virtual_machine.my_vm.identity[0].principal_id
   # Object ID of the MS graph API application. 
   resource_object_id  = data.azuread_service_principal.graph_api.object_id
 }
 
-resource "azuread_app_role_assignment" "example_permissions" {
+resource "azuread_app_role_assignment" "example_permission_user" {
   # ID of the API permission retrieved using PowerShell. 
   app_role_id         = "<Var name="user-uuid"/>"
   # Object ID of the system assigned Managed identity
