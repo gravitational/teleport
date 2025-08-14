@@ -75,16 +75,16 @@ func newAuditCompactor(refreshInterval, maxDelayInterval time.Duration, emitFn f
 	}
 }
 
-func (s *stream) emitEvents(ctx context.Context, emitFn func(ctx context.Context, evnt events.AuditEvent)) {
-	for _, evnt := range s.compactEvents() {
-		emitFn(ctx, evnt.Base())
+func (s *stream) emitEvents(ctx context.Context, emitFn func(ctx context.Context, event events.AuditEvent)) {
+	for _, event := range s.compactEvents() {
+		emitFn(ctx, event.Base())
 	}
 }
 
 func (s *stream) compactEvents() []streamEvent {
 	offsetMapping := map[uint64][]streamEvent{}
-	for _, evnt := range s.events {
-		offsetMapping[evnt.GetOffset()] = append(offsetMapping[evnt.GetOffset()], evnt)
+	for _, event := range s.events {
+		offsetMapping[event.GetOffset()] = append(offsetMapping[event.GetOffset()], event)
 	}
 
 	var finalEvents []streamEvent
@@ -94,10 +94,10 @@ func (s *stream) compactEvents() []streamEvent {
 		// contiguous segment we can produce.
 		smallestKey := slices.Min(slices.Collect(maps.Keys(offsetMapping)))
 		// The audit event at which we will begin our search.
-		evnt := offsetMapping[smallestKey][0]
+		event := offsetMapping[smallestKey][0]
 		// compact returns the longest slice of contiguous read/write audit events.
 		// It always a slice of at least length 1, containing the starting event.
-		sequentialEvents, sequenceLength := s.compact(evnt, offsetMapping)
+		sequentialEvents, sequenceLength := s.compact(event, offsetMapping)
 		// base is the first event in the sequence. We will mutate this
 		// event with the updated length and emit it.
 		base := sequentialEvents[0]
@@ -105,11 +105,11 @@ func (s *stream) compactEvents() []streamEvent {
 		// Remove each event in this sequence from the map
 		for _, subsequent := range sequentialEvents {
 			offset := subsequent.GetOffset()
-			evnts := offsetMapping[offset]
-			deleteIdx := slices.Index(evnts, subsequent)
-			evnts = slices.Delete(evnts, deleteIdx, deleteIdx+1)
-			if len(evnts) > 0 {
-				offsetMapping[offset] = evnts
+			events := offsetMapping[offset]
+			deleteIdx := slices.Index(events, subsequent)
+			events = slices.Delete(events, deleteIdx, deleteIdx+1)
+			if len(events) > 0 {
+				offsetMapping[offset] = events
 			} else {
 				delete(offsetMapping, offset)
 			}
@@ -121,10 +121,10 @@ func (s *stream) compactEvents() []streamEvent {
 	return finalEvents
 }
 
-// compact finds the longest contiguous set of reads/writes following the given 'evnt'.
-func (s *stream) compact(evnt streamEvent, eventsByOffset map[uint64][]streamEvent) ([]streamEvent, uint64) {
+// compact finds the longest contiguous set of reads/writes following the given 'event'.
+func (s *stream) compact(event streamEvent, eventsByOffset map[uint64][]streamEvent) ([]streamEvent, uint64) {
 	// Determine the offset at which the next contiguous segment must start.
-	offset := evnt.GetOffset() + evnt.GetLength()
+	offset := event.GetOffset() + event.GetLength()
 	// Consule the map for any events with this offset.
 	if len(eventsByOffset[offset]) > 0 {
 		// There may be multiple candidate segments to follow.
@@ -142,21 +142,21 @@ func (s *stream) compact(evnt streamEvent, eventsByOffset map[uint64][]streamEve
 				maxLength = length
 			}
 		}
-		return append([]streamEvent{evnt}, winner...), maxLength + evnt.GetLength()
+		return append([]streamEvent{event}, winner...), maxLength + event.GetLength()
 	}
-	return []streamEvent{evnt}, evnt.GetLength()
+	return []streamEvent{event}, event.GetLength()
 }
 
-func (s *stream) addEvent(evnt streamEvent) {
-	s.events = append(s.events, evnt)
+func (s *stream) addEvent(event streamEvent) {
+	s.events = append(s.events, event)
 }
 
-func (a *auditCompactor) handleEvent(ctx context.Context, evnt streamEvent) {
+func (a *auditCompactor) handleEvent(ctx context.Context, event streamEvent) {
 	// Does the event exist in the stream?
 	key := streamID{
-		write:       evnt.IsWriteEvent(),
-		directoryID: evnt.GetDirectoryID(),
-		path:        evnt.GetPath(),
+		write:       event.IsWriteEvent(),
+		directoryID: event.GetDirectoryID(),
+		path:        event.GetPath(),
 	}
 
 	newStream := true
@@ -170,7 +170,7 @@ func (a *auditCompactor) handleEvent(ctx context.Context, evnt streamEvent) {
 		if !alreadyFired {
 			// Update the current stream. It is a continuation of the current stream
 			// and the timer has not yet fired for it.
-			stream.addEvent(evnt)
+			stream.addEvent(event)
 			// Reset the timer either to the refresh interval, or until
 			// the stream's expiration time
 			stream.timer.Reset(time.Duration(math.Min(float64(a.refreshInterval), float64(time.Until(stream.expireTime)))))
@@ -189,7 +189,7 @@ func (a *auditCompactor) handleEvent(ctx context.Context, evnt streamEvent) {
 		s := &stream{
 			done:       make(chan struct{}),
 			expireTime: time.Now().Add(a.maxDelayInterval),
-			events:     []streamEvent{evnt},
+			events:     []streamEvent{event},
 		}
 		s.timer = time.AfterFunc(a.refreshInterval, func() {
 			// Close done channel so that the 'flush' function can
@@ -258,10 +258,10 @@ func (r *writeEvent) IsWriteEvent() bool          { return false }
 func (r *writeEvent) GetDirectoryID() directoryID { return directoryID(r.DirectoryID) }
 func (r *writeEvent) Base() events.AuditEvent     { return r.DesktopSharedDirectoryWrite }
 
-func (a *auditCompactor) handleRead(ctx context.Context, evnt *events.DesktopSharedDirectoryRead) {
-	a.handleEvent(ctx, &readEvent{DesktopSharedDirectoryRead: evnt})
+func (a *auditCompactor) handleRead(ctx context.Context, event *events.DesktopSharedDirectoryRead) {
+	a.handleEvent(ctx, &readEvent{DesktopSharedDirectoryRead: event})
 }
 
-func (a *auditCompactor) handleWrite(ctx context.Context, evnt *events.DesktopSharedDirectoryWrite) {
-	a.handleEvent(ctx, &writeEvent{DesktopSharedDirectoryWrite: evnt})
+func (a *auditCompactor) handleWrite(ctx context.Context, event *events.DesktopSharedDirectoryWrite) {
+	a.handleEvent(ctx, &writeEvent{DesktopSharedDirectoryWrite: event})
 }

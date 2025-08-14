@@ -58,10 +58,10 @@ func TestAuditCompactor(t *testing.T) {
 	compactor := &auditCompactor{
 		refreshInterval:  refreshInterval,
 		maxDelayInterval: maxDelayInterval,
-		emitFn: func(_ context.Context, evnt events.AuditEvent) {
+		emitFn: func(_ context.Context, event events.AuditEvent) {
 			eventsLock.Lock()
 			defer eventsLock.Unlock()
-			auditEvents = append(auditEvents, evnt)
+			auditEvents = append(auditEvents, event)
 		},
 		streams: map[streamID]*stream{},
 	}
