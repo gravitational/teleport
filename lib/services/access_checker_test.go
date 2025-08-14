@@ -1068,7 +1068,7 @@ func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
 	}
 }
 
-// TestUserSessionRoleNotFoundError ensures that role not found errors during user session access checks include UserSessionRoleNotFoundError when appropriate,
+// TestUserSessionRoleNotFoundError ensures that role not found errors during user session access checks include UserSessionRoleNotFoundErrorMsg when appropriate,
 func TestUserSessionRoleNotFoundError(t *testing.T) {
 	// Create a mock RoleGetter that returns "role not found" error for a specific role
 	mockRoleGetter := &mockRoleGetter{
@@ -1077,7 +1077,7 @@ func TestUserSessionRoleNotFoundError(t *testing.T) {
 		},
 	}
 
-	t.Run("NewAccessChecker with missing role does not add UserSessionRoleNotFoundError", func(t *testing.T) {
+	t.Run("NewAccessChecker with missing role does not add UserSessionRoleNotFoundErrorMsg", func(t *testing.T) {
 		accessInfo := &AccessInfo{
 			Roles: []string{"missing-role"},
 		}
@@ -1086,10 +1086,10 @@ func TestUserSessionRoleNotFoundError(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))
 		require.Contains(t, err.Error(), "role missing-role is not found")
-		require.NotContains(t, err.Error(), UserSessionRoleNotFoundError)
+		require.NotContains(t, err.Error(), UserSessionRoleNotFoundErrorMsg)
 	})
 
-	t.Run("NewAccessCheckerForUserSession with missing role adds UserSessionRoleNotFoundError", func(t *testing.T) {
+	t.Run("NewAccessCheckerForUserSession with missing role adds UserSessionRoleNotFoundErrorMsg", func(t *testing.T) {
 		accessInfo := &AccessInfo{
 			Roles: []string{"missing-role"},
 		}
@@ -1098,7 +1098,7 @@ func TestUserSessionRoleNotFoundError(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))
 		require.Contains(t, err.Error(), "role missing-role is not found")
-		require.Contains(t, err.Error(), UserSessionRoleNotFoundError)
+		require.Contains(t, err.Error(), UserSessionRoleNotFoundErrorMsg)
 	})
 
 	t.Run("NewAccessCheckerForUserSession with existing role succeeds", func(t *testing.T) {

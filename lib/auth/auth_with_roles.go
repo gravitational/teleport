@@ -4649,9 +4649,10 @@ func (a *ServerWithRoles) GetRole(ctx context.Context, name string) (types.Role,
 	if slices.Contains(a.context.User.GetRoles(), name) {
 		role, err := a.authServer.GetRole(ctx, name)
 		if err != nil && trace.IsNotFound(err) {
-			// Add the UserSessionRoleNotFoundError message to indicate this role not found error was encountered while the user was
-			// listing their own roles, which can only happen if a role in their session certificate doesn't exist anymore.
-			return nil, trace.Wrap(err, services.UserSessionRoleNotFoundError)
+			// Add the UserSessionRoleNotFoundErrorMsg message to indicate this role not found error was
+			// encountered while the user was looking up one of their own roles. At this point, the
+			// role not found error can only happen if a role in their session cert doesn't exist anymore.
+			return nil, trace.Wrap(err, services.UserSessionRoleNotFoundErrorMsg)
 		}
 		return role, trace.Wrap(err)
 	}

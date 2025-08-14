@@ -382,7 +382,7 @@ export function isAdminActionRequiresMfaError(err: Error) {
 export function isUserSessionRoleNotFoundError(json: any): boolean {
   // Keep in sync with lib/services/role.go(UserSessionRoleNotFoundError)
   return (
-    !!json.error && !!json?.messages?.includes('user_session_role_not_found')
+    !!json.error && !!json?.messages?.includes('user session role not found')
   );
 }
 

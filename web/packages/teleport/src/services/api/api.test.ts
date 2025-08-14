@@ -208,7 +208,7 @@ test('fetchJsonWithMfaAuthnRetry does not return any', () => {
 test('isUserSessionRoleNotFoundError correctly identifies user session role not found errors', () => {
   const userSessionRoleError = {
     error: 'role admin is not found',
-    messages: ['user_session_role_not_found'],
+    messages: ['user session role not found'],
   };
   expect(isUserSessionRoleNotFoundError(userSessionRoleError)).toBe(true);
 
@@ -238,7 +238,7 @@ describe('handling of role not found errors', () => {
         error: {
           message: 'role foo is not found',
         },
-        messages: ['user_session_role_not_found'],
+        messages: ['user session role not found'],
       }),
       ok: false,
       status: 404,
