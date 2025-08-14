@@ -104,7 +104,12 @@ export function Access() {
         })
         .then(data => data),
     onSuccess: () => {
-      //   todo (michellescripts) redirect to success view in follow up PR
+      history.push(
+        cfg.getIntegrationEnrollRoute(
+          IntegrationKind.AWSRa,
+          'next'
+        )
+      );
     },
     onError: (e: ApiError) => {
       // Set validity on invalid filter based on API error

@@ -29,6 +29,8 @@ import {
 import { TaskAlert } from 'teleport/Integrations/status/AwsOidc/Tasks/TaskAlert';
 import { useAwsOidcStatus } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
 
+import { ConsoleCard } from './Cards/ConsoleCard';
+
 export function AwsOidcDashboard() {
   const { statsAttempt, integrationAttempt } = useAwsOidcStatus();
 
@@ -86,6 +88,9 @@ export function AwsOidcDashboard() {
             resource={AwsResource.eks}
             summary={awseks}
           />
+        </Flex>
+        <Flex>
+          <ConsoleCard name={integration.name} />
         </Flex>
       </FeatureBox>
     </>

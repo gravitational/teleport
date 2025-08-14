@@ -54,6 +54,7 @@ import {
   integrationService,
 } from 'teleport/services/integrations';
 import useTeleport from 'teleport/useTeleport';
+import { ApiError } from 'teleport/services/api/parseError';
 
 enum Phase {
   One, // enable step one
@@ -89,6 +90,42 @@ export function IamIntegration() {
     syncProfileName: 'teleport-aws-roles-anywhere-profile',
     // syncProfile: the name of the IAM Roles Anywhere Profile to be created
     syncRoleName: 'teleport-aws-roles-anywhere-role',
+  });
+
+  // TODO MBERG
+  //  Before setting phase, create the RA integration */
+  //    CREATE WANTS AN ARN; DOESN'T EXIST UNTIL AFTER SCRIPT IS RUN
+  //    CAN USE "TEST CONFIG" OR "NEXT"
+  //  AND IT WANTS FILTERS AND THEY DONT EXIST UNTIL THE NEXT PAGE.
+  const createIntegration = useMutation({
+    mutationFn: () =>
+      integrationService
+        .createIntegration({
+          name: formState.integrationName,
+          subKind: IntegrationKind.AWSRa,
+          awsRa: {
+            trustAnchorArn: output.trustAnchorArn,
+            profileSyncConfig: {
+              enabled: true, // must be true for creation
+              profileArn: output.syncProfileArn,
+              profileAcceptsRoleSessionName: false, // not necessary for creation
+              roleArn: output.syncRoleArn,
+              profileNameFilters: [],
+            },
+          },
+        })
+        .then(data => data),
+    onSuccess: () => {
+      history.push(
+        cfg.getIntegrationEnrollRoute(
+          IntegrationKind.AWSRa,
+          'next'
+        )
+      );
+    },
+    onError: (e: ApiError) => {
+    //   todo mberg show error
+    },
   });
 
   function generateCommand(validator: Validator) {
