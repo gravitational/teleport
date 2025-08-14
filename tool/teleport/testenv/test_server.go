@@ -45,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cloud/imds"
@@ -56,7 +55,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/hostid"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
@@ -571,14 +569,9 @@ func MakeDefaultAuthClient(t *testing.T, process *service.TeleportProcess) *auth
 // NewTeleportProcess.
 func NewDefaultAuthClient(process *service.TeleportProcess) (*authclient.Client, error) {
 	cfg := process.Config
-	hostUUID, err := hostid.ReadFile(process.Config.DataDir)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	identity, err := storage.ReadLocalIdentity(
+	identity, err := storage.ReadLocalIdentityForRole(
 		filepath.Join(cfg.DataDir, teleport.ComponentProcess),
-		state.IdentityID{Role: types.RoleAdmin, HostUUID: hostUUID},
+		types.RoleAdmin,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

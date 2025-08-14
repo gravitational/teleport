@@ -218,7 +218,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 			Emitter:                       asyncEmitter,
 			DataDir:                       cfg.DataDir,
 			CachingAuthClient:             accessPoint,
-			HostID:                        cfg.HostUUID,
+			HostID:                        conn.HostUUID(),
 			Context:                       process.ExitContext(),
 			KubeconfigPath:                cfg.Kube.KubeconfigPath,
 			KubeClusterName:               cfg.Kube.KubeClusterName,
