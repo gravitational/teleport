@@ -114,7 +114,10 @@ type Manager struct {
 // accessible encryption key pair will be confirmed. Either creating one if none exists, doing nothing if one is
 // accessible, or returning an error if none are accessible.
 func (m *Manager) CreateSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
-	sessionRecordingConfig, _, err := m.resolveAllSessionRecordingConfigs(ctx, cfg, nil)
+	sessionRecordingConfig, _, err := m.resolveAllSessionRecordingConfigs(ctx, resolveSessionRecordingInput{
+		sessionRecordingCfg:       cfg,
+		sessionRecordingPersistFn: m.ClusterConfigurationInternal.CreateSessionRecordingConfig,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -126,7 +129,9 @@ func (m *Manager) CreateSessionRecordingConfig(ctx context.Context, cfg types.Se
 // then an accessible encryption key pair will be confirmed. Either creating one if none exists, doing nothing
 // if one is accessible, or returning an error if none are accessible.
 func (m *Manager) UpdateSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
-	sessionRecordingConfig, _, err := m.resolveAllSessionRecordingConfigs(ctx, cfg, nil)
+	sessionRecordingConfig, _, err := m.resolveAllSessionRecordingConfigs(ctx, resolveSessionRecordingInput{
+		sessionRecordingCfg: cfg,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -138,7 +143,10 @@ func (m *Manager) UpdateSessionRecordingConfig(ctx context.Context, cfg types.Se
 // encryption is enabled then an accessible encryption key pair will be confirmed. Either creating one if none
 // exists, doing nothing if one is accessible, or returning an error if none are accessible.
 func (m *Manager) UpsertSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
-	sessionRecordingConfig, _, err := m.resolveAllSessionRecordingConfigs(ctx, cfg, nil)
+	sessionRecordingConfig, _, err := m.resolveAllSessionRecordingConfigs(ctx, resolveSessionRecordingInput{
+		sessionRecordingCfg:       cfg,
+		sessionRecordingPersistFn: m.ClusterConfigurationInternal.UpsertSessionRecordingConfig,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -410,7 +418,7 @@ func (m *Manager) RotateKey(ctx context.Context) error {
 	}
 
 	activePair.State = recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING
-	if _, _, err := m.resolveAllSessionRecordingConfigs(ctx, nil, encryption); err != nil {
+	if _, _, err := m.resolveAllSessionRecordingConfigs(ctx, resolveSessionRecordingInput{recordingEncryption: encryption}); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -445,7 +453,7 @@ func (m *Manager) CompleteRotation(ctx context.Context) error {
 	}
 
 	encryption.Spec.ActiveKeyPairs = remainingPairs
-	if _, _, err := m.resolveAllSessionRecordingConfigs(ctx, nil, encryption); err != nil {
+	if _, _, err := m.resolveAllSessionRecordingConfigs(ctx, resolveSessionRecordingInput{recordingEncryption: encryption}); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -474,7 +482,7 @@ func (m *Manager) RollbackRotation(ctx context.Context) error {
 	}
 
 	encryption.Spec.ActiveKeyPairs = rollbackPairs
-	if _, _, err := m.resolveAllSessionRecordingConfigs(ctx, nil, encryption); err != nil {
+	if _, _, err := m.resolveAllSessionRecordingConfigs(ctx, resolveSessionRecordingInput{recordingEncryption: encryption}); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -597,33 +605,43 @@ func (m *Manager) Watch(ctx context.Context, events types.Events) (err error) {
 	}
 }
 
+type resolveSessionRecordingInput struct {
+	sessionRecordingCfg       types.SessionRecordingConfig
+	recordingEncryption       *recordingencryptionv1.RecordingEncryption
+	sessionRecordingPersistFn func(context.Context, types.SessionRecordingConfig) (types.SessionRecordingConfig, error)
+}
+
 // resolveAllSessionRecordingConfigs coordinates all updates to the [SessionRecordingConfig] or [RecordingEncryption]
 // resources and ensures that both are in a valid state with respect to eachother. If either resource is nil when
 // calling this function, they will be fetched from the backend.
-func (m *Manager) resolveAllSessionRecordingConfigs(ctx context.Context, sessionRecordingCfg types.SessionRecordingConfig, encryption *recordingencryptionv1.RecordingEncryption) (types.SessionRecordingConfig, *recordingencryptionv1.RecordingEncryption, error) {
+func (m *Manager) resolveAllSessionRecordingConfigs(ctx context.Context, in resolveSessionRecordingInput) (types.SessionRecordingConfig, *recordingencryptionv1.RecordingEncryption, error) {
 	var err error
+
+	if in.sessionRecordingPersistFn == nil {
+		in.sessionRecordingPersistFn = m.ClusterConfigurationInternal.UpdateSessionRecordingConfig
+	}
 
 	// an explicit sessionRecordingCfg means we should also update the SessionRecordingConfig even if there are no
 	// changes to the encryption keys
 	shouldUpdateSessionRecordingCfg := true
-	if sessionRecordingCfg == nil {
+	if in.sessionRecordingCfg == nil {
 		shouldUpdateSessionRecordingCfg = false
-		sessionRecordingCfg, err = m.GetSessionRecordingConfig(ctx)
+		in.sessionRecordingCfg, err = m.GetSessionRecordingConfig(ctx)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 	}
 
 	err = backend.RunWhileLocked(ctx, m.lockConfig, func(ctx context.Context) error {
-		if sessionRecordingCfg.GetEncrypted() {
-			encryption, err = m.resolveRecordingEncryption(ctx, *sessionRecordingCfg.GetEncryptionConfig(), encryption)
+		if in.sessionRecordingCfg.GetEncrypted() {
+			in.recordingEncryption, err = m.resolveRecordingEncryption(ctx, *in.sessionRecordingCfg.GetEncryptionConfig(), in.recordingEncryption)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 		}
 
-		if sessionRecordingCfg.SetEncryptionKeys(getAgeEncryptionKeys(encryption.GetSpec().GetActiveKeyPairs())) || shouldUpdateSessionRecordingCfg {
-			sessionRecordingCfg, err = m.ClusterConfigurationInternal.UpsertSessionRecordingConfig(ctx, sessionRecordingCfg)
+		if in.sessionRecordingCfg.SetEncryptionKeys(getAgeEncryptionKeys(in.recordingEncryption.GetSpec().GetActiveKeyPairs())) || shouldUpdateSessionRecordingCfg {
+			in.sessionRecordingCfg, err = in.sessionRecordingPersistFn(ctx, in.sessionRecordingCfg)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -633,7 +651,7 @@ func (m *Manager) resolveAllSessionRecordingConfigs(ctx context.Context, session
 		return nil
 	})
 
-	return sessionRecordingCfg, encryption, trace.Wrap(err)
+	return in.sessionRecordingCfg, in.recordingEncryption, trace.Wrap(err)
 
 }
 
@@ -643,7 +661,7 @@ func (m *Manager) resolveAllSessionRecordingConfigs(ctx context.Context, session
 func (m *Manager) resolveRecordingEncryptionAsync(ctx context.Context, shouldRetryFn func() bool) error {
 	const retries = 3
 	for retry := range retries {
-		if _, _, err := m.resolveAllSessionRecordingConfigs(ctx, nil, nil); err != nil {
+		if _, _, err := m.resolveAllSessionRecordingConfigs(ctx, resolveSessionRecordingInput{}); err != nil {
 			m.logger.ErrorContext(ctx, "failed to resolve recording encryption keys, retrying", "retry", retry, "retries_left", retries-retry, "error", err)
 			if shouldRetryFn() {
 				continue

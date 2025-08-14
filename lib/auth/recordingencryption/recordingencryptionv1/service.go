@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 )
 
+// A KeyRotater facilitates rotation of encryption keys.
 type KeyRotater interface {
 	RotateKey(context.Context) error
 	CompleteRotation(context.Context) error
