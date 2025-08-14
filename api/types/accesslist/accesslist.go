@@ -338,6 +338,10 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
+	if !a.ResourceHeader.Metadata.Expires.IsZero() {
+		return trace.BadParameter("cannot set expires on access list resources")
+	}
+
 	// Restore the type if the cluster was ever running in version 17.5.4.
 	if a.Spec.Type == DeprecatedDynamic {
 		a.Spec.Type = Default
