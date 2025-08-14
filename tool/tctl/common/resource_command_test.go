@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
@@ -201,7 +202,9 @@ func TestDatabaseServerResource(t *testing.T) {
 	require.NoError(t, err)
 
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	// get all database servers
 	buff, err := runResourceCommand(t, clt, []string{"get", types.KindDatabaseServer, "--format=json"})
@@ -266,7 +269,9 @@ func TestDatabaseServiceResource(t *testing.T) {
 	}
 
 	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, auth)
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	// Add a lot of DatabaseServices to test pagination
 	dbS, err := types.NewDatabaseServiceV1(
@@ -347,7 +352,9 @@ func TestIntegrationResource(t *testing.T) {
 	}
 
 	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, auth)
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	t.Run("get", func(t *testing.T) {
 
@@ -460,7 +467,9 @@ func TestDiscoveryConfigResource(t *testing.T) {
 	}
 
 	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, auth)
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	t.Run("get", func(t *testing.T) {
 		// Add a lot of DiscoveryConfigs to test pagination
@@ -573,9 +582,11 @@ func TestCreateLock(t *testing.T) {
 	timeNow := time.Now().UTC()
 	fakeClock := clockwork.NewFakeClockAt(timeNow)
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withFakeClock(fakeClock))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
-	_, err := types.NewLock("test-lock", types.LockSpecV2{
+	_, err = types.NewLock("test-lock", types.LockSpecV2{
 		Target: types.LockTarget{
 			User: "bad@actor",
 		},
@@ -645,13 +656,15 @@ func TestCreateDatabaseInInsecureMode(t *testing.T) {
 	}
 
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	// Create the databases yaml file.
 	dbYAMLPath := filepath.Join(t.TempDir(), "db.yaml")
 	require.NoError(t, os.WriteFile(dbYAMLPath, []byte(dbYAML), 0644))
 
-	_, err := runResourceCommand(t, clt, []string{"create", dbYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", dbYAMLPath})
 	require.NoError(t, err)
 }
 
@@ -786,7 +799,9 @@ func TestCreateClusterAuthPreference_WithSupportForSecondFactorWithoutQuotes(t *
 	}
 
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	tests := []struct {
 		desc               string
@@ -871,7 +886,9 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 	}
 
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	tests := []struct {
 		desc           string
@@ -1038,7 +1055,9 @@ func (test *dynamicResourceTest[T]) setup(t *testing.T) *authclient.Client {
 		},
 	}
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 	return clt
 }
 
@@ -1370,8 +1389,15 @@ func requireGotDatabaseServers(t *testing.T, buf *bytes.Buffer, want ...types.Da
 func TestCreateResources(t *testing.T) {
 	t.Parallel()
 
-	process := testenv.MakeTestServer(t, testenv.WithLogger(utils.NewSlogLoggerForTests()))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(utils.NewSlogLoggerForTests()))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	// tctlGetAllValidations allows tests to register post-test validations to validate
 	// that their resource is present in "tctl get all" output.
@@ -2109,7 +2135,7 @@ version: v1
 // The tests are grouped to amortize the cost of creating and auth server since
 // that is the most expensive part of testing editing the resource.
 func TestCreateEnterpriseResources(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -2119,8 +2145,15 @@ func TestCreateEnterpriseResources(t *testing.T) {
 		},
 	})
 
-	process := testenv.MakeTestServer(t)
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	process, err := testenv.NewTeleportProcess(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	tests := []struct {
 		kind   string

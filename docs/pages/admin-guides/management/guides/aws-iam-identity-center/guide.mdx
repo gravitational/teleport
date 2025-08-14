@@ -1,6 +1,9 @@
 ---
 title: Getting Started with AWS IAM Identity Center integration
 description: Explains how to set up and use Teleport AWS IAM Identity Center integration.
+labels:
+ - how-to
+ - identity-governance
 ---
 
 Teleport's integration with [AWS IAM Identity Center](https://aws.amazon.com/iam/identity-center/)
@@ -18,7 +21,7 @@ identity source.
 As such, we recommend ensuring that all Identity Center users have access to
 your Teleport cluster before turning the integration on to avoid access
 interruption. If your Identity Center already uses external identity source,
-you can configure the corresponding [SSO connector](../../../access-controls/sso/sso.mdx)
+you can configure the corresponding [SSO connector](../../../../zero-trust-access/sso/sso.mdx)
 in Teleport or, if you're using Okta, enable the
 [Okta integration](../../../../identity-governance/okta/okta.mdx).
 
@@ -99,7 +102,7 @@ After this step, Teleport will become your Identity Center's identity provider.
 
 To avoid access interruptions, we recommend making sure that all existing
 Identity Center users have access to your Teleport cluster by, for example, using
-the same [IdP](../../../access-controls/sso/sso.mdx) as your current Identity Center
+the same [IdP](../../../../zero-trust-access/sso/sso.mdx) as your current Identity Center
 external identity source.
 </Admonition>
 
@@ -314,10 +317,10 @@ Provider and its role from your AWS IAM console as well.
 ## Next steps
 
 - Take a deeper dive into fundamental Teleport concepts used in Identity Center
-  integration such as [RBAC](../../../access-controls/guides/guides.mdx),
+  integration such as [RBAC](../../../../zero-trust-access/access-controls/guides/guides.mdx),
   [JIT Access Requests](../../../../identity-governance/access-requests/access-requests.mdx),
   [Access Lists](../../../../identity-governance/access-lists/access-lists.mdx) 
-  and the [Teleport SAML IdP](../../../access-controls/idps/idps.mdx).
+  and the [Teleport SAML IdP](../../../../identity-governance/idps/idps.mdx).
 - Learn how to enable the [Okta integration](../../../../identity-governance/okta/okta.mdx)
   to sync apps, users and groups from Okta in conjunction with Identity Center
   integration.

@@ -33,5 +33,21 @@ default            link#25            UCSIg               utun4
 100.100.100.100    link#25            UHWIi               utun4       
 
 \`\`\`
+
+---
+⚠️ VNet SSH is not configured.
+
+  The user's default SSH configuration file does not include VNet's
+  generated configuration file and connections to VNet SSH hosts will
+  not work by default.
+
+| File description         | Path |
+| ------------------------ | ---- |
+| User OpenSSH config file | ~/.ssh/config  |
+| VNet SSH config file     | /Users/user/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config  |
+
+~/.ssh/config does not exist
+
+
 "
 `;

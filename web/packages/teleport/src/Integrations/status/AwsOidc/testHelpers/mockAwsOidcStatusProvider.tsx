@@ -19,6 +19,8 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
+
 import { ContextProvider } from 'teleport';
 import { Route } from 'teleport/components/Router';
 import {
@@ -43,9 +45,11 @@ export const MockAwsOidcStatusProvider = ({
   return (
     <MemoryRouter initialEntries={initialEntries}>
       <ContextProvider ctx={ctx}>
-        <awsOidcStatusContext.Provider value={value}>
-          <Route path={path} render={() => <>{children}</>} />
-        </awsOidcStatusContext.Provider>
+        <InfoGuidePanelProvider>
+          <awsOidcStatusContext.Provider value={value}>
+            <Route path={path} render={() => <>{children}</>} />
+          </awsOidcStatusContext.Provider>
+        </InfoGuidePanelProvider>
       </ContextProvider>
     </MemoryRouter>
   );

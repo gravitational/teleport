@@ -26,6 +26,7 @@ import { WindowsDesktop } from 'gen-proto-ts/teleport/lib/teleterm/v1/windows_de
 import {
   CheckReport,
   RouteConflictReport,
+  SSHConfigurationReport,
 } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 
 import {
@@ -193,4 +194,13 @@ export function reportOneOfIsRouteConflictReport(
   routeConflictReport: RouteConflictReport;
 } {
   return report.oneofKind === 'routeConflictReport';
+}
+
+export function reportOneOfIsSSHConfigurationReport(
+  report: CheckReport['report']
+): report is {
+  oneofKind: 'sshConfigurationReport';
+  sshConfigurationReport: SSHConfigurationReport;
+} {
+  return report.oneofKind === 'sshConfigurationReport';
 }

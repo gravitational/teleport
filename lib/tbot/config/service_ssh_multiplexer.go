@@ -30,6 +30,8 @@ const SSHMultiplexerServiceType = "ssh-multiplexer"
 
 // SSHMultiplexerService is the configuration for the `ssh-proxy` service
 type SSHMultiplexerService struct {
+	// Name of the service for logs and the /readyz endpoint.
+	Name string `yaml:"name,omitempty"`
 	// Destination is where the config and tunnel should be written to. It
 	// should be a DestinationDirectory.
 	Destination bot.Destination `yaml:"destination"`
@@ -52,6 +54,11 @@ type SSHMultiplexerService struct {
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
 	CredentialLifetime CredentialLifetime `yaml:",inline"`
+}
+
+// GetName returns the user-given name of the service, used for validation purposes.
+func (o *SSHMultiplexerService) GetName() string {
+	return o.Name
 }
 
 func (s *SSHMultiplexerService) SessionResumptionEnabled() bool {

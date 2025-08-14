@@ -4,6 +4,10 @@ h1: Join Methods and Token Reference
 description: Describes the different ways to configure a Teleport to join a cluster.
 keywords: [join, joining, token]
 tocDepth: 3
+labels:
+ - conceptual
+ - reference
+ - zero-trust
 ---
 
 This guide explains the core concepts behind the Teleport joining process,
@@ -414,8 +418,6 @@ This join method works by exporting the public Kubernetes signing keys and using
 them to validate Kubernetes SA token signatures. The signature validation can be
 performed by an Auth Service without access to the Kubernetes.
 
-The Kubernetes JWKS join method is available in Teleport 14+.
-
 (!docs/pages/includes/provision-token/kubernetes-jwks-spec.mdx!)
 
 <Admonition type="warning">
@@ -453,7 +455,7 @@ Support for self-hosted Terraform Enterprise requires Teleport Enterprise.
 (!docs/pages/includes/provision-token/terraform-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Run the Teleport Terraform Provider on Terraform Cloud](../admin-guides/infrastructure-as-code/terraform-provider/terraform-cloud.mdx)
+- [Run the Teleport Terraform Provider on Terraform Cloud](../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-cloud.mdx)
 </Admonition>
 
 ### Spacelift: `spacelift`
@@ -465,7 +467,7 @@ deployments).
 (!docs/pages/includes/provision-token/spacelift-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-    - [Run the Teleport Terraform Provider on Spacelift](../admin-guides/infrastructure-as-code/terraform-provider/spacelift.mdx)
+    - [Run the Teleport Terraform Provider on Spacelift](../zero-trust-access/infrastructure-as-code/terraform-provider/spacelift.mdx)
 </Admonition>
 
 ### Bitbucket Pipelines: `bitbucket`

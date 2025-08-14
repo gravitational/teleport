@@ -60,11 +60,16 @@ type TrackingConn interface {
 	Close() error
 }
 
+type ConnectionMonitorAccessPoint interface {
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
+}
+
 // ConnectionMonitorConfig contains dependencies required by
 // the ConnectionMonitor.
 type ConnectionMonitorConfig struct {
 	// AccessPoint is used to retrieve cluster configuration.
-	AccessPoint AccessPoint
+	AccessPoint ConnectionMonitorAccessPoint
 	// LockWatcher ensures lock information is up to date.
 	LockWatcher *services.LockWatcher
 	// Clock is a clock, realtime or fixed in tests.
@@ -288,15 +293,19 @@ func StartMonitor(cfg MonitorConfig) error {
 	w := &Monitor{
 		MonitorConfig: cfg,
 	}
-	// If an applicable lock is already in force, close the connection immediately.
-	if lockErr := w.LockWatcher.CheckLockInForce(w.LockingMode, w.LockTargets...); lockErr != nil {
-		w.handleLockInForce(lockErr)
-		return nil
-	}
+	// If an applicable lock is already in force, close the connection immediately. The subscription is
+	// created first to prevent any races with CheckLockInForce and new locks being created.
 	lockWatch, err := w.LockWatcher.Subscribe(w.Context, w.LockTargets...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if lockErr := w.LockWatcher.CheckLockInForce(w.LockingMode, w.LockTargets...); lockErr != nil {
+		w.handleLockInForce(lockErr)
+		_ = lockWatch.Close()
+		return nil
+	}
+
 	go func() {
 		w.start(lockWatch)
 		if w.MonitorCloseChannel != nil {

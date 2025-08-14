@@ -1,6 +1,9 @@
 ---
 title: Running an HA Teleport cluster using Microsoft Azure, AKS, and Helm
 description: Install and configure an HA Teleport cluster using a Microsoft Azure AKS cluster.
+labels:
+ - how-to
+ - platform-wide
 ---
 
 In this guide, we'll go through how to set up a High Availability Teleport
@@ -16,6 +19,24 @@ cluster to Teleport.
 </Admonition>
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
+
+## How it works
+
+The `teleport-cluster` Helm chart deploys the Teleport Auth Service and Teleport
+Proxy Service on your Azure Kubernetes Service cluster. The chart requires the
+following resources, which we show you how to create in this guide:
+
+- **IAM permissions for the Teleport Auth Service**. The Auth Service requires
+  permissions to manage resources on its backend. 
+- **cert-manager** for obtaining and renewing TLS credentials that the Proxy
+  Service uses to run its HTTPS server.
+- **IAM permissions for cert-manager**. In the setup we show in this guide,
+  `cert-manager` modifies DNS records to demonstrate domain ownership and
+  receive TLS credentials from Let's Encrypt. To do so, the Proxy Service
+  completes the [ACME DNS-01
+  challenge](https://letsencrypt.org/docs/challenge-types/#dns-01-challenge).
+- **Teleport Auth Service backend components:** PostgreSQL database and an
+  Amazon S3-compatible object storage solution.
 
 ## Prerequisites
 
@@ -349,7 +370,7 @@ $ helm --namespace <Var name="teleport-ns" /> uninstall <Var name="teleport-rele
 ## Next steps
 
 Now that you have deployed a Teleport cluster, read the [Manage
-Access](../../access-controls/access-controls.mdx) section to get started enrolling
+Access](../../../zero-trust-access/access-controls/access-controls.mdx) section to get started enrolling
 users and setting up RBAC.
 
 See the [high availability section of our Helm chart reference](../../../reference/helm-reference/teleport-cluster.mdx) for more details on high availability.

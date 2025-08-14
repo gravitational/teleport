@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"io"
 	"maps"
 	"net/url"
 	"os"
@@ -2402,6 +2403,18 @@ func (a *ServerWithRoles) GetTokens(ctx context.Context) ([]types.ProvisionToken
 	return a.authServer.GetTokens(ctx)
 }
 
+func (a *ServerWithRoles) ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return a.authServer.Cache.ListProvisionTokens(ctx, pageSize, pageToken, anyRoles, botName)
+}
+
 func (a *ServerWithRoles) GetToken(ctx context.Context, token string) (types.ProvisionToken, error) {
 	// The Proxy has permission to look up tokens by name in order to validate
 	// attempts to use the node join script.
@@ -3662,7 +3675,7 @@ func (a *ServerWithRoles) verifyUserDeviceForCertIssuance(usage proto.UserCertsR
 	}
 
 	identity := a.context.Identity.GetIdentity()
-	return trace.Wrap(dtauthz.VerifyTLSUser(dt, identity))
+	return trace.Wrap(dtauthz.VerifyTLSUser(context.TODO(), dt, identity))
 }
 
 func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req authclient.CreateUserTokenRequest) (types.UserToken, error) {
@@ -6418,6 +6431,64 @@ func (a *ServerWithRoles) GetApps(ctx context.Context) (result []types.Applicati
 	return result, nil
 }
 
+// ListApps returns a page of application resources.
+func (a *ServerWithRoles) ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindApp, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	var nextKey string
+	var count int
+	var done bool
+	results, err := stream.Collect(
+		stream.FilterMap(
+			stream.PageFunc(func() ([]types.Application, error) {
+				if done {
+					return nil, io.EOF
+				}
+				apps, next, err := a.authServer.ListApps(ctx, limit, startKey)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				startKey = next
+				if next == "" {
+					done = true
+				}
+				return apps, nil
+			}),
+			func(app types.Application) (types.Application, bool) {
+				// Checking done here could cause loss of applications
+				// if there is only one page.
+				if nextKey != "" {
+					return nil, false
+				}
+
+				if err := a.checkAccessToApp(app); err != nil {
+					return nil, false
+				}
+
+				if count >= limit {
+					done = true
+					nextKey = app.GetName()
+					return nil, false
+				}
+
+				count++
+				return app, true
+			}),
+	)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return results, nextKey, nil
+}
+
 // DeleteApp removes the specified application resource.
 func (a *ServerWithRoles) DeleteApp(ctx context.Context, name string) error {
 	if err := a.action(apidefaults.Namespace, types.KindApp, types.VerbDelete); err != nil {
@@ -7125,7 +7196,7 @@ func (a *ServerWithRoles) enforceGlobalModeTrustedDevice(ctx context.Context) er
 		return trace.Wrap(err)
 	}
 
-	err = dtauthz.VerifyTLSUser(readOnlyAuthPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
+	err = dtauthz.VerifyTLSUser(ctx, readOnlyAuthPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
 	return trace.Wrap(err)
 }
 

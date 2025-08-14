@@ -172,7 +172,7 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 		"packageName":             opts.InstallOptions.TeleportFlavor,
 		"repoChannel":             repoChannel,
 		"installUpdater":          opts.InstallOptions.AutoupdateStyle.String(),
-		"version":                 shsprintf.EscapeDefaultContext(opts.InstallOptions.TeleportVersion),
+		"version":                 shsprintf.EscapeDefaultContext(opts.InstallOptions.TeleportVersion.String()),
 		"appInstallMode":          strconv.FormatBool(opts.AppServiceEnabled),
 		"appServerResourceLabels": appServerResourceLabels,
 		"appName":                 shsprintf.EscapeDefaultContext(opts.AppName),

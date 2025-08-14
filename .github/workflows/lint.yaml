@@ -1,5 +1,4 @@
-name: Lint (Go)
-run-name: Lint (Go and Rust)
+name: Lint
 on:
   pull_request:
   merge_group:
@@ -16,6 +15,7 @@ jobs:
       has_go: ${{ steps.changes.outputs.has_go }}
       has_rust: ${{ steps.changes.outputs.has_rust }}
       has_proto: ${{ steps.changes.outputs.has_proto }}
+      has_ui: ${{ steps.changes.outputs.has_ui }}
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
@@ -65,6 +65,15 @@ jobs:
               - 'docs/pages/reference/operator-resources/**'
               - 'docs/pages/reference/terraform-provider/**'
               - 'examples/chart/teleport-cluster/charts/teleport-operator/operator-crds'
+            has_ui:
+              - '.github/workflows/lint.yaml'
+              - 'web/**'
+              - 'gen/proto/js/**'
+              - 'gen/proto/ts/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'tsconfig.json'
+              - 'tsconfig.node.json'
 
   lint-go:
     name: Lint (Go)
@@ -226,3 +235,49 @@ jobs:
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         # The protoc-gen-terraform version must match the version in integrations/terraform/Makefile
         run: git config --global --add safe.directory $(realpath .) && go install github.com/gravitational/protoc-gen-terraform/v3@v3.0.2 && make terraform-resources-up-to-date
+
+  lint-ui:
+    name: Prettier, ESLint, & TSC
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_ui == 'true' }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport17
+
+    steps:
+      - name: Checkout OSS Teleport
+        uses: actions/checkout@v4
+
+      - name: Print Node version
+        run: |
+          node --version
+
+      - name: Install JS dependencies
+        run: |
+          pnpm install --frozen-lockfile
+
+      - name: Install WASM deps
+        run: make ensure-wasm-deps
+
+      - name: Build WASM
+        run: pnpm build-wasm
+
+      - name: Run Type Check
+        run: pnpm type-check
+
+      - name: Run lint
+        run: pnpm lint
+
+      - name: Run Storybook smoke test
+        run: pnpm storybook-smoke-test
+
+      - name: Lint licenses
+        run: make lint-license
+
+      - name: Check icons
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make icons-up-to-date

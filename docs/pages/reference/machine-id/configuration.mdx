@@ -2,6 +2,9 @@
 title: Machine ID Configuration Reference
 description: Configuration reference for Teleport Machine ID.
 tocDepth: 4
+labels:
+ - reference
+ - mwi
 ---
 
 This reference documents the various options that can be configured in the `tbot`
@@ -19,8 +22,6 @@ destination as part of the process of generating an output. Examples of
 artifacts include configuration files, certificates, and cryptographic key
 material. Usually, artifacts are files, but this term is explicitly avoided
 because a destination isn't required to be a filesystem.
-
-From Teleport 14, `tbot` supports the v2 configuration version.
 
 ```yaml
 # version specifies the version of the configuration file in use. `v2` is the
@@ -366,6 +367,11 @@ renewal_interval: 15m
 # plugin is used to automatically refresh the credentials within a single
 # invocation of `kubectl`. Defaults to `false`.
 disable_exec_plugin: false
+
+# name optionally overrides the name of the service used in logs and the `/readyz`
+# endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
+# symbols.
+name: my-service-name
 ```
 
 Each Kubernetes cluster matching a selector will result in a new context in the
@@ -456,6 +462,10 @@ audiences:
  - foo.example.com
 (!docs/pages/includes/machine-id/workload-identity-selector-config.yaml!)
 (!docs/pages/includes/machine-id/common-output-config.yaml!)
+# name optionally overrides the name of the service used in logs and the `/readyz`
+# endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
+# symbols.
+name: my-service-name
 ```
 
 ### `workload-identity-aws-roles-anywhere`
@@ -523,6 +533,10 @@ artifact_name: my-credentials-file
 # defaults to `false`.
 overwrite_credential_file: false
 (!docs/pages/includes/machine-id/workload-identity-selector-config.yaml!)
+# name optionally overrides the name of the service used in logs and the `/readyz`
+# endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
+# symbols.
+name: my-service-name
 ```
 
 ### `spiffe-svid`
@@ -780,6 +794,10 @@ svids:
           #
           # If unspecified, the GID is not checked.
           gid: 50
+# name optionally overrides the name of the service used in logs and the `/readyz`
+# endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
+# symbols.
+name: my-service-name
 ```
 
 #### Envoy SDS
@@ -947,6 +965,10 @@ database: postgres
 # username is the name of the user on the specified database server to open a
 # tunnel for.
 username: postgres
+# name optionally overrides the name of the service used in logs and the `/readyz`
+# endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
+# symbols.
+name: my-service-name
 ```
 
 The `database-tunnel` service will not start if `tbot` has been configured
@@ -978,6 +1000,10 @@ listen: tcp://127.0.0.1:8084
 # app_name is the name of the application, as configured in Teleport, that
 # the service should open a tunnel to.
 app_name: my-application
+# name optionally overrides the name of the service used in logs and the `/readyz`
+# endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
+# symbols.
+name: my-service-name
 ```
 
 The `application-tunnel` service will not start if `tbot` has been configured
@@ -1036,6 +1062,10 @@ proxy_command:
 #
 # If unspecified, proxy templates will not be used.
 proxy_templates_path: /etc/my-proxy-templates.yaml
+# name optionally overrides the name of the service used in logs and the `/readyz`
+# endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
+# symbols.
+name: my-service-name
 ```
 
 Once configured, `tbot` will create the following artifacts in the specified

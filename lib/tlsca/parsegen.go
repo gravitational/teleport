@@ -92,8 +92,8 @@ func GenerateSelfSignedCAWithConfig(config GenerateCAConfig) (certPEM []byte, er
 	// signed by the same private key and having the same subject (happens in tests)
 	config.Entity.SerialNumber = serialNumber.String()
 
-	// Note: KeyUsageCRLSign is set only to generate empty CRLs for Desktop
-	// Access authentication with Windows.
+	// Note: KeyUsageCRLSign is set only to generate empty CRLs for
+	// desktop and database access on Windows
 	keyUsage := x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign | x509.KeyUsageCRLSign
 	if _, isRSA := config.Signer.Public().(*rsa.PublicKey); isRSA {
 		// The KeyEncipherment bit is necessary for RSA key exchanges

@@ -269,29 +269,34 @@ export interface DocumentVnetInfo extends DocumentBase {
   // the document fields, hence why rootClusterUri is defined here.
   rootClusterUri: uri.RootClusterUri;
   /**
-   * Details of the app if the doc was opened by selecting a specific TCP app.
+   * Details of the resource if the doc was opened by selecting a specific resource.
    *
    * This field is needed to facilitate a scenario where a first-time user clicks "Connect" next to
-   * a TCP app, which opens this doc. Once the user clicks "Start VNet" in the doc, Connect should
-   * continue the regular flow of connecting to a TCP app through VNet, which means it should copy
-   * the address of the app to the clipboard, hence this field.
+   * a TCP app or SSH server, which opens this doc. Once the user clicks "Start VNet" in the doc,
+   * Connect should continue the regular flow of connecting to a TCP app through VNet, which means
+   * it should copy the address of the resource to the clipboard, hence this field.
    *
-   * app is removed when restoring persisted state. Let's say the user opens the doc through the
-   * "Connect" button of a specific app. If they close the app and then reopen the docs, we don't
+   * launcherArgs is removed when restoring persisted state. Let's say the user opens the doc through
+   * the "Connect" button of a specific app. If they close the app and then reopen the doc, we don't
    * want the "Start VNet" button to copy the address of the app from the prev session.
    */
-  app:
-    | {
-        /**
-         * The address that's going to be copied to the clipboard after user starts VNet for the
-         * first time through this document.
-         *
-         */
-        targetAddress: string | undefined;
-        isMultiPort: boolean;
-      }
-    | undefined;
+  launcherArgs: VnetLauncherArgs | undefined;
 }
+
+/**
+ * Details about a user-selected resource that prompted the VNet launch, so
+ * that addrToCopy can be copied to the clipboard after VNet launches with a
+ * helpful message displayed in a notification.
+ */
+export type VnetLauncherArgs = {
+  // The address that's going to be copied to the clipboard.
+  addrToCopy: string;
+  // The URI of the resource the user clicked.
+  resourceUri: uri.ResourceUri;
+  // True if the user clicked a multi-port TCP app, used to render a slightly
+  // different message in the (copied to clipboard) notification.
+  isMultiPortApp?: boolean;
+};
 
 /**
  * Document to authorize a web session with device trust.

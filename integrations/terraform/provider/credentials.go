@@ -487,6 +487,7 @@ func (CredentialsFromNativeMachineID) Credentials(ctx context.Context, config pr
 	addr := stringFromConfigOrEnv(config.Addr, constants.EnvVarTerraformAddress, "")
 	caPath := stringFromConfigOrEnv(config.RootCaPath, constants.EnvVarTerraformRootCertificates, "")
 	gitlabIDTokenEnvVar := stringFromConfigOrEnv(config.GitlabIDTokenEnvVar, constants.EnvVarGitlabIDTokenEnvVar, "")
+	insecure := boolFromConfigOrEnv(config.Insecure, constants.EnvVarTerraformInsecure)
 
 	if joinMethod == "" {
 		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformJoinMethod, constants.EnvVarTerraformJoinMethod)
@@ -513,7 +514,8 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 		return nil, trace.Wrap(err, "Invalid Join Method")
 	}
 	botConfig := &embeddedtbot.BotConfig{
-		AuthServer: addr,
+		AuthServer:            addr,
+		AuthServerAddressMode: tbotconfig.AllowProxyAsAuthServer,
 		Onboarding: tbotconfig.OnboardingConfig{
 			TokenValue: joinToken,
 			CAPath:     caPath,
@@ -529,6 +531,7 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 			TTL:             time.Hour,
 			RenewalInterval: 20 * time.Minute,
 		},
+		Insecure: insecure,
 	}
 	bot, err := embeddedtbot.New(botConfig)
 	if err != nil {

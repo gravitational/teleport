@@ -19,6 +19,7 @@
 package tbot
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"time"
@@ -46,5 +47,8 @@ func (s *ExampleService) Run(ctx context.Context) error {
 }
 
 func (s *ExampleService) String() string {
-	return fmt.Sprintf("%s:%s", config.ExampleServiceType, s.Message)
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("%s:%s", config.ExampleServiceType, s.Message),
+	)
 }

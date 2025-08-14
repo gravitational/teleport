@@ -54,6 +54,7 @@ import {
   DocumentTshNodeWithServerId,
   DocumentVnetDiagReport,
   DocumentVnetInfo,
+  VnetLauncherArgs,
   WebSessionRequest,
 } from './types';
 
@@ -274,10 +275,7 @@ export class DocumentsService {
 
   createVnetInfoDocument(opts: {
     rootClusterUri: RootClusterUri;
-    app?: {
-      targetAddress: string;
-      isMultiPort: boolean;
-    };
+    launcherArgs?: VnetLauncherArgs;
   }): DocumentVnetInfo {
     const uri = routing.getDocUri({ docId: unique() });
 
@@ -286,7 +284,7 @@ export class DocumentsService {
       kind: 'doc.vnet_info',
       title: 'VNet',
       rootClusterUri: opts.rootClusterUri,
-      app: opts.app,
+      launcherArgs: opts.launcherArgs,
     };
   }
 

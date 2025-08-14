@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"bytes"
@@ -56,7 +56,9 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/integrations/lib/testing/fakejoin"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -74,7 +76,7 @@ import (
 
 func renewBotCerts(
 	ctx context.Context,
-	srv *TestTLSServer,
+	srv *authtest.TLSServer,
 	tlsCertPEM []byte,
 	botUser string,
 	key crypto.Signer,
@@ -90,7 +92,11 @@ func renewBotCerts(
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	client := srv.NewClientWithCert(tlsCert)
+
+	client, err := srv.NewClientWithCert(tlsCert)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	sshPub, err := ssh.NewPublicKey(key.Public())
 	if err != nil {
@@ -121,11 +127,11 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 	ctx := context.Background()
 	fakeClock := srv.Clock().(clockwork.FakeClock)
 
-	_, err := CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
+	_, err := authtest.CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	// Create a new bot.
-	client, err := srv.NewClient(TestAdmin())
+	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
@@ -231,11 +237,11 @@ func TestBotJoinAttrs_Kubernetes(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 
-	role, err := CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
+	role, err := authtest.CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	// Create a new bot.
-	client, err := srv.NewClient(TestAdmin())
+	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
@@ -336,7 +342,8 @@ func TestBotJoinAttrs_Kubernetes(t *testing.T) {
 	require.NoError(t, err)
 	tlsPub, err := keys.MarshalPublicKey(result.PrivateKey.Public())
 	require.NoError(t, err)
-	botClient := srv.NewClientWithCert(tlsCert)
+	botClient, err := srv.NewClientWithCert(tlsCert)
+	require.NoError(t, err)
 	roleCerts, err := botClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		SSHPublicKey: ssh.MarshalAuthorizedKey(sshPub),
 		TLSPublicKey: tlsPub,
@@ -370,11 +377,11 @@ func TestRegisterBotInstance(t *testing.T) {
 	srv.Auth().SetEmitter(mockEmitter)
 	ctx := context.Background()
 
-	_, err := CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
+	_, err := authtest.CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	// Create a new bot.
-	client, err := srv.NewClient(TestAdmin())
+	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
@@ -496,10 +503,15 @@ func TestRegisterBotInstance(t *testing.T) {
 				BotName:          "test",
 				BotInstanceID:    ident.BotInstanceID,
 			},
+			CertificateAuthority: &events.CertificateAuthority{
+				Type:   "user",
+				Domain: "localhost",
+			},
 		},
 			cmpopts.IgnoreFields(events.Metadata{}, "Time"),
 			cmpopts.IgnoreFields(events.Identity{}, "Logins", "Expires"),
 			cmpopts.IgnoreFields(events.ClientMetadata{}, "UserAgent"),
+			cmpopts.IgnoreFields(events.CertificateAuthority{}, "SubjectKeyID"),
 			cmpopts.EquateEmpty(),
 		),
 	)
@@ -511,11 +523,11 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	_, err := CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
+	_, err := authtest.CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	// Create a new bot.
-	client, err := srv.NewClient(TestAdmin())
+	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
@@ -577,11 +589,11 @@ func TestRegisterBotCertificateExtensions(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 
-	_, err := CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
+	_, err := authtest.CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	// Create a new bot.
-	client, err := srv.NewClient(TestAdmin())
+	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
@@ -646,7 +658,7 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
 
 	roleName := "test-role"
-	_, err = CreateRole(ctx, a, roleName, types.RoleSpecV6{})
+	_, err = authtest.CreateRole(ctx, a, roleName, types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	botName := "botty"
@@ -659,19 +671,19 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 		Spec: &machineidv1pb.BotSpec{
 			Roles: []string{roleName},
 		},
-	}, a.clock.Now(), "")
+	}, a.GetClock().Now(), "")
 	require.NoError(t, err)
 
 	remoteAddr := "42.42.42.42:42"
 
 	t.Run("IAM method", func(t *testing.T) {
-		a.httpClientForAWSSTS = &mockClient{
+		a.SetHTTPClientForAWSSTS(&mockClient{
 			respStatusCode: http.StatusOK,
-			respBody: responseFromAWSIdentity(awsIdentity{
+			respBody: responseFromAWSIdentity(auth.AWSIdentity{
 				Account: "1234",
 				Arn:     "arn:aws::1111",
 			}),
-		}
+		})
 
 		// add token to auth server
 		awsTokenName := "aws-test-token"
@@ -720,7 +732,7 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 		rsID := vmResourceID(subID, resourceGroup, "test-vm")
 		vmID := "vmID"
 
-		accessToken, err := makeToken(rsID, "", a.clock.Now())
+		accessToken, err := makeToken(rsID, "", a.GetClock().Now())
 		require.NoError(t, err)
 
 		// add token to auth server
@@ -760,7 +772,7 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 		require.NoError(t, err)
 
 		certs, err := a.RegisterUsingAzureMethodWithOpts(context.Background(), func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
-			ad := attestedData{
+			ad := auth.AttestedData{
 				Nonce:          challenge,
 				SubscriptionID: subID,
 				ID:             vmID,
@@ -772,7 +784,7 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 			require.NoError(t, s.AddSigner(tlsConfig.Certificate, pkey, pkcs7.SignerInfoConfig{}))
 			signature, err := s.Finish()
 			require.NoError(t, err)
-			signedAD := signedAttestedData{
+			signedAD := auth.SignedAttestedData{
 				Encoding:  "pkcs7",
 				Signature: base64.StdEncoding.EncodeToString(signature),
 			}
@@ -792,7 +804,7 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 				AccessToken:  accessToken,
 			}
 			return req, nil
-		}, withCerts([]*x509.Certificate{tlsConfig.Certificate}), withVerifyFunc(mockVerifyToken(nil)), withVMClientGetter(getVMClient))
+		}, auth.WithAzureCerts([]*x509.Certificate{tlsConfig.Certificate}), auth.WithAzureVerifyFunc(mockVerifyToken(nil)), auth.WithAzureVMClientGetter(getVMClient))
 		require.NoError(t, err)
 		checkCertLoginIP(t, certs.TLS, remoteAddr)
 	})
@@ -916,21 +928,21 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 	k8sReadFileFunc := func(name string) ([]byte, error) {
 		return []byte(k8sTokenName), nil
 	}
-	a.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, tkn string) (*token.ValidationResult, error) {
+	a.SetJWKSValidator(func(_ time.Time, _ []byte, _ string, tkn string) (*token.ValidationResult, error) {
 		if tkn == k8sTokenName {
 			return &token.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
 		}
 
 		return nil, errMockInvalidToken
-	}
+	})
 
-	a.httpClientForAWSSTS = &mockClient{
+	a.SetHTTPClientForAWSSTS(&mockClient{
 		respStatusCode: http.StatusOK,
-		respBody: responseFromAWSIdentity(awsIdentity{
+		respBody: responseFromAWSIdentity(auth.AWSIdentity{
 			Account: "1234",
 			Arn:     "arn:aws::1111",
 		}),
-	}
+	})
 
 	nodeCredentials, err := credentials.NewStaticCredentials("FAKE_ID", "FAKE_KEY", "FAKE_TOKEN").Get()
 	require.NoError(t, err)
@@ -941,7 +953,7 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 
 	// Create a bot
 	roleName := "test-role"
-	_, err = CreateRole(ctx, a, roleName, types.RoleSpecV6{})
+	_, err = authtest.CreateRole(ctx, a, roleName, types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	botName := "bot"
@@ -954,7 +966,7 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 		Spec: &machineidv1pb.BotSpec{
 			Roles: []string{roleName},
 		},
-	}, a.clock.Now(), "")
+	}, a.GetClock().Now(), "")
 	require.NoError(t, err)
 
 	// Create k8s and IAM join tokens
@@ -1073,13 +1085,13 @@ func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
 
 	botName := "bot"
 	k8sTokenName := "jwks-matching-service-account"
-	a.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, tkn string) (*token.ValidationResult, error) {
+	a.SetJWKSValidator(func(_ time.Time, _ []byte, _ string, tkn string) (*token.ValidationResult, error) {
 		if tkn == k8sTokenName {
 			return &token.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
 		}
 
 		return nil, errMockInvalidToken
-	}
+	})
 	token, err := types.NewProvisionTokenFromSpec("static-jwks", time.Now().Add(10*time.Minute), types.ProvisionTokenSpecV2{
 		JoinMethod: types.JoinMethodKubernetes,
 		Roles:      []types.SystemRole{types.RoleBot},
@@ -1098,7 +1110,7 @@ func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
 	require.NoError(t, a.CreateToken(ctx, token))
 
 	roleName := "test-role"
-	_, err = CreateRole(ctx, a, roleName, types.RoleSpecV6{})
+	_, err = authtest.CreateRole(ctx, a, roleName, types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	_, err = machineidv1.UpsertBot(ctx, a, &machineidv1pb.Bot{
@@ -1110,10 +1122,10 @@ func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
 		Spec: &machineidv1pb.BotSpec{
 			Roles: []string{roleName},
 		},
-	}, a.clock.Now(), "")
+	}, a.GetClock().Now(), "")
 	require.NoError(t, err)
 
-	client, err := srv.NewClient(TestAdmin())
+	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
 	privateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
@@ -1177,7 +1189,7 @@ func TestRegisterBotMultipleTokens(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Initial setup, create a bot and join token.
-	client, err := srv.NewClient(TestAdmin())
+	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{

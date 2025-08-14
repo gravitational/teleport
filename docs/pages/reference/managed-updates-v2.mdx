@@ -1,6 +1,9 @@
 ---
 title: Managed Updates Resource Reference
 description: This page describes the details of the Managed Updates v2 resources.
+labels:
+ - reference
+ - platform-wide
 ---
 
 This document provides detailed reference information about the Managed Updates v2 resources.
@@ -46,22 +49,6 @@ A single rollout is active at a time. Each Auth Service updates the rollout ever
 
 (!docs/pages/includes/reference/resources/autoupdate_agent_rollout.mdx!)
 
-#### `autoupdate_agent_report`
-
-Reports how many agents are connected to each auth, and which version they are running.
-This is used to track update progress and automatically progress the rollout.
-
-(!docs/pages/includes/reference/resources/autoupdate_agent_report.mdx!)
-
-Reports can be individually seen using `tctl get autoupdate_agent_reports`.
-To aggregate every report into a single one, run `tctl autoupdate agents report`.
-
-### Agent Update Overview
-
-Here's a schema describing the interactions between the different Managed Updates v2 components when updating agents:
-
-![Schema describing the relations between every resource](../../img/architecture/managed-updates-v2.svg)
-
 ## Update Strategies
 
 The `autoupdate_config` resource supports two different strategies for managing how updates propagate across your agent groups:
@@ -76,6 +63,12 @@ The `halt-on-error` strategy provides predictable, sequential updates across env
 - If an earlier group fails to update, later groups will not be updated
 - Provides a controlled, predictable update path
 - Groups with a `wait_hours` parameter will wait the specified duration after the previous group's successful update
+
+<Admonition type="note">
+On Teleport version below v17, Teleport does not count agents and will consider
+the group done after an hour. This behaviour changes in v18 with the introduction
+of `autoupdate_agent_report` resources.
+</Admonition>
 
 **Example configuration:**
 

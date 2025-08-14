@@ -2,6 +2,9 @@
 title: Reference for the teleport_provision_token Terraform resource
 sidebar_label: provision_token
 description: This page describes the supported values of the teleport_provision_token resource of the Teleport Terraform provider.
+labels:
+ - reference
+ - platform-wide
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -312,16 +315,17 @@ Optional:
 Optional:
 
 - `allow` (Attributes List) Allow is a list of Rules, nodes using this token must match one allow rule to use this token. (see [below for nested schema](#nested-schema-for-specspaceliftallow))
+- `enable_glob_matching` (Boolean) EnableGlobMatching enables glob-style matching for the space_id and caller_id fields in the rules.
 - `hostname` (String) Hostname is the hostname of the Spacelift tenant that tokens will originate from. E.g `example.app.spacelift.io`
 
 ### Nested Schema for `spec.spacelift.allow`
 
 Optional:
 
-- `caller_id` (String) CallerID is the ID of the caller, ie. the stack or module that generated the run.
+- `caller_id` (String) CallerID is the ID of the caller, ie. the stack or module that generated the run.  This field supports "glob-style" matching when enable_glob_matching is true: - Use '*' to match zero or more characters. - Use '?' to match any single character.
 - `caller_type` (String) CallerType is the type of the caller, ie. the entity that owns the run - either `stack` or `module`.
 - `scope` (String) Scope is the scope of the token - either `read` or `write`. See https://docs.spacelift.io/integrations/cloud-providers/oidc/#about-scopes
-- `space_id` (String) SpaceID is the ID of the space in which the run that owns the token was executed.
+- `space_id` (String) SpaceID is the ID of the space in which the run that owns the token was executed.  This field supports "glob-style" matching when enable_glob_matching is true: - Use '*' to match zero or more characters. - Use '?' to match any single character.
 
 
 

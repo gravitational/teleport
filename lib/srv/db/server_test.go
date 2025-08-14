@@ -460,10 +460,9 @@ func TestShutdown(t *testing.T) {
 			require.NoError(t, server.Shutdown(ctx))
 
 			// Send a Goodbye to simulate process shutdown.
-			if !test.hasForkedChild {
-				require.NoError(t, server.cfg.InventoryHandle.SendGoodbye(ctx))
-			}
-
+			deleteResources := !test.hasForkedChild
+			softReload := test.hasForkedChild
+			require.NoError(t, server.cfg.InventoryHandle.SetAndSendGoodbye(ctx, deleteResources, softReload))
 			require.NoError(t, server.cfg.InventoryHandle.Close())
 
 			// Validate db servers based on the test.

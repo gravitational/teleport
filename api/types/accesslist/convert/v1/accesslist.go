@@ -41,6 +41,7 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 	metadata := headerv1.FromMetadataProto(msg.GetHeader().GetMetadata())
 
 	accessListSpec := accesslist.Spec{
+		Type:               accesslist.Type(msg.GetSpec().GetType()),
 		Title:              spec.GetTitle(),
 		Description:        spec.GetDescription(),
 		Owners:             convertOwnersFromProto(spec.GetOwners()),
@@ -76,6 +77,7 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 	return &accesslistv1.AccessList{
 		Header: headerv1.ToResourceHeaderProto(accessList.ResourceHeader),
 		Spec: &accesslistv1.AccessListSpec{
+			Type:               string(accessList.Spec.Type),
 			Title:              accessList.Spec.Title,
 			Description:        accessList.Spec.Description,
 			Owners:             convertOwnersToProto(accessList.Spec.Owners),
@@ -304,10 +306,6 @@ func convertAuditToProto(audit accesslist.Audit) *accesslistv1.AccessListAudit {
 }
 
 func convertRequiresToProto(requires accesslist.Requires) *accesslistv1.AccessListRequires {
-	if len(requires.Roles) == 0 && len(requires.Traits) == 0 {
-		return nil
-	}
-
 	return &accesslistv1.AccessListRequires{
 		Roles:  requires.Roles,
 		Traits: traitv1.ToProto(requires.Traits),

@@ -20,12 +20,14 @@ package inventory
 
 import (
 	"context"
+	"iter"
 	"log/slog"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.org/x/time/rate"
 
 	"github.com/gravitational/teleport/api/client"
@@ -132,6 +134,7 @@ type controllerOptions struct {
 	authID             string
 	onConnectFunc      func(string)
 	onDisconnectFunc   func(string, int)
+	clock              clockwork.Clock
 	cleanupLimiter     *rate.Limiter
 	cleanupTimeout     time.Duration
 }
@@ -162,10 +165,14 @@ func (options *controllerOptions) SetDefaults() {
 		options.onDisconnectFunc = func(string, int) {}
 	}
 
+	if options.clock == nil {
+		options.clock = clockwork.NewRealClock()
+	}
+
 	if options.cleanupLimiter == nil {
 		// limit resource cleanup writes to 128 per second to reduce the chances that
 		// agents with very large resource counts cause throttling on graceful disconnect.
-		options.cleanupLimiter = rate.NewLimiter(rate.Every(time.Second), 128)
+		options.cleanupLimiter = rate.NewLimiter(rate.Every(time.Second/128), 1)
 	}
 
 	if options.cleanupTimeout == 0 {
@@ -182,7 +189,7 @@ func WithAuthServerID(serverID string) ControllerOption {
 }
 
 // WithOnConnect sets a function to be called every time a new
-// instance connects via the inventory control stream. The value
+// heartbeat connects via the inventory control stream. The value
 // provided to the callback is the keep alive type of the connected
 // resource. The callback should return quickly so as not to prevent
 // processing of heartbeats.
@@ -192,7 +199,7 @@ func WithOnConnect(f func(heartbeatKind string)) ControllerOption {
 	}
 }
 
-// WithOnDisconnect sets a function to be called every time an existing instance
+// WithOnDisconnect sets a function to be called every time an existing heartbeat
 // disconnects from the inventory control stream. The values provided to the
 // callback are the keep alive type of the disconnected resource, as well as a
 // count of how many resources disconnected at once. The callback should return
@@ -221,6 +228,13 @@ func withTestEventsChannel(ch chan testEvent) ControllerOption {
 	}
 }
 
+// WithClock sets the clock for the controller to have a general clock configuration.
+func WithClock(clock clockwork.Clock) ControllerOption {
+	return func(opts *controllerOptions) {
+		opts.clock = clock
+	}
+}
+
 // Controller manages the inventory control streams registered with a given auth instance. Incoming
 // messages are processed by invoking the appropriate methods on the Auth interface.
 type Controller struct {
@@ -242,6 +256,7 @@ type Controller struct {
 	testEvents                 chan testEvent
 	onConnectFunc              func(string)
 	onDisconnectFunc           func(string, int)
+	clock                      clockwork.Clock
 	cleanupLimiter             *rate.Limiter
 	cleanupTimeout             time.Duration
 	closeContext               context.Context
@@ -317,6 +332,7 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 		onDisconnectFunc:           options.onDisconnectFunc,
 		cleanupLimiter:             options.cleanupLimiter,
 		cleanupTimeout:             options.cleanupTimeout,
+		clock:                      options.clock,
 		closeContext:               ctx,
 		cancel:                     cancel,
 	}
@@ -324,7 +340,7 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 
 // RegisterControlStream registers a new control stream with the controller.
 func (c *Controller) RegisterControlStream(stream client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) {
-	handle := newUpstreamHandle(stream, hello)
+	handle := newUpstreamHandle(stream, hello, c.clock.Now())
 	c.store.Insert(handle)
 
 	// Increment the concurrent connection counter that we use to calculate the
@@ -340,6 +356,11 @@ func (c *Controller) RegisterControlStream(stream client.UpstreamInventoryContro
 func (c *Controller) GetControlStream(serverID string) (handle UpstreamHandle, ok bool) {
 	handle, ok = c.store.Get(serverID)
 	return
+}
+
+// Handles gets the handles for the given server ID if they exist.
+func (c *Controller) Handles(serverID string) iter.Seq[UpstreamHandle] {
+	return c.store.Handles(serverID)
 }
 
 // UniqueHandles iterates across unique handles registered with this controller.
@@ -528,7 +549,7 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			case proto.UpstreamInventoryPong:
 				c.handlePong(handle, m)
 			case proto.UpstreamInventoryGoodbye:
-				handle.goodbye = m
+				handle.setGoodbye(&m)
 			default:
 				slog.WarnContext(c.closeContext, "Unexpected upstream message type on control stream",
 					"message_type", logutils.TypeAttr(m),

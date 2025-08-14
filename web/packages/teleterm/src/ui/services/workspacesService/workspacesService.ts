@@ -594,7 +594,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         if (d.kind === 'doc.vnet_info') {
           const documentVnetInfo: DocumentVnetInfo = {
             ...d,
-            app: undefined,
+            launcherArgs: undefined,
           };
           return documentVnetInfo;
         }

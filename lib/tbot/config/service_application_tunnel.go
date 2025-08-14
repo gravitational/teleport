@@ -35,6 +35,8 @@ const ApplicationTunnelServiceType = "application-tunnel"
 // ApplicationTunnelService opens an authenticated tunnel for Application
 // Access.
 type ApplicationTunnelService struct {
+	// Name of the service for logs and the /readyz endpoint.
+	Name string `yaml:"name,omitempty"`
 	// Listen is the address on which database tunnel should listen. Example:
 	// - "tcp://127.0.0.1:3306"
 	// - "tcp://0.0.0.0:3306
@@ -59,7 +61,12 @@ func (s *ApplicationTunnelService) Type() string {
 	return ApplicationTunnelServiceType
 }
 
-func (s *ApplicationTunnelService) MarshalYAML() (interface{}, error) {
+// GetName returns the user-given name of the service, used for validation purposes.
+func (o *ApplicationTunnelService) GetName() string {
+	return o.Name
+}
+
+func (s *ApplicationTunnelService) MarshalYAML() (any, error) {
 	type raw ApplicationTunnelService
 	return withTypeHeader((*raw)(s), ApplicationTunnelServiceType)
 }

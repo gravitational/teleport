@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
@@ -81,6 +82,7 @@ type SPIFFEWorkloadAPIService struct {
 	log              *slog.Logger
 	resolver         reversetunnelclient.Resolver
 	trustBundleCache *workloadidentity.TrustBundleCache
+	statusReporter   readyz.Reporter
 
 	// client holds the impersonated client for the service
 	client           *apiclient.Client
@@ -131,6 +133,10 @@ func (s *SPIFFEWorkloadAPIService) setup(ctx context.Context) (err error) {
 	s.attestor, err = workloadattest.NewAttestor(s.log, s.cfg.Attestors)
 	if err != nil {
 		return trace.Wrap(err, "setting up workload attestation")
+	}
+
+	if s.statusReporter == nil {
+		s.statusReporter = readyz.NoopReporter()
 	}
 
 	return nil
@@ -283,7 +289,12 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 		return nil
 	})
 
-	return trace.Wrap(eg.Wait())
+	s.statusReporter.Report(readyz.Healthy)
+	if err := eg.Wait(); err != nil {
+		s.statusReporter.ReportReason(readyz.Unhealthy, err.Error())
+		return trace.Wrap(eg.Wait())
+	}
+	return nil
 }
 
 // serialString returns a human-readable colon-separated string of the serial
@@ -893,5 +904,8 @@ func (s *SPIFFEWorkloadAPIService) ValidateJWTSVID(
 // String returns a human-readable string that can uniquely identify the
 // service.
 func (s *SPIFFEWorkloadAPIService) String() string {
-	return fmt.Sprintf("%s:%s", config.SPIFFEWorkloadAPIServiceType, s.cfg.Listen)
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("%s:%s", config.SPIFFEWorkloadAPIServiceType, s.cfg.Listen),
+	)
 }

@@ -67,12 +67,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/ingress"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/networking"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
-	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -738,25 +737,19 @@ func New(
 	auth authclient.ClientI,
 	options ...ServerOption,
 ) (*Server, error) {
-	// read the host UUID:
-	uuid, err := hostid.ReadOrCreateFile(dataDir)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	ctx, cancel := context.WithCancel(ctx)
 	s := &Server{
 		addr:               addr,
 		authService:        authService,
 		hostname:           hostname,
 		proxyPublicAddr:    proxyPublicAddr,
-		uuid:               uuid,
 		cancel:             cancel,
 		ctx:                ctx,
 		clock:              clockwork.NewRealClock(),
 		dataDir:            dataDir,
 		allowTCPForwarding: true,
 	}
+	var err error
 	s.limiter, err = limiter.NewLimiter(limiter.Config{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -772,6 +765,10 @@ func New(
 		if err := o(s); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	if s.uuid == "" {
+		return nil, trace.BadParameter("server UUID must be set using SetUUID")
 	}
 
 	// TODO(klizhentas): replace function arguments with struct
@@ -1844,7 +1841,9 @@ func (s *Server) serveAgent(scx *srv.ServerContext) error {
 
 	// start an agent server on a unix socket.  each incoming connection
 	// will result in a separate agent request.
-	agentServer := teleagent.NewServer(scx.Parent().StartAgentChannel)
+	agentServer := sshagent.NewServer(func() (sshagent.Client, error) {
+		return scx.Parent().StartAgentChannel()
+	})
 	agentServer.SetListener(listener)
 	scx.Parent().AddCloser(agentServer)
 	scx.Parent().SetEnv(teleport.SSHAuthSock, listener.Addr().String())

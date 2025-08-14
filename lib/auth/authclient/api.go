@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -241,6 +242,9 @@ type ReadProxyAccessPoint interface {
 
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
+
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
 
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
@@ -570,6 +574,9 @@ type ReadAppsAccessPoint interface {
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
 
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 }
@@ -760,6 +767,10 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetApps returns all application resources.
 	GetApps(context.Context) ([]types.Application, error)
+
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 
@@ -1055,6 +1066,9 @@ type Cache interface {
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
 
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 
@@ -1244,6 +1258,12 @@ type Cache interface {
 	// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
 	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
 
+	// GetAutoUpdateAgentReport gets the AutoUpdateAgentRollout from the backend.
+	GetAutoUpdateAgentReport(ctx context.Context, name string) (*autoupdate.AutoUpdateAgentReport, error)
+
+	// ListAutoUpdateAgentReports lists all AutoUpdateAgentReports from the backend.
+	ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdate.AutoUpdateAgentReport, string, error)
+
 	// GetAccessGraphSettings returns the access graph settings.
 	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
 
@@ -1269,15 +1289,26 @@ type Cache interface {
 
 	// GetAccountAssignment fetches specific IdentityCenter Account Assignment
 	GetAccountAssignment(context.Context, services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error)
+	GetIdentityCenterAccountAssignment(context.Context, string) (*identitycenterv1.AccountAssignment, error)
 
 	// ListAccountAssignments fetches a paginated list of IdentityCenter Account Assignments
 	ListAccountAssignments(context.Context, int, *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error)
+	ListIdentityCenterAccountAssignments(context.Context, int, string) ([]*identitycenterv1.AccountAssignment, string, error)
 
 	// GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
 	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)
 
 	// GitServerGetter defines methods for fetching Git servers.
 	services.GitServerGetter
+
+	// GetBotInstance returns the specified BotInstance resource.
+	GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error)
+
+	// ListBotInstances returns a page of BotInstance resources.
+	ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string, sort *types.SortBy) ([]*machineidv1.BotInstance, string, error)
+
+	// ListProvisionTokens returns a paginated list of provision tokens.
+	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
 }
 
 type NodeWrapper struct {

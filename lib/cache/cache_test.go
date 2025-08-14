@@ -19,7 +19,9 @@
 package cache
 
 import (
+	"cmp"
 	"context"
+	"crypto/x509/pkix"
 	"fmt"
 	"os"
 	"slices"
@@ -28,7 +30,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
+	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -51,6 +53,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
@@ -66,14 +69,19 @@ import (
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/types/userprovisioning"
 	"github.com/gravitational/teleport/api/types/usertasks"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -114,7 +122,7 @@ type testPack struct {
 	snowflakeSessionS       services.SnowflakeSession
 	samlIdPSessionsS        services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
 	restrictions            services.Restrictions
-	apps                    services.Apps
+	apps                    services.Applications
 	kubernetes              services.Kubernetes
 	databases               services.Databases
 	databaseServices        services.DatabaseServices
@@ -144,6 +152,8 @@ type testPack struct {
 	workloadIdentity        *local.WorkloadIdentityService
 	pluginStaticCredentials *local.PluginStaticCredentialsService
 	gitServers              services.GitServers
+	botInstanceService      *local.BotInstanceService
+	plugin                  *local.PluginsService
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -422,6 +432,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	p.botInstanceService, err = local.NewBotInstanceService(p.backend, p.backend.Clock())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.plugin = local.NewPluginsService(p.backend)
+
 	return p, nil
 }
 
@@ -478,6 +494,8 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		WorkloadIdentity:        p.workloadIdentity,
 		PluginStaticCredentials: p.pluginStaticCredentials,
 		GitServers:              p.gitServers,
+		BotInstanceService:      p.botInstanceService,
+		Plugin:                  p.plugin,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -505,7 +523,7 @@ func TestCA(t *testing.T) {
 	t.Cleanup(p.Close)
 	ctx := context.Background()
 
-	ca := suite.NewTestCA(types.UserCA, "example.com")
+	ca := NewTestCA(types.UserCA, "example.com")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	select {
@@ -516,7 +534,7 @@ func TestCA(t *testing.T) {
 
 	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), true)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(ca, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(ca, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	err = p.trustS.DeleteCertAuthority(ctx, ca.GetID())
 	require.NoError(t, err)
@@ -568,7 +586,7 @@ func TestWatchers(t *testing.T) {
 		t.Fatalf("Timeout waiting for event.")
 	}
 
-	ca := suite.NewTestCA(types.UserCA, "example.com")
+	ca := NewTestCA(types.UserCA, "example.com")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	select {
@@ -627,7 +645,7 @@ func TestWatchers(t *testing.T) {
 
 	// this ca will not be matched by our filter, so the same reasoning applies
 	// as we upsert it and delete it
-	filteredCa := suite.NewTestCA(types.HostCA, "example.net")
+	filteredCa := NewTestCA(types.HostCA, "example.net")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, filteredCa))
 	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, filteredCa.GetID()))
 
@@ -718,7 +736,7 @@ func TestNodeCAFiltering(t *testing.T) {
 	require.Equal(t, types.OpInit, fetchEvent().Type)
 
 	// upsert and delete a local host CA, we expect to see a Put and a Delete event
-	localCA := suite.NewTestCA(types.HostCA, "example.com")
+	localCA := NewTestCA(types.HostCA, "example.com")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, localCA))
 	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, localCA.GetID()))
 
@@ -733,7 +751,7 @@ func TestNodeCAFiltering(t *testing.T) {
 	require.Equal(t, "example.com", ev.Resource.GetName())
 
 	// upsert and delete a nonlocal host CA, we expect to only see the Delete event
-	nonlocalCA := suite.NewTestCA(types.HostCA, "example.net")
+	nonlocalCA := NewTestCA(types.HostCA, "example.net")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, nonlocalCA))
 	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, nonlocalCA.GetID()))
 
@@ -743,7 +761,7 @@ func TestNodeCAFiltering(t *testing.T) {
 	require.Equal(t, "example.net", ev.Resource.GetName())
 
 	// whereas we expect to see the Put and Delete for a trusted *user* CA
-	trustedUserCA := suite.NewTestCA(types.UserCA, "example.net")
+	trustedUserCA := NewTestCA(types.UserCA, "example.net")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, trustedUserCA))
 	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, trustedUserCA.GetID()))
 
@@ -830,7 +848,7 @@ func TestCompletenessInit(t *testing.T) {
 
 	// put lots of CAs in the backend
 	for i := 0; i < caCount; i++ {
-		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
+		ca := NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
 		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
 
@@ -895,6 +913,8 @@ func TestCompletenessInit(t *testing.T) {
 			PluginStaticCredentials: p.pluginStaticCredentials,
 			EventsC:                 p.eventsC,
 			GitServers:              p.gitServers,
+			BotInstanceService:      p.botInstanceService,
+			Plugin:                  p.plugin,
 		}))
 		require.NoError(t, err)
 
@@ -930,7 +950,7 @@ func TestCompletenessReset(t *testing.T) {
 
 	// put lots of CAs in the backend
 	for i := 0; i < caCount; i++ {
-		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
+		ca := NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
 		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
 
@@ -982,6 +1002,8 @@ func TestCompletenessReset(t *testing.T) {
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		GitServers:              p.gitServers,
+		BotInstanceService:      p.botInstanceService,
+		Plugin:                  p.plugin,
 	}))
 	require.NoError(t, err)
 
@@ -1042,7 +1064,7 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 
 	go func() {
 		for i := 0; i < nodeCount; i++ {
-			server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+			server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 			_, err := p.presenceS.UpsertNode(ctx, server)
 			if err != nil {
 				createErr <- err
@@ -1089,7 +1111,7 @@ func BenchmarkListResourcesWithSort(b *testing.B) {
 
 	count := 100000
 	for i := 0; i < count; i++ {
-		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		// Set some static and dynamic labels.
 		server.Metadata.Labels = map[string]string{"os": "mac", "env": "prod", "country": "us", "tier": "frontend"}
 		server.Spec.CmdLabels = map[string]types.CommandLabelV2{
@@ -1196,11 +1218,13 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
 		GitServers:              p.gitServers,
+		BotInstanceService:      p.botInstanceService,
+		Plugin:                  p.plugin,
 	}))
 	require.NoError(t, err)
 
 	for i := 0; i < nodeCount; i++ {
-		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		_, err := p.presenceS.UpsertNode(ctx, server)
 		require.NoError(t, err)
 	}
@@ -1293,13 +1317,15 @@ func initStrategy(t *testing.T) {
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		GitServers:              p.gitServers,
+		BotInstanceService:      p.botInstanceService,
+		Plugin:                  p.plugin,
 	}))
 	require.NoError(t, err)
 
 	_, err = p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 	require.True(t, trace.IsConnectionProblem(err))
 
-	ca := suite.NewTestCA(types.UserCA, "example.com")
+	ca := NewTestCA(types.UserCA, "example.com")
 	// NOTE 1: this could produce event processed
 	// below, based on whether watcher restarts to get the event
 	// or not, which is normal, but has to be accounted below
@@ -1319,7 +1345,7 @@ func initStrategy(t *testing.T) {
 
 	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// fail again, make sure last recent data is still served
 	// on errors
@@ -1333,7 +1359,7 @@ func initStrategy(t *testing.T) {
 	// backend is out, but old value is available
 	out2, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out2), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(normalizeCA(ca), normalizeCA(out2), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// add modification and expect the resource to recover
 	ca.SetRoleMap(types.RoleMap{types.RoleMapping{Remote: "test", Local: []string{"local-test"}}})
@@ -1350,7 +1376,7 @@ func initStrategy(t *testing.T) {
 	// new value is available now
 	out, err = p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 // TestRecovery tests error recovery scenario
@@ -1361,7 +1387,7 @@ func TestRecovery(t *testing.T) {
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 
-	ca := suite.NewTestCA(types.UserCA, "example.com")
+	ca := NewTestCA(types.UserCA, "example.com")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	select {
@@ -1380,7 +1406,7 @@ func TestRecovery(t *testing.T) {
 	waitForRestart(t, p.eventsC)
 
 	// add modification and expect the resource to recover
-	ca2 := suite.NewTestCA(types.UserCA, "example2.com")
+	ca2 := NewTestCA(types.UserCA, "example2.com")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca2))
 
 	// wait for watcher to receive an event
@@ -1394,7 +1420,7 @@ func TestRecovery(t *testing.T) {
 	out, err := p.cache.GetCertAuthority(context.Background(), ca2.GetID(), false)
 	require.NoError(t, err)
 	types.RemoveCASecrets(ca2)
-	require.Empty(t, cmp.Diff(ca2, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(ca2, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 // TestTokens tests static and dynamic tokens
@@ -1428,7 +1454,7 @@ func TestTokens(t *testing.T) {
 
 	out, err := p.cache.GetStaticTokens()
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(staticTokens, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(staticTokens, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	expires := time.Now().Add(10 * time.Hour).Truncate(time.Second).UTC()
 	token, err := types.NewProvisionToken("token", types.SystemRoles{types.RoleAuth, types.RoleNode}, expires)
@@ -1446,7 +1472,7 @@ func TestTokens(t *testing.T) {
 
 	tout, err := p.cache.GetToken(ctx, token.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(token, tout, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(token, tout, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	err = p.provisionerS.DeleteToken(ctx, token.GetName())
 	require.NoError(t, err)
@@ -1488,7 +1514,7 @@ func TestAuthPreference(t *testing.T) {
 	outAuthPref, err := p.cache.GetAuthPreference(ctx)
 	require.NoError(t, err)
 
-	require.Empty(t, cmp.Diff(outAuthPref, authPref, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(outAuthPref, authPref, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 func TestClusterNetworkingConfig(t *testing.T) {
@@ -1517,7 +1543,7 @@ func TestClusterNetworkingConfig(t *testing.T) {
 	outNetConfig, err := p.cache.GetClusterNetworkingConfig(ctx)
 	require.NoError(t, err)
 
-	require.Empty(t, cmp.Diff(outNetConfig, netConfig, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(outNetConfig, netConfig, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 func TestSessionRecordingConfig(t *testing.T) {
@@ -1546,7 +1572,7 @@ func TestSessionRecordingConfig(t *testing.T) {
 	outRecConfig, err := p.cache.GetSessionRecordingConfig(ctx)
 	require.NoError(t, err)
 
-	require.Empty(t, cmp.Diff(outRecConfig, recConfig, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(outRecConfig, recConfig, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 func TestClusterAuditConfig(t *testing.T) {
@@ -1574,7 +1600,7 @@ func TestClusterAuditConfig(t *testing.T) {
 	outAuditConfig, err := p.cache.GetClusterAuditConfig(ctx)
 	require.NoError(t, err)
 
-	require.Empty(t, cmp.Diff(outAuditConfig, auditConfig, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(outAuditConfig, auditConfig, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 func TestClusterName(t *testing.T) {
@@ -1601,7 +1627,7 @@ func TestClusterName(t *testing.T) {
 	outName, err := p.cache.GetClusterName()
 	require.NoError(t, err)
 
-	require.Empty(t, cmp.Diff(outName, clusterName, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(outName, clusterName, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 // TestNamespaces tests caching of namespaces
@@ -1629,7 +1655,7 @@ func TestNamespaces(t *testing.T) {
 
 	out, err := p.cache.GetNamespace(ns.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// update namespace metadata
 	ns.Metadata.Labels = map[string]string{"a": "b"}
@@ -1649,7 +1675,7 @@ func TestNamespaces(t *testing.T) {
 
 	out, err = p.cache.GetNamespace(ns.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	err = p.presenceS.DeleteNamespace(ns.GetName())
 	require.NoError(t, err)
@@ -1771,7 +1797,7 @@ func TestNodes(t *testing.T) {
 
 	testResources(t, p, testFuncs[types.Server]{
 		newResource: func(name string) (types.Server, error) {
-			return suite.NewServer(types.KindNode, name, "127.0.0.1:2022", apidefaults.Namespace), nil
+			return NewServer(types.KindNode, name, "127.0.0.1:2022", apidefaults.Namespace), nil
 		},
 		create: withKeepalive(p.presenceS.UpsertNode),
 		list: func(ctx context.Context) ([]types.Server, error) {
@@ -1799,7 +1825,7 @@ func TestProxies(t *testing.T) {
 
 	testResources(t, p, testFuncs[types.Server]{
 		newResource: func(name string) (types.Server, error) {
-			return suite.NewServer(types.KindProxy, name, "127.0.0.1:2022", apidefaults.Namespace), nil
+			return NewServer(types.KindProxy, name, "127.0.0.1:2022", apidefaults.Namespace), nil
 		},
 		create: p.presenceS.UpsertProxy,
 		list: func(_ context.Context) ([]types.Server, error) {
@@ -1824,7 +1850,7 @@ func TestAuthServers(t *testing.T) {
 
 	testResources(t, p, testFuncs[types.Server]{
 		newResource: func(name string) (types.Server, error) {
-			return suite.NewServer(types.KindAuthServer, name, "127.0.0.1:2022", apidefaults.Namespace), nil
+			return NewServer(types.KindAuthServer, name, "127.0.0.1:2022", apidefaults.Namespace), nil
 		},
 		create: p.presenceS.UpsertAuthServer,
 		list: func(_ context.Context) ([]types.Server, error) {
@@ -1836,40 +1862,6 @@ func TestAuthServers(t *testing.T) {
 		update: p.presenceS.UpsertAuthServer,
 		deleteAll: func(_ context.Context) error {
 			return p.presenceS.DeleteAllAuthServers()
-		},
-	})
-}
-
-// TestRemoteClusters tests remote clusters caching
-func TestRemoteClusters(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForProxy)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[types.RemoteCluster]{
-		newResource: func(name string) (types.RemoteCluster, error) {
-			return types.NewRemoteCluster(name)
-		},
-		create: func(ctx context.Context, rc types.RemoteCluster) error {
-			_, err := p.trustS.CreateRemoteCluster(ctx, rc)
-			return err
-		},
-		list: func(ctx context.Context) ([]types.RemoteCluster, error) {
-			return p.trustS.GetRemoteClusters(ctx)
-		},
-		cacheGet: func(ctx context.Context, name string) (types.RemoteCluster, error) {
-			return p.cache.GetRemoteCluster(ctx, name)
-		},
-		cacheList: func(ctx context.Context) ([]types.RemoteCluster, error) {
-			return p.cache.GetRemoteClusters(ctx)
-		},
-		update: func(ctx context.Context, rc types.RemoteCluster) error {
-			_, err := p.trustS.UpdateRemoteCluster(ctx, rc)
-			return err
-		},
-		deleteAll: func(ctx context.Context) error {
-			return p.trustS.DeleteAllRemoteClusters(ctx)
 		},
 	})
 }
@@ -1970,13 +1962,75 @@ func TestApps(t *testing.T) {
 				URI: "localhost",
 			})
 		},
-		create:    p.apps.CreateApp,
-		list:      p.apps.GetApps,
-		cacheGet:  p.cache.GetApp,
-		cacheList: p.cache.GetApps,
+		create: p.apps.CreateApp,
+		list: func(ctx context.Context) ([]types.Application, error) {
+			return stream.Collect(clientutils.Resources(ctx, p.apps.ListApps))
+		},
+		cacheGet: p.cache.GetApp,
+		cacheList: func(ctx context.Context) ([]types.Application, error) {
+			return stream.Collect(clientutils.Resources(ctx, p.cache.ListApps))
+		},
 		update:    p.apps.UpdateApp,
 		deleteAll: p.apps.DeleteAllApps,
 	})
+}
+
+func TestApplicationPagination(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	p, err := newPack(t.TempDir(), ForProxy)
+	require.NoError(t, err)
+	t.Cleanup(p.Close)
+
+	var expected []types.Application
+	for i := range 1324 {
+		app, err := types.NewAppV3(types.Metadata{
+			Name: "app" + strconv.Itoa(i+1),
+		}, types.AppSpecV3{
+			URI: "localhost",
+		})
+		require.NoError(t, err)
+
+		require.NoError(t, p.apps.CreateApp(ctx, app))
+		expected = append(expected, app)
+	}
+	slices.SortFunc(expected, func(a, b types.Application) int {
+		return cmp.Compare(a.GetName(), b.GetName())
+	})
+
+	// Drain events to prevent deadlocking. Required because the number
+	// of applications exceeds the default buffer size for the channel.
+	drainEvents(p.eventsC)
+
+	// Wait for all the applications to be replicated to the cache.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		found, err := stream.Collect(clientutils.Resources(ctx, p.cache.ListApps))
+		assert.NoError(t, err)
+		assert.Len(t, expected, len(found))
+	}, 15*time.Second, 100*time.Millisecond)
+
+	out, err := p.cache.GetApps(ctx)
+	require.NoError(t, err)
+	assert.Len(t, out, len(expected))
+	assert.Empty(t, gocmp.Diff(expected, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	page1, page2Start, err := p.cache.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	assert.Len(t, page1, 1000)
+	assert.NotEmpty(t, page2Start)
+
+	page2, next, err := p.cache.ListApps(ctx, 1000, page2Start)
+	require.NoError(t, err)
+	assert.Len(t, page2, len(expected)-1000)
+	assert.Empty(t, next)
+
+	listed := append(page1, page2...)
+	assert.Empty(t, gocmp.Diff(expected, listed,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
 }
 
 func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
@@ -2979,7 +3033,7 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	err = funcs.create(ctx, r)
 	require.NoError(t, err)
 
-	cmpOpts := []cmp.Option{
+	cmpOpts := []gocmp.Option{
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 	}
@@ -2987,14 +3041,14 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	// Check that the resource is now in the backend.
 	out, err := funcs.list(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
+	require.Empty(t, gocmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Wait until the information has been replicated to the cache.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Make sure the cache has a single resource in it.
 		out, err = funcs.cacheList(ctx)
 		assert.NoError(t, err)
-		assert.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
+		assert.Empty(t, gocmp.Diff([]T{r}, out, cmpOpts...))
 	}, time.Second*2, time.Millisecond*250)
 
 	// cacheGet is optional as not every resource implements it
@@ -3002,11 +3056,20 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 		// Make sure a single cache get works.
 		getR, err := funcs.cacheGet(ctx, r.GetName())
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(r, getR, cmpOpts...))
+		require.Empty(t, gocmp.Diff(r, getR, cmpOpts...))
 	}
 
 	// update is optional as not every resource implements it
 	if funcs.update != nil {
+		// Not all create functions will result in resource being updated
+		// with the latest revision. To avoid any conditional update
+		// failures caused by mismatched revisions, an updated
+		// copy of the resource is loaded prior to updating.
+		if funcs.cacheGet != nil {
+			var err error
+			r, err = funcs.cacheGet(ctx, r.GetName())
+			require.NoError(t, err)
+		}
 		// Update the resource and upsert it into the backend again.
 		funcs.changeResource(r)
 		err = funcs.update(ctx, r)
@@ -3017,14 +3080,14 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	// update occurred).
 	out, err = funcs.list(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
+	require.Empty(t, gocmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Check that information has been replicated to the cache.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Make sure the cache has a single resource in it.
 		out, err = funcs.cacheList(ctx)
 		assert.NoError(t, err)
-		assert.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
+		assert.Empty(t, gocmp.Diff([]T{r}, out, cmpOpts...))
 	}, time.Second*2, time.Millisecond*250)
 
 	// Remove all service providers from the backend.
@@ -3037,6 +3100,7 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 		assert.NoError(t, err)
 		assert.Empty(t, out)
 	}, time.Second*2, time.Millisecond*250)
+
 }
 
 // testResources153 is a generic tester for RFD153-style resources.
@@ -3054,7 +3118,7 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 	err = funcs.create(ctx, r)
 	require.NoError(t, err)
 
-	cmpOpts := []cmp.Option{
+	cmpOpts := []gocmp.Option{
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	}
@@ -3073,14 +3137,14 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 				return
 			}
 
-			assert.Empty(t, cmp.Diff(expected, out, cmpOpts...))
+			assert.Empty(t, gocmp.Diff(expected, out, cmpOpts...))
 		}, 2*time.Second, 10*time.Millisecond)
 	}
 
 	// Check that the resource is now in the backend.
 	out, err := funcs.list(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
+	require.Empty(t, gocmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Wait until the information has been replicated to the cache.
 	assertCacheContents([]T{r})
@@ -3090,7 +3154,7 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 		// Make sure a single cache get works.
 		getR, err := funcs.cacheGet(ctx, r.GetMetadata().GetName())
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(r, getR, cmpOpts...))
+		require.Empty(t, gocmp.Diff(r, getR, cmpOpts...))
 	}
 
 	// update is optional as not every resource implements it
@@ -3105,7 +3169,7 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 	// update occurred).
 	out, err = funcs.list(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
+	require.Empty(t, gocmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Check that information has been replicated to the cache.
 	assertCacheContents([]T{r})
@@ -3153,7 +3217,7 @@ func TestRelativeExpiry(t *testing.T) {
 	now := clock.Now()
 	for i := int64(0); i < nodeCount; i++ {
 		exp := now.Add(time.Minute * time.Duration(i))
-		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		server.SetExpiry(exp)
 		_, err := p.presenceS.UpsertNode(ctx, server)
 		require.NoError(t, err)
@@ -3231,7 +3295,7 @@ func TestRelativeExpiryLimit(t *testing.T) {
 	now := clock.Now()
 	for i := 0; i < nodeCount; i++ {
 		exp := now.Add(time.Minute * time.Duration(i))
-		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		server.SetExpiry(exp)
 		_, err := p.presenceS.UpsertNode(ctx, server)
 		require.NoError(t, err)
@@ -3561,14 +3625,17 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAutoUpdateConfig:                  types.Resource153ToLegacy(newAutoUpdateConfig(t)),
 		types.KindAutoUpdateVersion:                 types.Resource153ToLegacy(newAutoUpdateVersion(t)),
 		types.KindAutoUpdateAgentRollout:            types.Resource153ToLegacy(newAutoUpdateAgentRollout(t)),
+		types.KindAutoUpdateAgentReport:             types.Resource153ToLegacy(newAutoUpdateAgentReport(t, "test")),
 		types.KindUserTask:                          types.Resource153ToLegacy(newUserTasks(t)),
 		types.KindProvisioningPrincipalState:        types.Resource153ToLegacy(newProvisioningPrincipalState("u-alice@example.com")),
 		types.KindIdentityCenterAccount:             types.Resource153ToLegacy(newIdentityCenterAccount("some_account")),
 		types.KindIdentityCenterAccountAssignment:   types.Resource153ToLegacy(newIdentityCenterAccountAssignment("some_account_assignment")),
 		types.KindIdentityCenterPrincipalAssignment: types.Resource153ToLegacy(newIdentityCenterPrincipalAssignment("some_principal_assignment")),
 		types.KindWorkloadIdentity:                  types.Resource153ToLegacy(newWorkloadIdentity("some_identifier")),
+		types.KindPlugin:                            &types.PluginV1{},
 		types.KindPluginStaticCredentials:           &types.PluginStaticCredentialsV1{},
 		types.KindGitServer:                         &types.ServerV2{},
+		types.KindBotInstance:                       types.ProtoResource153ToLegacy(new(machineidv1.BotInstance)),
 	}
 
 	for name, cfg := range cases {
@@ -3596,12 +3663,12 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					// attempting to compare the messages does not result in a panic
 					switch r := r.Unwrap().(type) {
 					case protobuf.Message:
-						require.Empty(t, cmp.Diff(r, eventResource.Unwrap(), protocmp.Transform()))
+						require.Empty(t, gocmp.Diff(r, eventResource.Unwrap(), protocmp.Transform()))
 					default:
-						require.Empty(t, cmp.Diff(r, eventResource.Unwrap()))
+						require.Empty(t, gocmp.Diff(r, eventResource.Unwrap()))
 					}
 				default:
-					require.Empty(t, cmp.Diff(resource, event.Resource))
+					require.Empty(t, gocmp.Diff(resource, event.Resource))
 				}
 			}
 		})
@@ -4153,6 +4220,30 @@ func newAutoUpdateAgentRollout(t *testing.T) *autoupdate.AutoUpdateAgentRollout 
 	return r
 }
 
+func newAutoUpdateAgentReport(t *testing.T, name string) *autoupdate.AutoUpdateAgentReport {
+	t.Helper()
+
+	r, err := update.NewAutoUpdateAgentReport(&autoupdate.AutoUpdateAgentReportSpec{
+		Timestamp: timestamppb.Now(),
+		Groups: map[string]*autoupdate.AutoUpdateAgentReportSpecGroup{
+			"foo": {
+				Versions: map[string]*autoupdate.AutoUpdateAgentReportSpecGroupVersion{
+					"1.2.3": {Count: 1},
+					"1.2.4": {Count: 2},
+				},
+			},
+			"bar": {
+				Versions: map[string]*autoupdate.AutoUpdateAgentReportSpecGroupVersion{
+					"2.3.4": {Count: 3},
+					"2.3.5": {Count: 4},
+				},
+			},
+		},
+	}, name)
+	require.NoError(t, err)
+	return r
+}
+
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {
 	return func(ctx context.Context, resource T) error {
 		_, err := fn(ctx, resource)
@@ -4225,7 +4316,7 @@ func TestCAWatcherFilters(t *testing.T) {
 	}
 
 	// generate an OpPut event.
-	ca := suite.NewTestCA(types.UserCA, "example.com")
+	ca := NewTestCA(types.UserCA, "example.com")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	const fetchTimeout = time.Second
@@ -4258,4 +4349,153 @@ func fetchEvent(t *testing.T, w types.Watcher, timeout time.Duration) types.Even
 	case ev = <-w.Events():
 	}
 	return ev
+}
+
+// NewTestCA returns new test authority with a test key as a public and
+// signing key
+func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte) *types.CertAuthorityV2 {
+	return NewTestCAWithConfig(TestCAConfig{
+		Type:        caType,
+		ClusterName: clusterName,
+		PrivateKeys: privateKeys,
+		Clock:       clockwork.NewRealClock(),
+	})
+}
+
+// TestCAConfig defines the configuration for generating
+// a test certificate authority
+type TestCAConfig struct {
+	Type        types.CertAuthType
+	PrivateKeys [][]byte
+	Clock       clockwork.Clock
+	ClusterName string
+	// the below string fields default to ClusterName if left empty
+	ResourceName        string
+	SubjectOrganization string
+}
+
+// NewTestCAWithConfig generates a new certificate authority with the specified
+// configuration
+// Keep this function in-sync with lib/auth/auth.go:newKeySet().
+// TODO(jakule): reuse keystore.KeyStore interface to match newKeySet().
+func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
+	var keyPEM []byte
+	var key *keys.PrivateKey
+
+	if config.ResourceName == "" {
+		config.ResourceName = config.ClusterName
+	}
+	if config.SubjectOrganization == "" {
+		config.SubjectOrganization = config.ClusterName
+	}
+
+	switch config.Type {
+	case types.DatabaseCA, types.SAMLIDPCA, types.OIDCIdPCA:
+		// These CAs only support RSA.
+		keyPEM = fixtures.PEMBytes["rsa"]
+	case types.DatabaseClientCA:
+		// The db client CA also only supports RSA, but some tests rely on it
+		// being different than the DB CA.
+		keyPEM = fixtures.PEMBytes["rsa-db-client"]
+	}
+	if len(config.PrivateKeys) > 0 {
+		// Allow test to override the private key.
+		keyPEM = config.PrivateKeys[0]
+	}
+
+	if keyPEM != nil {
+		var err error
+		key, err = keys.ParsePrivateKey(keyPEM)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		// If config.PrivateKeys was not set and this CA does not exclusively
+		// support RSA, generate an ECDSA key. Signatures are ~10x faster than
+		// RSA and generating a new key is actually faster than parsing a PEM
+		// fixture.
+		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		if err != nil {
+			panic(err)
+		}
+		key, err = keys.NewPrivateKey(signer)
+		if err != nil {
+			panic(err)
+		}
+		keyPEM = key.PrivateKeyPEM()
+	}
+
+	ca := &types.CertAuthorityV2{
+		Kind:    types.KindCertAuthority,
+		SubKind: string(config.Type),
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      config.ResourceName,
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.CertAuthoritySpecV2{
+			Type:        config.Type,
+			ClusterName: config.ClusterName,
+		},
+	}
+
+	// Add SSH keys if necessary.
+	switch config.Type {
+	case types.UserCA, types.HostCA, types.OpenSSHCA:
+		ca.Spec.ActiveKeys.SSH = []*types.SSHKeyPair{{
+			PrivateKey: keyPEM,
+			PublicKey:  key.MarshalSSHPublicKey(),
+		}}
+	}
+
+	// Add TLS keys if necessary.
+	switch config.Type {
+	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
+		cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+			Signer: key.Signer,
+			Entity: pkix.Name{
+				CommonName:   config.ClusterName,
+				Organization: []string{config.SubjectOrganization},
+			},
+			TTL:   defaults.CATTL,
+			Clock: config.Clock,
+		})
+		if err != nil {
+			panic(err)
+		}
+		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{
+			Key:  keyPEM,
+			Cert: cert,
+		}}
+	}
+
+	// Add JWT keys if necessary.
+	switch config.Type {
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA:
+		pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
+		if err != nil {
+			panic(err)
+		}
+		ca.Spec.ActiveKeys.JWT = []*types.JWTKeyPair{{
+			PrivateKey: keyPEM,
+			PublicKey:  pubKeyPEM,
+		}}
+	}
+
+	return ca
+}
+
+// NewServer creates a new server resource
+func NewServer(kind, name, addr, namespace string) *types.ServerV2 {
+	return &types.ServerV2{
+		Kind:    kind,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: types.ServerSpecV2{
+			Addr: addr,
+		},
+	}
 }

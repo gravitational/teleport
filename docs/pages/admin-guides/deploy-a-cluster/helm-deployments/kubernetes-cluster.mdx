@@ -1,6 +1,9 @@
 ---
 title: Deploy Teleport on Kubernetes
 description: This guide shows you how to deploy Teleport on a Kubernetes cluster using Helm.
+labels:
+ - how-to
+ - platform-wide
 ---
 
 Teleport can provide secure, unified access to your Kubernetes clusters. This
@@ -94,8 +97,8 @@ cluster to Teleport.
 
   </details>
 
-- The `tsh` client tool v(=teleport.version=)+ installed on your workstation.
-  You can download this from our [installation page](../../../installation.mdx).
+- The `tsh` client tool installed on your workstation.  You can download this
+  from our [installation page](../../../installation/installation.mdx).
 
 (!docs/pages/includes/kubernetes-access/helm-k8s.mdx!)
 
@@ -317,7 +320,7 @@ cluster.
 - **Set up Single Sign-On:** In this guide, we showed you how to create a local
   user, which is appropriate for demo environments. For a production deployment,
   you should set up Single Sign-On with your provider of choice. See our [Single
-  Sign-On guides](../../access-controls/sso/sso.mdx) for how to do this.
+  Sign-On guides](../../../zero-trust-access/sso/sso.mdx) for how to do this.
 - **Configure your Teleport deployment:** To see all of the options you can set
   in the values file for the `teleport-cluster` Helm chart, consult our
   [reference guide](../../../reference/helm-reference/teleport-cluster.mdx).

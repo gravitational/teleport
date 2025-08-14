@@ -94,8 +94,13 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, botName, instan
 // ListBotInstances lists all matching bot instances. A bot name and/or search terms can be optionally provided.
 // If an non-empty bot name is provided, only instances for that bot will be fetched.
 // If an non-empty search term is provided, only instances with a value containing the term in supported fields are fetched.
-// Supported search fields include; bot name, instance id, hostname (latest), tbot version (latest), join method (latest)
-func (b *BotInstanceService) ListBotInstances(ctx context.Context, botName string, pageSize int, lastKey string, search string) ([]*machineidv1.BotInstance, string, error) {
+// Supported search fields include; bot name, instance id, hostname (latest), tbot version (latest), join method (latest).
+// Sorting by bot name in ascending order is supported - an error is returned for any other sort type.
+func (b *BotInstanceService) ListBotInstances(ctx context.Context, botName string, pageSize int, lastKey string, search string, sort *types.SortBy) ([]*machineidv1.BotInstance, string, error) {
+	if sort != nil && (sort.Field != "bot_name" || sort.IsDesc != false) {
+		return nil, "", trace.BadParameter("unsupported sort, only bot_name:asc is supported, but got %q (desc = %t)", sort.Field, sort.IsDesc)
+	}
+
 	var service *generic.ServiceWrapper[*machineidv1.BotInstance]
 	if botName == "" {
 		// If botName is empty, return instances for all bots by not using a service prefix
@@ -110,27 +115,41 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, botName strin
 	}
 
 	r, nextToken, err := service.ListResourcesWithFilter(ctx, pageSize, lastKey, func(item *machineidv1.BotInstance) bool {
-		latestHeartbeats := item.GetStatus().GetLatestHeartbeats()
-		heartbeat := item.Status.InitialHeartbeat // Use initial heartbeat as a fallback
-		if len(latestHeartbeats) > 0 {
-			heartbeat = latestHeartbeats[len(latestHeartbeats)-1]
-		}
-
-		values := []string{
-			item.Spec.BotName,
-			item.Spec.InstanceId,
-		}
-
-		if heartbeat != nil {
-			values = append(values, heartbeat.Hostname, heartbeat.JoinMethod, heartbeat.Version, "v"+heartbeat.Version)
-		}
-
-		return slices.ContainsFunc(values, func(val string) bool {
-			return strings.Contains(strings.ToLower(val), strings.ToLower(search))
-		})
+		return matchBotInstance(item, botName, search)
 	})
 
 	return r, nextToken, trace.Wrap(err)
+}
+
+func matchBotInstance(b *machineidv1.BotInstance, botName string, search string) bool {
+	// If updating this, ensure it's consistent with the cache search logic in `lib/cache/bot_instance.go`.
+
+	if botName != "" && b.Spec.BotName != botName {
+		return false
+	}
+
+	if search == "" {
+		return true
+	}
+
+	latestHeartbeats := b.GetStatus().GetLatestHeartbeats()
+	heartbeat := b.Status.InitialHeartbeat // Use initial heartbeat as a fallback
+	if len(latestHeartbeats) > 0 {
+		heartbeat = latestHeartbeats[len(latestHeartbeats)-1]
+	}
+
+	values := []string{
+		b.Spec.BotName,
+		b.Spec.InstanceId,
+	}
+
+	if heartbeat != nil {
+		values = append(values, heartbeat.Hostname, heartbeat.JoinMethod, heartbeat.Version, "v"+heartbeat.Version)
+	}
+
+	return slices.ContainsFunc(values, func(val string) bool {
+		return strings.Contains(strings.ToLower(val), strings.ToLower(search))
+	})
 }
 
 // DeleteBotInstance deletes a specific bot instance matching the given bot name
@@ -138,6 +157,11 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, botName strin
 func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, botName, instanceID string) error {
 	serviceWithPrefix := b.service.WithPrefix(botName)
 	return trace.Wrap(serviceWithPrefix.DeleteResource(ctx, instanceID))
+}
+
+// DeleteAllBotInstances deletes all bot instances for all bots
+func (b *BotInstanceService) DeleteAllBotInstances(ctx context.Context) error {
+	return trace.Wrap(b.service.DeleteAllResources(ctx))
 }
 
 // PatchBotInstance uses the supplied function to patch the bot instance

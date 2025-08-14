@@ -64,7 +64,6 @@ export const Camera = forwardRef<HTMLSpanElement, IconProps>(
         d="M3 5.25a1.5 1.5 0 0 0-1.5 1.5v10.5a1.5 1.5 0 0 0 1.5 1.5h15a1.5 1.5 0 0 0 1.5-1.5v-2.349l3.334 2.223A.75.75 0 0 0 24 16.5v-9a.75.75 0 0 0-1.166-.624L19.5 9.099V6.75a1.5 1.5 0 0 0-1.5-1.5zm16.5 5.651V13.1l3 2V8.9zM3 6.75h15v10.5H3z"
         clipRule="evenodd"
       />
-      <path d="M0 0h24v24H0z" />
     </Icon>
   )
 );

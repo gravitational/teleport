@@ -19,6 +19,7 @@
 import { useMemo, useState } from 'react';
 import { useLocation } from 'react-router';
 
+import { parseSortType } from 'design/DataTable/sort';
 import { SortType } from 'design/DataTable/types';
 import { IncludedResourceMode } from 'shared/components/UnifiedResources';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
@@ -130,15 +131,7 @@ export default function getResourceUrlQueryParams(
   const sort = searchParams.get('sort');
   const kinds = searchParams.has('kinds') ? searchParams.getAll('kinds') : null;
 
-  const sortParam = sort ? sort.split(':') : null;
-
-  // Converts the "fieldname:dir" format into {fieldName: "", dir: ""}
-  const processedSortParam = sortParam
-    ? ({
-        fieldName: sortParam[0],
-        dir: sortParam[1]?.toUpperCase() || 'ASC',
-      } as SortType)
-    : null;
+  const processedSortParam = parseSortType(sort);
 
   return {
     query,

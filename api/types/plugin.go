@@ -21,7 +21,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
@@ -118,6 +118,7 @@ type Plugin interface {
 	SetCredentials(PluginCredentials) error
 	SetStatus(PluginStatus) error
 	GetGeneration() string
+	CloneWithoutSecrets() Plugin
 }
 
 // PluginCredentials are the credentials embedded in Plugin
@@ -405,7 +406,8 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 	return nil
 }
 
-// WithoutSecrets returns an instance of resource without secrets.
+// WithoutSecrets returns the Plugin as a Resource, with secrets removed.
+// If you want to have a copy of the Plugin without secrets use CloneWithoutSecrets instead.
 func (p *PluginV1) WithoutSecrets() Resource {
 	if p.Credentials == nil {
 		return p
@@ -414,6 +416,15 @@ func (p *PluginV1) WithoutSecrets() Resource {
 	p2 := p.Clone().(*PluginV1)
 	p2.SetCredentials(nil)
 	return p2
+}
+
+// CloneWithoutSecrets returns a deep copy of the Plugin instance with secrets removed.
+// Use this when you need a separate Plugin object without secrets,
+// rather than a Resource interface value as returned by WithoutSecrets.
+func (p *PluginV1) CloneWithoutSecrets() Plugin {
+	out := p.Clone().(*PluginV1)
+	out.SetCredentials(nil)
+	return out
 }
 
 func (p *PluginV1) setStaticFields() {

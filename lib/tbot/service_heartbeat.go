@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
 type heartbeatSubmitter interface {
@@ -50,6 +51,7 @@ type heartbeatService struct {
 	botIdentityReadyCh <-chan struct{}
 	interval           time.Duration
 	retryLimit         int
+	statusReporter     readyz.Reporter
 }
 
 func (s *heartbeatService) heartbeat(ctx context.Context, isStartup bool) error {
@@ -119,6 +121,7 @@ func (s *heartbeatService) Run(ctx context.Context) error {
 			return nil
 		},
 		identityReadyCh: s.botIdentityReadyCh,
+		statusReporter:  s.statusReporter,
 	})
 	return trace.Wrap(err)
 }

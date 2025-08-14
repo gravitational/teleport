@@ -1,6 +1,9 @@
 ---
 title: API Getting Started Guide
 description: Get started working with the Teleport API programmatically using Go.
+labels:
+ - get-started
+ - mwi
 ---
 
 In this getting started guide we will use the Teleport API Go client to connect
@@ -11,6 +14,17 @@ Here are the steps we'll walkthrough:
 - Create an API user using a simple role-based authentication method.
 - Generate credentials for that user.
 - Create and connect a Go client to interact with Teleport's API.
+
+## How it works
+
+The Teleport Auth Service exposes a gRPC API that allows client tools to manage
+backend resources. `tctl`, the Teleport Kubernetes Operator, and the Teleport
+Terraform provider use this API, and you can write custom tools to manage API
+resources or subscribe to Teleport audit events. 
+
+Teleport API clients authenticate to Teleport using TLS credentials. In this
+guide, we show you how to load the TLS credentials that the Auth Service
+provides to you after you log in using `tsh`.
 
 ## Prerequisites
 
@@ -108,7 +122,7 @@ func main() {
 	}
 
 	log.Printf("Example success!")
-	log.Printf("Example server response: %s", resp)
+	log.Printf("Example server response: %v", resp)
 	log.Printf("Server version: %s", resp.ServerVersion)
 }
 ```

@@ -137,19 +137,20 @@ export function DesktopSession({
 
   useListener(client.onClipboardData, onClipboardData);
 
-  const handleFatalError = useCallback(
-    (error: Error) => {
+  const handleConnectionClose = useCallback(
+    (error?: Error) => {
       clearSharing();
       setTdpConnectionStatus({
         status: 'disconnected',
         fromTdpError: error instanceof TdpError,
-        message: error.message,
+        message: error?.message || '',
       });
       initialTdpConnectionSucceeded.current = false;
     },
     [clearSharing]
   );
-  useListener(client.onError, handleFatalError);
+  useListener(client.onError, handleConnectionClose);
+  useListener(client.onTransportClose, handleConnectionClose);
 
   const addWarning = useCallback(
     (warning: string) => {
@@ -176,19 +177,6 @@ export function DesktopSession({
     )
   );
 
-  useListener(
-    client.onTransportClose,
-    useCallback(
-      error => {
-        setTdpConnectionStatus({
-          status: 'disconnected',
-          message: error?.message,
-        });
-        initialTdpConnectionSucceeded.current = false;
-      },
-      [setTdpConnectionStatus]
-    )
-  );
   useListener(
     client.onTransportOpen,
     useCallback(() => {
@@ -352,7 +340,6 @@ export function DesktopSession({
       <TopBar
         isConnected={screenState.state === 'canvas-visible'}
         onDisconnect={() => {
-          clearSharing();
           client.shutdown();
         }}
         userHost={`${username} on ${desktop}`}

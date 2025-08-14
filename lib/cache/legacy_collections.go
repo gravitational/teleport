@@ -47,7 +47,8 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
-	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -355,15 +356,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.tunnelConnections
-		case types.KindRemoteCluster:
-			if c.Presence == nil {
-				return nil, trace.BadParameter("missing parameter Presence")
-			}
-			collections.remoteClusters = &genericCollection[types.RemoteCluster, remoteClusterGetter, remoteClusterExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.remoteClusters
 		case types.KindAppServer:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -751,7 +743,7 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				return nil, trace.BadParameter("missing upstream IdentityCenter collection")
 			}
 			collections.identityCenterAccounts = &genericCollection[
-				services.IdentityCenterAccount,
+				*identitycenterv1.Account,
 				identityCenterAccountGetter,
 				identityCenterAccountExecutor,
 			]{
@@ -779,7 +771,7 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				return nil, trace.BadParameter("missing parameter IdentityCenter")
 			}
 			collections.identityCenterAccountAssignments = &genericCollection[
-				services.IdentityCenterAccountAssignment,
+				*identitycenterv1.AccountAssignment,
 				identityCenterAccountAssignmentGetter,
 				identityCenterAccountAssignmentExecutor,
 			]{
@@ -899,7 +891,8 @@ var _ executor[types.TunnelConnection, tunnelConnectionGetter] = tunnelConnectio
 type remoteClusterExecutor struct{}
 
 func (remoteClusterExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.RemoteCluster, error) {
-	return cache.Trust.GetRemoteClusters(ctx)
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.Trust.ListRemoteClusters))
+	return out, trace.Wrap(err)
 }
 
 func (remoteClusterExecutor) upsert(ctx context.Context, cache *Cache, resource types.RemoteCluster) error {
@@ -1223,6 +1216,7 @@ func (provisionTokenExecutor) getReader(cache *Cache, cacheOK bool) tokenGetter 
 type tokenGetter interface {
 	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
+	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
 }
 
 var _ executor[types.ProvisionToken, tokenGetter] = provisionTokenExecutor{}
@@ -1555,22 +1549,8 @@ var _ executor[types.Database, services.DatabaseGetter] = databaseExecutor{}
 type databaseObjectExecutor struct{}
 
 func (databaseObjectExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*dbobjectv1.DatabaseObject, error) {
-	var out []*dbobjectv1.DatabaseObject
-	var nextToken string
-	for {
-		var page []*dbobjectv1.DatabaseObject
-		var err error
-
-		page, nextToken, err = cache.DatabaseObjects.ListDatabaseObjects(ctx, 0, nextToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out = append(out, page...)
-		if nextToken == "" {
-			break
-		}
-	}
-	return out, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.DatabaseObjects.ListDatabaseObjects))
+	return out, trace.Wrap(err)
 }
 
 func (databaseObjectExecutor) upsert(ctx context.Context, cache *Cache, resource *dbobjectv1.DatabaseObject) error {
@@ -1600,7 +1580,13 @@ var _ executor[*dbobjectv1.DatabaseObject, services.DatabaseObjectsGetter] = dat
 type appExecutor struct{}
 
 func (appExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Application, error) {
-	return cache.Apps.GetApps(ctx)
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.Apps.ListApps))
+	// TODO(tross): DELETE IN v21.0.0
+	if trace.IsNotImplemented(err) {
+		apps, err := cache.Apps.GetApps(ctx)
+		return apps, trace.Wrap(err)
+	}
+	return out, trace.Wrap(err)
 }
 
 func (appExecutor) upsert(ctx context.Context, cache *Cache, resource types.Application) error {
@@ -1673,30 +1659,21 @@ var _ executor[types.AppServer, appServerGetter] = appServerExecutor{}
 type appSessionExecutor struct{}
 
 func (appSessionExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.WebSession, error) {
-	var (
-		startKey string
-		sessions []types.WebSession
+	out, err := stream.Collect(
+		stream.FilterMap(
+			clientutils.Resources(ctx,
+				func(ctx context.Context, size int, startKey string) ([]types.WebSession, string, error) {
+					return cache.AppSession.ListAppSessions(ctx, size, startKey, "")
+				}),
+			func(ws types.WebSession) (types.WebSession, bool) {
+				if !loadSecrets {
+					return ws.WithoutSecrets(), true
+				}
+
+				return ws, true
+			}),
 	)
-	for {
-		webSessions, nextKey, err := cache.AppSession.ListAppSessions(ctx, 0, startKey, "")
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if !loadSecrets {
-			for i := 0; i < len(webSessions); i++ {
-				webSessions[i] = webSessions[i].WithoutSecrets()
-			}
-		}
-
-		sessions = append(sessions, webSessions...)
-
-		if nextKey == "" {
-			break
-		}
-		startKey = nextKey
-	}
-	return sessions, nil
+	return out, trace.Wrap(err)
 }
 
 func (appSessionExecutor) upsert(ctx context.Context, cache *Cache, resource types.WebSession) error {
@@ -2368,20 +2345,8 @@ var _ executor[types.WindowsDesktop, windowsDesktopsGetter] = windowsDesktopsExe
 type dynamicWindowsDesktopsExecutor struct{}
 
 func (dynamicWindowsDesktopsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.DynamicWindowsDesktop, error) {
-	var desktops []types.DynamicWindowsDesktop
-	next := ""
-	for {
-		d, token, err := cache.Config.DynamicWindowsDesktops.ListDynamicWindowsDesktops(ctx, defaults.MaxIterationLimit, next)
-		if err != nil {
-			return nil, err
-		}
-		desktops = append(desktops, d...)
-		if token == "" {
-			break
-		}
-		next = token
-	}
-	return desktops, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.DynamicWindowsDesktops.ListDynamicWindowsDesktops))
+	return out, trace.Wrap(err)
 }
 
 func (dynamicWindowsDesktopsExecutor) upsert(ctx context.Context, cache *Cache, resource types.DynamicWindowsDesktop) error {
@@ -2455,24 +2420,8 @@ type kubernetesClusterGetter interface {
 type kubeWaitingContainerExecutor struct{}
 
 func (kubeWaitingContainerExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
-	var (
-		startKey string
-		allConts []*kubewaitingcontainerpb.KubernetesWaitingContainer
-	)
-	for {
-		conts, nextKey, err := cache.KubeWaitingContainers.ListKubernetesWaitingContainers(ctx, 0, startKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		allConts = append(allConts, conts...)
-
-		if nextKey == "" {
-			break
-		}
-		startKey = nextKey
-	}
-	return allConts, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.KubeWaitingContainers.ListKubernetesWaitingContainers))
+	return out, trace.Wrap(err)
 }
 
 func (kubeWaitingContainerExecutor) upsert(ctx context.Context, cache *Cache, resource *kubewaitingcontainerpb.KubernetesWaitingContainer) error {
@@ -2522,24 +2471,8 @@ var _ executor[*kubewaitingcontainerpb.KubernetesWaitingContainer, kubernetesWai
 type staticHostUserExecutor struct{}
 
 func (staticHostUserExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*userprovisioningpb.StaticHostUser, error) {
-	var (
-		startKey string
-		allUsers []*userprovisioningpb.StaticHostUser
-	)
-	for {
-		users, nextKey, err := cache.StaticHostUsers.ListStaticHostUsers(ctx, 0, startKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		allUsers = append(allUsers, users...)
-
-		if nextKey == "" {
-			break
-		}
-		startKey = nextKey
-	}
-	return allUsers, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.StaticHostUsers.ListStaticHostUsers))
+	return out, trace.Wrap(err)
 }
 
 func (staticHostUserExecutor) upsert(ctx context.Context, cache *Cache, resource *userprovisioningpb.StaticHostUser) error {
@@ -2572,22 +2505,10 @@ type staticHostUserGetter interface {
 type crownJewelsExecutor struct{}
 
 func (crownJewelsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*crownjewelv1.CrownJewel, error) {
-	var resources []*crownjewelv1.CrownJewel
-	var nextToken string
-	for {
-		var page []*crownjewelv1.CrownJewel
-		var err error
-		page, nextToken, err = cache.CrownJewels.ListCrownJewels(ctx, 0 /* page size */, nextToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resources = append(resources, page...)
-
-		if nextToken == "" {
-			break
-		}
-	}
-	return resources, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, i int, nextToken string) ([]*crownjewelv1.CrownJewel, string, error) {
+		return cache.CrownJewels.ListCrownJewels(ctx, int64(i), nextToken)
+	}))
+	return out, trace.Wrap(err)
 }
 
 func (crownJewelsExecutor) upsert(ctx context.Context, cache *Cache, resource *crownjewelv1.CrownJewel) error {
@@ -2617,22 +2538,10 @@ var _ executor[*crownjewelv1.CrownJewel, crownjewelsGetter] = crownJewelsExecuto
 type userTasksExecutor struct{}
 
 func (userTasksExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*usertasksv1.UserTask, error) {
-	var resources []*usertasksv1.UserTask
-	var nextToken string
-	for {
-		var page []*usertasksv1.UserTask
-		var err error
-		page, nextToken, err = cache.UserTasks.ListUserTasks(ctx, 0 /* page size */, nextToken, &usertasksv1.ListUserTasksFilters{})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resources = append(resources, page...)
-
-		if nextToken == "" {
-			break
-		}
-	}
-	return resources, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, size int, nextToken string) ([]*usertasksv1.UserTask, string, error) {
+		return cache.UserTasks.ListUserTasks(ctx, int64(size), nextToken, &usertasksv1.ListUserTasksFilters{})
+	}))
+	return out, trace.Wrap(err)
 }
 
 func (userTasksExecutor) upsert(ctx context.Context, cache *Cache, resource *usertasksv1.UserTask) error {
@@ -2663,26 +2572,8 @@ var _ executor[*usertasksv1.UserTask, userTasksGetter] = userTasksExecutor{}
 type samlIdPServiceProvidersExecutor struct{}
 
 func (samlIdPServiceProvidersExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.SAMLIdPServiceProvider, error) {
-	var (
-		startKey string
-		sps      []types.SAMLIdPServiceProvider
-	)
-	for {
-		var samlProviders []types.SAMLIdPServiceProvider
-		var err error
-		samlProviders, startKey, err = cache.SAMLIdPServiceProviders.ListSAMLIdPServiceProviders(ctx, 0, startKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		sps = append(sps, samlProviders...)
-
-		if startKey == "" {
-			break
-		}
-	}
-
-	return sps, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.SAMLIdPServiceProviders.ListSAMLIdPServiceProviders))
+	return out, trace.Wrap(err)
 }
 
 func (samlIdPServiceProvidersExecutor) upsert(ctx context.Context, cache *Cache, resource types.SAMLIdPServiceProvider) error {
@@ -2720,26 +2611,8 @@ var _ executor[types.SAMLIdPServiceProvider, samlIdPServiceProviderGetter] = sam
 type userGroupsExecutor struct{}
 
 func (userGroupsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.UserGroup, error) {
-	var (
-		startKey  string
-		resources []types.UserGroup
-	)
-	for {
-		var userGroups []types.UserGroup
-		var err error
-		userGroups, startKey, err = cache.UserGroups.ListUserGroups(ctx, 0, startKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		resources = append(resources, userGroups...)
-
-		if startKey == "" {
-			break
-		}
-	}
-
-	return resources, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.UserGroups.ListUserGroups))
+	return out, trace.Wrap(err)
 }
 
 func (userGroupsExecutor) upsert(ctx context.Context, cache *Cache, resource types.UserGroup) error {
@@ -2777,26 +2650,8 @@ var _ executor[types.UserGroup, userGroupGetter] = userGroupsExecutor{}
 type oktaImportRulesExecutor struct{}
 
 func (oktaImportRulesExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.OktaImportRule, error) {
-	var (
-		startKey  string
-		resources []types.OktaImportRule
-	)
-	for {
-		var importRules []types.OktaImportRule
-		var err error
-		importRules, startKey, err = cache.Okta.ListOktaImportRules(ctx, 0, startKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		resources = append(resources, importRules...)
-
-		if startKey == "" {
-			break
-		}
-	}
-
-	return resources, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.Okta.ListOktaImportRules))
+	return out, trace.Wrap(err)
 }
 
 func (oktaImportRulesExecutor) upsert(ctx context.Context, cache *Cache, resource types.OktaImportRule) error {
@@ -2834,26 +2689,8 @@ var _ executor[types.OktaImportRule, oktaImportRuleGetter] = oktaImportRulesExec
 type oktaAssignmentsExecutor struct{}
 
 func (oktaAssignmentsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.OktaAssignment, error) {
-	var (
-		startKey  string
-		resources []types.OktaAssignment
-	)
-	for {
-		var assignments []types.OktaAssignment
-		var err error
-		assignments, startKey, err = cache.Okta.ListOktaAssignments(ctx, 0, startKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		resources = append(resources, assignments...)
-
-		if startKey == "" {
-			break
-		}
-	}
-
-	return resources, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.Okta.ListOktaAssignments))
+	return out, trace.Wrap(err)
 }
 
 func (oktaAssignmentsExecutor) upsert(ctx context.Context, cache *Cache, resource types.OktaAssignment) error {
@@ -2905,26 +2742,8 @@ type resourceGetter interface {
 type integrationsExecutor struct{}
 
 func (integrationsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Integration, error) {
-	var (
-		startKey  string
-		resources []types.Integration
-	)
-	for {
-		var igs []types.Integration
-		var err error
-		igs, startKey, err = cache.Integrations.ListIntegrations(ctx, 0, startKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		resources = append(resources, igs...)
-
-		if startKey == "" {
-			break
-		}
-	}
-
-	return resources, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.Integrations.ListIntegrations))
+	return out, trace.Wrap(err)
 }
 
 func (integrationsExecutor) upsert(ctx context.Context, cache *Cache, resource types.Integration) error {
@@ -2957,24 +2776,8 @@ var _ executor[types.Integration, services.IntegrationsGetter] = integrationsExe
 type discoveryConfigExecutor struct{}
 
 func (discoveryConfigExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*discoveryconfig.DiscoveryConfig, error) {
-	var discoveryConfigs []*discoveryconfig.DiscoveryConfig
-	var nextToken string
-	for {
-		var page []*discoveryconfig.DiscoveryConfig
-		var err error
-
-		page, nextToken, err = cache.DiscoveryConfigs.ListDiscoveryConfigs(ctx, 0 /* default page size */, nextToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		discoveryConfigs = append(discoveryConfigs, page...)
-
-		if nextToken == "" {
-			break
-		}
-	}
-	return discoveryConfigs, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.DiscoveryConfigs.ListDiscoveryConfigs))
+	return out, trace.Wrap(err)
 }
 
 func (discoveryConfigExecutor) upsert(ctx context.Context, cache *Cache, resource *discoveryconfig.DiscoveryConfig) error {
@@ -3004,22 +2807,8 @@ var _ executor[*discoveryconfig.DiscoveryConfig, services.DiscoveryConfigsGetter
 type auditQueryExecutor struct{}
 
 func (auditQueryExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*secreports.AuditQuery, error) {
-	var out []*secreports.AuditQuery
-	var nextToken string
-	for {
-		var page []*secreports.AuditQuery
-		var err error
-
-		page, nextToken, err = cache.secReportsCache.ListSecurityAuditQueries(ctx, 0 /* default page size */, nextToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out = append(out, page...)
-		if nextToken == "" {
-			break
-		}
-	}
-	return out, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.secReportsCache.ListSecurityAuditQueries))
+	return out, trace.Wrap(err)
 }
 
 func (auditQueryExecutor) upsert(ctx context.Context, cache *Cache, resource *secreports.AuditQuery) error {
@@ -3049,22 +2838,8 @@ var _ executor[*secreports.AuditQuery, services.SecurityAuditQueryGetter] = audi
 type secReportExecutor struct{}
 
 func (secReportExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*secreports.Report, error) {
-	var out []*secreports.Report
-	var nextToken string
-	for {
-		var page []*secreports.Report
-		var err error
-
-		page, nextToken, err = cache.secReportsCache.ListSecurityReports(ctx, 0 /* default page size */, nextToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out = append(out, page...)
-		if nextToken == "" {
-			break
-		}
-	}
-	return out, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.secReportsCache.ListSecurityReports))
+	return out, trace.Wrap(err)
 }
 
 func (secReportExecutor) upsert(ctx context.Context, cache *Cache, resource *secreports.Report) error {
@@ -3094,22 +2869,8 @@ var _ executor[*secreports.Report, services.SecurityReportGetter] = secReportExe
 type secReportStateExecutor struct{}
 
 func (secReportStateExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*secreports.ReportState, error) {
-	var out []*secreports.ReportState
-	var nextToken string
-	for {
-		var page []*secreports.ReportState
-		var err error
-
-		page, nextToken, err = cache.secReportsCache.ListSecurityReportsStates(ctx, 0 /* default page size */, nextToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out = append(out, page...)
-		if nextToken == "" {
-			break
-		}
-	}
-	return out, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.secReportsCache.ListSecurityReportsStates))
+	return out, trace.Wrap(err)
 }
 
 func (secReportStateExecutor) upsert(ctx context.Context, cache *Cache, resource *secreports.ReportState) error {
@@ -3170,23 +2931,8 @@ var _ executor[*userloginstate.UserLoginState, services.UserLoginStatesGetter] =
 type accessListExecutor struct{}
 
 func (accessListExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accesslist.AccessList, error) {
-	var resources []*accesslist.AccessList
-	var nextToken string
-	for {
-		var page []*accesslist.AccessList
-		var err error
-		page, nextToken, err = cache.AccessLists.ListAccessLists(ctx, 0 /* page size */, nextToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		resources = append(resources, page...)
-
-		if nextToken == "" {
-			break
-		}
-	}
-	return resources, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.AccessLists.ListAccessLists))
+	return out, trace.Wrap(err)
 }
 
 func (accessListExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.AccessList) error {
@@ -3220,23 +2966,8 @@ type accessListsGetter interface {
 type accessListMemberExecutor struct{}
 
 func (accessListMemberExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accesslist.AccessListMember, error) {
-	var resources []*accesslist.AccessListMember
-	var nextToken string
-	for {
-		var page []*accesslist.AccessListMember
-		var err error
-		page, nextToken, err = cache.AccessLists.ListAllAccessListMembers(ctx, 0 /* page size */, nextToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		resources = append(resources, page...)
-
-		if nextToken == "" {
-			break
-		}
-	}
-	return resources, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.AccessLists.ListAllAccessListMembers))
+	return out, trace.Wrap(err)
 }
 
 func (accessListMemberExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.AccessListMember) error {
@@ -3273,23 +3004,8 @@ type accessListMembersGetter interface {
 type accessListReviewExecutor struct{}
 
 func (accessListReviewExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accesslist.Review, error) {
-	var resources []*accesslist.Review
-	var nextToken string
-	for {
-		var page []*accesslist.Review
-		var err error
-		page, nextToken, err = cache.AccessLists.ListAllAccessListReviews(ctx, 0 /* page size */, nextToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		resources = append(resources, page...)
-
-		if nextToken == "" {
-			break
-		}
-	}
-	return resources, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.AccessLists.ListAllAccessListReviews))
+	return out, trace.Wrap(err)
 }
 
 func (accessListReviewExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.Review) error {
@@ -3340,22 +3056,8 @@ type notificationGetter interface {
 type userNotificationExecutor struct{}
 
 func (userNotificationExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*notificationsv1.Notification, error) {
-	var notifications []*notificationsv1.Notification
-	var startKey string
-	for {
-		notifs, nextKey, err := cache.notificationsCache.ListUserNotifications(ctx, 0, startKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		notifications = append(notifications, notifs...)
-
-		if nextKey == "" {
-			break
-		}
-		startKey = nextKey
-	}
-
-	return notifications, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.notificationsCache.ListUserNotifications))
+	return out, trace.Wrap(err)
 }
 
 func (userNotificationExecutor) upsert(ctx context.Context, cache *Cache, notification *notificationsv1.Notification) error {
@@ -3403,23 +3105,8 @@ var _ executor[*notificationsv1.Notification, notificationGetter] = userNotifica
 type globalNotificationExecutor struct{}
 
 func (globalNotificationExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*notificationsv1.GlobalNotification, error) {
-	var notifications []*notificationsv1.GlobalNotification
-	var startKey string
-	for {
-		notifs, nextKey, err := cache.notificationsCache.ListGlobalNotifications(ctx, 0, startKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		notifications = append(notifications, notifs...)
-
-		if nextKey == "" {
-			break
-		}
-		startKey = nextKey
-	}
-
-	return notifications, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.notificationsCache.ListGlobalNotifications))
+	return out, trace.Wrap(err)
 }
 
 func (globalNotificationExecutor) upsert(ctx context.Context, cache *Cache, notification *notificationsv1.GlobalNotification) error {
@@ -3466,22 +3153,8 @@ var _ executor[*notificationsv1.GlobalNotification, notificationGetter] = global
 type accessMonitoringRulesExecutor struct{}
 
 func (accessMonitoringRulesExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-	var resources []*accessmonitoringrulesv1.AccessMonitoringRule
-	var nextToken string
-	for {
-		var page []*accessmonitoringrulesv1.AccessMonitoringRule
-		var err error
-		page, nextToken, err = cache.AccessMonitoringRules.ListAccessMonitoringRules(ctx, 0 /* page size */, nextToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resources = append(resources, page...)
-
-		if nextToken == "" {
-			break
-		}
-	}
-	return resources, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.AccessMonitoringRules.ListAccessMonitoringRules))
+	return out, trace.Wrap(err)
 }
 
 func (accessMonitoringRulesExecutor) upsert(ctx context.Context, cache *Cache, resource *accessmonitoringrulesv1.AccessMonitoringRule) error {

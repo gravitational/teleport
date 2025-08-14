@@ -22,20 +22,22 @@ import (
 	"crypto/rsa"
 	"log/slog"
 	"sync"
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = slog.With(teleport.ComponentKey, teleport.ComponentKeyGen)
+var (
+	log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentKeyGen)
 
-// precomputedKeys is a queue of cached keys ready for usage.
-var precomputedKeys = make(chan *rsa.PrivateKey, 25)
+	// PrecomputedKeys is a queue of cached keys ready for usage.
+	PrecomputedKeys = make(chan *rsa.PrivateKey, 25)
 
-// startPrecomputeOnce is used to start the background task that precomputes key pairs.
-var startPrecomputeOnce sync.Once
+	// StartPrecomputeOnce is used to start the background task that precomputes key pairs.
+	StartPrecomputeOnce sync.Once
+)
 
 // GenerateKey returns a newly generated RSA private key.
 func GenerateKey() (*rsa.PrivateKey, error) {
@@ -44,7 +46,7 @@ func GenerateKey() (*rsa.PrivateKey, error) {
 
 func getOrGenerateRSAPrivateKey() (*rsa.PrivateKey, error) {
 	select {
-	case k := <-precomputedKeys:
+	case k := <-PrecomputedKeys:
 		return k, nil
 	default:
 		rsaKeyPair, err := generateRSAPrivateKey()
@@ -70,60 +72,15 @@ func precomputeKeys() {
 			time.Sleep(backoff)
 		}
 
-		precomputedKeys <- rsaPrivateKey
+		PrecomputedKeys <- rsaPrivateKey
 	}
-}
-
-func precomputeTestKeys() {
-	generatedTestKeys := generateTestKeys()
-	keysToReuse := make([]*rsa.PrivateKey, 0, testKeysNumber)
-	for range testKeysNumber {
-		k := <-generatedTestKeys
-		precomputedKeys <- k
-		keysToReuse = append(keysToReuse, k)
-	}
-	for {
-		for _, k := range keysToReuse {
-			precomputedKeys <- k
-		}
-	}
-}
-
-// testKeysNumber is the number of RSA keys generated in tests.
-const testKeysNumber = 25
-
-func generateTestKeys() <-chan *rsa.PrivateKey {
-	generatedTestKeys := make(chan *rsa.PrivateKey, testKeysNumber)
-	for range testKeysNumber {
-		// Generate each key in a separate goroutine to take advantage of
-		// multiple cores if possible.
-		go func() {
-			private, err := generateRSAPrivateKey()
-			if err != nil {
-				// Use only in tests. Safe to panic.
-				panic(err)
-			}
-			generatedTestKeys <- private
-		}()
-	}
-	return generatedTestKeys
 }
 
 // PrecomputeKeys sets this package into a mode where a small backlog of keys are
 // computed in advance. This should only be enabled if large spikes in key computation
 // are expected (e.g. in auth/proxy services). Safe to double-call.
 func PrecomputeKeys() {
-	startPrecomputeOnce.Do(func() {
+	StartPrecomputeOnce.Do(func() {
 		go precomputeKeys()
-	})
-}
-
-// PrecomputeTestKeys generates a fixed number of RSA keys and reuses them to
-// reduce CPU usage. This method should only be in tests. Safe to call multiple
-// times. This function takes *testing.M so it can only be used from TestMain in
-// tests.
-func PrecomputeTestKeys(_ *testing.M) {
-	startPrecomputeOnce.Do(func() {
-		go precomputeTestKeys()
 	})
 }

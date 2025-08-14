@@ -1,6 +1,9 @@
 ---
 title: Generate Teleport Roles from an External RBAC System
 description: Use Teleport's API to automatically generate Teleport roles based on third-party RBAC policies
+labels:
+ - how-to
+ - zero-trust
 ---
 
 You can use the Teleport gRPC API to generate roles automatically based on an
@@ -17,8 +20,16 @@ This is especially useful for:
   unexpectedly gain or lose permissions if your teams reconfigure your external
   RBAC systems.
 
+## How it works
+
 In this guide, we will build a small demo application to show you how to
-generate Teleport roles using Teleport's API client library.
+generate Teleport roles using Teleport's API client library. 
+
+The application authenticates to the Teleport Auth Service gRPC API as well as
+your Kubernetes API server, and loads the role bindings and cluster role
+bindings from the Kubernetes API server. For each role binding and cluster role
+binding, the application generates a Teleport role using logic that maps the
+fields in the former to the fields in the latter.
 
 <Admonition type="danger">
 

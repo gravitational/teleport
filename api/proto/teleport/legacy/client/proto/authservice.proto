@@ -1094,7 +1094,14 @@ message DatabaseCertRequest {
   Extensions CertificateExtensions = 6 [(gogoproto.jsontag) = "certificate_extensions"];
 
   // CRLEndpoint is a certificate revocation list distribution point. Required for Windows smartcard certs.
-  string CRLEndpoint = 7 [(gogoproto.jsontag) = "crl_endpoint"];
+  // DEPRECATED: use CRLDomain instead.
+  string CRLEndpoint = 7 [
+    (gogoproto.jsontag) = "crl_endpoint",
+    deprecated = true
+  ];
+
+  // CRLDomain is the Active Directory domain where CRLs are published.
+  string CRLDomain = 8 [(gogoproto.jsontag) = "crl_domain"];
 }
 
 // DatabaseCertResponse contains the signed certificate.
@@ -1594,6 +1601,24 @@ message ReplaceRemoteLocksRequest {
   repeated types.LockV2 Locks = 2;
 }
 
+// ListAppsRequest is a request for a page of registered applications.
+message ListAppsRequest {
+  // Limit is the maximum amount of resources to retrieve.
+  int32 limit = 1;
+  // StartKey is used to start listing resources from a specific spot. It
+  // should be set to the previous NextKey value if using pagination, or
+  // left empty.
+  string start_key = 2;
+}
+
+// ListAppsResponse contains a page of registered applications.
+message ListAppsResponse {
+  // Applictaions is a list of applications.
+  repeated types.AppV3 applications = 1;
+  // NextKey is the key for the next page of applications.
+  string next_key = 2;
+}
+
 // GetWindowsDesktopServicesResponse contains all registered Windows desktop services.
 message GetWindowsDesktopServicesResponse {
   // Services is a list of Windows desktop services.
@@ -1643,7 +1668,7 @@ message ListWindowsDesktopsRequest {
 message ListWindowsDesktopsResponse {
   // Desktops is a list of Windows desktop hosts.
   repeated types.WindowsDesktopV3 desktops = 1;
-  // NextKey is the key for the next page of SAML IdP service providers.
+  // NextKey is the key for the next page of desktops.
   string next_key = 2;
 }
 
@@ -1669,9 +1694,12 @@ message WindowsDesktopCertRequest {
   // CSR is the request to sign in PEM format.
   bytes CSR = 1;
   // CRLEndpoint is the address of the CRL for this certificate.
-  string CRLEndpoint = 2;
+  // DEPRECATED: use CRLDomain instead.
+  string CRLEndpoint = 2 [deprecated = true];
   // TTL is the certificate validity period.
   int64 TTL = 3 [(gogoproto.casttype) = "Duration"];
+  // CRLDomain is the Active Directory domain where CRLs are published.
+  string CRLDomain = 4;
 }
 
 // WindowsDesktopCertResponse contains the signed Windows RDP certificate.
@@ -2507,6 +2535,9 @@ message UpstreamInventoryPong {
 
 // UpstreamInventoryHello is the hello message sent up the inventory control stream.
 message UpstreamInventoryHello {
+  reserved 7;
+  reserved "UpdaterV2Info";
+
   // Version advertises the teleport version of the instance.
   string Version = 1;
   // ServerID advertises the server ID of the instance.
@@ -2527,6 +2558,8 @@ message UpstreamInventoryHello {
   string ExternalUpgrader = 5;
   // ExternalUpgraderVersion identifies the external upgrader version. Empty if no upgrader is defined.
   string ExternalUpgraderVersion = 6;
+  // UpdaterInfo is used by Teleport to send information about how the Teleport updater is doing.
+  types.UpdaterV2Info UpdaterInfo = 8;
 }
 
 // UpstreamInventoryAgentMetadata is the message sent up the inventory control stream containing
@@ -2654,6 +2687,9 @@ message UpstreamInventoryGoodbye {
   // DeleteResources indicates that any heartbeats received from
   // the instance should be terminated when the stream is closed.
   bool DeleteResources = 1;
+  // SoftReload indicates that the instance started a new Teleport process
+  // and will gracefully exit once all the currently served sessions are over.
+  bool SoftReload = 2;
 }
 
 // InventoryStatusRequest requests inventory status info.
@@ -2891,6 +2927,35 @@ message AccessRequestAllowedPromotionRequest {
 message AccessRequestAllowedPromotionResponse {
   // allowedPromotions is the list of allowed promotions for the access request.
   types.AccessRequestAllowedPromotions allowedPromotions = 1;
+}
+
+// ListProvisionTokensRequest is used to retrieve a paginated list of provision tokens.
+message ListProvisionTokensRequest {
+  // Limit is the maximum amount of items per page.
+  int32 Limit = 1;
+
+  // StartKey is used to resume a query in order to enable pagination.
+  // If the previous response had NextKey set then this should be
+  // set to its value. Otherwise leave empty.
+  string StartKey = 2;
+
+  // FilterRoles allows filtering for tokens with the provided roles. Tokens
+  // with ANY of the provided roles are returned.
+  repeated string FilterRoles = 3;
+
+  // FilterBotName allows filtering for tokens associated with the
+  // named bot. In addition, only items with a role of Bot are returned.
+  string FilterBotName = 4;
+}
+
+// ListProvisionTokensResponse is used to retrieve a paginated list of provision tokens.
+message ListProvisionTokensResponse {
+  // Tokens is the list of tokens.
+  repeated types.ProvisionTokenV2 Tokens = 1;
+
+  // NextKey is used to resume a query in order to enable pagination.
+  // Leave empty to start at the beginning.
+  string NextKey = 2;
 }
 
 // AuthService is authentication/authorization service implementation
@@ -3367,6 +3432,8 @@ service AuthService {
   rpc GetToken(types.ResourceRequest) returns (types.ProvisionTokenV2);
   // GetToken retrieves all tokens.
   rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
+  // ListToken retrieves a paginated list of filtered provision tokens.
+  rpc ListProvisionTokens(ListProvisionTokensRequest) returns (ListProvisionTokensResponse);
   // CreateTokenV2 creates a token in a backend.
   rpc CreateTokenV2(CreateTokenV2Request) returns (google.protobuf.Empty);
   // UpsertTokenV2 upserts a token in a backend.
@@ -3460,6 +3527,8 @@ service AuthService {
 
   // GetApps returns all registered applications.
   rpc GetApps(google.protobuf.Empty) returns (types.AppV3List);
+  // ListApps returns a page of registered applications.
+  rpc ListApps(ListAppsRequest) returns (ListAppsResponse);
   // GetApp returns an application by name.
   rpc GetApp(types.ResourceRequest) returns (types.AppV3);
   // CreateApp creates a new application resource.

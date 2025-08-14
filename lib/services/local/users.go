@@ -29,10 +29,9 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -108,11 +107,6 @@ func NewIdentityService(backend backend.Backend) *IdentityService {
 // used in tests. It will use weaker cryptography to minimize the time it takes
 // to perform flakiness tests and decrease the probability of timeouts.
 func NewTestIdentityService(backend backend.Backend) (*IdentityService, error) {
-	if !testing.Testing() {
-		// Don't allow using weak cryptography in production.
-		panic("Attempted to create a test identity service outside of a test")
-	}
-
 	s, err := NewIdentityServiceV2(backend)
 	if err != nil {
 		return nil, trace.Wrap(err)

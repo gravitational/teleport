@@ -197,7 +197,7 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
-							Description: "DocumentDB contains AWS DocumentDB specific metadata.",
+							Description: "DocumentDB contains Amazon DocumentDB-specific metadata.",
 							Optional:    true,
 						},
 						"elasticache": {
@@ -223,7 +223,7 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
 							}),
-							Description: "ElastiCache contains AWS ElastiCache Redis specific metadata.",
+							Description: "ElastiCache contains Amazon ElastiCache Redis-specific metadata.",
 							Optional:    true,
 						},
 						"external_id": {
@@ -372,7 +372,7 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
-							Description: "RedshiftServerless contains AWS Redshift Serverless specific metadata.",
+							Description: "RedshiftServerless contains Amazon Redshift Serverless-specific metadata.",
 							Optional:    true,
 						},
 						"region": {
@@ -1161,7 +1161,7 @@ func GenSchemaClusterNetworkingConfigV2(ctx context.Context) (github_com_hashico
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 				},
 				"session_control_timeout": {
-					Description: "SessionControlTimeout is the session control lease expiry and defines the upper limit of how long a node may be out of contact with the auth server before it begins terminating controlled sessions.",
+					Description: "SessionControlTimeout is the session control lease expiry and defines the upper limit of how long a node may be out of contact with the Auth Service before it begins terminating controlled sessions.",
 					Optional:    true,
 					Type:        DurationType{},
 				},
@@ -1394,7 +1394,7 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"mode": {
-							Description: "Mode of verification for trusted devices.  The following modes are supported:  - \"off\": disables both device authentication and authorization. - \"optional\": allows both device authentication and authorization, but doesn't enforce the presence of device extensions for sensitive endpoints. - \"required\": enforces the presence of device extensions for sensitive endpoints.  Mode is always \"off\" for OSS. Defaults to \"optional\" for Enterprise.",
+							Description: "Mode of verification for trusted devices.  The following modes are supported:  - \"off\": disables both device authentication and authorization. - \"optional\": allows both device authentication and authorization, but doesn't enforce the presence of device extensions for sensitive endpoints. - \"required\": enforces the presence of device extensions for sensitive endpoints. - \"required-for-humans\": enforces the presence of device extensions for sensitive endpoints, for human users only (bots are exempt).  Mode is always \"off\" for OSS. Defaults to \"optional\" for Enterprise.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},

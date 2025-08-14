@@ -773,7 +773,7 @@ func (s *sessionCache) watchWebSessions(ctx context.Context) {
 		return
 	}
 
-	linear := utils.NewDefaultLinear()
+	linear := utils.NewDefaultLinear(s.clock)
 	if s.sessionWatcherStartImmediately {
 		linear.First = 0
 	}

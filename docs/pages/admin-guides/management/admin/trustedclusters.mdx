@@ -1,6 +1,9 @@
 ---
 title: Configure Trusted Clusters
 description: Explains how you can configure a trust relationship and manage access between two Teleport clusters.
+labels:
+ - how-to
+ - zero-trust
 ---
 
 <Admonition type="note">
@@ -110,7 +113,7 @@ configured with a single sign-on identity provider that authenticates her identi
 Based on the information from the identity provider, the root cluster assigns Alice the `full-access` role
 and issues her a certificate. The mapping of single sign-on properties to Teleport roles is configured when
 you add an authentication connector to the Teleport cluster. To learn more about configuring single sign-on
-through an external identity provider, see [Configure Single Sign-on](../../access-controls/sso/sso.mdx).
+through an external identity provider, see [Configure Single Sign-on](../../../zero-trust-access/sso/sso.mdx).
 
 Alice receives the certificate that specifies the roles assigned to her in the root cluster. This metadata
 about her roles is contained in the certificate extensions and is protected by the signature of the root 
@@ -151,7 +154,7 @@ To complete the steps in this guide, verify your environment meets the following
   The two clusters should be at the same version or, at most, the leaf cluster can be one major version 
   behind the root cluster version.
 
-- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=).
+- The `tctl` admin tool and `tsh` client tool.
   
   You can verify the tools you have installed by running the following commands:
 
@@ -163,7 +166,7 @@ To complete the steps in this guide, verify your environment meets the following
   # Teleport v(=teleport.version=) go(=teleport.golang=)
   ```
 
-  For more information about installing Teleport, see [Installation](../../../installation.mdx).
+  For more information about installing Teleport, see [Installation](../../../installation/installation.mdx).
 
 - A Teleport SSH server that is joined to the cluster you plan to use as the **leaf cluster**.
   For information about how to enroll a resource in your cluster, see 

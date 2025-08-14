@@ -38,6 +38,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 )
 
@@ -735,7 +736,7 @@ func TestAuthenticationConfig_RequireSessionMFA(t *testing.T) {
 
 func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 	// Device trust mode=required is an Enterprise feature.
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 	})
 

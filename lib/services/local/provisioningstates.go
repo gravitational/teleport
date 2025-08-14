@@ -50,6 +50,7 @@ func NewProvisioningStateService(backendInstance backend.Backend) (*Provisioning
 		BackendPrefix: backend.NewKey(provisioningStatePrefix),
 		MarshalFunc:   services.MarshalProtoResource[*provisioningv1.PrincipalState],
 		UnmarshalFunc: services.UnmarshalProtoResource[*provisioningv1.PrincipalState],
+		PageLimit:     provisioningStatePageSize,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -122,22 +123,28 @@ func (ss *ProvisioningStateService) GetProvisioningState(ctx context.Context, do
 	return state, nil
 }
 
-// GetProvisioningState fetches a provisioning state record from the supplied
+// ListProvisioningStates fetches a page of provisioning state records from the supplied
 // downstream
 func (ss *ProvisioningStateService) ListProvisioningStates(ctx context.Context, downstreamID services.DownstreamID, pageSize int, page *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error) {
-	if pageSize == 0 {
-		pageSize = provisioningStatePageSize
-	}
-
 	token, err := page.Consume()
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	resp, nextPage, err := ss.service.WithPrefix(string(downstreamID)).ListResources(ctx, pageSize, token)
+	resp, nextPage, err := ss.ListProvisioningStates2(ctx, downstreamID, pageSize, token)
 	if err != nil {
 		return nil, "", trace.Wrap(err, "listing provisioning state records")
 	}
 	return resp, pagination.NextPageToken(nextPage), nil
+}
+
+// ListProvisioningStates fetches a page of provisioning state records from the supplied
+// downstream
+func (ss *ProvisioningStateService) ListProvisioningStates2(ctx context.Context, downstreamID services.DownstreamID, pageSize int, pageToken string) ([]*provisioningv1.PrincipalState, string, error) {
+	resp, nextPage, err := ss.service.WithPrefix(string(downstreamID)).ListResources(ctx, pageSize, pageToken)
+	if err != nil {
+		return nil, "", trace.Wrap(err, "listing provisioning state records")
+	}
+	return resp, nextPage, nil
 }
 
 // ListProvisioningStatesForAllDownstreams lists all provisioning state records for all
@@ -149,19 +156,31 @@ func (ss *ProvisioningStateService) ListProvisioningStatesForAllDownstreams(
 	pageSize int,
 	page *pagination.PageRequestToken,
 ) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error) {
-	if pageSize == 0 {
-		pageSize = provisioningStatePageSize
-	}
-
 	token, err := page.Consume()
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
+	resp, nextPage, err := ss.ListProvisioningStatesForAllDownstreams2(ctx, pageSize, token)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return resp, pagination.NextPageToken(nextPage), nil
+}
+
+// ListProvisioningStatesForAllDownstreams2 lists all provisioning state records for all
+// downstream receivers. Note that the returned record names may not be unique
+// across all downstream receivers. Check the records' `DownstreamID` field
+// to disambiguate.
+func (ss *ProvisioningStateService) ListProvisioningStatesForAllDownstreams2(
+	ctx context.Context,
+	pageSize int,
+	token string,
+) ([]*provisioningv1.PrincipalState, string, error) {
 	resp, nextPage, err := ss.service.ListResources(ctx, pageSize, token)
 	if err != nil {
 		return nil, "", trace.Wrap(err, "listing provisioning state records")
 	}
-	return resp, pagination.NextPageToken(nextPage), nil
+	return resp, nextPage, nil
 }
 
 // DeleteProvisioningState deletes a given principal's provisioning state

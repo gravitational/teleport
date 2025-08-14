@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
 // CRLSet is a collection of CRLs.
@@ -72,6 +73,7 @@ type CRLCache struct {
 	revocationsClient  workloadidentityv1pb.WorkloadIdentityRevocationServiceClient
 	logger             *slog.Logger
 	botIdentityReadyCh <-chan struct{}
+	statusReporter     readyz.Reporter
 
 	mu     sync.Mutex
 	crlSet *CRLSet
@@ -84,6 +86,7 @@ type CRLCacheConfig struct {
 	RevocationsClient  workloadidentityv1pb.WorkloadIdentityRevocationServiceClient
 	Logger             *slog.Logger
 	BotIdentityReadyCh <-chan struct{}
+	StatusReporter     readyz.Reporter
 }
 
 // NewCRLCache creates a new CRLCache.
@@ -94,10 +97,14 @@ func NewCRLCache(cfg CRLCacheConfig) (*CRLCache, error) {
 	case cfg.Logger == nil:
 		return nil, trace.BadParameter("missing Logger")
 	}
+	if cfg.StatusReporter == nil {
+		cfg.StatusReporter = readyz.NoopReporter()
+	}
 	return &CRLCache{
 		revocationsClient:  cfg.RevocationsClient,
 		logger:             cfg.Logger,
 		botIdentityReadyCh: cfg.BotIdentityReadyCh,
+		statusReporter:     cfg.StatusReporter,
 		initialized:        make(chan struct{}),
 	}, nil
 }
@@ -147,6 +154,7 @@ func (m *CRLCache) Run(ctx context.Context) error {
 				"error", err,
 				"backoff", trustBundleInitFailureBackoff,
 			)
+			m.statusReporter.ReportReason(readyz.Unhealthy, err.Error())
 		}
 		select {
 		case <-ctx.Done():
@@ -168,6 +176,7 @@ func (m *CRLCache) watch(ctx context.Context) error {
 		return trace.Wrap(err, "opening CRL stream")
 	}
 
+	m.statusReporter.Report(readyz.Healthy)
 	for {
 		res, err := stream.Recv()
 		if err != nil {

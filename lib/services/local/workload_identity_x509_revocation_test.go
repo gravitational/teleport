@@ -170,9 +170,9 @@ func TestWorkloadIdentityX509RevocationService_List(t *testing.T) {
 
 		// Expect that we get all the things we have created
 		for _, created := range createdObjects {
-			slices.ContainsFunc(page, func(resource *workloadidentityv1pb.WorkloadIdentityX509Revocation) bool {
+			require.True(t, slices.ContainsFunc(page, func(resource *workloadidentityv1pb.WorkloadIdentityX509Revocation) bool {
 				return proto.Equal(created, resource)
-			})
+			}))
 		}
 	})
 	t.Run("pagination", func(t *testing.T) {
@@ -194,9 +194,9 @@ func TestWorkloadIdentityX509RevocationService_List(t *testing.T) {
 		require.Len(t, fetched, 49)
 		// Expect that we get all the things we have created
 		for _, created := range createdObjects {
-			slices.ContainsFunc(fetched, func(resource *workloadidentityv1pb.WorkloadIdentityX509Revocation) bool {
+			require.True(t, slices.ContainsFunc(fetched, func(resource *workloadidentityv1pb.WorkloadIdentityX509Revocation) bool {
 				return proto.Equal(created, resource)
-			})
+			}))
 		}
 	})
 }

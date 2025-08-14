@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 func TestDistrolessTeleportImageRepo(t *testing.T) {
@@ -75,7 +76,7 @@ func TestDistrolessTeleportImageRepo(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			semVer, err := semver.NewVersion(test.version)
 			require.NoError(t, err)
-			modules.SetTestModules(t, &modules.TestModules{TestBuildType: test.buildType})
+			modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: test.buildType})
 			require.Equal(t, test.want, DistrolessImage(*semVer))
 		})
 	}

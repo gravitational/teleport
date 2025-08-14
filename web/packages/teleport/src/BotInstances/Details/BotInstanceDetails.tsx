@@ -17,7 +17,7 @@
  */
 
 import { MouseEventHandler, useCallback } from 'react';
-import { useHistory, useParams } from 'react-router';
+import { useHistory, useLocation, useParams } from 'react-router';
 import styled from 'styled-components';
 
 import { Alert } from 'design/Alert/Alert';
@@ -37,6 +37,7 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout/Layout';
+import cfg from 'teleport/config';
 
 import { useGetBotInstance } from '../hooks';
 
@@ -47,6 +48,7 @@ export function BotInstanceDetails(props: {
   onDocsLinkClickedForTesting?: MouseEventHandler<HTMLAnchorElement>;
 }) {
   const history = useHistory();
+  const location = useLocation();
   const params = useParams<{
     botName: string;
     instanceId: string;
@@ -60,8 +62,13 @@ export function BotInstanceDetails(props: {
   );
 
   const handleBackPress = useCallback(() => {
-    history.goBack();
-  }, [history]);
+    // If location.key is unset, or 'default', this is the first history entry in-app in the session.
+    if (!location.key || location.key === 'default') {
+      history.push(cfg.getBotInstancesRoute());
+    } else {
+      history.goBack();
+    }
+  }, [history, location.key]);
 
   return (
     <FeatureBox>
@@ -104,7 +111,7 @@ export function BotInstanceDetails(props: {
       ) : undefined}
 
       {isError ? (
-        <Alert kind="danger">{`Error: ${error.message}`}</Alert>
+        <Alert kind="danger">Error: {error.message}</Alert>
       ) : undefined}
 
       {isSuccess && data.yaml ? (
@@ -132,15 +139,15 @@ const MonoText = styled(Text)`
 const InstanceId = styled.div`
   display: flex;
   align-items: center;
-  padding-left: 8px;
-  padding-right: 6px;
-  height: 32px;
-  border-radius: 16px;
+  padding-left: ${props => props.theme.space[2]}px;
+  padding-right: ${props => props.theme.space[2]}px;
+  height: ${props => props.theme.space[5]}px;
+  border-radius: ${props => props.theme.space[3]}px;
   background-color: ${({ theme }) => theme.colors.interactive.tonal.neutral[0]};
 `;
 
 const YamlContaner = styled(Flex)`
   flex: 1;
-  border-radius: 8px;
+  border-radius: ${props => props.theme.space[2]}px;
   background-color: ${({ theme }) => theme.colors.levels.elevated};
 `;

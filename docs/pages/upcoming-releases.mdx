@@ -1,6 +1,9 @@
 ---
 title: Teleport Upcoming Releases
 description: A timeline of upcoming Teleport releases.
+labels:
+ - reference
+ - platform-wide
 ---
 
 Teleport releases a new major version approximately every 4 months, and provides
@@ -12,61 +15,39 @@ months.
 
 We plan to release the following versions in the coming months:
 
-| Version | Date                   |
-|---------|------------------------|
-| 18.0.0  | Week of July 7, 2025   |
-| 18.1.0  | Week of August 4, 2025 |
+| Version | Date                      |
+|---------|---------------------------|
+| 18.2.0  | Week of September 1, 2025 |
 
 We continue to support the following major versions of Teleport:
 
 | Release | Release Date      | EOL            | Minimum `tsh` version |
 |---------|-------------------|----------------|-----------------------|
+| v18.x   | July 3, 2025      | August 2026    | v17.0.0               |
 | v17.x   | November 16, 2024 | February 2026  | v16.0.0               |
 | v16.x   | June 14, 2024     | October 2025   | v15.0.0               |
-| v15.x   | January 29, 2024  | June 2025      | v14.0.0               |
 
-### 18.0.0
-
-#### Identity Activity Center
-
-Teleport Identity Security (fka Teleport Policy) will provide an Identity Activity
-Center to allow users to correlate user activity by multiple factors to facilitate
-incident response. The first iteration will support integrations with GitHub, Okta
-and AWS.
-
-#### Automatic access request reviews
-
-Teleport will provide the ability to perform automatic access request reviews based
-on requested roles out of the box.
-
-#### Multi-session MFA for Database Access
-
-Teleport will provide a more user-friendly way to execute queries on multiple
-databases when per-session MFA is enabled, without requiring MFA tap for each
-connection.
-
-#### RBAC for SAML applications
-
-Users will be able to control access to SAML applications using role labels
-similar to other Teleport-protected resources.
-
-#### Database health checks
-
-Teleport will support periodic connectivity checks for connected databases
-and expose database health information to users via web UI and CLI/API.
-
-### 18.1.0
+### 18.2.0
 
 #### Encrypted session recordings
 
 Teleport will provide the ability to integrate with Hardware Security Modules
 (HSMs) in order to encrypt session recordings prior to uploading them to storage.
 
-#### VNet for SSH
+#### Teleport Connect Managed Updates
 
-Teleport VNet will add native support for SSH, enabling any SSH client to connect
-to Teleport SSH servers with zero configuration. Advanced Teleport features like
-per-session MFA will have first-class support for a seamless user experience.
+Teleport Connect will be able to detect when application updates are available and
+automatically apply them on the next restart.
+
+#### Teleport Device Trust Intune Support
+
+Teleport will include a new hosted plugin for Microsoft's Intune suite, allowing
+trusted devices to be synchronized from the Intune inventory.
+
+#### Terraform support for Access List members
+
+Users will be able to provision Access Lists and their members (including other
+nested Access Lists) with terraform.
 
 ## Teleport Cloud
 
@@ -74,8 +55,8 @@ The key deliverables for Teleport Cloud in the next quarter:
 
 | Week of         | Description                                                  |
 |-----------------|--------------------------------------------------------------|
-| August 11, 2025 | Teleport 18.1 will begin rollout on Cloud.                   |
-| August 11, 2025 | Teleport 18.1 agents will begin rollout to eligible tenants. |
+| August 04, 2025 | Teleport 18.1 will begin rollout on Cloud.                   |
+| August 04, 2025 | Teleport 18.1 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 

@@ -181,6 +181,7 @@ const cfg = {
     desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
     users: '/web/users',
     bots: '/web/bots',
+    bot: '/web/bot/:botName',
     botInstances: '/web/bots/instances',
     botInstance: '/web/bot/:botName/instance/:instanceId',
     botsNew: '/web/bots/new/:type?',
@@ -323,7 +324,14 @@ const cfg = {
       createV2: '/v2/webapi/token',
     },
     joinTokenYamlPath: '/v1/webapi/tokens/yaml',
-    joinTokensPath: '/v1/webapi/tokens',
+
+    joinToken: {
+      create: '/v1/webapi/tokens',
+      update: '/v1/webapi/tokens',
+      list: '/v1/webapi/tokens',
+      listV2: '/v2/webapi/tokens',
+    },
+
     dbScriptPath: '/scripts/:token/install-database.sh',
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
@@ -455,11 +463,20 @@ const cfg = {
 
     accessGraphFeatures: '/v1/enterprise/accessgraph/static/features.json',
 
-    botsPath: '/v1/webapi/sites/:clusterId/machine-id/bot/:name?',
     botsTokenPath: '/v1/webapi/sites/:clusterId/machine-id/token',
-    botInstancePath:
-      '/v1/webapi/sites/:clusterId/machine-id/bot/:botName/bot-instance/:instanceId',
-    botInstancesPath: '/v1/webapi/sites/:clusterId/machine-id/bot-instance',
+    bot: {
+      read: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName',
+      list: '/v1/webapi/sites/:clusterId/machine-id/bot',
+      create: '/v1/webapi/sites/:clusterId/machine-id/bot',
+      update: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName',
+      updateV2: '/v2/webapi/sites/:clusterId/machine-id/bot/:botName',
+      delete: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName',
+    },
+
+    botInstance: {
+      read: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName/bot-instance/:instanceId',
+      list: '/v1/webapi/sites/:clusterId/machine-id/bot-instance',
+    },
 
     gcpWorkforceConfigurePath:
       '/v1/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
@@ -680,8 +697,20 @@ const cfg = {
     return cfg.routes.joinTokens;
   },
 
-  getJoinTokensUrl() {
-    return cfg.api.joinTokensPath;
+  getJoinTokenUrl(req: { action: 'list' | 'listV2' | 'create' | 'update' }) {
+    switch (req.action) {
+      case 'create':
+        return generatePath(cfg.api.joinToken.create);
+      case 'update':
+        return generatePath(cfg.api.joinToken.update);
+      case 'list':
+        return generatePath(cfg.api.joinToken.list);
+      case 'listV2':
+        return generatePath(cfg.api.joinToken.listV2);
+      default:
+        req.action satisfies never;
+        return '';
+    }
   },
 
   getJoinTokenYamlUrl() {
@@ -726,6 +755,10 @@ const cfg = {
 
   getBotsRoute() {
     return generatePath(cfg.routes.bots);
+  },
+
+  getBotDetailsRoute(botName: string) {
+    return generatePath(cfg.routes.bot, { botName });
   },
 
   getBotInstancesRoute() {
@@ -1443,28 +1476,76 @@ const cfg = {
     return generatePath(cfg.api.botsTokenPath, { clusterId });
   },
 
-  getBotsUrl() {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.botsPath, { clusterId });
+  getBotUrl(
+    req: (
+      | { action: 'list' | 'create' }
+      | { action: 'read' | 'update' | 'update-v2' | 'delete'; botName: string }
+    ) & { clusterId?: string }
+  ) {
+    const { clusterId = cfg.proxyCluster } = req;
+    switch (req.action) {
+      case 'list':
+        return generatePath(cfg.api.bot.list, {
+          clusterId,
+        });
+      case 'read':
+        return generatePath(cfg.api.bot.read, {
+          clusterId,
+          botName: req.botName,
+        });
+      case 'create':
+        return generatePath(cfg.api.bot.create, {
+          clusterId,
+        });
+      case 'update':
+        return generatePath(cfg.api.bot.update, {
+          clusterId,
+          botName: req.botName,
+        });
+      case 'update-v2':
+        return generatePath(cfg.api.bot.updateV2, {
+          clusterId,
+          botName: req.botName,
+        });
+      case 'delete':
+        return generatePath(cfg.api.bot.delete, {
+          clusterId,
+          botName: req.botName,
+        });
+      default:
+        req satisfies never;
+        return '';
+    }
   },
 
-  getBotUrlWithName(name: string) {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.botsPath, { clusterId, name });
-  },
-
-  listBotInstancesUrl() {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.botInstancesPath, { clusterId });
-  },
-
-  getBotInstanceUrl(botName: string, instanceId: string) {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.botInstancePath, {
-      clusterId,
-      botName,
-      instanceId,
-    });
+  getBotInstanceUrl(
+    req: (
+      | {
+          action: 'list';
+        }
+      | {
+          action: 'read';
+          botName: string;
+          instanceId: string;
+        }
+    ) & { clusterId?: string }
+  ) {
+    const { clusterId = cfg.proxyCluster } = req;
+    switch (req.action) {
+      case 'list':
+        return generatePath(cfg.api.botInstance.list, {
+          clusterId,
+        });
+      case 'read':
+        return generatePath(cfg.api.botInstance.read, {
+          clusterId,
+          botName: req.botName,
+          instanceId: req.instanceId,
+        });
+      default:
+        req satisfies never;
+        return '';
+    }
   },
 
   getGcpWorkforceConfigScriptUrl(p: UrlGcpWorkforceConfigParam) {

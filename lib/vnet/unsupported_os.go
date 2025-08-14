@@ -45,4 +45,5 @@ var (
 	_ = (*osConfigurator).runOSConfigurationLoop
 	_ = runCommand
 	_ = newNetworkStackConfig
+	_ = (*networkStack).addDNSAddress
 )

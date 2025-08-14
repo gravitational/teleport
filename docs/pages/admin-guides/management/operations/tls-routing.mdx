@@ -1,6 +1,9 @@
 ---
 title: TLS Routing Migration
 description: How to upgrade an existing Teleport cluster to single-port TLS routing mode
+labels:
+ - how-to
+ - platform-wide
 ---
 
 In TLS routing mode, all Teleport client connections are wrapped in TLS and
@@ -26,9 +29,6 @@ trial](https://goteleport.com/signup?t_source=docs) of Teleport Enterprise
 Cloud.
 
 ## Prerequisites
-
-Support for TLS routing behind layer 7 (HTTP/HTTPS) load balancers and reverse
-proxies is available starting from Teleport `13.0`.
 
 If you use Teleport Cloud, see which ports and networking settings the Proxy
 Service is configured to use in your Teleport Cloud tenant. Run the following

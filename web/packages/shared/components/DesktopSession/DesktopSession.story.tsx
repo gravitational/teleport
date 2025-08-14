@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react';
+import { Meta } from '@storybook/react-vite';
 
 import DialogConfirmation from 'design/DialogConfirmation';
 import {
@@ -26,8 +26,8 @@ import {
 } from 'shared/hooks/useAsync';
 import {
   BitmapFrame,
-  BrowserFileSystem,
   ClientScreenSpec,
+  selectDirectoryInBrowser,
   TdpClient,
   TdpClientEvent,
 } from 'shared/libs/tdp';
@@ -55,7 +55,7 @@ const meta: Meta = {
 export default meta;
 
 const fakeClient = () => {
-  const client = new TdpClient(() => null, new BrowserFileSystem());
+  const client = new TdpClient(() => null, selectDirectoryInBrowser);
   // Don't try to connect to a websocket.
   client.connect = async spec => {
     emitFrame(client, spec);

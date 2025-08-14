@@ -26,6 +26,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"encoding/base32"
 	"encoding/pem"
 	"fmt"
 	"math/big"
@@ -1264,6 +1265,11 @@ func (id *Identity) IsMFAVerified() bool {
 	return id.MFAVerified != "" || id.PrivateKeyPolicy.MFAVerified()
 }
 
+// IsBot returns whether this identity belongs to a bot.
+func (id *Identity) IsBot() bool {
+	return id.BotName != ""
+}
+
 // CertificateRequest is a X.509 signing certificate request
 type CertificateRequest struct {
 	// Clock is a clock used to get current or test time
@@ -1295,7 +1301,7 @@ func (c *CertificateRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter PublicKey")
 	}
 	if c.Subject.CommonName == "" {
-		return trace.BadParameter("missing parameter Subject.Common name")
+		return trace.BadParameter("missing parameter Subject.CommonName")
 	}
 	if c.NotAfter.IsZero() {
 		return trace.BadParameter("missing parameter NotAfter")
@@ -1330,6 +1336,7 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 		"dns_names":   req.DNSNames,
 		"key_usage":   req.KeyUsage,
 		"common_name": req.Subject.CommonName,
+		"issuer_skid": base32.HexEncoding.EncodeToString(ca.Cert.SubjectKeyId),
 	}).Debug("Generating TLS certificate")
 
 	template := &x509.Certificate{

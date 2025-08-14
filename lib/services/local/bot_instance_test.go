@@ -159,7 +159,7 @@ func createInstances(t *testing.T, ctx context.Context, service *BotInstanceServ
 }
 
 // listInstances fetches all instances from the BotInstanceService matching the botName filter
-func listInstances(t *testing.T, ctx context.Context, service *BotInstanceService, botName string, searchTerm string) []*machineidv1.BotInstance {
+func listInstances(t *testing.T, ctx context.Context, service *BotInstanceService, botName string, searchTerm string, sort *types.SortBy) []*machineidv1.BotInstance {
 	t.Helper()
 
 	var resources []*machineidv1.BotInstance
@@ -168,7 +168,7 @@ func listInstances(t *testing.T, ctx context.Context, service *BotInstanceServic
 	var err error
 
 	for {
-		bis, nextKey, err = service.ListBotInstances(ctx, botName, 0, nextKey, searchTerm)
+		bis, nextKey, err = service.ListBotInstances(ctx, botName, 0, nextKey, searchTerm, sort)
 		require.NoError(t, err)
 
 		resources = append(resources, bis...)
@@ -307,7 +307,7 @@ func TestBotInstanceCRUD(t *testing.T) {
 	require.EqualExportedValues(t, patched, bi2)
 	require.Equal(t, bi.Metadata.Name, bi2.Metadata.Name)
 
-	resources := listInstances(t, ctx, service, "example", "")
+	resources := listInstances(t, ctx, service, "example", "", nil)
 
 	require.Len(t, resources, 1, "must list only 1 bot instance")
 	require.EqualExportedValues(t, patched, resources[0])
@@ -354,14 +354,14 @@ func TestBotInstanceList(t *testing.T) {
 	bIds := createInstances(t, ctx, service, "b", 4)
 
 	// listing "a" should only return known "a" instances
-	aInstances := listInstances(t, ctx, service, "a", "")
+	aInstances := listInstances(t, ctx, service, "a", "", nil)
 	require.Len(t, aInstances, 3)
 	for _, ins := range aInstances {
 		require.Contains(t, aIds, ins.Spec.InstanceId)
 	}
 
 	// listing "b" should only return known "b" instances
-	bInstances := listInstances(t, ctx, service, "b", "")
+	bInstances := listInstances(t, ctx, service, "b", "", nil)
 	require.Len(t, bInstances, 4)
 	for _, ins := range bInstances {
 		require.Contains(t, bIds, ins.Spec.InstanceId)
@@ -376,7 +376,7 @@ func TestBotInstanceList(t *testing.T) {
 	}
 
 	// Listing an empty bot name ("") should return all instances.
-	allInstances := listInstances(t, ctx, service, "", "")
+	allInstances := listInstances(t, ctx, service, "", "", nil)
 	require.Len(t, allInstances, 7)
 	for _, ins := range allInstances {
 		require.Contains(t, allIds, ins.Spec.InstanceId)
@@ -445,10 +445,38 @@ func TestBotInstanceListWithSearchFilter(t *testing.T) {
 			_, err = service.CreateBotInstance(ctx, newBotInstance("bot-not-matched"))
 			require.NoError(t, err)
 
-			instances := listInstances(t, ctx, service, "", tc.searchTerm)
+			instances := listInstances(t, ctx, service, "", tc.searchTerm, nil)
 
 			require.Len(t, instances, 1)
 			require.Equal(t, tc.instance.Spec.InstanceId, instances[0].Spec.InstanceId)
 		})
 	}
+}
+
+// TestBotInstanceListWithSort verifies sorting returns a not-implemented error.
+func TestBotInstanceListWithSort(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+
+	ctx := context.Background()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewBotInstanceService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	_, _, err = service.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
+		Field:  "test_field",
+		IsDesc: true,
+	})
+	require.Error(t, err)
+	require.Equal(t, "unsupported sort, only bot_name:asc is supported, but got \"test_field\" (desc = true)", err.Error())
+
+	_, _, err = service.ListBotInstances(ctx, "", 0, "", "", nil)
+	require.NoError(t, err)
 }

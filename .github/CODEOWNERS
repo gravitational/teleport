@@ -1,4 +1,25 @@
 # Merge rules are governed by logic in the Workflow Bot. Protect the
 # .github/workflows directory (and the merge logic) using CODEOWNERS.
-/.github/workflows/ @klizhentas @russjones @r0mant @zmb3 @fheinecke @camscale @tcsc @rosstimothy
-/build.assets/tooling/cmd/difftest/ @klizhentas @russjones @r0mant @zmb3
+/.github/workflows/ @klizhentas @russjones @r0mant @zmb3 @fheinecke @camscale @doggydogworld @rosstimothy
+/.github/actions/ @klizhentas @russjones @r0mant @zmb3 @fheinecke @camscale @doggydogworld @rosstimothy
+/build.assets/tooling/cmd/difftest/ @klizhentas @russjones @r0mant @zmb3 @rosstimothy
+
+# Owners for JS dependency updates.
+/pnpm-lock.yaml @avatus @gzdunek @ravicious @zmb3 @r0mant
+/web/packages/teleterm/package.json @gzdunek @ravicious
+
+# Owners for Go dependency updates.
+/go.mod @russjones @r0mant @zmb3 @rosstimothy
+/api/go.mod @russjones @r0mant @zmb3 @rosstimothy
+/assets/aws/go.mod @russjones @r0mant @zmb3 @rosstimothy
+/assets/backport/go.mod @russjones @r0mant @zmb3 @rosstimothy
+/build.assets/tooling/go.mod @russjones @r0mant @zmb3 @rosstimothy @fheinecke @camscale @doggydogworld
+/integrations/terraform/go.mod @russjones @r0mant @zmb3 @rosstimothy @hugoShaka @tigrato
+/integrations/terraform-mwi/go.mod @russjones @r0mant @zmb3 @rosstimothy @hugoShaka @tigrato @strideynet
+/integrations/event-handler/go.mod @russjones @r0mant @zmb3 @rosstimothy @hugoShaka @tigrato
+
+# Owners for Rust dependency updates.
+/Cargo.toml @russjones @r0mant @zmb3 @rosstimothy @fspmarshall @espadolini
+/tool/fdpass-teleport/Cargo.toml @russjones @r0mant @zmb3 @rosstimothy @fspmarshall @espadolini
+/web/packages/shared/libs/ironrdp/Cargo.toml @russjones @r0mant @zmb3 @rosstimothy @fspmarshall @espadolini @probakowski
+/lib/srv/desktop/rdp/rdpclient/Cargo.toml @russjones @r0mant @zmb3 @rosstimothy @fspmarshall @espadolini @probakowski

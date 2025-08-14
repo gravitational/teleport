@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
@@ -73,6 +74,7 @@ type WorkloadIdentityAPIService struct {
 	resolver         reversetunnelclient.Resolver
 	trustBundleCache *workloadidentity.TrustBundleCache
 	crlCache         *workloadidentity.CRLCache
+	statusReporter   readyz.Reporter
 
 	// client holds the impersonated client for the service
 	client           *apiclient.Client
@@ -123,6 +125,10 @@ func (s *WorkloadIdentityAPIService) setup(ctx context.Context) (err error) {
 	s.attestor, err = workloadattest.NewAttestor(s.log, s.cfg.Attestors)
 	if err != nil {
 		return trace.Wrap(err, "setting up workload attestation")
+	}
+
+	if s.statusReporter == nil {
+		s.statusReporter = readyz.NoopReporter()
 	}
 
 	return nil
@@ -220,7 +226,12 @@ func (s *WorkloadIdentityAPIService) Run(ctx context.Context) error {
 		return nil
 	})
 
-	return trace.Wrap(eg.Wait())
+	s.statusReporter.Report(readyz.Healthy)
+	if err := eg.Wait(); err != nil {
+		s.statusReporter.ReportReason(readyz.Unhealthy, err.Error())
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func (s *WorkloadIdentityAPIService) authenticateClient(
@@ -300,8 +311,13 @@ func (s *WorkloadIdentityAPIService) FetchX509SVID(
 	if err != nil {
 		return trace.Wrap(err, "fetching CRL set from cache")
 	}
+	renewalInterval := cmp.Or(
+		s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime,
+	).RenewalInterval
 
 	var svids []*workloadpb.X509SVID
+	renewalTimer := time.NewTimer(renewalInterval)
+	defer renewalTimer.Stop()
 	for {
 		log.InfoContext(ctx, "Starting to issue X509 SVIDs to workload")
 
@@ -311,6 +327,10 @@ func (s *WorkloadIdentityAPIService) FetchX509SVID(
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			// Reset our renewal timer to renew these freshly fetched SVIDs
+			// renewal_interval from now.
+			renewalTimer.Reset(renewalInterval)
+
 			// The SPIFFE Workload API (5.2.1):
 			//
 			//   If the client is not entitled to receive any X509-SVIDs, then the
@@ -325,7 +345,6 @@ func (s *WorkloadIdentityAPIService) FetchX509SVID(
 					"workload did not pass attestation for any SVIDs",
 				)
 			}
-
 		}
 
 		resp := &workloadpb.X509SVIDResponse{
@@ -369,7 +388,7 @@ func (s *WorkloadIdentityAPIService) FetchX509SVID(
 			log.DebugContext(ctx, "CRL set has been updated, distributing to client")
 			crlSet = newCRLSet
 			continue
-		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval):
+		case <-renewalTimer.C:
 			log.DebugContext(ctx, "Renewal interval reached, renewing SVIDs")
 			svids = nil
 			continue
@@ -698,5 +717,8 @@ func (s *WorkloadIdentityAPIService) ValidateJWTSVID(
 // String returns a human-readable string that can uniquely identify the
 // service.
 func (s *WorkloadIdentityAPIService) String() string {
-	return fmt.Sprintf("%s:%s", config.WorkloadIdentityAPIServiceType, s.cfg.Listen)
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("%s:%s", config.WorkloadIdentityAPIServiceType, s.cfg.Listen),
+	)
 }

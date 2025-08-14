@@ -275,12 +275,21 @@ func (t *TLSServer) Close() error {
 		t.grpcServer.server.Stop()
 		errC <- nil
 	}()
-	errors := []error{}
+
+	var errors []error
 	for i := 0; i < 2; i++ {
-		errors = append(errors, <-errC)
+		if err := <-errC; err != nil {
+			errors = append(errors, err)
+		}
 	}
-	errors = append(errors, t.mux.Close())
-	errors = append(errors, t.clientTLSConfigGenerator.Close())
+
+	if err := t.mux.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+		errors = append(errors, err)
+	}
+
+	if err := t.clientTLSConfigGenerator.Close(); err != nil {
+		errors = append(errors, err)
+	}
 	return trace.NewAggregate(errors...)
 }
 
@@ -294,10 +303,22 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 		t.grpcServer.server.GracefulStop()
 		errC <- nil
 	}()
-	errors := []error{}
+
+	var errors []error
 	for i := 0; i < 2; i++ {
-		errors = append(errors, <-errC)
+		if err := <-errC; err != nil {
+			errors = append(errors, err)
+		}
 	}
+
+	if err := t.mux.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+		errors = append(errors, err)
+	}
+
+	if err := t.clientTLSConfigGenerator.Close(); err != nil {
+		errors = append(errors, err)
+	}
+
 	return trace.NewAggregate(errors...)
 }
 

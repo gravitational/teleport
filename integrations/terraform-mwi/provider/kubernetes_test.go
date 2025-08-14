@@ -95,8 +95,8 @@ func setupKubernetesHarness(
 
 	return testenv.MakeTestServer(
 		t,
-		func(o *testenv.TestServersOpts) {
-			testenv.WithClusterName(t, teleClusterName)(o)
+		func(o *testenv.TestServersOpts) error {
+			testenv.WithClusterName(teleClusterName)(o)
 			testenv.WithConfig(func(cfg *servicecfg.Config) {
 				cfg.Logger = log
 				cfg.Proxy.PublicAddrs = []utils.NetAddr{
@@ -117,8 +117,9 @@ func setupKubernetesHarness(
 				cfg.Kube.ListenAddr = utils.MustParseAddr(
 					helpers.NewListener(t, service.ListenerKube, &cfg.FileDescriptors))
 			})(o)
+			return nil
 		},
-		testenv.WithProxyKube(t),
+		testenv.WithProxyKube(),
 	), kubeMock
 }
 

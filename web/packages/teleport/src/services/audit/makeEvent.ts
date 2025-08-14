@@ -1381,8 +1381,11 @@ export const formatters: Formatters = {
   [eventCodes.CERTIFICATE_CREATED]: {
     type: 'cert.create',
     desc: 'Certificate Issued',
-    format: ({ cert_type, identity: { user } }) => {
+    format: ({ cert_type, identity: { user, usage } }) => {
       if (cert_type === 'user') {
+        if (usage?.includes('usage:windows_desktop')) {
+          return `Windows desktop certificate issued for user [${user}]`;
+        }
         return `User certificate issued for [${user}]`;
       }
       return `Certificate of type [${cert_type}] issued for [${user}]`;
@@ -2123,6 +2126,27 @@ export const formatters: Formatters = {
     desc: 'Automatic Update Version Deleted',
     format: ({ user }) => {
       return `User ${user} deleted the Automatic Update Version`;
+    },
+  },
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER]: {
+    type: 'auto_update_agent_rollout.trigger',
+    desc: 'Automatic Update Agent Rollout Triggered',
+    format: ({ user, groups }) => {
+      return `User ${user} triggered the rollout of the autoupdate rollout groups ${groups}`;
+    },
+  },
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE]: {
+    type: 'auto_update_agent_rollout.force_done',
+    desc: 'Automatic Update Agent Rollout Forced Done.',
+    format: ({ user, groups }) => {
+      return `User ${user} forced to the done state the autoupdate rollout groups ${groups}`;
+    },
+  },
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK]: {
+    type: 'auto_update_agent_rollout.rollback',
+    desc: 'Automatic Update Agent Rollout Rollback',
+    format: ({ user, groups }) => {
+      return `User ${user} rolled back the autoupdate rollout groups ${groups}`;
     },
   },
 };

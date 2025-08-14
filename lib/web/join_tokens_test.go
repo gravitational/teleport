@@ -35,6 +35,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -52,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	libui "github.com/gravitational/teleport/lib/ui"
 	utils "github.com/gravitational/teleport/lib/utils"
@@ -333,6 +335,130 @@ func TestGetTokens(t *testing.T) {
 	}
 }
 
+func TestListProvisionTokens(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	expiry := time.Now().UTC().Add(30 * time.Minute)
+
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
+
+	items := []struct {
+		name string
+		spec types.ProvisionTokenSpecV2
+	}{
+		{
+			name: "test-token-3",
+			spec: types.ProvisionTokenSpecV2{
+				Roles:   types.SystemRoles{types.RoleBot, types.RoleNode},
+				BotName: "bot-2",
+			},
+		},
+		{
+			name: "test-token-1",
+			spec: types.ProvisionTokenSpecV2{
+				Roles: types.SystemRoles{types.RoleNode},
+			},
+		},
+		{
+			name: "test-token-2",
+			spec: types.ProvisionTokenSpecV2{
+				Roles:   types.SystemRoles{types.RoleBot},
+				BotName: "bot-1",
+			},
+		},
+	}
+
+	for _, item := range items {
+		token, err := types.NewProvisionTokenFromSpec(
+			item.name,
+			expiry,
+			item.spec)
+		require.NoError(t, err)
+		err = env.server.Auth().CreateToken(ctx, token)
+		require.NoError(t, err)
+	}
+
+	endpoint := pack.clt.Endpoint("v2", "webapi", "tokens")
+
+	t.Run("paging", func(t *testing.T) {
+		re, err := pack.clt.Get(ctx, endpoint, url.Values{
+			"page_token": []string{""}, // default to the start
+			"page_size":  []string{strconv.Itoa(2)},
+		})
+		require.NoError(t, err)
+		resp := ListProvisionTokensResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+
+		require.Len(t, resp.Items, 2)
+		assert.Equal(t, "test-token-3", resp.NextPageToken)
+		assert.Equal(t, "test-token-1", resp.Items[0].ID)
+		assert.Equal(t, "test-token-2", resp.Items[1].ID)
+
+		re, err = pack.clt.Get(ctx, endpoint, url.Values{
+			"page_token": []string{resp.NextPageToken},
+			"page_size":  []string{strconv.Itoa(2)},
+		})
+		require.NoError(t, err)
+		resp = ListProvisionTokensResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+
+		require.Len(t, resp.Items, 1)
+		assert.Empty(t, resp.NextPageToken)
+		assert.Equal(t, "test-token-3", resp.Items[0].ID)
+	})
+
+	t.Run("filter by roles", func(t *testing.T) {
+		re, err := pack.clt.Get(ctx, endpoint, url.Values{
+			"role": []string{"Node", "Bot"},
+		})
+		require.NoError(t, err)
+		resp := ListProvisionTokensResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, 3)
+
+		re, err = pack.clt.Get(ctx, endpoint, url.Values{
+			"role": []string{"Node"},
+		})
+		require.NoError(t, err)
+		resp = ListProvisionTokensResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, 2)
+		assert.Equal(t, "test-token-1", resp.Items[0].ID)
+		assert.Equal(t, "test-token-3", resp.Items[1].ID)
+
+		re, err = pack.clt.Get(ctx, endpoint, url.Values{
+			"role": []string{"Bot"},
+		})
+		require.NoError(t, err)
+		resp = ListProvisionTokensResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, 2)
+		assert.Equal(t, "test-token-2", resp.Items[0].ID)
+		assert.Equal(t, "test-token-3", resp.Items[1].ID)
+	})
+
+	t.Run("filter by bot name", func(t *testing.T) {
+		re, err := pack.clt.Get(ctx, endpoint, url.Values{
+			"bot_name": []string{""},
+		})
+		require.NoError(t, err)
+		resp := ListProvisionTokensResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, 3)
+
+		re, err = pack.clt.Get(ctx, endpoint, url.Values{
+			"bot_name": []string{"bot-1"},
+		})
+		require.NoError(t, err)
+		resp = ListProvisionTokensResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, 1)
+		assert.Equal(t, "test-token-2", resp.Items[0].ID)
+	})
+}
+
 func TestDeleteToken(t *testing.T) {
 	ctx := context.Background()
 	username := "test-user@example.com"
@@ -474,7 +600,7 @@ func TestEditToken(t *testing.T) {
 func TestCreateTokenExpiry(t *testing.T) {
 	// Can't t.Parallel because of modules.SetTestModules.
 	// Use enterprise build to access token types such as TPM and Spacelift
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Cloud: false,
@@ -1216,7 +1342,7 @@ func (a *autoupdateProxyClientMock) GetClusterCACert(ctx context.Context) (*prot
 }
 
 type autoupdateTestHandlerConfig struct {
-	testModules *modules.TestModules
+	testModules *modulestest.Modules
 	hostname    string
 	port        int
 	channels    automaticupgrades.Channels
@@ -1255,11 +1381,11 @@ func newAutoupdateTestHandler(t *testing.T, config autoupdateTestHandlerConfig) 
 	clt.On("GetClusterCACert", mock.Anything).Return(&proto.GetClusterCACertResponse{TLSCA: []byte(fixtures.SigningCertPEM)}, nil)
 
 	if config.testModules == nil {
-		config.testModules = &modules.TestModules{
+		config.testModules = &modulestest.Modules{
 			TestBuildType: modules.BuildCommunity,
 		}
 	}
-	modules.SetTestModules(t, config.testModules)
+	modulestest.SetTestModules(t, *config.testModules)
 	h := &Handler{
 		clusterFeatures: *config.testModules.Features().ToProto(),
 		cfg: Config{
@@ -1844,7 +1970,7 @@ func TestJoinScript(t *testing.T) {
 		t.Run("ent", func(t *testing.T) {
 			// Using the Enterprise Version, the package name must be teleport-ent
 			h := newAutoupdateTestHandler(t, autoupdateTestHandlerConfig{
-				testModules: &modules.TestModules{TestBuildType: modules.BuildEnterprise},
+				testModules: &modulestest.Modules{TestBuildType: modules.BuildEnterprise},
 				token:       token,
 			})
 			script, err := h.getJoinScript(context.Background(), scriptSettings{token: validToken})
@@ -1865,7 +1991,7 @@ func TestJoinScript(t *testing.T) {
 		t.Run("installUpdater is true", func(t *testing.T) {
 			currentStableCloudVersion := "1.2.3"
 			h := newAutoupdateTestHandler(t, autoupdateTestHandlerConfig{
-				testModules: &modules.TestModules{TestFeatures: modules.Features{Cloud: true, AutomaticUpgrades: true}},
+				testModules: &modulestest.Modules{TestFeatures: modules.Features{Cloud: true, AutomaticUpgrades: true}},
 				token:       token,
 				channels: automaticupgrades.Channels{
 					automaticupgrades.DefaultChannelName: &automaticupgrades.Channel{StaticVersion: currentStableCloudVersion},
@@ -1906,7 +2032,7 @@ func TestJoinScript(t *testing.T) {
 		t.Run("rollout exists and autoupdates are on", func(t *testing.T) {
 			currentStableCloudVersion := "1.1.1"
 			config := autoupdateTestHandlerConfig{
-				testModules: &modules.TestModules{TestFeatures: modules.Features{Cloud: true, AutomaticUpgrades: true}},
+				testModules: &modulestest.Modules{TestFeatures: modules.Features{Cloud: true, AutomaticUpgrades: true}},
 				channels: automaticupgrades.Channels{
 					automaticupgrades.DefaultChannelName: &automaticupgrades.Channel{StaticVersion: currentStableCloudVersion},
 				},
@@ -1937,7 +2063,7 @@ func TestJoinScript(t *testing.T) {
 
 func TestAutomaticUpgrades(t *testing.T) {
 	t.Run("cloud and automatic upgrades enabled", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestFeatures: modules.Features{
 				Cloud:             true,
 				AutomaticUpgrades: true,
@@ -1948,7 +2074,7 @@ func TestAutomaticUpgrades(t *testing.T) {
 		require.True(t, got)
 	})
 	t.Run("cloud but automatic upgrades disabled", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestFeatures: modules.Features{
 				Cloud:             true,
 				AutomaticUpgrades: false,
@@ -1960,7 +2086,7 @@ func TestAutomaticUpgrades(t *testing.T) {
 	})
 
 	t.Run("automatic upgrades enabled but is not cloud", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
 				Cloud:             false,
