@@ -1,0 +1,37 @@
+---
+title: "Step 4: Monitor Audit Logs"
+description: "Explore audit logging features in Teleport Enterprise Cloud."
+tocDepth: 2
+labels:
+  - get-started
+---
+
+Teleport logs cluster activity by emitting various events into its audit log.
+
+This can be viewed in your Teleport Cluster by clicking on the **Audit** tab in the left sidebar and choosing **Audit Log**.
+
+Here you'll see events like successful user logins along with metadata like remote IP address, time, and the session ID.
+
+![View audit log](../../img/get-started/get-started-audit-log@2x.png)
+
+In addition to viewing the audit log, every SSH, desktop, or Kubernetes shell session is recorded and can be replayed. 
+
+These can be viewed by clicking on the **Audit** tab in the left sidebar and choosing **Session Recordings**. There you can click **Play** to see a full recording of a session.
+
+For a more in-depth look at how Teleport's audit system works, including event types and descriptions, storage options, and exporting events, see our [Audit Events and Records guide](../reference/monitoring/audit.mdx).
+
+
+## What's Next?
+
+You've now explored the core steps of getting started with Teleport. However, this is only skimming the surface of what Teleport has to offer. 
+
+At this point, feel free to use the search above to find content that best fits your specific situation.
+
+Here are a few places to start:
+
+- Explore just-in-time access with [Access Requests](../identity-governance/access-requests/access-requests.mdx)
+- Automate onboarding using [Terraform](../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-provider.mdx) or the [Kubernetes Operator](../zero-trust-access/infrastructure-as-code/teleport-operator/teleport-operator.mdx)
+- Integrate Teleport with your [SSO provider](../zero-trust-access/sso/sso.mdx) or even configure Teleport as an [IDP](../identity-governance/idps/idps.mdx)
+- Streamline your RBAC strategy by using [role templates](../zero-trust-access/access-controls/guides/role-templates.mdx) for consistent, scalable permissions, or [access lists](../identity-governance/access-lists/guide.mdx) to grant longer-term access to larger groups of users.
+
+Happy teleporting!
