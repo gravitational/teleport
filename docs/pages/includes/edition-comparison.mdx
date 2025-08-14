@@ -67,7 +67,7 @@ _Available as an add-on to Teleport Enterprise_
 |Auth Service and Proxy Service Management|Self-hosted|Self-hosted|Fully managed|
 |[Backend support](../reference/backends.mdx)|Any S3-compatible storage for session records, many managed backends for custom audit log storage.|Any S3-compatible storage for session records, many managed backends for custom audit log storage|All data is stored in DynamoDB and S3 with server-side encryption.|
 |Data storage location|Can store data anywhere in the world, on most managed cloud backends|Can store data anywhere in the world, on most managed cloud backends|Data is stored in Teleport's AWS infrastructure with audit logs/sessions optionally in customer AWS accounts. Proxy Service instances are deployed across the world for low-latency access.|
-|[Hardware Security Module support](../admin-guides/deploy-a-cluster/hsm.mdx) for encryption at rest|✖|✔|✖|
+|[Hardware Security Module support](../zero-trust-access/deploy-a-cluster/hsm.mdx) for encryption at rest|✖|✔|✖|
 |Proxy Service domain name|Custom|Custom|A subdomain of `teleport.sh`|
 |Version support|All supported releases available to install and download.|All supported releases available to install and download.|Deploys last stable release with 2-3 week lag for stability.|
 
