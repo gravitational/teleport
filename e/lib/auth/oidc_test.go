@@ -354,7 +354,8 @@ func newOIDCSuite(t *testing.T, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
 				Email:     "test-user2@example.com",
 			},
 			Claims: map[string]any{
-				"groups": []string{"access"},
+				"groups":         []string{"access"},
+				"email_verified": false,
 			},
 		},
 		{
@@ -858,10 +859,9 @@ func TestOIDCUserCreation(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TestUserInfoBlockHTTP ensures that an insecure userinfo endpoint returns
-// trace.NotFound similar to an invalid userinfo endpoint. For these users,
-// all claim information is already within the token and additional claim
-// information does not need to be fetched.
+// TestUserInfoBlockHTTP ensures that an insecure userinfo endpoint is
+// not consulted for additional claims. For these users, the only claims
+// consumed are the ones provided already within the token.
 func TestOIDCBlockHTTPUserInfo(t *testing.T) {
 	t.Parallel()
 
@@ -870,20 +870,6 @@ func TestOIDCBlockHTTPUserInfo(t *testing.T) {
 	ctx := context.Background()
 
 	_, _, err := suite.authenticateUser(ctx, "id1", types.OIDCAuthRequest{
-		ConnectorID: suite.connector.GetName(),
-		CheckUser:   true,
-		CertTTL:     time.Minute,
-	})
-	// The email_verified claim for the user is only populated from the information retrieved
-	// via the user info endpoint. This validates that when the user info endpoint
-	// is insecure that we do not enrich the user and the appropriate error is returned.
-	require.ErrorContains(t, err, "email not verified by OIDC provider")
-
-	suite.connector.Spec.AllowUnverifiedEmail = true
-	_, err = suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
-	require.NoError(t, err)
-
-	_, _, err = suite.authenticateUser(ctx, "id1", types.OIDCAuthRequest{
 		ConnectorID: suite.connector.GetName(),
 		CheckUser:   true,
 		CertTTL:     time.Minute,
@@ -1377,9 +1363,9 @@ func TestEmailVerifiedClaim(t *testing.T) {
 			assertion: require.NoError,
 		},
 		{
-			name:      "email not verified in user",
+			name:      "email verification not provided",
 			userID:    users[1].ID,
-			assertion: unverifiedErrorAssertion,
+			assertion: require.NoError,
 		},
 		{
 			name:      "email verified in claims",

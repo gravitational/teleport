@@ -694,8 +694,8 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 	// Email verification, if required by the connector, is not enforced if the email_verified
 	// claim is not present. If it is present, then it must have a truthy value otherwise the
 	// authentication attempt is rejected.
-	verifiedClaim := idToken.IDTokenClaims.Claims["email_verified"]
-	if !connector.GetAllowUnverifiedEmail() && verifiedClaim != "" && !bool(idToken.IDTokenClaims.EmailVerified) {
+	verifiedClaim, verifiedClaimProvided := idToken.IDTokenClaims.Claims["email_verified"]
+	if !connector.GetAllowUnverifiedEmail() && verifiedClaimProvided && verifiedClaim != "" && !bool(idToken.IDTokenClaims.EmailVerified) {
 		return nil, req.ClientLoginIP, trace.AccessDenied("email not verified by OIDC provider")
 	}
 
