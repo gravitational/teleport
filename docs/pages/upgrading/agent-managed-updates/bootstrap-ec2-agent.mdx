@@ -1,6 +1,6 @@
 ---
-title: Bootstrapping EC2 agents with `teleport-update`
-description: Describes how to set up EC2 instance by cloud-init script and install Teleport with `teleport-update enable`
+title: Bootstrapping EC2 agents with "teleport-update"
+description: Describes how to set up EC2 instance by cloud-init script and install Teleport with "teleport-update enable"
 labels:
  - conceptual
  - platform-wide
@@ -27,8 +27,6 @@ Groups & schedules: Every agent belongs to an update group (e.g., development, s
 The cluster-side `autoupdate_config` resource defines when each group may update.
 Cloud or self-hosted clusters use the same schedule model, self-hosted clusters also set the desired
 version via `autoupdate_version`.
-
-# Configuring EC2 Instance
 
 ## Define groups and schedules
 
