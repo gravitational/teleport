@@ -167,6 +167,7 @@ export type MemberRequest = Omit<
 };
 
 export type UpsertAccessListRequest = {
+  type: string;
   title: string;
   description?: string;
   grants: AccessListGrant;

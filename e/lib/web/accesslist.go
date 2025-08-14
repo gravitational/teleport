@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -18,6 +19,31 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web"
 )
+
+type readOnlyAccessListError struct {
+	accessListTitle string
+	accessListType  accesslist.Type
+}
+
+func newReadOnlyAccessListError(accessListTitle string, accessListType accesslist.Type) *readOnlyAccessListError {
+	return &readOnlyAccessListError{
+		accessListTitle: accessListTitle,
+		accessListType:  accessListType,
+	}
+}
+
+func (e *readOnlyAccessListError) Error() string {
+	return fmt.Sprintf(
+		`Access list %[1]q is of type %[2]q and cannot be created or modified via web UI. Non-reviewable access lists (i.e., access_list with spec.type "scim" or "static") are currently modifiable only with Terraform and tctl.`,
+		e.accessListTitle, e.accessListType,
+	)
+}
+
+func (e *readOnlyAccessListError) Unwrap() error {
+	return &trace.BadParameterError{
+		Message: e.Error(),
+	}
+}
 
 // getAccessLists is the handler for GET /v1/enterprise/accesslist.
 func (p *Plugin) getAccessLists(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *web.SessionContext) (any, error) {
@@ -144,26 +170,27 @@ func (p *Plugin) upsertAccessList(_ http.ResponseWriter, r *http.Request, params
 		return nil, trace.Wrap(err)
 	}
 
-	accessListId := params.ByName("accessListId")
-	if accessListId == "" {
+	// Note, only the access list type in the request is being checked. That's sufficient
+	// because access list types are immutable and backed will refuse to change the access
+	// list type.
+	if isUIReadOnlyAccessListType(req.Type) {
+		return nil, trace.Wrap(newReadOnlyAccessListError(req.Title, req.Type))
+	}
+
+	accessListID := params.ByName("accessListId")
+	if accessListID == "" {
 		// Assume we are creating instead.
-		accessListId = uuid.New().String()
+		accessListID = uuid.New().String()
 	}
 
 	accessListClient := clt.AccessListClient()
 
-	// Remove the MFA resp from the context before getting the access list.
-	// Otherwise, it will be consumed before the Upsert which actually
-	// requires the MFA.
-	// TODO(Joerger): Explicitly provide MFA response only where it is
-	// needed instead of removing it like this.
-	getAccessListCtx := mfa.ContextWithMFAResponse(r.Context(), nil)
-	oldAccessList, err := accessListClient.GetAccessList(getAccessListCtx, accessListId)
+	oldAccessList, err := getAccessListNoMFACtx(r.Context(), accessListClient, accessListID)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
 
-	accessList, err := accesslist.NewAccessList(header.Metadata{Name: accessListId}, req.Spec)
+	accessList, err := accesslist.NewAccessList(header.Metadata{Name: accessListID}, req.Spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -177,7 +204,7 @@ func (p *Plugin) upsertAccessList(_ http.ResponseWriter, r *http.Request, params
 	// Convert members
 	members := make([]*accesslist.AccessListMember, 0, len(req.Members))
 	for _, member := range req.Members {
-		members = append(members, memberToAccessListMember(accessListId, member))
+		members = append(members, memberToAccessListMember(accessListID, member))
 	}
 
 	createdAccessList, updatedMembers, err := accessListClient.UpsertAccessListWithMembers(r.Context(), accessList, members)
@@ -205,16 +232,25 @@ func (p *Plugin) deleteAccessList(_ http.ResponseWriter, r *http.Request, params
 		return nil, trace.Wrap(err)
 	}
 
-	accessListId := params.ByName("accessListId")
+	accessListID := params.ByName("accessListId")
 	accessListClient := clt.AccessListClient()
 
+	existingAccessList, err := getAccessListNoMFACtx(r.Context(), accessListClient, accessListID)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	if existingAccessList != nil && isUIReadOnlyAccessListType(existingAccessList.Spec.Type) {
+		return nil, trace.Wrap(newReadOnlyAccessListError(existingAccessList.Spec.Title, existingAccessList.Spec.Type))
+	}
+
 	// First, delete all members.
-	if err := accessListClient.DeleteAllAccessListMembersForAccessList(r.Context(), accessListId); err != nil {
+	if err := accessListClient.DeleteAllAccessListMembersForAccessList(r.Context(), accessListID); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Then, delete the access list.
-	if err := accessListClient.DeleteAccessList(r.Context(), accessListId); err != nil {
+	if err := accessListClient.DeleteAccessList(r.Context(), accessListID); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -335,4 +371,21 @@ func (p *Plugin) listAccessListReviews(_ http.ResponseWriter, r *http.Request, p
 		Reviews:  reviews,
 		StartKey: nextKey,
 	}, nil
+}
+
+func getAccessListNoMFACtx(ctx context.Context, clt services.AccessLists, name string) (*accesslist.AccessList, error) {
+	// Remove the MFA resp from the context before getting the access list.
+	// Otherwise, it will be consumed before the operation which actually
+	// requires the MFA.
+	// TODO(Joerger): Explicitly provide MFA response only where it is
+	// needed instead of removing it like this.
+	noMFACtx := mfa.ContextWithMFAResponse(ctx, nil)
+	accessList, err := clt.GetAccessList(noMFACtx, name)
+	return accessList, trace.Wrap(err)
+}
+
+// isUIReadOnlyAccessListType returns true if the AccessList type is static. Those access lists are
+// supposed to be managed only by the IaC tools. It may change in the future.
+func isUIReadOnlyAccessListType(typ accesslist.Type) bool {
+	return typ == accesslist.Static
 }

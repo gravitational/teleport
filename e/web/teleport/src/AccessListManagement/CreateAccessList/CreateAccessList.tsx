@@ -23,6 +23,7 @@ import {
 import cfg from 'e-teleport/config';
 import {
   AccessListMemberKind,
+  AccessListType,
   accessManagementService,
   convertReviewFrequencyIntoBackendParsableValue,
   ReviewDayOfMonth,
@@ -316,6 +317,7 @@ const MainContent = ({
 
     const listToCreate = {
       // specs
+      type: AccessListType.Default,
       title: spec.title,
       description: spec.description,
       grants: {

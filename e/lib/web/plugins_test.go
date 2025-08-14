@@ -543,7 +543,7 @@ func TestPluginCleanup(t *testing.T) {
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &needsCleanup))
 	require.False(t, needsCleanup.NeedsCleanup)
 
-	_, err = s.testAuthServer.AuthServer.AuthServer.UpsertAccessList(s.ctx, newAccessList(t, "okta-access-list", types.OriginOkta))
+	_, err = s.testAuthServer.AuthServer.AuthServer.UpsertAccessList(s.ctx, newAccessList(t, "okta-access-list", withOrigin(types.OriginOkta)))
 	require.NoError(t, err)
 
 	resp, err = webPack.clt.Get(s.ctx, endpoint, url.Values{})
@@ -691,19 +691,64 @@ func cookieExist(cookies []*http.Cookie, name string) bool {
 	return false
 }
 
-func newAccessList(t *testing.T, name, origin string) *accesslist.AccessList {
+type accessListOptions struct {
+	origin            string
+	typ               accesslist.Type
+	owners            []accesslist.Owner
+	ownershipRequires accesslist.Requires
+}
+
+type accessListOpt func(*accessListOptions)
+
+func withOrigin(origin string) accessListOpt {
+	return func(o *accessListOptions) {
+		o.origin = origin
+	}
+}
+
+func withType(typ accesslist.Type) accessListOpt {
+	return func(o *accessListOptions) {
+		o.typ = typ
+	}
+}
+
+func withOwners(owners []accesslist.Owner) accessListOpt {
+	return func(o *accessListOptions) {
+		o.owners = owners
+	}
+}
+
+func withOwnershipRequires(ownershipRequires accesslist.Requires) accessListOpt {
+	return func(o *accessListOptions) {
+		o.ownershipRequires = ownershipRequires
+	}
+}
+
+func newAccessList(t *testing.T, name string, opts ...accessListOpt) *accesslist.AccessList {
 	t.Helper()
 
+	options := accessListOptions{
+		owners: []accesslist.Owner{
+			{
+				Name: "some-owner",
+			},
+		},
+	}
+	for _, o := range opts {
+		o(&options)
+	}
+
 	var labels map[string]string
-	if origin != "" {
+	if options.origin != "" {
 		labels = map[string]string{}
-		labels[types.OriginLabel] = origin
+		labels[types.OriginLabel] = options.origin
 	}
 
 	accessList, err := accesslist.NewAccessList(header.Metadata{
 		Name:   name,
 		Labels: labels,
 	}, accesslist.Spec{
+		Type:  options.typ,
 		Title: "some title",
 		OwnerGrants: accesslist.Grants{
 			Roles: []string{"grant-role"},
@@ -711,14 +756,60 @@ func newAccessList(t *testing.T, name, origin string) *accesslist.AccessList {
 		Grants: accesslist.Grants{
 			Roles: []string{"role"},
 		},
-		Owners: []accesslist.Owner{
-			{
-
-				Name: "some-owner",
-			},
-		},
+		Owners:            options.owners,
+		OwnershipRequires: options.ownershipRequires,
 	})
 	require.NoError(t, err)
 
 	return accessList
+}
+
+func newAccessListSpec(t *testing.T, opts ...accessListOpt) accesslist.Spec {
+	return newAccessList(t, "does-not-matter", opts...).Spec
+}
+
+type accessListMemberOptions struct {
+	expires time.Time
+	reason  string
+}
+
+type accessListMemberOpt func(*accessListMemberOptions)
+
+func withExpires(expires time.Time) accessListMemberOpt {
+	return func(o *accessListMemberOptions) {
+		o.expires = expires
+	}
+}
+
+func withReason(reason string) accessListMemberOpt {
+	return func(o *accessListMemberOptions) {
+		o.reason = reason
+	}
+}
+
+func newAccessListMember(t *testing.T, name string, opts ...accessListMemberOpt) *accesslist.AccessListMember {
+	options := accessListMemberOptions{}
+	for _, o := range opts {
+		o(&options)
+	}
+
+	t.Helper()
+	member, err := accesslist.NewAccessListMember(
+		header.Metadata{
+			Name: name,
+		},
+		accesslist.AccessListMemberSpec{
+			Name:    name,
+			Expires: options.expires,
+			Reason:  options.reason,
+		},
+	)
+	require.NoError(t, err)
+	return member
+}
+
+func newAccessListMemberSpec(t *testing.T, name string, opts ...accessListMemberOpt) accesslist.AccessListMemberSpec {
+	m := newAccessListMember(t, name, opts...)
+	m.Spec.Name = name
+	return m.Spec
 }

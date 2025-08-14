@@ -285,6 +285,7 @@ describe('update an access list', () => {
   };
 
   const madeForAccessListUpdate: UpsertAccessListRequest = {
+    type: AccessListType.Default,
     title: 'some title',
     description: 'some description',
     audit: {

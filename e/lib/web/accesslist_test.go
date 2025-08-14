@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"testing"
@@ -10,10 +11,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -27,8 +28,9 @@ import (
 var (
 	accessListCmpOpts = cmp.Options{
 		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(accesslist.AccessList{}, "Status"),
+		cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
 	}
-	mainOwner = "llama"
 )
 
 func TestGetAccessLists(t *testing.T) {
@@ -106,6 +108,14 @@ func TestGetAccessLists(t *testing.T) {
 }
 
 func TestCreateAccessList(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+	})
+
 	s := newWebSuite(t,
 		// Disable retry interval to prevent test from hanging
 		// because it uses the fake clock.
@@ -113,85 +123,118 @@ func TestCreateAccessList(t *testing.T) {
 	)
 	webPack := s.newAuthWebPack(t, "foo")
 
-	createTestAccessList(t, webPack, s)
+	owner := createUser(t, s, "llama")
+	ownerWebClt := s.newAuthWebPack(t, owner.GetName(), skipUserCreation()).clt
+
+	t.Run("can create a regular access list", func(t *testing.T) {
+		for _, typ := range []accesslist.Type{accesslist.DeprecatedDynamic, accesslist.Default, accesslist.SCIM} {
+			t.Run(string(typ), func(t *testing.T) {
+				_ = testCreateAccessListRequireOK(t, webPack.clt, owner, withType(typ))
+			})
+		}
+	})
+
+	t.Run("cannot create UI RO access list", func(t *testing.T) {
+		for _, typ := range []accesslist.Type{accesslist.Static} {
+			t.Run(string(typ), func(t *testing.T) {
+				_, resp, err := testCreateAccessList(t, ownerWebClt, owner, withType(typ))
+				require.Error(t, err)
+				require.ErrorContains(t, err, fmt.Sprintf("is of type %q and cannot be created or modified via web UI", typ))
+				require.True(t, trace.IsBadParameter(err))
+				require.Equal(t, http.StatusBadRequest, resp.Code())
+			})
+		}
+	})
 }
 
 func TestUpdateAccessList(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+	})
+
+	ctx := context.Background()
 	s := newWebSuite(t,
 		// Disable retry interval to prevent test from hanging
 		// because it uses the fake clock.
 		withRunWhileLockedRetryInterval(-1*time.Millisecond),
 	)
-	webPack := s.newAuthWebPack(t, "foo")
+	owner := createUser(t, s, "llama")
+	ownerWebClt := s.newAuthWebPack(t, owner.GetName(), skipUserCreation()).clt
 
-	accessListId := createTestAccessList(t, webPack, s)
+	t.Run("can update a regular access list", func(t *testing.T) {
+		for _, typ := range []accesslist.Type{accesslist.DeprecatedDynamic, accesslist.Default, accesslist.SCIM} {
+			t.Run(string(typ), func(t *testing.T) {
+				svc := s.testAuthServer.AuthServer.AuthServer.AccessLists
 
-	// Add labels to the access list.
-	adminClient := s.newAdminAuthClient(s.ctx, t)
+				accessList, err := svc.UpsertAccessList(ctx, newAccessList(t,
+					"test_"+string(typ),
+					withType(typ),
+					withOwners([]accesslist.Owner{{Name: owner.GetName()}}),
+				))
 
-	accessList, err := adminClient.AccessListClient().GetAccessList(s.ctx, accessListId)
-	require.NoError(t, err)
+				require.NoError(t, err)
 
-	accessList.SetStaticLabels(map[string]string{
-		"label": "value",
+				// Add labels to the access list.
+				adminClient := s.newAdminAuthClient(ctx, t)
+
+				accessList.SetStaticLabels(map[string]string{
+					"label": "value",
+				})
+
+				accessList, _, err = adminClient.AccessListClient().UpsertAccessListWithMembers(ctx, accessList, nil)
+				require.NoError(t, err)
+
+				accessListMember := newAccessListMemberSpec(t, "llama-1", withExpires(time.Now().Add(time.Hour)), withReason("reason"))
+				accessListMember2 := newAccessListMemberSpec(t, "llama-2", withExpires(time.Now().Add(time.Hour)), withReason("reason"))
+				accessListMember3 := newAccessListMemberSpec(t, "llama-3", withExpires(time.Now().Add(time.Hour)), withReason("reason"))
+
+				// Add one member. The list should have one member.
+				testUpdateAccessListRequireOK(t, ownerWebClt, accessList.GetName(), accessList.Spec, accessListMember)
+				// Add another member. The list should have two members.
+				testUpdateAccessListRequireOK(t, ownerWebClt, accessList.GetName(), accessList.Spec, accessListMember, accessListMember2)
+				// Add different member. The previous members should be removed, and this member should be the only one.
+				testUpdateAccessListRequireOK(t, ownerWebClt, accessList.GetName(), accessList.Spec, accessListMember3)
+			})
+		}
 	})
 
-	accessList, _, err = adminClient.AccessListClient().UpsertAccessListWithMembers(s.ctx, accessList, nil)
-	require.NoError(t, err)
+	t.Run("cannot update  UI RO access list", func(t *testing.T) {
+		for _, typ := range []accesslist.Type{accesslist.Static} {
+			t.Run(string(typ), func(t *testing.T) {
+				svc := s.testAuthServer.AuthServer.AuthServer.AccessLists
 
-	accessListMember := accesslist.AccessListMemberSpec{
-		Name:    "llama-1",
-		Joined:  time.Now(),
-		Expires: time.Now().Add(time.Hour),
-		Reason:  "reason",
-		AddedBy: "admin",
-	}
+				accessList, err := svc.UpsertAccessList(ctx, newAccessList(t,
+					"test_"+string(typ),
+					withType(typ),
+					withOwners([]accesslist.Owner{{Name: owner.GetName()}}),
+				))
+				require.NoError(t, err)
 
-	accessListMember2 := accesslist.AccessListMemberSpec{
-		Name:    "llama-2",
-		Joined:  time.Now(),
-		Expires: time.Now().Add(time.Hour),
-		Reason:  "reason",
-		AddedBy: "admin",
-	}
-
-	accessListMember3 := accesslist.AccessListMemberSpec{
-		Name:    "llama-3",
-		Joined:  time.Now(),
-		Expires: time.Now().Add(time.Hour),
-		Reason:  "reason",
-		AddedBy: "admin",
-	}
-
-	webPack = s.newAuthWebPack(t, mainOwner, skipUserCreation())
-	// Add one member. The list should have one member.
-	updateAccessList(t, webPack, s, accessListId, accessList.Spec, accessListMember)
-	// Add another member. The list should have two members.
-	updateAccessList(t, webPack, s, accessListId, accessList.Spec, accessListMember, accessListMember2)
-	// Add different member. The previous members should be removed, and this member should be the only one.
-	updateAccessList(t, webPack, s, accessListId, accessList.Spec, accessListMember3)
-}
-
-func updateAccessList(t *testing.T, webPack *authWebPack, s *webSuite, accessListId string, spec accesslist.Spec, accessListMember ...accesslist.AccessListMemberSpec) {
-	endpoint := webPack.clt.Endpoint("enterprise", "accesslist", accessListId)
-	resp, err := webPack.clt.PutJSON(s.ctx, endpoint, ui.UpsertAccessListRequest{
-		Spec:    spec,
-		Members: accessListMember,
+				resp, err := testUpdateAccessList(t, ownerWebClt, accessList.GetName(), accessList.Spec)
+				require.Error(t, err)
+				require.ErrorContains(t, err, fmt.Sprintf("is of type %q and cannot be created or modified via web UI", typ))
+				require.True(t, trace.IsBadParameter(err))
+				require.Equal(t, http.StatusBadRequest, resp.Code())
+			})
+		}
 	})
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.Code())
-
-	var accessListResp ui.AccessListResponse
-	require.NoError(t, json.Unmarshal(resp.Bytes(), &accessListResp))
-	require.Empty(t, cmp.Diff(spec, accessListResp.AccessList.Spec, accessListCmpOpts))
-	require.Equal(t, accessListId, accessListResp.AccessList.Metadata.Name)
-	require.Len(t, accessListResp.AccessList.Members, len(accessListMember))
-	for i, member := range accessListResp.AccessList.Members {
-		require.Equal(t, member, accessListResp.AccessList.Members[i])
-	}
 }
 
 func TestGetAccessList(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+	})
+
 	s := newWebSuite(t,
 		// Disable retry interval to prevent test from hanging
 		// because it uses the fake clock.
@@ -247,6 +290,17 @@ func TestGetAccessList(t *testing.T) {
 }
 
 func TestDeleteAccessList(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+	})
+
+	ctx := context.Background()
+
 	s := newWebSuite(t,
 		// Disable retry interval to prevent test from hanging
 		// because it uses the fake clock.
@@ -255,29 +309,54 @@ func TestDeleteAccessList(t *testing.T) {
 	webPack := s.newAuthWebPack(t, "foo")
 	authClient := s.newAdminAuthClient(s.ctx, t)
 
-	accesList, err := accesslist.NewAccessList(header.Metadata{Name: "accesslist-1"}, accesslist.Spec{
-		Title:             "access list 1",
-		Audit:             accesslist.Audit{NextAuditDate: s.clock.Now()},
-		Owners:            []accesslist.Owner{{Name: "llama", Description: "llama desc"}},
-		OwnershipRequires: accesslist.Requires{Roles: []string{"admin"}},
-		Grants:            accesslist.Grants{Roles: []string{"access"}},
+	t.Run("can delete a regular access list", func(t *testing.T) {
+		for _, typ := range []accesslist.Type{accesslist.DeprecatedDynamic, accesslist.Default, accesslist.SCIM} {
+			t.Run(string(typ), func(t *testing.T) {
+				accessList, err := authClient.AccessListClient().UpsertAccessList(ctx, newAccessList(t,
+					"access_list_1_"+string(typ), withType(typ),
+				))
+				require.NoError(t, err)
+
+				testDeleteAccessListRequireOK(t, webPack.clt, accessList.GetName())
+
+				_, err = authClient.AccessListClient().GetAccessList(ctx, accessList.GetName())
+				require.Error(t, err)
+				require.True(t, trace.IsNotFound(err))
+			})
+		}
 	})
-	require.NoError(t, err)
 
-	ctx := context.Background()
-	createdAccessList, err := authClient.AccessListClient().UpsertAccessList(ctx, accesList)
-	require.NoError(t, err)
+	t.Run("cannot delete UI RO access list", func(t *testing.T) {
+		for _, typ := range []accesslist.Type{accesslist.Static} {
+			t.Run(string(typ), func(t *testing.T) {
+				accessList, err := authClient.AccessListClient().UpsertAccessList(ctx, newAccessList(t,
+					"access_list_1_"+string(typ), withType(typ),
+				))
+				require.NoError(t, err)
 
-	endpoint := webPack.clt.Endpoint("enterprise", "accesslist", createdAccessList.GetName())
-	_, err = webPack.clt.Delete(s.ctx, endpoint)
-	require.NoError(t, err)
+				resp, err := testDeleteAccessList(t, webPack.clt, accessList.GetName())
+				require.Error(t, err)
+				require.ErrorContains(t, err, fmt.Sprintf("is of type %q and cannot be created or modified via web UI", typ))
+				require.True(t, trace.IsBadParameter(err))
+				require.Equal(t, http.StatusBadRequest, resp.Code())
 
-	_, err = authClient.AccessListClient().GetAccessList(ctx, createdAccessList.GetName())
-	require.Error(t, err)
-	require.True(t, trace.IsNotFound(err))
+				_, err = authClient.AccessListClient().GetAccessList(ctx, accessList.GetName())
+				require.NoError(t, err)
+			})
+		}
+	})
 }
 
 func TestAddMemberToAccessList(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+	})
+
 	s := newWebSuite(t,
 		// Disable retry interval to prevent test from hanging
 		// because it uses the fake clock.
@@ -285,7 +364,8 @@ func TestAddMemberToAccessList(t *testing.T) {
 	)
 	webPack := s.newAuthWebPack(t, "foo")
 
-	accessListName := createTestAccessList(t, webPack, s)
+	owner := createUser(t, s, "llama")
+	accessListName := testCreateAccessListRequireOK(t, webPack.clt, owner)
 
 	accessListMember := accesslist.AccessListMemberSpec{
 		Name:    "llama-3",
@@ -322,7 +402,8 @@ func TestReviewAccessList(t *testing.T) {
 	)
 	webPack := s.newAuthWebPack(t, "foo")
 
-	accessListName := createTestAccessList(t, webPack, s)
+	owner := createUser(t, s, "llama")
+	accessListName := testCreateAccessListRequireOK(t, webPack.clt, owner)
 
 	review := accesslist.ReviewSpec{
 		AccessList: accessListName,
@@ -353,44 +434,113 @@ func TestReviewAccessList(t *testing.T) {
 	require.Equal(t, []string{"access"}, accessListResp.AccessList.AccessList.GetMembershipRequires().Roles)
 }
 
-func createTestAccessList(t *testing.T, webPack *authWebPack, s *webSuite) string {
+// Creates a user with an empty role with the same name and sets the users's password to
+// `s.testPassword()`.
+func createUser(t *testing.T, s *webSuite, name string) types.User {
 	t.Helper()
 
-	// Create a valid user and role.
-	role, err := authtest.CreateRole(s.ctx, s.testAuthServer.Auth(), "llama-role", types.RoleSpecV6{})
+	role, err := authtest.CreateRole(s.ctx, s.testAuthServer.Auth(), name, types.RoleSpecV6{})
 	require.NoError(t, err)
-	user, err := types.NewUser(mainOwner)
+
+	user, err := types.NewUser(name)
 	require.NoError(t, err)
+
 	user.AddRole(role.GetName())
-	_, err = s.testAuthServer.AuthServer.AuthServer.CreateUser(s.ctx, user)
+	user, err = s.testAuthServer.AuthServer.AuthServer.CreateUser(s.ctx, user)
 	require.NoError(t, err)
+
 	err = s.testAuthServer.Auth().UpsertPassword(user.GetName(), []byte(s.testPassword()))
 	require.NoError(t, err)
 
-	accessList, err := accesslist.NewAccessList(header.Metadata{
-		Name: "name",
-	}, accesslist.Spec{
-		Title:              "access list 1",
-		Owners:             []accesslist.Owner{{Name: "llama", Description: "llama desc", IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String()}},
-		OwnershipRequires:  accesslist.Requires{Roles: []string{"llama-role"}},
-		Grants:             accesslist.Grants{Roles: []string{"access"}},
-		MembershipRequires: accesslist.Requires{},
-		Audit:              accesslist.Audit{NextAuditDate: time.Now()},
-	})
-	require.NoError(t, err)
+	return user
+}
 
-	endpoint := webPack.clt.Endpoint("enterprise", "accesslist")
-	resp, err := webPack.clt.PostJSON(s.ctx, endpoint, ui.UpsertAccessListRequest{
-		Spec: accessList.Spec,
+func testCreateAccessList(t *testing.T, ownerWebClt *TestWebClient, owner types.User, opts ...accessListOpt) (accessListID string, resp *roundtrip.Response, err error) {
+	t.Helper()
+	ctx := context.Background()
+
+	spec := newAccessListSpec(t,
+		append([]accessListOpt{
+			// prepend the default options so they can be overwritten by the opts function arg
+			withOwners([]accesslist.Owner{{Name: owner.GetName(), Description: owner.GetName() + " desc"}}),
+			withOwnershipRequires(accesslist.Requires{Roles: []string{owner.GetName()}}),
+		}, opts...)...,
+	)
+
+	endpoint := ownerWebClt.Endpoint("enterprise", "accesslist")
+	resp, err = ownerWebClt.PostJSON(ctx, endpoint, ui.UpsertAccessListRequest{
+		Spec: spec,
 	})
-	require.NoError(t, err)
+	if err != nil {
+		return "", resp, err
+	}
 
 	var accessListResp ui.AccessListResponse
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &accessListResp))
-	require.Empty(t, cmp.Diff(accessList.Spec, accessListResp.AccessList.Spec,
+	require.Empty(t, cmp.Diff(spec, accessListResp.AccessList.Spec,
 		accessListCmpOpts))
 
-	return accessListResp.AccessList.Metadata.Name
+	return accessListResp.AccessList.Metadata.Name, resp, nil
+}
+
+func testCreateAccessListRequireOK(t *testing.T, ownerWebClt *TestWebClient, owner types.User, opts ...accessListOpt) string {
+	accessListID, _, err := testCreateAccessList(t, ownerWebClt, owner, opts...)
+	require.NoError(t, err)
+	return accessListID
+}
+
+func testUpdateAccessList(t *testing.T, clt *TestWebClient, accessListID string, spec accesslist.Spec, memberSpec ...accesslist.AccessListMemberSpec) (resp *roundtrip.Response, err error) {
+	t.Helper()
+	ctx := context.Background()
+
+	endpoint := clt.Endpoint("enterprise", "accesslist", accessListID)
+	resp, err = clt.PutJSON(ctx, endpoint, ui.UpsertAccessListRequest{
+		Spec:    spec,
+		Members: memberSpec,
+	})
+	return resp, err
+}
+
+func testUpdateAccessListRequireOK(t *testing.T, clt *TestWebClient, accessListID string, spec accesslist.Spec, memberSpec ...accesslist.AccessListMemberSpec) {
+	t.Helper()
+
+	resp, err := testUpdateAccessList(t, clt, accessListID, spec, memberSpec...)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	var accessListResp ui.AccessListResponse
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &accessListResp))
+	require.Empty(t, cmp.Diff(spec, accessListResp.AccessList.Spec, accessListCmpOpts))
+	require.Len(t, accessListResp.AccessList.Members, len(memberSpec))
+	for i, member := range memberSpec {
+		require.Equal(t, member.Name, accessListResp.AccessList.Members[i].Name)
+		require.Equal(t, accessListID, accessListResp.AccessList.Members[i].AccessList)
+		require.Empty(t, cmp.Diff(
+			member, accessListResp.AccessList.Members[i],
+			append(
+				accessListCmpOpts,
+				cmpopts.IgnoreFields(accesslist.AccessListMemberSpec{}, "AddedBy"),    // set by auth
+				cmpopts.IgnoreFields(accesslist.AccessListMemberSpec{}, "Joined"),     // set by auth
+				cmpopts.IgnoreFields(accesslist.AccessListMemberSpec{}, "AccessList"), // set by auth and checked above
+			),
+		))
+	}
+}
+
+func testDeleteAccessList(t *testing.T, clt *TestWebClient, accessListID string) (*roundtrip.Response, error) {
+	t.Helper()
+	ctx := context.Background()
+
+	endpoint := clt.Endpoint("enterprise", "accesslist", accessListID)
+	resp, err := clt.Delete(ctx, endpoint)
+	return resp, err
+}
+
+func testDeleteAccessListRequireOK(t *testing.T, clt *TestWebClient, accessListID string) {
+	t.Helper()
+	resp, err := testDeleteAccessList(t, clt, accessListID)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
 }
 
 func getAccessList(t *testing.T, webPack *authWebPack, s *webSuite, accessListName string) ui.AccessListResponse {
