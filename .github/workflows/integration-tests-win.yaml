@@ -1,0 +1,66 @@
+name: Integration Tests (Win)
+run-name: Integration Tests (Win) - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  pull_request:
+  merge_group:
+
+jobs:
+  changes:
+    name: Check for relevant changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
+    steps:
+      - name: Checkout
+        if: ${{ github.event_name == 'merge_group' }}
+        uses: actions/checkout@v4
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: changes
+        with:
+          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          filters: |
+            changed:
+              - '.github/workflows/integration-tests-win.yaml'
+              - 'lib/autoupdate/tools/**.go'
+              - 'lib/utils/packaging/**.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'build.assets/Makefile'
+              - 'build.assets/Dockerfile*'
+              - 'Makefile'
+
+  test:
+    name: Integration Tests (Win)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' }}
+    runs-on: windows-2022-16core
+
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
+
+      - name: Get Go version
+        id: go-version
+        shell: bash
+        run: echo "go-version=$(make -s print-go-version | tr -d '\n')" >> $GITHUB_OUTPUT
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          cache: false
+          go-version: ${{ steps.go-version.outputs.go-version }}
+
+      - name: Run tests
+        shell: bash
+        run: |
+          export OS="windows"
+          go test -timeout 30m ./integration/autoupdate/tools -v
+
