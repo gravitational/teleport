@@ -126,7 +126,7 @@ func TestDatabasesPagination(t *testing.T) {
 		}
 	}()
 
-	var expected []types.Database
+	expected := make([]types.Database, 0, 50)
 	for i := range 50 {
 		db, err := types.NewDatabaseV3(types.Metadata{
 			Name: "db" + strconv.Itoa(i+1),
