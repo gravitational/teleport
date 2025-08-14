@@ -1,6 +1,6 @@
 ---
 title:  Configure Entra ID integration using Terraform
-description: Describes how to set up Entra ID integration with Terraform
+description: Describes how to set up Teeport Entra ID integration using Terraform
 sidebar_position: 3
 labels:
  - how-to
@@ -149,7 +149,7 @@ resource "azuread_service_principal_claims_mapping_policy_assignment" "example_n
 
 ## Step 3/4. Set up authentication for Microsoft Graph client
 
-In this step, you configure authentication method for Microsoft Graph client used 
+In this step, you configure authentication method for the Microsoft Graph client used 
 by Teleport. 
 
 Recall that Teleport supports [OIDC IdP and system credential](http://localhost:4000/ver/19.x/identity-governance/entra-id/#choosing-the-microsoft-graph_api-authentication-method)
@@ -162,7 +162,7 @@ Teleport Auth service is updated with permissions that grants access to the Grap
 <Tabs>
 <TabItem default label="Teleport as an OIDC provider" name="entra-oidc">
 
-To set up Teleport as OIDC IdP, you must set up federated credential for the enterprise 
+To set up Teleport as OIDC IdP, you must set up a federated credential for the enterprise 
 application created in Step 1. 
 
 ```hcl
@@ -176,7 +176,7 @@ resource "azuread_application_federated_identity_credential" "example_oidc_idp" 
 }
 ```
 
-Next, grant Microsoft Graph API permission to the enterprise application.
+Next, grant Microsoft Graph API permissions to the enterprise application.
 These permissions allows Teleport Graph client to import users and groups 
 from Entra ID to Teleport.
 
@@ -224,14 +224,14 @@ resource "azuread_app_role_assignment" "example_graph_permission_user_grant" {
 </TabItem>
 <TabItem label="System Credential" name="entra-system-cred">
 
-To set up system credential, you need to grant Graph API permissions to the Managed Identity 
+To set up a system credential, you need to grant Graph API permissions to the Managed Identity 
 that is assigned to the Teleport Auth service. 
 
 Azure supports two kinds of Managed Identities - system assigned and user assigned. 
 For simplicity, a method to update a system assigned Managed Identity, which is assigned to a 
-VM that hosts Teleport Auth Service, is demonstrated below. 
+VM that hosts Teleport Auth Service is demonstrated below. 
 
-First, ensure that system assigned Managed Identity is enabled for your VM.
+First, ensure that a system assigned Managed Identity is enabled for your VM.
 This can be configured by setting up the [`identity`](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/virtual_machine#identity-1)
 block in your VM configuration. 
 
@@ -243,7 +243,7 @@ resource "azurerm_virtual_machine" "my_vm" {
 }
 ```
 
-To assign the permission, first, you will need the ID of the Graph API permission
+To assign permissions, first, you will need the ID of the Graph API permission
 of the three permissions we need to assign to the Managed Identity:
 - `Application.Read.All`
 - `Group.Read.All`
