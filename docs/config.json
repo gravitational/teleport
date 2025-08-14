@@ -172,7 +172,7 @@
     },
     {
       "source": "/deploy-a-cluster/open-source/",
-      "destination": "/linux-demo/",
+      "destination": "/get-started/deploy-community/",
       "permanent": true
     },
     {
@@ -232,7 +232,7 @@
     },
     {
       "source": "/try-out-teleport/linux-server/",
-      "destination": "/linux-demo/",
+      "destination": "/get-started/deploy-community/",
       "permanent": true
     },
     {
@@ -617,7 +617,7 @@
     },
     {
       "source": "/admin-guides/deploy-a-cluster/linux-demo/",
-      "destination": "/linux-demo/",
+      "destination": "/get-started/deploy-community/",
       "permanent": true
     },
     {
@@ -1613,6 +1613,11 @@
     {
       "source": "/zero-trust-access/sso/azuread/",
       "destination": "/zero-trust-access/sso/entra-id/",
+      "permanent": true
+    },
+    {
+      "source": "/linux-demo/",
+      "destination": "/get-started/deploy-community/",
       "permanent": true
     }
   ]
