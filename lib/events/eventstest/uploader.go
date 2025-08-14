@@ -38,10 +38,12 @@ import (
 // upload
 func NewMemoryUploader(eventsC ...chan events.UploadEvent) *MemoryUploader {
 	up := &MemoryUploader{
-		mtx:       &sync.RWMutex{},
-		uploads:   make(map[string]*MemoryUpload),
-		sessions:  make(map[session.ID][]byte),
-		summaries: make(map[session.ID][]byte),
+		mtx:        &sync.RWMutex{},
+		uploads:    make(map[string]*MemoryUpload),
+		sessions:   make(map[session.ID][]byte),
+		summaries:  make(map[session.ID][]byte),
+		metadata:   make(map[session.ID][]byte),
+		thumbnails: make(map[session.ID][]byte),
 	}
 	if len(eventsC) != 0 {
 		up.eventsC = eventsC[0]
