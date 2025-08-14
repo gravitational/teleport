@@ -67,7 +67,9 @@ export const NoCodeIntegrationDescription = () => (
  * IntegrationIcon wraps ResourceIcon with css required for integration
  * and plugin tiles.
  */
-export const IntegrationIcon = styled(ResourceIcon)<{ size?: number }>`
+export const IntegrationIcon = styled(ResourceIcon).withConfig({
+  shouldForwardProp: prop => prop !== 'size',
+})<{ size?: number }>`
   display: inline-block;
   height: 100%;
   ${({ size }) =>
