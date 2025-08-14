@@ -298,7 +298,7 @@ func (m *MemoryUploader) UploadMetadata(ctx context.Context, sessionID session.I
 	defer m.mtx.Unlock()
 	_, ok := m.metadata[sessionID]
 	if ok {
-		return "", trace.AlreadyExists("summary %q already exists", sessionID)
+		return "", trace.AlreadyExists("metadata %q already exists", sessionID)
 	}
 	data, err := io.ReadAll(readCloser)
 	if err != nil {
@@ -315,7 +315,7 @@ func (m *MemoryUploader) UploadThumbnail(ctx context.Context, sessionID session.
 	defer m.mtx.Unlock()
 	_, ok := m.thumbnails[sessionID]
 	if ok {
-		return "", trace.AlreadyExists("summary %q already exists", sessionID)
+		return "", trace.AlreadyExists("thumbnail %q already exists", sessionID)
 	}
 	data, err := io.ReadAll(readCloser)
 	if err != nil {
@@ -363,7 +363,7 @@ func (m *MemoryUploader) DownloadMetadata(ctx context.Context, sessionID session
 
 	data, ok := m.metadata[sessionID]
 	if !ok {
-		return trace.NotFound("summary %q is not found", sessionID)
+		return trace.NotFound("metadata %q is not found", sessionID)
 	}
 	_, err := io.Copy(writer, bytes.NewReader(data))
 	if err != nil {
