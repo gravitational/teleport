@@ -27,7 +27,7 @@ requests access to the `access` role.
 
 - This feature requires Teleport Identity Governance.
 
-- This guide requires at least one connected SSH server.
+- This guide requires at least one labeled SSH server.
 
 ## Step 1/5. Create a requester user
 
@@ -71,7 +71,7 @@ does not support wildcard or regular expressions.
   by the IdP.
 </Admonition>
 
-## Step 3/5. Ensure resource labels
+## Step 3/5. Retrieve resource label
 
 List your SSH servers to identify available labels:
 
@@ -79,52 +79,7 @@ List your SSH servers to identify available labels:
 $ tsh ls
 Node Name   Address    Labels
 ----------- ---------- -------------------------------
-teleport-00 ⟵ Tunnel   env=demo
-```
-
-This example resource has the label `env: demo`. If your resource has not been
-labeled, reconfigure your resource with a label. Alternatively, you can add a
-label using a `server_info` resource.
-
-1. Retrieve information about the SSH server.
-
-```code
-$ tctl get node/teleport-00
-kind: node
-metadata:
-  expires: "2025-08-14T18:49:19Z"
-  name: 116b08d2-7167-4eab-85a8-cf93f054b217
-spec:
-  addr: ""
-  hostname: teleport-00
-```
-
-2. Create the corresponding `server_info.yaml` for the node above.
-
-```yaml
-# server_info.yaml
-kind: server_info
-metadata:
-  # Must match the `metadata.name` field of the node, prefixed with `si-`.
-  name: si-116b08d2-7167-4eab-85a8-cf93f054b217
-spec:
-  new_labels:
-    env: demo
-```
-
-3. Create and verify the `server_info` resource. It may take several minutes for
-the new labels to appear. Note that labels added this way will be prefixed with
-`dynamic/`.
-
-```code
-# Create the `server_info` resource
-$ tctl create server_info.yaml
-
-# Verify that the labels have been applied
-$ tsh ls
-Node Name   Address    Labels
------------ ---------- -------------------------------
-teleport-00 ⟵ Tunnel  dynamic/env=demo
+teleport-00 ⟵ Tunnel  env=demo
 ```
 
 ## Step 4/5. Create automatic review rule
@@ -135,7 +90,7 @@ Next, define the automatic review rule via the Teleport Web UI.
 2. Click **Create New Access Automation Rule** -> **Automatic Review Rule**
 3. Configure the rule and set:
    - **Name of requested roles to match**: `access`
-   - **Resource labels to match**: `env: demo` (or `dynamic/env=demo`)
+   - **Resource labels to match**: `env: demo`
    - **User Traits to match**: `team: demo`
    - **Review decision**: `APPROVED`
 4. Click **Create Rule**
@@ -179,9 +134,6 @@ both an approval rule and a denial rule, the denial rule takes precedence.
 - For configuration with Teleport Terraform Provider, refer to the
   [Terraform Resources Index](../../reference/terraform-provider/resources/access_monitoring_rule.mdx)
 - For configuration options with SSO, refer to the
-  [Single Sign-On Guides](../../zero-trust-access/sso/sso.mdx)
-
-## Further reading
-
-For more details about applying resource-based labels with `server_info` resources,
-refer to [Apply resource-based labels](https://goteleport.com/docs/admin-guides/management/admin/labels/#apply-resource-based-labels).
+  [Single Sign-On Guides](../../zero-trust-access/sso/sso.mdx).
+- For more details about managing resource labels, refer to the
+  [Add Labels to Resources Guide](../../zero-trust-access/management/admin/labels.mdx).
