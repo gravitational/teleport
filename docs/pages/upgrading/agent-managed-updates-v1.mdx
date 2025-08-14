@@ -518,6 +518,7 @@ The following channels are available for APT, YUM, and Zypper repos:
 | `stable/<major>`  | Receives releases for the specified major release line, i.e. `v(=teleport.major_version=)` |
 | `stable/cloud`    | Rolling channel that receives releases compatible with current Cloud version               |
 | `stable/rolling`  | Rolling channel that receives all published Teleport releases                              |
+
 ### Updating the updater
 
 The updater is designed to be minimal and relatively stable, but the updater will
@@ -560,26 +561,3 @@ $ zypper removelock "teleport-ent"
 $ zypper install --repo="teleport" "teleport-ent-<target-version>"
 $ zypper addlock "teleport-ent"
 ```
-
-## Automatic update limitations
-
-Automatic updates are not available in all Teleport editions and installation
-methods. If you cannot use automatic updates, read [Manual
-updates](#manual-updates) for possible steps.
-
-### Automatic updates with Teleport Community Edition
-
-Automatic updates is not currently supported with the community editions of Teleport.
-Ensure that you are using the Teleport Enterprise edition of the `teleport-kube-agent`
-chart. You should see the following when you query your `teleport-kube-agent` release:
-
-```code
-$ helm -n "teleport" get values "teleport-agent" -o json | jq '.enterprise'
-true
-```
-
-### Automatic updates with direct binary installation
-
-Automatic updates is not currently supported with the direct binary installation method.
-Automatic updates is only supported with installations via the `apt`, `yum`, and
-`zypper` package managers.
