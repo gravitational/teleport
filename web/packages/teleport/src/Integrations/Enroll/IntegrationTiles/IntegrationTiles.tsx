@@ -72,7 +72,7 @@ export function IntegrationTileWithSpec({
         data-testid="tile-external-audit-storage"
       >
         <Flex flexBasis={100}>
-          <IntegrationIcon name={spec.icon} size={80} />
+          <IntegrationIcon name={spec.icon} />
         </Flex>
         <Flex>
           <Text>{spec.name}</Text>
@@ -152,7 +152,7 @@ export function GenericIntegrationTile({
       data-testid={`tile-${kind}`}
     >
       <Flex flexBasis={100}>
-        <IntegrationIcon name={icon} size={80} />
+        <IntegrationIcon name={icon} />
       </Flex>
       <Flex>
         <Text>{name}</Text>
