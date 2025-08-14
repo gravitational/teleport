@@ -66,7 +66,18 @@ func TestUnifiedClientMock(t *testing.T) {
 	})
 
 	t.Run("UpdateUser", func(t *testing.T) {
-		t.Skip("UpdateUser not yet implemented")
+		client := NewUnifiedMockClient(sdk.NewMockedAWSState())
+
+		u, err := client.ViaSCIM().GetUser(t.Context(), "user1")
+		require.NoError(t, err)
+		require.Equal(t, "user1", u.ID, "original user ID")
+		require.Equal(t, "user_one", u.UserName, "original username")
+
+		u.UserName = "darren"
+		u, err = client.ViaSCIM().UpdateUser(t.Context(), u)
+		require.NoError(t, err)
+		require.Equal(t, "user1", u.ID, "updated user ID")
+		require.Equal(t, "darren", u.UserName, "updated username")
 	})
 
 	t.Run("DeleteUser", func(t *testing.T) {

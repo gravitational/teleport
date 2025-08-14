@@ -33,7 +33,10 @@ func (p *provisioner) provisionAccessList(
 	}
 	log = log.With("title", acl.Spec.Title)
 
-	groupMembers := p.filterValidMembers(ctx, acl, aclMembers)
+	groupMembers, err := p.filterValidMembers(ctx, acl, aclMembers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	log.DebugContext(ctx, "Access list loaded, provisioning",
 		"member_count", len(groupMembers))
 
@@ -123,7 +126,7 @@ func (p *provisioner) filterValidMembers(
 	ctx context.Context,
 	acl *accesslist.AccessList,
 	aclMembers []*accesslist.AccessListMember,
-) []*scimsdk.GroupMember {
+) ([]*scimsdk.GroupMember, error) {
 	log := p.log.With(
 		slog.Group("access_list",
 			slog.String("name", acl.GetName()),
@@ -165,6 +168,7 @@ func (p *provisioner) filterValidMembers(
 			log.ErrorContext(ctx, "Failed to get external ID. User group membership won't be provisioned.", "error", err)
 			continue
 		}
+
 		if extID == "" {
 			log.WarnContext(ctx, "External ID not found. User group membership won't be provisioned.")
 			continue
@@ -172,7 +176,7 @@ func (p *provisioner) filterValidMembers(
 
 		// Assert that the user is not only a recorded member, but also
 		// currently meets all the Access List membership requirements
-		if membershipKind, _ := accesslists.IsAccessListMember(
+		if membershipKind, err := accesslists.IsAccessListMember(
 			ctx,
 			user,
 			acl,
@@ -180,8 +184,11 @@ func (p *provisioner) filterValidMembers(
 			p.locksSvc,
 			p.clock,
 		); membershipKind == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
-			log.WarnContext(ctx, "User does not meet Access List requirements")
-			continue
+			if err == nil || trace.IsAccessDenied(err) || trace.IsNotFound(err) {
+				log.WarnContext(ctx, "User does not meet Access List requirements")
+				continue
+			}
+			return nil, trace.Wrap(err)
 		}
 
 		groupMembers = append(groupMembers, &scimsdk.GroupMember{
@@ -190,7 +197,7 @@ func (p *provisioner) filterValidMembers(
 		})
 	}
 
-	return groupMembers
+	return groupMembers, nil
 }
 
 // createDownstreamGroup creates an empty downstream group for the supplied

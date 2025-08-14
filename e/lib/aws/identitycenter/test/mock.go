@@ -203,7 +203,7 @@ func (s *scimClientMock) UpdateUser(_ context.Context, user *scimsdk.User) (*sci
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 
-	icUser := s.getUserByID(user.ExternalID)
+	icUser := s.getUserByID(user.ID)
 	if icUser == nil {
 		return nil, trace.NotFound("No such user")
 	}
@@ -344,6 +344,7 @@ func (s *scimClientMock) GetUserByUserName(_ context.Context, userName string) (
 	if i == -1 {
 		return nil, trace.NotFound("user with username %q not found", userName)
 	}
+
 	return s.toSCIMUser(s.Users[i]), nil
 }
 

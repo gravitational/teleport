@@ -17,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
 	"github.com/gravitational/teleport/lib/utils/pagination"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 func TestAWSGroupImportCreatesAccessLists(t *testing.T) {
@@ -133,6 +134,10 @@ func TestAWSGroupImportCreatesNoAccessListsWhenRoleSyncModeIsNONE(t *testing.T) 
 	require.Empty(t, accList)
 }
 
+func copyToHeap[T any](v T) *T {
+	return &v
+}
+
 // TestImportedGroupsAreNotDeletedOnFilterChange asserts that groups that were
 // originally imported from AWS IC are not deleted during an import operation if
 // the group inclusion filters are changed such the group is now excluded.
@@ -142,6 +147,19 @@ func TestAWSGroupImportCreatesNoAccessListsWhenRoleSyncModeIsNONE(t *testing.T) 
 // AWS group is expected to be deleted.
 func TestImportedGroupsAreNotDeletedOnFilterChange(t *testing.T) {
 	ctx := t.Context()
+
+	expectedUsers := []icsdk.User{
+		{ID: "uid_alice", UserName: "alice"},
+		{ID: "uid_bob", UserName: "bob"},
+		{ID: "uid_charlotte", UserName: "charlotte"},
+		{ID: "uid_dave", UserName: "dave"},
+	}
+
+	expectedGroups := []icsdk.Group{
+		{DisplayName: "Group1", ID: "group1", IdentityStoreID: "store1"},
+		{DisplayName: "Group2", ID: "group2", IdentityStoreID: "store1"},
+		{DisplayName: "Group3", ID: "group3", IdentityStoreID: "store1"},
+	}
 
 	// GIVEN a mock AWS config with several groups..
 	awsState := icsdk.MockedAWSStateType{
@@ -154,17 +172,8 @@ func TestImportedGroupsAreNotDeletedOnFilterChange(t *testing.T) {
 		Accounts: []*icsdk.Account{
 			{Name: "Account1", ID: "1111111111", ARN: "arn:aws:iam::1111111111:account/Account1"},
 		},
-		Users: []*icsdk.User{
-			{ID: "uid_alice", UserName: "alice"},
-			{ID: "uid_bob", UserName: "bob"},
-			{ID: "uid_charlotte", UserName: "charlotte"},
-			{ID: "uid_dave", UserName: "dave"},
-		},
-		Groups: []*icsdk.Group{
-			{DisplayName: "Group1", ID: "group1", IdentityStoreID: "store1"},
-			{DisplayName: "Group2", ID: "group2", IdentityStoreID: "store1"},
-			{DisplayName: "Group3", ID: "group3", IdentityStoreID: "store1"},
-		},
+		Users:  slices.Map(expectedUsers, copyToHeap),
+		Groups: slices.Map(expectedGroups, copyToHeap),
 		GroupMemberships: map[string][]*icsdk.GroupMember{
 			"group1": {
 				{MemberID: "uid_alice"},
@@ -203,26 +212,31 @@ func TestImportedGroupsAreNotDeletedOnFilterChange(t *testing.T) {
 	// WHEN I create a new Identity Center plugin resource
 	mustSetupAWSIdentityCenterIntegration(t, aliceClient.AuthClient)
 
-	// EXPECT the plugin to start up, and eventually all of the groups are
-	// imported into Teleport with their corresponding Access List Provisioning
-	// records marked as "PROVISIONED"
-	expectedACLs := []string{"Group1", "Group2", "Group3"}
+	// EXPECT the plugin to start up, and that eventually
+	//  - all of the IC users are adopted by Teleport, and
+	//  - all of the IC groups are imported into Teleport
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assertAccessLists(ctx, c, auth, expectedACLs...)
-		for _, aclTitle := range expectedACLs {
-			acl, err := getAccessListByTitle(ctx, auth, aclTitle)
+		// EXPECT that Teleport has adopted the Identity Center users and correctly
+		// bound them to their corresponding Teleport users
+		for _, icUser := range expectedUsers {
+			assertPrincipalAssignment(ctx, c, auth, principal.GetIDForUserName(icUser.UserName),
+				hasProvisioningState(identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
+				hasExternalID(icUser.ID),
+			)
+		}
+
+		// EXPECT that the Teleport Access Lists have created and correctly bound
+		// to their corresponding Identity Center groups
+		for _, awsGroup := range expectedGroups {
+			acl, err := getAccessListByTitle(ctx, auth, awsGroup.DisplayName)
 			if !assert.NoError(c, err) {
 				return
 			}
-			principalID, err := principal.GetIDForPrincipalResource(acl)
-			if !assert.NoError(t, err) {
-				return
-			}
-
-			assertPrincipalAssignment(ctx, c, auth, principalID,
-				hasProvisioningState(identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED))
+			assertPrincipalAssignment(ctx, c, auth, principal.GetIDForAccessList(acl),
+				hasProvisioningState(identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
+				hasExternalID(awsGroup.ID),
+			)
 		}
-
 	}, time.Second*3, time.Millisecond*30)
 
 	// WHEN I update the group filter to exclude "Group2"
@@ -237,7 +251,8 @@ func TestImportedGroupsAreNotDeletedOnFilterChange(t *testing.T) {
 
 	// EXPECT that the original AWS group was *NOT* deleted, and its member list
 	// is preserved.
-	requireSCIMGroup(ctx, t, mockSCIM, "Group2", "uid_alice", "uid_bob", "uid_charlotte", "uid_dave")
+	requireSCIMGroup(ctx, t, mockSCIM, "Group2",
+		hasMembers("uid_alice", "uid_bob", "uid_charlotte", "uid_dave"))
 
 	// WHEN I explicitly delete the imported group "Group3"
 	acl := mustGetAccessListByTitle(ctx, t, auth, "Group3")
@@ -251,6 +266,5 @@ func TestImportedGroupsAreNotDeletedOnFilterChange(t *testing.T) {
 	// EXPECT that the AWS group "Group3" is also deleted from AWS
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		assertSCIMGroupsByDisplayName(ctx, c, mockSCIM, "Group1", "Group2")
-	}, time.Second*3, time.Millisecond*30,
-	)
+	}, time.Second*3, time.Millisecond*30)
 }

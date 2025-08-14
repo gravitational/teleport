@@ -92,23 +92,51 @@ func assertAccessLists(ctx context.Context, t assert.TestingT, lister iciter.Acc
 	return assert.ElementsMatch(t, expectedTitles, accessListTitles)
 }
 
-func assertSCIMGroup(ctx context.Context, t assert.TestingT, client scimsdk.Client, displayName string, expectedMembers ...string) bool {
+// scimGroupAssertion is the signature for functions that assert the properties
+// of a [scimsdk.Group].
+type scimGroupAssertion func(assert.TestingT, *scimsdk.Group) bool
+
+// hasMembers returns a [scimGroupAssertion] that asserts that the group has a
+// specific member list.
+func hasMembers(expectedMembers ...string) scimGroupAssertion {
+	return func(t assert.TestingT, g *scimsdk.Group) bool {
+		actualMembers := make([]string, len(g.Members))
+		for i, member := range g.Members {
+			actualMembers[i] = member.ExternalID
+		}
+		return assert.ElementsMatch(t, expectedMembers, actualMembers)
+	}
+}
+
+// assertSCIMGroup asserts the existence of a SCIM group with a given display name,
+// and runs the supplied assertions on it. Returns after the first failed assertion.
+// Takes an [assert.TestingT] rather than a [require.TestingT] in order to be usable
+// inside a [require.EventuallyWithT] callback.
+func assertSCIMGroup(ctx context.Context, t assert.TestingT, client scimsdk.Client, displayName string, assertions ...scimGroupAssertion) bool {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
+
 	g, err := client.GetGroupByDisplayName(ctx, displayName)
 	if !assert.NoError(t, err, "Group with display name %q must exist", displayName) {
 		return false
 	}
 
-	actualMembers := make([]string, len(g.Members))
-	for i, member := range g.Members {
-		actualMembers[i] = member.ExternalID
+	for _, assertionFn := range assertions {
+		if !assertionFn(t, g) {
+			return false
+		}
 	}
 
-	return assert.ElementsMatch(t, expectedMembers, actualMembers)
+	return true
 }
 
-func requireSCIMGroup(ctx context.Context, t *testing.T, client scimsdk.Client, displayName string, expectedMembers ...string) {
+// requireSCIMGroup asserts the existence of a SCIM group with a given display name,
+// and runs the supplied assertions on it. Immediately fails the test if any
+// assertions fail.
+func requireSCIMGroup(ctx context.Context, t *testing.T, client scimsdk.Client, displayName string, assertions ...scimGroupAssertion) {
 	t.Helper()
-	if assertSCIMGroup(ctx, t, client, displayName, expectedMembers...) {
+	if assertSCIMGroup(ctx, t, client, displayName, assertions...) {
 		return
 	}
 	t.FailNow()
@@ -126,8 +154,16 @@ func hasProvisioningState(s identitycenterv1.ProvisioningState) principalAssignm
 	}
 }
 
+// hasExternalID returns a [principalAssignmentAssertion] that asserts the value of a
+// Principal Assignment record's external ID
+func hasExternalID(expectedID string) principalAssignmentAssertion {
+	return func(t assert.TestingT, pa *identitycenterv1.PrincipalAssignment) bool {
+		return assert.Equal(t, expectedID, pa.GetSpec().GetExternalId())
+	}
+}
+
 // assertPrincipalAssignment asserts that an Identity Center Principal Assignment
-// record exists for the supplied principal ID, nd runs the supplied assertions
+// record exists for the supplied principal ID, and runs the supplied assertions
 // on it. Returns after the first failed assertion. Takes an [assert.TestingT]
 // rather than a [require.TestingT] in order to be usable inside a
 // [require.EventuallyWithT] callback.
