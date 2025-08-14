@@ -28,6 +28,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"slices"
 	"sort"
 	"sync/atomic"
 	"testing"
@@ -125,9 +126,9 @@ func TestAuthenticate(t *testing.T) {
 	require.NoError(t, err)
 
 	tun := mockRevTunnel{
-		sites: map[string]reversetunnelclient.RemoteSite{
-			"remote": mockRemoteSite{name: "remote"},
-			"local":  mockRemoteSite{name: "local"},
+		sites: map[string]reversetunnelclient.Cluster{
+			"remote": mockCluster{name: "remote"},
+			"local":  mockCluster{name: "local"},
 		},
 	}
 	f := &Forwarder{
@@ -1160,15 +1161,15 @@ func (c *mockCAClient) GetCertAuthority(ctx context.Context, id types.CertAuthID
 	return nil, trace.NotFound("cluster not found")
 }
 
-// mockRemoteSite is a reversetunnelclient.RemoteSite implementation with hardcoded
+// mockCluster is a reversetunnelclient.Cluster implementation with hardcoded
 // name, because there's no easy way to construct a real
-// reversetunnelclient.RemoteSite.
-type mockRemoteSite struct {
-	reversetunnelclient.RemoteSite
+// reversetunnelclient.Cluster.
+type mockCluster struct {
+	reversetunnelclient.Cluster
 	name string
 }
 
-func (s mockRemoteSite) GetName() string { return s.name }
+func (s mockCluster) GetName() string { return s.name }
 
 type mockAccessPoint struct {
 	authclient.KubernetesAccessPoint
@@ -1211,10 +1212,10 @@ func (ap mockAccessPoint) GetCertAuthority(ctx context.Context, id types.CertAut
 type mockRevTunnel struct {
 	reversetunnelclient.Server
 
-	sites map[string]reversetunnelclient.RemoteSite
+	sites map[string]reversetunnelclient.Cluster
 }
 
-func (t mockRevTunnel) GetSite(name string) (reversetunnelclient.RemoteSite, error) {
+func (t mockRevTunnel) GetSite(name string) (reversetunnelclient.Cluster, error) {
 	s, ok := t.sites[name]
 	if !ok {
 		return nil, trace.NotFound("remote site %q not found", name)
@@ -1222,8 +1223,8 @@ func (t mockRevTunnel) GetSite(name string) (reversetunnelclient.RemoteSite, err
 	return s, nil
 }
 
-func (t mockRevTunnel) GetSites() ([]reversetunnelclient.RemoteSite, error) {
-	var sites []reversetunnelclient.RemoteSite
+func (t mockRevTunnel) GetSites() ([]reversetunnelclient.Cluster, error) {
+	var sites []reversetunnelclient.Cluster
 	for _, s := range t.sites {
 		sites = append(sites, s)
 	}
@@ -1596,8 +1597,8 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.args.ctx.eventClusterMeta(tt.args.req)
-			sort.Strings(got.KubernetesGroups)
-			sort.Strings(got.KubernetesGroups)
+			slices.Sort(got.KubernetesUsers)
+			slices.Sort(got.KubernetesGroups)
 			require.Equal(t, tt.want, got)
 		})
 	}

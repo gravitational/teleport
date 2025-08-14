@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -84,9 +83,9 @@ func TestWatchers(t *testing.T) {
 			kind: types.KindCertAuthority,
 			causeEvents: func(subtestCtx context.Context, subtestT *testing.T, backend backend.Backend) {
 				// GIVEN an empty backend, WHEN I create 3 new CAs
-				userCA := suite.NewTestCA(types.UserCA, "example.com")
-				hostCA := suite.NewTestCA(types.HostCA, "example.com")
-				hostCARemote := suite.NewTestCA(types.HostCA, "remote.com")
+				userCA := NewTestCA(types.UserCA, "example.com")
+				hostCA := NewTestCA(types.HostCA, "example.com")
+				hostCARemote := NewTestCA(types.HostCA, "remote.com")
 				require.NoError(subtestT, CreateResources(subtestCtx, backend, userCA, hostCA, hostCARemote))
 			},
 			validateEvents: func(subtestCtx context.Context, subtestT *testing.T, watcher types.Watcher) {
@@ -118,9 +117,9 @@ func TestWatchers(t *testing.T) {
 			filter: types.CertAuthorityFilter{types.HostCA: "example.com"}.IntoMap(),
 			causeEvents: func(subtestCtx context.Context, subtestT *testing.T, backend backend.Backend) {
 				// GIVEN an empty backend, WHEN I create some new CAs
-				userCA := suite.NewTestCA(types.UserCA, "example.com")
-				hostCA := suite.NewTestCA(types.HostCA, "example.com")
-				hostCARemote := suite.NewTestCA(types.HostCA, "remote.com")
+				userCA := NewTestCA(types.UserCA, "example.com")
+				hostCA := NewTestCA(types.HostCA, "example.com")
+				hostCARemote := NewTestCA(types.HostCA, "remote.com")
 				require.NoError(subtestT, CreateResources(subtestCtx, backend, userCA, hostCA, hostCARemote))
 			},
 			validateEvents: func(subtestCtx context.Context, subtestT *testing.T, watcher types.Watcher) {

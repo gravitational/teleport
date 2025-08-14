@@ -36,6 +36,7 @@ import {
   useInfoGuide,
 } from 'shared/components/SlidingSidePanel/InfoGuide';
 import { marginTransitionCss } from 'shared/components/SlidingSidePanel/InfoGuide/const';
+import { ToastNotifications } from 'shared/components/ToastNotification';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { BannerList } from 'teleport/components/BannerList';
@@ -67,7 +68,6 @@ export interface MainProps {
   features: TeleportFeature[];
   billingBanners?: ReactNode[];
   CustomLogo?: () => React.ReactElement;
-  inviteCollaboratorsFeedback?: ReactNode;
 }
 
 export function Main(props: MainProps) {
@@ -198,6 +198,7 @@ export function Main(props: MainProps) {
                   billingBanners={featureFlags.billing && props.billingBanners}
                   onBannerDismiss={dismissAlert}
                 />
+                <ToastNotifications />
                 <Suspense fallback={null}>
                   <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
                 </Suspense>
@@ -209,7 +210,6 @@ export function Main(props: MainProps) {
       {displayOnboardDiscover && (
         <OnboardDiscover onClose={handleOnClose} onOnboard={handleOnboard} />
       )}
-      {props.inviteCollaboratorsFeedback}
     </FeaturesContextProvider>
   );
 }

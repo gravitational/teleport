@@ -17,6 +17,15 @@ create resources from code:
 - The `tctl` CLI, which allows you to manage Teleport resources from your local
   computer or your CI environment
 
+## How it works
+
+In Teleport, users and roles are backend resources managed by the Teleport Auth
+Service. The Teleport Auth Service exposes a gRPC API that enables clients to
+create, delete, or modify backend resources, including users and roles. The
+Teleport Kubernetes Operator and Terraform provider, along with the `tctl`
+command-line tool, can manage Teleport users and roles by authenticating to the
+Teleport Auth Service and interacting with its gRPC API.
+
 ## Prerequisites
 
 To follow this guide, you must have:

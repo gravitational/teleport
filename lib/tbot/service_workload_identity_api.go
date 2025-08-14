@@ -46,7 +46,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
@@ -71,10 +71,10 @@ type WorkloadIdentityAPIService struct {
 	botCfg           *config.BotConfig
 	cfg              *config.WorkloadIdentityAPIService
 	log              *slog.Logger
-	resolver         reversetunnelclient.Resolver
 	trustBundleCache *workloadidentity.TrustBundleCache
 	crlCache         *workloadidentity.CRLCache
 	statusReporter   readyz.Reporter
+	clientBuilder    *client.Builder
 
 	// client holds the impersonated client for the service
 	client           *apiclient.Client
@@ -101,9 +101,7 @@ func (s *WorkloadIdentityAPIService) setup(ctx context.Context) (err error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	client, err := clientForFacade(
-		ctx, s.log, s.botCfg, facade, s.resolver,
-	)
+	client, err := s.clientBuilder.Build(ctx, facade)
 	if err != nil {
 		return trace.Wrap(err)
 	}

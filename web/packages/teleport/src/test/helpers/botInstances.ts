@@ -34,7 +34,19 @@ export const listBotInstancesSuccess = (mock: ListBotInstancesResponse) =>
     return HttpResponse.json(mock);
   });
 
-export const listBotInstancesError = (status: number, error: string = null) =>
+export const listBotInstancesForever = () =>
+  http.get(
+    listBotInstancesPath,
+    () =>
+      new Promise(() => {
+        /* never resolved */
+      })
+  );
+
+export const listBotInstancesError = (
+  status: number,
+  error: string | null = null
+) =>
   http.get(listBotInstancesPath, () => {
     return HttpResponse.json({ error: { message: error } }, { status });
   });

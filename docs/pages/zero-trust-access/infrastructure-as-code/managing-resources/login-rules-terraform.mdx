@@ -11,6 +11,14 @@ This guide will explain how to:
 - Use Teleport's Terraform Provider to deploy Login Rules to your Teleport cluster
 - Edit deployed Login Rules via Terraform
 
+## How it works
+
+Login Rules are registered with the Teleport Auth Service as resources stored on
+the Auth Service backend. The Teleport Auth Service exposes a gRPC API that
+enables clients to create, delete, or modify backend resources, including Login
+Rules. The Teleport Terraform Provider can manage agentless SSH services by
+authenticating to the Teleport Auth Service and interacting with its gRPC API.
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)

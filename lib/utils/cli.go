@@ -295,6 +295,18 @@ func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 	return app.UsageTemplate(createUsageTemplate())
 }
 
+// InitHiddenCLIParser initializes a `kingpin.Application` that does not terminate the application
+// or write any usage information to os.Stdout. Can be used in scenarios where multiple `kingpin.Application`
+// instances are needed without interfering with subsequent parsing. Usage output is completely suppressed,
+// and the default global `--help` flag is ignored to prevent the application from exiting.
+func InitHiddenCLIParser() (app *kingpin.Application) {
+	app = kingpin.New("", "")
+	app.UsageWriter(io.Discard)
+	app.Terminate(func(i int) {})
+
+	return app
+}
+
 // createUsageTemplate creates an usage template for kingpin applications.
 func createUsageTemplate(opts ...func(*usageTemplateOptions)) string {
 	opt := &usageTemplateOptions{

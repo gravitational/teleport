@@ -20,6 +20,7 @@ import { MemoryRouter } from 'react-router';
 
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
+import { ToastNotificationProvider } from 'shared/components/ToastNotification';
 
 import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
@@ -67,11 +68,13 @@ describe('Roles list', () => {
     const ctx = createTeleportContext();
     render(
       <MemoryRouter>
-        <InfoGuidePanelProvider>
-          <ContextProvider ctx={ctx}>
-            <Roles {...defaultState} />
-          </ContextProvider>
-        </InfoGuidePanelProvider>
+        <ToastNotificationProvider>
+          <InfoGuidePanelProvider>
+            <ContextProvider ctx={ctx}>
+              <Roles {...defaultState} />
+            </ContextProvider>
+          </InfoGuidePanelProvider>
+        </ToastNotificationProvider>
       </MemoryRouter>
     );
 
@@ -92,11 +95,13 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <InfoGuidePanelProvider>
-          <ContextProvider ctx={ctx}>
-            <Roles {...testState} />
-          </ContextProvider>
-        </InfoGuidePanelProvider>
+        <ToastNotificationProvider>
+          <InfoGuidePanelProvider>
+            <ContextProvider ctx={ctx}>
+              <Roles {...testState} />
+            </ContextProvider>
+          </InfoGuidePanelProvider>
+        </ToastNotificationProvider>
       </MemoryRouter>
     );
 
@@ -110,11 +115,13 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <InfoGuidePanelProvider>
-          <ContextProvider ctx={ctx}>
-            <Roles {...defaultState} />
-          </ContextProvider>
-        </InfoGuidePanelProvider>
+        <ToastNotificationProvider>
+          <InfoGuidePanelProvider>
+            <ContextProvider ctx={ctx}>
+              <Roles {...defaultState} />
+            </ContextProvider>
+          </InfoGuidePanelProvider>
+        </ToastNotificationProvider>
       </MemoryRouter>
     );
 
@@ -141,11 +148,13 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <InfoGuidePanelProvider>
-          <ContextProvider ctx={ctx}>
-            <Roles {...testState} />
-          </ContextProvider>
-        </InfoGuidePanelProvider>
+        <ToastNotificationProvider>
+          <InfoGuidePanelProvider>
+            <ContextProvider ctx={ctx}>
+              <Roles {...testState} />
+            </ContextProvider>
+          </InfoGuidePanelProvider>
+        </ToastNotificationProvider>
       </MemoryRouter>
     );
 
@@ -178,11 +187,13 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <InfoGuidePanelProvider>
-          <ContextProvider ctx={ctx}>
-            <Roles {...testState} />
-          </ContextProvider>
-        </InfoGuidePanelProvider>
+        <ToastNotificationProvider>
+          <InfoGuidePanelProvider>
+            <ContextProvider ctx={ctx}>
+              <Roles {...testState} />
+            </ContextProvider>
+          </InfoGuidePanelProvider>
+        </ToastNotificationProvider>
       </MemoryRouter>
     );
 
@@ -215,11 +226,13 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <InfoGuidePanelProvider>
-          <ContextProvider ctx={ctx}>
-            <Roles {...testState} />
-          </ContextProvider>
-        </InfoGuidePanelProvider>
+        <ToastNotificationProvider>
+          <InfoGuidePanelProvider>
+            <ContextProvider ctx={ctx}>
+              <Roles {...testState} />
+            </ContextProvider>
+          </InfoGuidePanelProvider>
+        </ToastNotificationProvider>
       </MemoryRouter>
     );
 
@@ -246,11 +259,13 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <InfoGuidePanelProvider>
-          <ContextProvider ctx={ctx}>
-            <Roles {...testState} />
-          </ContextProvider>
-        </InfoGuidePanelProvider>
+        <ToastNotificationProvider>
+          <InfoGuidePanelProvider>
+            <ContextProvider ctx={ctx}>
+              <Roles {...testState} />
+            </ContextProvider>
+          </InfoGuidePanelProvider>
+        </ToastNotificationProvider>
       </MemoryRouter>
     );
 
@@ -296,24 +311,26 @@ test('renders the role diff component', async () => {
 
   render(
     <MemoryRouter>
-      <InfoGuidePanelProvider>
-        <ContextProvider ctx={ctx}>
-          <Roles
-            {...defaultState()}
-            roleDiffProps={{
-              roleDiffElement,
-              roleDiffState: RoleDiffState.PolicyEnabled,
-              updateRoleDiff: () => null,
-              roleDiffAttempt: {
-                status: 'error',
-                statusText: 'there is an error here',
-                data: null,
-                error: null,
-              },
-            }}
-          />
-        </ContextProvider>
-      </InfoGuidePanelProvider>
+      <ToastNotificationProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Roles
+              {...defaultState()}
+              roleDiffProps={{
+                roleDiffElement,
+                roleDiffState: RoleDiffState.PolicyEnabled,
+                updateRoleDiff: () => null,
+                roleDiffAttempt: {
+                  status: 'error',
+                  statusText: 'there is an error here',
+                  data: null,
+                  error: null,
+                },
+              }}
+            />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
+      </ToastNotificationProvider>
     </MemoryRouter>
   );
   await openEditor();

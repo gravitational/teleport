@@ -117,5 +117,8 @@ func (c *Cache) GetUserGroup(ctx context.Context, name string) (types.UserGroup,
 	}
 
 	group, err := rg.store.get(userGroupNameIndex, name)
-	return group.Clone(), trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return group.Clone(), nil
 }

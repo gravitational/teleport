@@ -220,12 +220,12 @@ func Test_transport_rewriteRedirect(t *testing.T) {
 type fakeTunnel struct {
 	reversetunnelclient.Tunnel
 
-	fakeSite *reversetunnelclient.FakeRemoteSite
-	err      error
+	fakeCluster *reversetunnelclient.FakeCluster
+	err         error
 }
 
-func (f fakeTunnel) GetSite(domainName string) (reversetunnelclient.RemoteSite, error) {
-	return f.fakeSite, f.err
+func (f fakeTunnel) GetSite(domainName string) (reversetunnelclient.Cluster, error) {
+	return f.fakeCluster, f.err
 }
 
 func TestTransport_DialContextNoServersAvailable(t *testing.T) {

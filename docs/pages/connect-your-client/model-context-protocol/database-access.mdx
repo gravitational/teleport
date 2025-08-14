@@ -10,7 +10,7 @@ This guide explains how to connect to your **PostgreSQL** Teleport databases wit
 (!docs/pages/includes/edition-prereqs-tabs.mdx clients="\`tsh\` client"!)
 
 - Teleport Database Service with a PostgreSQL database enrolled. See our [guides](../../enroll-resources/database-access/database-access.mdx)
-  for options on how to set up Database Access for PostgreSQL databases, such as
+  for options on how to enroll PostgreSQL databases with Teleport, such as
   the [AWS RDS PostgreSQL](../../enroll-resources/database-access/enroll-aws-databases/rds.mdx)
   and [self-hosted PostgreSQL](../../enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted.mdx) guides.
 
@@ -131,14 +131,14 @@ Here is a sample JSON configuration for launching Teleport MCP servers:
         "mcp",
         "db",
         "start",
-        "teleport://clusters/teleport.example.com/databases/postgres-dev?dbName=employees&dbUser=postgres"
+        "teleport://clusters/<Var name="teleport.example.com:443" />/databases/postgres-dev?dbName=employees&dbUser=postgres"
       ]
     }
   }
 }
 
 If you already have an entry for "teleport-databases" server, add the following database resource URI to the command arguments list:
-teleport://clusters/teleport.example.com/databases/postgres-dev?dbName=employees&dbUser=postgres
+teleport://clusters/<Var name="teleport.example.com:443" />/databases/postgres-dev?dbName=employees&dbUser=postgres
 ```
 </TabItem>
 </Tabs>

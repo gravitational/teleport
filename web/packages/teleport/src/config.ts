@@ -760,8 +760,8 @@ const cfg = {
     return generatePath(cfg.routes.bots);
   },
 
-  getBotDetailsRoute(name: string) {
-    return generatePath(cfg.routes.bot, { name });
+  getBotDetailsRoute(botName: string) {
+    return generatePath(cfg.routes.bot, { botName });
   },
 
   getBotInstancesRoute() {

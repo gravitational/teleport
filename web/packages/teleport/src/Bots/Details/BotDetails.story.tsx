@@ -20,10 +20,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory } from 'history';
 import { MemoryRouter, Route, Router } from 'react-router';
 
+import Box from 'design/Box';
+
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
+import { listBotInstancesSuccess } from 'teleport/test/helpers/botInstances';
 import {
   editBotSuccess,
   getBotError,
@@ -39,6 +42,7 @@ import {
 } from 'teleport/test/helpers/tokens';
 
 import { BotDetails } from './BotDetails';
+import { listBotInstancesSuccessHandler } from './InstancesPanel.story';
 
 const meta = {
   title: 'Teleport/Bots/Details',
@@ -84,6 +88,7 @@ export const Happy: Story = {
       handlers: [
         successHandler,
         listV2TokensSuccess(),
+        listBotInstancesSuccessHandler,
         successGetRoles({
           startKey: '',
           items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
@@ -112,9 +117,121 @@ export const HappyWithEmpty: Story = {
           },
         }),
         listV2TokensSuccess({
-          isEmpty: true,
+          tokens: [],
         }),
         mfaAuthnChallengeSuccess(),
+        listBotInstancesSuccess({
+          bot_instances: [],
+          next_page_token: '',
+        }),
+        successGetRoles({
+          startKey: '',
+          items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
+            content: `role-${r}`,
+            id: `role-${r}`,
+            name: `role-${r}`,
+            kind: 'role',
+          })),
+        }),
+        editBotSuccess(),
+      ],
+    },
+  },
+};
+
+export const HappyWithTypical: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        getBotSuccess({
+          name: 'ansible-worker',
+          roles: ['access'],
+          traits: [],
+          max_session_ttl: {
+            seconds: 43200,
+          },
+        }),
+        listV2TokensSuccess({
+          tokens: ['kubernetes'],
+        }),
+        mfaAuthnChallengeSuccess(),
+        listBotInstancesSuccess({
+          bot_instances: [
+            {
+              bot_name: 'bot-1',
+              instance_id: '6570dbf1-3530-4e13-a8c7-497bb9927994',
+              active_at_latest: new Date().toISOString(),
+              host_name_latest:
+                'my-svc.my-namespace.svc.cluster-domain.example',
+              join_method_latest: 'kubernetes',
+              os_latest: 'linux',
+              version_latest: '18.1.0',
+            },
+          ],
+          next_page_token: '',
+        }),
+        successGetRoles({
+          startKey: '',
+          items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
+            content: `role-${r}`,
+            id: `role-${r}`,
+            name: `role-${r}`,
+            kind: 'role',
+          })),
+        }),
+        editBotSuccess(),
+      ],
+    },
+  },
+};
+
+export const HappyWithLongValues: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        getBotSuccess({
+          name: 'ansibleworkeransibleworkeransibleworkeransibleworkeransibleworkeransibleworker',
+          roles: [
+            'rolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerole',
+          ],
+          traits: [
+            {
+              name: 'traittraittraittraittraittraittraittraittraittraittraittraittraittraittrait',
+              values: ['value'],
+            },
+            {
+              name: 'name',
+              values: [
+                'valuevaluevaluevaluevaluevaluevaluevaluevaluevaluevaluevaluevaluevaluevaluevalue',
+              ],
+            },
+          ],
+          max_session_ttl: {
+            seconds: 43200,
+          },
+        }),
+        listV2TokensSuccess({
+          tokens: [
+            'tokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentoken',
+          ],
+        }),
+        mfaAuthnChallengeSuccess(),
+        listBotInstancesSuccess({
+          bot_instances: [
+            {
+              bot_name: '',
+              instance_id:
+                '04241a2a66b904241a2a66b904241a2a66b904241a2a66b904241a2a66b9',
+              host_name_latest:
+                'hotnamehotnamehotnamehotnamehotnamehotnamehotnamehotnamehotname',
+              active_at_latest: '2025-01-01T00:00:00Z',
+              join_method_latest: 'github',
+              os_latest: 'linux',
+              version_latest: '17.2.6-04241a2',
+            },
+          ],
+          next_page_token: '',
+        }),
         successGetRoles({
           startKey: '',
           items: ['access', 'editor', 'terraform-provider'].map(r => ({
@@ -139,6 +256,7 @@ export const HappyWithoutEditPermission: Story = {
       handlers: [
         successHandler,
         listV2TokensSuccess(),
+        listBotInstancesSuccessHandler,
         successGetRoles({
           startKey: '',
           items: ['access', 'editor', 'terraform-provider'].map(r => ({
@@ -163,6 +281,7 @@ export const HappyWithoutTokenListPermission: Story = {
       handlers: [
         successHandler,
         listV2TokensSuccess(),
+        listBotInstancesSuccessHandler,
         successGetRoles({
           startKey: '',
           items: ['access', 'editor', 'terraform-provider'].map(r => ({
@@ -185,6 +304,7 @@ export const HappyWithMFAPrompt: Story = {
         successHandler,
         listV2TokensMfaError(),
         mfaAuthnChallengeSuccess(),
+        listBotInstancesSuccessHandler,
         successGetRoles({
           startKey: '',
           items: ['access', 'editor', 'terraform-provider'].map(r => ({
@@ -206,6 +326,7 @@ export const HappyWithTokensError: Story = {
       handlers: [
         successHandler,
         listV2TokensError(500, 'something went wrong'),
+        listBotInstancesSuccessHandler,
         successGetRoles({
           startKey: '',
           items: ['access', 'editor', 'terraform-provider'].map(r => ({
@@ -235,6 +356,32 @@ export const HappyWithTokensOutdatedProxy: Story = {
             string: '18.0.0',
           },
         }),
+        listBotInstancesSuccessHandler,
+        successGetRoles({
+          startKey: '',
+          items: ['access', 'editor', 'terraform-provider'].map(r => ({
+            content: r,
+            id: r,
+            name: r,
+            kind: 'role',
+          })),
+        }),
+        editBotSuccess(),
+      ],
+    },
+  },
+};
+
+export const HappyWithoutBotInstanceListPermission: Story = {
+  args: {
+    hasBotInstanceListPermission: false,
+  },
+  parameters: {
+    msw: {
+      handlers: [
+        successHandler,
+        listV2TokensSuccess(),
+        listBotInstancesSuccessHandler,
         successGetRoles({
           startKey: '',
           items: ['access', 'editor', 'terraform-provider'].map(r => ({
@@ -298,11 +445,13 @@ function Wrapper(props?: {
   hasBotsRead?: boolean;
   hasBotsEdit?: boolean;
   hasTokensList?: boolean;
+  hasBotInstanceListPermission?: boolean;
 }) {
   const {
     hasBotsRead = true,
     hasBotsEdit = true,
     hasTokensList = true,
+    hasBotInstanceListPermission = true,
   } = props ?? {};
 
   const history = createMemoryHistory({
@@ -323,6 +472,10 @@ function Wrapper(props?: {
       ...defaultAccess,
       list: hasTokensList,
     },
+    botInstances: {
+      ...defaultAccess,
+      list: hasBotInstanceListPermission,
+    },
   });
 
   const ctx = createTeleportContext({
@@ -335,7 +488,9 @@ function Wrapper(props?: {
         <TeleportProviderBasic teleportCtx={ctx}>
           <Router history={history}>
             <Route path={cfg.routes.bot}>
-              <BotDetails />
+              <Box height={820} overflow={'auto'}>
+                <BotDetails />
+              </Box>
             </Route>
           </Router>
         </TeleportProviderBasic>

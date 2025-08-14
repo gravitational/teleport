@@ -129,7 +129,7 @@ server you desire to run.
 
 ## Step 3/3. Connect
 
-Log in to Teleport with the user we've just created.
+Log in to Teleport with the user we've just created, <Var name="my_user" />:
 
 ```code
 $ tsh login --proxy=<Var name="teleport.example.com:443" /> --user=<Var name="my_user" />
@@ -147,7 +147,7 @@ everything everything MCP server stdio env=dev
 To show configurations for your MCP client to connect:
 
 ```code
-$ tsh mcp config
+$ tsh mcp config everything
 Found MCP servers:
 everything
 
