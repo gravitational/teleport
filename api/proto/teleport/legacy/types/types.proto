@@ -7325,11 +7325,28 @@ message PluginSCIMSettings {
 
   // SamlConnectorName is the name of the SAML Connector that users provisioned
   // by this SCIM plugin will use to log in to Teleport.
-  string saml_connector_name = 1;
+  // DEPRECATED: Use ConnectorInfo instead.
+  // This is old field added when the Okta SCIM plugin was created
+  // and was limited usage to SAML connectors only.
+  string saml_connector_name = 1 [deprecated = true];
 
   // DefaultRole is the default role assigned to users provisioned by this
   // plugin.
-  string default_role = 2;
+  string default_role = 2 [deprecated = true];
+
+  message ConnectorInfo {
+    option (gogoproto.equal) = true;
+    // Name is the name of the connector.
+    string name = 1 [(gogoproto.jsontag) = "name"];
+    // Type is the type of the connector: types.KindSAML, types.KindOIDC, etc.
+    // Note: The name of the connect is not unique across types.
+    string type = 2 [(gogoproto.jsontag) = "type"];
+  }
+
+  // ConnectorInfo contains information about the user's origin as provided
+  // by the SCIM plugin. It enables matching a SAML/OIDC external user
+  // with a SCIM-persisted user, allowing the ephemeral user entry to be updated to SCIM user.
+  ConnectorInfo connector_info = 3 [(gogoproto.jsontag) = "connector_info"];
 }
 
 // PluginDatadogAccessSettings defines the settings for a Datadog Incident Management plugin

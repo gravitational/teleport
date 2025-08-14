@@ -786,9 +786,11 @@ func (c *PluginEntraIDSettings) Validate() error {
 }
 
 func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
-	if c.SamlConnectorName == "" {
-		return trace.BadParameter("saml_connector_name must be set")
+	if c.SamlConnectorName == "" && c.ConnectorInfo == nil {
+		// Don't print legacy filed.
+		return trace.BadParameter("connector_info must be set")
 	}
+
 	return nil
 }
 
