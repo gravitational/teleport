@@ -49,13 +49,33 @@ func IterateResources[T any](
 	return nil
 }
 
-// ResourcesWithPageSize returns an iterator over all resources from every page, limited to pageSize, produced from the pageFunc.
+// rangeParams are parameters provided to [rangeInternal]
+type rangeParams[T any] struct {
+	// start is the minimum inclusive key in the range yielded by the iteration.
+	// Empty string means start of the range.
+	start string
+	// end is the upper bound (exclusive) key in the range yielded by the iteration.
+	// Empty string means full remainder of the range.
+	end string
+	// pageSize is an optional maximum number of items to retrieve via [rangeParams.pageFunc]
+	pageSize int
+	// pageFunc is a user provided function to retrieve a single page of items.
+	pageFunc func(context.Context, int, string) ([]T, string, error)
+	// tokenFunc is a user provided function to retrieve a token for a given item.
+	// tokens are expected to be sorted lexigraphically.
+	tokenFunc func(item T) string
+}
+
+// rangeInternal is the internal implementation of resource range getter.
 // The iterator will only produce an error if one is encountered retrieving a page.
-func ResourcesWithPageSize[T any](ctx context.Context, pageFunc func(context.Context, int, string) ([]T, string, error), pageSize int) iter.Seq2[T, error] {
+func rangeInternal[T any](ctx context.Context, params rangeParams[T]) iter.Seq2[T, error] {
 	return func(yield func(T, error) bool) {
-		var pageToken string
+		pageToken := params.start
+		pageSize := params.pageSize
+		isLookingForEnd := params.end != "" && params.tokenFunc != nil
+
 		for {
-			page, nextToken, err := pageFunc(ctx, pageSize, pageToken)
+			page, nextToken, err := params.pageFunc(ctx, pageSize, pageToken)
 			if err != nil {
 				if trace.IsLimitExceeded(err) {
 					// Cut chunkSize in half if gRPC max message size is exceeded.
@@ -72,7 +92,12 @@ func ResourcesWithPageSize[T any](ctx context.Context, pageFunc func(context.Con
 				yield(*new(T), trace.Wrap(err))
 				return
 			}
+
 			for _, resource := range page {
+				if isLookingForEnd && params.tokenFunc(resource) >= params.end {
+					return
+				}
+
 				if !yield(resource, nil) {
 					return
 				}
@@ -84,10 +109,43 @@ func ResourcesWithPageSize[T any](ctx context.Context, pageFunc func(context.Con
 			}
 		}
 	}
+
+}
+
+// ResourcesWithPageSize returns an iterator over all resources from every page, limited to pageSize, produced from the pageFunc.
+// The iterator will only produce an error if one is encountered retrieving a page.
+func ResourcesWithPageSize[T any](ctx context.Context, pageFunc func(context.Context, int, string) ([]T, string, error), pageSize int) iter.Seq2[T, error] {
+	return rangeInternal(ctx, rangeParams[T]{
+		pageSize: pageSize,
+		pageFunc: pageFunc,
+	})
 }
 
 // Resources returns an iterator over all resources from every page produced from the pageFunc.
 // The iterator will only produce an error if one is encountered retrieving a page.
 func Resources[T any](ctx context.Context, pageFunc func(context.Context, int, string) ([]T, string, error)) iter.Seq2[T, error] {
-	return ResourcesWithPageSize(ctx, pageFunc, defaults.DefaultChunkSize)
+	return rangeInternal(ctx, rangeParams[T]{
+		pageFunc: pageFunc,
+		pageSize: defaults.DefaultChunkSize,
+	})
+}
+
+// RangeResources returns resources within the range [start, end).
+//
+// Example use:
+//
+//	func (c *Client) RangeFoos(ctx context.Context, start, end string) iter.Seq2[Foo, error] {
+//		return clientutils.RangeResources(ctx, start, end, c.ListFoos, Foo.GetName)
+//	}
+func RangeResources[T any](ctx context.Context, start, end string,
+	pageFunc func(context.Context, int, string) ([]T, string, error),
+	tokenFunc func(item T) string) iter.Seq2[T, error] {
+
+	return rangeInternal(ctx, rangeParams[T]{
+		start:     start,
+		end:       end,
+		pageFunc:  pageFunc,
+		tokenFunc: tokenFunc,
+		pageSize:  defaults.DefaultChunkSize,
+	})
 }
