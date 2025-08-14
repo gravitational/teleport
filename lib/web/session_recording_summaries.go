@@ -10,6 +10,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
+// getSessionRecordingSummary retrieves a summary of a session recording.
 func (h *Handler) getSessionRecordingSummary(
 	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite,
 ) (any, error) {
@@ -23,9 +24,10 @@ func (h *Handler) getSessionRecordingSummary(
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := clt.SummarizerServiceClient().GetSummary(r.Context(), &summarizerv1.GetSummaryRequest{
-		SessionId: sessionId,
-	})
+	response, err := clt.SummarizerServiceClient().GetSummary(
+		r.Context(),
+		&summarizerv1.GetSummaryRequest{SessionId: sessionId},
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
