@@ -11,14 +11,14 @@ export const McLogo = () => {
       css={`
         padding-left: ${props => props.theme.space[3]}px;
         padding-right: ${props => props.theme.space[3]}px;
-        height: 18px;
+        height: 48px;
         @media screen and (min-width: ${p => p.theme.breakpoints.small}) {
-          height: 28px;
+          height: 56px;
           padding-left: ${props => props.theme.space[4]}px;
           padding-right: ${props => props.theme.space[4]}px;
         }
         @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
-          height: 30px;
+          height: 56px;
         }
       `}
     />
