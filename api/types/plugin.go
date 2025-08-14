@@ -21,7 +21,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
@@ -786,9 +786,11 @@ func (c *PluginEntraIDSettings) Validate() error {
 }
 
 func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
-	if c.SamlConnectorName == "" {
-		return trace.BadParameter("saml_connector_name must be set")
+	if c.SamlConnectorName == "" && c.ConnectorInfo == nil {
+		// Don't print legacy filed.
+		return trace.BadParameter("connector_info must be set")
 	}
+
 	return nil
 }
 

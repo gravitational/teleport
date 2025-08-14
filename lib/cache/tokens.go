@@ -23,6 +23,8 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
@@ -44,7 +46,7 @@ func newStaticTokensCollection(c services.ClusterConfiguration, w types.WatchKin
 				staticTokensNameIndex: types.StaticTokens.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.StaticTokens, error) {
-			token, err := c.GetStaticTokens()
+			token, err := c.GetStaticTokens(ctx)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -64,8 +66,8 @@ func newStaticTokensCollection(c services.ClusterConfiguration, w types.WatchKin
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
-func (c *Cache) GetStaticTokens() (types.StaticTokens, error) {
-	_, span := c.Tracer.Start(context.TODO(), "cache/GetStaticTokens")
+func (c *Cache) GetStaticTokens(ctx context.Context) (types.StaticTokens, error) {
+	_, span := c.Tracer.Start(ctx, "cache/GetStaticTokens")
 	defer span.End()
 
 	rg, err := acquireReadGuard(c, c.collections.staticTokens)
@@ -76,10 +78,13 @@ func (c *Cache) GetStaticTokens() (types.StaticTokens, error) {
 
 	if rg.ReadCache() {
 		st, err := rg.store.get(staticTokensNameIndex, types.MetaNameStaticTokens)
-		return st.Clone(), trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return st.Clone(), nil
 	}
 
-	st, err := c.Config.ClusterConfig.GetStaticTokens()
+	st, err := c.Config.ClusterConfig.GetStaticTokens(ctx)
 	return st, trace.Wrap(err)
 }
 
@@ -100,7 +105,16 @@ func newProvisionTokensCollection(p services.Provisioner, w types.WatchKind) (*c
 				provisionTokenStoreNameIndex: types.ProvisionToken.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.ProvisionToken, error) {
-			tokens, err := p.GetTokens(ctx)
+			tokens, err := stream.Collect(
+				clientutils.Resources(
+					ctx,
+					// ListProvisionTokens take too many arguments for [clientutils.Resources]
+					// so we wrap it to get the usual paginated signature.
+					func(ctx context.Context, pageSize int, pageKey string) ([]types.ProvisionToken, string, error) {
+						return p.ListProvisionTokens(ctx, pageSize, pageKey, nil, "")
+					},
+				),
+			)
 			return tokens, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.ProvisionToken {
@@ -117,6 +131,8 @@ func newProvisionTokensCollection(p services.Provisioner, w types.WatchKind) (*c
 }
 
 // GetTokens returns all active (non-expired) provisioning tokens
+// Deprecated: use [ListProvisionTokens] istead.
+// TODO(hugoShaka): DELETE IN 19.0.0
 func (c *Cache) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetTokens")
 	defer span.End()
@@ -179,7 +195,7 @@ func (c *Cache) GetToken(ctx context.Context, name string) (types.ProvisionToken
 // returned. If a bot name is provided, only tokens having a role of Bot are
 // returned.
 func (c *Cache) ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetTokens")
+	ctx, span := c.Tracer.Start(ctx, "cache/ListProvisionTokens")
 	defer span.End()
 
 	lister := genericLister[types.ProvisionToken, provisionTokenIndex]{

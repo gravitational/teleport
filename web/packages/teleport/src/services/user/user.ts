@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import cfg from 'teleport/config';
+import cfg, { UrlListUsersParams } from 'teleport/config';
 import api from 'teleport/services/api';
 import session from 'teleport/services/websession';
 
 import { MfaChallengeResponse } from '../mfa';
+import { isPathNotFoundError } from '../version/unsupported';
 import { makeResetToken } from './makeResetToken';
 import makeUser, { makeUsers } from './makeUser';
 import makeUserContext from './makeUserContext';
@@ -60,8 +61,38 @@ const service = {
     return api.get(cfg.getUserWithUsernameUrl(username)).then(makeUser);
   },
 
+  // TODO(rudream): DELETE IN v21.0
   fetchUsers(signal?: AbortSignal) {
     return api.get(cfg.getUsersUrl(), signal).then(makeUsers);
+  },
+
+  async fetchUsersV2(
+    params?: UrlListUsersParams,
+    signal?: AbortSignal
+  ): Promise<{
+    items: User[];
+    startKey: string;
+  }> {
+    return await api
+      .get(cfg.getUsersUrlV2(params), signal)
+      .then(res => {
+        return {
+          items: makeUsers(res.items),
+          startKey: res.startKey,
+        };
+      })
+      .catch(err => {
+        // If this v2 paginated endpoint isn't found, fallback to the v1 endpoint but paginate locally in order to
+        // maintain compatibility with the paginated table component which expects a paginated response.
+        // TODO(rudream): DELETE IN v21.0
+        if (isPathNotFoundError(err)) {
+          return this.fetchUsers().then(users =>
+            makeUsersPageLocally(params, users)
+          );
+        } else {
+          throw err;
+        }
+      });
   },
 
   /**
@@ -160,6 +191,36 @@ function withExcludedField(user: User, excludeUserField: ExcludeUserField) {
   }
 
   return userReq;
+}
+
+/**
+ * makeUsersPageLocally mocks a paginated response for users so that a list of all users
+ * can be handled by a serverside paginated table component.
+ */
+// TODO(rudream): DELETE IN v21.0
+function makeUsersPageLocally(
+  params: UrlListUsersParams,
+  allUsers: User[]
+): {
+  items: User[];
+  startKey: string;
+} {
+  if (params.search) {
+    allUsers = allUsers.filter(u =>
+      u.name.toLowerCase().includes(params.search.toLowerCase())
+    );
+  }
+
+  if (params.startKey) {
+    const startIndex = allUsers.findIndex(p => p.name === params.startKey);
+    allUsers = allUsers.slice(startIndex);
+  }
+
+  const limit = params.limit || 200;
+  const nextKey = allUsers.at(limit)?.name;
+  allUsers = allUsers.slice(0, limit);
+
+  return { items: allUsers, startKey: nextKey };
 }
 
 export default service;

@@ -386,7 +386,8 @@ func (m *mcpDBConfigCommand) addDatabaseToConfig(config mcpConfig, dbURI mcp.Res
 var (
 	// defaultDBMCPRegistry is the default database access MCP servers registry.
 	defaultDBMCPRegistry = map[string]dbmcp.NewServerFunc{
-		defaults.ProtocolPostgres: pgmcp.NewServer,
+		defaults.ProtocolPostgres:    pgmcp.NewServer,
+		defaults.ProtocolCockroachDB: pgmcp.NewServerForCockroachDB,
 	}
 )
 

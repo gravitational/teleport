@@ -864,10 +864,6 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		return nil, trace.BadParameter("bad backend state, please recreate the join token")
 	case hasBoundPublicKey && hasBoundBotInstance && hasIncomingBotInstance:
 		// Standard rejoin case, does not consume a rejoin.
-		if status.BoundBotInstanceID != req.JoinRequest.BotInstanceID {
-			return nil, trace.AccessDenied("bot instance mismatch")
-		}
-
 		if err := a.issueBoundKeypairChallenge(
 			ctx,
 			status.BoundPublicKey,
@@ -892,16 +888,21 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 			return nil, trace.AccessDenied("join state verification failed")
 		}
 
+		// Join state verification will check the instance IDs in the token and
+		// join state document, but as a sanity check, we'll also ensure it
+		// matches the value extracted from the certs.
+		//
+		// It should not be possible for this check to fail at this point, as
+		// any event that might have cycled bot instance IDs should have also
+		// modified the join state causing a failure above. In any case, we'll
+		// keep this as a sanity check.
+		if status.BoundBotInstanceID != req.JoinRequest.BotInstanceID {
+			return nil, trace.AccessDenied("bot instance mismatch")
+		}
+
 		// Nothing else to do, no key change, no additional audit event; regular
 		// bot join event will be emitted later.
 	case hasBoundPublicKey && hasBoundBotInstance && !hasIncomingBotInstance:
-		// Hard rejoin case, the client identity expired and a new bot instance
-		// is required. Consumes a rejoin.
-		if recoveryMode == boundkeypair.RecoveryModeStandard && !hasJoinsRemaining {
-			// Recovery limit only applies in "standard" mode.
-			return nil, trace.AccessDenied("no rejoins remaining")
-		}
-
 		if err := a.issueBoundKeypairChallenge(
 			ctx,
 			status.BoundPublicKey,
@@ -909,6 +910,13 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		); err != nil {
 			a.emitBoundKeypairRecoveryEvent(ctx, req, ptv2, boundPublicKey, recoveryCount, err)
 			return nil, trace.Wrap(err)
+		}
+
+		// Hard rejoin case, the client identity expired and a new bot instance
+		// is required. Consumes a rejoin.
+		if recoveryMode == boundkeypair.RecoveryModeStandard && !hasJoinsRemaining {
+			// Recovery limit only applies in "standard" mode.
+			return nil, trace.AccessDenied("no rejoins remaining")
 		}
 
 		// Verify locks here now that we've verified private key ownership but

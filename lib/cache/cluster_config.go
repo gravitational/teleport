@@ -80,7 +80,10 @@ func (c *Cache) GetClusterName(ctx context.Context) (types.ClusterName, error) {
 
 	if rg.ReadCache() {
 		name, err := rg.store.get(clusterNameDefaultIndex, types.MetaNameClusterName)
-		return name.Clone(), trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return name.Clone(), nil
 	}
 
 	cachedName, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"name"}, func(ctx context.Context) (types.ClusterName, error) {
@@ -147,7 +150,10 @@ func (c *Cache) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditCo
 
 	if rg.ReadCache() {
 		cfg, err := rg.store.get(clusterAuditConfigNameIndex, types.MetaNameClusterAuditConfig)
-		return cfg.Clone(), trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return cfg.Clone(), nil
 	}
 
 	cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"audit"}, func(ctx context.Context) (types.ClusterAuditConfig, error) {
@@ -210,7 +216,10 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNe
 
 	if rg.ReadCache() {
 		cfg, err := rg.store.get(clusterNetworkingConfigNameIndex, types.MetaNameClusterNetworkingConfig)
-		return cfg.Clone(), trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return cfg.Clone(), nil
 	}
 
 	cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"networking"}, func(ctx context.Context) (types.ClusterNetworkingConfig, error) {
@@ -273,7 +282,10 @@ func (c *Cache) GetAuthPreference(ctx context.Context) (types.AuthPreference, er
 
 	if rg.ReadCache() {
 		cfg, err := rg.store.get(authPreferenceNameIndex, types.MetaNameClusterAuthPreference)
-		return cfg.Clone(), trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return cfg.Clone(), nil
 	}
 
 	cfg, err := c.Config.ClusterConfig.GetAuthPreference(ctx)
@@ -330,7 +342,10 @@ func (c *Cache) GetSessionRecordingConfig(ctx context.Context) (types.SessionRec
 
 	if rg.ReadCache() {
 		cfg, err := rg.store.get(sessionRecordingConfigNameIndex, types.MetaNameSessionRecordingConfig)
-		return cfg.Clone(), trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return cfg.Clone(), nil
 	}
 
 	cfg, err := c.Config.ClusterConfig.GetSessionRecordingConfig(ctx)
