@@ -30,16 +30,16 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 )
 
-// streamID uniquely identifies a stream
-type streamID struct {
+// fileOperationsKey uniquely identifies a set of common file operations
+type fileOperationsKey struct {
 	path        string
 	directoryID directoryID
 	write       bool
 }
 
-// streamEvent is an abstraction of read/write events
+// fileOperationEvent is an abstraction of read/write events
 // so that we need only one compactor implementation.
-type streamEvent interface {
+type fileOperationEvent interface {
 	Base() events.AuditEvent
 	IsWriteEvent() bool
 	GetDirectoryID() directoryID
@@ -49,22 +49,24 @@ type streamEvent interface {
 	SetLength(uint64)
 }
 
-// stream identifies a set of reads/writes
+// fileOperationsBucket identifies a set of reads/writes
 // to a particular file within some period of time.
-type stream struct {
+type fileOperationsBucket struct {
 	expireTime time.Time
-	events     []streamEvent
+	events     []fileOperationEvent
 	timer      *time.Timer
 	done       chan struct{}
 }
 
-// auditCompactor tracks streams within a particular desktop session
+// auditCompactor retains read and write events to a given file for a period of time before
+// emitting them to the audit log. Once the timeout period expires, contiguous read/write events are
+// compacted into a single audit event and emitted.
 type auditCompactor struct {
 	refreshInterval  time.Duration
 	maxDelayInterval time.Duration
 	emitFn           func(context.Context, events.AuditEvent)
-	streams          map[streamID]*stream
-	streamLock       sync.Mutex
+	buckets          map[fileOperationsKey]*fileOperationsBucket
+	bucketsLock      sync.Mutex
 }
 
 func newAuditCompactor(refreshInterval, maxDelayInterval time.Duration, emitFn func(context.Context, events.AuditEvent)) auditCompactor {
@@ -72,23 +74,23 @@ func newAuditCompactor(refreshInterval, maxDelayInterval time.Duration, emitFn f
 		refreshInterval:  refreshInterval,
 		maxDelayInterval: maxDelayInterval,
 		emitFn:           emitFn,
-		streams:          map[streamID]*stream{},
+		buckets:          map[fileOperationsKey]*fileOperationsBucket{},
 	}
 }
 
-func (s *stream) emitEvents(ctx context.Context, emitFn func(ctx context.Context, event events.AuditEvent)) {
+func (s *fileOperationsBucket) emitEvents(ctx context.Context, emitFn func(ctx context.Context, event events.AuditEvent)) {
 	for event := range s.compactEvents() {
 		emitFn(ctx, event.Base())
 	}
 }
 
-func (s *stream) compactEvents() iter.Seq[streamEvent] {
-	offsetMapping := map[uint64][]streamEvent{}
+func (s *fileOperationsBucket) compactEvents() iter.Seq[fileOperationEvent] {
+	offsetMapping := map[uint64][]fileOperationEvent{}
 	for _, event := range s.events {
 		offsetMapping[event.GetOffset()] = append(offsetMapping[event.GetOffset()], event)
 	}
 
-	var finalEvents []streamEvent
+	var finalEvents []fileOperationEvent
 	for len(offsetMapping) > 0 {
 		// Find the read/write event with the lowest offset
 		// so that we may greedily search for the longest
@@ -123,14 +125,14 @@ func (s *stream) compactEvents() iter.Seq[streamEvent] {
 }
 
 // compact finds the longest contiguous set of reads/writes following the given 'event'.
-func (s *stream) compact(event streamEvent, eventsByOffset map[uint64][]streamEvent) ([]streamEvent, uint64) {
+func (s *fileOperationsBucket) compact(event fileOperationEvent, eventsByOffset map[uint64][]fileOperationEvent) ([]fileOperationEvent, uint64) {
 	// Determine the offset at which the next contiguous segment must start.
 	offset := event.GetOffset() + event.GetLength()
 	// Consule the map for any events with this offset.
 	if len(eventsByOffset[offset]) > 0 {
 		// There may be multiple candidate segments to follow.
 		// Try each of them out and select the longest contiguous set of segments
-		var winner []streamEvent
+		var winner []fileOperationEvent
 		var maxLength uint64
 		for _, choice := range eventsByOffset[offset] {
 			// TODO: We could probably speed this up with memoization/dynamic programmming,
@@ -143,88 +145,88 @@ func (s *stream) compact(event streamEvent, eventsByOffset map[uint64][]streamEv
 				maxLength = length
 			}
 		}
-		return append([]streamEvent{event}, winner...), maxLength + event.GetLength()
+		return append([]fileOperationEvent{event}, winner...), maxLength + event.GetLength()
 	}
-	return []streamEvent{event}, event.GetLength()
+	return []fileOperationEvent{event}, event.GetLength()
 }
 
-func (s *stream) addEvent(event streamEvent) {
+func (s *fileOperationsBucket) addEvent(event fileOperationEvent) {
 	s.events = append(s.events, event)
 }
 
-func (a *auditCompactor) handleEvent(ctx context.Context, event streamEvent) {
-	// Does the event exist in the stream?
-	key := streamID{
+func (a *auditCompactor) handleEvent(ctx context.Context, event fileOperationEvent) {
+	// File Operations are grouped by directoryID, path, and read vs write
+	key := fileOperationsKey{
 		write:       event.IsWriteEvent(),
 		directoryID: event.GetDirectoryID(),
 		path:        event.GetPath(),
 	}
 
-	newStream := true
-	a.streamLock.Lock()
-	defer a.streamLock.Unlock()
+	newBucket := true
+	a.bucketsLock.Lock()
+	defer a.bucketsLock.Unlock()
 
-	if stream, exists := a.streams[key]; exists {
-		// We're currently tracking this stream
+	if bucket, exists := a.buckets[key]; exists {
+		// We're currently tracking this bucket
 		// Temporarily stop the timer (if possible)
-		alreadyFired := !stream.timer.Stop()
+		alreadyFired := !bucket.timer.Stop()
 		if !alreadyFired {
-			// Update the current stream. It is a continuation of the current stream
+			// Update the current bucket. It is a continuation of the current bucket
 			// and the timer has not yet fired for it.
-			stream.addEvent(event)
+			bucket.addEvent(event)
 			// Reset the timer either to the refresh interval, or until
-			// the stream's expiration time
-			stream.timer.Reset(time.Duration(math.Min(float64(a.refreshInterval), float64(time.Until(stream.expireTime)))))
-			newStream = false
+			// the buckets's expiration time
+			bucket.timer.Reset(time.Duration(math.Min(float64(a.refreshInterval), float64(time.Until(bucket.expireTime)))))
+			newBucket = false
 		} else {
-			// The timer has already fired. Stop tracking this stream.
-			// A new stream will be created below to handle this event.
-			delete(a.streams, key)
+			// The timer has already fired. Stop tracking this bucket.
+			// A new bucket will be created below to handle this event.
+			delete(a.buckets, key)
 		}
 	}
 
-	// We need to create a new stream due to one of the following:
-	//   - We are not tracking any such stream yet.
-	//   - We were tracking this stream but the timer has already fired.
-	if newStream {
-		s := &stream{
+	// We need to create a new bucket due to one of the following:
+	//   - We are not tracking any such bucket yet.
+	//   - We were tracking this bucket but the timer has already fired.
+	if newBucket {
+		bucket := &fileOperationsBucket{
 			done:       make(chan struct{}),
 			expireTime: time.Now().Add(a.maxDelayInterval),
-			events:     []streamEvent{event},
+			events:     []fileOperationEvent{event},
 		}
-		s.timer = time.AfterFunc(a.refreshInterval, func() {
+		bucket.timer = time.AfterFunc(a.refreshInterval, func() {
 			// Close done channel so that the 'flush' function can
 			// verify that this goroutine has completed its work.
-			defer close(s.done)
-			a.streamLock.Lock()
-			delete(a.streams, key)
-			a.streamLock.Unlock()
-			s.emitEvents(ctx, a.emitFn)
+			defer close(bucket.done)
+			a.bucketsLock.Lock()
+			delete(a.buckets, key)
+			a.bucketsLock.Unlock()
+			bucket.emitEvents(ctx, a.emitFn)
 
 		})
-		a.streams[key] = s
+		a.buckets[key] = bucket
 	}
 }
 
 // flush immediately compacts and emits audit events for all
-// in-progress streams and blocks until completion.
+// unexpired buckets and blocks until completion.
 func (a *auditCompactor) flush(ctx context.Context) {
-	a.streamLock.Lock()
+	a.bucketsLock.Lock()
 	wait := []chan struct{}{}
-	for streamID, stream := range a.streams {
-		if stream.timer.Stop() {
+	for bucketKey, bucket := range a.buckets {
+		if bucket.timer.Stop() {
 			// If we successfully stop the timer before it fires,
 			// go ahead and emit the audit event.
-			stream.emitEvents(ctx, a.emitFn)
-			delete(a.streams, streamID)
+			bucket.emitEvents(ctx, a.emitFn)
+			delete(a.buckets, bucketKey)
 		} else {
 			// The timer was already firing, so wait until
 			// the emitFn as been executed by the underlying goroutine.
-			wait = append(wait, stream.done)
+			wait = append(wait, bucket.done)
 		}
 	}
 	// Unlock so that we may unblock timer functions.
-	a.streamLock.Unlock()
+	a.bucketsLock.Unlock()
 	// Wait for pending timers to complete
 	// We use our own "done" channel rather than the timer's
 	// because we need to know that the timer's underlying goroutine.

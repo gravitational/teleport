@@ -63,7 +63,7 @@ func TestAuditCompactor(t *testing.T) {
 			defer eventsLock.Unlock()
 			auditEvents = append(auditEvents, event)
 		},
-		streams: map[streamID]*stream{},
+		buckets: map[fileOperationsKey]*fileOperationsBucket{},
 	}
 
 	t.Run("basic", func(t *testing.T) {
