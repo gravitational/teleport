@@ -32,7 +32,7 @@ target group.
 Clients then connect to the Proxy Service load balancer at the appropriate
 address. Teleport Agents establish SSH reverse tunnels to the Proxy Service by
 dialing the internal load balancer, while external clients connect to the Proxy
-Service using the external load balancer. 
+Service using the external load balancer.
 
 When an end user connects to an infrastructure resource, e.g., using `tsh proxy
 db` or sending an HTTP request to a Teleport-protected application, they dial
@@ -63,7 +63,7 @@ is the only one that supports other recommended configurations.
 You can set up your infrastructure to use split DNS so that a single public
 address for your Teleport cluster resolves to the external endpoint for end
 users and the internal endpoint for infrastructure resources in your internal
-network. 
+network.
 
 We strongly recommend this approach for maintaining separate internal and
 external Proxy Service load balancers. This is the only approach we discuss that
@@ -114,21 +114,21 @@ multiplexing enabled.
    ```yaml
    proxy_service:
      enabled: true
-     public_addr: 
+     public_addr:
        - external_proxy.example.com:443
        - internal_proxy.example.com:443
    ```
 
 1. On Teleport Agent hosts, start the `teleport` process with the
    `TELEPORT_TUNNEL_PUBLIC_ADDR` environment variable assigned to the internal
-   Proxy Service load balancer address. 
+   Proxy Service load balancer address.
 
    Setting `TELEPORT_TUNNEL_PUBLIC_ADDR` overrides the default behavior, in
    which an agent verifies the Proxy Service certificate using the first public
    address listed, to use the value of the environment variable instead.
 
    The step differs according to whether you installed Teleport on Linux servers
-   using [Manage Updates v2](../../upgrading/agent-managed-updates.mdx) or
+   using [Manage Updates v2](../../upgrading/agent-managed-updates/agent-managed-updates.mdx) or
    using the `teleport-kube-agent` Helm chart:
 
    <Tabs>
@@ -137,7 +137,7 @@ multiplexing enabled.
    By default, Teleport installations based on Managed Updates v2 configure the
    `teleport` systemd unit to read environment variables from the file
    `/etc/default/teleport`.
-   
+
    Edit the environment file to specify a tunnel public address with the
    following line, updating the value to include the address of your internal
    Proxy Service load balancer:
@@ -157,7 +157,7 @@ multiplexing enabled.
        value: "internal_proxy.example.com:443"
    ```
 
-   Upgrade your `teleport-kube-agent` Helm release, assigning 
+   Upgrade your `teleport-kube-agent` Helm release, assigning
    <Var name="release-name" /> to the release name. This command assumes that the
    path to your values file is `values.yaml`:
 

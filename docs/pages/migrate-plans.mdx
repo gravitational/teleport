@@ -8,7 +8,7 @@ labels:
 
 This guide explains how to migrate from Teleport Community Edition, Teleport
 Enterprise (Self-Hosted) and Teleport Enterprise (Cloud) to another Teleport
-plan. 
+plan.
 
 We recommend that you try out a Teleport [demo
 cluster](linux-demo.mdx) with Teleport Community Edition,
@@ -16,7 +16,7 @@ migrate to [Teleport Enterprise (Cloud)](get-started.mdx) to roll out
 Teleport across your organization, and deploy a
 [self-hosted](zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx) Teleport Enterprise cluster
 if you have security and compliance requirements that Teleport Enterprise
-(Cloud) cannot address.  
+(Cloud) cannot address.
 
 ## How it works
 
@@ -59,7 +59,7 @@ migrating from Teleport Enterprise to Teleport Community Edition.
 ## Step 1/4. Set up your new Teleport plan
 
 1. Determine the `teleport.sh` subdomain you would like to use for your new
-   Teleport Enterprise account. 
+   Teleport Enterprise account.
 
    If you are migrating to Teleport Enterprise (Cloud) and the license dashboard
    for your self-hosted Teleport Enterprise cluster is already using your
@@ -76,19 +76,19 @@ migrating from Teleport Enterprise to Teleport Community Edition.
 
 1. Ensure you are running Teleport Enterprise agents with versions that are
    the same major or just one major version lower than the new Teleport
-   Enterprise account version. To check the  versions of your Teleport 
+   Enterprise account version. To check the  versions of your Teleport
    Enterprise agents, you can use the `tctl` command
    to list the inventory of connected agents and their version:
 
-   ```code  
+   ```code
    # check for older versions
    $ tctl inventory ls --older-than=<version>
    # check for newer versions
    $ tctl inventory ls --newer-than=<version>
    ```
 
-1. We recommend that Teleport Enterprise (Self-Hosted) customers set up automatic updates to maintain a healthy set of Agents, and require this in Teleport Enterprise (Cloud). See how to 
-   [Set up Automatic Agent Updates](upgrading/agent-managed-updates.mdx) to
+1. We recommend that Teleport Enterprise (Self-Hosted) customers set up automatic updates to maintain a healthy set of Agents, and require this in Teleport Enterprise (Cloud). See how to
+   [Set up Automatic Agent Updates](upgrading/agent-managed-updates/agent-managed-updates.mdx) to
    incorporate this into your migration.
 
 
@@ -96,7 +96,7 @@ Validate connectivity to both the new Teleport Enterprise cluster and your
 original Teleport Enterprise cluster. You should be able to connect to both
 Teleport clusters and execute `tctl` commands using your current credentials.
 
-1. Log in to the original Teleport cluster, replacing 
+1. Log in to the original Teleport cluster, replacing
    <Var name="enterprise.example.com" /> with the cluster domain name:
 
    ```code
@@ -158,8 +158,8 @@ To achieve this:
    ```code
    # Use the --auth flag instead of --user to log in with Single Sign-On.
    $ tsh login --proxy=teleport.example.com --user=admin@example.com
-   $ tctl get roles > roles.yaml 
-   $ tctl get users > users.yaml 
+   $ tctl get roles > roles.yaml
+   $ tctl get users > users.yaml
    ```
 
 1. Once you have the resource configuration file from the above, proceed to log
@@ -192,7 +192,7 @@ To migrate services such as Teleport Agents, Machine ID Bots, and plugins, start
 by cataloging the various services you're managing with Teleport. The following
 resources should be considered for migration:
 
- - Teleport Agents 
+ - Teleport Agents
  - Machine ID Bots
  - Access Request plugins
  - The Teleport Event Handler
@@ -203,7 +203,7 @@ Enterprise account.
 You can migrate Teleport services all at once or gradually, depending on your
 business requirements. If running Teleport at scale, you'll generally want to
 use a configuration management tool to automate and streamline the process of
-carrying out the actions involved in migrating agent configurations. 
+carrying out the actions involved in migrating agent configurations.
 
 ### Migrate Teleport Agents
 
@@ -263,7 +263,7 @@ To migrate Teleport Agents:
    If your Agent configuration does *not* include a `teleport.proxy_server`
    field, and instead has a `teleport.auth_server` or `teleport.auth_servers`
    field, we recommend migrating your configuration to `version: v3` and using
-   `teleport.proxy_server`. 
+   `teleport.proxy_server`.
 
    With the `teleport.proxy_server` field, the Agent attempts to connect to the
    Teleport cluster using a single mode, rather than multiple modes, which takes
@@ -279,8 +279,8 @@ To migrate Teleport Agents:
        token_name: new-token-goes-here
    ```
 
-1. On Linux servers, delete the local Agent cache and restart the Teleport process 
-   on each Agent to force the Agent to rejoin the new Teleport Enterprise cluster. 
+1. On Linux servers, delete the local Agent cache and restart the Teleport process
+   on each Agent to force the Agent to rejoin the new Teleport Enterprise cluster.
    By default, the data is located in the  `/var/lib/teleport` directory:
 
    ```code
@@ -299,7 +299,7 @@ To migrate Teleport Agents:
    # delete the state secret
    kubectl -n <namespace> delete secret <release-name>-0-state
    ```
-   The settings for the new Teleport Kubernetes Agent should have the 
+   The settings for the new Teleport Kubernetes Agent should have the
    `enterprise` value set to true.
 
 ### Migrate Machine ID Bots
@@ -346,37 +346,37 @@ your new Teleport cluster, ensure that the setup is complete.
    verify their status and connectivity to ensure they are properly registered
    and available for connections. You can either check via the Web UI, or use
    `tctl` to get a list of all resources and verify their registration and
-   status. 
+   status.
 
    For example, to list all nodes registered with the Teleport Cluster, you can run the command below:
-   
+
    ```code
    $ tctl nodes ls
    ```
-   
+
    Similarly, to list all other registered resources, you can run the commands below:
-   
-   
+
+
    List all registered Kubernetes clusters:
-   
+
    ```code
    $ tctl kube ls
    ```
-   
+
    List all registered databases:
-   
+
    ```code
    $ tctl db ls
    ```
-   
+
    List all registered applications:
-   
+
    ```code
    $ tctl apps ls
    ```
-   
+
    List all registered Windows desktops:
-   
+
    ```code
    $ tctl desktop ls
    ```
@@ -389,7 +389,7 @@ your new Teleport cluster, ensure that the setup is complete.
    For example, you can run OpenSSH with a limited key following our best
    practices on [How to SSH
    properly](https://goteleport.com/blog/how-to-ssh-properly/).
-  
+
   We recommend configuring systemd to start OpenSSH for 5 minutes at boot, then
   shut it down. The master keys should be stored in a secure vault. To break the
   glass, obtain the master key, reboot the server, and connect using an OpenSSH

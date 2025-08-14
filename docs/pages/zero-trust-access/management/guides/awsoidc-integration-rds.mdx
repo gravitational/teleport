@@ -55,7 +55,7 @@ In the "Deploy Database Service" step, the wizard guides you through creating
 and configuring the ECS Fargate deployment.
 
 The wizard generates a script for you to run, which will create an IAM role for
-Teleport Database Service instances to use. 
+Teleport Database Service instances to use.
 The IAM role has permissions to output logs in ECS, describe RDS databases, and
 connect to RDS databases.
 
@@ -63,7 +63,7 @@ You then choose subnets and security groups for the deployment on ECS Fargate.
 
 When you click "Deploy Teleport Service" the wizard creates an ECS task
 definition that includes various settings for configuring and starting a
-Teleport Database Service instance. 
+Teleport Database Service instance.
 The task definition uses the IAM role created in the first step as both the
 [ECS task execution role](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_execution_IAM_role.html).
 and the
@@ -85,7 +85,7 @@ Teleport users to connect to the database(s) it proxies.
 
 This is a serverless HA approach to deploying the Teleport Database Service.
 It does not require any allowed inbound traffic from the internet and supports
-[automatic agent upgrades](../../../upgrading/agent-managed-updates.mdx).
+[automatic agent upgrades](../../../upgrading/agent-managed-updates/agent-managed-updates.mdx).
 
 The Teleport Database Service instances are configured to use
 [dynamic database registration](../../../enroll-resources/database-access/guides/dynamic-registration.mdx)

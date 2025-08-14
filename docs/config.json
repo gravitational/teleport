@@ -1544,6 +1544,11 @@
       "source": "/admin-guides/migrate-plans/",
       "destination": "/migrate-plans/",
       "permanent": true
+    },
+    {
+      "source": "/upgrading/agent-managed-updates/",
+      "destination": "/upgrading/agent-managed-updates/",
+      "permanent": true
     }
   ]
 }
