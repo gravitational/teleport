@@ -112,6 +112,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
@@ -3348,31 +3349,7 @@ func (c *Client) ListApps(ctx context.Context, limit int, start string) ([]types
 
 // Apps returns application resources within the range [start, end).
 func (c *Client) Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error] {
-	return func(yield func(types.Application, error) bool) {
-		for {
-			apps, next, err := c.ListApps(ctx, 0, start)
-			if err != nil {
-				yield(nil, err)
-				return
-			}
-
-			for _, app := range apps {
-				if end != "" && app.GetName() >= end {
-					return
-				}
-
-				if !yield(app, nil) {
-					return
-				}
-			}
-
-			if next == "" {
-				return
-			}
-
-			start = next
-		}
-	}
+	return clientutils.RangeResources(ctx, start, end, c.ListApps, types.Application.GetName)
 }
 
 // DeleteApp deletes specified application resource.
