@@ -5,10 +5,10 @@ on:
   schedule:
     # This should be coordinated with weekly AMI cleanups so that releases are (usually)
     # avoided when the AMI cleanup is running.
-    - cron: "0 10 * * *"  # At 1000 UTC every day (2am/3am PST/PDT)
-    - cron: "30 10 * * *" # At 1030 UTC every day
-    - cron: "0 11 * * *"
-    - cron: "30 11 * * *"
+    - cron: "0 8 * * *" # At 0800 UTC every day (12am/1am PST/PDT)
+    - cron: "0 10 * * *" # At 1000 UTC every day
+    - cron: "0 12 * * *"
+    - cron: "0 14 * * *"
 jobs:
   release:
     permissions:
@@ -18,9 +18,9 @@ jobs:
     env:
       BRANCH: >-
         ${{
-          github.event.schedule == '0 10 * * *' && 'branch/v18' ||
-          github.event.schedule == '30 10 * * *' && 'branch/v17' ||
-          github.event.schedule == '0 11 * * *' && 'branch/v16' ||
+          github.event.schedule == '0 8 * * *' && 'branch/v18' ||
+          github.event.schedule == '0 10 * * *' && 'branch/v17' ||
+          github.event.schedule == '0 12 * * *' && 'branch/v16' ||
           'master'
         }}
     steps:
