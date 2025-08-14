@@ -152,7 +152,7 @@ func (a *Server) issueBoundKeypairChallenge(
 		return trace.Wrap(err, "determining the key ID")
 	}
 
-	clusterName, err := a.GetClusterName(ctx)
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -285,7 +285,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		// Emit a log message and audit event on join failure.
 		if err != nil {
 			a.handleJoinFailure(
-				ctx, err, provisionToken, joinFailureMetadata, req.JoinRequest,
+				err, provisionToken, joinFailureMetadata, req.JoinRequest,
 			)
 		}
 	}()
