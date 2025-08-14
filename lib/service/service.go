@@ -2766,7 +2766,7 @@ func (process *TeleportProcess) initAuthService() error {
 			return nil
 		}
 
-		params := awsra.AWSRolesAnywherProfileSyncerParams{
+		params := awsra.AWSRolesAnywhereProfileSyncerParams{
 			Clock:             process.Clock,
 			Logger:            logger,
 			KeyStoreManager:   authServer.GetKeyStore(),
@@ -2781,14 +2781,14 @@ func (process *TeleportProcess) initAuthService() error {
 			LockConfiguration: backend.LockConfiguration{
 				Backend:            process.backend,
 				LockNameComponents: []string{awsRolesAnywhereProfileSyncProcessName},
-				TTL:                1 * time.Minute,
+				TTL:                time.Minute,
 				RetryInterval:      syncInterval,
 			},
 			RefreshLockInterval: 20 * time.Second,
 		}
 
 		runFunction := func(ctx context.Context) error {
-			return trace.Wrap(awsra.RunAWSRolesAnywherProfileSyncer(ctx, params))
+			return trace.Wrap(awsra.RunAWSRolesAnywhereProfileSyncer(ctx, params))
 		}
 
 		waitWithJitter := retryutils.SeventhJitter(time.Second * 10)
