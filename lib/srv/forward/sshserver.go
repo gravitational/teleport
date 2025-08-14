@@ -371,6 +371,7 @@ func New(c ServerConfig) (*Server, error) {
 		targetAddr:      c.TargetAddr,
 		targetHostname:  c.TargetHostname,
 		targetServer:    c.TargetServer,
+		eiceSigner:      c.EICESigner,
 	}
 
 	// Set the ciphers, KEX, and MACs that the in-memory server will send to the
