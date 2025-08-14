@@ -34,7 +34,8 @@ export type IntegrationUpdateResult<T extends IntegrationUpdateRequest> =
 export type Integration =
   | IntegrationGitHub
   | IntegrationAwsOidc
-  | IntegrationAzureOidc;
+  | IntegrationAzureOidc
+  | IntegrationAwsRa;
 
 /**
  * type Integration v. type Plugin:
@@ -123,13 +124,13 @@ export type IntegrationSpecAwsOidc = {
 
 export type IntegrationSpecAwsRa = {
   trustAnchorArn: string;
-  profileSyncConfig: AwsRolesAnywhereProfileSyncConfig;
+  profileSyncConfig: AWSRolesAnywhereProfileSyncConfig;
 };
 /**
- * AwsRolesAnywhereProfileSyncConfig contains the configuration for the AWS Roles Anywhere Profile sync.
+ * AWSRolesAnywhereProfileSyncConfig contains the configuration for the AWS Roles Anywhere Profile sync.
  * This is used to sync AWS Roles Anywhere profiles as application servers.
  */
-type AwsRolesAnywhereProfileSyncConfig = {
+type AWSRolesAnywhereProfileSyncConfig = {
   /**
    * Enabled is set to true if this integration should sync profiles as application servers.
    */
@@ -168,6 +169,12 @@ export type IntegrationAwsOidc = IntegrationTemplate<
   'integration',
   IntegrationKind.AwsOidc,
   IntegrationSpecAwsOidc
+>;
+
+export type IntegrationAwsRa = IntegrationTemplate<
+  'integration',
+  IntegrationKind.AWSRa,
+  IntegrationSpecAwsRa
 >;
 
 export type AwsOidcPingRequest = {

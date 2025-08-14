@@ -1,3 +1,4 @@
+;
 /**
  * Teleport
  * Copyright (C) 2025  Gravitational, Inc.
@@ -23,11 +24,17 @@ import { Info } from 'design/Alert';
 import { CollapsibleInfoSection as CollapsibleInfoSectionComponent } from 'design/CollapsibleInfoSection';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
+
+
 import cfg from 'teleport/config';
 import { IamIntegration } from 'teleport/Integrations/Enroll/AwsConsole/IamIntegration/IamIntegration';
 import { makeAwsOidcStatusContextState } from 'teleport/Integrations/status/AwsOidc/testHelpers/makeAwsOidcStatusContextState';
 import { MockAwsOidcStatusProvider } from 'teleport/Integrations/status/AwsOidc/testHelpers/mockAwsOidcStatusProvider';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
+
+
+
+
 
 export default {
   title: 'Teleport/Integrations/Enroll/AwsConsole/IamIntegration',

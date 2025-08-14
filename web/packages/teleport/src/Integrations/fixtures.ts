@@ -193,6 +193,24 @@ export const integrations: Integration[] = [
     details: 'some-detail',
     spec: { organization: 'lsdf' },
   },
+  {
+    resourceType: 'integration',
+    name: 'roles-anywhere',
+    kind: IntegrationKind.AWSRa,
+    statusCode: IntegrationStatusCode.Running,
+    details: 'some-detail',
+    spec: {
+      trustAnchorArn:
+        'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo',
+      profileSyncConfig: {
+        enabled: true,
+        profileArn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:profile/bar',
+        profileAcceptsRoleSessionName: false,
+        roleArn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:role/baz',
+        profileNameFilters: ['test-*', 'dev-*'],
+      },
+    },
+  },
 ];
 
 export const externalAuditStorage: ExternalAuditStorage = {
