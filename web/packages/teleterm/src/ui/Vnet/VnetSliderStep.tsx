@@ -214,7 +214,7 @@ const VnetStatus = () => {
       </Flex>
 
       <ActionButton
-        fill="minimal"
+        fill="filled"
         intent="neutral"
         inputAlignment
         action={{
