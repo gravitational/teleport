@@ -69,7 +69,7 @@ func startnetIQService(ctx context.Context, process *service.TeleportProcess, st
 			Logger:           logger,
 			PluginStatusSink: statusSink,
 			SemaphoreSvc:     authServer,
-			HostID:           process.Config.HostUUID,
+			HostID:           conn.HostUUID(),
 			Clock:            process.Clock,
 			ClientConfig: netiqservice.ClientConfig{
 				OAuthClientID:         oAuthCreds.user,

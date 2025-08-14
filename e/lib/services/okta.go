@@ -165,7 +165,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 	oktaLeader, err := leader.New(leader.Config{
 		SemaphoreKind: okta.OktaServiceSemaphoreKind,
 		SemaphoreName: settings.orgURLBase64(),
-		HostIDHolder:  process.Config.HostUUID,
+		HostIDHolder:  conn.HostUUID(),
 		Clock:         process.Clock,
 		Semaphores:    accessPoint,
 	})
@@ -183,7 +183,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 		Authorizer:         authorizer,
 		ClusterName:        clusterName,
 		Hostname:           process.Config.Hostname,
-		HostID:             process.Config.HostUUID,
+		HostID:             conn.HostUUID(),
 		RotationGetter:     process.GetRotation,
 		Emitter:            asyncEmitter,
 		AccessPoint:        accessPoint,

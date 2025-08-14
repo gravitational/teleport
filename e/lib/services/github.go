@@ -47,7 +47,7 @@ func startGithubService(ctx context.Context, process *service.TeleportProcess, s
 		Clock:             process.Clock,
 		Logger:            logger,
 		AccessGraphConfig: process.Config.AccessGraph,
-		HostID:            process.Config.HostUUID,
+		HostID:            conn.HostUUID(),
 		GetCreds:          conn.ClientGetCertificate,
 		AccessPoint:       conn.Client,
 		ClusterFeatures:   process.GetClusterFeatures,

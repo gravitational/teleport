@@ -481,7 +481,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	})
 	require.NoError(t, err)
 
-	identity, err := storage.ReadLocalIdentity(filepath.Join(process.Config.DataDir, teleport.ComponentProcess), state.IdentityID{Role: types.RoleAdmin, HostUUID: process.Config.HostUUID})
+	identity, err := storage.ReadLocalIdentity(filepath.Join(process.Config.DataDir, teleport.ComponentProcess), state.IdentityID{Role: types.RoleAdmin, HostUUID: authServer.ServerID})
 	require.NoError(t, err)
 	tlsConfig, err := identity.TLSConfig(nil)
 	require.NoError(t, err)

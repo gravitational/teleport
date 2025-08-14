@@ -151,7 +151,7 @@ func startEntraIDService(ctx context.Context, process *service.TeleportProcess, 
 		DirectoryReconciler:     directoryReconciler,
 		AccessGraphSynchronizer: tagSynchronizer,
 		SemaphoreSvc:            authServer,
-		HostID:                  process.Config.HostUUID,
+		HostID:                  conn.HostUUID(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
