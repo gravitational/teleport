@@ -44,12 +44,16 @@ func Test_decide(t *testing.T) {
 				Namespace: "default",
 			},
 		},
+		Join: &workloadidentityv1pb.JoinAttrs{
+			Gitlab: &workloadidentityv1pb.JoinAttrsGitLab{},
+		},
 	}
 	tests := []struct {
 		name         string
 		wid          *workloadidentityv1pb.WorkloadIdentity
 		attrs        *workloadidentityv1pb.Attrs
 		wantIssue    bool
+		wantID       string
 		assertReason require.ErrorAssertionFunc
 	}{
 		{
@@ -72,12 +76,38 @@ func Test_decide(t *testing.T) {
 				require.ErrorContains(t, err, "templating spec.spiffe.x509.dns_sans[0] resulted in an invalid DNS name")
 			},
 		},
+		{
+			name: "templating: fall back when unset",
+			wid: &workloadidentityv1pb.WorkloadIdentity{
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+						Id: "/foo/{{ user.name }}/{{ join.gitlab.environment || \"default\"}}",
+					},
+				},
+			},
+			wantIssue: true,
+			attrs:     standardAttrs,
+			wantID:    "/foo/jeff/default",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			d := decide(context.Background(), tt.wid, tt.attrs, OSSSigstorePolicyEvaluator{})
-			require.Equal(t, tt.wantIssue, d.shouldIssue)
-			tt.assertReason(t, d.reason)
+			require.Equal(
+				t,
+				tt.wantIssue,
+				d.shouldIssue,
+				"Expected shouldIssue to be %v, got %v, reason: %v",
+				tt.wantIssue,
+				d.shouldIssue,
+				d.reason,
+			)
+			if tt.assertReason != nil {
+				tt.assertReason(t, d.reason)
+			}
+			if tt.wantID != "" {
+				require.Equal(t, tt.wantID, d.templatedWorkloadIdentity.Spec.Spiffe.Id)
+			}
 		})
 	}
 }
