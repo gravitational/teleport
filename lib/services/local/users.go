@@ -308,6 +308,10 @@ func (s *IdentityService) CreateUser(ctx context.Context, user types.User) (type
 		return nil, trace.Wrap(err)
 	}
 
+	if len(user.GetName()) > teleport.MaxUsernameLength {
+		return nil, trace.BadParameter("username exceeds maximum length of %d characters", teleport.MaxUsernameLength)
+	}
+
 	// Confirm user doesn't exist before creating.
 	_, err := s.GetUser(ctx, user.GetName(), false)
 	if !trace.IsNotFound(err) {
