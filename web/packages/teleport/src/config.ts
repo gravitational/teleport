@@ -421,6 +421,8 @@ const cfg = {
       generate:
         '/v1/webapi/scripts/integrations/configure/awsra-trust-anchor.sh?integrationName=:integrationName?&trustAnchor=:trustAnchor?&syncRole=:syncRole?&syncProfile=:syncProfile',
       ping: '/v1/webapi/sites/:clusterId/integrations/aws-ra/:integrationName/ping',
+      profiles:
+        '/v1/webapi/sites/:clusterId/integrations/aws-ra/:integrationName/listprofiles',
     },
 
     thumbprintPath: '/v1/webapi/thumbprint',
@@ -1582,6 +1584,15 @@ const cfg = {
 
   getAwsRolesAnywherePingUrl(integrationName: string) {
     const path = cfg.api.awsRolesAnywhere.ping;
+    const clusterId = cfg.proxyCluster;
+    return generatePath(path, {
+      clusterId,
+      integrationName,
+    });
+  },
+
+  getAwsRolesAnywhereProfilesUrl(integrationName: string) {
+    const path = cfg.api.awsRolesAnywhere.profiles;
     const clusterId = cfg.proxyCluster;
     return generatePath(path, {
       clusterId,
