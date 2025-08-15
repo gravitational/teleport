@@ -60,6 +60,7 @@ func SVIDOutputServiceBuilder(
 			getBotIdentity:            deps.BotIdentity,
 			identityGenerator:         deps.IdentityGenerator,
 			clientBuilder:             deps.ClientBuilder,
+			trustBundleCache:          trustBundleCache,
 		}
 		svc.log = deps.LoggerForService(svc)
 		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
