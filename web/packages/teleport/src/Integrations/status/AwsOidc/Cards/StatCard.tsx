@@ -15,16 +15,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import { Link as InternalLink } from 'react-router-dom';
 
-import { CardTile, Flex, H2, P2, Text } from 'design';
+import { Box, CardTile, Flex, H2, H3, P2, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { SyncStamp } from 'design/SyncStamp/SyncStamp';
 
 import cfg from 'teleport/config';
-import { EnrollCard } from 'teleport/Integrations/status/AwsOidc/EnrollCard';
 import {
   IntegrationKind,
   ResourceTypeSummary,
@@ -38,14 +36,17 @@ export enum AwsResource {
 
 type Item = 'clusters' | 'databases' | 'instances';
 
-type StatCardProps = {
+export function StatCard({
+  name,
+  resource,
+  summary,
+}: {
   name: string;
-  item: Item;
   resource: AwsResource;
   summary?: ResourceTypeSummary;
-};
+}) {
+  const item = getItem(resource);
 
-export function StatCard({ name, item, resource, summary }: StatCardProps) {
   const updated = summary?.discoverLastSync
     ? new Date(summary?.discoverLastSync)
     : undefined;
@@ -110,6 +111,42 @@ export function StatCard({ name, item, resource, summary }: StatCardProps) {
   );
 }
 
+function EnrollCard({
+  resource,
+  item,
+}: {
+  resource: AwsResource;
+  item: string;
+}) {
+  return (
+    <CardTile
+      width="33%"
+      data-testid={`${resource}-enroll`}
+      as={InternalLink}
+      to={{
+        pathname: cfg.routes.discover,
+        state: { searchKeywords: resource },
+      }}
+    >
+      <Flex flexDirection="column" justifyContent="space-between" height="100%">
+        <Box>
+          <Flex alignItems="center">
+            <ResourceIcon name={resource} mr={2} width="32px" height="32px" />
+            <H2>{resource.toUpperCase()}</H2>
+          </Flex>
+          <P2 mb={2}>
+            Discover and enroll {resource.toUpperCase()} {item}
+          </P2>
+        </Box>
+        <Flex alignItems="center" gap={2}>
+          <H3>Enroll {resource.toUpperCase()}</H3>
+          <Icons.ArrowForward />
+        </Flex>
+      </Flex>
+    </CardTile>
+  );
+}
+
 function getResourceTerm(resource: AwsResource): string {
   switch (resource) {
     case AwsResource.rds:
@@ -132,4 +169,16 @@ function foundResource(resource: ResourceTypeSummary): boolean {
   }
 
   return resource.rulesCount != 0 || resource.resourcesFound != 0;
+}
+
+function getItem(resource: AwsResource): Item {
+  switch (resource) {
+    case AwsResource.eks:
+      return 'clusters';
+    case AwsResource.rds:
+      return 'databases';
+    case AwsResource.ec2:
+    default:
+      return 'instances';
+  }
 }

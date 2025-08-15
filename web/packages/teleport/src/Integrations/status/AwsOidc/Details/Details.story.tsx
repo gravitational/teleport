@@ -35,8 +35,8 @@
 import { http, HttpResponse } from 'msw';
 
 import cfg from 'teleport/config';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { Details } from 'teleport/Integrations/status/AwsOidc/Details/Details';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import { MockAwsOidcStatusProvider } from 'teleport/Integrations/status/AwsOidc/testHelpers/mockAwsOidcStatusProvider';
 import { IntegrationKind } from 'teleport/services/integrations';
 
