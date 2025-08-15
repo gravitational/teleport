@@ -579,12 +579,10 @@ func (o *OIDCConnectorV3) WithMFASettings() error {
 	o.Spec.Prompt = o.Spec.MFASettings.Prompt
 	// In rare cases, some providers will complain about the presence of the 'max_age'
 	// parameter in auth requests. Provide users with a workaround to omit it.
-	omitMaxAge, err := strconv.ParseBool(os.Getenv("TELEPORT_OIDC_OMIT_MFA_MAX_AGE"))
-	if err != nil {
-		return trace.Wrap(err, "Invalid value for 'TELEPORT_OIDC_OMIT_MFA_MAX_AGE'")
-	}
-
-	if !omitMaxAge {
+	omitMaxAge, _ := strconv.ParseBool(os.Getenv("TELEPORT_OIDC_OMIT_MFA_MAX_AGE"))
+	if omitMaxAge {
+		o.Spec.MaxAge = nil
+	} else {
 		o.Spec.MaxAge = &MaxAge{
 			Value: o.Spec.MFASettings.MaxAge,
 		}
