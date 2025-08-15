@@ -404,3 +404,24 @@ func MergeStreams[T any](
 		}
 	}
 }
+
+// TakeWhile iterates the stream taking items while predicate returns true
+func TakeWhile[T any](stream Stream[T], predicate func(T) bool) Stream[T] {
+	return func(yield func(T, error) bool) {
+		for item, err := range stream {
+			if err != nil {
+				yield(*new(T), trace.Wrap(err))
+				return
+			}
+
+			if !predicate(item) {
+				return
+			}
+
+			if !yield(item, nil) {
+				return
+			}
+
+		}
+	}
+}
