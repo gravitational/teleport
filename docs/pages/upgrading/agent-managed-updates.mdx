@@ -438,11 +438,13 @@ This section assumes that the name of your `teleport-kube-agent` release is
 
 ## GitOps tools
 
-Managed updates for Kubernetes agents is incompatible with some GitOps tools used for
+Managed updates for Kubernetes agents requires workarounds when used with GitOps tools for
 continuous deployment.  The `teleport-kube-agent` Helm chart owns the version of the
 `teleport-agent` resource, so when the `teleport-agent-updater` modifies the
 image version of the `teleport-agent` resource, the GitOps tool will detect a
 drift or a diff in the `teleport-agent` resource.
+
+The sections below descibe workarounds for various GitOps tools.
 
 ### ArgoCD deployments
 
