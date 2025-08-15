@@ -83,6 +83,7 @@ export async function deleteLock(
 ) {
   return api.delete(
     cfg.getLockUrl({ action: 'delete', uuid: variables.uuid }),
+    undefined,
     signal
   );
 }
