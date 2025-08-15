@@ -85,7 +85,7 @@ export function ResourceUnlockDialog(props: {
   };
 
   return (
-    <Dialog open={true}>
+    <Dialog onClose={onCancel} open={true}>
       <DialogHeader>
         <DialogTitle>Unlock {targetName}?</DialogTitle>
       </DialogHeader>
