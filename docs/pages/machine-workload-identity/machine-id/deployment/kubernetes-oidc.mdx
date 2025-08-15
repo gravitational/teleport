@@ -6,8 +6,10 @@ labels:
  - mwi
 ---
 
-This guide shows you how to deploy the Machine ID daemon `tbot`, on a Kubernetes
-cluster with OIDC.
+This guide shows you how to deploy the Machine ID daemon `tbot` on a Kubernetes
+cluster that supports OIDC. The Kubernetes OIDC join method is a good fit for
+use inside Kubernetes clusters on a cloud platform that can be configured to
+provide a public OpenID Connect (OIDC) endpoint, including EKS, AKS, and GKE.
 
 ## How it works
 
@@ -55,6 +57,9 @@ a single join token. These services are:
   is configured for the cluster, it is possible to use the `iam` join method.
   See the [AWS Platform Guide](./aws.mdx) for further information.
 
+It is recommended to use Kubernetes OIDC joining on Azure (AKS) whenever
+possible.
+
 </details>
 
 ## Prerequisites
@@ -90,7 +95,7 @@ To do so, ensure you have `kubectl`, `curl`, and `jq` available. Start by
 running this command to determine the public OIDC configuration URL:
 ```code
 $ kubectl get --raw /.well-known/openid-configuration | jq -r '.issuer + "/.well-known/openid-configuration"'
-https://oidc.eks.us-west-2.amazonaws.com/id/$myClusterID/.well-known/openid-configuration
+https://oidc.eks.us-west-2.amazonaws.com/id/cluster-id/.well-known/openid-configuration
 ```
 
 If this command fails, the Service Account Issuer Discovery feature is not
@@ -101,10 +106,10 @@ command. Note that this should be run over the public internet, such as your
 home internet connection, to help ensure the endpoint will be accessible to
 Teleport:
 ```code
-$ curl https://oidc.eks.us-west-2.amazonaws.com/id/$myClusterID/.well-known/openid-configuration | jq
+$ curl https://oidc.eks.us-west-2.amazonaws.com/id/cluster-id/.well-known/openid-configuration | jq
 {
-  "issuer": "https://oidc.eks.us-west-2.amazonaws.com/id/$myClusterID",
-  "jwks_uri": "https://oidc.eks.us-west-2.amazonaws.com/id/$myClusterID/keys",
+  "issuer": "https://oidc.eks.us-west-2.amazonaws.com/id/cluster-id",
+  "jwks_uri": "https://oidc.eks.us-west-2.amazonaws.com/id/cluster-id/keys",
   "authorization_endpoint": "urn:kubernetes:programmatic_authorization",
   "response_types_supported": [
     "id_token"
@@ -123,14 +128,17 @@ $ curl https://oidc.eks.us-west-2.amazonaws.com/id/$myClusterID/.well-known/open
 ```
 
 If this command succeeds, make a note of the `issuer` value for future steps.
+Note that the particular `issuer` value will vary depending on your cloud
+provider, region, individual cluster; the example here roughly matches an Amazon
+EKS cluster.
 
 As one final check, you can also attempt to fetch the `jwks_uri`:
 ```code
-$ curl https://oidc.eks.us-west-2.amazonaws.com/id/$myClusterID/keys
+$ curl https://oidc.eks.us-west-2.amazonaws.com/id/cluster-id/keys
 {"keys":[{...snip...}]}
 ```
 
-There's no need to record anything from this response - we just need to be
+There's no need to record anything from this response - we just want to be
 certain that Teleport will be able to access this URL.
 
 <Admonition type="warning" title="OIDC Support">
@@ -158,9 +166,10 @@ A ServiceAccount will be created and later assigned to the Pod that will run
 Teleport Cluster and also provides an identity to which we can assign Kubernetes
 privileges.
 
-A Role granting the ability to read and write to secrets in the Namespace will
-be created and then assigned to the ServiceAccount using a RoleBinding. This
-will allow the `tbot` Pod to read and write credentials to a Secret.
+A Kubernetes Role granting the ability to read and write to secrets in the
+Namespace will be created and then assigned to the ServiceAccount using a
+RoleBinding. This will allow the `tbot` Pod to read and write credentials to a
+Secret.
 
 Create a file called `k8s-rbac.yaml`:
 
@@ -218,8 +227,8 @@ $ kubectl apply -f ./k8s-rbac.yaml
 Next, a join token needs to be configured. This will be used by `tbot` to join
 the cluster, and will require the issuer URL determined in Step 1.
 
-Create `bot-token.yaml`, ensuring you insert the value from the OIDC issuer
-in `spec.kubernetes.oidc.issuer`:
+Create `bot-token.yaml`, ensuring you insert the `issuer` value in
+`spec.kubernetes.oidc.issuer`:
 
 ```yaml
 kind: token
@@ -237,7 +246,9 @@ spec:
     # using the public keys published by the configured OIDC issuer.
     type: oidc
     oidc:
-      issuer: https://oidc.eks.us-west-2.amazonaws.com/id/$myClusterID
+      # Insert the OIDC issuer value here, it will vary depending on your
+      # cluster and cloud provider.
+      issuer: https://oidc.eks.us-west-2.amazonaws.com/id/cluster-id
     # allow specifies the rules by which the Auth Service determines if `tbot`
     # should be allowed to join.
     allow:
@@ -252,8 +263,8 @@ $ tctl create -f bot-token.yaml
 
 ## Step 5/6. Create a `tbot` deployment
 
-First, a ConfigMap will be created to contain the configuration file for `tbot`.
-This will then be mounted into the Pod.
+First, create a ConfigMap to contain the configuration file for `tbot`. This
+will then be mounted into the Pod.
 
 Create `k8s-deployment-config.yaml`, replacing the value of `token` with the
 name of the token you created earlier and the value of `proxy_server` with the
