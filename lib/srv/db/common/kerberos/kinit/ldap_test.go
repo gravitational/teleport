@@ -155,8 +155,8 @@ func TestGetActiveDirectorySID(t *testing.T) {
 			if searchRequest.BaseDN != "DC=example,DC=com" {
 				return nil, trace.BadParameter("unexpected value of base_dn")
 			}
-			if searchRequest.Filter != "(\u0026(sAMAccountType=805306368)(sAMAccountName=DOMAIN\\test-user))" {
-				return nil, trace.BadParameter("unexpected value of filter")
+			if searchRequest.Filter != "(\u0026(sAMAccountType=805306368)(sAMAccountName=DOMAIN\\5ctest-user))" {
+				return nil, trace.BadParameter("unexpected value of filter: %v", searchRequest.Filter)
 			}
 			if len(searchRequest.Attributes) != 1 {
 				return nil, trace.BadParameter("unexpected number of search attributes")

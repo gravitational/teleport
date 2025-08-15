@@ -17,13 +17,13 @@ authenticate to external services through Teleport.
 
 - (!docs/pages/includes/tctl.mdx!)
 - If you're new to SAML, consider reviewing our [SAML Identity Provider
-  Reference](../../../reference/access-controls/saml-idp.mdx) before proceeding.
+  Reference](../../reference/access-controls/saml-idp.mdx) before proceeding.
 - User with permission to create service provider resource. The preset `editor` role has this permission.
 - SAML application (also known as a SAML service provider or SP) for testing. For this guide, we'll be using
 [RSA Simple Test Service Provider](https://sptest.iamshowcase.com/) - a free test service that
 lets us test Teleport SAML IdP. The test service has a protected page, which can be accessed only after a
 user is federated to the site with a valid SAML assertion flow.
-![iamshowcase protected page](../../../../img/access-controls/saml-idp/iamshowcase-protected-page.png)
+![iamshowcase protected page](../../../img/access-controls/saml-idp/iamshowcase-protected-page.png)
 
 ## Step 1/3. Add a service provider to Teleport
 
@@ -37,7 +37,7 @@ Below we'll show both of the configuration options.
 First, in the Web UI, under **Zero Trust Access**, click **Auth Connectors** in the menu.
 Choose the appropriate SAML application integration tile. Click the tile and follow the resulting steps.
 
-![Enroll SAML app](../../../../img/access-controls/saml-idp/saml-idp.png)
+![Enroll SAML app](../../../img/access-controls/saml-idp/saml-idp.png)
 
 ### Option 1: Configure with Entity ID and ACS URL
 
@@ -97,7 +97,7 @@ to Teleport.
 With this option, you provide service provider entity descriptor file, which has all the details
 required to configure service provider metadata.
 
-![add entity descriptor](../../../../img/access-controls/saml-idp/add-entity-descriptor.png)
+![add entity descriptor](../../../img/access-controls/saml-idp/add-entity-descriptor.png)
 
 In the **Add Service Provider To Teleport** page, provide a SAML service provider name (`iamshowcase`).
 Now click **+ Add Entity Descriptor (optional)** button, which will expand entity descriptor editor.
@@ -162,7 +162,7 @@ You will find these values in the Teleport Web UI under the
 **Configure Service Provider with Teleport's Identity Provider Metadata** UI which is the first step
 shown in the SAML app enrollment flow.
 
-![Teleport IdP metadata](../../../../img/access-controls/saml-idp/teleport-idp-metadata.png)
+![Teleport IdP metadata](../../../img/access-controls/saml-idp/teleport-idp-metadata.png)
 
 In the case of Simple Test Service Provider, which this guide is based on, the sample app is designed to grant access protected page
 for any well formatted IdP federated SAML assertion data.
@@ -174,12 +174,12 @@ already available to access under resources page.
 
 To verify everything works, navigate to **Resources** page in Teleport Web UI and look for the app.
 
-![Access app](../../../../img/access-controls/saml-idp/access-app.png)
+![Access app](../../../img/access-controls/saml-idp/access-app.png)
 
 The "iamshowcase" app will now appear under resources tile. Inside this tile,
 click **Login** button, which will now forward you to iamshowcase protected page.
 
-![Protected page access](../../../../img/access-controls/saml-idp/protected-page-access.png)
+![Protected page access](../../../img/access-controls/saml-idp/protected-page-access.png)
 
 This page shows Teleport user details along with other attributes such as roles are
 federated by Teleport SAML IdP.

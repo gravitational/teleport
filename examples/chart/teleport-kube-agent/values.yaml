@@ -725,7 +725,7 @@ podSecurityPolicy:
   # and replaced since 1.23 by PodSecurityAdmission (PSA). If you are running on
   # Kubernetes 1.23 or later, it is recommended to disable PSPs and use PSAs.
   # The steps are documented in the
-  # [PSP removal guide](../../admin-guides/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp.mdx).
+  # [PSP removal guide](../../zero-trust-access/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp.mdx).
   #
   # This value will be removed in a future chart version.
   enabled: true
@@ -746,7 +746,7 @@ podSecurityPolicy:
 #   To set labels for applications, add a `labels` element to the [`apps`](#apps) section.
 #   To set labels for databases, add a `static_labels` element to the [`databases`](#databases) section.
 #
-#   For more information on how to set static/dynamic labels for Teleport services, see [labelling nodes and applications](../../admin-guides/management/admin/labels.mdx).
+#   For more information on how to set static/dynamic labels for Teleport services, see [labelling nodes and applications](../../zero-trust-access/management/admin/labels.mdx).
 # </Admonition>
 #
 # For example:
