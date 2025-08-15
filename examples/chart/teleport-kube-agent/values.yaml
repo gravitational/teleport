@@ -1015,6 +1015,15 @@ rbac:
   # where the user deploying the operator is not allowed to edit RBAC resources.
   create: true
 
+# presetRoles -- controls the creation of ClusterRoleBindings for Teleport preset roles
+# as defined in RFD 0219. These roles simplify Kubernetes RBAC by automatically
+# mapping Teleport roles to standard Kubernetes ClusterRoles.
+presetRoles:
+  # presetRoles.enabled(bool) -- controls whether preset role ClusterRoleBindings
+  # should be created. When enabled, all three ClusterRoleBindings are created
+  # to support the Teleport preset roles (kube-access, kube-editor, kube-auditor).
+  enabled: false
+
 # Name of the Secret to store the teleport join token.
 # DEPRECATED Use joinTokenSecret.name instead
 secretName: ""

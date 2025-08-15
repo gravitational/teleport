@@ -1,0 +1,116 @@
+---
+title: Preset Roles in Kubernetes Discovery
+description: How Teleport Discovery Service automatically configures preset role ClusterRoleBindings
+labels:
+ - kubernetes
+ - discovery
+ - rbac
+---
+
+## Automatic Preset ClusterRoleBinding Creation
+
+Starting with Teleport v19.0, the Discovery Service automatically creates preset ClusterRoleBindings when enrolling Kubernetes clusters. This feature simplifies RBAC management by automatically setting up the necessary bindings for Teleport's preset roles.
+
+### What gets created
+
+When the Discovery Service enrolls a new Kubernetes cluster (EKS or AKS), it automatically creates the following ClusterRoleBindings:
+
+| ClusterRoleBinding Name | Kubernetes Group | Maps to ClusterRole | Purpose |
+|------------------------|------------------|-------------------|---------|
+| `teleport-preset-kube-access` | `teleport:kube-access` | `edit` | Standard read/write access |
+| `teleport-preset-kube-editor` | `teleport:kube-editor` | `cluster-admin` | Full administrative access |
+| `teleport-preset-kube-auditor` | `teleport:kube-auditor` | `view` | Read-only access |
+
+### How it works
+
+1. **During Discovery**: When the Discovery Service discovers a new EKS or AKS cluster that matches the configured filters, it attempts to create the preset ClusterRoleBindings.
+
+2. **Permission Requirements**: The Discovery Service needs sufficient permissions to create ClusterRoleBindings in the target cluster. For:
+   - **EKS**: The IAM role needs permissions to create Access Entries and manage RBAC resources
+   - **AKS**: The Azure identity needs permissions to run commands or access the cluster with admin credentials
+
+3. **Non-blocking**: If the Discovery Service cannot create the preset ClusterRoleBindings (due to insufficient permissions or other errors), it logs a warning but continues with the enrollment. The cluster will still be accessible through Teleport, but preset roles won't work until the bindings are created manually.
+
+### Benefits
+
+- **Simplified Onboarding**: Users assigned Teleport preset roles (`kube-access`, `kube-editor`, `kube-auditor`) can immediately access newly discovered clusters without additional configuration.
+- **Consistent RBAC**: All discovered clusters have the same RBAC setup, ensuring consistent access patterns across your infrastructure.
+- **No Manual Setup**: Eliminates the need to manually create ClusterRoleBindings on each cluster.
+
+### Verification
+
+To verify that preset ClusterRoleBindings were created on a discovered cluster:
+
+```code
+$ kubectl get clusterrolebindings | grep teleport-preset
+teleport-preset-kube-access    ClusterRole/edit           
+teleport-preset-kube-editor    ClusterRole/cluster-admin  
+teleport-preset-kube-auditor   ClusterRole/view           
+```
+
+### Manual Creation
+
+If the automatic creation fails or you're using an older version of Teleport, you can manually create these ClusterRoleBindings:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: teleport-preset-kube-access
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit
+subjects:
+- kind: Group
+  name: teleport:kube-access
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: teleport-preset-kube-editor
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: Group
+  name: teleport:kube-editor
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: teleport-preset-kube-auditor
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+- kind: Group
+  name: teleport:kube-auditor
+  apiGroup: rbac.authorization.k8s.io
+```
+
+Apply these to your cluster:
+
+```code
+$ kubectl apply -f preset-clusterrolebindings.yaml
+```
+
+### Disabling Automatic Creation
+
+The automatic creation of preset ClusterRoleBindings is enabled by default but happens silently in the background. If creation fails, it doesn't affect the cluster enrollment process - only a warning is logged.
+
+### Compatibility
+
+- **EKS**: Supported for all EKS clusters when using Teleport Discovery Service v19.0+
+- **AKS**: Supported for all AKS clusters when using Teleport Discovery Service v19.0+
+- **GKE**: Currently, GKE discovery doesn't support automatic ClusterRoleBinding creation. You'll need to create them manually or use the Helm chart for GKE clusters.
+
+## Next Steps
+
+- Learn more about [Kubernetes preset roles](../../kubernetes-access/preset-roles.mdx)
+- Configure [EKS Auto-Discovery](./aws.mdx)
+- Configure [AKS Auto-Discovery](./azure.mdx)

@@ -483,7 +483,17 @@ func (c *aksClient) grantAccessWithAdminCredentials(ctx context.Context, adminCf
 	}
 
 	err = c.upsertClusterRoleBindingWithAdminCredentials(ctx, client, groupID)
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Create preset ClusterRoleBindings for RFD 0219 preset roles
+	if err := c.upsertPresetClusterRoleBindings(ctx, client); err != nil {
+		// Log error but don't fail the provisioning
+		slog.WarnContext(ctx, "Failed to create preset ClusterRoleBindings", "error", err)
+	}
+
+	return nil
 }
 
 // upsertClusterRoleWithAdminCredentials tries to upsert the ClusterRole using admin credentials.
@@ -541,6 +551,47 @@ func (c *aksClient) upsertClusterRoleBindingWithAdminCredentials(ctx context.Con
 	}
 
 	return trace.Wrap(err)
+}
+
+// upsertPresetClusterRoleBindings creates the preset ClusterRoleBindings for RFD 0219 preset roles.
+func (c *aksClient) upsertPresetClusterRoleBindings(ctx context.Context, client *kubernetes.Clientset) error {
+	// Define the preset ClusterRoleBindings
+	presetBindings := []struct {
+		template string
+		name     string
+	}{
+		{fixtures.KubePresetAccessClusterRoleBindingTemplate, "teleport-preset-kube-access"},
+		{fixtures.KubePresetEditorClusterRoleBindingTemplate, "teleport-preset-kube-editor"},
+		{fixtures.KubePresetAuditorClusterRoleBindingTemplate, "teleport-preset-kube-auditor"},
+	}
+
+	for _, preset := range presetBindings {
+		clusterRoleBinding := &v1.ClusterRoleBinding{}
+		if err := yaml.Unmarshal([]byte(preset.template), clusterRoleBinding); err != nil {
+			return trace.Wrap(err, "failed to unmarshal preset ClusterRoleBinding %s", preset.name)
+		}
+
+		_, err := client.RbacV1().ClusterRoleBindings().Create(ctx, clusterRoleBinding, metav1.CreateOptions{
+			FieldManager: resourceOwner,
+		})
+		if err == nil {
+			continue
+		}
+
+		if kubeerrors.IsAlreadyExists(err) {
+			// Update if it already exists
+			_, err := client.RbacV1().ClusterRoleBindings().Update(ctx, clusterRoleBinding, metav1.UpdateOptions{
+				FieldManager: resourceOwner,
+			})
+			if err != nil {
+				return trace.Wrap(err, "failed to update preset ClusterRoleBinding %s", preset.name)
+			}
+		} else {
+			return trace.Wrap(err, "failed to create preset ClusterRoleBinding %s", preset.name)
+		}
+	}
+
+	return nil
 }
 
 // grantAccessWithCommand tries to create the ClusterRole and ClusterRoleBinding into the AKS cluster
@@ -729,5 +780,15 @@ func kubectlApplyString(group string) string {
 %s
 ---
 %s
-EOF`, fixtures.KubeClusterRoleTemplate, strings.ReplaceAll(fixtures.KubeClusterRoleBindingTemplate, "group_name", group))
+---
+%s
+---
+%s
+---
+%s
+EOF`, fixtures.KubeClusterRoleTemplate, 
+		strings.ReplaceAll(fixtures.KubeClusterRoleBindingTemplate, "group_name", group),
+		fixtures.KubePresetAccessClusterRoleBindingTemplate,
+		fixtures.KubePresetEditorClusterRoleBindingTemplate,
+		fixtures.KubePresetAuditorClusterRoleBindingTemplate)
 }

@@ -1309,6 +1309,97 @@ Helm release.
 This value can be set to `false` when deploying in constrained environments
 where the user deploying the operator is not allowed to edit RBAC resources.
 
+## `presetRoles`
+
+`presetRoles` controls the creation of ClusterRoleBindings for Teleport preset roles
+as defined in RFD 0219. These roles simplify Kubernetes RBAC by automatically
+mapping Teleport roles to standard Kubernetes ClusterRoles.
+
+### `presetRoles.enabled`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`presetRoles.enabled` controls whether preset role ClusterRoleBindings
+should be created. When enabled, users with these Teleport roles will automatically
+get the corresponding Kubernetes permissions.
+
+### `presetRoles.kubeAccess`
+
+`presetRoles.kubeAccess` configuration for the kube-access preset role.
+This role maps to the Kubernetes 'edit' ClusterRole, providing read/write access
+to most resources within namespaces.
+
+#### `presetRoles.kubeAccess.enabled`
+
+| Type | Default |
+|------|---------|
+| `bool` | `true` |
+
+`presetRoles.kubeAccess.enabled` controls whether to create the
+ClusterRoleBinding for the kube-access preset role.
+
+#### `presetRoles.kubeAccess.groupName`
+
+| Type | Default |
+|------|---------|
+| `string` | `"teleport:kube-access"` |
+
+`presetRoles.kubeAccess.groupName` the Kubernetes group name to bind
+to the 'edit' ClusterRole. Users with the Teleport 'kube-access' role will be
+members of this group.
+
+### `presetRoles.kubeEditor`
+
+`presetRoles.kubeEditor` configuration for the kube-editor preset role.
+This role maps to the Kubernetes 'cluster-admin' ClusterRole, providing full
+cluster administrative privileges.
+
+#### `presetRoles.kubeEditor.enabled`
+
+| Type | Default |
+|------|---------|
+| `bool` | `true` |
+
+`presetRoles.kubeEditor.enabled` controls whether to create the
+ClusterRoleBinding for the kube-editor preset role.
+
+#### `presetRoles.kubeEditor.groupName`
+
+| Type | Default |
+|------|---------|
+| `string` | `"teleport:kube-editor"` |
+
+`presetRoles.kubeEditor.groupName` the Kubernetes group name to bind
+to the 'cluster-admin' ClusterRole. Users with the Teleport 'kube-editor' role
+will be members of this group.
+
+### `presetRoles.kubeAuditor`
+
+`presetRoles.kubeAuditor` configuration for the kube-auditor preset role.
+This role maps to the Kubernetes 'view' ClusterRole, providing read-only access
+to most resources.
+
+#### `presetRoles.kubeAuditor.enabled`
+
+| Type | Default |
+|------|---------|
+| `bool` | `true` |
+
+`presetRoles.kubeAuditor.enabled` controls whether to create the
+ClusterRoleBinding for the kube-auditor preset role.
+
+#### `presetRoles.kubeAuditor.groupName`
+
+| Type | Default |
+|------|---------|
+| `string` | `"teleport:kube-auditor"` |
+
+`presetRoles.kubeAuditor.groupName` the Kubernetes group name to bind
+to the 'view' ClusterRole. Users with the Teleport 'kube-auditor' role will be
+members of this group.
+
 ## `joinTokenSecret`
 
 `joinTokenSecret` manages the join token secret creation and its name.
