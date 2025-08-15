@@ -47,7 +47,7 @@ own AWS account where retention period can be managed independently.
 ## High Availability
 
 ### Auth Service
-The Teleport [Auth Service](authentication.mdx) is deployed to two AWS availability zones in a single region.
+The Teleport [Auth Service](architecture.mdx#teleport-auth-service) is deployed to two AWS availability zones in a single region.
 AWS guarantees [99.99%](https://aws.amazon.com/compute/sla/) of monthly uptime for single region deployments.
 Teleport also supports multi-region high availability mode, which implements regional failover by deploying
 the Auth Service to more than one region.
