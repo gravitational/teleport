@@ -244,7 +244,7 @@ func TestGetCertificate(t *testing.T) {
 	}
 
 	getter := &DBCertGetter{
-		Logger:   slog.New(log.DiscardHandler),
+		Logger:   slog.New(log.DiscardHandler{}),
 		Auth:     auth,
 		UserName: "alice",
 		ADConfig: types.AD{
