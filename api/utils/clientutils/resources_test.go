@@ -226,4 +226,14 @@ func TestRangeResources(t *testing.T) {
 		assert.Equal(t, 1500-500, count)
 		assert.Equal(t, 2, paginator.pageCalls)
 	})
+	t.Run("limit exceeded", func(t *testing.T) {
+		paginator := mockPaginator{limitExceeded: true}
+		var count int
+		for _, err := range RangeResources(context.Background(), tokenFunc(500), tokenFunc(1500), paginator.List, tokenFunc) {
+			count++
+			require.Error(t, err)
+		}
+		assert.Equal(t, 1, count)
+		assert.Equal(t, 10, paginator.pageCalls)
+	})
 }
