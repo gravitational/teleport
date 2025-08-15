@@ -1073,6 +1073,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// AWS IAM Roles Anywhere Integration Actions
 	h.GET("/webapi/scripts/integrations/configure/awsra-trust-anchor.sh", h.WithLimiter(h.awsRolesAnywhereConfigureTrustAnchor))
+	h.POST("/webapi/sites/:site/integrations/aws-ra/:name/validate", h.WithClusterAuth(h.validateAWSRolesAnywhereIntegration))
 	h.POST("/webapi/sites/:site/integrations/aws-ra/:name/ping", h.WithClusterAuth(h.awsRolesAnywherePing))
 	h.POST("/webapi/sites/:site/integrations/aws-ra/:name/listprofiles", h.WithClusterAuth(h.awsRolesAnywhereListProfiles))
 

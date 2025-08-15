@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/integrations/awscommon"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -142,6 +143,40 @@ func (h *Handler) awsRolesAnywhereConfigureTrustAnchor(w http.ResponseWriter, r 
 	_, err = w.Write([]byte(script))
 
 	return nil, trace.Wrap(err)
+}
+
+// validateAWSRolesAnywhereIntegration performs a validation for the AWS Roles Anywhere Integration name.
+// This ensures the integration name is not yet being used and that it is a valid name.
+func (h *Handler) validateAWSRolesAnywhereIntegration(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	ctx := r.Context()
+
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	// validate integration name.
+	if err := awscommon.ValidIntegratioName(integrationName); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, err = clt.GetIntegration(ctx, integrationName)
+	switch {
+	case err == nil:
+		return nil, trace.AlreadyExists("an integration named %q already exists", integrationName)
+
+	case trace.IsNotFound(err):
+
+	default:
+		return nil, trace.Wrap(err)
+	}
+
+	return nil, nil
 }
 
 // awsRolesAnywherePing performs an health check for the integration.
