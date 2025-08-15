@@ -8,18 +8,25 @@ import (
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/xml"
+	"io"
+	"log"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/crewjam/saml"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	saml2 "github.com/russellhaering/gosaml2"
 	samltypes "github.com/russellhaering/gosaml2/types"
+	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -1812,4 +1819,115 @@ func TestSAMLPreferredBinding(t *testing.T) {
 			}
 		})
 	}
+}
+
+// FakeSAMLIdP is a fully-functional SAML IdP that can be used to serve SSO
+// requests and respond with signed assertions in tests.
+type FakeSAMLIdP struct {
+	SSOURL      url.URL
+	MetadataURL url.URL
+	CertPEM     string
+
+	idp *saml.IdentityProvider
+}
+
+// NewFakeSAMLIdP returns a functional fake SAML IdP.
+func NewFakeSAMLIdP(t *testing.T, clock clockwork.Clock) *FakeSAMLIdP {
+	cn := "test-sso.example.com"
+
+	idpKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	idpCertPEM, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Signer: idpKey,
+		Entity: pkix.Name{
+			CommonName:   cn,
+			Organization: []string{"example"},
+		},
+		TTL:   defaults.CATTL,
+		Clock: clock,
+	})
+	require.NoError(t, err)
+
+	idpCert, err := tlsca.ParseCertificatePEM(idpCertPEM)
+	require.NoError(t, err)
+
+	f := &FakeSAMLIdP{
+		SSOURL: url.URL{
+			Scheme: "https",
+			Host:   cn,
+			Path:   "sso",
+		},
+		MetadataURL: url.URL{
+			Scheme: "https",
+			Host:   cn,
+			Path:   "metadata",
+		},
+		CertPEM: string(idpCertPEM),
+	}
+
+	f.idp = &saml.IdentityProvider{
+		SSOURL:                  f.SSOURL,
+		MetadataURL:             f.MetadataURL,
+		Signer:                  idpKey,
+		SignatureMethod:         dsig.ECDSASHA256SignatureMethod,
+		Certificate:             idpCert,
+		ServiceProviderProvider: f,
+		SessionProvider:         f,
+		ResponseWriter:          f,
+		Logger:                  log.Default(),
+	}
+
+	return f
+}
+
+// ServeSSO is how tests should interact with the IdP. ServeSSO will handle a
+// SAML redirect URL and respond with a signed response.
+func (f *FakeSAMLIdP) ServeSSO(url string) (string, error) {
+	w := httptest.NewRecorder()
+	f.idp.ServeSSO(w, httptest.NewRequest("GET", url, nil))
+	if w.Code != http.StatusOK {
+		return "", trace.Wrap(trace.ReadError(w.Code, w.Body.Bytes()), "serving SAML SSO request")
+	}
+	return w.Body.String(), nil
+}
+
+// GetServiceProvider implements [saml.ServiceProviderProvider] and returns a
+// valid entity descriptor for every serviceProviderID it's given.
+func (f *FakeSAMLIdP) GetServiceProvider(r *http.Request, serviceProviderID string) (*saml.EntityDescriptor, error) {
+	return &saml.EntityDescriptor{
+		EntityID: serviceProviderID,
+		SPSSODescriptors: []saml.SPSSODescriptor{{
+			AssertionConsumerServices: []saml.IndexedEndpoint{{
+				Location: serviceProviderID,
+				Binding:  saml.HTTPPostBinding,
+			}},
+		}},
+	}, nil
+}
+
+// GetSession implements [saml.SessionProvider] and always returns a valid
+// session for a user named "alice".
+func (f *FakeSAMLIdP) GetSession(w http.ResponseWriter, r *http.Request, req *saml.IdpAuthnRequest) *saml.Session {
+	return &saml.Session{
+		NameID:    "alice",
+		UserEmail: "alice@example.com",
+		CustomAttributes: []saml.Attribute{{
+			Name:   "groups",
+			Values: []saml.AttributeValue{{Value: "devs"}},
+		}},
+	}
+}
+
+// Write implements [saml.ResponseWriter] and writes the SAML response to an
+// internal channel that is consumed by [f.serveSSO].
+func (f *FakeSAMLIdP) Write(w http.ResponseWriter, req *saml.IdpAuthnRequest) error {
+	responseForm, err := req.PostBinding()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := io.Copy(w, strings.NewReader(responseForm.SAMLResponse)); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }

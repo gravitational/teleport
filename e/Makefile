@@ -512,6 +512,38 @@ ifndef GITTAG
 	$(error GITTAG is not set)
 endif
 
+
+#
+# Install goda to lint testing symbols
+#
+.PHONY: ensure-goda
+ensure-goda:
+# Install goda if it's not already installed
+ ifeq (, $(shell command -v goda))
+	go install github.com/loov/goda@latest
+endif
+
+#
+# Checks that testing symbols and the testify library is not included in binaries.
+# 
+# 
+.PHONY: lint-test-symbols
+lint-test-symbols: ensure-goda
+	@testing_count=`goda tree "reach(github.com/gravitational/teleport/e/tool/...:all, testing)" | tee /dev/stderr | wc -l | tr -d ' '`; \
+	if [ "$$testing_count" -gt 0 ]; then \
+		echo ""; \
+		echo "FAIL: \"testing\" is included in binaries"; \
+	fi; \
+	testify_count=`goda tree "reach(github.com/gravitational/teleport/e/tool/...:all, github.com/stretchr/testify/...)" | tee /dev/stderr | wc -l | tr -d ' '`; \
+	if [ "$$testify_count" -gt 0 ]; then \
+		echo ""; \
+		echo "FAIL: \"github.com/stretchr/testify\" is included in binaries"; \
+	fi; \
+	if [ "$$testing_count" -gt 0 ] || [ "$$testify_count" -gt 0 ]; then \
+		exit 1; \
+	fi
+
+
 #
 # test runs teleport enterprise tests
 #
