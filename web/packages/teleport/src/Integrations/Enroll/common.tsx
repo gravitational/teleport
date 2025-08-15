@@ -71,10 +71,9 @@ export const NoCodeIntegrationDescription = () => (
  * IntegrationIcon wraps ResourceIcon with css required for integration
  * and plugin tiles.
  */
-export const IntegrationIcon = styled(ResourceIcon)<{ size?: number }>`
-  display: inline-block;
+export const IntegrationIcon = styled(ResourceIcon)`
   margin: 0 auto;
   height: 100%;
   min-width: 0;
-  ${({ size }) => size && `max-width: ${size}px;`}
+  max-width: 80px;
 `;
