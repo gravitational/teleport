@@ -914,6 +914,9 @@ const (
 	DiscoveryAppRewriteLabel = TeleportNamespace + "/app-rewrite"
 	// DiscoveryAppNameLabel specifies explicitly name of an app created from Kubernetes service.
 	DiscoveryAppNameLabel = TeleportNamespace + "/name"
+	// DiscoveryAppDescriptionLabel specifies a human-friendly description
+	// for apps created from Kubernetes Services.
+	DiscoveryAppDescriptionLabel = TeleportNamespace + "/description"
 	// DiscoveryPathLabel optionally specifies a context path for apps created from Kubernetes services.
 	DiscoveryPathLabel = TeleportNamespace + "/path"
 	// DiscoveryAppInsecureSkipVerify specifies the TLS verification enforcement for a discovered app created from Kubernetes service.
