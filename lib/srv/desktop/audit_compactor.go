@@ -62,7 +62,13 @@ type fileOperationsBucket struct {
 // emitting them to the audit log. Once the timeout period expires, contiguous read/write events are
 // compacted into a single audit event and emitted.
 type auditCompactor struct {
-	refreshInterval  time.Duration
+	// refreshInterval defines how long a bucket should wait for a subsequent
+	// file operation to arrive before compacting and emitting its audit event(s).
+	refreshInterval time.Duration
+	// maxDelayInterval defines the maximum length of time that a bucket should wait
+	// before before compacting and emitting its audit event(s)
+	// this prevents a slow trickle of read/write events within the refreshInterval from
+	// indefinitely delaying audit events from being emitted.
 	maxDelayInterval time.Duration
 	emitFn           func(context.Context, events.AuditEvent)
 	buckets          map[fileOperationsKey]*fileOperationsBucket

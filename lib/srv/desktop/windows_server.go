@@ -1037,6 +1037,8 @@ func (s *WindowsService) makeTDPReceiveHandler(
 				s.emit(ctx, errorEvent)
 			}
 		case tdp.SharedDirectoryReadResponse:
+			// shared directory audit events can be noisy, so we use a compactor
+			// to retain and delay them in an attempt to coalesce contiguous events
 			audit.compactor.handleRead(ctx, audit.makeSharedDirectoryReadResponse(msg))
 		case tdp.SharedDirectoryWriteResponse:
 			audit.compactor.handleWrite(ctx, audit.makeSharedDirectoryWriteResponse(msg))
