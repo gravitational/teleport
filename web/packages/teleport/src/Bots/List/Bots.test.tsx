@@ -45,70 +45,79 @@ function renderWithContext(element, ctx?: TeleportContext) {
     </MemoryRouter>
   );
 }
+describe('Bots', () => {
+  test('fetches bots on load', async () => {
+    jest.spyOn(api, 'get').mockResolvedValueOnce({ ...botsApiResponseFixture });
+    renderWithContext(<Bots />);
 
-test('fetches bots on load', async () => {
-  jest.spyOn(api, 'get').mockResolvedValueOnce({ ...botsApiResponseFixture });
-  renderWithContext(<Bots />);
+    await waitFor(() => {
+      expect(
+        screen.getByText(botsApiResponseFixture.items[0].metadata.name)
+      ).toBeInTheDocument();
+    });
+    expect(api.get).toHaveBeenCalledTimes(1);
+  });
 
-  await waitFor(() => {
+  test('shows empty state when bots are empty', async () => {
+    jest.spyOn(api, 'get').mockResolvedValue({ items: [] });
+    renderWithContext(<Bots />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('bots-empty-state')).toBeInTheDocument();
+    });
+  });
+
+  test('shows missing permissions error if user lacks permissions to list', async () => {
+    jest.spyOn(api, 'get').mockResolvedValue({ items: [] });
+    const ctx = createTeleportContext();
+    ctx.storeUser.setState({ acl: { ...allAccessAcl, bots: noAccess } });
+    renderWithContext(<Bots />, ctx);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('bots-empty-state')).toBeInTheDocument();
+    });
     expect(
-      screen.getByText(botsApiResponseFixture.items[0].metadata.name)
-    ).toBeInTheDocument();
-  });
-  expect(api.get).toHaveBeenCalledTimes(1);
-});
-
-test('shows empty state when bots are empty', async () => {
-  jest.spyOn(api, 'get').mockResolvedValue({ items: [] });
-  renderWithContext(<Bots />);
-
-  await waitFor(() => {
-    expect(screen.getByTestId('bots-empty-state')).toBeInTheDocument();
-  });
-});
-
-test('shows missing permissions error if user lacks permissions to list', async () => {
-  jest.spyOn(api, 'get').mockResolvedValue({ items: [] });
-  const ctx = createTeleportContext();
-  ctx.storeUser.setState({ acl: { ...allAccessAcl, bots: noAccess } });
-  renderWithContext(<Bots />, ctx);
-
-  await waitFor(() => {
-    expect(screen.getByTestId('bots-empty-state')).toBeInTheDocument();
-  });
-  expect(
-    screen.getByText(/You do not have permission to access Bots/i)
-  ).toBeInTheDocument();
-});
-
-test('calls delete endpoint', async () => {
-  jest
-    .spyOn(api, 'get')
-    .mockResolvedValueOnce({ ...botsApiResponseFixture })
-    .mockResolvedValueOnce(['role-1', 'editor']);
-  jest.spyOn(api, 'delete').mockResolvedValue({});
-  renderWithContext(<Bots />);
-
-  await waitFor(() => {
-    expect(
-      screen.getByText(botsApiResponseFixture.items[0].metadata.name)
+      screen.getByText(/You do not have permission to access Bots/i)
     ).toBeInTheDocument();
   });
 
-  const actionCells = screen.queryAllByRole('button', { name: 'Options' });
-  expect(actionCells).toHaveLength(botsApiResponseFixture.items.length);
-  await userEvent.click(actionCells[0]);
+  test('calls delete endpoint', async () => {
+    jest
+      .spyOn(api, 'get')
+      .mockResolvedValueOnce({ ...botsApiResponseFixture })
+      .mockResolvedValueOnce(['role-1', 'editor']);
+    jest.spyOn(api, 'delete').mockResolvedValue({});
+    renderWithContext(<Bots />);
 
-  expect(screen.getByText('Delete...')).toBeInTheDocument();
-  await userEvent.click(screen.getByText('Delete...'));
+    await waitFor(() => {
+      expect(
+        screen.getByText(botsApiResponseFixture.items[0].metadata.name)
+      ).toBeInTheDocument();
+    });
 
-  expect(screen.getByText('Delete Bot?')).toBeInTheDocument();
-  await userEvent.click(
-    screen.queryByRole('button', { name: 'Yes, Delete Bot' })
-  );
+    const actionCells = screen.queryAllByRole('button', { name: 'Options' });
+    expect(actionCells).toHaveLength(botsApiResponseFixture.items.length);
+    await userEvent.click(actionCells[0]);
 
-  expect(screen.queryByText('Delete Bot?')).not.toBeInTheDocument();
-  expect(api.delete).toHaveBeenCalledWith(
-    `/v1/webapi/sites/localhost/machine-id/bot/${botsApiResponseFixture.items[0].metadata.name}`
-  );
+    expect(screen.getByText('Delete...')).toBeInTheDocument();
+    await userEvent.click(screen.getByText('Delete...'));
+
+    expect(
+      screen.getByText(
+        `Delete ${botsApiResponseFixture.items[0].metadata.name}?`
+      )
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Delete Bot' }));
+
+    expect(
+      screen.queryByText(
+        `Delete ${botsApiResponseFixture.items[0].metadata.name}?`
+      )
+    ).not.toBeInTheDocument();
+    expect(api.delete).toHaveBeenCalledWith(
+      `/v1/webapi/sites/localhost/machine-id/bot/${botsApiResponseFixture.items[0].metadata.name}`,
+      undefined,
+      undefined
+    );
+  });
 });

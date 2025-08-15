@@ -37,7 +37,7 @@ import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
 import { editBot, fetchRoles } from 'teleport/services/bot/bot';
-import { EditBotRequest, FlatBot } from 'teleport/services/bot/types';
+import { FlatBot } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
 
 import { formatDuration } from '../formatDuration';
@@ -75,9 +75,7 @@ export function EditDialog(props: {
     error: saveError,
     isPending: isSubmitting,
   } = useMutation({
-    mutationFn: (params: EditBotRequest) => {
-      return editBot(ctx.getFeatureFlags(), botName, params);
-    },
+    mutationFn: editBot,
     onSuccess: newData => {
       const key = createGetBotQueryKey({ botName: newData.name });
       queryClient.setQueryData(key, newData);
@@ -100,13 +98,13 @@ export function EditDialog(props: {
     const max_session_ttl =
       selectedMaxSessionDuration?.trim().replaceAll(' ', '') ?? null;
 
-    const request = {
+    const req = {
       roles,
       traits,
       max_session_ttl,
     };
 
-    mutate(request);
+    mutate({ botName, req });
   };
 
   const isDirty =

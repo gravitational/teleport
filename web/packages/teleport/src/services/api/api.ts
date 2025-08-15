@@ -94,14 +94,28 @@ const api = {
     throw new Error('data for body is not a type of FormData');
   },
 
-  delete(url, data?, mfaResponse?: MfaChallengeResponse) {
+  delete(
+    url: string,
+    data?: any,
+    abortSignalOrMfaResponse?: AbortSignal | MfaChallengeResponse,
+    mfaResponse?: MfaChallengeResponse
+  ) {
+    const signal =
+      abortSignalOrMfaResponse instanceof AbortSignal
+        ? abortSignalOrMfaResponse
+        : undefined;
+    const mfa =
+      abortSignalOrMfaResponse instanceof AbortSignal
+        ? mfaResponse
+        : abortSignalOrMfaResponse;
     return api.fetchJsonWithMfaAuthnRetry(
       url,
       {
         body: JSON.stringify(data),
         method: 'DELETE',
+        signal,
       },
-      mfaResponse
+      mfa
     );
   },
 
