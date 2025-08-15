@@ -1,37 +1,30 @@
 ---
-title: Upgrading in Other Scenarios
-description: Provides detailed information on upgrading Teleport in various non-standard situations.
+title: Manual Upgrades
+description: Provides detailed information on upgrading Teleport without Managed Updates.
 tocDepth: 3
 labels:
  - conceptual
  - platform-wide
 ---
 
-This guide explains how to upgrade components of a Teleport cluster in
-non-standard situations. 
-
 To ensure that your Teleport cluster remains up to date with the lowest amount
 of manual overhead, we recommend [signing up](https://goteleport.com/signup) for
 a cloud-hosted Teleport Enterprise account and following [Enroll Agents in
-Automatic Upgrades](./agent-managed-updates.mdx). 
-
-If your infrastructure does not fully support managed agent updates, follow this
-guide to determine the best approach for keeping your Teleport cluster up-to-date.
+Managed Updates](./agent-managed-updates.mdx).
 
 Before reading this guide, become familiar with the [Upgrading Compatibility
 Overview](./overview.mdx) guide, which describes the sequence in which to
 upgrade components in your cluster.
 
-## Manual updates
-
-This section shows you how to upgrade Teleport manually. You can perform manual
+This guide shows you how to upgrade Teleport manually. You can perform manual
 upgrades on Teleport Auth Service and Proxy Service instances running in
 self-hosted clusters, as well as all Teleport Agents.
 
-### Teleport Agents
+## Teleport Agents
 
 Note that all Linux servers with SystemD should use Managed Updates for Agents
-instead of this workflow.
+instead of this workflow, including on self-hosted clusters. Otherwise, agents
+may be disconnected when the cluster is upgraded.
 
 1. Identify the latest compatible Teleport Agent version by querying the
    `webapi` endpoint of the Teleport Proxy Service, replacing 
@@ -82,7 +75,7 @@ instead of this workflow.
    Helm chart, [follow the instructions](#teleport-agents-running-on-kubernetes)
    to upgrade the Helm release.
 
-### Single Teleport binaries on Linux servers
+## Single Teleport binaries on Linux servers
 
 You can upgrade a single Teleport binary running on a Linux host by running the
 one-line installation script with a higher version than the current one.
@@ -134,7 +127,7 @@ Service, then on each of your agents:
 
    (!docs/pages/includes/start-teleport.mdx!)
 
-### Self-hosted Teleport clusters on Kubernetes
+## Self-hosted Teleport clusters on Kubernetes
 
 The instructions in this section assume that you have configured the
 `teleport-cluster` Helm chart with a values file called `values.yaml`, and that
@@ -159,7 +152,7 @@ the number of replicas.
    version of the Proxy Service to stop responding to requests before running a
    new version of the Auth Service.
 
-### Teleport Agents running on Kubernetes
+## Teleport Agents running on Kubernetes
 
 The instructions in this section assume that you have configured the
 `teleport-kube-agent` Helm chart with a values file called `values.yaml`, and
