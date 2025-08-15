@@ -42,6 +42,7 @@ import { EditBotRequest } from 'teleport/services/bot/types';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 import { listBotInstancesSuccess } from 'teleport/test/helpers/botInstances';
 import {
+  deleteBotSuccess,
   editBotSuccess,
   getBotError,
   getBotSuccess,
@@ -529,6 +530,157 @@ describe('BotDetails', () => {
       ).not.toBeInTheDocument();
     });
   });
+
+  describe('Delete', () => {
+    it('should show an overflow option to delete the bot', async () => {
+      const history = createMemoryHistory({
+        initialEntries: ['/web/bot/test-bot-name'],
+      });
+      history.replace = jest.fn();
+
+      withFetchSuccess();
+      withFetchJoinTokensSuccess();
+      withFetchInstancesSuccess();
+      withListLocksSuccess({
+        locks: [],
+      });
+      withDeleteBotSuccess();
+      renderComponent({ history });
+      await waitForLoadingBot();
+
+      const overflowButton = screen.getByTestId('overflow-btn-open');
+      fireEvent.click(overflowButton);
+
+      const deleteButton = screen.getByText('Delete Bot...');
+      expect(deleteButton).toBeInTheDocument();
+      fireEvent.click(deleteButton!);
+
+      expect(screen.getByText('Delete test-bot-name?')).toBeInTheDocument();
+      expect(screen.getByText('Lock Bot')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByText('Delete Bot'));
+
+      await waitFor(() => {
+        expect(
+          screen.queryByText('Delete test-bot-name?')
+        ).not.toBeInTheDocument();
+      });
+
+      // The navigation is delayed to account for backend cache lag
+      await waitFor(
+        () => {
+          expect(history.replace).toHaveBeenCalled();
+        },
+        { timeout: 5000 }
+      );
+
+      expect(history.replace).toHaveBeenCalledTimes(1);
+      expect(history.replace).toHaveBeenLastCalledWith('/web/bots');
+    });
+
+    it('should disable the delete action if no permissions', async () => {
+      withFetchSuccess();
+      withFetchJoinTokensSuccess();
+      withFetchInstancesSuccess();
+      withListLocksSuccess();
+      withDeleteBotSuccess();
+      renderComponent({
+        customAcl: makeAcl({
+          bots: {
+            ...defaultAccess,
+            read: true,
+            edit: true,
+            remove: false,
+          },
+          lock: {
+            ...defaultAccess,
+            list: true,
+            remove: true,
+            create: true,
+            edit: true,
+          },
+        }),
+      });
+      await waitForLoadingBot();
+
+      const overflowButton = screen.getByTestId('overflow-btn-open');
+      fireEvent.click(overflowButton);
+
+      const deleteButton = screen.getByText('Delete Bot...');
+      expect(deleteButton).toBeInTheDocument();
+      fireEvent.click(deleteButton!);
+
+      expect(
+        screen.queryByText('Delete test-bot-name?')
+      ).not.toBeInTheDocument();
+    });
+
+    it('should not allow lock alternative if no permission', async () => {
+      withFetchSuccess();
+      withFetchJoinTokensSuccess();
+      withFetchInstancesSuccess();
+      withListLocksSuccess({
+        locks: [],
+      });
+      withDeleteBotSuccess();
+      renderComponent({
+        customAcl: makeAcl({
+          bots: {
+            ...defaultAccess,
+            read: true,
+            edit: true,
+            remove: true,
+          },
+          lock: {
+            ...defaultAccess,
+            list: true,
+            remove: true,
+            create: false,
+            edit: false,
+          },
+        }),
+      });
+      await waitForLoadingBot();
+
+      const overflowButton = screen.getByTestId('overflow-btn-open');
+      fireEvent.click(overflowButton);
+
+      const deleteButton = screen.getByText('Delete Bot...');
+      expect(deleteButton).toBeInTheDocument();
+      fireEvent.click(deleteButton!);
+
+      expect(screen.getByText('Delete test-bot-name?')).toBeInTheDocument();
+
+      const lockButton = screen.getByText('Lock Bot');
+      expect(lockButton).toBeInTheDocument();
+      fireEvent.click(lockButton!);
+
+      expect(
+        screen.queryByText('Lock bot-test-bot-name?')
+      ).not.toBeInTheDocument();
+    });
+
+    it('should not show lock alternative if already locked', async () => {
+      withFetchSuccess();
+      withFetchJoinTokensSuccess();
+      withFetchInstancesSuccess();
+      withListLocksSuccess();
+      withDeleteBotSuccess();
+      renderComponent();
+      await waitForLoadingBot();
+
+      const overflowButton = screen.getByTestId('overflow-btn-open');
+      fireEvent.click(overflowButton);
+
+      const deleteButton = screen.getByText('Delete Bot...');
+      expect(deleteButton).toBeInTheDocument();
+      fireEvent.click(deleteButton!);
+
+      expect(screen.getByText('Delete test-bot-name?')).toBeInTheDocument();
+
+      expect(screen.queryByText('Lock Bot')).not.toBeInTheDocument();
+    });
+  });
 });
 
 async function inputMaxSessionDuration(duration: string) {
@@ -653,6 +805,10 @@ function withLockSuccess() {
   server.use(createLockSuccess());
 }
 
+function withDeleteBotSuccess() {
+  server.use(deleteBotSuccess());
+}
+
 function makeWrapper(options?: {
   history?: ReturnType<typeof createMemoryHistory>;
   customAcl?: ReturnType<typeof makeAcl>;
@@ -666,6 +822,7 @@ function makeWrapper(options?: {
         ...defaultAccess,
         read: true,
         edit: true,
+        remove: true,
       },
       roles: {
         ...defaultAccess,

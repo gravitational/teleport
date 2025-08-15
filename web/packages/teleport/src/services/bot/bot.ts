@@ -167,12 +167,15 @@ export async function editBot(
   }
 }
 
-export function deleteBot(flags: FeatureFlags, name: string) {
-  if (!flags.removeBots) {
-    throw new Error('cannot delete bot: bots.remove permission required');
-  }
-
-  return api.delete(cfg.getBotUrl({ action: 'delete', botName: name }));
+export async function deleteBot(
+  variables: { botName: string },
+  signal?: AbortSignal
+) {
+  return api.delete(
+    cfg.getBotUrl({ action: 'delete', botName: variables.botName }),
+    undefined,
+    signal
+  );
 }
 
 export async function listBotInstances(

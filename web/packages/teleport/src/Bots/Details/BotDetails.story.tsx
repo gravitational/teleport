@@ -29,6 +29,7 @@ import { TeleportProviderBasic } from 'teleport/mocks/providers';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 import { listBotInstancesSuccess } from 'teleport/test/helpers/botInstances';
 import {
+  deleteBotSuccess,
   editBotSuccess,
   getBotError,
   getBotForever,
@@ -109,6 +110,7 @@ export const Happy: Story = {
         editBotSuccess(),
         removeLockSuccess(),
         createLockSuccess(),
+        deleteBotSuccess(),
       ],
     },
   },
@@ -533,6 +535,7 @@ const queryClient = new QueryClient({
 function Wrapper(props?: {
   hasBotsRead?: boolean;
   hasBotsEdit?: boolean;
+  hasBotsDelete?: boolean;
   hasTokensList?: boolean;
   hasBotInstanceListPermission?: boolean;
   hasLocksListPermission?: boolean;
@@ -542,6 +545,7 @@ function Wrapper(props?: {
   const {
     hasBotsRead = true,
     hasBotsEdit = true,
+    hasBotsDelete = true,
     hasTokensList = true,
     hasBotInstanceListPermission = true,
     hasLocksListPermission = true,
@@ -558,6 +562,7 @@ function Wrapper(props?: {
       ...defaultAccess,
       read: hasBotsRead,
       edit: hasBotsEdit,
+      remove: hasBotsDelete,
     },
     roles: {
       ...defaultAccess,

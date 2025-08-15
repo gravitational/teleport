@@ -33,6 +33,7 @@ import { MoreVert } from 'design/Icon/Icons/MoreVert';
 import { NewTab } from 'design/Icon/Icons/NewTab';
 import { Pencil } from 'design/Icon/Icons/Pencil';
 import { Question } from 'design/Icon/Icons/Question';
+import { Trash } from 'design/Icon/Icons/Trash';
 import { Unlock } from 'design/Icon/Icons/Unlock';
 import { Indicator } from 'design/Indicator/Indicator';
 import { SecondaryOutlined } from 'design/Label/Label';
@@ -57,6 +58,7 @@ import { useResourceLock } from 'teleport/lib/locks/useResourceLock';
 import { isAdminActionRequiresMfaError } from 'teleport/services/api/api';
 import useTeleport from 'teleport/useTeleport';
 
+import { DeleteDialog } from '../Delete/DeleteDialog';
 import { EditDialog } from '../Edit/EditDialog';
 import { formatDuration } from '../formatDuration';
 import { useGetBot, useListBotTokens } from '../hooks';
@@ -75,10 +77,12 @@ export function BotDetails() {
   const [isEditing, setEditing] = useState(false);
   const [showLockConfirmation, setShowLockConfirmation] = useState(false);
   const [showUnlockConfirmation, setShowUnlockConfirmation] = useState(false);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
 
   const flags = ctx.getFeatureFlags();
   const hasReadPermission = flags.readBots;
   const hasEditPermission = flags.editBots;
+  const hasDeletePermission = flags.removeBots;
 
   const { data, error, isSuccess, isError, isLoading } = useGetBot(params, {
     enabled: hasReadPermission,
@@ -127,6 +131,23 @@ export function BotDetails() {
     setShowUnlockConfirmation(true);
   };
 
+  const handleDelete = () => {
+    setShowDeleteConfirmation(true);
+  };
+
+  const handleDeleteComplete = () => {
+    setShowDeleteConfirmation(false);
+
+    // Adds a delay to allow the delete event to propagate to the backend cache
+    // before returning to the bots list where a refresh is triggered.
+    //
+    // TODO(nicholasmarais1158): Use Tanstack Query to fetch the bot list, then
+    // invalidate/update the query's cache here to avoid needing this delay.
+    setTimeout(() => {
+      history.replace(cfg.getBotsRoute());
+    }, 1000);
+  };
+
   return (
     <FeatureBox>
       <FeatureHeader gap={2} data-testid="page-header">
@@ -162,6 +183,8 @@ export function BotDetails() {
                   onLock={handleLock}
                   canUnlock={canUnlock}
                   onUnlock={handleUnlock}
+                  canDelete={hasDeletePermission}
+                  onDelete={handleDelete}
                 />
               </Flex>
             </>
@@ -321,6 +344,20 @@ export function BotDetails() {
               onComplete={() => setShowUnlockConfirmation(false)}
               targetKind={targetKind}
               targetName={targetName}
+            />
+          ) : undefined}
+
+          {showDeleteConfirmation ? (
+            <DeleteDialog
+              onCancel={() => setShowDeleteConfirmation(false)}
+              onComplete={handleDeleteComplete}
+              canLockBot={canLock}
+              onLockRequest={() => {
+                setShowLockConfirmation(true);
+                setShowDeleteConfirmation(false);
+              }}
+              botName={params.botName}
+              showLockAlternative={!isLocked}
             />
           ) : undefined}
         </Container>
@@ -570,6 +607,8 @@ function OverflowMenu(props: {
   onLock: () => void;
   canUnlock: boolean;
   onUnlock: () => void;
+  canDelete: boolean;
+  onDelete: () => void;
 }) {
   const {
     isLocked,
@@ -577,6 +616,8 @@ function OverflowMenu(props: {
     onLock,
     canUnlock,
     onUnlock,
+    canDelete,
+    onDelete,
   } = props;
   const [isOpen, setIsOpen] = useState(false);
   const anchorElRef = useRef(null);
@@ -592,6 +633,13 @@ function OverflowMenu(props: {
     // Disabled attribute on MenuItem is for styling only, so check if the user can unlock the bot
     if (!canUnlock) return;
     onUnlock();
+    setIsOpen(false);
+  };
+
+  const handleDelete = () => {
+    // Disabled attribute on MenuItem is for styling only, so check if the user can delete the bot
+    if (!canDelete) return;
+    onDelete();
     setIsOpen(false);
   };
 
@@ -636,10 +684,21 @@ function OverflowMenu(props: {
             </Flex>
           </MenuItem>
         )}
+
+        <MenuItem disabled={!canDelete} onClick={handleDelete}>
+          <Flex gap={2}>
+            <StyledTrashIcon size="small" />
+            Delete Bot...
+          </Flex>
+        </MenuItem>
       </Menu>
     </div>
   );
 }
+
+const StyledTrashIcon = styled(Trash)`
+  color: ${({ theme }) => theme.colors.interactive.solid.danger.default};
+`;
 
 const FilledButtonIcon = styled(Button)`
   width: 32px;
