@@ -5,4 +5,35 @@ tags:
  - identity-governance
 ---
 
-<DocCardList />
+Teleport Identity Governance is an add-on to Teleport Zero Trust Access that
+allows you to eliminate standing privileges, sync access with organization
+changes, and respond to security incidents.
+
+## Access Requests and Access Lists
+
+Just-in-time Access Requests allow Teleport users to request access to a
+resource or role depending on need. The request can then be approved or denied
+based on a configurable number of approvers. You can use Access Requests to
+implement the principle of least privilege in your organization, leaving an
+attacker with no permanent admins to target.
+
+[Learn more about Access
+Requests](access-requests/access-requests.mdx).
+
+Access Requests are designed to provide temporary permissions to users. You can
+grant longstanding permissions to a group of users, with the option to renew
+these permissions after a recurring interval.
+
+Learn more about [Access
+Lists](access-lists/access-lists.mdx). 
+
+## Identity provider integrations
+
+Teleport Identity Governance integrates with your identity provider so you can
+automatically sync permissions with your IdP with permissions in Teleport.
+
+- [Integrate with Okta](identity-governance/okta/okta.mdx)
+- [Integrate with Microsoft Entra
+  ID](entra-id/entra-id.mdx)
+
+
