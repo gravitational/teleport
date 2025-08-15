@@ -97,8 +97,8 @@
             },
             {
               "type": "doc",
-              "label": "Upgrading in Other Scenarios",
-              "id": "upgrading/upgrading-other"
+              "label": "Manual Upgrades",
+              "id": "upgrading/upgrading-manual"
             }
           ],
           "link": {
