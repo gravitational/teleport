@@ -33,7 +33,7 @@ $ tctl edit installer/default-installer
 ```
 
 After making the desired changes to the default installer, save and close the
-file in your text editor. 
+file in your text editor.
 
 Multiple `installer` resources can exist and be specified in the
 `{{ matcher }}.install.script_name` section of a `discovery_service.{{ matcher }}` list item in
@@ -55,7 +55,7 @@ connect to.
 Has format `<channel>/<version>` e.g. stable/v(=teleport.major_version=). See [installation](../../installation/linux.mdx) for more details.
 - `{{ .AutomaticUpgrades }}`: indicates whether Automatic Updates are enabled or disabled.
   Its value is either `true` or `false`. See
-  [Automatic Agent Updates](../../upgrading/agent-managed-updates.mdx)
+  [Automatic Agent Updates](../../upgrading/agent-managed-updates/agent-managed-updates.mdx)
   for more information.
 - `{{ .TeleportPackage }}`: the Teleport package to use.
   Its value is either `teleport-ent` or `teleport` depending on whether the
