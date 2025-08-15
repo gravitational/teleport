@@ -1294,7 +1294,8 @@ func TestBotDeviceTrust(t *testing.T) {
 	log := utils.NewSlogLoggerForTests()
 
 	// Start a test server with `device.trust.mode="required-for-humans"`.
-	process := testenv.MakeTestServer(t,
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
 		defaultTestServerOpts(log),
 		testenv.WithAuthConfig(func(cfg *servicecfg.AuthConfig) {
 			cfg.Preference.SetDeviceTrust(&types.DeviceTrust{
@@ -1302,7 +1303,15 @@ func TestBotDeviceTrust(t *testing.T) {
 			})
 		}),
 	)
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	// Run a bot with an identity output.
 	onboarding, _ := makeBot(t, rootClient, "test", "access")
