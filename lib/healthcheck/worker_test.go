@@ -92,6 +92,7 @@ func Test_newUnstartedWorker(t *testing.T) {
 						return []string{db.GetURI()}, nil
 					},
 				},
+				exitInitTimeout: time.Millisecond,
 			},
 			wantHealth: types.TargetHealth{
 				Address:          "",
@@ -209,6 +210,66 @@ func Test_dialEndpoints(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
+		})
+	}
+}
+
+func TestGetTargetHealth(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	enabledHCC := healthCheckConfig{
+		interval:           time.Minute,
+		timeout:            time.Minute,
+		healthyThreshold:   10,
+		unhealthyThreshold: 10,
+	}
+	tests := []struct {
+		desc              string
+		healthCheckConfig *healthCheckConfig
+		dialErr           error
+		wantStatus        types.TargetHealthStatus
+		wantReason        types.TargetHealthTransitionReason
+	}{
+		{
+			desc:              "healthy",
+			healthCheckConfig: &enabledHCC,
+			wantStatus:        "healthy",
+			wantReason:        types.TargetHealthTransitionReasonThreshold,
+		},
+		{
+			desc:       "disabled",
+			wantStatus: "unknown",
+			wantReason: types.TargetHealthTransitionReasonDisabled,
+		},
+		{
+			desc:              "unhealthy",
+			healthCheckConfig: &enabledHCC,
+			dialErr:           trace.Errorf("error dialing"),
+			wantStatus:        "unhealthy",
+			wantReason:        types.TargetHealthTransitionReasonThreshold,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+			worker, err := newWorker(ctx, workerConfig{
+				HealthCheckCfg: test.healthCheckConfig,
+				Target: Target{
+					GetResource: func() types.ResourceWithLabels { return nil },
+					ResolverFn: func(ctx context.Context) ([]string, error) {
+						return []string{"localhost:1234"}, nil
+					},
+					dialFn: func(ctx context.Context, network, addr string) (net.Conn, error) {
+						<-time.After(250 * time.Millisecond)
+						return fakeConn{}, test.dialErr
+					},
+				},
+			})
+			require.NoError(t, err)
+			health := worker.GetTargetHealth()
+			require.Equal(t, test.wantStatus, types.TargetHealthStatus(health.Status))
+			require.Equal(t, test.wantReason, types.TargetHealthTransitionReason(health.TransitionReason))
 		})
 	}
 }
