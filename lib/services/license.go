@@ -35,7 +35,7 @@ func UnmarshalLicense(bytes []byte) (types.License, error) {
 	var license types.LicenseV3
 	err := utils.FastUnmarshal(bytes, &license)
 	if err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 
 	if license.Version != types.V3 {

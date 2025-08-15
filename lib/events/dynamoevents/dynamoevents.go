@@ -393,10 +393,10 @@ func (l *Log) handleAWSValidationError(ctx context.Context, err error, sessionID
 
 	se, ok := trimEventSize(in)
 	if !ok {
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	}
 	if err := l.putAuditEvent(context.WithValue(ctx, largeEventHandledContextKey, true), sessionID, se); err != nil {
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	}
 	fields := log.Fields{"event_id": in.GetID(), "event_type": in.GetType()}
 	l.WithFields(fields).Info("Uploaded trimmed event to DynamoDB backend.")
@@ -1106,20 +1106,20 @@ func convertError(err error) error {
 
 	switch aerr.Code() {
 	case dynamodb.ErrCodeConditionalCheckFailedException:
-		return trace.AlreadyExists(aerr.Error())
+		return trace.AlreadyExists("%s", aerr)
 	case dynamodb.ErrCodeProvisionedThroughputExceededException:
-		return trace.ConnectionProblem(aerr, aerr.Error())
+		return trace.ConnectionProblem(aerr, "%s", aerr)
 	case dynamodb.ErrCodeResourceNotFoundException:
-		return trace.NotFound(aerr.Error())
+		return trace.NotFound("%s", aerr)
 	case dynamodb.ErrCodeItemCollectionSizeLimitExceededException:
-		return trace.BadParameter(aerr.Error())
+		return trace.BadParameter("%s", aerr)
 	case dynamodb.ErrCodeInternalServerError:
-		return trace.BadParameter(aerr.Error())
+		return trace.BadParameter("%s", aerr)
 	case ErrValidationException:
 		// A ValidationException  type is missing from AWS SDK.
 		// Use errAWSValidation that for most cases will contain:
 		// "Item size has exceeded the maximum allowed size" AWS validation error.
-		return trace.Wrap(errAWSValidation, aerr.Error())
+		return trace.Wrap(errAWSValidation, "%s", aerr)
 	default:
 		return err
 	}

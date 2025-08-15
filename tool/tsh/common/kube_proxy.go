@@ -246,13 +246,13 @@ func (c *proxyKubeCommand) prepare(cf *CLIConf, tc *client.TeleportClient) (*cli
 	// In headless mode it's assumed user works on a remote machine where they don't have
 	// tsh credentials and can't login into Teleport Kubernetes clusters.
 	if cf.Headless {
-		return nil, nil, trace.BadParameter(errorMsg)
+		return nil, nil, trace.BadParameter("%s", errorMsg)
 	}
 
 	// Use logged-in clusters.
 	clusters := kubeconfig.LocalProxyClustersFromDefaultConfig(defaultConfig, tc.KubeClusterAddr())
 	if len(clusters) == 0 {
-		return nil, nil, trace.BadParameter(errorMsg)
+		return nil, nil, trace.BadParameter("%s", errorMsg)
 	}
 
 	c.printPrepare(cf, "Preparing the following Teleport Kubernetes clusters from the default kubeconfig:", clusters)

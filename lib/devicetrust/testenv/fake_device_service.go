@@ -231,7 +231,7 @@ func (s *FakeDeviceService) CreateDeviceEnrollToken(ctx context.Context, req *de
 
 	// Auto-enrollment path.
 	if err := validateCollectedData(req.DeviceData); err != nil {
-		return nil, trace.AccessDenied(err.Error())
+		return nil, trace.AccessDenied("%s", err)
 	}
 
 	return &devicepb.DeviceEnrollToken{
@@ -625,11 +625,11 @@ func (s *FakeDeviceService) spendDeviceWebToken(webToken *devicepb.DeviceWebToke
 
 		switch {
 		case storedToken == "": // Invalid attempt state or token already spent.
-			return nil, trace.AccessDenied(invalidWebTokenMessage)
+			return nil, trace.AccessDenied("%s", invalidWebTokenMessage)
 		case storedToken != webToken.Token: // Bad token
-			return nil, trace.AccessDenied(invalidWebTokenMessage)
+			return nil, trace.AccessDenied("%s", invalidWebTokenMessage)
 		case attempt.expectedDeviceID != dev.pb.Id: // Failed expected device check.
-			return nil, trace.AccessDenied(invalidWebTokenMessage)
+			return nil, trace.AccessDenied("%s", invalidWebTokenMessage)
 		}
 
 		// Issue a new confirmation token.
@@ -642,7 +642,7 @@ func (s *FakeDeviceService) spendDeviceWebToken(webToken *devicepb.DeviceWebToke
 	}
 
 	// Token ID not found.
-	return nil, trace.AccessDenied(invalidWebTokenMessage)
+	return nil, trace.AccessDenied("%s", invalidWebTokenMessage)
 }
 
 func authenticateDeviceMacOS(dev *storedDevice, stream authenticateDeviceStream) error {

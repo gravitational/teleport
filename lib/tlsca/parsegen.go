@@ -135,7 +135,7 @@ func ParseCertificateRequestPEM(bytes []byte) (*x509.CertificateRequest, error) 
 	}
 	csr, err := x509.ParseCertificateRequest(block.Bytes)
 	if err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	return csr, nil
 }
@@ -167,7 +167,7 @@ func ParseCertificatePEM(bytes []byte) (*x509.Certificate, error) {
 	}
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	return cert, nil
 }
@@ -187,7 +187,7 @@ func ParseCertificatePEMs(bytes []byte) ([]*x509.Certificate, error) {
 	for _, block := range blocks {
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		certs = append(certs, cert)
 	}
