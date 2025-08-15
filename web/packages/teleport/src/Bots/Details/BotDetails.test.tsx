@@ -29,6 +29,7 @@ import {
   render,
   screen,
   testQueryClient,
+  waitFor,
   waitForElementToBeRemoved,
   within,
 } from 'design/utils/testing';
@@ -45,6 +46,11 @@ import {
   getBotError,
   getBotSuccess,
 } from 'teleport/test/helpers/bots';
+import {
+  createLockSuccess,
+  listV2LocksSuccess,
+  removeLockSuccess,
+} from 'teleport/test/helpers/locks';
 import { successGetRoles } from 'teleport/test/helpers/roles';
 import {
   listV2TokensError,
@@ -72,6 +78,7 @@ afterAll(() => server.close());
 describe('BotDetails', () => {
   it('should show a page error state', async () => {
     withFetchError();
+    withListLocksSuccess();
     renderComponent();
     await waitForLoadingBot();
 
@@ -80,6 +87,7 @@ describe('BotDetails', () => {
 
   it('should show a not found error state', async () => {
     withFetchError(404, 'not_found');
+    withListLocksSuccess();
     renderComponent();
     await waitForLoadingBot();
 
@@ -97,6 +105,7 @@ describe('BotDetails', () => {
     withFetchSuccess();
     withFetchJoinTokensSuccess();
     withFetchInstancesSuccess();
+    withListLocksSuccess();
     renderComponent({ history });
     await waitForLoadingBot();
 
@@ -110,6 +119,7 @@ describe('BotDetails', () => {
     withFetchSuccess();
     withFetchJoinTokensSuccess();
     withFetchInstancesSuccess();
+    withListLocksSuccess();
     renderComponent();
     await waitForLoadingBot();
 
@@ -123,6 +133,7 @@ describe('BotDetails', () => {
     withFetchSuccess();
     withFetchJoinTokensSuccess();
     withFetchInstancesSuccess();
+    withListLocksSuccess();
     renderComponent();
     await waitForLoadingBot();
 
@@ -139,6 +150,7 @@ describe('BotDetails', () => {
     withFetchSuccess();
     withFetchJoinTokensSuccess();
     withFetchInstancesSuccess();
+    withListLocksSuccess();
     renderComponent();
     await waitForLoadingBot();
 
@@ -155,6 +167,7 @@ describe('BotDetails', () => {
     withFetchSuccess();
     withFetchJoinTokensSuccess();
     withFetchInstancesSuccess();
+    withListLocksSuccess();
     renderComponent();
     await waitForLoadingBot();
 
@@ -173,6 +186,7 @@ describe('BotDetails', () => {
     withFetchSuccess();
     withFetchJoinTokensSuccess();
     withFetchInstancesSuccess();
+    withListLocksSuccess();
     renderComponent();
     await waitForLoadingBot();
     await waitForLoadingTokens();
@@ -191,6 +205,7 @@ describe('BotDetails', () => {
     withFetchSuccess();
     withFetchJoinTokensOutdatedProxy();
     withFetchInstancesSuccess();
+    withListLocksSuccess();
     renderComponent();
     await waitForLoadingBot();
     await waitForLoadingTokens();
@@ -211,6 +226,7 @@ describe('BotDetails', () => {
     withFetchSuccess();
     withFetchJoinTokensMfaError();
     withFetchInstancesSuccess();
+    withListLocksSuccess();
     renderComponent();
     await waitForLoadingBot();
     await waitForLoadingTokens();
@@ -231,6 +247,7 @@ describe('BotDetails', () => {
     withFetchSuccess();
     withFetchJoinTokensSuccess();
     withFetchInstancesSuccess();
+    withListLocksSuccess();
     renderComponent();
     await waitForLoadingBot();
     await waitForLoadingInstances();
@@ -266,6 +283,7 @@ describe('BotDetails', () => {
       withFetchSuccess();
       withFetchJoinTokensSuccess();
       withFetchInstancesSuccess();
+      withListLocksSuccess();
       renderComponent({
         customAcl: makeAcl({
           bots: {
@@ -284,6 +302,7 @@ describe('BotDetails', () => {
       withFetchSuccess();
       withFetchJoinTokensSuccess();
       withFetchInstancesSuccess();
+      withListLocksSuccess();
       renderComponent();
       await waitForLoadingBot();
 
@@ -307,6 +326,7 @@ describe('BotDetails', () => {
       withFetchSuccess();
       withFetchJoinTokensSuccess();
       withFetchInstancesSuccess();
+      withListLocksSuccess();
       renderComponent();
       await waitForLoadingBot();
 
@@ -373,6 +393,140 @@ describe('BotDetails', () => {
       expect(traitsPanel).toBeInTheDocument();
       expect(within(traitsPanel!).getByText('trait-2')).toBeInTheDocument();
       expect(within(traitsPanel!).getByText('value-3')).toBeInTheDocument();
+    });
+  });
+
+  describe('Locks', () => {
+    it('should show an overflow option to lock the bot', async () => {
+      withFetchSuccess();
+      withFetchJoinTokensSuccess();
+      withFetchInstancesSuccess();
+      withListLocksSuccess({
+        locks: [],
+      });
+      renderComponent();
+      await waitForLoadingBot();
+
+      expect(screen.queryByText('Locked')).not.toBeInTheDocument();
+
+      const overflowButton = screen.getByTestId('overflow-btn-open');
+      fireEvent.click(overflowButton);
+
+      const lockButton = screen.getByText('Lock Bot...');
+      expect(lockButton).toBeInTheDocument();
+      fireEvent.click(lockButton!);
+
+      expect(screen.getByText('Lock bot-test-bot-name?')).toBeInTheDocument();
+
+      withLockSuccess();
+      const submitButton = screen.getByRole('button', { name: 'Create Lock' });
+      expect(submitButton).toBeEnabled();
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('Locked')).toBeInTheDocument();
+      });
+    });
+
+    it('should show an overflow option to unlock the bot', async () => {
+      withFetchSuccess();
+      withFetchJoinTokensSuccess();
+      withFetchInstancesSuccess();
+      withListLocksSuccess();
+      renderComponent();
+      await waitForLoadingBot();
+
+      expect(screen.getByText('Locked')).toBeInTheDocument();
+
+      const overflowButton = screen.getByTestId('overflow-btn-open');
+      fireEvent.click(overflowButton);
+
+      const unlockButton = screen.getByText('Unlock Bot...');
+      expect(unlockButton).toBeInTheDocument();
+      fireEvent.click(unlockButton!);
+
+      expect(screen.getByText('Unlock bot-test-bot-name?')).toBeInTheDocument();
+
+      withUnlockSuccess();
+      const submitButton = screen.getByRole('button', { name: 'Remove Lock' });
+      expect(submitButton).toBeEnabled();
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Locked')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should disable lock action if no permissions', async () => {
+      withFetchSuccess();
+      withFetchJoinTokensSuccess();
+      withFetchInstancesSuccess();
+      withListLocksSuccess({
+        locks: [],
+      });
+      renderComponent({
+        customAcl: makeAcl({
+          bots: {
+            ...defaultAccess,
+            read: true,
+            edit: true,
+          },
+          lock: {
+            ...defaultAccess,
+            list: true,
+            remove: true,
+            create: false,
+          },
+        }),
+      });
+      await waitForLoadingBot();
+
+      const overflowButton = screen.getByTestId('overflow-btn-open');
+      fireEvent.click(overflowButton);
+
+      const lockButton = screen.getByText('Lock Bot...');
+      expect(lockButton).toBeInTheDocument();
+      fireEvent.click(lockButton!);
+
+      expect(
+        screen.queryByText('Lock bot-test-bot-name?')
+      ).not.toBeInTheDocument();
+    });
+
+    it('should disable unlock action if no permissions', async () => {
+      withFetchSuccess();
+      withFetchJoinTokensSuccess();
+      withFetchInstancesSuccess();
+      withListLocksSuccess();
+      renderComponent({
+        customAcl: makeAcl({
+          bots: {
+            ...defaultAccess,
+            read: true,
+            edit: true,
+          },
+          lock: {
+            ...defaultAccess,
+            list: true,
+            remove: false,
+            create: true,
+          },
+        }),
+      });
+      await waitForLoadingBot();
+
+      expect(screen.getByText('Locked')).toBeInTheDocument();
+
+      const overflowButton = screen.getByTestId('overflow-btn-open');
+      fireEvent.click(overflowButton);
+
+      const unlockButton = screen.getByText('Unlock Bot...');
+      expect(unlockButton).toBeInTheDocument();
+      fireEvent.click(unlockButton!);
+
+      expect(
+        screen.queryByText('Unlock bot-test-bot-name?')
+      ).not.toBeInTheDocument();
     });
   });
 });
@@ -470,6 +624,35 @@ function withFetchRolesSuccess() {
   );
 }
 
+function withListLocksSuccess(
+  ...params: Parameters<typeof listV2LocksSuccess>
+) {
+  server.use(
+    listV2LocksSuccess({
+      locks: params[0]?.locks ?? [
+        {
+          name: '76bc5cc7-b9bf-4a03-935f-8018c0a2bc05',
+          message: 'This is a test message',
+          expires: '2023-12-31T23:59:59Z',
+          targets: {
+            user: 'bot-test-bot-name',
+          },
+          createdAt: '2023-01-01T00:00:00Z',
+          createdBy: 'admin',
+        },
+      ],
+    })
+  );
+}
+
+function withUnlockSuccess() {
+  server.use(removeLockSuccess());
+}
+
+function withLockSuccess() {
+  server.use(createLockSuccess());
+}
+
 function makeWrapper(options?: {
   history?: ReturnType<typeof createMemoryHistory>;
   customAcl?: ReturnType<typeof makeAcl>;
@@ -495,6 +678,13 @@ function makeWrapper(options?: {
       botInstances: {
         ...defaultAccess,
         list: true,
+      },
+      lock: {
+        ...defaultAccess,
+        list: true,
+        remove: true,
+        create: true,
+        edit: true,
       },
     }),
   } = options ?? {};

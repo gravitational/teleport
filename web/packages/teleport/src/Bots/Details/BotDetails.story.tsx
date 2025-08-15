@@ -34,6 +34,12 @@ import {
   getBotForever,
   getBotSuccess,
 } from 'teleport/test/helpers/bots';
+import {
+  createLockSuccess,
+  listV2LocksError,
+  listV2LocksSuccess,
+  removeLockSuccess,
+} from 'teleport/test/helpers/locks';
 import { mfaAuthnChallengeSuccess } from 'teleport/test/helpers/mfa';
 import { successGetRoles } from 'teleport/test/helpers/roles';
 import {
@@ -99,7 +105,10 @@ export const Happy: Story = {
             kind: 'role',
           })),
         }),
+        listV2LocksSuccess(),
         editBotSuccess(),
+        removeLockSuccess(),
+        createLockSuccess(),
       ],
     },
   },
@@ -135,6 +144,7 @@ export const HappyWithEmpty: Story = {
           })),
         }),
         editBotSuccess(),
+        listV2LocksSuccess(),
       ],
     },
   },
@@ -181,6 +191,7 @@ export const HappyWithTypical: Story = {
           })),
         }),
         editBotSuccess(),
+        listV2LocksSuccess(),
       ],
     },
   },
@@ -243,6 +254,7 @@ export const HappyWithLongValues: Story = {
           })),
         }),
         editBotSuccess(),
+        listV2LocksSuccess(),
       ],
     },
   },
@@ -268,6 +280,7 @@ export const HappyWithoutEditPermission: Story = {
           })),
         }),
         editBotSuccess(),
+        listV2LocksSuccess(),
       ],
     },
   },
@@ -293,6 +306,7 @@ export const HappyWithoutTokenListPermission: Story = {
           })),
         }),
         editBotSuccess(),
+        listV2LocksSuccess(),
       ],
     },
   },
@@ -316,6 +330,7 @@ export const HappyWithMFAPrompt: Story = {
           })),
         }),
         editBotSuccess(),
+        listV2LocksSuccess(),
       ],
     },
   },
@@ -338,6 +353,7 @@ export const HappyWithTokensError: Story = {
           })),
         }),
         editBotSuccess(),
+        listV2LocksSuccess(),
       ],
     },
   },
@@ -368,6 +384,7 @@ export const HappyWithTokensOutdatedProxy: Story = {
           })),
         }),
         editBotSuccess(),
+        listV2LocksSuccess(),
       ],
     },
   },
@@ -393,6 +410,71 @@ export const HappyWithoutBotInstanceListPermission: Story = {
           })),
         }),
         editBotSuccess(),
+        listV2LocksSuccess(),
+      ],
+    },
+  },
+};
+
+export const HappyWithLock: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        successHandler,
+        listV2TokensSuccess(),
+        listBotInstancesSuccessHandler,
+        successGetRoles({
+          startKey: '',
+          items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
+            content: `role-${r}`,
+            id: `role-${r}`,
+            name: `role-${r}`,
+            kind: 'role',
+          })),
+        }),
+        listV2LocksSuccess({
+          locks: [
+            {
+              name: '76bc5cc7-b9bf-4a03-935f-8018c0a2bc05',
+              message: 'This is a test message',
+              expires: '2023-12-31T23:59:59Z',
+              targets: {
+                user: 'bot-ansible-worker',
+              },
+              createdAt: '2023-01-01T00:00:00Z',
+              createdBy: 'admin',
+            },
+          ],
+        }),
+        editBotSuccess(),
+        removeLockSuccess(),
+        createLockSuccess(),
+      ],
+    },
+  },
+};
+
+export const HappyWithLockError: Story = {
+  args: {
+    hasLocksMutatePermission: false,
+  },
+  parameters: {
+    msw: {
+      handlers: [
+        successHandler,
+        listV2TokensSuccess(),
+        listBotInstancesSuccessHandler,
+        successGetRoles({
+          startKey: '',
+          items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
+            content: `role-${r}`,
+            id: `role-${r}`,
+            name: `role-${r}`,
+            kind: 'role',
+          })),
+        }),
+        listV2LocksError(500, 'error message goes here'),
+        editBotSuccess(),
       ],
     },
   },
@@ -401,7 +483,7 @@ export const HappyWithoutBotInstanceListPermission: Story = {
 export const WithFetchPending: Story = {
   parameters: {
     msw: {
-      handlers: [getBotForever()],
+      handlers: [getBotForever(), listV2LocksSuccess()],
     },
   },
 };
@@ -409,7 +491,10 @@ export const WithFetchPending: Story = {
 export const WithFetchFailure: Story = {
   parameters: {
     msw: {
-      handlers: [getBotError(500, 'error message goes here')],
+      handlers: [
+        getBotError(500, 'error message goes here'),
+        listV2LocksSuccess(),
+      ],
     },
   },
 };
@@ -417,7 +502,7 @@ export const WithFetchFailure: Story = {
 export const WithBotNotFound: Story = {
   parameters: {
     msw: {
-      handlers: [getBotError(404, 'not found')],
+      handlers: [getBotError(404, 'not found'), listV2LocksSuccess()],
     },
   },
 };
@@ -428,7 +513,10 @@ export const WithNoBotReadPermission: Story = {
   },
   parameters: {
     msw: {
-      handlers: [getBotError(500, 'you have permission, congrats 🎉')],
+      handlers: [
+        getBotError(500, 'you have permission, congrats 🎉'),
+        listV2LocksSuccess(),
+      ],
     },
   },
 };
@@ -447,12 +535,18 @@ function Wrapper(props?: {
   hasBotsEdit?: boolean;
   hasTokensList?: boolean;
   hasBotInstanceListPermission?: boolean;
+  hasLocksListPermission?: boolean;
+  hasLocksMutatePermission?: boolean;
+  hasLocksDeletePermission?: boolean;
 }) {
   const {
     hasBotsRead = true,
     hasBotsEdit = true,
     hasTokensList = true,
     hasBotInstanceListPermission = true,
+    hasLocksListPermission = true,
+    hasLocksMutatePermission = true,
+    hasLocksDeletePermission = true,
   } = props ?? {};
 
   const history = createMemoryHistory({
@@ -476,6 +570,13 @@ function Wrapper(props?: {
     botInstances: {
       ...defaultAccess,
       list: hasBotInstanceListPermission,
+    },
+    lock: {
+      ...defaultAccess,
+      list: hasLocksListPermission,
+      create: hasLocksMutatePermission,
+      edit: hasLocksMutatePermission,
+      remove: hasLocksDeletePermission,
     },
   });
 
