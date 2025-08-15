@@ -1,0 +1,139 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.recordingencryption.v1;
+
+import "google/protobuf/timestamp.proto";
+import "teleport/recordingencryption/v1/recording_encryption.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1;recordingencryptionv1";
+
+// RecordingEncryption provides methods to manage cluster encryption configuration resources.
+service RecordingEncryptionService {
+  // CreateUpload begins a multipart upload for an encrypted recording. The
+  // returned upload ID should be used while uploading parts.
+  rpc CreateUpload(CreateUploadRequest) returns (CreateUploadResponse);
+  // UploadPart uploads a part to the given upload ID.
+  rpc UploadPart(UploadPartRequest) returns (UploadPartResponse);
+  // CompleteUploadRequest marks a multipart upload as complete.
+  rpc CompleteUpload(CompleteUploadRequest) returns (CompleteUploadResponse);
+
+  // RotateKey rotates the key pair used for encrypting session recording data.
+  rpc RotateKey(RotateKeyRequest) returns (RotateKeyResponse);
+  // GetRotationState returns whether or not a rotation is in progress.
+  rpc GetRotationState(GetRotationStateRequest) returns (GetRotationStateResponse);
+  // CompleteRotation moves rotated keys out of the active set.
+  rpc CompleteRotation(CompleteRotationRequest) returns (CompleteRotationResponse);
+  // RollbackRotation removes active keys and reverts rotating keys back to being active.
+  rpc RollbackRotation(RollbackRotationRequest) returns (RollbackRotationResponse);
+}
+
+// The handle to an upload for an encrypted session.
+message Upload {
+  // The primary identifier for an Upload.
+  string upload_id = 1;
+  // The session ID an upload is tied to.
+  string session_id = 2;
+  // The time that an upload was created at.
+  google.protobuf.Timestamp initiated_at = 3;
+}
+
+// The request to start a multipart upload for a specific session recording.
+message CreateUploadRequest {
+  // The session ID associated with the recording being uploaded.
+  string session_id = 1;
+}
+
+// The resulting Upload message for a created Upload.
+message CreateUploadResponse {
+  // The handle for the created Upload.
+  Upload upload = 1;
+}
+
+// The request to upload a single part in a multipart upload.
+message UploadPartRequest {
+  // The handle to the in-progress upload that should be uploaded to.
+  Upload upload = 1;
+  // The ordered index applied to the part.
+  int64 part_number = 2;
+  // The encrypted part of session recording data being uploaded.
+  bytes part = 3;
+}
+
+// The resulting metadata about an uploaded part.
+message Part {
+  // The ordered index applied to the part.
+  int64 part_number = 1;
+  // The part e-tag value relevant to some storage backends.
+  string etag = 2;
+}
+
+// A successfully uploaded Part to be included in the final CompleteUpload request.
+message UploadPartResponse {
+  // The resulting part metadata about an uploaded part.
+  Part part = 1;
+}
+
+// The request to complete an upload. The included part numbers must match the parts successfully
+// uploaded up until this point.
+message CompleteUploadRequest {
+  // The handle to an upload to complete.
+  Upload upload = 1;
+  // The parts expected to be successfully uploaded.
+  repeated Part parts = 2;
+}
+
+// The body of a CompleteUpload request.
+message CompleteUploadResponse {}
+
+// The body of a RotateKey request.
+message RotateKeyRequest {}
+
+// The return value of a RotateKey request.
+message RotateKeyResponse {}
+
+// The body of a GetRotationState request.
+message GetRotationStateRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+// A public key fingerprint coupled with its current state.
+message FingerprintWithState {
+  // A fingerprint identifying the public key of a KeyPair.
+  string fingerprint = 1;
+  // The state associated with the identified KeyPair.
+  v1.KeyPairState state = 2;
+}
+
+// The current state of all active encryption key pairs.
+message GetRotationStateResponse {
+  string next_page_token = 1;
+  // The state of all active encryption key pairs.
+  repeated FingerprintWithState key_pair_states = 2;
+}
+
+// The body of a CompleteRotation request.
+message CompleteRotationRequest {}
+
+// The return value of a CompleteRotation request.
+message CompleteRotationResponse {}
+
+// The body of a RollbackRotation request.
+message RollbackRotationRequest {}
+
+// The return value of a RollbackRotation request
+message RollbackRotationResponse {}
