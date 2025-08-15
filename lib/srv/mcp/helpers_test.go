@@ -198,7 +198,7 @@ func makeTestAuthContext(t *testing.T, roleSet services.RoleSet) *authz.Context 
 			Principals: user.GetLogins(),
 		},
 	}
-	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(identity.Identity, nil)
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(identity.Identity)
 	require.NoError(t, err)
 	checker := services.NewAccessCheckerWithRoleSet(accessInfo, "my-cluster", roleSet)
 	return &authz.Context{

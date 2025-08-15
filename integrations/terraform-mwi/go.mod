@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/integrations/terraform-mwi
 
-go 1.24.5
+go 1.24.6
 
 require (
 	github.com/gravitational/teleport v0.0.0-00010101000000-000000000000
@@ -122,6 +122,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/rds v1.100.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/redshift v1.55.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.28.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi v1.27.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.18.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.85.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.36.1 // indirect
@@ -167,7 +168,7 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/di-wu/parser v0.3.0 // indirect
 	github.com/di-wu/xsd-datetime v1.0.0 // indirect
-	github.com/digitorus/pkcs7 v0.0.0-20230818184609-3a137a874352 // indirect
+	github.com/digitorus/pkcs7 v0.0.0-20250730155240-ffadbf3f398c // indirect
 	github.com/digitorus/timestamp v0.0.0-20231217203849-220c5c2851b7 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/elimity-com/scim v0.0.0-20240320110924-172bf2aee9c8 // indirect
@@ -353,6 +354,7 @@ require (
 	github.com/muhlemmer/httpforwarded v0.1.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
+	github.com/ohler55/ojg v1.26.8 // indirect
 	github.com/oklog/run v1.0.0 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/okta/okta-sdk-golang/v2 v2.20.0 // indirect
@@ -400,7 +402,7 @@ require (
 	github.com/sassoftware/relic v7.2.1+incompatible // indirect
 	github.com/schollz/progressbar/v3 v3.18.0 // indirect
 	github.com/scim2/filter-parser/v2 v2.2.0 // indirect
-	github.com/secure-systems-lab/go-securesystemslib v0.9.0 // indirect
+	github.com/secure-systems-lab/go-securesystemslib v0.9.1 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/shibumi/go-pathspec v1.3.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
@@ -490,7 +492,7 @@ require (
 	golang.org/x/net v0.42.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
-	golang.org/x/sys v0.34.0 // indirect
+	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/term v0.33.0 // indirect
 	golang.org/x/text v0.27.0 // indirect
 	golang.org/x/time v0.12.0 // indirect

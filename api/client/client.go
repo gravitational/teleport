@@ -908,12 +908,6 @@ func (c *Client) PresenceServiceClient() presencepb.PresenceServiceClient {
 	return presencepb.NewPresenceServiceClient(c.conn)
 }
 
-// WorkloadIdentityServiceClient returns an unadorned client for the workload
-// identity service.
-func (c *Client) WorkloadIdentityServiceClient() machineidv1pb.WorkloadIdentityServiceClient {
-	return machineidv1pb.NewWorkloadIdentityServiceClient(c.conn)
-}
-
 // NotificationServiceClient returns a notification service client that can be used to fetch notifications.
 func (c *Client) NotificationServiceClient() notificationsv1pb.NotificationServiceClient {
 	return notificationsv1pb.NewNotificationServiceClient(c.conn)
@@ -1165,6 +1159,24 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.Create
 	}
 
 	return token, nil
+}
+
+func (c *Client) ListResetPasswordTokens(ctx context.Context, pageSize int, pageToken string) ([]types.UserToken, string, error) {
+	req := &proto.ListResetPasswordTokenRequest{
+		PageSize:  int32(pageSize),
+		PageToken: pageToken,
+	}
+	resp, err := c.grpc.ListResetPasswordTokens(ctx, req)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	// Convert concrete type []*types.UserTokenV3 to interface type []types.UserToken
+	tokens := make([]types.UserToken, len(resp.UserTokens))
+	for i, token := range resp.UserTokens {
+		tokens[i] = token
+	}
+	return tokens, resp.NextPageToken, nil
 }
 
 // GetAccessRequests retrieves a list of all access requests matching the provided filter.
@@ -1766,6 +1778,16 @@ func (c *Client) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*p
 	return rsp, nil
 }
 
+// ListRequestableRoles is a paginated requestable role getter.
+func (c *Client) ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error) {
+	rsp, err := c.grpc.ListRequestableRoles(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rsp, nil
+}
+
 // CreateRole creates a new role.
 func (c *Client) CreateRole(ctx context.Context, role types.Role) (types.Role, error) {
 	r, ok := role.(*types.RoleV6)
@@ -2309,8 +2331,10 @@ func (c *Client) GetToken(ctx context.Context, name string) (types.ProvisionToke
 }
 
 // GetTokens returns a list of active provision tokens for nodes and users.
+// Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
+// TODO(hugoShaka): DELETE IN 19.0.0
 func (c *Client) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
-	resp, err := c.grpc.GetTokens(ctx, &emptypb.Empty{})
+	resp, err := c.grpc.GetTokens(ctx, &emptypb.Empty{}) //nolint:staticcheck // Provides backward compatibility, will be removed later.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2319,6 +2343,16 @@ func (c *Client) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) 
 	for i, token := range resp.ProvisionTokens {
 		tokens[i] = token
 	}
+	return tokens, nil
+}
+
+// GetStaticTokens returns the cluster static tokens.
+func (c *Client) GetStaticTokens(ctx context.Context) (types.StaticTokens, error) {
+	tokens, err := c.grpc.GetStaticTokens(ctx, &emptypb.Empty{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return tokens, nil
 }
 

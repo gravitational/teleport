@@ -2369,6 +2369,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		fmt.Printf("AutoUpdateAgentRollout has been deleted\n")
 	case types.KindHealthCheckConfig:
 		return trace.Wrap(rc.deleteHealthCheckConfig(ctx, client))
+	case types.KindRelayServer:
+		if err := client.DeleteRelayServer(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("relay_server %+q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -2948,7 +2953,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &dynamicWindowsDesktopCollection{desktops}, nil
 	case types.KindToken:
 		if rc.ref.Name == "" {
-			tokens, err := client.GetTokens(ctx)
+			tokens, err := getAllTokens(ctx, client)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -3719,6 +3724,22 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			}
 		}
 		return &scopedRoleAssignmentCollection{items: items}, nil
+	case types.KindRelayServer:
+		if rc.ref.Name != "" {
+			rs, err := client.GetRelayServer(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return namedResourceCollection{types.ProtoResource153ToLegacy(rs)}, nil
+		}
+		var c namedResourceCollection
+		for rs, err := range clientutils.Resources(ctx, client.ListRelayServers) {
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			c = append(c, types.ProtoResource153ToLegacy(rs))
+		}
+		return c, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

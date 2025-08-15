@@ -268,7 +268,6 @@ linters:
             - '!**/integrations/lib/testing/integration/authhelper.go'
             - '!**/integrations/lib/testing/integration/suite.go'
             - '!**/integrations/operator/controllers/resources/testlib/**'
-            - '!**/tool/teleport/testenv/**'
           deny:
             - pkg: github.com/stretchr/testify
               desc: testify should not be imported outside of test code
@@ -307,7 +306,6 @@ linters:
             - '!**/lib/utils/cli.go'
             - '!**/lib/utils/mcptest/**'
             - '!**/lib/utils/testutils/**'
-            - '!**/tool/teleport/testenv/**'
           deny:
             - pkg: testing
               desc: testing should not be imported outside of tests

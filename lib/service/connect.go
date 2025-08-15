@@ -1062,7 +1062,7 @@ func (process *TeleportProcess) getConnector(clientIdentity, serverIdentity *sta
 	if clientIdentity.ID.Role != types.RoleInstance {
 		// non-instance roles should wait to see if the instance client can be reused
 		// before acquiring their own client.
-		if instanceConn := process.waitForInstanceConnector(); instanceConn != nil && instanceConn.Client != nil {
+		if instanceConn := process.waitForInstanceConnector(process.ExitContext()); instanceConn != nil && instanceConn.Client != nil {
 			instanceClientIdentity := instanceConn.clientState.Load().identity
 			if instanceClientIdentity.HasSystemRole(clientIdentity.ID.Role) {
 				process.logger.InfoContext(process.ExitContext(), "Reusing Instance client.", "identity", clientIdentity.ID.Role, "additional_system_roles", instanceClientIdentity.SystemRoles)
