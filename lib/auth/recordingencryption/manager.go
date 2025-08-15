@@ -50,7 +50,6 @@ type KeyStore interface {
 // A Cache fetches a cached [*recordingencryptionv1.RecordingEncryption].
 type Cache interface {
 	GetRecordingEncryption(context.Context) (*recordingencryptionv1.RecordingEncryption, error)
-	// GetRotatedKey(ctx context.Context, fingerprint string) (*recordingencryptionv1.RotatedKey, error)
 }
 
 // ManagerConfig captures all of the dependencies required to instantiate a Manager.
@@ -381,7 +380,6 @@ func (m *Manager) UnwrapKey(ctx context.Context, in UnwrapInput) ([]byte, error)
 		return fileKey, nil
 	}
 
-	// rotatedKey, err := m.cache.GetRotatedKey(ctx, in.Fingerprint)
 	rotatedKey, err := m.GetRotatedKey(ctx, in.Fingerprint)
 	if err != nil {
 		return nil, trace.Wrap(err)

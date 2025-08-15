@@ -206,7 +206,6 @@ func (s *Service) RotateKey(ctx context.Context, req *recordingencryptionv1.Rota
 	}
 
 	if err := authCtx.AuthorizeAdminAction(); err != nil {
-		s.logger.WarnContext(ctx, "failed to authorize encryption key rotation", "error", err)
 		return nil, trace.AccessDenied("key rotation can only be performed by admins")
 	}
 
@@ -225,7 +224,6 @@ func (s *Service) CompleteRotation(ctx context.Context, req *recordingencryption
 	}
 
 	if err := authCtx.AuthorizeAdminAction(); err != nil {
-		s.logger.WarnContext(ctx, "failed to authorize encryption key rotation", "error", err)
 		return nil, trace.AccessDenied("key rotation can only be performed by admins")
 	}
 
@@ -244,7 +242,6 @@ func (s *Service) RollbackRotation(ctx context.Context, req *recordingencryption
 	}
 
 	if err := authCtx.AuthorizeAdminAction(); err != nil {
-		s.logger.WarnContext(ctx, "failed to authorize encryption key rotation", "error", err)
 		return nil, trace.AccessDenied("key rotation can only be performed by admins")
 	}
 
@@ -263,7 +260,6 @@ func (s *Service) GetRotationState(ctx context.Context, req *recordingencryption
 	}
 
 	if err := authCtx.AuthorizeAdminAction(); err != nil {
-		s.logger.WarnContext(ctx, "failed to authorize encryption key rotation", "error", err)
 		return nil, trace.AccessDenied("key rotation can only be performed by admins")
 	}
 
