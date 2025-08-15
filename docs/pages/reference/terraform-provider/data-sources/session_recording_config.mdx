@@ -56,11 +56,11 @@ Optional:
 
 Optional:
 
-- `active_key` (Attributes List) ActiveKeys describe which keys should be queried for active recording encryption and replay. (see [below for nested schema](#nested-schema-for-specencryptionmanual_key_managementactive_key))
+- `active_keys` (Attributes List) ActiveKeys describe which keys should be queried for active recording encryption and replay. (see [below for nested schema](#nested-schema-for-specencryptionmanual_key_managementactive_keys))
 - `enabled` (Boolean) Enabled controls whether or recording encryption keys should be managed externally.
-- `rotated_key` (Attributes List) RotatedKeys describe which keys should be queried for historical replay. (see [below for nested schema](#nested-schema-for-specencryptionmanual_key_managementrotated_key))
+- `rotated_keys` (Attributes List) RotatedKeys describe which keys should be queried for historical replay. (see [below for nested schema](#nested-schema-for-specencryptionmanual_key_managementrotated_keys))
 
-### Nested Schema for `spec.encryption.manual_key_management.active_key`
+### Nested Schema for `spec.encryption.manual_key_management.active_keys`
 
 Optional:
 
@@ -68,7 +68,7 @@ Optional:
 - `type` (String) Type represents which keystore should be searched when looking up keys by label.
 
 
-### Nested Schema for `spec.encryption.manual_key_management.rotated_key`
+### Nested Schema for `spec.encryption.manual_key_management.rotated_keys`
 
 Optional:
 
