@@ -76,7 +76,7 @@ func (a *Server) checkTokenJoinRequestCommon(ctx context.Context, req *types.Reg
 		if !hasLocalServiceRole {
 			msg := fmt.Sprintf("%q [%v] cannot requisition instance certs (token contains no local service roles)", req.NodeName, req.HostID)
 			log.Warn(msg)
-			return nil, trace.AccessDenied(msg)
+			return nil, trace.AccessDenied("%s", msg)
 		}
 	}
 
@@ -84,7 +84,7 @@ func (a *Server) checkTokenJoinRequestCommon(ctx context.Context, req *types.Reg
 	if !provisionToken.GetRoles().Include(req.Role) && req.Role != types.RoleInstance {
 		msg := fmt.Sprintf("node %q [%v] can not join the cluster, the token does not allow %q role", req.NodeName, req.HostID, req.Role)
 		log.Warn(msg)
-		return nil, trace.BadParameter(msg)
+		return nil, trace.BadParameter("%s", msg)
 	}
 
 	return provisionToken, nil

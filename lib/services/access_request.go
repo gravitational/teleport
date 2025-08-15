@@ -1201,7 +1201,7 @@ func (m *requestValidator) validate(ctx context.Context, req types.AccessRequest
 			return trace.Wrap(err)
 		}
 		if required {
-			return trace.BadParameter(explanation)
+			return trace.BadParameter("%s", explanation)
 		}
 	}
 

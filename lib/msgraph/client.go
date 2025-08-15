@@ -203,7 +203,7 @@ func (c *Client) request(ctx context.Context, method string, uri string, payload
 			lastErr = trace.Wrap(graphError)
 		} else {
 			// API did not return a valid error structure, best-effort reporting.
-			lastErr = trace.Errorf(resp.Status)
+			lastErr = trace.Errorf("%s", resp.Status)
 		}
 		if !isRetriable(resp.StatusCode) {
 			break

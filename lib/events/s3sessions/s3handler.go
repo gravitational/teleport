@@ -471,8 +471,7 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 		CreateBucketConfiguration: awsutils.CreateBucketConfiguration(h.Region),
 	}
 	_, err = h.client.CreateBucket(ctx, input)
-	err = awsutils.ConvertS3Error(err, fmt.Sprintf("bucket %v already exists", aws.String(h.Bucket)))
-	if err != nil {
+	if err := awsutils.ConvertS3Error(err); err != nil {
 		if !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err)
 		}
@@ -488,9 +487,8 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 			Status: awstypes.BucketVersioningStatusEnabled,
 		},
 	})
-	err = awsutils.ConvertS3Error(err, fmt.Sprintf("failed to set versioning state for bucket %q", h.Bucket))
-	if err != nil {
-		return trace.Wrap(err)
+	if err := awsutils.ConvertS3Error(err); err != nil {
+		return trace.Wrap(err, "failed to set versioning state for bucket %q", h.Bucket)
 	}
 
 	// Turn on server-side encryption for the bucket.
@@ -507,9 +505,8 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 				},
 			},
 		})
-		err = awsutils.ConvertS3Error(err, fmt.Sprintf("failed to set encryption state for bucket %q", h.Bucket))
-		if err != nil {
-			return trace.Wrap(err)
+		if err := awsutils.ConvertS3Error(err); err != nil {
+			return trace.Wrap(err, "failed to set encryption state for bucket %q", h.Bucket)
 		}
 	}
 	return nil
