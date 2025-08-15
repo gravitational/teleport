@@ -139,8 +139,9 @@ If any of these commands fail, additional steps may be needed to enable public
 provider.
 
 Refer to your cloud provider documentation to enable this feature, including:
-- [Amazon EKS](https://docs.aws.amazon.com/eks/latest/userguide/enable-iam-roles-for-service-accounts.html)
-- [Azure AKS](https://learn.microsoft.com/en-us/azure/aks/use-oidc-issuer)
+- [AWS](https://docs.aws.amazon.com/eks/latest/userguide/enable-iam-roles-for-service-accounts.html): Enabling OIDC for EKS clusters
+- [Azure](https://learn.microsoft.com/en-us/azure/aks/use-oidc-issuer): Enabling OIDC for AKS clusters
+- GKE clusters should work out of the box
 
 If your provider does not support this feature, consider using either [Static
 JWKS joining](./kubernetes.mdx) or an [alternative Teleport join
