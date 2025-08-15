@@ -869,6 +869,84 @@ func TestAWSRolesAnywhereCredentialGenerationForApps(t *testing.T) {
 	require.JSONEq(t, `{"Version":1,"AccessKeyId":"aki","SecretAccessKey":"sak","SessionToken":"st","Expiration":"2025-06-25T12:07:02.474135Z"}`, identity.RouteToApp.AWSCredentialProcessCredentials)
 }
 
+func TestAppAccessUsingAWSOIDC_doesntGenerateClientCredentials(t *testing.T) {
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+
+	// Set up a user with the necessary roles to access the AWS App.
+	username := "aws-access-user"
+	roleARN := "arn:aws:iam::123456789012:role/MyRole"
+	awsAccessRole, err := authtest.CreateRole(ctx, srv.Auth(), "aws-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+			AWSRoleARNs: []string{roleARN},
+		},
+	})
+	require.NoError(t, err)
+
+	awsOIDCIntegration := "aws-oidc-integration"
+	ig, err := types.NewIntegrationAWSOIDC(types.Metadata{Name: awsOIDCIntegration}, &types.AWSOIDCIntegrationSpecV1{
+		RoleARN: "arn:aws:iam::123456789012:role/MyRole",
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().Integrations.CreateIntegration(ctx, ig)
+	require.NoError(t, err)
+
+	// Set up a new AWS App created from a Roles Anywhere Profile.
+	appName := "my-aws-access-using-awsoidc"
+	app, err := types.NewAppServerV3(
+		types.Metadata{Name: appName},
+		types.AppServerSpecV3{
+			HostID: uuid.NewString(),
+			App: &types.AppV3{
+				Metadata: types.Metadata{Name: appName},
+				Spec: types.AppSpecV3{
+					URI:         constants.AWSConsoleURL,
+					Integration: awsOIDCIntegration,
+					PublicAddr:  "my-app.example.com",
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertApplicationServer(ctx, app)
+	require.NoError(t, err)
+
+	user, err := authtest.CreateUser(ctx, srv.Auth(), username, awsAccessRole)
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(authtest.TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	// Create credentials for the AWS App
+	priv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	pub, err := keys.MarshalPublicKey(priv.Public())
+	require.NoError(t, err)
+
+	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		TLSPublicKey: pub,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
+		RouteToApp: proto.RouteToApp{
+			Name:       appName,
+			AWSRoleARN: roleARN,
+		},
+	})
+	require.NoError(t, err)
+
+	// Parse the Identity and check the AWS Role ARN and credentials.
+	tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+	require.NoError(t, err)
+	identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+	require.NoError(t, err)
+
+	require.Equal(t, roleARN, identity.AWSRoleARNs[0], "Expected AWS Role ARN to match the one requested")
+	require.Empty(t, identity.RouteToApp.AWSCredentialProcessCredentials)
+}
+
 func TestSSODiagnosticInfo(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
