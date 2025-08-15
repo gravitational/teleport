@@ -130,7 +130,8 @@ func (m *Manager) CreateSessionRecordingConfig(ctx context.Context, cfg types.Se
 // if one is accessible, or returning an error if none are accessible.
 func (m *Manager) UpdateSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
 	sessionRecordingConfig, _, err := m.resolveAllSessionRecordingConfigs(ctx, resolveSessionRecordingInput{
-		sessionRecordingCfg: cfg,
+		sessionRecordingCfg:       cfg,
+		sessionRecordingPersistFn: m.ClusterConfigurationInternal.UpdateSessionRecordingConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -226,7 +227,7 @@ func (m *Manager) ensureManualEncryptionKeys(manualKeyCfg types.ManualKeyManagem
 // ensureActiveKeyPair checks that there is at least one accessible key in the list of active pairs given.
 // If there are no active keys found, a new one will be provisioned and returned with the original set.
 // An active but inaccessible key results in an error.
-func (m *Manager) ensureActiveKeyPair(ctx context.Context, activePairs []*recordingencryptionv1.KeyPair) ([]*recordingencryptionv1.KeyPair, error) {
+func (m *Manager) ensureActiveKeyPair(ctx context.Context, activePairs []*recordingencryptionv1.KeyPair) ([]*recordingencryptionv1.KeyPair, bool, error) {
 	var foundActiveKey bool
 	if len(activePairs) > 0 {
 		for _, pair := range activePairs {
@@ -241,20 +242,20 @@ func (m *Manager) ensureActiveKeyPair(ctx context.Context, activePairs []*record
 				m.logger.DebugContext(ctx, "key not accessible", "fingerprint", fp)
 				continue
 			}
-			return activePairs, nil
+			return activePairs, false, nil
 		}
 
 		// during a key rotation there may be no active keys which would mean reaching
 		// this point isn't an error
 		if foundActiveKey {
-			return nil, trace.AccessDenied("active key not accessible")
+			return nil, false, trace.AccessDenied("active key not accessible")
 		}
 	}
 
 	// no active keys present, need to generate one
 	encryptionPair, err := m.keyStore.NewEncryptionKeyPair(ctx, cryptosuites.RecordingKeyWrapping)
 	if err != nil {
-		return nil, trace.Wrap(err, "generating wrapping key")
+		return nil, false, trace.Wrap(err, "generating wrapping key")
 	}
 
 	fp, _ := fingerprintPEM(encryptionPair.PublicKey)
@@ -263,7 +264,7 @@ func (m *Manager) ensureActiveKeyPair(ctx context.Context, activePairs []*record
 	return append(activePairs, &recordingencryptionv1.KeyPair{
 		KeyPair: encryptionPair,
 		State:   recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE,
-	}), nil
+	}), true, nil
 }
 
 // resolveRecordingEncryption returns the configured RecordingEncryption resource if it exists with an
@@ -271,11 +272,17 @@ func (m *Manager) ensureActiveKeyPair(ctx context.Context, activePairs []*record
 // will be provisioned. An error is returned if an active key is found but is not accessible.
 func (m *Manager) resolveRecordingEncryption(ctx context.Context, encryptionCfg types.SessionRecordingEncryptionConfig, encryption *recordingencryptionv1.RecordingEncryption) (*recordingencryptionv1.RecordingEncryption, error) {
 	if encryptionCfg.ManualKeyManagement != nil && encryptionCfg.ManualKeyManagement.Enabled {
-		return m.ensureManualEncryptionKeys(*encryptionCfg.ManualKeyManagement)
+		encryption, err := m.ensureManualEncryptionKeys(*encryptionCfg.ManualKeyManagement)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return encryption, nil
 	}
 
 	m.manualKeyConfig = nil
 	persistFn := m.RecordingEncryption.UpdateRecordingEncryption
+	shouldPersist := encryption != nil
 	if encryption == nil {
 		var err error
 		encryption, err = m.RecordingEncryption.GetRecordingEncryption(ctx)
@@ -290,13 +297,13 @@ func (m *Manager) resolveRecordingEncryption(ctx context.Context, encryptionCfg 
 		}
 	}
 
-	activePairs, err := m.ensureActiveKeyPair(ctx, encryption.GetSpec().GetActiveKeyPairs())
+	activePairs, keysChanged, err := m.ensureActiveKeyPair(ctx, encryption.GetSpec().GetActiveKeyPairs())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(activePairs) == 0 {
-		return nil, trace.BadParameter("no active key resolved for recording encryption")
+	if !shouldPersist && !keysChanged {
+		return encryption, nil
 	}
 
 	encryption.Spec.ActiveKeyPairs = activePairs
@@ -617,10 +624,6 @@ type resolveSessionRecordingInput struct {
 func (m *Manager) resolveAllSessionRecordingConfigs(ctx context.Context, in resolveSessionRecordingInput) (types.SessionRecordingConfig, *recordingencryptionv1.RecordingEncryption, error) {
 	var err error
 
-	if in.sessionRecordingPersistFn == nil {
-		in.sessionRecordingPersistFn = m.ClusterConfigurationInternal.UpdateSessionRecordingConfig
-	}
-
 	// an explicit sessionRecordingCfg means we should also update the SessionRecordingConfig even if there are no
 	// changes to the encryption keys
 	shouldUpdateSessionRecordingCfg := true
@@ -630,6 +633,7 @@ func (m *Manager) resolveAllSessionRecordingConfigs(ctx context.Context, in reso
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
+		in.sessionRecordingPersistFn = m.ClusterConfigurationInternal.UpdateSessionRecordingConfig
 	}
 
 	err = backend.RunWhileLocked(ctx, m.lockConfig, func(ctx context.Context) error {
