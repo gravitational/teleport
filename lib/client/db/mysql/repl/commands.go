@@ -125,14 +125,14 @@ func newCommands() (*commandManager, error) {
 			name:        "teleport",
 			shortcut:    't',
 			description: "Show Teleport interactive shell information, such as execution limitations.",
-			execFunc: func(_ *REPL, _ string) (string, bool) {
+			execFunc: func(r *REPL, _ string) (string, bool) {
 				var sb strings.Builder
 				for _, l := range descriptiveLimitations {
 					sb.WriteString("- " + strings.ReplaceAll(l, "\n", "\n  ") + lineBreak)
 				}
 				return fmt.Sprintf(
 					"Teleport MySQL interactive shell (v%s)\n\nLimitations: \n%s",
-					teleport.Version,
+					cmp.Or(r.teleportVersion, teleport.Version),
 					sb.String(),
 				), false
 			},
