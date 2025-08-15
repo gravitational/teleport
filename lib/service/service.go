@@ -2268,6 +2268,7 @@ func (process *TeleportProcess) initAuthService() error {
 			AccessMonitoringEnabled:   cfg.Auth.IsAccessMonitoringEnabled(),
 			Clock:                     cfg.Clock,
 			HTTPClientForAWSSTS:       cfg.Auth.HTTPClientForAWSSTS,
+			MultipartHandler:          uploadHandler,
 			Tracer:                    process.TracingProvider.Tracer(teleport.ComponentAuth),
 			Logger:                    logger,
 			SessionSummarizerProvider: sessionSummarizerProvider,
