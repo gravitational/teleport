@@ -141,25 +141,17 @@ export async function fetchRoles(
 }
 
 export async function editBot(
-  flags: FeatureFlags,
-  botName: string,
-  req: EditBotRequest
+  variables: { botName: string; req: EditBotRequest },
+  signal?: AbortSignal
 ) {
-  if (!flags.editBots) {
-    throw new Error('cannot edit bot: bots.edit permission required');
-  }
-  if (!flags.roles) {
-    throw new Error('cannot edit bot: roles.list permission required');
-  }
-
   // TODO(nicholasmarais1158) DELETE IN v20.0.0
-  const useV1 = canUseV1Edit(req);
+  const useV1 = canUseV1Edit(variables.req);
   const path = useV1
-    ? cfg.getBotUrl({ action: 'update', botName })
-    : cfg.getBotUrl({ action: 'update-v2', botName });
+    ? cfg.getBotUrl({ action: 'update', botName: variables.botName })
+    : cfg.getBotUrl({ action: 'update-v2', botName: variables.botName });
 
   try {
-    const res = await api.put(path, req);
+    const res = await api.put(path, variables.req, signal);
     return makeBot(res);
   } catch (err: unknown) {
     // TODO(nicholasmarais1158) DELETE IN v20.0.0
