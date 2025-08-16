@@ -1,6 +1,6 @@
 ---
 authors: Tim Buckley (<tim@goteleport.com>)
-state: draft
+state: implemented
 ---
 
 # RFD 0205 - Improved On-Prem Bots with Bound Keypair Joining
