@@ -40,7 +40,7 @@ for more details.
 
 A multi-region Teleport deployment is composed of several regional Teleport
 deployments. Teleport stores its state in a multi-region backend and uses
-[Proxy Peering](../../admin-guides/management/operations/proxy-peering.mdx) to connect users to resources
+[Proxy Peering](../management/operations/proxy-peering.mdx) to connect users to resources
 hosted in a different region.
 
 The recommended multi-region backend
@@ -255,7 +255,7 @@ The CockroachDB performance depends on the storage type. Make sure to store
 CockroachDB's state on SSDs. When running on Kubernetes, the default storage
 class might not be the one offering the best latency and throughput.
 
-See the [Teleport scaling](../../admin-guides/management/operations/scaling.mdx) page for more
+See the [Teleport scaling](../management/operations/scaling.mdx) page for more
 details on how to size Teleport.
 
 Teleport load varies depending on the usage type (number of connected
