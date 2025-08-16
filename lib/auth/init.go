@@ -374,6 +374,9 @@ type InitConfig struct {
 	// VnetConfigService manages the VNet config resource.
 	VnetConfigService services.VnetConfigService
 
+	// MultipartHandler handles multipart uploads.
+	MultipartHandler events.MultipartHandler
+
 	// Summarizer manages summary inference configuration resources.
 	Summarizer services.Summarizer
 
