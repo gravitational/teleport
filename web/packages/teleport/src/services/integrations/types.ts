@@ -77,6 +77,8 @@ export type IntegrationTemplate<
 // resource's subKind field.
 export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
+  /* AWS Roles Anywhere */
+  AWSRa = 'aws-ra',
   AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',
   GitHub = 'github',
@@ -630,6 +632,30 @@ export type AWSOIDCDeployedDatabaseService = {
   validTeleportConfig: boolean;
   // matchingLabels are the labels that are used by the Teleport Database Service to know which databases it should proxy.
   matchingLabels: Label[];
+};
+
+/**
+ * AwsRolesAnywherePingResponse contains the result of the Ping request.
+ * This response contains meta information about the current state of the Integration.
+ */
+export type AwsRolesAnywherePingResponse = {
+  /**
+   * profileCount is the number of IAM Roles Anywhere Profiles that can be accessed by the Integration.
+   * Profiles that are disabled or don't have any IAM Role associated with them are not counted.
+   */
+  profileCount: number;
+  /**
+   * accountId number of the account that owns or contains the calling entity.
+   */
+  accountId: string;
+  /**
+   * arn associated with the calling entity.
+   */
+  arn: string;
+  /**
+   * userID is the unique identifier of the calling entity.
+   */
+  userId: string;
 };
 
 // awsRegionMap maps the AWS regions to it's region name
