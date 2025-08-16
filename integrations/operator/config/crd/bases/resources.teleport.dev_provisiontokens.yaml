@@ -398,6 +398,15 @@ spec:
                       type: object
                     nullable: true
                     type: array
+                  oidc:
+                    description: OIDCConfig configures the `oidc` type.
+                    nullable: true
+                    properties:
+                      insecure_allow_http_issuer:
+                        type: boolean
+                      issuer:
+                        type: string
+                    type: object
                   static_jwks:
                     description: StaticJWKS is the configuration specific to the `static_jwks`
                       type.
@@ -409,7 +418,8 @@ spec:
                   type:
                     description: 'Type controls which behavior should be used for
                       validating the Kubernetes Service Account token. Support values:
-                      - `in_cluster` - `static_jwks` If unset, this defaults to `in_cluster`.'
+                      - `in_cluster` - `static_jwks` - `oidc` If unset, this defaults
+                      to `in_cluster`.'
                     type: string
                 type: object
               oracle:
