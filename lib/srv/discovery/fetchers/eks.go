@@ -600,6 +600,12 @@ func (a *eksFetcher) upsertRoleAndBinding(ctx context.Context, cluster *ekstypes
 		return trace.Wrap(err, "unable to upsert ClusterRoleBinding for group %q", teleportKubernetesGroup)
 	}
 
+	// Create preset ClusterRoleBindings for RFD 0219 preset roles
+	if err := a.upsertPresetClusterRoleBindings(ctx, client); err != nil {
+		// Log error but don't fail the provisioning
+		a.Logger.WarnContext(ctx, "Failed to create preset ClusterRoleBindings", "error", err, "cluster", aws.ToString(cluster.Name))
+	}
+
 	return nil
 }
 
@@ -681,6 +687,43 @@ func (a *eksFetcher) upsertClusterRoleBindingWithAdminCredentials(ctx context.Co
 	}
 
 	return trace.Wrap(err)
+}
+
+// upsertPresetClusterRoleBindings creates the preset ClusterRoleBindings for RFD 0219 preset roles.
+func (a *eksFetcher) upsertPresetClusterRoleBindings(ctx context.Context, client *kubernetes.Clientset) error {
+	// Define the preset ClusterRoleBindings
+	presetBindings := []struct {
+		template string
+		name     string
+	}{
+		{fixtures.KubePresetAccessClusterRoleBindingTemplate, "teleport-preset-kube-access"},
+		{fixtures.KubePresetEditorClusterRoleBindingTemplate, "teleport-preset-kube-editor"},
+		{fixtures.KubePresetAuditorClusterRoleBindingTemplate, "teleport-preset-kube-auditor"},
+	}
+
+	for _, preset := range presetBindings {
+		clusterRoleBinding := &rbacv1.ClusterRoleBinding{}
+		if err := yaml.Unmarshal([]byte(preset.template), clusterRoleBinding); err != nil {
+			return trace.Wrap(err, "failed to unmarshal preset ClusterRoleBinding %s", preset.name)
+		}
+
+		_, err := client.RbacV1().ClusterRoleBindings().Create(ctx, clusterRoleBinding, metav1.CreateOptions{})
+		if err == nil {
+			continue
+		}
+
+		if kubeerrors.IsAlreadyExists(err) {
+			// Update if it already exists
+			_, err := client.RbacV1().ClusterRoleBindings().Update(ctx, clusterRoleBinding, metav1.UpdateOptions{})
+			if err != nil {
+				return trace.Wrap(err, "failed to update preset ClusterRoleBinding %s", preset.name)
+			}
+		} else {
+			return trace.Wrap(err, "failed to create preset ClusterRoleBinding %s", preset.name)
+		}
+	}
+
+	return nil
 }
 
 // upsertAccessEntry upserts the access entry for the specified ARN with the teleportKubernetesGroup.
