@@ -1157,7 +1157,7 @@ func onSELinuxFileContexts(configPath string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fileContexts, err := selinux.FileContexts(cfg.DataDir, configPath)
+	fileContexts, err := selinux.FileContexts(cfg.DataDir, configPath, "")
 	if err != nil {
 		return trace.Wrap(err)
 	}
