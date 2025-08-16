@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/auth/summarizer"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -85,10 +86,16 @@ type AuthServerConfig struct {
 	// ClusterNetworkingConfig allows a test to change the default
 	// networking configuration.
 	ClusterNetworkingConfig types.ClusterNetworkingConfig
+	// UploadHandler allows a test to set its own upload handler. This setting is
+	// propagated to AuditLog, but only if they are not customized here.
+	UploadHandler events.MultipartHandler
 	// Streamer allows a test to set its own session recording streamer.
 	Streamer events.Streamer
 	// AuditLog allows a test to configure its own audit log.
 	AuditLog events.AuditLogSessionStreamer
+	// SessionSummarizerProvider allows a test to configure its own session
+	// summarizer provider.
+	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 	// TraceClient allows a test to configure the trace client
 	TraceClient otlptrace.Client
 	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
@@ -123,6 +130,9 @@ func (cfg *AuthServerConfig) CheckAndSetDefaults() error {
 			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOff,
 		}
+	}
+	if cfg.UploadHandler == nil {
+		cfg.UploadHandler = eventstest.NewMemoryUploader()
 	}
 	return nil
 }
@@ -261,7 +271,6 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	// Wrap backend in sanitizer like in production.
 	srv.Backend = backend.NewSanitizer(b)
 
-	uploadHandler := eventstest.NewMemoryUploader()
 	if cfg.AuditLog != nil {
 		srv.AuditLog = cfg.AuditLog
 	} else {
@@ -269,7 +278,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 			DataDir:       cfg.Dir,
 			ServerID:      cfg.ClusterName,
 			Clock:         cfg.Clock,
-			UploadHandler: uploadHandler,
+			UploadHandler: cfg.UploadHandler,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -305,24 +314,25 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	}
 
 	srv.AuthServer, err = auth.NewServer(&auth.InitConfig{
-		DataDir:                cfg.Dir,
-		Backend:                srv.Backend,
-		VersionStorage:         NewFakeTeleportVersion(),
-		Authority:              authority.NewWithClock(cfg.Clock),
-		Access:                 access,
-		Identity:               identity,
-		AuditLog:               srv.AuditLog,
-		Streamer:               cfg.Streamer,
-		SkipPeriodicOperations: true,
-		Emitter:                emitter,
-		TraceClient:            cfg.TraceClient,
-		Clock:                  cfg.Clock,
-		ClusterName:            clusterName,
-		HostUUID:               uuid.New().String(),
-		AccessLists:            accessLists,
-		FIPS:                   cfg.FIPS,
-		KeyStoreConfig:         cfg.KeystoreConfig,
-		MultipartHandler:       uploadHandler,
+		DataDir:                   cfg.Dir,
+		Backend:                   srv.Backend,
+		VersionStorage:            NewFakeTeleportVersion(),
+		Authority:                 authority.NewWithClock(cfg.Clock),
+		Access:                    access,
+		Identity:                  identity,
+		AuditLog:                  srv.AuditLog,
+		Streamer:                  cfg.Streamer,
+		SkipPeriodicOperations:    true,
+		Emitter:                   emitter,
+		TraceClient:               cfg.TraceClient,
+		Clock:                     cfg.Clock,
+		ClusterName:               clusterName,
+		HostUUID:                  uuid.New().String(),
+		AccessLists:               accessLists,
+		FIPS:                      cfg.FIPS,
+		KeyStoreConfig:            cfg.KeystoreConfig,
+		MultipartHandler:          cfg.UploadHandler,
+		SessionSummarizerProvider: cfg.SessionSummarizerProvider,
 	},
 		WithClock(cfg.Clock),
 		// Reduce auth.Server bcrypt costs when testing.
