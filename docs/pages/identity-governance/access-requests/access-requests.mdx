@@ -10,12 +10,16 @@ labels:
 
 Just-in-time Access Requests allow Teleport users to request access to a
 resource or role depending on need. The request can then be approved or denied
-based on a configurable number of approvers.
+based on a configurable number of approvers. Access Requests enable your
+organization to implement security best practices, including:
 
-You can use Access Requests to implement the principle of least privilege in
-your organization, leaving an attacker with no permanent admins to target. Users
-receive elevated privileges for a limited period of time. Request approvers can
-be configured with limited cluster access so they are not high value targets.
+- **Dual authorization:** Two reviewers must grant access before a user can
+  receive elevated permissions. This satisfies the FedRAMP AC-3 dual
+  authorization control that requires approval of two authorized individuals.
+- **Principle of least privilege:** You can configure Access Requests to give an
+  attacker no permanent admin roles target.  Users receive elevated privileges
+  for a limited period of time. Request approvers can be configured with limited
+  cluster access so they are not high value targets.
 
 Access Requests are designed to provide temporary permissions to users. If you
 want to grant longstanding permissions to a group of users, with the option to

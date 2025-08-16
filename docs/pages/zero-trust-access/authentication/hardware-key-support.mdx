@@ -241,7 +241,7 @@ While Connect is running, touch and PIN prompts for `tsh` and `tctl` commands wi
 displayed in Teleport Connect instead. These prompts will be brought to the foreground
 to raise attention to the user.
 
-![Agent](../../../../img/access-controls/hardware-key-support/agent.png)
+![Agent](../../../img/access-controls/hardware-key-support/agent.png)
 
 ## PIN Caching
 
@@ -252,7 +252,7 @@ common use cases:
 
 * Proxying kubectl commands, database queries, or app requests through a Teleport local proxy (`tsh proxy kube|db|app`).
 * Running automated scripts which run `tsh` commands in bulk.
-* Connecting to TCP applications with [VNet](../../../connect-your-client/vnet.mdx).
+* Connecting to TCP applications with [VNet](../../connect-your-client/vnet.mdx).
 * General Teleport Connect usage.
 
 Instead, you can set the cluster-wide `hardware_key.pin_cache_ttl` configuration option to enable

@@ -22,7 +22,7 @@ their on-disk Teleport certificates.
 <Admonition type="note">
   In addition to per-session MFA, enable login MFA in your SSO provider and/or
   for all [local Teleport
-  users](../../../reference/access-controls/authentication.mdx)
+  users](../../reference/access-controls/authentication.mdx)
   to improve security.
 </Admonition>
 
@@ -239,8 +239,8 @@ Current limitations for this feature are:
 - Only `kubectl` supports per-session WebAuthn authentication for Kubernetes.
 - For desktop access, only WebAuthn devices are supported.
 - When accessing a
-  [multi-port](../../../enroll-resources/application-access/guides/tcp.mdx#configuring-access-to-multiple-ports)
-  TCP application through [VNet](../../../connect-your-client/vnet.mdx), the first connection over
+  [multi-port](../../enroll-resources/application-access/guides/tcp.mdx#configuring-access-to-multiple-ports)
+  TCP application through [VNet](../../connect-your-client/vnet.mdx), the first connection over
   each port triggers an MFA check.
 - For the `tsh db exec` command, only WebAuthn devices are supported.
 
