@@ -251,6 +251,11 @@
       "permanent": true
     },
     {
+      "source": "/upgrading/upgrading-reference/",
+      "destination": "/upgrading/upgrading-manual/",
+      "permanent": true
+    },
+    {
       "source": "/access-controls/compliance-frameworks/fedramp/",
       "destination": "/zero-trust-access/compliance-frameworks/fedramp/",
       "permanent": true
