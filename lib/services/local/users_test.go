@@ -110,6 +110,11 @@ func TestIdentityService_CreateUser(t *testing.T) {
 		})
 	}
 
+	// Test creating a user with a too long username.
+	user, err := types.NewUser(strings.Repeat("A", 1001))
+	user.AddRole("access")
+	_, err = identity.CreateUser(ctx, user)
+	require.Error(t, err, "creating a user with a username too long should fail")
 }
 
 func TestRecoveryCodesCRUD(t *testing.T) {
