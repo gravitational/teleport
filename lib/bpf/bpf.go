@@ -1,5 +1,4 @@
 //go:build bpf && !386
-// +build bpf,!386
 
 /*
  * Teleport
@@ -372,7 +371,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			return make([]string, 0), nil
 		})
 		if err != nil {
-			logger.WarnContext(s.closeContext, "Unable to retrieve args from FnCahe - this is a bug!", "error", err)
+			logger.WarnContext(s.closeContext, "Unable to retrieve args from FnCache - this is a bug!", "error", err)
 			args = []string{}
 		}
 

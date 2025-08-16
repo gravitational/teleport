@@ -230,6 +230,8 @@ func (ani *AutoDiscoverNodeInstaller) Install(ctx context.Context) error {
 	ani.Logger.InfoContext(ctx, "Detected cloud provider", "cloud", imdsClient.GetType())
 
 	// Check if teleport is already installed and install it, if it's absent.
+	// In the new autoupdate install flow, teleport-update should have already
+	// taken care of installing teleport.
 	if _, err := os.Stat(ani.binariesLocation.Teleport); err != nil {
 		ani.Logger.InfoContext(ctx, "Installing teleport")
 		if err := ani.installTeleportFromRepo(ctx); err != nil {
@@ -460,6 +462,7 @@ func (ani *AutoDiscoverNodeInstaller) fetchTargetVersion(ctx context.Context) st
 		return api.Version
 	}
 
+	// TODO(hugoShaka): convert this to a proxy version getter
 	targetVersion, err := version.NewBasicHTTPVersionGetter(upgradeURL).GetVersion(ctx)
 	if err != nil {
 		ani.Logger.WarnContext(ctx, "Failed to query target version, using api version",
@@ -471,7 +474,7 @@ func (ani *AutoDiscoverNodeInstaller) fetchTargetVersion(ctx context.Context) st
 		"channel_url", ani.autoUpgradesChannelURL,
 		"version", targetVersion)
 
-	return strings.TrimSpace(strings.TrimPrefix(targetVersion, "v"))
+	return strings.TrimSpace(strings.TrimPrefix(targetVersion.String(), "v"))
 }
 
 func fetchNodeAutoDiscoverLabels(ctx context.Context, imdsClient imds.Client) (map[string]string, error) {

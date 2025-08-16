@@ -130,7 +130,6 @@ export default class TtyTerminal implements TerminalSearcher {
 
     this.term.open(this._el);
     this._fitAddon.fit();
-    this.focus();
     this.term.onData(data => {
       this.tty.send(data);
     });

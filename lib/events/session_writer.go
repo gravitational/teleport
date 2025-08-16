@@ -345,7 +345,7 @@ func (a *SessionWriter) RecordEvent(ctx context.Context, pe apievents.PreparedSe
 		return nil
 	case <-t.C:
 		if setBackoff := a.maybeSetBackoff(a.cfg.Clock.Now().UTC().Add(a.cfg.BackoffDuration)); setBackoff {
-			a.log.ErrorContext(ctx, "Audit write timed out. Will be losing events while applying backogg.", "timeout", a.cfg.BackoffTimeout, "backoff_duration", a.cfg.BackoffDuration)
+			a.log.ErrorContext(ctx, "Audit write timed out. Will be losing events while applying backoff.", "timeout", a.cfg.BackoffTimeout, "backoff_duration", a.cfg.BackoffDuration)
 		}
 		a.lostEvents.Add(1)
 		return nil
@@ -547,7 +547,7 @@ func (a *SessionWriter) tryResumeStream() (apievents.Stream, error) {
 	}
 	var resumedStream apievents.Stream
 	start := time.Now()
-	for i := 0; i < FastAttempts; i++ {
+	for i := range FastAttempts {
 		var streamType string
 		if a.lastStatus == nil {
 			// The stream was either never created or has failed to receive the
@@ -605,7 +605,7 @@ func (a *SessionWriter) updateStatus(status apievents.StreamStatus) {
 		return
 	}
 	lastIndex := -1
-	for i := 0; i < len(a.buffer); i++ {
+	for i := range a.buffer {
 		if status.LastEventIndex < a.buffer[i].GetAuditEvent().GetIndex() {
 			break
 		}

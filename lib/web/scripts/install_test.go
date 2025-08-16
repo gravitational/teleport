@@ -26,12 +26,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"github.com/gravitational/teleport/lib/utils/teleportassets"
 )
 
 func TestGetInstallScript(t *testing.T) {
 	ctx := context.Background()
-	testVersion := "1.2.3"
+	testVersion, err := version.EnsureSemver("1.2.3")
+	require.NoError(t, err)
 	testProxyAddr := "proxy.example.com:443"
 
 	tests := []struct {
@@ -40,17 +42,42 @@ func TestGetInstallScript(t *testing.T) {
 		assertFn func(t *testing.T, script string)
 	}{
 		{
-			name: "Legacy install, no autoupdate",
-			opts: InstallScriptOptions{AutoupdateStyle: NoAutoupdate},
+			name: "Legacy install, oss",
+			opts: InstallScriptOptions{
+				AutoupdateStyle: NoAutoupdate,
+				TeleportVersion: testVersion,
+				TeleportFlavor:  types.PackageNameOSS,
+			},
 			assertFn: func(t *testing.T, script string) {
-				require.Equal(t, legacyInstallScript, script)
+				require.Contains(t, script, fmt.Sprintf(`TELEPORT_VERSION="%s"`, testVersion))
+				require.Contains(t, script, `TELEPORT_SUFFIX=""`)
+				require.Contains(t, script, `TELEPORT_EDITION="oss"`)
 			},
 		},
 		{
-			name: "Legacy install, package manager autoupdate",
-			opts: InstallScriptOptions{AutoupdateStyle: NoAutoupdate},
+			name: "Legacy install, enterprise",
+			opts: InstallScriptOptions{
+				AutoupdateStyle: NoAutoupdate,
+				TeleportVersion: testVersion,
+				TeleportFlavor:  types.PackageNameEnt,
+			},
 			assertFn: func(t *testing.T, script string) {
-				require.Equal(t, legacyInstallScript, script)
+				require.Contains(t, script, fmt.Sprintf(`TELEPORT_VERSION="%s"`, testVersion))
+				require.Contains(t, script, `TELEPORT_SUFFIX="-ent"`)
+				require.Contains(t, script, `TELEPORT_EDITION="enterprise"`)
+			},
+		},
+		{
+			name: "Legacy install, cloud",
+			opts: InstallScriptOptions{
+				AutoupdateStyle: PackageManagerAutoupdate,
+				TeleportVersion: testVersion,
+				TeleportFlavor:  types.PackageNameEnt,
+			},
+			assertFn: func(t *testing.T, script string) {
+				require.Contains(t, script, fmt.Sprintf(`TELEPORT_VERSION="%s"`, testVersion))
+				require.Contains(t, script, `TELEPORT_SUFFIX="-ent"`)
+				require.Contains(t, script, `TELEPORT_EDITION="cloud"`)
 			},
 		},
 		{

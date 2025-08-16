@@ -2,6 +2,9 @@
 title: Configure SSH with Pluggable Authentication Modules
 description: How to configure Teleport SSH with PAM (Pluggable Authentication Modules).
 h1: Pluggable Authentication Modules (PAM)
+labels:
+ - conceptual
+ - zero-trust
 ---
 
 Teleport's SSH Service can be configured to integrate with
@@ -170,13 +173,7 @@ $ cat /etc/motd
 # WARNING: All activity on this node is being recorded by Teleport
 ```
 
-<Figure
-  align="center"
-  bordered
-  caption="Teleport SSH with updated MOTD"
->
-  ![Teleport SSH with updated MOTD](../../../../img/motd/teleport-with-updated-MOTD.png)
-</Figure>
+![Teleport SSH with updated MOTD](../../../../img/motd/teleport-with-updated-MOTD.png)
 
 ## Create local Unix users on login
 

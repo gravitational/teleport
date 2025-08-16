@@ -25,3 +25,8 @@ roles:
 # on the next invocation, but don't want long-lived workload certificates on-disk.
 credential_ttl: 30m
 renewal_interval: 15m
+
+# name optionally overrides the name of the service used in logs and the `/readyz`
+# endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
+# symbols.
+name: my-service-name

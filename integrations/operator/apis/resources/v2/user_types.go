@@ -38,10 +38,10 @@ type TeleportUserSpec types.UserSpecV2
 // TeleportUser is the Schema for the users API
 type TeleportUser struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   TeleportUserSpec `json:"spec,omitempty"`
-	Status resources.Status `json:"status,omitempty"`
+	Spec   TeleportUserSpec `json:"spec"`
+	Status resources.Status `json:"status"`
 }
 
 //+kubebuilder:object:root=true
@@ -49,7 +49,7 @@ type TeleportUser struct {
 // TeleportUserList contains a list of TeleportUser
 type TeleportUserList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []TeleportUser `json:"items"`
 }
 

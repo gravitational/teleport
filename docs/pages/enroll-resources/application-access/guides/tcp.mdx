@@ -1,12 +1,28 @@
 ---
 title: TCP Application Access
 description: How to configure Teleport for accessing plain TCP apps
+labels:
+ - how-to
+ - zero-trust
 ---
 
 Teleport can provide access to any TCP-based application. This allows users to
 connect to applications which Teleport doesn't natively support such as SMTP
 servers or databases not yet natively supported by the Teleport Database
 Service.
+
+## How it works
+
+A Teleport administrator configures the Teleport Application Service to proxy a
+TCP application. The end user starts a local proxy that authenticates to the
+Teleport Proxy Service using mutual TLS. The Proxy Service forwards traffic from
+the local proxy to and from the Teleport Application Service, which in turn
+proxies traffic to and from a Teleport-protected TCP application. 
+
+As with any Teleport-protected resource, the TCP application needs to be in the
+same network as the agent (the Teleport Application Service), but the agent and
+the Teleport-protected resource can run in a separate network from the Teleport
+Proxy Service.
 
 ## Prerequisites
 
@@ -23,7 +39,7 @@ and `*.teleport.example.com`. You can substitute the address of your Teleport
 Proxy Service. (For Teleport Cloud customers, this will be similar to
 `mytenant.teleport.sh`.)
 
-<Admonition type="note" title="Application Access and DNS" scope={["oss", "enterprise"]} scopeOnly>
+<Admonition type="note">
 (!docs/pages/includes/dns-app-access.mdx!)
 </Admonition>
 
@@ -85,13 +101,13 @@ teleport:
   auth_token: "/tmp/token"
   proxy_server: teleport.example.com:3080
 auth_service:
-  enabled: "no"
+  enabled: false
 ssh_service:
-  enabled: "no"
+  enabled: false
 proxy_service:
-  enabled: "no"
+  enabled: false
 app_service:
-  enabled: "yes"
+  enabled: true
   apps:
   - name: "tcp-app"
     uri: tcp://localhost:5432
@@ -160,7 +176,7 @@ For example, let's take tcp-app from the steps above and add access to port 8080
 
 ```yaml
 app_service:
-  enabled: "yes"
+  enabled: true
   apps:
   - name: "tcp-app"
     uri: tcp://localhost # No port in the URI
@@ -181,11 +197,11 @@ HTTP/1.1 200 OK
 $ psql postgres://postgres@tcp-app.teleport.example.com:5432/postgres
 ```
 
-<Notice type="warning">
+<Admonition type="warning">
 There is no RBAC for TCP ports – a user that has access to an application can connect to any port in
 the specification. We&nbsp;strongly recommend specifying only the necessary ports instead of defining a
 wide port range that happens to include ports that are meant to be available.
-</Notice>
+</Admonition>
 
 {/* TODO: DELETE IN 19.0.0. At this point all compatible servers and clients are going
 to support multiple ports. */}

@@ -1,6 +1,9 @@
 ---
 title: Access AWS With Teleport Application Access
 description: How to access AWS with Teleport application access.
+labels:
+ - how-to
+ - zero-trust
 ---
 
 You can protect the AWS Management Console and AWS APIs with Teleport. This
@@ -14,6 +17,8 @@ This guide will explain how to:
 - Access the AWS Management Console through Teleport.
 - Access the AWS Command Line Interface (CLI) through Teleport.
 - Access applications using AWS SDKs through Teleport.
+
+## How it works
 
 In this setup, the Teleport Application Service has an AWS IAM role that can
 assume one or more target IAM roles. Teleport users access the AWS Management
@@ -120,7 +125,7 @@ AWS APIs.
    ```
    
    Create a file called `app-service-tp.json` with the following content,
-   assigning <Var name="oidc-issuer" /> to the issuer string you retrieved and
+   assigning <Var name="OIDC_ISSUER" /> to the issuer string you retrieved and
    <Var name="EKS_ACCOUNT" /> to the ID of the AWS account that belongs to your
    EKS cluster:
    
@@ -225,7 +230,8 @@ this role when proxying requests:
    `ExampleReadOnlyAccess` role. With the trust policy above, AWS authorizes
    this operation.
 
-   <Details title="Cross-account access">
+   <details>
+   <summary>Cross-account access</summary>
 
    If you are configuring the Application Service to proxy access to IAM roles
    in another AWS account, we recommend checking the external ID of the AWS
@@ -255,7 +261,7 @@ this role when proxying requests:
    See the [AWS
    documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html)
    for details on external IDs.
-   </Details>
+   </details>
 
 1. Run the following commands to create the `ExampleReadOnlyAccess` role:
 
@@ -385,7 +391,8 @@ $ tctl tokens add --type=app --ttl=1h --format=text
 <TabItem label="EC2">
 
 On the host where you will install the Teleport Application Service, create a
-file called `/tmp/token` that consists only of your token:
+file called `/tmp/token` that consists only of your token, assigning 
+<Var name="join-token" /> to the value of the token:
 
 ```code
 $ echo <Var name="join-token" /> | sudo tee /tmp/token
@@ -411,13 +418,13 @@ Application Service:
        method: token
      proxy_server: "<Var name="PROXY_ADDR" />"
    auth_service:
-     enabled: off
+     enabled: false
    proxy_service:
-     enabled: off
+     enabled: false
    ssh_service:
-     enabled: off
+     enabled: false
    app_service:
-     enabled: "yes"
+     enabled: true
      apps:
      - name: "awsconsole"
      # The public AWS Console is used after authenticating the user from Teleport
@@ -492,7 +499,8 @@ following values in order to be recognized as an AWS console:
 | AWS GovCloud (US) regions | `https://console.amazonaws-us-gov.com` |
 | AWS China regions         | `https://console.amazonaws.cn` |
 
-<Details title="Multiple AWS accounts">
+<details>
+<summary>Multiple AWS accounts</summary>
 
 If you have multiple AWS accounts and would like to logically separate them
 in the UI, register an application entry for each and set `aws_account_id`
@@ -500,7 +508,7 @@ label to the account ID:
 
 ```yaml
 app_service:
-  enabled: "yes"
+  enabled: true
   apps:
   - name: "awsconsole-test"
     uri: "https://console.aws.amazon.com/ec2/v2/home"
@@ -527,7 +535,7 @@ For AWS accounts that require external IDs for accessing their resources, set
 the `external_id` field, which the Application Service uses when assuming the
 AWS roles in these accounts.
 
-</Details>
+</details>
 
 ### Start the Teleport Application Service
 
@@ -551,7 +559,7 @@ to AWS, users can access AWS resources through Teleport.
 
 ### Access the AWS console
 
-1. Visit the home page of the Teleport Web UI or click the **Resources** tab. If
+1. Visit the home page of the Teleport Web UI and click **Resources**. If
    the Teleport Application Service is proxying the AWS Management Console as
    expected, the Web UI will display the name of the application you registered,
    which this guide assumes is `awsconsole`. (Enter the name of the application
@@ -780,6 +788,20 @@ instance and attach an IAM role to it.
 
 (!docs/pages/includes/aws-no-credential-provider.mdx service="Application"!)
 
+### Missing X-Forwarded-Host HTTP header
+
+You may encounter the error `proxied requests must include X-Forwarded-Host header`
+when making requests to your `tsh` local proxy. This is because Teleport
+expects the HTTP requests to include the `X-Forwarded-Host` header, containing
+a valid AWS endpoint.
+
+Ensure the application using the Teleport AWS local proxy supports HTTPS proxy
+setting. Passing the local proxy address to applications as the AWS endpoint URL
+is no longer supported.
+
+If you were previously using the `--endpoint-url` flag on `tsh proxy aws`
+command, you must update your applications to use the local HTTPS proxy instead.
+
 ## Next steps
 
 Now that you know how to set up Teleport to protect access to the AWS Management
@@ -801,7 +823,7 @@ user's permitted ARNs based on data from the IdP:
     - {{external.aws_role_arns}}
 ```
 
-See the [Teleport Access Controls
+See the [Access Controls
 Reference](../../../reference/access-controls/roles.mdx)
 for all of the variables and functions you can use in the `aws_role_arns` field.
 
@@ -817,7 +839,7 @@ applications](../guides/dynamic-registration.mdx).
 This guide shows you how to use the **join token method** to enroll the Teleport
 Application Service in your cluster. This is one of several available methods,
 and we recommend reading the [Join Services to your Teleport
-Cluster](../../agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx) guide to configure the
+Cluster](../../../index.mdx) guide to configure the
 most appropriate method for your environment.
 
 ## Further reading

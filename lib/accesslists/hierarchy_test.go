@@ -20,7 +20,7 @@ package accesslists
 
 import (
 	"context"
-	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -28,6 +28,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -78,228 +79,13 @@ const (
 	member2    = "member2"
 )
 
-func TestAccessListHierarchyDepthCheck(t *testing.T) {
-	clock := clockwork.NewFakeClock()
-	ctx := context.Background()
+func Test_userLockedError_IsUserLocked(t *testing.T) {
+	userLockedErr := newUserLockedError("alice")
+	rawAccessDeniedErr := trace.AccessDenied("Raw AccessDenied error")
 
-	numAcls := accesslist.MaxAllowedDepth + 2 // Extra 2 to test exceeding the max depth
-
-	acls := make([]*accesslist.AccessList, numAcls)
-	for i := 0; i < numAcls; i++ {
-		acls[i] = newAccessList(t, fmt.Sprintf("acl%d", i+1), clock)
-	}
-
-	accessListAndMembersGetter := &mockAccessListAndMembersGetter{
-		members:     make(map[string][]*accesslist.AccessListMember),
-		accessLists: make(map[string]*accesslist.AccessList),
-	}
-
-	// Create members up to MaxAllowedDepth
-	for i := 0; i < accesslist.MaxAllowedDepth; i++ {
-		member := newAccessListMember(t, acls[i].GetName(), acls[i+1].GetName(), accesslist.MembershipKindList, clock)
-		acls[i+1].Status.MemberOf = append(acls[i+1].Status.MemberOf, acls[i].GetName())
-		accessListAndMembersGetter.members[acls[i].GetName()] = []*accesslist.AccessListMember{member}
-		accessListAndMembersGetter.accessLists[acls[i].GetName()] = acls[i]
-	}
-	// Set remaining Access Lists' members to empty slices
-	for i := accesslist.MaxAllowedDepth; i < numAcls; i++ {
-		accessListAndMembersGetter.members[acls[i].GetName()] = []*accesslist.AccessListMember{}
-		accessListAndMembersGetter.accessLists[acls[i].GetName()] = acls[i]
-	}
-
-	// Should be valid with existing member < MaxAllowedDepth
-	err := ValidateAccessListMember(ctx, acls[accesslist.MaxAllowedDepth-1], accessListAndMembersGetter.members[acls[accesslist.MaxAllowedDepth-1].GetName()][0], accessListAndMembersGetter)
-	require.NoError(t, err)
-
-	// Now, attempt to add a member that increases the depth beyond MaxAllowedDepth
-	extraMember := newAccessListMember(
-		t,
-		acls[accesslist.MaxAllowedDepth].GetName(),
-		acls[accesslist.MaxAllowedDepth+1].GetName(),
-		accesslist.MembershipKindList,
-		clock,
-	)
-
-	// Validate adding this member should fail due to exceeding max depth
-	err = ValidateAccessListMember(ctx, acls[accesslist.MaxAllowedDepth], extraMember, accessListAndMembersGetter)
-	require.Error(t, err)
-	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", acls[accesslist.MaxAllowedDepth+1].Spec.Title, acls[accesslist.MaxAllowedDepth].Spec.Title, accesslist.MaxAllowedDepth))
-}
-
-func TestAccessListValidateWithMembers(t *testing.T) {
-	clock := clockwork.NewFakeClock()
-	ctx := context.Background()
-
-	// We're creating a hierarchy with a depth of 10, and then trying to add it as a Member of a 'root' Access List. This should fail.
-	rootAcl := newAccessList(t, "root", clock)
-	nestedAcls := make([]*accesslist.AccessList, 0, accesslist.MaxAllowedDepth)
-	for i := 0; i < accesslist.MaxAllowedDepth+1; i++ {
-		acl := newAccessList(t, fmt.Sprintf("acl-%d", i), clock)
-		nestedAcls = append(nestedAcls, acl)
-	}
-	rootAclMember := newAccessListMember(t, rootAcl.GetName(), nestedAcls[0].GetName(), accesslist.MembershipKindList, clock)
-	members := make([]*accesslist.AccessListMember, 0, accesslist.MaxAllowedDepth-1)
-	for i := 0; i < accesslist.MaxAllowedDepth; i++ {
-		member := newAccessListMember(t, nestedAcls[i].GetName(), nestedAcls[i+1].GetName(), accesslist.MembershipKindList, clock)
-		nestedAcls[i+1].Status.MemberOf = append(nestedAcls[i+1].Status.MemberOf, nestedAcls[i].GetName())
-		members = append(members, member)
-	}
-
-	accessListAndMembersGetter := &mockAccessListAndMembersGetter{
-		members: map[string][]*accesslist.AccessListMember{
-			rootAcl.GetName(): {},
-		},
-		accessLists: map[string]*accesslist.AccessList{
-			rootAcl.GetName(): rootAcl,
-		},
-	}
-	for i := 0; i < accesslist.MaxAllowedDepth+1; i++ {
-		if i < accesslist.MaxAllowedDepth {
-			accessListAndMembersGetter.members[nestedAcls[i].GetName()] = []*accesslist.AccessListMember{members[i]}
-		}
-		accessListAndMembersGetter.accessLists[nestedAcls[i].GetName()] = nestedAcls[i]
-	}
-
-	// Should validate successfully, as acl-0 -> acl-10 is a valid hierarchy of depth 10.
-	err := ValidateAccessListWithMembers(ctx, rootAcl, []*accesslist.AccessListMember{}, accessListAndMembersGetter)
-	require.NoError(t, err)
-	err = ValidateAccessListWithMembers(ctx, nestedAcls[0], []*accesslist.AccessListMember{accessListAndMembersGetter.members[nestedAcls[0].GetName()][0]}, accessListAndMembersGetter)
-	require.NoError(t, err)
-
-	// Calling `ValidateAccessListWithMembers`, with `rootAclm1`, should fail, as it would exceed the maximum nesting depth.
-	err = ValidateAccessListWithMembers(ctx, rootAcl, []*accesslist.AccessListMember{rootAclMember}, accessListAndMembersGetter)
-	require.Error(t, err)
-	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", nestedAcls[0].Spec.Title, rootAcl.Spec.Title, accesslist.MaxAllowedDepth))
-
-	const Length = accesslist.MaxAllowedDepth/2 + 1
-
-	// Next, we're creating two separate hierarchies, each with a depth of `MaxAllowedDepth/2`. When testing the validation, we'll try to connect the two hierarchies, which should fail.
-	nestedAcls1 := make([]*accesslist.AccessList, 0, Length)
-	for i := 0; i <= Length; i++ {
-		acl := newAccessList(t, fmt.Sprintf("acl1-%d", i), clock)
-		nestedAcls1 = append(nestedAcls1, acl)
-	}
-
-	// Create the second hierarchy.
-	nestedAcls2 := make([]*accesslist.AccessList, 0, Length)
-	for i := 0; i <= Length; i++ {
-		acl := newAccessList(t, fmt.Sprintf("acl2-%d", i), clock)
-		nestedAcls2 = append(nestedAcls2, acl)
-	}
-
-	accessListAndMembersGetter = &mockAccessListAndMembersGetter{
-		members:     map[string][]*accesslist.AccessListMember{},
-		accessLists: map[string]*accesslist.AccessList{},
-	}
-
-	// Create the members for the first hierarchy.
-	for i := 0; i < Length; i++ {
-		member := newAccessListMember(t, nestedAcls1[i].GetName(), nestedAcls1[i+1].GetName(), accesslist.MembershipKindList, clock)
-		nestedAcls1[i+1].Status.MemberOf = append(nestedAcls1[i+1].Status.MemberOf, nestedAcls1[i].GetName())
-		accessListAndMembersGetter.members[nestedAcls1[i].GetName()] = []*accesslist.AccessListMember{member}
-		accessListAndMembersGetter.accessLists[nestedAcls1[i].GetName()] = nestedAcls1[i]
-	}
-
-	// Create the members for the second hierarchy.
-	for i := 0; i < Length; i++ {
-		member := newAccessListMember(t, nestedAcls2[i].GetName(), nestedAcls2[i+1].GetName(), accesslist.MembershipKindList, clock)
-		nestedAcls2[i+1].Status.MemberOf = append(nestedAcls2[i+1].Status.MemberOf, nestedAcls2[i].GetName())
-		accessListAndMembersGetter.members[nestedAcls2[i].GetName()] = []*accesslist.AccessListMember{member}
-		accessListAndMembersGetter.accessLists[nestedAcls2[i].GetName()] = nestedAcls2[i]
-	}
-
-	// For the first hierarchy
-	nestedAcls1Last := nestedAcls1[len(nestedAcls1)-1]
-	accessListAndMembersGetter.accessLists[nestedAcls1Last.GetName()] = nestedAcls1Last
-
-	// For the second hierarchy
-	nestedAcls2Last := nestedAcls2[len(nestedAcls2)-1]
-	accessListAndMembersGetter.accessLists[nestedAcls2Last.GetName()] = nestedAcls2Last
-
-	// Should validate successfully when adding another list, as both hierarchies are valid.
-	err = ValidateAccessListWithMembers(ctx, nestedAcls1Last, []*accesslist.AccessListMember{newAccessListMember(t, nestedAcls1Last.GetName(), nestedAcls2Last.GetName(), accesslist.MembershipKindList, clock)}, accessListAndMembersGetter)
-	require.NoError(t, err)
-	err = ValidateAccessListWithMembers(ctx, nestedAcls2Last, []*accesslist.AccessListMember{newAccessListMember(t, nestedAcls2Last.GetName(), nestedAcls1Last.GetName(), accesslist.MembershipKindList, clock)}, accessListAndMembersGetter)
-	require.NoError(t, err)
-
-	// Now, we'll try to connect the two hierarchies, which should fail.
-	err = ValidateAccessListWithMembers(ctx, nestedAcls1Last, []*accesslist.AccessListMember{newAccessListMember(t, nestedAcls1Last.GetName(), nestedAcls2[0].GetName(), accesslist.MembershipKindList, clock)}, accessListAndMembersGetter)
-	require.Error(t, err)
-	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", nestedAcls2[0].Spec.Title, nestedAcls1[len(nestedAcls1)-1].Spec.Title, accesslist.MaxAllowedDepth))
-}
-
-func TestAccessListHierarchyCircularRefsCheck(t *testing.T) {
-	clock := clockwork.NewFakeClock()
-	ctx := context.Background()
-
-	acl1 := newAccessList(t, "1", clock)
-	acl2 := newAccessList(t, "2", clock)
-	acl3 := newAccessList(t, "3", clock)
-
-	// acl1 -> acl2 -> acl3
-	acl1m1 := newAccessListMember(t, acl1.GetName(), acl2.GetName(), accesslist.MembershipKindList, clock)
-	acl2.Status.MemberOf = append(acl2.Status.MemberOf, acl1.GetName())
-	acl2m1 := newAccessListMember(t, acl2.GetName(), acl3.GetName(), accesslist.MembershipKindList, clock)
-	acl3.Status.MemberOf = append(acl3.Status.MemberOf, acl2.GetName())
-
-	// acl3 -> acl1
-	acl3m1 := newAccessListMember(t, acl3.GetName(), acl1.GetName(), accesslist.MembershipKindList, clock)
-
-	accessListAndMembersGetter := &mockAccessListAndMembersGetter{
-		members: map[string][]*accesslist.AccessListMember{
-			acl1.GetName(): {acl1m1},
-			acl2.GetName(): {acl2m1},
-			acl3.GetName(): {},
-		},
-		accessLists: map[string]*accesslist.AccessList{
-			acl1.GetName(): acl1,
-			acl2.GetName(): acl2,
-			acl3.GetName(): acl3,
-		},
-	}
-
-	// Circular references should not be allowed.
-	err := ValidateAccessListMember(ctx, acl3, acl3m1, accessListAndMembersGetter)
-	//err = hierarchy.ValidateAccessListMember(acl3.GetName(), acl3m1)
-	require.Error(t, err)
-	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because '%s' is already included as a Member or Owner in '%s'", acl1.Spec.Title, acl3.Spec.Title, acl3.Spec.Title, acl1.Spec.Title))
-
-	// By removing acl3 as a member of acl2, the relationship should be valid.
-	accessListAndMembersGetter.members[acl2.GetName()] = []*accesslist.AccessListMember{}
-	accessListAndMembersGetter.accessLists[acl3.GetName()].Status.MemberOf = []string{}
-	err = ValidateAccessListMember(ctx, acl3, acl3m1, accessListAndMembersGetter)
-	require.NoError(t, err)
-
-	// Circular references with Ownership should also be disallowed.
-	acl4 := newAccessList(t, "4", clock)
-	acl5 := newAccessList(t, "5", clock)
-
-	// acl4 includes acl5 as a Member
-	acl4m1 := newAccessListMember(t, acl4.GetName(), acl5.GetName(), accesslist.MembershipKindList, clock)
-	acl5.Status.MemberOf = append(acl5.Status.MemberOf, acl4.GetName())
-
-	// acl5 includes acl4 as an Owner.
-	acl5.Spec.Owners = append(acl5.Spec.Owners, accesslist.Owner{
-		Name:           acl4.GetName(),
-		Description:    "asdf",
-		MembershipKind: accesslist.MembershipKindList,
-	})
-	acl4.Status.OwnerOf = append(acl4.Status.OwnerOf, acl5.GetName())
-
-	accessListAndMembersGetter = &mockAccessListAndMembersGetter{
-		members: map[string][]*accesslist.AccessListMember{
-			acl4.GetName(): {acl4m1},
-			acl5.GetName(): {},
-		},
-		accessLists: map[string]*accesslist.AccessList{
-			acl4.GetName(): acl4,
-			acl5.GetName(): acl5,
-		},
-	}
-
-	err = ValidateAccessListWithMembers(ctx, acl5, []*accesslist.AccessListMember{acl4m1}, accessListAndMembersGetter)
-	require.Error(t, err)
-	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as an Owner of '%s' because '%s' is already included as a Member or Owner in '%s'", acl4.Spec.Title, acl5.Spec.Title, acl5.Spec.Title, acl4.Spec.Title))
+	require.True(t, IsUserLocked(userLockedErr))
+	require.False(t, IsUserLocked(rawAccessDeniedErr))
+	require.True(t, trace.IsAccessDenied(userLockedErr))
 }
 
 func TestAccessListHierarchyIsOwner(t *testing.T) {
@@ -350,7 +136,7 @@ func TestAccessListHierarchyIsOwner(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", member1, acl1.Spec.Title))
 	// Should not have inherited ownership due to missing OwnershipRequires.
-	require.Equal(t, MembershipOrOwnershipTypeNone, ownershipType)
+	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, ownershipType)
 
 	// User which only meets acl1's Membership requirements.
 	stubUserMeetsMemberRequires, err := types.NewUser(member1)
@@ -364,7 +150,7 @@ func TestAccessListHierarchyIsOwner(t *testing.T) {
 	ownershipType, err = IsAccessListOwner(ctx, stubUserMeetsMemberRequires, acl4, accessListAndMembersGetter, nil, clock)
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.AccessDenied("User '%s' does not meet the ownership requirements for Access List '%s'", member1, acl4.Spec.Title))
-	require.Equal(t, MembershipOrOwnershipTypeNone, ownershipType)
+	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, ownershipType)
 
 	// User which meets acl1's Membership and acl1's Ownership requirements.
 	stubUserMeetsAllRequires, err := types.NewUser(member1)
@@ -380,13 +166,13 @@ func TestAccessListHierarchyIsOwner(t *testing.T) {
 	ownershipType, err = IsAccessListOwner(ctx, stubUserMeetsAllRequires, acl4, accessListAndMembersGetter, nil, clock)
 	require.NoError(t, err)
 	// Should have inherited ownership from acl1's inclusion in acl4's Owners.
-	require.Equal(t, MembershipOrOwnershipTypeInherited, ownershipType)
+	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, ownershipType)
 
 	stubUserMeetsAllRequires.SetName(member2)
 	ownershipType, err = IsAccessListOwner(ctx, stubUserMeetsAllRequires, acl4, accessListAndMembersGetter, nil, clock)
 	require.NoError(t, err)
 	// Should not have ownership.
-	require.Equal(t, MembershipOrOwnershipTypeNone, ownershipType)
+	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, ownershipType)
 }
 
 func TestAccessListIsMember(t *testing.T) {
@@ -418,7 +204,7 @@ func TestAccessListIsMember(t *testing.T) {
 
 	membershipType, err := IsAccessListMember(ctx, stubMember1, acl1, accessListAndMembersGetter, locksGetter, clock)
 	require.NoError(t, err)
-	require.Equal(t, MembershipOrOwnershipTypeExplicit, membershipType)
+	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT, membershipType)
 
 	// When user is Locked, should not be considered a Member.
 	lock, err := types.NewLock("user-lock", types.LockSpecV2{
@@ -430,8 +216,44 @@ func TestAccessListIsMember(t *testing.T) {
 	locksGetter.targets[member1] = []types.Lock{lock}
 
 	membershipType, err = IsAccessListMember(ctx, stubMember1, acl1, accessListAndMembersGetter, locksGetter, clock)
-	require.ErrorIs(t, err, trace.AccessDenied("User '%s' is currently locked", member1))
-	require.Equal(t, MembershipOrOwnershipTypeNone, membershipType)
+	require.ErrorIs(t, err, trace.AccessDenied("User %q is currently locked", member1))
+	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, membershipType)
+}
+
+func TestAccessListIsMember_RequirementsAndExpiry(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	ctx := context.Background()
+	acl := newAccessList(t, "acl", clock)
+
+	// single user member
+	member := newAccessListMember(t, "acl", "u", accesslist.MembershipKindUser, clock)
+	aclGetter := &mockAccessListAndMembersGetter{
+		accessLists: map[string]*accesslist.AccessList{"acl": acl},
+		members:     map[string][]*accesslist.AccessListMember{"acl": {member}},
+	}
+
+	u, _ := types.NewUser("u")
+	u.SetRoles([]string{"wrong-role"})
+	u.SetTraits(map[string][]string{})
+	locks := &mockLocksGetter{}
+
+	// Missing membershipRequires should be AccessDenied
+	typ, err := IsAccessListMember(ctx, u, acl, aclGetter, locks, clock)
+	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, typ)
+	require.ErrorIs(t, err, trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", u.GetName(), acl.GetName()))
+
+	// Give correct traits/roles, but expire the membership
+	u.SetRoles([]string{"mrole1", "mrole2"})
+	u.SetTraits(map[string][]string{
+		"mtrait1": {"mvalue1", "mvalue2"},
+		"mtrait2": {"mvalue3", "mvalue4"},
+	})
+	// advance clock past Expires
+	clock.Advance(48 * time.Hour)
+
+	typ, err = IsAccessListMember(ctx, u, acl, aclGetter, locks, clock)
+	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, typ)
+	require.ErrorIs(t, err, trace.AccessDenied("User '%s's membership in Access List '%s' has expired", u.GetName(), acl.GetName()))
 }
 
 func TestGetOwners(t *testing.T) {
@@ -502,8 +324,8 @@ func TestGetOwners(t *testing.T) {
 	// Note: Owners of acl2 ("ownerB") and members/owners of acl3 are not inherited by acl1
 
 	expectedOwners := map[string]bool{
-		"ownerA":  true, // Direct owner of acl1
-		"memberB": true, // Member of acl2 (owner list of acl1)
+		"ownerA":         true, // Direct owner of acl1
+		acl2m1.GetName(): true, // Member of acl2 (owner list of acl1)
 	}
 
 	actualOwners := make(map[string]bool)
@@ -523,8 +345,8 @@ func TestGetOwners(t *testing.T) {
 	//   - Members of acl3: "memberC"
 
 	expectedOwners = map[string]bool{
-		"ownerB":  true, // Direct owner of acl2
-		"memberC": true, // Member of acl3 (owner list of acl2)
+		"ownerB":         true, // Direct owner of acl2
+		acl3m1.GetName(): true, // Member of acl3 (owner list of acl2)
 	}
 
 	actualOwners = make(map[string]bool)
@@ -595,6 +417,42 @@ func TestGetInheritedGrants(t *testing.T) {
 	require.Equal(t, expectedGrants, grants)
 }
 
+func TestGetMembersFor_FlattensAndStopsOnCycles(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	ctx := context.Background()
+
+	// A -> B -> C -> B (cycle)
+	a := newAccessList(t, "A", clock)
+	b := newAccessList(t, "B", clock)
+	c := newAccessList(t, "C", clock)
+
+	getter := &mockAccessListAndMembersGetter{
+		accessLists: map[string]*accesslist.AccessList{
+			"A": a, "B": b, "C": c,
+		},
+		members: map[string][]*accesslist.AccessListMember{
+			"A": {newAccessListMember(t, "A", "userA", accesslist.MembershipKindUser, clock),
+				newAccessListMember(t, "A", "B", accesslist.MembershipKindList, clock)},
+			"B": {newAccessListMember(t, "B", "userB", accesslist.MembershipKindUser, clock),
+				newAccessListMember(t, "B", "C", accesslist.MembershipKindList, clock)},
+			"C": {newAccessListMember(t, "C", "userC", accesslist.MembershipKindUser, clock),
+				newAccessListMember(t, "C", "B", accesslist.MembershipKindList, clock)}, // cycle back
+		},
+	}
+
+	members, err := GetMembersFor(ctx, "A", getter)
+	require.NoError(t, err)
+
+	names := make([]string, 0, len(members))
+	for _, m := range members {
+		names = append(names, m.GetName())
+	}
+	sort.Strings(names)
+
+	// Should be userA, userB, userC exactly once each
+	require.Equal(t, []string{"userA", "userB", "userC"}, names)
+}
+
 func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist.AccessList {
 	t.Helper()
 
@@ -643,24 +501,20 @@ func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist
 	return accessList
 }
 
-func newAccessListMember(t *testing.T, accessListName, memberName string, memberKind string, clock clockwork.Clock) *accesslist.AccessListMember {
+func newAccessListMember(t *testing.T, accessListName, memberName string, memberKind string, clk clockwork.Clock) *accesslist.AccessListMember {
 	t.Helper()
 
 	member, err := accesslist.NewAccessListMember(
-		header.Metadata{
-			Name: memberName,
-		},
+		header.Metadata{Name: memberName},
 		accesslist.AccessListMemberSpec{
 			AccessList:     accessListName,
 			Name:           memberName,
-			Joined:         clock.Now().UTC(),
-			Expires:        clock.Now().UTC().Add(24 * time.Hour),
+			Joined:         clk.Now().UTC(),
+			Expires:        clk.Now().UTC().Add(24 * time.Hour),
 			Reason:         "because",
-			AddedBy:        "maxim.dietz@goteleport.com",
+			AddedBy:        "tester",
 			MembershipKind: memberKind,
-		},
-	)
+		})
 	require.NoError(t, err)
-
 	return member
 }

@@ -19,6 +19,8 @@
 package terraformcloud
 
 import (
+	"github.com/zitadel/oidc/v3/pkg/oidc"
+
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
@@ -26,6 +28,7 @@ import (
 // See the following for the structure:
 // https://developer.hashicorp.com/terraform/enterprise/workspaces/dynamic-provider-credentials/workload-identity-tokens
 type IDTokenClaims struct {
+	oidc.TokenClaims
 	// Sub provides some information about the Spacelift run that generated this
 	// token.
 	// organization:<org name>:project:<project name>:workspace:<workspace name>:run_phase:<phase>
@@ -49,6 +52,10 @@ type IDTokenClaims struct {
 	RunID string `json:"terraform_run_id"`
 	// RunPhase is the phase of the run the token was issued for, e.g. `plan` or `apply`
 	RunPhase string `json:"terraform_run_phase"`
+}
+
+func (c *IDTokenClaims) GetSubject() string {
+	return c.Sub
 }
 
 // JoinAttrs returns the protobuf representation of the attested identity.

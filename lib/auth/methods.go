@@ -103,7 +103,7 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.Authe
 		return nil, nil, trace.Wrap(err)
 	}
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -258,7 +258,7 @@ func (a *Server) authenticateUser(
 				return trace.Wrap(err)
 			}
 			accessInfo := services.AccessInfoFromUserState(userState)
-			clusterName, err := a.GetClusterName()
+			clusterName, err := a.GetClusterName(ctx)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -686,7 +686,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		return nil, trace.AccessDenied("%s", noLocalAuth)
 	}
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

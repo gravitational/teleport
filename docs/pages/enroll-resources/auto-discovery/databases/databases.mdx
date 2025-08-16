@@ -1,6 +1,9 @@
 ---
 title: Database Discovery
 description: Detailed guides for configuring database discovery.
+labels:
+ - conceptual
+ - zero-trust
 ---
 
 Teleport can be configured to discover databases automatically and register
@@ -46,7 +49,7 @@ information such as:
     "rds", "redshift", etc.
 - *Endpoint Info*: Connection endpoint the database can be reached at
 
-<Notice type="tip">
+<Admonition type="tip">
 You can override a discovered database's name by using a special tag attached
 to the database in your cloud provider:
  - ***key***: `TeleportDatabaseName`
@@ -56,7 +59,7 @@ The Discovery Service will check if the database metadata includes the tag and
 use its value as the resource name in Teleport.
 The name override will be used verbatim, i.e. additional metadata will not be
 appended to it.
-</Notice>
+</Admonition>
 
 The Teleport Discovery Service only needs access to APIs that it can poll for
 databases - it does not need network connectivity or permissions to connect to
@@ -87,7 +90,7 @@ discovery_service:
       # 'rdsproxy' - Amazon RDS Proxy databases.
       # 'redshift' - Amazon Redshift databases.
       # 'redshift-serverless' - Amazon Redshift Serverless databases.
-      # 'elasticache' - Amazon ElastiCache Redis databases.
+      # 'elasticache' - Amazon ElastiCache Redis and Valkey databases.
       # 'memorydb' - Amazon MemoryDB Redis databases.
       # 'opensearch' - Amazon OpenSearch Redis databases.
       # 'docdb' - Amazon DocumentDB databases.

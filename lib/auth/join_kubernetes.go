@@ -35,13 +35,20 @@ type k8sTokenReviewValidator interface {
 
 type k8sJWKSValidator func(now time.Time, jwksData []byte, clusterName string, token string) (*kubetoken.ValidationResult, error)
 
-func (a *Server) checkKubernetesJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*kubetoken.ValidationResult, error) {
+type k8sOIDCValidator func(
+	ctx context.Context,
+	issuerURL string,
+	clusterName string,
+	token string,
+) (*kubetoken.ValidationResult, error)
+
+func (a *Server) checkKubernetesJoinRequest(
+	ctx context.Context,
+	req *types.RegisterUsingTokenRequest,
+	unversionedToken types.ProvisionToken,
+) (*kubetoken.ValidationResult, error) {
 	if req.IDToken == "" {
 		return nil, trace.BadParameter("IDToken not provided for Kubernetes join request")
-	}
-	unversionedToken, err := a.GetToken(ctx, req.Token)
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 	token, ok := unversionedToken.(*types.ProvisionTokenV2)
 	if !ok {
@@ -68,6 +75,16 @@ func (a *Server) checkKubernetesJoinRequest(ctx context.Context, req *types.Regi
 		)
 		if err != nil {
 			return nil, trace.WrapWithMessage(err, "reviewing kubernetes token with static_jwks")
+		}
+	case types.KubernetesJoinTypeOIDC:
+		result, err = a.k8sOIDCValidator(
+			ctx,
+			token.Spec.Kubernetes.OIDC.Issuer,
+			clusterName,
+			req.IDToken,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "reviewing kubernetes token with oidc")
 		}
 	case types.KubernetesJoinTypeInCluster, types.KubernetesJoinTypeUnspecified:
 		result, err = a.k8sTokenReviewValidator.Validate(ctx, req.IDToken, clusterName)

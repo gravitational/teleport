@@ -66,11 +66,11 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/web"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/terminal"
@@ -353,7 +353,7 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = slog.New(logutils.DiscardHandler{})
+		cfg.Logger = slog.New(slog.DiscardHandler)
 	}
 
 	// generate instance secrets (keys):
@@ -460,7 +460,7 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 func (i *TeleInstance) GetSiteAPI(siteName string) authclient.ClientI {
 	siteTunnel, err := i.Tunnel.GetSite(siteName)
 	if err != nil {
-		i.Log.WarnContext(context.Background(), "failed to get site", "error", err, "siter", siteName)
+		i.Log.WarnContext(context.Background(), "failed to get site", "error", err, "site", siteName)
 		return nil
 	}
 	siteAPI, err := siteTunnel.GetClient()
@@ -909,7 +909,7 @@ func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.Telep
 	}
 
 	processes := make([]*service.TeleportProcess, 0, len(configs))
-	for j := 0; j < len(configs); j++ {
+	for range configs {
 		result := <-results
 		if result.tmpDir != "" {
 			i.tempDirs = append(i.tempDirs, result.tmpDir)
@@ -1467,7 +1467,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		HostPort:                      cfg.Port,
 		HostLogin:                     cfg.Login,
 		InsecureSkipVerify:            true,
-		KeysDir:                       keyDir,
+		ClientStore:                   client.NewFSClientStore(keyDir),
 		SiteName:                      cfg.Cluster,
 		ForwardAgent:                  fwdAgentMode,
 		Labels:                        cfg.Labels,
@@ -1478,7 +1478,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		TLSRoutingEnabled:             i.IsSinglePortSetup,
 		TLSRoutingConnUpgradeRequired: cfg.ALBAddr != "",
 		Tracer:                        tracing.NoopProvider().Tracer("test"),
-		EnableEscapeSequences:         cfg.EnableEscapeSequences,
+		DisableEscapeSequences:        !cfg.EnableEscapeSequences,
 		Stderr:                        cfg.Stderr,
 		Stdin:                         cfg.Stdin,
 		Stdout:                        cfg.Stdout,
@@ -1653,6 +1653,58 @@ func (w *WebClient) SSH(termReq web.TerminalRequest) (*terminal.Stream, error) {
 		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect/ws", w.tc.SiteName),
 	}
 	data, err := json.Marshal(termReq)
+	if err != nil {
+		return nil, err
+	}
+
+	q := u.Query()
+	q.Set("params", string(data))
+	u.RawQuery = q.Encode()
+
+	header := http.Header{}
+	header.Add("Origin", "http://localhost")
+	for _, cookie := range w.cookies {
+		header.Add("Cookie", cookie.String())
+	}
+
+	dialer := websocket.Dialer{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}
+	ws, resp, err := dialer.Dial(u.String(), header)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := makeAuthReqOverWS(ws, w.token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer resp.Body.Close()
+	return terminal.NewStream(context.Background(), terminal.StreamConfig{WS: ws}), nil
+}
+
+func (w *WebClient) JoinKubernetesSession(id string, mode types.SessionParticipantMode) (*terminal.Stream, error) {
+	u := url.URL{
+		Host:   w.i.Web,
+		Scheme: client.WSS,
+		Path:   fmt.Sprintf("/v1/webapi/sites/%v/kube/exec/ws", w.tc.SiteName),
+	}
+
+	params := struct {
+		// Term is the initial PTY size.
+		Term session.TerminalParams `json:"term"`
+		// SessionID is a Teleport session ID to join as.
+		SessionID session.ID `json:"sid"`
+		// ParticipantMode is the mode that determines what you can do when you join an active session.
+		ParticipantMode types.SessionParticipantMode `json:"mode"`
+	}{
+		SessionID:       session.ID(id),
+		ParticipantMode: mode,
+	}
+
+	data, err := json.Marshal(params)
 	if err != nil {
 		return nil, err
 	}

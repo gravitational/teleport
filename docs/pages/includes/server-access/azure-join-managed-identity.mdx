@@ -197,10 +197,11 @@ $ CLIENT_ID=$(echo $DEPLOY_OUTPUT | jq -r '.properties.outputs.principalID.value
 $ ROLE_NAME=$(echo $DEPLOY_OUTPUT | jq -r '.properties.outputs.roleName.value')
 ```
 
-<Details title='Getting a "command not found" error?'>
+<details>
+<summary>Getting a "command not found" error?</summary>
 This command requires `jq` to be installed on your workstation, which you can do
 via the [`jq` download page](https://stedolan.github.io/jq/download/).
-</Details>
+</details>
 
 Next, create another file named `teleport-assign-identity.json` and copy the
 following into it:

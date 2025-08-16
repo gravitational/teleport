@@ -53,10 +53,11 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -650,7 +651,7 @@ func TestMux(t *testing.T) {
 		httpServer.Close()
 		s.Stop()
 		// wait for both servers to finish
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			err := <-errCh
 			require.NoError(t, err)
 		}
@@ -856,7 +857,13 @@ func TestMux(t *testing.T) {
 			require.NoError(t, err)
 			defer conn.Close()
 
-			signedHeader, err := signPROXYHeader(&addr1, &addr2, clusterName, tlsProxyCert, jwtSigner)
+			signedHeader, err := signPROXYHeader(signPROXYHeaderInput{
+				source:      &addr1,
+				destination: &addr2,
+				clusterName: clusterName,
+				signingCert: tlsProxyCert,
+				signer:      jwtSigner,
+			})
 			require.NoError(t, err)
 
 			_, err = conn.Write(signedHeader)
@@ -877,7 +884,14 @@ func TestMux(t *testing.T) {
 
 			defer conn.Close()
 
-			signedHeader, err := signPROXYHeader(&addrV6, &addrV6, clusterName, tlsProxyCert, jwtSigner)
+			signedHeader, err := signPROXYHeader(signPROXYHeaderInput{
+				source:         &addrV6,
+				destination:    &addrV6,
+				clusterName:    clusterName,
+				signingCert:    tlsProxyCert,
+				signer:         jwtSigner,
+				allowDowngrade: false,
+			})
 			require.NoError(t, err)
 
 			_, err = conn.Write(signedHeader)
@@ -889,12 +903,77 @@ func TestMux(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, addrV6.String(), out)
 		})
+		t.Run("single signed PROXY header from IPv6 to IPv4", func(t *testing.T) {
+			conn, err := net.Dial("tcp", listener4.Addr().String())
+			require.NoError(t, err)
+
+			defer conn.Close()
+
+			signedHeader, err := signPROXYHeader(signPROXYHeaderInput{
+				source:         &addrV6,
+				destination:    &addr1,
+				clusterName:    clusterName,
+				signingCert:    tlsProxyCert,
+				signer:         jwtSigner,
+				allowDowngrade: true,
+			})
+			require.NoError(t, err)
+
+			_, err = conn.Write(signedHeader)
+			require.NoError(t, err)
+
+			clt := tls.Client(conn, clientConfig(backend4))
+
+			out, err := utils.RoundtripWithConn(clt)
+			require.NoError(t, err)
+
+			// returned address should be marked with port 0 to prevent IP pinning
+			expected := addrV6
+			expected.Port = 0
+			require.Equal(t, expected.String(), out)
+		})
+		t.Run("single signed PROXY header from IPv6 to IPv4, no downgrade", func(t *testing.T) {
+			conn, err := net.Dial("tcp", listener4.Addr().String())
+			require.NoError(t, err)
+
+			defer conn.Close()
+
+			_, err = signPROXYHeader(signPROXYHeaderInput{
+				source:      &addrV6,
+				destination: &addr1,
+				clusterName: clusterName,
+				signingCert: tlsProxyCert,
+				signer:      jwtSigner,
+			})
+			require.Error(t, err)
+		})
+		t.Run("single signed PROXY header from IPv4 to IPv6 should fail to downgrade dst address", func(t *testing.T) {
+			conn, err := net.Dial("tcp", listener4.Addr().String())
+			require.NoError(t, err)
+
+			defer conn.Close()
+
+			_, err = signPROXYHeader(signPROXYHeaderInput{
+				source:      &addr1,
+				destination: &addrV6,
+				clusterName: clusterName,
+				signingCert: tlsProxyCert,
+				signer:      jwtSigner,
+			})
+			require.Error(t, err)
+		})
 		t.Run("two signed PROXY headers", func(t *testing.T) {
 			conn, err := net.Dial("tcp", listener4.Addr().String())
 			require.NoError(t, err)
 			defer conn.Close()
 
-			signedHeader, err := signPROXYHeader(&addr1, &addr2, clusterName, tlsProxyCert, jwtSigner)
+			signedHeader, err := signPROXYHeader(signPROXYHeaderInput{
+				source:      &addr1,
+				destination: &addr2,
+				clusterName: clusterName,
+				signingCert: tlsProxyCert,
+				signer:      jwtSigner,
+			})
 			require.NoError(t, err)
 
 			_, err = conn.Write(signedHeader)
@@ -912,9 +991,21 @@ func TestMux(t *testing.T) {
 			require.NoError(t, err)
 			defer conn.Close()
 
-			signedHeader, err := signPROXYHeader(&addr1, &addr2, clusterName, tlsProxyCert, jwtSigner)
+			signedHeader, err := signPROXYHeader(signPROXYHeaderInput{
+				source:      &addr1,
+				destination: &addr2,
+				clusterName: clusterName,
+				signingCert: tlsProxyCert,
+				signer:      jwtSigner,
+			})
 			require.NoError(t, err)
-			signedHeader2, err := signPROXYHeader(&addr2, &addr1, clusterName+"wrong", tlsProxyCert, jwtSigner)
+			signedHeader2, err := signPROXYHeader(signPROXYHeaderInput{
+				source:      &addr2,
+				destination: &addr1,
+				clusterName: clusterName + "wrong",
+				signingCert: tlsProxyCert,
+				signer:      jwtSigner,
+			})
 			require.NoError(t, err)
 
 			_, err = conn.Write(signedHeader)
@@ -932,7 +1023,13 @@ func TestMux(t *testing.T) {
 			require.NoError(t, err)
 			defer conn.Close()
 
-			signedHeader, err := signPROXYHeader(&addr1, &addr2, clusterName, tlsProxyCert, jwtSigner)
+			signedHeader, err := signPROXYHeader(signPROXYHeaderInput{
+				source:      &addr1,
+				destination: &addr2,
+				clusterName: clusterName,
+				signingCert: tlsProxyCert,
+				signer:      jwtSigner,
+			})
 			require.NoError(t, err)
 
 			pl := ProxyLine{
@@ -960,7 +1057,13 @@ func TestMux(t *testing.T) {
 			require.NoError(t, err)
 			defer conn.Close()
 
-			signedHeader, err := signPROXYHeader(&addr1, &addr2, clusterName, tlsProxyCert, jwtSigner)
+			signedHeader, err := signPROXYHeader(signPROXYHeaderInput{
+				source:      &addr1,
+				destination: &addr2,
+				clusterName: clusterName,
+				signingCert: tlsProxyCert,
+				signer:      jwtSigner,
+			})
 			require.NoError(t, err)
 
 			pl := ProxyLine{
@@ -1052,7 +1155,13 @@ func TestMux(t *testing.T) {
 			require.NoError(t, err)
 			defer conn.Close()
 
-			signedHeader, err := signPROXYHeader(&addr1, &addr2, clusterName, tlsProxyCert, jwtSigner)
+			signedHeader, err := signPROXYHeader(signPROXYHeaderInput{
+				source:      &addr1,
+				destination: &addr2,
+				clusterName: clusterName,
+				signingCert: tlsProxyCert,
+				signer:      jwtSigner,
+			})
 			require.NoError(t, err)
 
 			_, err = conn.Write(signedHeader)
@@ -1071,7 +1180,7 @@ func TestProtocolString(t *testing.T) {
 		got := Protocol(i).String()
 		switch i {
 		case -1, len(protocolStrings) + 1:
-			require.Equal(t, "", got)
+			require.Empty(t, got)
 		default:
 			require.Equal(t, protocolStrings[Protocol(i)], got)
 		}
@@ -1266,12 +1375,18 @@ func BenchmarkMux_ProxyV2Signature(b *testing.B) {
 	defer backend4.Close()
 
 	b.Run("simulation of signing and verifying PROXY header", func(b *testing.B) {
-		for n := 0; n < b.N; n++ {
+		for b.Loop() {
 			conn, err := net.Dial("tcp", listener4.Addr().String())
 			require.NoError(b, err)
 			defer conn.Close()
 
-			signedHeader, err := signPROXYHeader(&sAddr, &dAddr, clusterName, tlsProxyCert, jwtSigner)
+			signedHeader, err := signPROXYHeader(signPROXYHeaderInput{
+				source:      &sAddr,
+				destination: &dAddr,
+				clusterName: clusterName,
+				signingCert: tlsProxyCert,
+				signer:      jwtSigner,
+			})
 			require.NoError(b, err)
 
 			_, err = conn.Write(signedHeader)

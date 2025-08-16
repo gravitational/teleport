@@ -19,7 +19,11 @@
 import { act, fireEvent, render, screen } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
-import { ComponentWrapper } from 'teleport/Discover/Fixtures/kubernetes';
+import {
+  RequiredDiscoverProviders,
+  resourceSpecAwsEks,
+} from 'teleport/Discover/Fixtures/fixtures';
+import { AgentMeta } from 'teleport/Discover/useDiscover';
 import auth from 'teleport/services/auth';
 import * as discoveryService from 'teleport/services/discovery/discovery';
 import {
@@ -28,7 +32,9 @@ import {
 } from 'teleport/services/discovery/discovery';
 import {
   AwsEksCluster,
+  IntegrationKind,
   integrationService,
+  IntegrationStatusCode,
 } from 'teleport/services/integrations';
 import KubeService from 'teleport/services/kube/kube';
 import { userEventService } from 'teleport/services/userEvent';
@@ -262,8 +268,33 @@ const mockEKSClusters: AwsEksCluster[] = [
   },
 ];
 
+const agentMeta: AgentMeta = {
+  resourceName: 'eks1',
+  awsRegion: 'us-east-1',
+  agentMatcherLabels: [],
+  kube: {
+    kind: 'kube_cluster',
+    name: 'eks1',
+    labels: [],
+  },
+  awsIntegration: {
+    kind: IntegrationKind.AwsOidc,
+    name: 'test-integration',
+    resourceType: 'integration',
+    spec: {
+      roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
+      issuerS3Bucket: '',
+      issuerS3Prefix: '',
+    },
+    statusCode: IntegrationStatusCode.Running,
+  },
+};
+
 const Component = () => (
-  <ComponentWrapper>
+  <RequiredDiscoverProviders
+    agentMeta={agentMeta}
+    resourceSpec={resourceSpecAwsEks}
+  >
     <EnrollEksCluster />
-  </ComponentWrapper>
+  </RequiredDiscoverProviders>
 );

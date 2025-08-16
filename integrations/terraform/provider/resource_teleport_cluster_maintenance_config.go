@@ -100,16 +100,35 @@ func (r resourceTeleportClusterMaintenanceConfig) Create(ctx context.Context, re
 
 	var clusterMaintenanceConfigI apitypes.ClusterMaintenanceConfig
 
+	// Try getting the resource until it exists and is different than the previous ones.
+	// There are two types of singleton resources:
+	// - the ones who can deleted and return a trace.NotFoundErr
+	// - the ones who cannot be deleted, only reset. In this case, the resource revision is used to know if the change got applied.
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		clusterMaintenanceConfigI, err = r.p.Client.GetClusterMaintenanceConfig(ctx)
+		if trace.IsNotFound(err) {
+			if bErr := backoff.Do(ctx); bErr != nil {
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClusterMaintenanceConfig", trace.Wrap(err), "cluster_maintenance_config"))
+				return
+			}
+			if tries >= r.p.RetryConfig.MaxTries {
+				diagMessage := fmt.Sprintf("Error reading ClusterMaintenanceConfig (tried %d times) - state outdated, please import resource", tries)
+				resp.Diagnostics.AddError(diagMessage, "cluster_maintenance_config")
+				return
+			}
+			continue
+		}
 		if err != nil {
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClusterMaintenanceConfig", trace.Wrap(err), "cluster_maintenance_config"))
 			return
 		}
-		if clusterMaintenanceConfigBefore.GetMetadata().Revision != clusterMaintenanceConfigI.GetMetadata().Revision || true {
+
+		previousMetadata := clusterMaintenanceConfigBefore.GetMetadata()
+		currentMetadata := clusterMaintenanceConfigI.GetMetadata()
+		if previousMetadata.GetRevision() != currentMetadata.GetRevision() || true {
 			break
 		}
 		if bErr := backoff.Do(ctx); bErr != nil {
@@ -165,6 +184,7 @@ func (r resourceTeleportClusterMaintenanceConfig) Read(ctx context.Context, req 
 		return
 	}
 
+	
 	clusterMaintenanceConfig := clusterMaintenanceConfigI.(*apitypes.ClusterMaintenanceConfigV1)
 	diags = tfschema.CopyClusterMaintenanceConfigV1ToTerraform(ctx, clusterMaintenanceConfig, &state)
 	resp.Diagnostics.Append(diags...)
@@ -218,7 +238,6 @@ func (r resourceTeleportClusterMaintenanceConfig) Update(ctx context.Context, re
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating ClusterMaintenanceConfig", trace.Wrap(err), "cluster_maintenance_config"))
 		return
 	}
-
 	var clusterMaintenanceConfigI apitypes.ClusterMaintenanceConfig
 
 	tries := 0
@@ -248,6 +267,7 @@ func (r resourceTeleportClusterMaintenanceConfig) Update(ctx context.Context, re
 		return
 	}
 
+	
 	clusterMaintenanceConfig = clusterMaintenanceConfigI.(*apitypes.ClusterMaintenanceConfigV1)
 	diags = tfschema.CopyClusterMaintenanceConfigV1ToTerraform(ctx, clusterMaintenanceConfig, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -280,7 +300,6 @@ func (r resourceTeleportClusterMaintenanceConfig) ImportState(ctx context.Contex
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating ClusterMaintenanceConfig", trace.Wrap(err), "cluster_maintenance_config"))
 		return
 	}
-
 	clusterMaintenanceConfig := clusterMaintenanceConfigI.(*apitypes.ClusterMaintenanceConfigV1)
 
 	var state types.Object
@@ -296,8 +315,9 @@ func (r resourceTeleportClusterMaintenanceConfig) ImportState(ctx context.Contex
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	id := clusterMaintenanceConfig.GetName()
 
-	state.Attrs["id"] = types.String{Value: clusterMaintenanceConfig.Metadata.Name}
+	state.Attrs["id"] = types.String{Value: id}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)

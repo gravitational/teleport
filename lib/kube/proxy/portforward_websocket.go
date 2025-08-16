@@ -73,7 +73,7 @@ func runPortForwardingWebSocket(req portForwardRequest) error {
 
 	// One pair of (Data,Error) channels per port.
 	channels := make([]wsstream.ChannelType, 2*len(ports))
-	for i := 0; i < len(channels); i++ {
+	for i := range channels {
 		channels[i] = wsstream.ReadWriteChannel
 	}
 
@@ -107,7 +107,7 @@ func runPortForwardingWebSocket(req portForwardRequest) error {
 
 	// Create the websocket stream pairs.
 	streamPairs := make([]*websocketChannelPair, len(ports))
-	for i := 0; i < len(ports); i++ {
+	for i := range ports {
 		var (
 			dataStream  = streams[2*i+portForwardDataChannel]
 			errorStream = streams[2*i+portForwardErrorChannel]
@@ -171,7 +171,7 @@ func extractTargetPortsFromStrings(portsStrings []string) ([]uint16, error) {
 		if len(portString) == 0 {
 			return nil, trace.BadParameter("query parameter %q cannot be empty", PortHeader)
 		}
-		for _, p := range strings.Split(portString, ",") {
+		for p := range strings.SplitSeq(portString, ",") {
 			port, err := parsePortString(p)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -266,11 +266,16 @@ func (h *websocketPortforwardHandler) forwardStreamPair(p *websocketChannelPair)
 	}()
 
 	wg := &sync.WaitGroup{}
-	wg.Add(1)
 
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := utils.ProxyConn(h.context, p.errorStream, targetErrorStream); err != nil {
+		// Close the target error stream to indicate no more writes.
+		if err := targetErrorStream.Close(); err != nil {
+			h.logger.DebugContext(h.context, "Unable to close target error stream", "error", err)
+		}
+		// Enables error propagation from Kube API server to kubectl client.
+		if _, err := io.Copy(p.errorStream, targetErrorStream); err != nil {
 			h.logger.DebugContext(h.context, "Unable to proxy portforward error-stream", "error", err)
 		}
 	}()

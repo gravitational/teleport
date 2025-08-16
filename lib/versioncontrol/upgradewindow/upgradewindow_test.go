@@ -27,7 +27,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -52,12 +51,11 @@ func (b *fakeKubeBackend) Put(ctx context.Context, item backend.Item) (*backend.
 func TestKubeControllerDriver(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	bk := newFakeKubeBackend()
 
-	driver, err := NewKubeControllerDriver(KubeControllerDriverConfig{
+	driver, err := NewKubeControllerDriver(ctx, KubeControllerDriverConfig{
 		Backend: bk,
 	})
 	require.NoError(t, err)
@@ -86,13 +84,13 @@ func TestKubeControllerDriver(t *testing.T) {
 	err = driver.Reset(ctx)
 	require.NoError(t, err)
 
-	require.Equal(t, "", bk.data[key])
+	require.Empty(t, bk.data[key])
 
 	// verify reset of empty schedule has no effect
 	err = driver.Reset(ctx)
 	require.NoError(t, err)
 
-	require.Equal(t, "", bk.data[key])
+	require.Empty(t, bk.data[key])
 
 	// setup another fake schedule
 	err = driver.Sync(ctx, proto.ExportUpgradeWindowsResponse{
@@ -106,15 +104,14 @@ func TestKubeControllerDriver(t *testing.T) {
 	err = driver.Sync(ctx, proto.ExportUpgradeWindowsResponse{})
 	require.NoError(t, err)
 
-	require.Equal(t, "", bk.data[key])
+	require.Empty(t, bk.data[key])
 }
 
 // TestSystemdUnitDriver verifies the basic behavior of the systemd unit export driver.
 func TestSystemdUnitDriver(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// use a sub-directory of a temp dir in order to verify that
 	// driver creates dir when needed.
@@ -157,7 +154,7 @@ func TestSystemdUnitDriver(t *testing.T) {
 
 	sb, err = os.ReadFile(schedPath)
 	require.NoError(t, err)
-	require.Equal(t, "", string(sb))
+	require.Empty(t, string(sb))
 
 	// verify that duplicate resets succeed
 	err = driver.Reset(ctx)
@@ -180,38 +177,7 @@ func TestSystemdUnitDriver(t *testing.T) {
 
 	sb, err = os.ReadFile(schedPath)
 	require.NoError(t, err)
-	require.Equal(t, "", string(sb))
-}
-
-// TestSystemdUnitDriverNop verifies the nop schedule behavior of the systemd unit export driver.
-func TestSystemdUnitDriverNop(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// use a sub-directory of a temp dir in order to verify that
-	// driver creates dir when needed.
-	dir := filepath.Join(t.TempDir(), "config")
-
-	driver, err := NewSystemdUnitDriver(SystemdUnitDriverConfig{
-		ConfigDir: dir,
-	})
-	require.NoError(t, err)
-
-	err = driver.Sync(ctx, proto.ExportUpgradeWindowsResponse{
-		SystemdUnitSchedule: "fake-schedule",
-	})
-	require.NoError(t, err)
-
-	err = driver.ForceNop(ctx)
-	require.NoError(t, err)
-
-	schedPath := filepath.Join(dir, "schedule")
-	sb, err := os.ReadFile(schedPath)
-	require.NoError(t, err)
-
-	require.Equal(t, scheduleNop, string(sb))
+	require.Empty(t, string(sb))
 }
 
 // fakeDriver is used to inject custom behavior into a dummy Driver instance.
@@ -241,10 +207,6 @@ func (d *fakeDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsRes
 	return nil
 }
 
-func (d *fakeDriver) ForceNop(ctx context.Context) error {
-	return trace.NotImplemented("force-nop not used by exporter")
-}
-
 func (d *fakeDriver) Reset(ctx context.Context) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -264,8 +226,7 @@ func (d *fakeDriver) withLock(fn func()) {
 func TestExporterBasics(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	sc := make(chan context.Context)
 

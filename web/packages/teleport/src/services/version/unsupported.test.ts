@@ -23,6 +23,7 @@ import { app } from 'teleport/Discover/AwsMangementConsole/fixtures';
 import { ApiError } from '../api/parseError';
 import { integrationService } from '../integrations';
 import {
+  isPathNotFoundError,
   ProxyRequiresUpgrade,
   useV1Fallback,
   withGenericUnsupportedError,
@@ -93,16 +94,16 @@ describe('withGenericUnsupportedError', () => {
         minor: 2,
         patch: 3,
         preRelease: 'dev',
-        string: 'v1.2.3-dev',
+        string: '1.2.3-dev',
       },
     });
 
     expect(() =>
-      withGenericUnsupportedError(pathNotFoundError, 'v2.0.0')
+      withGenericUnsupportedError(pathNotFoundError, '2.0.0')
     ).toThrow('Your proxy (v1.2.3-dev) may be behind');
 
     expect(() =>
-      withGenericUnsupportedError(pathNotFoundError, 'v2.0.0')
+      withGenericUnsupportedError(pathNotFoundError, '2.0.0')
     ).toThrow('minimum required version (v2.0.0)');
   });
 
@@ -126,5 +127,41 @@ describe('withGenericUnsupportedError', () => {
     expect(() =>
       withGenericUnsupportedError(resourceNotFoundError, 'v2.0.0')
     ).toThrow('same error');
+  });
+});
+
+describe('isPathNotFoundError', () => {
+  test('error resulting from path not found', () => {
+    const pathNotFoundError = new ApiError({
+      message: 'some error',
+      response: { status: 404 } as Response,
+      proxyVersion: {
+        major: 1,
+        minor: 2,
+        patch: 3,
+        preRelease: 'dev',
+        string: 'v1.2.3-dev',
+      },
+    });
+
+    expect(isPathNotFoundError(pathNotFoundError)).toBe(true);
+  });
+
+  test('error resulting from path not found (legacy)', () => {
+    const legacyPathNotFoundError = new ApiError({
+      message: `404 - https://llama`,
+      response: { status: 404, url: 'https://llama' } as Response,
+    });
+
+    expect(isPathNotFoundError(legacyPathNotFoundError)).toBe(true);
+  });
+
+  test('error unrelated to path not found', () => {
+    const resourceNotFoundError = new ApiError({
+      message: `some error`,
+      response: { status: 404 } as Response,
+    });
+
+    expect(isPathNotFoundError(resourceNotFoundError)).toBe(false);
   });
 });

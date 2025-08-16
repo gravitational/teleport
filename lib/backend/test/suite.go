@@ -368,11 +368,6 @@ func testItems(t *testing.T, newBackend Constructor) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, uut.Close()) }()
 
-	it, ok := uut.(backend.BackendWithItems)
-	if !ok {
-		t.Skip("Backend does not support iteration")
-	}
-
 	ctx := context.Background()
 	prefix := MakePrefix()
 
@@ -442,7 +437,7 @@ func testItems(t *testing.T, newBackend Constructor) {
 		for _, test := range cases {
 			t.Run(test.name, func(t *testing.T) {
 				i := 0
-				for item, err := range it.Items(ctx, backend.IterateParams{StartKey: test.startKey, EndKey: test.endKey}) {
+				for item, err := range uut.Items(ctx, backend.ItemsParams{StartKey: test.startKey, EndKey: test.endKey}) {
 					require.NoError(t, err)
 
 					if len(test.expected) == 0 {
@@ -516,7 +511,7 @@ func testItems(t *testing.T, newBackend Constructor) {
 		for _, test := range cases {
 			t.Run(test.name, func(t *testing.T) {
 				i := 0
-				for item, err := range it.Items(ctx, backend.IterateParams{StartKey: test.startKey, EndKey: test.endKey, Descending: true}) {
+				for item, err := range uut.Items(ctx, backend.ItemsParams{StartKey: test.startKey, EndKey: test.endKey, Descending: true}) {
 					require.NoError(t, err)
 
 					if len(test.expected) == 0 {
@@ -557,7 +552,7 @@ func testItems(t *testing.T, newBackend Constructor) {
 
 		t.Run("ascending", func(t *testing.T) {
 			i := 0
-			for item := range it.Items(ctx, backend.IterateParams{StartKey: prefix("page"), EndKey: backend.RangeEnd(prefix("page"))}) {
+			for item := range uut.Items(ctx, backend.ItemsParams{StartKey: prefix("page"), EndKey: backend.RangeEnd(prefix("page"))}) {
 				require.Equal(t, expected[i], string(item.Value))
 				i++
 			}
@@ -566,7 +561,7 @@ func testItems(t *testing.T, newBackend Constructor) {
 
 		t.Run("descending", func(t *testing.T) {
 			i := count - 1
-			for item := range it.Items(ctx, backend.IterateParams{StartKey: prefix("page"), EndKey: backend.RangeEnd(prefix("page")), Descending: true}) {
+			for item := range uut.Items(ctx, backend.ItemsParams{StartKey: prefix("page"), EndKey: backend.RangeEnd(prefix("page")), Descending: true}) {
 				assert.Equal(t, expected[i], string(item.Value))
 				i--
 			}
@@ -598,8 +593,8 @@ func testDeleteRange(t *testing.T, newBackend Constructor) {
 	// Some Backends (e.g. DynamoDB) have a limit on the number of items that can
 	// be deleted in a single operation. This test is designed to be run with
 	// a backend that has a limit of 25 items per delete operation.
-	for i := 0; i < 100; i++ {
-		item := &backend.Item{Key: prefix("prefix", "c", "cn", strconv.Itoa(i)), Value: []byte(fmt.Sprintf("val cn%d", i))}
+	for i := range 100 {
+		item := &backend.Item{Key: prefix("prefix", "c", "cn", strconv.Itoa(i)), Value: fmt.Appendf(nil, "val cn%d", i)}
 		lease, err := uut.Create(ctx, *item)
 		require.NoError(t, err, "Failed creating value: %q => %q", item.Key, item.Value)
 		item.Revision = lease.Revision
@@ -652,8 +647,7 @@ func testCompareAndSwap(t *testing.T, newBackend Constructor) {
 	require.NoError(t, err)
 	require.Equal(t, []byte("2"), out.Value)
 
-	for i := 0; i < 10; i++ {
-		i := i
+	for i := range 10 {
 		var wg sync.WaitGroup
 		wg.Add(1)
 		errs := make(chan error, 2)
@@ -672,7 +666,7 @@ func testCompareAndSwap(t *testing.T, newBackend Constructor) {
 
 		// validate that only a single failure occurred
 		var failed int
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			err := <-errs
 			if err != nil {
 				t.Log(err.Error())
@@ -881,7 +875,7 @@ func testFetchLimit(t *testing.T, newBackend Constructor) {
 	buff := make([]byte, 1<<16)
 	itemsCount := 20
 	// Fill the backend with events that total size is greater than 1MB (65KB * 20 > 1MB).
-	for i := 0; i < itemsCount; i++ {
+	for i := range itemsCount {
 		item := &backend.Item{Key: prefix("db", "database", strconv.Itoa(i)), Value: buff}
 		_, err = uut.Put(ctx, *item)
 		require.NoError(t, err)
@@ -909,7 +903,7 @@ func testLimit(t *testing.T, newBackend Constructor) {
 	}
 	_, err = uut.Put(ctx, *item)
 	require.NoError(t, err)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		item := &backend.Item{
 			Key:     prefix("db", "database", strconv.Itoa(i)),
 			Value:   []byte("data"),
@@ -1167,7 +1161,7 @@ func testConcurrentOperations(t *testing.T, newBackend Constructor) {
 	asyncOps := sync.WaitGroup{}
 	asyncErrs := make(chan error, 5*attempts)
 
-	for i := 0; i < attempts; i++ {
+	for i := range attempts {
 		asyncOps.Add(5)
 
 		go func(cnt int) {
@@ -1404,7 +1398,7 @@ func testConditionalUpdate(t *testing.T, newBackend Constructor) {
 	// is created. Try more than once to ensure the revision returned
 	// in the lease matches the value stored in the backend.
 	item.Revision = lease.Revision
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		lease, err = uut.ConditionalUpdate(ctx, item)
 		require.NoError(t, err)
 		require.NotEmpty(t, lease.Revision)

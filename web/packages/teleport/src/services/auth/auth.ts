@@ -218,26 +218,25 @@ const auth = {
     return api.put(cfg.api.changeUserPasswordPath, data);
   },
 
-  headlessSSOGet(transactionId: string) {
-    return auth
-      .checkWebauthnSupport()
-      .then(() => api.get(cfg.getHeadlessSsoPath(transactionId)))
-      .then((json: any) => {
-        json = json || {};
+  headlessSsoGet(transactionId: string) {
+    return api.get(cfg.getHeadlessSsoPath(transactionId)).then((json: any) => {
+      json = json || {};
 
-        return {
-          clientIpAddress: json.client_ip_address,
-        };
-      });
+      return {
+        clientIpAddress: json.client_ip_address,
+      };
+    });
   },
 
-  headlessSSOAccept(transactionId: string) {
+  headlessSsoAccept(transactionId: string) {
     return auth
       .getMfaChallenge({ scope: MfaChallengeScope.HEADLESS_LOGIN })
-      .then(challenge => auth.getMfaChallengeResponse(challenge, 'webauthn'))
+      .then(challenge => auth.getMfaChallengeResponse(challenge))
       .then(res => {
         const request = {
           action: 'accept',
+          mfaResponse: res,
+          // TODO(Joerger): DELETE IN v19.0.0, new clients send mfaResponse.
           webauthnAssertionResponse: res.webauthn_response,
         };
 
@@ -267,6 +266,7 @@ const auth = {
           challenge_scope: req.scope,
           challenge_allow_reuse: req.allowReuse,
           user_verification_requirement: req.userVerificationRequirement,
+          proxy_address: cfg.baseUrl,
         },
         abortSignal
       )
@@ -409,10 +409,11 @@ const auth = {
 };
 
 function checkMfaRequired(
+  clusterId: string,
   params: IsMfaRequiredRequest,
-  abortSignal?
+  abortSignal?: AbortSignal
 ): Promise<IsMfaRequiredResponse> {
-  return api.post(cfg.getMfaRequiredUrl(), params, abortSignal);
+  return api.post(cfg.getMfaRequiredUrl(clusterId), params, abortSignal);
 }
 
 function base64EncodeUnicode(str: string) {

@@ -99,7 +99,7 @@ export class UsageService {
      * belonging to a root cluster or one of its leaves.
      */
     uri: ClusterOrResourceUri;
-    protocol: 'ssh' | 'kube' | 'db' | 'app';
+    protocol: 'ssh' | 'kube' | 'db' | 'app' | 'desktop';
     /**
      * origin denotes which part of Connect UI was used to access a resource.
      */

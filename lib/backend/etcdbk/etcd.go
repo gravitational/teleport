@@ -340,10 +340,10 @@ func (b *EtcdBackend) checkVersion(ctx context.Context) error {
 				return trace.BadParameter("failed to parse etcd version %q: %v", status.Version, err)
 			}
 
-			min := semver.New(teleport.MinimumEtcdVersion)
-			if ver.LessThan(*min) {
+			minEtcdVersion := semver.Version{Major: 3, Minor: 3, Patch: 0}
+			if ver.LessThan(minEtcdVersion) {
 				return trace.BadParameter("unsupported version of etcd %v for node %v, must be %v or greater",
-					status.Version, n, teleport.MinimumEtcdVersion)
+					status.Version, n, minEtcdVersion)
 			}
 
 			return nil
@@ -479,7 +479,7 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 	}
 
 	clients := make([]*clientv3.Client, 0, b.cfg.ClientPoolSize)
-	for i := 0; i < b.cfg.ClientPoolSize; i++ {
+	for range b.cfg.ClientPoolSize {
 		clt, err := clientv3.New(clientv3.Config{
 			Context:            ctx,
 			Endpoints:          b.nodes,
@@ -649,7 +649,7 @@ func (b *EtcdBackend) NewWatcher(ctx context.Context, watch backend.Watch) (back
 	return b.buf.NewWatcher(ctx, watch)
 }
 
-func (b *EtcdBackend) Items(ctx context.Context, params backend.IterateParams) iter.Seq2[backend.Item, error] {
+func (b *EtcdBackend) Items(ctx context.Context, params backend.ItemsParams) iter.Seq2[backend.Item, error] {
 	if params.StartKey.IsZero() {
 		err := trace.BadParameter("missing parameter startKey")
 		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
@@ -737,13 +737,13 @@ func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey backend.Key
 	}
 
 	var result backend.GetResult
-	for item, err := range b.Items(ctx, backend.IterateParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
+	for item, err := range b.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		result.Items = append(result.Items, item)
 		if limit != backend.NoLimit && len(result.Items) > limit {
-			return nil, trace.BadParameter("item iterator produced more items than requested (this is a bug). limit=%d, recevied=%d", limit, len(result.Items))
+			return nil, trace.BadParameter("item iterator produced more items than requested (this is a bug). limit=%d, received=%d", limit, len(result.Items))
 		}
 	}
 	return &result, nil
@@ -1026,8 +1026,6 @@ type leaseKey struct {
 	bucket time.Time
 }
 
-var _ map[leaseKey]struct{} // compile-time hashability check
-
 func (b *EtcdBackend) setupLease(ctx context.Context, item backend.Item, lease *backend.Lease, opts *[]clientv3.OpOption) error {
 	// in order to reduce excess redundant lease generation, we bucket expiry times
 	// to the nearest multiple of 10s and then grant one lease per bucket. Too many
@@ -1067,8 +1065,6 @@ func (b *EtcdBackend) ttl(expires time.Time) time.Duration {
 type ttlKey struct {
 	leaseID int64
 }
-
-var _ map[ttlKey]struct{} // compile-time hashability check
 
 func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend.Event, error) {
 	event := &backend.Event{

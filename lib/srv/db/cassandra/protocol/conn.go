@@ -239,7 +239,7 @@ func (c *Conn) writeSegment(outgoing *frame.Frame, wr io.Writer) error {
 // maybeSwitchToModernLayout is used to switch to modern framing layout.
 // If received frame is a Ready frame or Authenticate frame, it will switch to modern framing layout.
 func (c *Conn) maybeSwitchToModernLayout(fr *frame.Frame) {
-	if !(isReady(fr) || isAuthenticate(fr)) {
+	if !isReady(fr) && !isAuthenticate(fr) {
 		return
 	}
 	if !c.modernLayoutRead {

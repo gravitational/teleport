@@ -28,15 +28,24 @@ import {
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import { makeErrorAttempt, makeProcessingAttempt } from 'shared/hooks/useAsync';
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { apps, moreApps } from 'teleport/Apps/fixtures';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { UrlResourcesParams } from 'teleport/config';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { databases, moreDatabases } from 'teleport/Databases/fixtures';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { desktops, moreDesktops } from 'teleport/Desktops/fixtures';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { gitServers } from 'teleport/GitServers/fixtures';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { kubes, moreKubes } from 'teleport/Kubes/fixtures';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { moreNodes, nodes } from 'teleport/Nodes/fixtures';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { ResourcesResponse } from 'teleport/services/agents';
 
+import { InfoGuidePanelProvider } from '../SlidingSidePanel/InfoGuide';
 import { SharedUnifiedResource, UnifiedResourcesQueryParams } from './types';
 import {
   UnifiedResources,
@@ -106,45 +115,48 @@ const story = ({
       fetchFunc,
     });
     return (
-      <UnifiedResources
-        availableKinds={[
-          {
-            kind: 'app',
-            disabled: false,
-          },
-          {
-            kind: 'db',
-            disabled: false,
-          },
-          {
-            kind: 'node',
-            disabled: false,
-          },
-          {
-            kind: 'kube_cluster',
-            disabled: false,
-          },
-          {
-            kind: 'windows_desktop',
-            disabled: false,
-          },
-        ]}
-        params={mergedParams}
-        setParams={() => undefined}
-        pinning={pinning}
-        unifiedResourcePreferences={userPrefs}
-        updateUnifiedResourcesPreferences={setUserPrefs}
-        NoResources={undefined}
-        fetchResources={fetch}
-        resourcesFetchAttempt={attempt}
-        resources={resources.map(resource => ({
-          resource,
-          ui: {
-            ActionButton: <ButtonBorder size="small">Connect</ButtonBorder>,
-          },
-        }))}
-        {...props}
-      />
+      <InfoGuidePanelProvider>
+        <UnifiedResources
+          availableKinds={[
+            {
+              kind: 'app',
+              disabled: false,
+            },
+            {
+              kind: 'db',
+              disabled: false,
+            },
+            {
+              kind: 'node',
+              disabled: false,
+            },
+            {
+              kind: 'kube_cluster',
+              disabled: false,
+            },
+            {
+              kind: 'windows_desktop',
+              disabled: false,
+            },
+          ]}
+          onShowStatusInfo={() => null}
+          params={mergedParams}
+          setParams={() => undefined}
+          pinning={pinning}
+          unifiedResourcePreferences={userPrefs}
+          updateUnifiedResourcesPreferences={setUserPrefs}
+          NoResources={undefined}
+          fetchResources={fetch}
+          resourcesFetchAttempt={attempt}
+          resources={resources.map(resource => ({
+            resource,
+            ui: {
+              ActionButton: <ButtonBorder size="small">Connect</ButtonBorder>,
+            },
+          }))}
+          {...props}
+        />
+      </InfoGuidePanelProvider>
     );
   };
 };
@@ -156,6 +168,18 @@ export const Empty = story({
 export const List = story({
   fetchFunc: async () => ({
     agents: allResources,
+  }),
+});
+
+export const Single = story({
+  fetchFunc: async () => ({
+    agents: [{ ...aLotOfLabels, targetHealth: null }],
+  }),
+});
+
+export const SingleWithStatusWarning = story({
+  fetchFunc: async () => ({
+    agents: [aLotOfLabels],
   }),
 });
 

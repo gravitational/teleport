@@ -70,7 +70,7 @@ func ValidateStaticHostUser(u *userprovisioningpb.StaticHostUser) error {
 			return trace.BadParameter("either NodeLabels or NodeLabelsExpression must be set")
 		}
 		for _, label := range matcher.NodeLabels {
-			if label.Name == types.Wildcard && !(len(label.Values) == 1 && label.Values[0] == types.Wildcard) {
+			if label.Name == types.Wildcard && (len(label.Values) != 1 || label.Values[0] != types.Wildcard) {
 				return trace.BadParameter("selector *:<val> is not supported")
 			}
 		}

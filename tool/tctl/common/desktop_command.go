@@ -27,6 +27,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -86,14 +88,26 @@ func (c *DesktopCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 
 // ListDesktop prints the list of desktops that have recently sent heartbeats
 // to the cluster.
-func (c *DesktopCommand) ListDesktop(ctx context.Context, client *authclient.Client) error {
-	desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+func (c *DesktopCommand) ListDesktop(ctx context.Context, clt *authclient.Client) error {
+	// The unified resource API is used here because it both supports pagination, removes duplicate
+	// resources and is backward compatible. Consider changing this to use ListWindowsDesktops in the future.
+	resources, err := client.GetAllUnifiedResources(ctx, clt, &proto.ListUnifiedResourcesRequest{
+		Kinds:  []string{types.KindWindowsDesktop},
+		SortBy: types.SortBy{Field: types.ResourceMetadataName},
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	coll := windowsDesktopCollection{
-		desktops: desktops,
+
+	coll := windowsDesktopCollection{desktops: make([]types.WindowsDesktop, 0, len(resources))}
+	for _, r := range resources {
+		desktop, ok := r.ResourceWithLabels.(*types.WindowsDesktopV3)
+		if !ok {
+			continue
+		}
+		coll.desktops = append(coll.desktops, desktop)
 	}
+
 	switch c.format {
 	case teleport.Text:
 		return trace.Wrap(coll.writeText(os.Stdout, c.verbose))

@@ -47,7 +47,7 @@ func TestUploadOK(t *testing.T) {
 	// wait until uploader blocks on the clock
 	p.clock.BlockUntil(1)
 
-	fileStreamer, err := NewStreamer(p.scanDir)
+	fileStreamer, err := NewStreamer(p.scanDir, nil)
 	require.NoError(t, err)
 
 	inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1024})
@@ -84,8 +84,8 @@ func TestUploadParallel(t *testing.T) {
 
 	sessions := make(map[string][]apievents.AuditEvent)
 
-	for i := 0; i < 5; i++ {
-		fileStreamer, err := NewStreamer(p.scanDir)
+	for range 5 {
+		fileStreamer, err := NewStreamer(p.scanDir, nil)
 		require.NoError(t, err)
 
 		sessionEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1024})
@@ -382,7 +382,7 @@ func TestUploadBackoff(t *testing.T) {
 	// wait until uploader blocks on the clock before creating the stream
 	p.clock.BlockUntil(1)
 
-	fileStreamer, err := NewStreamer(p.scanDir)
+	fileStreamer, err := NewStreamer(p.scanDir, nil)
 	require.NoError(t, err)
 
 	inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 4096})
@@ -406,7 +406,7 @@ func TestUploadBackoff(t *testing.T) {
 	attempts := 10
 	var prev time.Time
 	var diffs []time.Duration
-	for i := 0; i < attempts; i++ {
+	for i := range attempts {
 		// wait for the upload event
 		var event events.UploadEvent
 		select {
@@ -589,7 +589,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 
 	defer uploader.Close()
 
-	fileStreamer, err := NewStreamer(scanDir)
+	fileStreamer, err := NewStreamer(scanDir, nil)
 	require.NoError(t, err)
 
 	inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1024})
@@ -611,7 +611,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 		t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
 	}
 
-	for i := 0; i < testCase.retries; i++ {
+	for i := range testCase.retries {
 		if testCase.onRetry != nil {
 			testCase.onRetry(t, i, uploader)
 		}
@@ -669,7 +669,7 @@ func readStream(ctx context.Context, t *testing.T, uploadID string, uploader *ev
 	var reader *events.ProtoReader
 	for i, part := range parts {
 		if i == 0 {
-			reader = events.NewProtoReader(bytes.NewReader(part))
+			reader = events.NewProtoReader(bytes.NewReader(part), nil)
 		} else {
 			err := reader.Reset(bytes.NewReader(part))
 			require.NoError(t, err)

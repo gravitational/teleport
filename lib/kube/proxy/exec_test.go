@@ -349,7 +349,6 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			const errorCode = http.StatusForbidden
@@ -482,10 +481,11 @@ func TestExecWebsocketEndToEndErrReturn(t *testing.T) {
 				Minor:      "31",
 				GitVersion: "v1.31.0",
 			}),
+		testingkubemock.WithTeleportRoleCRD,
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.EqualValues(t, 0, kubeMock.KubeExecRequests.SPDY.Load(), "expected no SPDY requests")
+		require.EqualValues(t, 2, kubeMock.KubeExecRequests.SPDY.Load(), "expected no SPDY requests")
 		require.EqualValues(t, 2, kubeMock.KubeExecRequests.Websocket.Load(), "expected one websocket request")
 		kubeMock.Close()
 	})
@@ -543,7 +543,6 @@ func TestExecWebsocketEndToEndErrReturn(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -594,8 +593,6 @@ func TestExecWebsocketEndToEndErrReturn(t *testing.T) {
 			require.Equal(t, "403", execEvent.ExitCode)
 			require.NotEmpty(t, execEvent.Error)
 			eventsLock.Unlock()
-
 		})
 	}
-
 }

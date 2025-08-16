@@ -33,15 +33,15 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
-func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer, mut ...func(*MonitorConfig)) (*mockTrackingConn, *eventstest.ChannelEmitter, MonitorConfig) {
+func newTestMonitor(ctx context.Context, t *testing.T, asrv *authtest.AuthServer, mut ...func(*MonitorConfig)) (*mockTrackingConn, *eventstest.ChannelEmitter, MonitorConfig) {
 	ctx, cancel := context.WithCancel(ctx)
 	t.Cleanup(cancel)
 
@@ -51,10 +51,10 @@ func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer
 		Context:        ctx,
 		Conn:           conn,
 		Emitter:        emitter,
-		EmitterContext: context.Background(),
+		EmitterContext: ctx,
 		Clock:          asrv.Clock(),
 		Tracker:        &mockActivityTracker{asrv.Clock()},
-		Logger:         utils.NewSlogLoggerForTests(),
+		Logger:         logtest.NewLogger(),
 		LockWatcher:    asrv.LockWatcher,
 		LockTargets:    []types.LockTarget{{User: "test-user"}},
 		LockingMode:    constants.LockingModeBestEffort,
@@ -69,9 +69,9 @@ func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer
 func TestConnectionMonitorLockInForce(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
-	asrv, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClock(),
 	})
@@ -86,7 +86,7 @@ func TestConnectionMonitorLockInForce(t *testing.T) {
 		Emitter:        emitter,
 		EmitterContext: ctx,
 		Clock:          asrv.Clock(),
-		Logger:         utils.NewSlogLoggerForTests(),
+		Logger:         logtest.NewLogger(),
 		LockWatcher:    asrv.LockWatcher,
 		ServerID:       "test",
 	})
@@ -160,8 +160,9 @@ func TestConnectionMonitorLockInForce(t *testing.T) {
 func TestMonitorLockInForce(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	asrv, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	ctx := t.Context()
+
+	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClock(),
 	})
@@ -206,8 +207,9 @@ func TestMonitorLockInForce(t *testing.T) {
 func TestMonitorStaleLocks(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	asrv, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	ctx := t.Context()
+
+	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClock(),
 	})
@@ -257,7 +259,7 @@ func TestMonitorStaleLocks(t *testing.T) {
 }
 
 func TestWritesDisconnectMessage(t *testing.T) {
-	asrv, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClock(),
 	})
@@ -266,7 +268,8 @@ func TestWritesDisconnectMessage(t *testing.T) {
 
 	var sw strings.Builder
 
-	ctx := context.Background()
+	ctx := t.Context()
+
 	clock := clockwork.NewFakeClock()
 	conn, _, _ := newTestMonitor(ctx, t, asrv, func(cfg *MonitorConfig) {
 		cfg.ClientIdleTimeout = 1 * time.Second
@@ -308,8 +311,9 @@ func TestMonitorDisconnectExpiredCertBeforeTimeNow(t *testing.T) {
 	clock := clockwork.NewRealClock()
 
 	certExpirationTime := clock.Now().Add(-1 * time.Second)
-	ctx := context.Background()
-	asrv, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	ctx := t.Context()
+
+	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClock(),
 	})

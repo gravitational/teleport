@@ -16,12 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Meta } from '@storybook/react-vite';
 import { useLayoutEffect } from 'react';
 
 import { Flex, Text } from 'design';
 
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { makeReportWithIssuesFound } from 'teleterm/services/vnet/testHelpers';
 import AppContextProvider from 'teleterm/ui/appContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { VnetContextProvider } from 'teleterm/ui/Vnet';
@@ -29,7 +31,7 @@ import { VnetContextProvider } from 'teleterm/ui/Vnet';
 import { Connections } from './Connections';
 import { ConnectionsContextProvider } from './connectionsContext';
 
-export default {
+const meta: Meta = {
   title: 'Teleterm/TopBar/Connections',
   decorators: [
     Story => {
@@ -39,6 +41,7 @@ export default {
     },
   ],
 };
+export default meta;
 
 const rootClusterUri = '/clusters/foo';
 
@@ -120,13 +123,40 @@ export function JustVnetWithNoClusters() {
   );
 }
 
+export function VnetWarning() {
+  const appContext = new MockAppContext();
+  prepareAppContext(appContext);
+
+  appContext.statePersistenceService.putState({
+    ...appContext.statePersistenceService.getState(),
+    vnet: { autoStart: true, hasEverStarted: true },
+  });
+  appContext.workspacesService.setState(draft => {
+    draft.isInitialized = true;
+  });
+  appContext.vnet.runDiagnostics = () =>
+    new MockedUnaryCall({
+      report: makeReportWithIssuesFound(),
+    });
+
+  return (
+    <AppContextProvider value={appContext}>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
+    </AppContextProvider>
+  );
+}
+
 export function VnetError() {
   const appContext = new MockAppContext();
   prepareAppContext(appContext);
 
   appContext.statePersistenceService.putState({
     ...appContext.statePersistenceService.getState(),
-    vnet: { autoStart: true },
+    vnet: { autoStart: true, hasEverStarted: true },
   });
   appContext.workspacesService.setState(draft => {
     draft.isInitialized = true;

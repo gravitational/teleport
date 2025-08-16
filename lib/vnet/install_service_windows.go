@@ -19,13 +19,18 @@ package vnet
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/svc/eventlog"
 	"golang.org/x/sys/windows/svc/mgr"
+
+	"github.com/gravitational/teleport"
+	eventlogutils "github.com/gravitational/teleport/lib/utils/log/eventlog"
 )
 
 // InstallService installs the VNet windows service.
@@ -74,6 +79,12 @@ func InstallService(ctx context.Context) (err error) {
 	if err := grantServiceRights(); err != nil {
 		return trace.Wrap(err, "granting authenticated users permission to control the VNet Windows service")
 	}
+	if err := installEventSource(); err != nil {
+		trace.Wrap(err, "creating event source for logging")
+	}
+	if err := logInstallationEvent("VNet service installed"); err != nil {
+		trace.Wrap(err, "logging installation event")
+	}
 	return nil
 }
 
@@ -93,6 +104,14 @@ func UninstallService(ctx context.Context) (err error) {
 	if err := svc.Close(); err != nil {
 		return trace.Wrap(err, "closing VNet Windows service")
 	}
+
+	if err := logInstallationEvent("VNet service uninstalled"); err != nil {
+		trace.Wrap(err, "logging installation event")
+	}
+	if err := eventlogutils.Remove(eventlogutils.LogName, eventSource); err != nil {
+		return trace.Wrap(err, "removing event source for logging")
+	}
+
 	return nil
 }
 
@@ -108,15 +127,20 @@ func grantServiceRights() error {
 	if err != nil {
 		return trace.Wrap(err, "getting current service DACL")
 	}
+	// This is the universal well-known SID for "Authenticated Users".
+	authenticatedUsersSID, err := windows.StringToSid("S-1-5-11")
+	if err != nil {
+		return trace.Wrap(err, "parsing authenticated users SID")
+	}
 	// Build an explicit access entry allowing authenticated users to start,
 	// stop, and query the service.
 	ea := []windows.EXPLICIT_ACCESS{{
 		AccessPermissions: windows.SERVICE_QUERY_STATUS | windows.SERVICE_START | windows.SERVICE_STOP,
 		AccessMode:        windows.GRANT_ACCESS,
 		Trustee: windows.TRUSTEE{
-			TrusteeForm:  windows.TRUSTEE_IS_NAME,
+			TrusteeForm:  windows.TRUSTEE_IS_SID,
 			TrusteeType:  windows.TRUSTEE_IS_WELL_KNOWN_GROUP,
-			TrusteeValue: windows.TrusteeValueFromString("Authenticated Users"),
+			TrusteeValue: windows.TrusteeValueFromSID(authenticatedUsersSID),
 		},
 	}}
 	// Merge the new explicit access entry with the existing DACL.
@@ -178,4 +202,35 @@ func assertRegularFile(path string) error {
 		return trace.BadParameter("%s is not a regular file", path)
 	}
 	return nil
+}
+
+const eventSource = "vnet"
+
+func installEventSource() error {
+	exe, err := os.Executable()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Assume that the message file is shipped next to tsh.exe.
+	msgFilePath := filepath.Join(filepath.Dir(exe), "msgfile.dll")
+
+	// This should create a registry entry under
+	// SYSTEM\CurrentControlSet\Services\EventLog\Teleport\vnet with an absolute path to msgfile.dll.
+	// If the user moves Teleport Connect to some other directory, logs will still be captured, but
+	// they might display a message about missing event ID until the user reinstalls the app.
+	err = eventlogutils.Install(eventlogutils.LogName, eventSource, msgFilePath, false /* useExpandKey */)
+	return trace.Wrap(err)
+}
+
+func logInstallationEvent(eventMessage string) error {
+	log, err := eventlog.Open(eventSource)
+	if err != nil {
+		return trace.Wrap(err, "opening logger")
+	}
+
+	if err := log.Info(eventlogutils.EventID, fmt.Sprintf("%s version:%s", eventMessage, teleport.Version)); err != nil {
+		return trace.Wrap(err, "writing log message")
+	}
+
+	return trace.Wrap(log.Close(), "closing logger")
 }

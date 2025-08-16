@@ -82,7 +82,7 @@ export function TestConnection(props: AgentStepProps) {
   const [selectedOpt, setSelectedOpt] = useState(usernameOpts[0]);
 
   return (
-    <Box>
+    <>
       {showMfaDialog && (
         <ReAuthenticate
           onMfaResponse={async res => testConnection(selectedOpt.value, res)}
@@ -131,6 +131,6 @@ export function TestConnection(props: AgentStepProps) {
         </ButtonSecondary>
       </StyledBox>
       <ActionButtons onProceed={nextStep} lastStep={true} onPrev={prevStep} />
-    </Box>
+    </>
   );
 }

@@ -23,7 +23,7 @@ import (
 	"slices"
 	"strings"
 
-	"golang.org/x/mod/semver"
+	"golang.org/x/mod/semver" //nolint:depguard // Usage precedes the x/mod/semver rule.
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -127,10 +127,10 @@ func newInstanceMetricsPeriodic() *instanceMetricsPeriodic {
 	}
 }
 
-func (i *instanceMetricsPeriodic) VisitInstance(instance proto.UpstreamInventoryHello, metadata proto.UpstreamInventoryAgentMetadata) {
+func (i *instanceMetricsPeriodic) VisitInstance(instance *proto.UpstreamInventoryHello, metadata *proto.UpstreamInventoryAgentMetadata) {
 	// Sort install methods if multiple methods are specified.
 	installMethod := "unknown"
-	installMethods := append([]string{}, metadata.GetInstallMethods()...)
+	installMethods := slices.Clone(metadata.GetInstallMethods())
 	if len(installMethods) > 0 {
 		slices.Sort(installMethods)
 		installMethod = strings.Join(installMethods, ",")

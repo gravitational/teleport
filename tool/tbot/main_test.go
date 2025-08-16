@@ -21,13 +21,37 @@ package main
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
+
+const initTestSentinel = "init_test"
+
+func TestMain(m *testing.M) {
+	if slices.Contains(os.Args, initTestSentinel) {
+		os.Exit(0)
+	}
+
+	os.Exit(m.Run())
+}
+
+func BenchmarkInit(b *testing.B) {
+	executable, err := os.Executable()
+	require.NoError(b, err)
+
+	for b.Loop() {
+		cmd := exec.Command(executable, initTestSentinel)
+		err := cmd.Run()
+		assert.NoError(b, err)
+	}
+}
 
 func TestRun_Configure(t *testing.T) {
 	t.Parallel()
@@ -38,7 +62,7 @@ func TestRun_Configure(t *testing.T) {
 	// If we switch to a more dependency injected model for botfs, we can
 	// ensure that the test one returns the same value across operating systems.
 	normalizeOSDependentValues := func(data []byte) []byte {
-		cpy := append([]byte{}, data...)
+		cpy := slices.Clone(data)
 		cpy = bytes.ReplaceAll(
 			cpy, []byte("symlinks: try-secure"), []byte("symlinks: secure"),
 		)
@@ -80,7 +104,6 @@ func TestRun_Configure(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Run("file", func(t *testing.T) {
 				path := filepath.Join(t.TempDir(), "config.yaml")

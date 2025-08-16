@@ -43,11 +43,26 @@ const config: StorybookConfig = {
     options: { builder: { viteConfigPath: 'web/.storybook/vite.config.mts' } },
   },
   staticDirs: ['public'],
-  addons: [
-    '@storybook/addon-toolbars',
-    '@storybook/addon-controls',
-    '@storybook/addon-actions',
-  ],
+  addons: [],
+  viteFinal(config) {
+    return {
+      ...config,
+      server: {
+        ...config.server,
+        allowedHosts: resolveAllowedHosts(),
+      },
+    };
+  },
 };
+
+function resolveAllowedHosts() {
+  if (process.env.VITE_HOST) {
+    const { hostname } = new URL(`https://${process.env.VITE_HOST}`);
+
+    return [hostname];
+  }
+
+  return [];
+}
 
 export default config;

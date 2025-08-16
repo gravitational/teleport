@@ -1,6 +1,9 @@
 ---
 title: Kubernetes Clusters Discovery
 description: Detailed guides for configuring Kubernetes Clusters Discovery.
+labels:
+ - conceptual
+ - zero-trust
 ---
 
 Kubernetes Clusters Discovery allows Kubernetes clusters
@@ -35,7 +38,7 @@ cloud provider such as:
   - Cluster location.
   - Identification of which cloud account the cluster belongs to — AWS Account ID / Azure Subscription ID.
 
-<Notice type="tip">
+<Admonition type="tip">
 You can import the cluster under a different name into Teleport's registry.
 To achieve this, you must attach the following tag to the resources — EKS, AKS, GKE — in your cloud provider:
  - ***key***: `TeleportKubernetesName`
@@ -47,7 +50,7 @@ as the resource name in Teleport.
 You should use this feature whenever there are clusters in different regions/cloud providers
 with the same name to prevent them from colliding in Teleport.
 
-</Notice>
+</Admonition>
 
 In addition to detecting new Kubernetes clusters, the Discovery Service also removes
 — from Teleport's registry — the Kubernetes clusters that have been deleted or whose tags
@@ -61,7 +64,7 @@ and their default values.
 ```yaml
 # This section configures the Discovery Service
 discovery_service:
-    enabled: "yes"
+    enabled: true
     discovery_group: "prod"
     aws:
        # AWS resource types. Valid options are:
@@ -136,7 +139,7 @@ the `kubernetes_service.resources` section as shown in the following snippet:
 ```yaml
 ## This section configures the Kubernetes Service
 kubernetes_service:
-    enabled: "yes"
+    enabled: true
     # Matchers for dynamic Kubernetes cluster resources created with the "tctl create" command or by Kubernetes auto-discovery.
     resources:
     - labels:

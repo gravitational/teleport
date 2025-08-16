@@ -43,7 +43,6 @@ BenchmarkPostgresReadLargeTable/size=8000-10       	       3	 215046472 ns/op
 // BenchmarkPostgresReadLargeTable is a benchmark for read-heavy usage of Postgres.
 // Depending on the message size we may get different performance, due to the way the respective engine is written.
 func BenchmarkPostgresReadLargeTable(b *testing.B) {
-	b.StopTimer()
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, b, withSelfHostedPostgres("postgres", func(db *types.DatabaseV3) {
 		db.SetStaticLabels(map[string]string{"foo": "bar"})
@@ -72,7 +71,7 @@ func BenchmarkPostgresReadLargeTable(b *testing.B) {
 		require.NoError(b, err)
 
 		b.Run(fmt.Sprintf("size=%v", messageSize), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				// Execute a query, count results.
 				q := pgConn.Exec(ctx, fmt.Sprintf("SELECT * FROM bench_%v LIMIT %v", messageSize, rowCount))
 

@@ -16,6 +16,7 @@ const esModules = [
   'd3-path',
   'internmap',
   '@nivo/bar',
+  'react-error-boundary',
 ].join('|');
 
 /** @type {import('@jest/types').Config.InitialOptions} */
@@ -36,7 +37,7 @@ module.exports = {
   // 'node_modules/.pnpm/@scope+pkg-b@x.x.x/node_modules/@scope/pkg-b/'.
   transformIgnorePatterns: [`node_modules/(?!.pnpm|${esModules})`],
   coverageReporters: ['text-summary', 'lcov'],
-  testPathIgnorePatterns: ['e2e', 'docs/check-redirects'],
+  testPathIgnorePatterns: ['e2e'],
   testEnvironmentOptions: {
     customExportConditions: [''],
   },

@@ -202,6 +202,46 @@ func TestGenericCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
+	// Retrieve all resources from the stream
+	var streamedResources []*testResource
+	for r, err := range service.Resources(ctx, "", "") {
+		require.NoError(t, err)
+		streamedResources = append(streamedResources, r)
+	}
+	require.Empty(t, cmp.Diff(paginatedOut, streamedResources,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	// Retrieve all resources from the stream
+	streamedResources = nil
+	for r, err := range service.Resources(ctx, r1.GetName(), r2.GetName()) {
+		require.NoError(t, err)
+		streamedResources = append(streamedResources, r)
+	}
+	require.Empty(t, cmp.Diff(paginatedOut, streamedResources,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	// Retrieve a single resource from the stream
+	streamedResources = nil
+	for r, err := range service.Resources(ctx, r2.GetName(), "") {
+		require.NoError(t, err)
+		streamedResources = append(streamedResources, r)
+	}
+	require.Empty(t, cmp.Diff([]*testResource{r2}, streamedResources,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	// Retrieve a single resource from the stream
+	streamedResources = nil
+	for r, err := range service.Resources(ctx, "", r1.GetName()) {
+		require.NoError(t, err)
+		streamedResources = append(streamedResources, r)
+	}
+	require.Empty(t, cmp.Diff([]*testResource{r1}, streamedResources,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
 	// Fetch a specific service provider.
 	r, err := service.GetResource(ctx, r2.GetName())
 	require.NoError(t, err)
@@ -452,7 +492,7 @@ func TestGenericListResourcesWithFilter(t *testing.T) {
 	require.Empty(t, cmp.Diff([]*testResource{r1}, page,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
-	require.Equal(t, "", nextKey)
+	require.Empty(t, nextKey)
 
 	page, nextKey, err = service.ListResourcesWithFilter(ctx, 1, "", func(r *testResource) bool {
 		return r.Metadata.Name == "r2"
@@ -461,7 +501,7 @@ func TestGenericListResourcesWithFilter(t *testing.T) {
 	require.Empty(t, cmp.Diff([]*testResource{r2}, page,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
-	require.Equal(t, "", nextKey)
+	require.Empty(t, nextKey)
 }
 
 func TestGenericListResourcesWithFilterForScale(t *testing.T) {
@@ -486,8 +526,8 @@ func TestGenericListResourcesWithFilterForScale(t *testing.T) {
 	totalResourcesPerProp := 100
 	totalProps := 100
 	var totalResources []*testResource
-	for i := 0; i < totalResourcesPerProp; i++ {
-		for j := 0; j < totalProps; j++ {
+	for range totalResourcesPerProp {
+		for j := range totalProps {
 			r := newTestResourceWithSpec(uuid.NewString(), strconv.Itoa(j))
 			totalResources = append(totalResources, r)
 		}
@@ -540,7 +580,6 @@ func TestGenericListResourcesWithFilterForScale(t *testing.T) {
 }
 
 func TestGenericValidation(t *testing.T) {
-
 	ctx := context.Background()
 
 	memBackend, err := memory.New(memory.Config{
@@ -571,16 +610,17 @@ func TestGenericValidation(t *testing.T) {
 
 	_, err = service.UpsertResource(ctx, r1)
 	require.ErrorIs(t, err, validationErr)
-
 }
 
 func TestGenericKeyOverride(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
+
 	memBackend, err := memory.New(memory.Config{
 		Context: ctx,
 		Clock:   clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
+	defer memBackend.Close()
 
 	service, err := NewService(&ServiceConfig[*testResource]{
 		Backend:       memBackend,
@@ -589,7 +629,7 @@ func TestGenericKeyOverride(t *testing.T) {
 		BackendPrefix: backend.NewKey("generic_prefix"),
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
-		KeyFunc:       func(tr *testResource) string { return "llama" },
+		NameKeyFunc:   func(string) string { return "llama" },
 	})
 	require.NoError(t, err)
 
@@ -654,4 +694,18 @@ func TestGenericKeyOverride(t *testing.T) {
 	item, err = memBackend.Get(ctx, backend.NewKey("generic_prefix", r1.GetName()))
 	require.Error(t, err)
 	require.Nil(t, item)
+
+	// Validate that getting the resource through the service uses the overridden name
+	_, err = service.GetResource(ctx, r1.GetName())
+	require.NoError(t, err)
+	_, err = service.GetResource(ctx, "llama")
+	require.NoError(t, err)
+	_, err = service.GetResource(ctx, "notllama")
+	require.NoError(t, err)
+
+	// Validate that deleting the resource also uses the overridden name
+	err = service.DeleteResource(ctx, "notllama")
+	require.NoError(t, err)
+	_, err = memBackend.Get(ctx, backend.NewKey("generic_prefix", "llama"))
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 }

@@ -27,6 +27,25 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+func (s *TerraformSuiteOSS) TestClusterNetworkingConfigDataSource() {
+	name := "data.teleport_cluster_networking_config.test"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("networking_config_data_source.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "cluster_networking_config"),
+					resource.TestCheckResourceAttr(name, "version", "v2"),
+					resource.TestCheckResourceAttr(name, "id", "cluster-networking-config"),
+				),
+			},
+		},
+	})
+}
+
 func (s *TerraformSuiteOSS) TestClusterNetworkingConfig() {
 	name := "teleport_cluster_networking_config.test"
 
@@ -83,7 +102,7 @@ func (s *TerraformSuiteOSS) TestImportClusterNetworkingConfig() {
 	clusterNetworkConfigBefore, err := s.client.GetClusterNetworkingConfig(ctx)
 	require.NoError(s.T(), err)
 
-	err = s.client.SetClusterNetworkingConfig(ctx, clusterNetworkingConfig)
+	_, err = s.client.UpsertClusterNetworkingConfig(ctx, clusterNetworkingConfig)
 	require.NoError(s.T(), err)
 
 	require.Eventually(s.T(), func() bool {

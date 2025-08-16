@@ -23,9 +23,9 @@ func Combinations(verbs []string) [][]string {
 	var result [][]string
 	length := len(verbs)
 
-	for i := 0; i < (1 << length); i++ {
+	for i := range 1 << length {
 		subslice := make([]string, 0)
-		for j := 0; j < length; j++ {
+		for j := range length {
 			if i&(1<<j) != 0 {
 				subslice = append(subslice, verbs[j])
 			}

@@ -1,6 +1,9 @@
 ---
 title: Web Application Access
 description: In this getting started guide, learn how to connect an application to your Teleport cluster by running the Teleport Application Service.
+labels:
+ - how-to
+ - zero-trust
 ---
 
 This guide shows you how to enroll a web application with your Teleport cluster
@@ -73,11 +76,11 @@ Application Service:
        method: token
      proxy_server: "teleport.example.com:443"
    auth_service:
-     enabled: off
+     enabled: false
    proxy_service:
-     enabled: off
+     enabled: false
    ssh_service:
-     enabled: off
+     enabled: false
    app_service:
      enabled: true
      apps:
@@ -106,40 +109,7 @@ Application Service:
 
 ## Step 2/3. [Optional] Configure TLS and DNS for your web applications
 
-Once the Teleport Application Service is proxying traffic to your web
-application, the Teleport Proxy Service makes the application available at the
-following URL:
-
-```text
-https://<APPLICATION_NAME>.<TELEPORT_DOMAIN>
-```
-
-For example, if your Teleport domain name is `teleport.example.com`, the
-application named `my-app` would be available at
-`https://my-app.teleport.example.com`. The Proxy Service presents a TLS
-certificate for this domain name that browsers can verify against a certificate
-authority.
-
-If you are using Teleport Enterprise (Cloud), DNS records and TLS certificates
-for this domain name are provisioned automatically. If you are self-hosting
-Teleport, you must configure these yourself:
-
-1. Create either:
-   - A DNS A record that associates a wildcard subdomain of your Teleport Proxy
-     Service domain, e.g., `*.teleport.example.com`, with the IP address of the
-     Teleport Proxy Service.
-   - A DNS CNAME record that associates a wildcard subdomain of your Proxy
-     Service domain, e.g., `*.teleport.example.com`, with the domain name of the
-     Teleport Proxy Service.
-
-1. Ensure that your system provisions TLS certificates for Teleport-registered
-   applications. The method to use depends on how you originally set up TLS for
-   your self-hosted Teleport deployment, and is outside the scope of this guide. 
-
-   In general, the same system that provisions TLS certificates signed for the
-   web address of the Proxy Service (e.g., `teleport.example.com`) must also
-   provision certificates for the wildcard address used for applications (e.g.,
-   `*.teleport.example.com`).
+(!docs/pages/includes/dns-app-access.mdx!)
 
 ## Step 3/3. Configure RBAC and access the application
 
@@ -200,7 +170,7 @@ It can be turned on using `debug_app: true`.
 
 ```yaml
 app_service:
-   enabled: yes
+   enabled: true
    debug_app: true
 ```
 
@@ -354,7 +324,7 @@ rewritten:
 - Any header matching the pattern `X-Forwarded-*`
 
 Rewritten header values support the same templating variables as
-[role templates](../../../admin-guides/access-controls/guides/role-templates.mdx). In the
+[role templates](../../../zero-trust-access/access-controls/guides/role-templates.mdx). In the
 example above, `X-Internal-Trait` header will be populated with the value of
 internal user trait `logins` and `X-External-Trait` header will get the value of
 the user's external `env` trait coming from the identity provider.
@@ -364,7 +334,7 @@ a JWT token signed by Teleport that contains user identity information. See
 [Integrating with JWTs](../jwt/introduction.mdx) for more details.
 
 For full details on configuring Teleport roles, including how Teleport
-populates the `external` and `internal` traits, see the [Teleport Access
+populates the `external` and `internal` traits, see the [Access
 Controls Reference](../../../reference/access-controls/roles.mdx).
 
 ### Configuring the JWT token

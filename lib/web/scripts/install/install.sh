@@ -226,7 +226,7 @@ install_via_curl() {
   cd -
 
   $SUDO tar -xzf "${TEMP_DIR}/${TELEPORT_FILENAME}" -C "$TEMP_DIR"
-  $SUDO "$TEMP_DIR/teleport/install"
+  $SUDO "$TEMP_DIR/teleport${TELEPORT_SUFFIX}/install"
   set +x
 }
 
@@ -328,13 +328,13 @@ install_teleport() {
   esac
 
   # select install method based on distribution
-  # if ID is debian derivate, run apt-get
+  # if ID is debian derivative, run apt-get
   case "$ID" in
   debian | ubuntu | kali | linuxmint | pop | raspbian | neon | zorin | parrot | elementary)
     install_via_apt_get
     ;;
   # if ID is amazon Linux 2/RHEL/etc, run yum
-  centos | rhel | amzn)
+  centos | rhel | rocky | almalinux | amzn)
     install_via_yum "$ID"
     ;;
   sles)
@@ -402,11 +402,13 @@ TELEPORT_EDITION=""
 if [ $# -ge 1 ] && [ -n "$1" ]; then
   TELEPORT_VERSION=$1
 else
-  echo "ERROR: Please provide the version you want to install (e.g., 10.1.9)."
-  exit 1
+  if [ -z "$TELEPORT_VERSION" ]; then
+    echo "ERROR: Please provide the version you want to install (e.g., 10.1.9)."
+    exit 1
+  fi
 fi
 
-if ! echo "$1" |  grep -qE "[0-9]+\.[0-9]+\.[0-9]+"; then
+if ! echo "$TELEPORT_VERSION" |  grep -qE "[0-9]+\.[0-9]+\.[0-9]+"; then
   echo "ERROR: The first parameter must be a version number, e.g., 10.1.9."
   exit 1
 fi

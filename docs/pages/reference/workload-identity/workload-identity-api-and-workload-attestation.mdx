@@ -1,6 +1,9 @@
 ---
 title: Workload Identity API & Workload Attestation
 description: Information about the `tbot` Workload Identity API service and Workload Attestation functionality
+labels:
+ - conceptual
+ - mwi
 ---
 
 The Workload Identity API service (`workload-identity-api`) is a configurable
@@ -35,6 +38,18 @@ listen: unix:///opt/machine-id/workload.sock
 # attestors allows Workload Attestation to be configured for this Workload
 # API.
 attestors:
+  # docker is configuration for the Docker Workload Attestor. See the Docker
+  # section below for more information.
+  docker:
+    # enabled specifies whether the workload's identity should be attested with
+    # information about its Docker container. If unspecified, this defaults to
+    # false.
+    enabled: true
+    # addr is the address at which the Docker Engine daemon can be reached. It
+    # must be in the form `unix://path/to/socket`, as connecting via TCP is not
+    # currently supported. If unspecified, this defaults to the standard socket
+    # location for "rootful" Docker installations: `unix:///var/run/docker.sock`.
+    addr: unix:///var/run/docker.sock
   # kubernetes is configuration for the Kubernetes Workload Attestor. See
   # the Kubernetes Workload Attestor section for more information.
   kubernetes:
@@ -73,6 +88,56 @@ attestors:
       # unspecified, this defaults to false. If set, the token_path field is
       # ignored.
       anonymous: false
+  # podman is configuration for the Podman Workload Attestor. See the Podman
+  # section below for more information.
+  podman:
+    # enabled specifies whether the workload's identity should be attested with
+    # information about its Podman container and pod. If unspecified, this
+    # defaults to false.
+    enabled: true
+    # addr is the address at which the Podman API Service can be reached. It
+    # must be in the form `unix://path/to/socket`, as connecting via TCP is not
+    # supported. This field is required and there is no default value. See the
+    # Podman section below for more information.
+    addr: unix:///run/podman/podman.sock
+  # sigstore is configuration for the Sigstore Workload attestor. See the
+  # Sigstore Workload Attestation page for more information.
+  sigstore:
+    # enabled specifies whether tbot will discover Sigstore signatures for the
+    # workload's container image. If unspecified, this defaults to false.
+    enabled: true
+    # additional_registries optionally configures the OCI registries that will
+    # be searched for signatures in addition to the workload container image's
+    # source registry.
+    additional_registries:
+      -
+        # host of the OCI registry.
+        host: ghcr.io
+    # credentials_path is the path to a Docker or Podman configuration file
+    # containing per-registry credentials.
+    credentials_path: /path/to/docker/config.json
+    # allowed_private_network_prefixes are the private IP address prefixes (CIDR
+    # blocks) that the Sigstore attestor is allowed to connect to. By default,
+    # tbot will only connect to registries at publicly-routable IP addresses to
+    # reduce the surface area for SSRF attacks.
+    allowed_private_network_prefixes:
+      - "192.168.1.42/32"
+      - "fd12:3456:789a:1::1/128"
+  # systemd is configuration for the Systemd Workload attestor. See the Systemd
+  # section below for more information.
+  systemd:
+    # enabled specifies whether the workload's identity should be attested with
+    # information about its Systemd service. If unspecified, this defaults to
+    # false.
+    enabled: true
+  # unix is configuration for the Unix Workload Attestor.
+  unix:
+    # binary_hash_max_size_bytes is the maximum number of bytes that will be
+    # read from a process's binary to calculate its SHA-256 checksum. If the
+    # binary is larger than this, the `workload.unix.binary_hash` attribute
+    # will be empty. If unspecified, this defaults to 1GiB. Set it to -1 to
+    # make it unlimited.
+    binary_hash_max_size_bytes: 1024
 (!docs/pages/includes/machine-id/workload-identity-selector-config.yaml!)
 ```
 
@@ -118,6 +183,24 @@ This is a sensitive configuration option, and you should ensure that it is
 set correctly or not set at all. If misconfigured, an attacker could provide
 falsified information about processes, and this could lead to the issuance of
 SVIDs to unauthorized workloads.
+
+#### The `binary_path` and `binary_hash` attributes
+
+The Unix Workload Attestor captures the path and a SHA-256 checksum of the
+workload's executable using the `/proc/$pid/exe` symlink. There are a number of
+important considerations when using these attributes in your rules:
+
+- `tbot` can only reliably determine the a process' executable path if it's
+  running in the same mount namespace. The `binary_path` attribute will likely
+  be incorrect if the workload is containerized.
+- Because `/proc/$pid/exe` is a symlink to an *inode* rather than a regular path,
+  it's usually an accurate representation of what the process is executing even
+  if the binary has been replaced on disk (e.g. during a rolling deployment).
+  However, network filesystems do not guarantee inode stability, so if the
+  process's executable is on a network mount, it's possible for `binary_hash` to
+  be out of date.
+- By default, `tbot` will only checksum binaries smaller than 1GiB. To change
+  this, increase `attestors.unix.binary_hash_max_size_bytes`.
 
 ### Kubernetes
 
@@ -281,6 +364,166 @@ spec:
                   # your Teleport cluster.
                   audience: example.teleport.sh
 ```
+
+## Docker
+
+The Docker Workload Attestor allows you to restrict the issuance of workload
+identities to specific Docker containers based on a range of criteria.
+
+It works by first determining the container for a given process and then by
+querying the Docker Engine API for details about it.
+
+### Granting Access to the Docker Engine API
+
+By default, `tbot` will attempt to connect to the Docker daemon via a Unix
+domain socket located at `/var/run/docker.sock` as this is the standard location
+for "rootful" Docker deployments.
+
+Unless `tbot` is also running as root, you'll need to add its user to the docker
+group to grant it permission to access this socket:
+
+```code
+$ sudo usermod -a -G docker $TBOT_USER
+```
+
+### Rootless Docker
+
+When running Docker in ["rootless" mode](https://docs.docker.com/engine/security/rootless/)
+the daemon's socket will be located at `$XDG_RUNTIME_DIR/docker.sock` by default,
+making it inaccessible to other non-root users.
+
+If you do not want to run `tbot` as the same user as Docker or as root, you can
+override this by creating a configuration file under `~/.config/docker` with the
+following contents:
+
+```json
+{
+  "hosts": ["unix://path/to/socket"]
+}
+```
+
+## Podman
+
+The Podman Workload Attestor allows you to restrict the issuance of workload
+identities to specific Podman containers and pods based on a range of criteria.
+
+It works by first determining the container and pod for a given process and then
+by querying the [Podman API Service](https://docs.podman.io/en/latest/markdown/podman-system-service.1.html)
+for details about them.
+
+Podman differs from Docker in that it doesn't use a long-running daemon process.
+Instead, the API service is typically started on demand using socket activation.
+
+Granting `tbot` access to the Podman API requires different steps depending on
+whether you're running "rootfully" or "rootlessly" - it is for this reason we
+do not provide a default value for the `attr` config option.
+
+### Rootful Podman
+
+If you're running Podman as root, enable the API service by running:
+
+```code
+$ sudo systemctl enable --now podman.socket
+```
+
+At this point, the service can be reached at `/run/podman/podman.sock` but **only
+by root**. If you do not want to run `tbot` as root, you can override the default
+systemd unit to make the socket owned by a group your tbot user belongs to:
+
+```code
+$ sudo groupadd podman-root
+$ sudo usermod -a -G podman-root $TBOT_USER
+$ sudo systemctl edit podman.socket
+```
+
+In the override file add:
+
+```
+[Socket]
+SocketGroup=podman-root
+```
+
+Reload the systemd daemon and restart the socket unit:
+
+```code
+$ sudo systemctl daemon-reload
+$ sudo systemctl restart podman.socket
+```
+
+### Rootless Podman
+
+If you're running Podman as a non-root user, enable and start the API service by
+running:
+
+```code
+$ sudo loginctl enable-linger $PODMAN_USER
+$ systemctl --user enable --now podman.socket
+```
+
+The service can now be reached at `$XDG_RUNTIME_DIR/podman/podman.sock`, but
+**only by your chosen podman user or root**. If you do not want to run `tbot`
+as the same user or as root, you can override the default systemd unit to move
+the socket out of `$XDG_RUNTIME_DIR` and add your tbot user to the podman user's
+group:
+
+```code
+$ sudo usermod -a -G $PODMAN_USER_GROUP $TBOT_USER
+$ systemctl --user edit podman.socket
+```
+
+In the override file add:
+
+```
+[Socket]
+ListenStream=/path/to/socket # Example: /srv/podman.$PODMAN_USER/podman.sock
+```
+
+Reload the systemd daemon and restart the socket unit:
+
+```code
+$ systemctl --user daemon-reload
+$ systemctl --user restart podman.socket
+```
+
+### Running `tbot` in a Podman Container
+
+In order for `tbot` running inside a container to attest workloads in other
+containers, it must have access to the host's PID namespace. Also, if you are
+using group permissions to grant `tbot` access to the Podman socket (see the
+above examples) you must set the `run.oci.keep_original_groups` annotation.
+
+```code
+$ podman run \
+  --pid=host \
+  --annotation run.oci.keep_original_groups=1 \
+  --volume /path/to/socket:/path/to/socket \
+  --volume /path/to/config:/path/to/config \
+  public.ecr.aws/gravitational/tbot-distroless:(=teleport.version=) \
+  start -c /path/to/config
+```
+
+## Systemd
+
+The Systemd Workload Attestor allows you to restrict the issuance of workload
+identities to specific Systemd services. It works by interacting with Systemd's
+[D-Bus API](https://www.freedesktop.org/wiki/Software/systemd/dbus/) to
+determine the service unit of a given process.
+
+`tbot` honors the `DBUS_SYSTEM_BUS_ADDRESS` environment variable, but if it's
+not set, will default to connecting via a Unix domain socket located at
+`/var/run/dbus/system_bus_socket`.
+
+If connecting using this socket fails, `tbot` will attempt to use the socket
+located at `/run/systemd/private` instead, but this is typically only accessible
+by root.
+
+## Sigstore
+
+The Sigstore Workload Attestor allows you to restrict the issuance of workload
+identities to only workloads running signed container images, reducing the scope
+for supply chain attacks.
+
+See [Sigstore Workload Attestation](sigstore-attestation.mdx) for more information.
 
 ## Envoy SDS
 

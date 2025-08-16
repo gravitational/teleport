@@ -1,7 +1,18 @@
 ---
 title: Database Access with Azure PostgreSQL and MySQL
+sidebar_label: Azure PostgreSQL/MySQL
 description: How to configure Teleport database access with Azure Database for PostgreSQL and MySQL.
+labels:
+ - how-to
+ - zero-trust
 ---
+
+{/*
+Don't lint the presence of "Azure AD" until we change the guide to apply to
+Entra ID: https://github.com/gravitational/teleport/issues/47776
+*/}
+
+{/* vale 3rd-party-products.former-names = NO */}
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Azure PostgreSQL or MySQL" dbConfigure="with Microsoft Entra ID-based authentication"!)
 
@@ -18,10 +29,10 @@ database.
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access Azure PostgreSQL/MySQL Self-Hosted](../../../../img/database-access/guides/azure_selfhosted.png)
+![Enrolling Azure PostgreSQL/MySQL with a self-hosted Teleport cluster](../../../../img/database-access/guides/azure_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access Azure PostgreSQL/MySQL Cloud](../../../../img/database-access/guides/azure_cloud.png)
+![Enrolling Azure PostgreSQL/MySQL with a cloud-hosted Teleport cluster](../../../../img/database-access/guides/azure_cloud.png)
 </TabItem>
 </Tabs>
 
@@ -94,15 +105,11 @@ more information.
 Go to the [Subscriptions](https://portal.azure.com/#view/Microsoft_Azure_Billing/SubscriptionsBlade) page and select a subscription.
 
 Click on *Access control (IAM)* in the subscription and select *Add > Add custom role*:
-<Figure align="left">
 ![IAM custom role](../../../../img/azure/add-custom-role@2x.png)
-</Figure>
 
 In the custom role creation page, click the *JSON* tab and click *Edit*, then paste the JSON example
 and replace the subscription in "assignableScopes" with your own subscription id:
-<Figure align="left">
 ![Create JSON role](../../../../img/database-access/guides/azure/create-role-from-json@2x.png)
-</Figure>
 
 ### Create a role assignment for the Teleport Database Service principal
 

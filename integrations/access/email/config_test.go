@@ -80,7 +80,7 @@ func TestRecipients(t *testing.T) {
 			[role_to_recipients]
 			"dev" = ["dev@example.org","sre@example.org"]
 			`,
-			expectErr: func(tt require.TestingT, e error, i ...interface{}) {
+			expectErr: func(tt require.TestingT, e error, i ...any) {
 				require.Error(t, e)
 				require.True(t, trace.IsBadParameter(e))
 			},
@@ -98,7 +98,7 @@ func TestRecipients(t *testing.T) {
             "dev" = "email@example.org"
 			"*" = []
 			`,
-			expectErr: func(tt require.TestingT, e error, i ...interface{}) {
+			expectErr: func(tt require.TestingT, e error, i ...any) {
 				require.Error(t, e)
 				require.True(t, trace.IsBadParameter(e))
 			},
@@ -112,7 +112,7 @@ func TestRecipients(t *testing.T) {
             [delivery]
             sender = "email@example.org"
 			`,
-			expectErr: func(tt require.TestingT, e error, i ...interface{}) {
+			expectErr: func(tt require.TestingT, e error, i ...any) {
 				require.Error(t, e)
 				require.True(t, trace.IsBadParameter(e))
 			},
@@ -128,7 +128,7 @@ func TestRecipients(t *testing.T) {
 			"dev" = ["dev@example.org","admin@example.org"]
 			"*" = "admin@example.org"
 			`,
-			expectErr: func(tt require.TestingT, e error, i ...interface{}) {
+			expectErr: func(tt require.TestingT, e error, i ...any) {
 				require.Error(t, e)
 				require.True(t, trace.IsBadParameter(e))
 			},
@@ -222,7 +222,7 @@ func TestSMTPStartTLSPolicy(t *testing.T) {
 			[role_to_recipients]
 			"*" = "admin@example.org"
 			`,
-			expectErr: func(tt require.TestingT, e error, i ...interface{}) {
+			expectErr: func(tt require.TestingT, e error, i ...any) {
 				require.Error(t, e)
 				require.True(t, trace.IsBadParameter(e))
 				require.Contains(t, e.Error(), "invalid smtp.starttls_policy")

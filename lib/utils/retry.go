@@ -21,6 +21,8 @@ package utils
 import (
 	"time"
 
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
@@ -38,13 +40,14 @@ func FullJitter(d time.Duration) time.Duration { return retryutils.FullJitter(d)
 // attempting to restart "critical but potentially load-inducing" operations, such
 // as watcher or control stream resume. Exact parameters are subject to change,
 // but this retry will always be configured for automatic reset.
-func NewDefaultLinear() *retryutils.Linear {
+func NewDefaultLinear(clock clockwork.Clock) *retryutils.Linear {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		First:     retryutils.FullJitter(time.Second * 10),
 		Step:      time.Second * 15,
 		Max:       time.Second * 90,
 		Jitter:    retryutils.HalfJitter,
 		AutoReset: 5,
+		Clock:     clock,
 	})
 	if err != nil {
 		panic("default linear retry misconfigured (this is a bug)")

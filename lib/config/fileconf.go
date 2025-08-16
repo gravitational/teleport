@@ -44,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
@@ -66,6 +66,7 @@ type FileConfig struct {
 	Auth    Auth  `yaml:"auth_service,omitempty"`
 	SSH     SSH   `yaml:"ssh_service,omitempty"`
 	Proxy   Proxy `yaml:"proxy_service,omitempty"`
+	Relay   Relay `yaml:"relay_service,omitempty"`
 	Kube    Kube  `yaml:"kubernetes_service,omitempty"`
 
 	// Apps is the "app_service" section in Teleport file configuration which
@@ -143,7 +144,7 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 
 	if err := yaml.UnmarshalStrict(bytes, &fc); err != nil {
 		// Remove all newlines in the YAML error, to avoid escaping when printing.
-		return nil, trace.BadParameter("failed parsing the config file: %s", strings.Replace(err.Error(), "\n", "", -1))
+		return nil, trace.BadParameter("failed parsing the config file: %s", strings.ReplaceAll(err.Error(), "\n", ""))
 	}
 	if err := fc.CheckAndSetDefaults(); err != nil {
 		return nil, trace.BadParameter("failed to parse Teleport configuration: %v", err)
@@ -183,6 +184,8 @@ type SampleFlags struct {
 	AppName string
 	// AppURI is the internal address of the application to proxy
 	AppURI string
+	// MCPDemoServer enables the "Teleport Demo" MCP server.
+	MCPDemoServer bool
 	// NodeLabels is list of labels in the format `foo=bar,baz=bax` to add to newly created nodes.
 	NodeLabels string
 	// CAPin is the SKPI hash of the CA used to verify the Auth Server. Can be
@@ -409,17 +412,24 @@ func makeSampleProxyConfig(conf *servicecfg.Config, flags SampleFlags, enabled b
 func makeSampleAppsConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) (Apps, error) {
 	var apps Apps
 	// assume users want app role if they added app name and/or uri but didn't add app role
-	if enabled || flags.AppURI != "" || flags.AppName != "" {
-		if flags.AppURI == "" || flags.AppName == "" {
-			return Apps{}, trace.BadParameter("please provide both --app-name and --app-uri")
-		}
-
+	if enabled || flags.AppURI != "" || flags.AppName != "" || flags.MCPDemoServer {
 		apps.EnabledFlag = "yes"
-		apps.Apps = []*App{
-			{
-				Name: flags.AppName,
-				URI:  flags.AppURI,
-			},
+		apps.MCPDemoServer = flags.MCPDemoServer
+
+		switch {
+		case flags.AppURI != "" && flags.AppName != "":
+			apps.Apps = []*App{
+				{
+					Name: flags.AppName,
+					URI:  flags.AppURI,
+				},
+			}
+
+		case flags.MCPDemoServer && flags.AppURI == "" && flags.AppName == "":
+			// This is ok if only MCPDemoServer is set.
+
+		default:
+			return Apps{}, trace.BadParameter("please provide both --app-name and --app-uri")
 		}
 	}
 
@@ -551,7 +561,7 @@ type LogFormat struct {
 	ExtraFields []string `yaml:"extra_fields,omitempty"`
 }
 
-func (l *Log) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (l *Log) UnmarshalYAML(unmarshal func(any) error) error {
 	// the next two lines are needed because of an infinite loop issue
 	// https://github.com/go-yaml/yaml/issues/107
 	type logYAML Log
@@ -602,6 +612,10 @@ type Global struct {
 	Storage     backend.Config   `yaml:"storage,omitempty"`
 	AdvertiseIP string           `yaml:"advertise_ip,omitempty"`
 	CachePolicy CachePolicy      `yaml:"cache,omitempty"`
+
+	// ShutdownDelay is a fixed delay between receiving a termination signal and
+	// the beginning of the shutdown procedures.
+	ShutdownDelay types.Duration `yaml:"shutdown_delay,omitempty"`
 
 	// CipherSuites is a list of TLS ciphersuites that Teleport supports. If
 	// omitted, a Teleport selected list of defaults will be used.
@@ -731,6 +745,10 @@ type Auth struct {
 	// determines if the proxy will check the host key of the client or not.
 	ProxyChecksHostKeys *types.BoolOption `yaml:"proxy_checks_host_keys,omitempty"`
 
+	// SessionRecordingConfig configures how session recording should be handled including things like
+	// encryption and key management.
+	SessionRecordingConfig *types.SessionRecordingConfigSpecV2 `yaml:"session_recording_config,omitempty"`
+
 	// LicenseFile is a path to the license file. The path can be either absolute or
 	// relative to the global data dir
 	LicenseFile string `yaml:"license_file,omitempty"`
@@ -832,6 +850,16 @@ type AccessGraph struct {
 	CA string `yaml:"ca"`
 	// Insecure is true if the AccessGraph service should not verify the CA.
 	Insecure bool `yaml:"insecure"`
+	// AuditLog contains audit log export details.
+	AuditLog AuditLogConfig `yaml:"audit_log"`
+}
+
+// AuditLogConfig specifies the audit log event export setup.
+type AuditLogConfig struct {
+	// Enabled indicates if Audit Log event exporting is enabled.
+	Enabled bool `yaml:"enabled"`
+	// StartDate is the start date for exporting audit logs. It defaults to 90 days ago on the first export.
+	StartDate time.Time `yaml:"start_date"`
 }
 
 // Opsgenie represents the configuration for the Opsgenie plugin.
@@ -862,7 +890,8 @@ func (a *Auth) hasCustomNetworkingConfig() bool {
 func (a *Auth) hasCustomSessionRecording() bool {
 	empty := Auth{}
 	return a.SessionRecording != empty.SessionRecording ||
-		a.ProxyChecksHostKeys != empty.ProxyChecksHostKeys
+		a.ProxyChecksHostKeys != empty.ProxyChecksHostKeys ||
+		a.SessionRecordingConfig != empty.SessionRecordingConfig
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -896,6 +925,8 @@ type PKCS11 struct {
 	// Trailing newlines will be removed, other whitespace will be left. Set
 	// this or Pin to set the pin.
 	PINPath string `yaml:"pin_path,omitempty"`
+	// MaxSessions is the upper limit of sessions allowed by the HSM.
+	MaxSessions int `yaml:"max_sessions"`
 }
 
 // GoogleCloudKMS configures Google Cloud Key Management Service to to be used for
@@ -920,10 +951,7 @@ type AWSKMS struct {
 	// Region is the AWS region to use.
 	Region string `yaml:"region"`
 	// MultiRegion contains configuration for multi-region AWS KMS.
-	MultiRegion struct {
-		// Enabled configures new keys to be multi-region.
-		Enabled bool
-	} `yaml:"multi_region,omitempty"`
+	MultiRegion servicecfg.MultiRegionKeyStore `yaml:"multi_region,omitempty"`
 	// Tags are key/value pairs used as AWS resource tags. The 'TeleportCluster'
 	// tag is added automatically if not specified in the set of tags. Changing tags
 	// after Teleport has already created KMS keys may require manually updating
@@ -1042,7 +1070,7 @@ type AuthenticationConfig struct {
 	DefaultSessionTTL types.Duration `yaml:"default_session_ttl"`
 
 	// Deprecated. HardwareKey.PIVSlot should be used instead.
-	PIVSlot keys.PIVSlot `yaml:"piv_slot,omitempty"`
+	PIVSlot hardwarekey.PIVSlotKeyString `yaml:"piv_slot,omitempty"`
 
 	// HardwareKey holds settings related to hardware key support.
 	// Requires Teleport Enterprise.
@@ -1275,11 +1303,14 @@ func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
 type HardwareKey struct {
 	// PIVSlot is a PIV slot that Teleport clients should use instead of the
 	// default based on private key policy. For example, "9a" or "9e".
-	PIVSlot keys.PIVSlot `yaml:"piv_slot,omitempty"`
+	PIVSlot hardwarekey.PIVSlotKeyString `yaml:"piv_slot,omitempty"`
 
 	// SerialNumberValidation contains optional settings for hardware key
 	// serial number validation, including whether it is enabled.
 	SerialNumberValidation *HardwareKeySerialNumberValidation `yaml:"serial_number_validation,omitempty"`
+
+	// PINCacheTTL specifies how long to cache the user's PIV PIN.
+	PINCacheTTL time.Duration `yaml:"pin_cache_ttl,omitempty"`
 }
 
 func (h *HardwareKey) Parse() (*types.HardwareKey, error) {
@@ -1289,7 +1320,10 @@ func (h *HardwareKey) Parse() (*types.HardwareKey, error) {
 		}
 	}
 
-	hk := &types.HardwareKey{PIVSlot: string(h.PIVSlot)}
+	hk := &types.HardwareKey{
+		PIVSlot:     string(h.PIVSlot),
+		PinCacheTTL: types.Duration(h.PINCacheTTL),
+	}
 
 	if h.SerialNumberValidation != nil {
 		var err error
@@ -1451,6 +1485,16 @@ type SSH struct {
 	// DisableCreateHostUser disables automatic user provisioning on this
 	// SSH node.
 	DisableCreateHostUser bool `yaml:"disable_create_host_user,omitempty"`
+
+	// ForceListen enables listening on the configured ListenAddress
+	// when connected to the cluster via a reverse tunnel. If no ListenAddress is
+	// configured, the default address is used.
+	//
+	// This allows the service to be connectable by users with direct network access.
+	// All connections still require a valid user certificate to be presented and will
+	// not permit any additional access. This is intended to provide an optional connection
+	// path to reduce latency if the Proxy is not co-located with the user and service.
+	ForceListen bool `yaml:"force_listen,omitempty"`
 }
 
 // AllowTCPForwarding checks whether the config file allows TCP forwarding or not.
@@ -1490,11 +1534,7 @@ func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
 
 	cfg.DisplayOffset = x11.DefaultDisplayOffset
 	if ssh.X11.DisplayOffset != nil {
-		cfg.DisplayOffset = int(*ssh.X11.DisplayOffset)
-
-		if cfg.DisplayOffset > x11.MaxDisplayNumber {
-			cfg.DisplayOffset = x11.MaxDisplayNumber
-		}
+		cfg.DisplayOffset = min(int(*ssh.X11.DisplayOffset), x11.MaxDisplayNumber)
 	}
 
 	cfg.MaxDisplay = cfg.DisplayOffset + x11.DefaultMaxDisplays
@@ -1575,6 +1615,15 @@ type AccessGraphSync struct {
 	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
 
+// AccessGraphAWSSyncCloudTrailLogs represents the configuration for the SQS queue
+// to poll for CloudTrail notifications.
+type AccessGraphAWSSyncCloudTrailLogs struct {
+	// QueueURL is the URL of the SQS queue to poll for AWS resources.
+	QueueURL string `yaml:"queue_url,omitempty"`
+	// QueueRegion is the AWS region of the SQS queue to poll for AWS resources.
+	QueueRegion string `yaml:"queue_region,omitempty"`
+}
+
 // AccessGraphAWSSync represents the configuration for the AWS AccessGraph Sync service.
 type AccessGraphAWSSync struct {
 	// Regions are AWS regions to poll for resources.
@@ -1584,6 +1633,9 @@ type AccessGraphAWSSync struct {
 	// ExternalID is the AWS external ID to use when assuming a role for
 	// database discovery in an external AWS account.
 	ExternalID string `yaml:"external_id,omitempty"`
+	// CloudTrailLogs is the configuration for the SQS queue to poll for
+	// CloudTrail logs.
+	CloudTrailLogs *AccessGraphAWSSyncCloudTrailLogs `yaml:"cloud_trail_logs,omitempty"`
 }
 
 // AccessGraphAzureSync represents the configuration for the Azure AccessGraph Sync service.
@@ -1917,6 +1969,10 @@ type DatabaseAD struct {
 	LDAPCert string `yaml:"ldap_cert,omitempty"`
 	// KDCHostName is the host name for a KDC for x509 Authentication.
 	KDCHostName string `yaml:"kdc_host_name,omitempty"`
+	// LDAPServiceAccountName is the name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+	LDAPServiceAccountName string `yaml:"ldap_service_account_name,omitempty"`
+	// LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+	LDAPServiceAccountSID string `yaml:"ldap_service_account_sid,omitempty"`
 }
 
 // DatabaseTLS keeps TLS settings used when connecting to database.
@@ -2041,6 +2097,9 @@ type Apps struct {
 	// DebugApp turns on a header debugging application.
 	DebugApp bool `yaml:"debug_app"`
 
+	// MCPDemoServer enables the "Teleport Demo" MCP server.
+	MCPDemoServer bool `yaml:"mcp_demo_server"`
+
 	// Apps is a list of applications that will be run by this service.
 	Apps []*App `yaml:"apps"`
 
@@ -2087,6 +2146,12 @@ type App struct {
 	// be part of the authentication redirect flow and authenticate along side this app.
 	RequiredApps []string `yaml:"required_apps,omitempty"`
 
+	// UseAnyProxyPublicAddr will rebuild this app's fqdn based on the proxy public addr that the
+	// request originated from. This should be true if your proxy has multiple proxy public addrs and you
+	// want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec,
+	// setting this value to true will overwrite that public address in the web UI.
+	UseAnyProxyPublicAddr bool `yaml:"use_any_proxy_public_addr"`
+
 	// CORS defines the Cross-Origin Resource Sharing configuration for the app,
 	// controlling how resources are shared across different origins.
 	CORS *CORS `yaml:"cors,omitempty"`
@@ -2096,6 +2161,9 @@ type App struct {
 	// If this field is not empty, URI is expected to contain no port number and start with the tcp
 	// protocol.
 	TCPPorts []PortRange `yaml:"tcp_ports,omitempty"`
+
+	// MCP contains MCP server-related configurations.
+	MCP *MCP `yaml:"mcp,omitempty"`
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -2154,6 +2222,17 @@ type PortRange struct {
 	EndPort int `yaml:"end_port,omitempty"`
 }
 
+// MCP contains MCP server-related configurations.
+type MCP struct {
+	// Command to launch stdio-based MCP servers.
+	Command string `yaml:"command,omitempty"`
+	// Args to execute with the command.
+	Args []string `yaml:"args,omitempty"`
+	// RunAsHostUser is the host user account under which the command will be
+	// executed. Required for stdio-based MCP servers.
+	RunAsHostUser string `yaml:"run_as_host_user,omitempty"`
+}
+
 // Proxy is a `proxy_service` section of the config file:
 type Proxy struct {
 	// Service is a generic service configuration section
@@ -2176,6 +2255,9 @@ type Proxy struct {
 	// as only admin knows whether service is in front of trusted load balancer
 	// or not.
 	ProxyProtocol string `yaml:"proxy_protocol,omitempty"`
+	// ProxyProtocolAllowDowngrade controls support for downgrading IPv6 source addresses in PROXY headers to pseudo IPv4
+	// addresses when connecting to an IPv4 destination
+	ProxyProtocolAllowDowngrade *types.BoolOption `yaml:"proxy_protocol_allow_downgrade,omitempty"`
 	// KubeProxy configures kubernetes protocol support of the proxy
 	Kube KubeProxy `yaml:"kubernetes,omitempty"`
 	// KubeAddr is a shorthand for enabling the Kubernetes endpoint without a
@@ -2463,7 +2545,12 @@ type WindowsDesktopService struct {
 	// no effect when connecting to desktops as local Windows users.
 	KDCAddress string `yaml:"kdc_address"`
 	// Discovery configures desktop discovery via LDAP.
+	// New usages should prever DiscoveryConfigs instead, which allows for multiple searches.
 	Discovery LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
+	// DiscoveryConfigs configures desktop discovery via LDAP.
+	DiscoveryConfigs []LDAPDiscoveryConfig `yaml:"discovery_configs,omitempty"`
+	// DiscoveryInterval controls how frequently the discovery process runs.
+	DiscoveryInterval time.Duration `yaml:"discovery_interval"`
 	// ADHosts is a list of static, AD-connected Windows hosts. This gives users
 	// a way to specify AD-connected hosts that won't be found by the filters
 	// specified in `discovery` (or if `discovery` is omitted).
@@ -2492,12 +2579,14 @@ func (wds *WindowsDesktopService) Check() error {
 		return host.AD
 	})
 
-	if hasAD && wds.LDAP.Addr == "" {
+	ldapConfigOK := wds.LDAP.Domain != "" && (wds.LDAP.Addr != "" || wds.LDAP.LocateServer.Enabled)
+
+	if hasAD && !ldapConfigOK {
 		return trace.BadParameter("if Active Directory hosts are specified in the windows_desktop_service, " +
 			"the ldap configuration must also be specified")
 	}
 
-	if wds.Discovery.BaseDN != "" && wds.LDAP.Addr == "" {
+	if (wds.Discovery.BaseDN != "" || len(wds.DiscoveryConfigs) > 0) && !ldapConfigOK {
 		return trace.BadParameter("if discovery is specified in the windows_desktop_service, " +
 			"ldap configuration must also be specified")
 	}
@@ -2528,10 +2617,22 @@ type WindowsHost struct {
 	AD bool `yaml:"ad"`
 }
 
+// LocateServer contains parameters for locating LDAP servers
+// from the AD Domain
+type LocateServer struct {
+	// Enabled will automatically locate the LDAP server using DNS SRV records.
+	// When enabled, Domain must be set, Addr will be ignored
+	// https://ldap.com/dns-srv-records-for-ldap/
+	Enabled bool `yaml:"enabled,omitempty"`
+	// Site is an LDAP site to locate servers from a specific logical site.
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/b645c125-a7da-4097-84a1-2fa7cea07714#gt_8abdc986-5679-42d9-ad76-b11eb5a0daba
+	Site string `yaml:"site,omitempty"`
+}
+
 // LDAPConfig is the LDAP connection parameters.
 type LDAPConfig struct {
 	// Addr is the host:port of the LDAP server (typically port 389).
-	Addr string `yaml:"addr"`
+	Addr string `yaml:"addr,omitempty"`
 	// Domain is the ActiveDirectory domain name.
 	Domain string `yaml:"domain"`
 	// Username for LDAP authentication.
@@ -2546,6 +2647,8 @@ type LDAPConfig struct {
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
 	// PEMEncodedCACert is an optional PEM encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	PEMEncodedCACert string `yaml:"ldap_ca_cert,omitempty"`
+	// LocateServer is the config that enables LDAP server location using DNS SRV records.
+	LocateServer `yaml:"locate_server"`
 }
 
 // LDAPDiscoveryConfig is LDAP discovery configuration for windows desktop discovery service.
@@ -2563,6 +2666,9 @@ type LDAPDiscoveryConfig struct {
 	// discovered desktops having a label with key "ldap/location" and
 	// the value being the value of the "location" attribute.
 	LabelAttributes []string `yaml:"label_attributes"`
+	// RDPPort is the port to use for RDP for hosts discovered with this configuration.
+	// Optional, defaults to 3389 if unspecified.
+	RDPPort int `yaml:"rdp_port"`
 }
 
 // TracingService contains configuration for the tracing_service.
@@ -2797,4 +2903,18 @@ func readJamfPasswordFile(path, key string) (string, error) {
 	}
 
 	return pwd, nil
+}
+
+// Relay is the relay_service section of the Teleport config file.
+type Relay struct {
+	// Enabled is set if the relay service is enabled, defaults to false.
+	Enabled bool `yaml:"enabled"`
+
+	// RelayGroup is the Relay group name, required if the relay service is
+	// enabled.
+	RelayGroup string `yaml:"relay_group"`
+
+	// APIPublicHostnames is the list of DNS names and IP addresses that the
+	// Relay service credentials should be authoritative for.
+	APIPublicHostnames []string `yaml:"api_public_hostnames"`
 }

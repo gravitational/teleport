@@ -26,29 +26,60 @@ import (
 )
 
 func TestIDTokenSource_GetIDToken(t *testing.T) {
-	t.Run("value present", func(t *testing.T) {
-		its := &IDTokenSource{
-			getEnv: func(key string) string {
-				if key == "TBOT_GITLAB_JWT" {
-					return "foo"
+	makeConfig := func(
+		t *testing.T,
+		configuredEnvVar string,
+		wantKey string,
+		returnValue string,
+	) IDTokenSourceConfig {
+		return IDTokenSourceConfig{
+			EnvVarName: configuredEnvVar,
+			EnvGetter: func(gotKey string) string {
+				if gotKey == wantKey {
+					return returnValue
 				}
+				t.Errorf("Expected key %q, got %q", wantKey, gotKey)
 				return ""
 			},
 		}
+	}
+	t.Run("value present", func(t *testing.T) {
+		cfg := makeConfig(
+			t,
+			"",
+			"TBOT_GITLAB_JWT",
+			"foo",
+		)
+		its := NewIDTokenSource(cfg)
 		tok, err := its.GetIDToken()
 		require.NoError(t, err)
 		require.Equal(t, "foo", tok)
 	})
 
 	t.Run("value missing", func(t *testing.T) {
-		its := &IDTokenSource{
-			getEnv: func(key string) string {
-				return ""
-			},
-		}
+		cfg := makeConfig(
+			t,
+			"",
+			"TBOT_GITLAB_JWT",
+			"",
+		)
+		its := NewIDTokenSource(cfg)
 		tok, err := its.GetIDToken()
 		require.Error(t, err)
 		require.True(t, trace.IsBadParameter(err))
-		require.Equal(t, "", tok)
+		require.Empty(t, tok)
+	})
+
+	t.Run("overridden env value present", func(t *testing.T) {
+		cfg := makeConfig(
+			t,
+			"OVERRIDDEN",
+			"OVERRIDDEN",
+			"foo",
+		)
+		its := NewIDTokenSource(cfg)
+		tok, err := its.GetIDToken()
+		require.NoError(t, err)
+		require.Equal(t, "foo", tok)
 	})
 }

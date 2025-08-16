@@ -76,7 +76,7 @@ export function SelectorMenu() {
   const { rootClusterUri } = useWorkspaceContext();
   const ctx = useAppContext();
   const { clustersService } = ctx;
-  const selectorRef = useRef<HTMLButtonElement>();
+  const selectorRef = useRef<HTMLButtonElement>(null);
   const { requestResourcesRefresh } = useResourcesContext(rootClusterUri);
   const loggedInUser = useLoggedInUser();
   const username = loggedInUser?.name;

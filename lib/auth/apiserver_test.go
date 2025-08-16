@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"bytes"
@@ -33,6 +33,7 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -106,7 +107,6 @@ func TestUpsertServer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			// Set up backend to upsert servers into.
@@ -115,13 +115,13 @@ func TestUpsertServer(t *testing.T) {
 			// Create a fake HTTP request.
 			inSrv, err := services.MarshalServer(tt.reqServer)
 			require.NoError(t, err)
-			body, err := json.Marshal(upsertServerRawReq{Server: inSrv})
+			body, err := json.Marshal(auth.UpsertServerRawReq{Server: inSrv})
 			require.NoError(t, err)
 			req := httptest.NewRequest(http.MethodPost, "http://localhost", bytes.NewReader(body))
 			req.RemoteAddr = remoteAddr
 			req.Header.Add("Content-Type", "application/json")
 
-			_, err = new(APIServer).upsertServer(s, tt.role, req, httprouter.Params{httprouter.Param{Key: "namespace", Value: apidefaults.Namespace}})
+			_, err = auth.UpsertServer(new(auth.APIServer), s, tt.role, req, httprouter.Params{httprouter.Param{Key: "namespace", Value: apidefaults.Namespace}})
 			tt.assertErr(t, err)
 			if err != nil {
 				return

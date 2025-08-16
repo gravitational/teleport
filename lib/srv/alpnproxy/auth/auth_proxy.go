@@ -39,7 +39,7 @@ import (
 )
 
 type sitesGetter interface {
-	GetSites() ([]reversetunnelclient.RemoteSite, error)
+	GetSites() ([]reversetunnelclient.Cluster, error)
 }
 
 // NewAuthProxyDialerService create new instance of AuthProxyDialerService.
@@ -193,7 +193,7 @@ func (s *AuthProxyDialerService) proxyConn(ctx context.Context, upstreamConn, do
 		errC <- trace.Wrap(err)
 	}()
 	var errs []error
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())

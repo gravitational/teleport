@@ -24,6 +24,8 @@ import {
   BorderProps,
   borders,
   BordersProps,
+  boxShadow,
+  BoxShadowProps,
   color,
   ColorProps,
   flex,
@@ -68,6 +70,7 @@ export interface BoxProps
     JustifySelfProps,
     BorderProps,
     BordersProps,
+    BoxShadowProps,
     OverflowProps {}
 
 const Box = styled.div<BoxProps>`
@@ -86,6 +89,7 @@ const Box = styled.div<BoxProps>`
   ${alignSelf}
   ${justifySelf}
   ${borders}
+  ${boxShadow}
   ${overflow}
 `;
 

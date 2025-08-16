@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -59,19 +60,17 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/proxy"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	authorizedkeysreporter "github.com/gravitational/teleport/lib/secretsscanner/authorizedkeys"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/ingress"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/networking"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
-	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
 // Server implements SSH server that uses configuration backend and
@@ -199,7 +198,7 @@ type Server struct {
 	lockWatcher *services.LockWatcher
 
 	// connectedProxyGetter gets the proxies teleport is connected to.
-	connectedProxyGetter *reversetunnel.ConnectedProxyGetter
+	connectedProxyGetter reversetunnelclient.ConnectedProxyGetter
 
 	// createHostUser configures whether a host should allow host user
 	// creation
@@ -240,6 +239,9 @@ type Server struct {
 	// stableUnixUsers is used to obtain fallback UIDs for host user
 	// provisioning from the control plane.
 	stableUnixUsers stableunixusersv1.StableUNIXUsersServiceClient
+
+	// enableSELinux configures whether SELinux support is enable or not.
+	enableSELinux bool
 }
 
 // TargetMetadata returns metadata about the server.
@@ -323,6 +325,12 @@ func (s *Server) GetHostSudoers() srv.HostSudoers {
 		return &srv.HostSudoersNotImplemented{}
 	}
 	return s.sudoers
+}
+
+// GetSELinuxEnabled returns whether the node should enable SELinux
+// support or not.
+func (s *Server) GetSELinuxEnabled() bool {
+	return s.enableSELinux
 }
 
 // ServerOption is a functional option passed to the server
@@ -663,7 +671,7 @@ func SetAllowFileCopying(allow bool) ServerOption {
 }
 
 // SetConnectedProxyGetter sets the ConnectedProxyGetter.
-func SetConnectedProxyGetter(getter *reversetunnel.ConnectedProxyGetter) ServerOption {
+func SetConnectedProxyGetter(getter reversetunnelclient.ConnectedProxyGetter) ServerOption {
 	return func(s *Server) error {
 		s.connectedProxyGetter = getter
 		return nil
@@ -712,6 +720,15 @@ func SetStableUNIXUsers(stableUNIXUsers stableunixusersv1.StableUNIXUsersService
 	}
 }
 
+// GetSELinuxEnabled returns whether the node should enable SELinux
+// support or not.
+func SetSELinuxEnabled(enabled bool) ServerOption {
+	return func(s *Server) error {
+		s.enableSELinux = enabled
+		return nil
+	}
+}
+
 // SetPublicAddrs sets the server's public addresses
 func SetPublicAddrs(addrs []utils.NetAddr) ServerOption {
 	return func(s *Server) error {
@@ -733,25 +750,19 @@ func New(
 	auth authclient.ClientI,
 	options ...ServerOption,
 ) (*Server, error) {
-	// read the host UUID:
-	uuid, err := hostid.ReadOrCreateFile(dataDir)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	ctx, cancel := context.WithCancel(ctx)
 	s := &Server{
 		addr:               addr,
 		authService:        authService,
 		hostname:           hostname,
 		proxyPublicAddr:    proxyPublicAddr,
-		uuid:               uuid,
 		cancel:             cancel,
 		ctx:                ctx,
 		clock:              clockwork.NewRealClock(),
 		dataDir:            dataDir,
 		allowTCPForwarding: true,
 	}
+	var err error
 	s.limiter, err = limiter.NewLimiter(limiter.Config{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -767,6 +778,10 @@ func New(
 		if err := o(s); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	if s.uuid == "" {
+		return nil, trace.BadParameter("server UUID must be set using SetUUID")
 	}
 
 	// TODO(klizhentas): replace function arguments with struct
@@ -787,7 +802,7 @@ func New(
 	}
 
 	if s.connectedProxyGetter == nil {
-		s.connectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
+		return nil, trace.BadParameter("setup valid ConnectedProxyGetter parameter using SetConnectedProxyGetter")
 	}
 
 	if s.tracerProvider == nil {
@@ -836,7 +851,7 @@ func New(
 		SessionRegistry: s.reg,
 	}
 
-	clusterName, err := s.GetAccessPoint().GetClusterName()
+	clusterName, err := s.GetAccessPoint().GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -914,12 +929,12 @@ func (s *Server) getNamespace() string {
 }
 
 func (s *Server) tunnelWithAccessChecker(ctx *srv.ServerContext) (reversetunnelclient.Tunnel, error) {
-	clusterName, err := s.GetAccessPoint().GetClusterName()
+	clusterName, err := s.GetAccessPoint().GetClusterName(s.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return reversetunnelclient.NewTunnelWithRoles(s.proxyTun, clusterName.GetClusterName(), ctx.Identity.AccessChecker, s.proxyAccessPoint), nil
+	return reversetunnelclient.NewTunnelWithRoles(s.proxyTun, clusterName.GetClusterName(), ctx.Identity.UnstableClusterAccessChecker, s.proxyAccessPoint), nil
 }
 
 // startAuthorizedKeysManager starts the authorized keys manager.
@@ -1057,9 +1072,7 @@ func (s *Server) getDynamicLabels() map[string]types.CommandLabelV2 {
 // getAllLabels return a combination of static and dynamic labels.
 func (s *Server) getAllLabels() map[string]string {
 	lmap := make(map[string]string)
-	for key, value := range s.getStaticLabels() {
-		lmap[key] = value
-	}
+	maps.Copy(lmap, s.getStaticLabels())
 	for key, cmd := range s.getDynamicLabels() {
 		lmap[key] = cmd.Result
 	}
@@ -1380,7 +1393,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	// commands on a server, subsystem requests, and agent forwarding.
 	case teleport.ChanSession:
 		var decr func()
-		if max := identityContext.AccessChecker.MaxSessions(); max != 0 {
+		if max := identityContext.AccessPermit.MaxSessions; max != 0 {
 			d, ok := ccx.IncrSessions(max)
 			if !ok {
 				// user has exceeded their max concurrent ssh sessions.
@@ -1460,7 +1473,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 // canPortForward determines if port forwarding is allowed for the current
 // user/role/node combo. Returns nil if port forwarding is allowed, non-nil
 // if denied.
-func (s *Server) canPortForward(scx *srv.ServerContext, mode services.SSHPortForwardMode) error {
+func (s *Server) canPortForward(scx *srv.ServerContext, mode decisionpb.SSHPortForwardMode) error {
 	// Is the node configured to allow port forwarding?
 	if !s.allowTCPForwarding {
 		return trace.AccessDenied("node does not allow port forwarding")
@@ -1512,7 +1525,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 
 	// Bail out now if TCP port forwarding is not allowed for this node/user/role
 	// combo
-	if err = s.canPortForward(scx, services.SSHPortForwardModeLocal); err != nil {
+	if err = s.canPortForward(scx, decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL); err != nil {
 		s.writeStderr(ctx, channel, err.Error())
 		return
 	}
@@ -1836,7 +1849,9 @@ func (s *Server) serveAgent(ctx context.Context, scx *srv.ServerContext) error {
 
 	// start an agent server on a unix socket.  each incoming connection
 	// will result in a separate agent request.
-	agentServer := teleagent.NewServer(scx.Parent().StartAgentChannel)
+	agentServer := sshagent.NewServer(func() (sshagent.Client, error) {
+		return scx.Parent().StartAgentChannel()
+	})
 	agentServer.SetListener(listener)
 	scx.Parent().AddCloser(agentServer)
 	scx.Parent().SetEnv(teleport.SSHAuthSock, listener.Addr().String())
@@ -2206,7 +2221,7 @@ func (s *Server) createForwardingContext(ctx context.Context, ccx *sshutils.Conn
 	scx.SessionRecordingConfig.SetMode(types.RecordOff)
 	scx.SetAllowFileCopying(s.allowFileCopying)
 
-	if err := s.canPortForward(scx, services.SSHPortForwardModeRemote); err != nil {
+	if err := s.canPortForward(scx, decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_REMOTE); err != nil {
 		scx.Close()
 		return nil, nil, trace.Wrap(err)
 	}
@@ -2388,11 +2403,11 @@ func (s *Server) parseSubsystemRequest(ctx context.Context, req *ssh.Request, se
 		}
 	}
 
-	switch {
+	switch r.Name {
 	// DELETE IN 15.0.0 (deprecated, tsh will not be using this anymore)
-	case r.Name == teleport.GetHomeDirSubsystem:
+	case teleport.GetHomeDirSubsystem:
 		return newHomeDirSubsys(), nil
-	case r.Name == teleport.SFTPSubsystem:
+	case teleport.SFTPSubsystem:
 		err := serverContext.CheckSFTPAllowed(s.reg)
 		if err != nil {
 			s.emitAuditEventWithLog(context.Background(), &apievents.SFTP{

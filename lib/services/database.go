@@ -190,6 +190,9 @@ func ValidateDatabase(db types.Database) error {
 			if db.GetAD().LDAPCert == "" {
 				return trace.BadParameter("missing LDAP certificate for x509 authentication for database %q", db.GetName())
 			}
+			if _, err := tlsca.ParseCertificatePEM([]byte(db.GetAD().LDAPCert)); err != nil {
+				return trace.BadParameter("provided database %q LDAP certificate doesn't appear to be valid: %v", db.GetName(), err)
+			}
 		}
 	}
 

@@ -72,7 +72,7 @@ type WorkloadIdentityServiceConfig struct {
 // function.
 type WorkloadIdentityCacher interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 	GetProxies() ([]types.Server, error)
 }
 
@@ -339,7 +339,7 @@ func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.S
 	}
 
 	// Fetch info that will be needed for all SPIFFE SVIDs requested
-	clusterName, err := wis.cache.GetClusterName()
+	clusterName, err := wis.cache.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting cluster name")
 	}
@@ -494,7 +494,7 @@ func (wis *WorkloadIdentityService) SignJWTSVIDs(
 	}
 
 	// Fetch info that will be needed to create the SVIDs
-	clusterName, err := wis.cache.GetClusterName()
+	clusterName, err := wis.cache.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting cluster name")
 	}

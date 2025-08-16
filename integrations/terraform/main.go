@@ -17,6 +17,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
@@ -25,7 +26,13 @@ import (
 )
 
 func main() {
+	var debug bool
+
+	flag.BoolVar(&debug, "debug", false, "Set to true to enable debugging mode using delve")
+	flag.Parse()
+
 	err := providerserver.Serve(context.Background(), provider.New, providerserver.ServeOpts{
+		Debug:   debug,
 		Address: "terraform.releases.teleport.dev/gravitational/teleport",
 	})
 	if err != nil {

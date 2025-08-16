@@ -1,9 +1,15 @@
 ---
 title: Database Access with Redis Cluster
+sidebar_label: Redis Cluster
 description: How to configure Teleport database access with Redis Cluster.
+labels:
+ - how-to
+ - zero-trust
 ---
 
+{/* vale messaging.protocol-products = NO */}
 If you want to configure Redis Standalone, please read [Database Access with Redis](redis.mdx).
+{/* vale messaging.protocol-products = YES */}
 
 (!docs/pages/includes/database-access/self-hosted-introduction.mdx dbType="Redis cluster"!)
 
@@ -154,7 +160,8 @@ databases:
 Redis in cluster mode does not support the following commands. If one of the listed commands above is called Teleport
 returns the <nobr>`ERR Teleport: command not supported`</nobr> error.
 
-<Details title="Unsupported commands">
+<details>
+<summary>Unsupported commands</summary>
 - `ACL`
 - `ASKING`
 - `CLIENT`
@@ -193,7 +200,7 @@ returns the <nobr>`ERR Teleport: command not supported`</nobr> error.
 - `TIME`
 - `WAIT`
 - `WATCH`
-</Details>
+</details>
 
 Teleport conducts additional processing on the following commands before 
 communicating with Redis Cluster:

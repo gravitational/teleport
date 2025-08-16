@@ -17,7 +17,7 @@
  */
 
 import { forwardRef, useRef } from 'react';
-import { Transition, TransitionStatus } from 'react-transition-group';
+import { CSSTransition } from 'react-transition-group';
 import { css } from 'styled-components';
 
 import Dialog from 'design/Dialog';
@@ -27,6 +27,8 @@ import { RoleWithYaml } from 'teleport/services/resources';
 
 import { RolesProps } from '../Roles';
 import { RoleEditorAdapter } from './RoleEditorAdapter';
+
+const animationDuration = 300;
 
 /**
  * Renders a full-screen dialog with a slide-in effect.
@@ -40,32 +42,40 @@ export function RoleEditorDialog({
   resources,
   onSave,
   roleDiffProps,
+  forceProcessingStatus = false,
 }: {
   open: boolean;
   onClose(): void;
   resources: ResourcesState;
   onSave(role: Partial<RoleWithYaml>): Promise<void>;
+  /**
+   * Forces this dialog to remain in the processing state while
+   * whatever required processing outside of this dialog finishes.
+   *
+   * eg: Clicking on a role label triggers rendering this dialog
+   * and fetching the role resource at the same time. The fetching
+   * can still be in progress.
+   */
+  forceProcessingStatus?: boolean;
 } & RolesProps) {
-  const transitionRef = useRef<HTMLDivElement>();
+  const transitionRef = useRef<HTMLDivElement>(null);
   return (
-    <Transition
+    <CSSTransition
       in={open}
       nodeRef={transitionRef}
-      timeout={300}
+      timeout={animationDuration}
       mountOnEnter
       unmountOnExit
     >
-      {transitionState => (
-        <DialogInternal
-          ref={transitionRef}
-          onClose={onClose}
-          transitionState={transitionState}
-          resources={resources}
-          onSave={onSave}
-          roleDiffProps={roleDiffProps}
-        />
-      )}
-    </Transition>
+      <DialogInternal
+        ref={transitionRef}
+        onClose={onClose}
+        resources={resources}
+        onSave={onSave}
+        roleDiffProps={roleDiffProps}
+        forceProcessingStatus={forceProcessingStatus}
+      />
+    </CSSTransition>
   );
 }
 
@@ -73,56 +83,108 @@ const DialogInternal = forwardRef<
   HTMLDivElement,
   {
     onClose(): void;
-    transitionState: TransitionStatus;
     resources: ResourcesState;
     onSave(role: Partial<RoleWithYaml>): Promise<void>;
+    forceProcessingStatus?: boolean;
   } & RolesProps
->(({ onClose, transitionState, resources, onSave, roleDiffProps }, ref) => {
-  return (
-    <Dialog
-      dialogCss={() => fullScreenDialogCss()}
-      disableEscapeKeyDown={false}
-      open={true}
-      ref={ref}
-      className={transitionState}
-    >
-      <RoleEditorAdapter
-        resources={resources}
-        onSave={onSave}
-        onCancel={onClose}
-        roleDiffProps={roleDiffProps}
-      />
-    </Dialog>
-  );
-});
+>(
+  (
+    {
+      onClose,
+      resources,
+      onSave,
+      roleDiffProps,
+      forceProcessingStatus = false,
+    },
+    ref
+  ) => {
+    return (
+      <Dialog
+        modalCss={() => modalCss}
+        disableEscapeKeyDown={false}
+        open={true}
+        modalRef={ref}
+        BackdropProps={{ className: 'backdrop' }}
+        className="dialog"
+      >
+        <RoleEditorAdapter
+          resources={resources}
+          onSave={onSave}
+          onCancel={onClose}
+          roleDiffProps={roleDiffProps}
+          forceProcessingStatus={forceProcessingStatus}
+        />
+      </Dialog>
+    );
+  }
+);
 
-const fullScreenDialogCss = () => css`
-  padding: 0;
-  width: 100%;
-  height: 100%;
-  max-height: 100%;
-  right: 0;
-  border-radius: 0;
-  overflow-y: hidden;
-  flex-direction: row;
-  background: ${props => props.theme.colors.levels.sunken};
-  transition: width 300ms ease-out;
-
-  &.entering {
-    right: -100%;
+const modalCss = css`
+  & .dialog {
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+    right: 0;
+    border-radius: 0;
+    overflow-y: hidden;
+    flex-direction: row;
+    background: ${props => props.theme.colors.levels.sunken};
   }
 
-  &.entered {
-    right: 0px;
-    transition: right 300ms ease-out;
+  &.enter {
+    .backdrop {
+      opacity: 0;
+    }
+
+    .dialog {
+      transform: scale(0.8);
+      opacity: 0;
+    }
   }
 
-  &.exiting {
-    right: -100%;
-    transition: right 300ms ease-out;
+  &.enter-active {
+    .backdrop {
+      opacity: 100%;
+      // Chakra likes to globally disable transitions when mounting the access
+      // graph component, and it does so with an !important rule matching all
+      // elements. We override it with our own !important rule.
+      transition: opacity ${animationDuration}ms ease-out !important;
+    }
+
+    .dialog {
+      transform: scale(1);
+      opacity: 100%;
+      // See the comment above about the !important hack.
+      transition:
+        transform ${animationDuration}ms ease-out,
+        opacity ${animationDuration}ms ease-out !important;
+    }
   }
 
-  &.exited {
-    right: -100%;
+  &.exit {
+    .backdrop {
+      opacity: 100%;
+    }
+
+    .dialog {
+      transform: scale(1);
+      opacity: 100%;
+    }
+  }
+
+  &.exit-active {
+    .backdrop {
+      opacity: 0;
+      transition: opacity ${animationDuration}ms ease-in;
+    }
+
+    .dialog {
+      transform: scale(0.8);
+      opacity: 0;
+      transition:
+        transform ${animationDuration}ms ease-in,
+        opacity ${animationDuration}ms ease-in;
+    }
   }
 `;

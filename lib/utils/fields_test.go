@@ -33,7 +33,7 @@ func TestFields(t *testing.T) {
 	now := time.Now().Round(time.Minute)
 
 	sliceString := []string{"test", "string", "slice"}
-	sliceInterface := []interface{}{"test", "string", "slice"}
+	sliceInterface := []any{"test", "string", "slice"}
 	f := Fields{
 		"one":      1,
 		"name":     "vincent",
@@ -45,7 +45,7 @@ func TestFields(t *testing.T) {
 	require.Equal(t, 1, f.GetInt("one"))
 	require.Equal(t, 0, f.GetInt("two"))
 	require.Equal(t, "vincent", f.GetString("name"))
-	require.Equal(t, "", f.GetString("city"))
+	require.Empty(t, f.GetString("city"))
 	require.Equal(t, now, f.GetTime("time"))
 	require.Equal(t, sliceString, f.GetStrings("strings"))
 	require.Equal(t, sliceString, f.GetStrings("strings2"))

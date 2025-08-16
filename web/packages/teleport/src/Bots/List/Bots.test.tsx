@@ -19,6 +19,7 @@
 import { MemoryRouter } from 'react-router';
 
 import { render, screen, userEvent, waitFor } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { botsApiResponseFixture } from 'teleport/Bots/fixtures';
 import { ContextProvider } from 'teleport/index';
@@ -38,7 +39,9 @@ function renderWithContext(element, ctx?: TeleportContext) {
   }
   return render(
     <MemoryRouter>
-      <ContextProvider ctx={ctx}>{element}</ContextProvider>
+      <InfoGuidePanelProvider>
+        <ContextProvider ctx={ctx}>{element}</ContextProvider>
+      </InfoGuidePanelProvider>
     </MemoryRouter>
   );
 }
@@ -76,37 +79,6 @@ test('shows missing permissions error if user lacks permissions to list', async 
   expect(
     screen.getByText(/You do not have permission to access Bots/i)
   ).toBeInTheDocument();
-});
-
-test('calls edit endpoint', async () => {
-  jest
-    .spyOn(api, 'get')
-    .mockResolvedValueOnce({ ...botsApiResponseFixture })
-    .mockResolvedValueOnce(['role-1', 'editor']);
-  jest.spyOn(api, 'put').mockResolvedValue({});
-  renderWithContext(<Bots />);
-
-  await waitFor(() => {
-    expect(
-      screen.getByText(botsApiResponseFixture.items[0].metadata.name)
-    ).toBeInTheDocument();
-  });
-
-  const actionCells = screen.queryAllByRole('button', { name: 'Options' });
-  expect(actionCells).toHaveLength(botsApiResponseFixture.items.length);
-  await userEvent.click(actionCells[0]);
-
-  expect(screen.getByText('Edit...')).toBeInTheDocument();
-  await userEvent.click(screen.getByText('Edit...'));
-
-  expect(screen.getByText('Edit Bot')).toBeInTheDocument();
-  await userEvent.click(screen.queryByRole('button', { name: 'Save' }));
-
-  expect(screen.queryByText('Edit Bot')).not.toBeInTheDocument();
-  expect(api.put).toHaveBeenCalledWith(
-    `/v1/webapi/sites/localhost/machine-id/bot/${botsApiResponseFixture.items[0].metadata.name}`,
-    { roles: ['bot-bot-role'] }
-  );
 });
 
 test('calls delete endpoint', async () => {

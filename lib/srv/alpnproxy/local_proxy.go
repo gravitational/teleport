@@ -322,8 +322,8 @@ func (l *LocalProxy) makeHTTPReverseProxy(certs ...tls.Certificate) *httputil.Re
 			errHeader := response.Header.Get(commonApp.TeleportAPIErrorHeader)
 			if errHeader != "" {
 				// TODO: find a cleaner way of formatting the error.
-				errHeader = strings.Replace(errHeader, " \t", "\n\t", -1)
-				errHeader = strings.Replace(errHeader, " User Message:", "\n\n\tUser Message:", -1)
+				errHeader = strings.ReplaceAll(errHeader, " \t", "\n\t")
+				errHeader = strings.ReplaceAll(errHeader, " User Message:", "\n\n\tUser Message:")
 				l.cfg.Log.WarnContext(response.Request.Context(), "Server response contained an error header", "error_header", errHeader)
 			}
 			for _, infoHeader := range response.Header.Values(commonApp.TeleportAPIInfoHeader) {

@@ -30,7 +30,7 @@ teleport:
   # ```
   #
   # Check out the [Access Requests with
-  # Jira](../../admin-guides/access-controls/access-request-plugins/ssh-approval-jira.mdx) guide
+  # Jira](../../identity-governance/access-request-plugins/ssh-approval-jira.mdx) guide
   # for more information about how to acquire these credentials.
   identityFromSecret: ""
   # teleport.identitySecretPath(string) -- is the key in the Kubernetes secret

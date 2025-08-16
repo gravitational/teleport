@@ -21,6 +21,7 @@ import { setupServer } from 'msw/node';
 import { MemoryRouter, Route } from 'react-router-dom';
 
 import { render, screen, waitFor } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import cfg from 'teleport/config';
 import { ContextProvider } from 'teleport/index';
@@ -34,9 +35,11 @@ function renderElement(element, ctx) {
   return render(
     <MemoryRouter initialEntries={[`/clusters/cluster-id`]}>
       <Route path="/clusters/:clusterId">
-        <ContentMinWidth>
-          <ContextProvider ctx={ctx}>{element}</ContextProvider>
-        </ContentMinWidth>
+        <InfoGuidePanelProvider>
+          <ContentMinWidth>
+            <ContextProvider ctx={ctx}>{element}</ContextProvider>
+          </ContentMinWidth>
+        </InfoGuidePanelProvider>
       </Route>
     </MemoryRouter>
   );

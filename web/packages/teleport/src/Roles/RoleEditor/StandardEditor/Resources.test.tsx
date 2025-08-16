@@ -44,7 +44,6 @@ import {
 } from './standardmodel';
 import { StatefulSection } from './StatefulSection';
 import {
-  GitHubOrganizationAccessValidationResult,
   ResourceAccessValidationResult,
   validateResourceAccess,
 } from './validation';
@@ -69,7 +68,6 @@ describe('ServerAccessSection', () => {
 
   test('editing', async () => {
     const { user, onChange } = setup();
-    await user.click(screen.getByRole('button', { name: 'Add a Label' }));
     await user.type(screen.getByPlaceholderText('label key'), 'some-key');
     await user.type(screen.getByPlaceholderText('label value'), 'some-value');
     await selectEvent.create(screen.getByLabelText('Logins'), 'root', {
@@ -90,12 +88,13 @@ describe('ServerAccessSection', () => {
         expect.objectContaining({ label: 'root', value: 'root' }),
         expect.objectContaining({ label: 'some-user', value: 'some-user' }),
       ],
+      hideValidationErrors: true,
     } as ServerAccess);
   });
 
   test('validation', async () => {
     const { user, validator } = setup();
-    await user.click(screen.getByRole('button', { name: 'Add a Label' }));
+    await user.type(screen.getByPlaceholderText('label value'), 'some-value');
     await selectEvent.create(screen.getByLabelText('Logins'), '*', {
       createOptionText: 'Login: *',
     });
@@ -140,7 +139,6 @@ describe('KubernetesAccessSection', () => {
       createOptionText: 'Group: group2',
     });
 
-    await user.click(screen.getByRole('button', { name: 'Add a Label' }));
     await user.type(screen.getByPlaceholderText('label key'), 'some-key');
     await user.type(screen.getByPlaceholderText('label value'), 'some-value');
 
@@ -151,13 +149,18 @@ describe('KubernetesAccessSection', () => {
       createOptionText: 'User: mary',
     });
 
-    await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Add a Kubernetes Resource' })
+    );
     expect(
-      reactSelectValueContainer(screen.getByLabelText('Kind'))
+      reactSelectValueContainer(screen.getByLabelText('Kind (plural)'))
     ).toHaveTextContent('Any kind');
+    expect(screen.getByLabelText('API Group *')).toHaveValue('*');
     expect(screen.getByLabelText('Name *')).toHaveValue('*');
     expect(screen.getByLabelText('Namespace *')).toHaveValue('*');
-    await selectEvent.select(screen.getByLabelText('Kind'), 'Job');
+    await selectEvent.select(screen.getByLabelText('Kind (plural)'), 'jobs');
+    await user.clear(screen.getByLabelText('API Group *'));
+    await user.type(screen.getByLabelText('API Group *'), 'api-group-name');
     await user.clear(screen.getByLabelText('Name *'));
     await user.type(screen.getByLabelText('Name *'), 'job-name');
     await user.clear(screen.getByLabelText('Namespace *'));
@@ -178,37 +181,41 @@ describe('KubernetesAccessSection', () => {
       resources: [
         {
           id: expect.any(String),
-          kind: expect.objectContaining({ value: 'job' }),
+          kind: expect.objectContaining({ value: 'jobs' }),
           name: 'job-name',
           namespace: 'job-namespace',
           verbs: [
             expect.objectContaining({ value: 'create' }),
             expect.objectContaining({ value: 'delete' }),
           ],
-          roleVersion: 'v7',
+          apiGroup: 'api-group-name',
+          roleVersion: 'v8',
         },
       ],
       users: [
         expect.objectContaining({ value: 'joe' }),
         expect.objectContaining({ value: 'mary' }),
       ],
-      roleVersion: 'v7',
+      roleVersion: 'v8',
+      hideValidationErrors: true,
     } as KubernetesAccess);
   });
 
   test('adding and removing resources', async () => {
     const { user, onChange } = setup();
 
-    await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Add a Kubernetes Resource' })
+    );
     await user.clear(screen.getByLabelText('Name *'));
     await user.type(screen.getByLabelText('Name *'), 'res1');
     await user.click(
-      screen.getByRole('button', { name: 'Add Another Resource' })
+      screen.getByRole('button', { name: 'Add Another Kubernetes Resource' })
     );
     await user.clear(screen.getAllByLabelText('Name *')[1]);
     await user.type(screen.getAllByLabelText('Name *')[1], 'res2');
     await user.click(
-      screen.getByRole('button', { name: 'Add Another Resource' })
+      screen.getByRole('button', { name: 'Add Another Kubernetes Resource' })
     );
     await user.clear(screen.getAllByLabelText('Name *')[2]);
     await user.type(screen.getAllByLabelText('Name *')[2], 'res3');
@@ -223,7 +230,7 @@ describe('KubernetesAccessSection', () => {
     );
 
     await user.click(
-      screen.getAllByRole('button', { name: 'Remove resource' })[1]
+      screen.getAllByRole('button', { name: 'Remove Kubernetes resource' })[1]
     );
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -234,7 +241,7 @@ describe('KubernetesAccessSection', () => {
       })
     );
     await user.click(
-      screen.getAllByRole('button', { name: 'Remove resource' })[0]
+      screen.getAllByRole('button', { name: 'Remove Kubernetes resource' })[0]
     );
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -242,7 +249,7 @@ describe('KubernetesAccessSection', () => {
       })
     );
     await user.click(
-      screen.getAllByRole('button', { name: 'Remove resource' })[0]
+      screen.getAllByRole('button', { name: 'Remove Kubernetes resource' })[0]
     );
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ resources: [] })
@@ -251,9 +258,14 @@ describe('KubernetesAccessSection', () => {
 
   test('validation', async () => {
     const { user, validator } = setup(RoleVersion.V6);
-    await user.click(screen.getByRole('button', { name: 'Add a Label' }));
-    await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
-    await selectEvent.select(screen.getByLabelText('Kind'), 'Service');
+    await user.type(screen.getByPlaceholderText('label value'), 'some-value');
+    await user.click(
+      screen.getByRole('button', { name: 'Add a Kubernetes Resource' })
+    );
+
+    screen.getByLabelText('Kind').setAttribute('value', 'Service');
+
+    screen.getByLabelText('Kind');
     await user.clear(screen.getByLabelText('Name *'));
     await user.clear(screen.getByLabelText('Namespace *'));
     await selectEvent.select(screen.getByLabelText('Verbs'), [
@@ -280,13 +292,16 @@ describe('KubernetesAccessSection', () => {
 });
 
 describe('AppAccessSection', () => {
-  const setup = () => {
+  const setup = (model: Partial<AppAccess> = {}) => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
       <StatefulSection<AppAccess, ResourceAccessValidationResult>
         component={AppAccessSection}
-        defaultValue={newResourceAccess('app', defaultRoleVersion)}
+        defaultValue={{
+          ...newResourceAccess('app', defaultRoleVersion),
+          ...model,
+        }}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
@@ -309,33 +324,40 @@ describe('AppAccessSection', () => {
     screen.getByRole('group', { name: 'GCP Service Accounts' });
   const gcpServiceAccountTextBoxes = () =>
     within(gcpServiceAccounts()).getAllByRole('textbox');
+  const mcpTools = () => screen.getByRole('group', { name: 'MCP Tools' });
+  const mcpToolsTextBoxes = () => within(mcpTools()).getAllByRole('textbox');
 
   test('editing', async () => {
     const { user, onChange } = setup();
-    await user.click(screen.getByRole('button', { name: 'Add a Label' }));
     await user.type(screen.getByPlaceholderText('label key'), 'env');
     await user.type(screen.getByPlaceholderText('label value'), 'prod');
+
+    // Instead of typing these ungodly long values, we paste them — otherwise,
+    // this test may time out. And that's what our users would typically do,
+    // anyway.
     await user.click(
       within(awsRoleArns()).getByRole('button', { name: 'Add More' })
     );
-    await user.type(
-      awsRoleArnTextBoxes()[1],
-      'arn:aws:iam::123456789012:role/admin'
-    );
+    await user.click(awsRoleArnTextBoxes()[1]);
+    await user.paste('arn:aws:iam::123456789012:role/admin');
     await user.click(
       within(azureIdentities()).getByRole('button', { name: 'Add More' })
     );
-    await user.type(
-      azureIdentityTextBoxes()[1],
+    await user.click(azureIdentityTextBoxes()[1]);
+    await user.paste(
       '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/admin'
     );
     await user.click(
       within(gcpServiceAccounts()).getByRole('button', { name: 'Add More' })
     );
-    await user.type(
-      gcpServiceAccountTextBoxes()[1],
-      'admin@some-project.iam.gserviceaccount.com'
+    await user.click(gcpServiceAccountTextBoxes()[1]);
+    await user.paste('admin@some-project.iam.gserviceaccount.com');
+    await user.click(
+      within(mcpTools()).getByRole('button', { name: 'Add More' })
     );
+    await user.click(mcpToolsTextBoxes()[1]);
+    await user.paste('allow_tools_with_prefix_*');
+
     expect(onChange).toHaveBeenLastCalledWith({
       kind: 'app',
       labels: [{ name: 'env', value: 'prod' }],
@@ -351,12 +373,14 @@ describe('AppAccessSection', () => {
         '{{internal.gcp_service_accounts}}',
         'admin@some-project.iam.gserviceaccount.com',
       ],
+      mcpTools: ['{{internal.mcp_tools}}', 'allow_tools_with_prefix_*'],
+      hideValidationErrors: true,
     } as AppAccess);
   });
 
   test('validation', async () => {
     const { user, validator } = setup();
-    await user.click(screen.getByRole('button', { name: 'Add a Label' }));
+    await user.type(screen.getByPlaceholderText('label value'), 'some-value');
     await user.click(
       within(awsRoleArns()).getByRole('button', { name: 'Add More' })
     );
@@ -407,7 +431,6 @@ describe('DatabaseAccessSection', () => {
     const { user, onChange } = setup();
 
     const labels = within(screen.getByRole('group', { name: 'Labels' }));
-    await user.click(labels.getByRole('button', { name: 'Add a Label' }));
     await user.type(labels.getByPlaceholderText('label key'), 'env');
     await user.type(labels.getByPlaceholderText('label value'), 'prod');
 
@@ -423,9 +446,6 @@ describe('DatabaseAccessSection', () => {
 
     const dbServiceLabels = within(
       screen.getByRole('group', { name: 'Database Service Labels' })
-    );
-    await user.click(
-      dbServiceLabels.getByRole('button', { name: 'Add a Label' })
     );
     await user.type(dbServiceLabels.getByPlaceholderText('label key'), 'foo');
     await user.type(dbServiceLabels.getByPlaceholderText('label value'), 'bar');
@@ -446,18 +466,20 @@ describe('DatabaseAccessSection', () => {
         expect.objectContaining({ label: 'mary', value: 'mary' }),
       ],
       dbServiceLabels: [{ name: 'foo', value: 'bar' }],
+      hideValidationErrors: true,
     } as DatabaseAccess);
   });
 
   test('validation', async () => {
     const { user, validator } = setup();
     const labels = within(screen.getByRole('group', { name: 'Labels' }));
-    await user.click(labels.getByRole('button', { name: 'Add a Label' }));
+    await user.type(labels.getByPlaceholderText('label value'), 'some-value');
     const dbServiceLabelsGroup = within(
       screen.getByRole('group', { name: 'Database Service Labels' })
     );
-    await user.click(
-      dbServiceLabelsGroup.getByRole('button', { name: 'Add a Label' })
+    await user.type(
+      dbServiceLabelsGroup.getByPlaceholderText('label value'),
+      'some-value'
     );
     await selectEvent.create(screen.getByLabelText('Database Roles'), '*', {
       createOptionText: 'Database Role: *',
@@ -495,7 +517,6 @@ describe('WindowsDesktopAccessSection', () => {
 
   test('editing', async () => {
     const { user, onChange } = setup();
-    await user.click(screen.getByRole('button', { name: 'Add a Label' }));
     await user.type(screen.getByPlaceholderText('label key'), 'os');
     await user.type(screen.getByPlaceholderText('label value'), 'win-xp');
     await selectEvent.create(screen.getByLabelText('Logins'), 'julio', {
@@ -508,12 +529,13 @@ describe('WindowsDesktopAccessSection', () => {
         expect.objectContaining({ value: '{{internal.windows_logins}}' }),
         expect.objectContaining({ label: 'julio', value: 'julio' }),
       ],
+      hideValidationErrors: true,
     } as WindowsDesktopAccess);
   });
 
   test('validation', async () => {
     const { user, validator } = setup();
-    await user.click(screen.getByRole('button', { name: 'Add a Label' }));
+    await user.type(screen.getByPlaceholderText('label value'), 'some-value');
     act(() => validator.validate());
     expect(
       screen.getByPlaceholderText('label key')
@@ -526,10 +548,7 @@ describe('GitHubOrganizationAccessSection', () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<
-        GitHubOrganizationAccess,
-        GitHubOrganizationAccessValidationResult
-      >
+      <StatefulSection<GitHubOrganizationAccess, ResourceAccessValidationResult>
         component={GitHubOrganizationAccessSection}
         defaultValue={newResourceAccess('git_server', defaultRoleVersion)}
         onChange={onChange}
@@ -557,6 +576,7 @@ describe('GitHubOrganizationAccessSection', () => {
         expect.objectContaining({ value: '{{internal.github_orgs}}' }),
         expect.objectContaining({ label: 'illuminati', value: 'illuminati' }),
       ],
+      hideValidationErrors: true,
     } as GitHubOrganizationAccess);
   });
 });

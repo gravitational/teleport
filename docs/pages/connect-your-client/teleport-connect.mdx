@@ -1,9 +1,12 @@
 ---
 title: Using Teleport Connect
 description: Using Teleport Connect
+labels:
+ - conceptual
+ - platform-wide
 ---
 
-Teleport Connect provides easy and secure access to SSH servers, databases, applications, and
+Teleport Connect provides easy and secure access to SSH servers, databases, applications, Windows desktops, and
 Kubernetes clusters.
 
 ![resources tab in Teleport Connect](../../img/use-teleport/connect-cluster@2x.png)
@@ -33,14 +36,26 @@ $ tar -xf  teleport-connect-(=teleport.version=)-linux-*.tar.gz
 Download and run the installer `.exe` file. It will install and open Teleport Connect without
 further user input.
 
+The installer requires administrator privileges in order to set up a Windows
+service used by the [VNet](#connecting-to-tcp-apps-with-vnet) feature.
+If you run the installer as a regular user it will automatically create a UAC
+(User Account Control) prompt for the necessary permissions.
+
 Repeat the process with newer versions to upgrade.
 
-A silent installation can be performed by running the installer with the `/S` flag. This will hide
-the progress bar and skip the launch of the app after the installation is complete.
+A silent installation can be performed by running the installer as an
+administrator with the `/S` flag. This will hide the progress bar and skip the
+launch of the app after the installation is complete.
 
 ```code
 $ "Teleport Connect Setup-(=teleport.version=).exe" /S
 ```
+
+In version 17.3.0+ Connect is installed per-machine.
+In older versions Connect was installed only for the user running the installer.
+When upgrading to 17.3.0+ from an older version, the installer will
+automatically handle the migration to a per-machine installation.
+
 </TabItem>
 </Tabs>
 
@@ -59,7 +74,7 @@ The top bar of Teleport Connect consists of:
   trusted clusters and there are leaf clusters connected to the root cluster. It lets you browse
   leaf cluster resources. Also, the "Open new terminal" action will bind new terminal tabs to the selected cluster.
 - The **additional actions menu** (to the left of the profile selector), containing options such as
-  opening a config file or creating an access request in an Enterprise cluster.
+  opening a config file or creating an Access Request in an Enterprise cluster.
 
 The **status bar** at the bottom displays **cluster breadcrumbs** in the bottom left, indicating
 which cluster the current tab is bound to, and the **Share Feedback** button in the bottom right.
@@ -75,6 +90,9 @@ A new tab will open with a shell session on the chosen server.
 
 Alternatively, you can look for the server in the search bar and press `Enter` to connect to it.
 
+If you'd prefer to connect to SSH servers with a third-party SSH client or your
+editor's Remote Development feature, read the [VNet guide](./vnet.mdx) to learn how.
+
 ## Opening a local terminal
 
 To open a terminal with a local shell session, either select "Open new terminal" from the additional
@@ -85,7 +103,7 @@ this by setting the environment variables `TELEPORT_PROXY` and `TELEPORT_CLUSTER
 Additionally, Teleport Connect prepends the `PATH` environment variable in the session with the
 directory containing the tsh binary, even if [tsh is not globally available](#using-tsh-outside-of-teleport-connect).
 
-When using [trusted clusters](../admin-guides/management/admin/trustedclusters.mdx), the cluster selector allows
+When using [trusted clusters](../zero-trust-access/management/admin/trustedclusters.mdx), the cluster selector allows
 you to determine which cluster the shell session will be bound to. The selected cluster will be
 reflected in both the tab title and the status bar.
 
@@ -148,12 +166,25 @@ The database connection tab shows the command that can be used to connect to the
 modify the database name of the connection and then click the Run button to open a new terminal tab
 with that command executed.
 
+## Connecting to a Windows desktop
+
+1. Open a tab with cluster resources by clicking on the plus symbol at the end of the tab bar. You
+can also press `Ctrl+Shift+T/Cmd+T` to achieve the same result.
+1. Look for the desktop you wish to connect to and click the Connect button.
+1. Select the user you wish to use and press `Enter`.
+
+A new tab will open with a remote desktop session.
+
+Alternatively, you can look for the desktops in the search bar and press `Enter` to connect to it.
+
+During a remote session, you can share your clipboard and a local directory, if permitted by your role.
+
 ## Connecting to an application
 
 Teleport Connect supports launching applications in the browser, as well as creating
 authenticated tunnels for web and TCP applications.
 
-When it comes to [cloud APIs secured with Application Access](../enroll-resources/application-access/cloud-apis/cloud-apis.mdx),
+When it comes to [cloud APIs secured with Teleport](../enroll-resources/application-access/cloud-apis/cloud-apis.mdx),
 Teleport Connect supports launching the AWS console in the browser, but other CLI applications can
 be used only through tsh in [a local terminal tab](#opening-a-local-terminal).
 
@@ -170,11 +201,13 @@ authentication data, you will have to log in to the Web UI before accessing an a
 Alternatively, you can look for the application in the search bar and press `Enter` to launch it in
 the browser.
 
-### Connecting to TCP apps with VNet on macOS
+### Connecting to TCP apps with VNet
 
-VNet is a virtual network emulation tool available in Teleport Connect. It enables any program on
-your computer to connect to TCP applications protected by Teleport, with no extra changes required
-to the program itself. It removes the need to manually create tunnels for TCP applications.
+VNet is a virtual network emulation tool available in Teleport Connect on macOS
+and Windows. It enables any program on your computer to connect to TCP
+applications protected by Teleport, with no extra changes required
+to the program itself. It removes the need to manually create tunnels for TCP
+applications.
 
 This is the recommended way of connecting to TCP apps.
 
@@ -199,12 +232,12 @@ is not yet available on your system.
   can also press `Ctrl+Shift+T/Cmd+T` to achieve the same result.
 1. Look for the application you wish to connect to.
   - For TCP applications, click the Connect button.
-    - On macOS, click the three dots instead and select "Connect to local port".
+    - On macOS and Windows, click the three dots instead and select "Connect to local port".
   - For web applications, click the three dots next to the Launch button and select "Set up
     connection".
 
-Alternatively, on Windows and Linux you can look for a TCP application in the search bar and press
-`Enter` to set up a connection to it.
+Alternatively, on Linux you can look for a TCP application in the search bar and
+press `Enter` to set up a connection to it.
 
 A new tab will open with a new connection established between your device and the application.
 
@@ -373,7 +406,7 @@ INFO [AUTH]      Attempting registration via proxy server. auth/register.go:279
 ERRO [PROC:1]    Can not join the cluster as node, the token expired or not found. Regenerate the token and try again. pid:54364.1 service/connect.go:106
 ```
 
-During the setup, Connect My Computer creates [a join token](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx)
+During the setup, Connect My Computer creates [a join token](../enroll-resources/agents/join-token.mdx)
 that is valid for up to five minutes. If the logs say that the token has expired, it most likely
 means that the initial attempt to join the cluster has failed and you started another one after more
 than five minutes.
@@ -401,7 +434,7 @@ a user set up an agent and then lock the user out of removing the agent.
 
 To instantly revoke access to agents that have already joined the cluster, look for nodes labeled
 with the `teleport.dev/connect-my-computer/owner` label and then [place
-locks](../admin-guides/access-controls/guides/locking.mdx) on those nodes.
+locks](../identity-governance/locking.mdx) on those nodes.
 
 ```code
 $ tctl nodes ls -v --query='labels["teleport.dev/connect-my-computer/owner"] != ""'
@@ -441,7 +474,7 @@ installation directory to the `Path` user environment variable.
 
 Teleport Connect supports authenticating with hardware-based keys.
 Keys are generated and stored directly on a hardware device, providing greater security than storing
-them on a file system. For more details, see [Hardware Key Support guide](../admin-guides/access-controls/guides/hardware-key-support.mdx).
+them on a file system. For more details, see [Hardware Key Support guide](../zero-trust-access/access-controls/guides/hardware-key-support.mdx).
 
 <Admonition type="note" title="PIV support">
   Hardware key support requires users to use a PIV-compatible hardware key.
@@ -476,6 +509,7 @@ Below is the list of the supported config properties.
 | Property                      | Default                                                                                                              | Description                                                                                                |
 |-------------------------------|----------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
 | `theme`                       | `system`                                                                                                             | Color theme for the app. Available modes: `light`, `dark`, `system`.                                       |
+| `skipVersionCheck`            | `false`                                                                                                              | Skips the version check and hides the version compatibility warning when logging in to a cluster.          |
 | `terminal.fontFamily`         | `Menlo, Monaco, monospace` on macOS `Consolas, monospace` on Windows `'Droid Sans Mono', monospace` on Linux | Font family for the terminal.                                                                              |
 | `terminal.fontSize`           | `15`                                                                                                                 | Font size for the terminal.                                                                                |
 | `terminal.windowsBackend` | `auto` | `auto` uses modern [ConPTY](https://devblogs.microsoft.com/commandline/windows-command-line-introducing-the-windows-pseudo-console-conpty/) system if available, which requires Windows 10 (19H1) or above. Set to `winpty` to use winpty even if ConPTY is available. |
@@ -618,7 +652,7 @@ The app version can be found under Help -> About Teleport Connect.
 To get more detailed logs, open Teleport Connect from the Command Prompt with the `--connect-debug` flag:
 
 ```code
-$ "%LocalAppData%\Programs\teleport-connect\Teleport Connect.exe" --connect-debug
+$ "%PROGRAMFILES%\Teleport Connect\Teleport Connect.exe" --connect-debug
 ````
 </TabItem>
 </Tabs>
@@ -633,7 +667,7 @@ see them only after you restart the app.
 
 You can open Teleport Connect in insecure mode, which skips TLS certificate verification when
 talking to a Teleport Proxy Service. This is useful in [test environments with self-signed
-certificates](../admin-guides/management/admin/self-signed-certs.mdx) or for demo purposes. We do not recommend
+certificates](../zero-trust-access/management/admin/self-signed-certs.mdx) or for demo purposes. We do not recommend
 using this mode in production.
 
 <Tabs>
@@ -655,7 +689,7 @@ $ teleport-connect --insecure
 From the Command Prompt, open Teleport Connect with the `--insecure` flag:
 
 ```code
-$ "%LocalAppData%\Programs\teleport-connect\Teleport Connect.exe" --insecure
+$ "%PROGRAMFILES%\Teleport Connect\Teleport Connect.exe" --insecure
 ````
 </TabItem>
 </Tabs>

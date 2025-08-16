@@ -19,7 +19,11 @@
 import { act, fireEvent, render, screen } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
-import { ComponentWrapper } from 'teleport/Discover/Fixtures/databases';
+import {
+  getSelectedAwsPostgresDbMeta,
+  resourceSpecAwsRdsPostgres,
+} from 'teleport/Discover/Fixtures/databases';
+import { RequiredDiscoverProviders } from 'teleport/Discover/Fixtures/fixtures';
 import DatabaseService from 'teleport/services/databases/databases';
 import * as discoveryService from 'teleport/services/discovery/discovery';
 import { DISCOVERY_GROUP_CLOUD } from 'teleport/services/discovery/discovery';
@@ -222,7 +226,10 @@ const mockAwsDbs: AwsRdsDatabase[] = [
 ];
 
 const Component = () => (
-  <ComponentWrapper>
+  <RequiredDiscoverProviders
+    agentMeta={getSelectedAwsPostgresDbMeta()}
+    resourceSpec={resourceSpecAwsRdsPostgres}
+  >
     <EnrollRdsDatabase />
-  </ComponentWrapper>
+  </RequiredDiscoverProviders>
 );

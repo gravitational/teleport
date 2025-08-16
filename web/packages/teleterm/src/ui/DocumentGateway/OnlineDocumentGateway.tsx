@@ -18,15 +18,25 @@
 
 import { useMemo, useRef } from 'react';
 
-import { Alert, Box, ButtonSecondary, Flex, H1, H2, Link, Text } from 'design';
+import {
+  Alert,
+  Box,
+  ButtonSecondary,
+  Flex,
+  H1,
+  H2,
+  Link,
+  Stack,
+  Text,
+} from 'design';
 import * as Alerts from 'design/Alert';
 import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import Validation from 'shared/components/Validation';
 import { Attempt, RunFuncReturnValue } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
+import { CliCommand } from '../components/CliCommand';
 import { ConfigFieldInput, PortFieldInput } from '../components/FieldInputs';
-import { CliCommand } from './CliCommand';
 
 export function OnlineDocumentGateway(props: {
   changeDbName: (name: string) => RunFuncReturnValue<void>;
@@ -44,7 +54,7 @@ export function OnlineDocumentGateway(props: {
   const hasError =
     props.changeDbNameAttempt.status === 'error' ||
     props.changePortAttempt.status === 'error';
-  const formRef = useRef<HTMLFormElement>();
+  const formRef = useRef<HTMLFormElement>(null);
   const { gateway } = props;
 
   const handleChangeDbName = useMemo(() => {
@@ -92,30 +102,32 @@ export function OnlineDocumentGateway(props: {
       )}
 
       <H2 mb={2}>Connect with CLI</H2>
-      <Flex as="form" ref={formRef}>
-        <Validation>
-          <PortFieldInput
-            label="Port"
-            defaultValue={gateway.localPort}
-            onChange={e => handleChangePort(e.target.value)}
-            mb={2}
-          />
-          <ConfigFieldInput
-            label="Database Name"
-            defaultValue={gateway.targetSubresourceName}
-            onChange={e => handleChangeDbName(e.target.value)}
-            spellCheck={false}
-            ml={2}
-            mb={2}
-          />
-        </Validation>
-      </Flex>
-      <CliCommand
-        cliCommand={props.gateway.gatewayCliCommand.preview}
-        isLoading={isPortOrDbNameProcessing}
-        onButtonClick={props.runCliCommand}
-      />
-      {$errors}
+      <Stack gap={2} alignItems="normal">
+        <Flex as="form" ref={formRef}>
+          <Validation>
+            <PortFieldInput
+              label="Port"
+              defaultValue={gateway.localPort}
+              onChange={e => handleChangePort(e.target.value)}
+              mb={0}
+            />
+            <ConfigFieldInput
+              label="Database Name"
+              defaultValue={gateway.targetSubresourceName}
+              onChange={e => handleChangeDbName(e.target.value)}
+              spellCheck={false}
+              ml={2}
+              mb={0}
+            />
+          </Validation>
+        </Flex>
+        <CliCommand
+          cliCommand={props.gateway.gatewayCliCommand.preview}
+          isLoading={isPortOrDbNameProcessing}
+          button={{ onClick: props.runCliCommand }}
+        />
+        {$errors}
+      </Stack>
 
       <H2 mt={3} mb={2}>
         Connect with GUI

@@ -1,6 +1,9 @@
 ---
 title: Configure Teleport to Create Host Users
 description: How to configure Teleport to automatically create transient host users.
+labels:
+ - how-to
+ - zero-trust
 ---
 
 Teleport's SSH Service can be configured to automatically create local Unix users
@@ -15,11 +18,10 @@ end of an SSH session.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- A running Linux server registered with Teleport. See the [Server Access
-  Getting Started Guide](../getting-started.mdx) for how to add a server to your
-  Teleport cluster. We recommend enrolling a server that runs in a demo
-  environment for the purpose of this guide until you are familiar with the
-  instructions.
+- A running Linux server registered with Teleport. See the [getting started
+  guide](../getting-started.mdx) for how to add a server to your Teleport
+  cluster. We recommend enrolling a server that runs in a demo environment for
+  the purpose of this guide until you are familiar with the instructions.
 - The following utilities should be available in the PATH for the Teleport SSH
   Service, since it must execute these commands in order to create transient
   users:
@@ -109,7 +111,8 @@ the default shell for a created user can be configured with `create_host_user_de
 Otherwise the host's default shell will be used.
 
 {/*TODO (ptgott): We should move the information below into a reference guide*/}
-<Details title="Customizing host user creation">
+<details>
+<summary>Customizing host user creation</summary>
 
 Each value of the `logins` field must conform to the username requirements of
 the Linux distribution being used. See [User/Group Name
@@ -160,7 +163,7 @@ deleted user, which would give the new user access to all of the old user's
 files if they are not deleted. Use `keep` mode unless you really need users to
 be removed.
 
-</Details>
+</details>
 
 Create the role:
 
@@ -477,7 +480,7 @@ on the hosts.
 
 ## Next steps
 
-- Configure automatic user provisioning for [Database Access](../../database-access/auto-user-provisioning/auto-user-provisioning.mdx).
+- Configure automatic user provisioning for [database access](../../database-access/auto-user-provisioning/auto-user-provisioning.mdx).
 - Configure automatic user provisioning for [desktop access](../../../reference/agent-services/desktop-access-reference/user-creation.mdx).
 - Configure automatic user provisioning with [Terraform](../../../reference/terraform-provider/resources/role.mdx).
 Note when using the terraform provider that some values may be different than described in this guide.

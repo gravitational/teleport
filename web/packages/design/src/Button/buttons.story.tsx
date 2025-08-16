@@ -19,7 +19,7 @@
 import { Fragment } from 'react';
 import styled from 'styled-components';
 
-import { Input, MenuItem } from 'design';
+import { Box, Input, Link, MenuItem, P1 } from 'design';
 
 import {
   Button,
@@ -34,7 +34,7 @@ import {
 import ButtonIcon from '../ButtonIcon';
 import ButtonLink from '../ButtonLink';
 import { ButtonWithMenu } from '../ButtonWithMenu';
-import Flex from '../Flex';
+import Flex, { Stack } from '../Flex';
 import * as icons from '../Icon';
 
 export default {
@@ -118,7 +118,9 @@ export const Buttons = () => {
       <Button block>block = true</Button>
       <Flex gap={3}>
         <Button disabled>Disabled</Button>
-        <Button autoFocus>Focused</Button>
+        <Box className="teleport-button__force-focus-visible">
+          <Button>Focused</Button>
+        </Box>
       </Flex>
       <Flex gap={3}>
         <ButtonPrimary gap={2}>
@@ -184,7 +186,7 @@ export const Buttons = () => {
         <ButtonText>Button Text</ButtonText>
       </Flex>
       <Flex gap={3} flexDirection="column" alignItems="flex-start">
-        {[2, 1, 0].map(size => (
+        {([2, 1, 0] as const).map(size => (
           <Flex gap={3} key={`size-${size}`}>
             <ButtonIcon size={size}>
               <icons.AddUsers />
@@ -245,3 +247,78 @@ const menuItemsForButtonWithMenu = (
     </MenuItem>
   </>
 );
+
+export const MinWidthFitContent = () => (
+  <Stack gap={5}>
+    <Link
+      target="_blank"
+      href="https://html-css-tip-of-the-week.netlify.app/tip/max-width-fit-content/"
+    >
+      https://html-css-tip-of-the-week.netlify.app/tip/max-width-fit-content/
+    </Link>
+
+    <P1>
+      By default, a button text wraps itself at the first chance it gets,{' '}
+      <Emphasis>even when it doesn't help avoid overflow</Emphasis>.
+    </P1>
+
+    <Stack gap={3}>
+      <Flex gap={2} width="200px" p={2} border={1} borderColor="red">
+        <Button>Lorem Ipsum</Button>
+        <Button>Dolor Sit Amet</Button>
+      </Flex>
+      <Flex gap={2} width="120px" border={1} p={2} flexWrap="wrap">
+        <Button>Lorem Ipsum</Button>
+        <Button>Dolor Sit Amet</Button>
+      </Flex>
+    </Stack>
+
+    <P1>
+      With <code>text-wrap: nowrap</code>, the button text doesn't ever wrap,
+      meaning that at narrow widths it introduces overflow{' '}
+      <Emphasis>even when it could be avoided</Emphasis>.
+    </P1>
+    <Stack
+      gap={3}
+      css={`
+        & button {
+          text-wrap: nowrap;
+        }
+      `}
+    >
+      <Flex gap={2} width="200px" border={1} p={2}>
+        <Button>Lorem Ipsum</Button>
+        <Button>Dolor Sit Amet</Button>
+      </Flex>
+      <Flex
+        gap={2}
+        width="120px"
+        p={2}
+        flexWrap="wrap"
+        border={1}
+        borderColor="red"
+      >
+        <Button>Lorem Ipsum</Button>
+        <Button>Dolor Sit Amet</Button>
+      </Flex>
+    </Stack>
+
+    <P1>
+      With <code>min-width: fit-content</code>, the button text is allowed to
+      wrap as a last resort.
+    </P1>
+    <Flex gap={2} width="200px" border={1} p={2}>
+      <Button minWidth="fit-content">Lorem Ipsum</Button>
+      <Button minWidth="fit-content">Dolor Sit Amet</Button>
+    </Flex>
+    <Flex gap={2} width="120px" border={1} p={2} flexWrap="wrap">
+      <Button minWidth="fit-content">Lorem Ipsum</Button>
+      <Button minWidth="fit-content">Dolor Sit Amet</Button>
+    </Flex>
+  </Stack>
+);
+
+const Emphasis = styled.span`
+  text-decoration-line: underline;
+  text-decoration-color: red;
+`;

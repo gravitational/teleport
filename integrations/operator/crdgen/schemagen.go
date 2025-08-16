@@ -429,6 +429,14 @@ func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSON
 	case field.TypeName() == ".types.CertExtensionType" || field.TypeName() == ".types.CertExtensionMode":
 		prop.Type = "integer"
 		prop.Format = "int32"
+	case field.TypeName() == ".google.protobuf.Struct":
+		// This is a fairly special well-known type that should/can hold any
+		// JSON object. We can't know the structure ahead of time and there can
+		// be many levels of nesting within this.
+		prop.Type = "object"
+		prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{
+			Allows: true,
+		}
 	case strings.HasSuffix(field.TypeName(), ".v1.LoginRule.TraitsMapEntry"):
 		prop.Type = "object"
 		prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{

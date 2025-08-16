@@ -17,7 +17,6 @@
  */
 
 import { useState } from 'react';
-import styled from 'styled-components';
 
 import {
   Alert,
@@ -28,7 +27,7 @@ import {
   Link,
   Text,
 } from 'design';
-import { OutlineInfo, OutlineWarn } from 'design/Alert/Alert';
+import { Info, Warning } from 'design/Alert/Alert';
 import Dialog, {
   DialogContent,
   DialogFooter,
@@ -109,128 +108,141 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
 
   const changeDetected = integration.spec.roleArn !== roleArn;
 
+  function actionButtons(validator: Validator) {
+    if (!scriptUrl) {
+      return (
+        <ButtonBorder
+          mr="3"
+          onClick={() =>
+            generateAwsOidcConfigIdpScript(
+              validator,
+              AwsOidcPolicyPreset.Unspecified
+            )
+          }
+          disabled={!roleArn || !showGenerateCommand}
+        >
+          Reconfigure
+        </ButtonBorder>
+      );
+    }
+
+    return (
+      <>
+        <ButtonPrimary
+          mr="3"
+          disabled={
+            isProcessing ||
+            (showGenerateCommand && !confirmed) ||
+            (!showReadonlyS3Fields && !changeDetected)
+          }
+          onClick={() => handleEdit(validator)}
+        >
+          Save
+        </ButtonPrimary>
+        <ButtonSecondary
+          mr="3"
+          onClick={() => setScriptUrl('')}
+          disabled={confirmed}
+        >
+          Edit
+        </ButtonSecondary>
+      </>
+    );
+  }
+
   return (
     <Validation>
       {({ validator }) => (
         <Dialog
-          disableEscapeKeyDown={false}
           onClose={close}
           open={true}
           dialogCss={() => ({
+            minHeight: '324px',
             maxWidth: '650px',
             width: '100%',
           })}
         >
           <DialogHeader>
-            <DialogTitle>Edit Integration</DialogTitle>
+            <DialogTitle>Edit Role ARN: {integration.name}</DialogTitle>
           </DialogHeader>
-          <DialogContent width="650px">
+          <DialogContent width="650px" m={0}>
             {updateAttempt.status === 'error' && (
               <Alert children={updateAttempt.statusText} />
             )}
             <FieldInput
-              label="Integration Name"
-              value={integration.name}
-              readonly={true}
+              autoFocus
+              label="Role ARN"
+              rule={requiredRoleArn}
+              value={roleArn}
+              onChange={e => setRoleArn(e.target.value)}
+              placeholder="arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>"
+              helperText="Role ARN can be found in the format: arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>"
+              disabled={!!scriptUrl}
             />
-            <EditableBox px={3} pt={2} mt={2}>
-              <FieldInput
-                autoFocus
-                label="Role ARN"
-                rule={requiredRoleArn}
-                value={roleArn}
-                onChange={e => setRoleArn(e.target.value)}
-                placeholder="arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>"
-                toolTipContent={
-                  <Text>
-                    Role ARN can be found in the format: <br />
-                    {`arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>`}
-                  </Text>
-                }
-                disabled={!!scriptUrl}
-              />
-              {showReadonlyS3Fields && !scriptUrl && (
-                <>
-                  <S3BucketConfiguration
-                    s3Bucket={s3Bucket}
-                    s3Prefix={s3Prefix}
+            {showReadonlyS3Fields && !scriptUrl && (
+              <>
+                <S3BucketConfiguration
+                  s3Bucket={s3Bucket}
+                  s3Prefix={s3Prefix}
+                />
+                <Warning>
+                  Using an S3 bucket to store the OpenID Configuration is not
+                  recommended. Reconfiguring this integration is suggested (this
+                  will not break existing features).
+                </Warning>
+              </>
+            )}
+            {scriptUrl && (
+              <Box mb={2} data-testid="scriptbox">
+                <Text mb={2}>
+                  Open{' '}
+                  <Link
+                    href="https://console.aws.amazon.com/cloudshell/home"
+                    target="_blank"
+                  >
+                    AWS CloudShell
+                  </Link>{' '}
+                  and copy and paste the command that configures the permissions
+                  for you:
+                </Text>
+                <Box>
+                  <TextSelectCopyMulti
+                    lines={[
+                      {
+                        text: `bash -c "$(curl '${scriptUrl}')"`,
+                      },
+                    ]}
                   />
-                  <OutlineWarn>
-                    Using an S3 bucket to store the OpenID Configuration is not
-                    recommended. Reconfiguring this integration is suggested
-                    (this will not break existing features).
-                  </OutlineWarn>
-                </>
-              )}
-              {scriptUrl && (
-                <Box mb={5} data-testid="scriptbox">
-                  <Text mb={2}>
-                    Open{' '}
-                    <Link
-                      href="https://console.aws.amazon.com/cloudshell/home"
-                      target="_blank"
-                    >
-                      AWS CloudShell
-                    </Link>{' '}
-                    and copy and paste the command that configures the
-                    permissions for you:
-                  </Text>
-                  <Box mb={2}>
-                    <TextSelectCopyMulti
-                      lines={[
-                        {
-                          text: `bash -c "$(curl '${scriptUrl}')"`,
-                        },
-                      ]}
-                    />
-                    {showReadonlyS3Fields && (
-                      <OutlineInfo mt={3} linkColor="buttons.link.default">
-                        <Box>
-                          After running the command, delete the previous{' '}
-                          <Link
-                            target="_blank"
-                            href={`https://console.aws.amazon.com/iam/home#/identity_providers/details/OPENID/${getIdpArn({ s3Bucket, s3Prefix, roleArn: integration.spec.roleArn })}`}
-                          >
-                            identity provider
-                          </Link>{' '}
-                          along with its{' '}
-                          <Link
-                            target="_blank"
-                            href={`https://console.aws.amazon.com/s3/buckets/${s3Bucket}`}
-                          >
-                            S3 bucket
-                          </Link>{' '}
-                          from your AWS console.
-                        </Box>
-                      </OutlineInfo>
-                    )}
-                  </Box>
+                  {showReadonlyS3Fields && (
+                    <Info mt={3} linkColor="buttons.link.default">
+                      <Box>
+                        After running the command, delete the previous{' '}
+                        <Link
+                          target="_blank"
+                          href={`https://console.aws.amazon.com/iam/home#/identity_providers/details/OPENID/${getIdpArn(
+                            {
+                              s3Bucket,
+                              s3Prefix,
+                              roleArn: integration.spec.roleArn,
+                            }
+                          )}`}
+                        >
+                          identity provider
+                        </Link>{' '}
+                        along with its{' '}
+                        <Link
+                          target="_blank"
+                          href={`https://console.aws.amazon.com/s3/buckets/${s3Bucket}`}
+                        >
+                          S3 bucket
+                        </Link>{' '}
+                        from your AWS console.
+                      </Box>
+                    </Info>
+                  )}
                 </Box>
-              )}
-              {scriptUrl && (
-                <ButtonSecondary
-                  mb={3}
-                  onClick={() => setScriptUrl('')}
-                  disabled={confirmed}
-                >
-                  Edit
-                </ButtonSecondary>
-              )}
-              {!scriptUrl && showGenerateCommand && (
-                <ButtonBorder
-                  mb={3}
-                  onClick={() =>
-                    generateAwsOidcConfigIdpScript(
-                      validator,
-                      AwsOidcPolicyPreset.Unspecified
-                    )
-                  }
-                  disabled={!roleArn}
-                >
-                  Reconfigure
-                </ButtonBorder>
-              )}
-            </EditableBox>
+              </Box>
+            )}
           </DialogContent>
           <DialogFooter>
             {showGenerateCommand && scriptUrl && (
@@ -244,17 +256,7 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
                 disabled={isProcessing}
               />
             )}
-            <ButtonPrimary
-              mr="3"
-              disabled={
-                isProcessing ||
-                (showGenerateCommand && !confirmed) ||
-                (!showReadonlyS3Fields && !changeDetected)
-              }
-              onClick={() => handleEdit(validator)}
-            >
-              Save
-            </ButtonPrimary>
+            {actionButtons(validator)}
             <ButtonSecondary disabled={isProcessing} onClick={close}>
               Cancel
             </ButtonSecondary>
@@ -264,12 +266,6 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
     </Validation>
   );
 }
-
-const EditableBox = styled(Box)`
-  border-radius: ${p => p.theme.space[1]}px;
-  border: 2px solid ${p => p.theme.colors.spotBackground[1]};
-  background-color: ${p => p.theme.colors.spotBackground[0]};
-`;
 
 function getIdpArn({
   s3Bucket,

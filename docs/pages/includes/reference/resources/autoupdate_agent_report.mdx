@@ -1,0 +1,40 @@
+```yaml
+kind: autoupdate_agent_report
+version: v1
+metadata:
+  # Instance ID of the auth that generated the report.
+  name: auth1
+spec:
+  # When the report was generated.
+  timestamp: 2025-05-28T11:22:41.924956-04:00
+  # Map of the agent groups seen by the auth.
+  groups:
+    dev:
+      # Map of the agent versions seen for this group by the auth.
+      versions:
+        "1.2.3":
+          # Number of registered agents with this version.
+          count: 15
+        "1.2.4":
+          count: 2
+        "1.2.5":
+          count: 34
+    stage:
+      versions:
+        "1.2.3":
+          count: 15
+        "1.2.4":
+          count: 125
+    prod:
+      versions:
+        "1.2.5":
+          count: 1543
+  # List of agents omitted from the report.
+  omitted:
+    - count: 120
+      reason: "version is pinned"
+    - count: 12
+      reason: "managed update v1 updater does not support agent reports"
+    - count: 42
+      reason: "updater version predates agent report"
+```

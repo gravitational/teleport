@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/defaults"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -272,13 +271,17 @@ func (p *AgentPool) run() error {
 		if err != nil {
 			if p.ctx.Err() != nil {
 				return nil
-			} else if isProxyAlreadyClaimed(err) {
+			}
+
+			level := slog.LevelWarn
+			if isProxyAlreadyClaimed(err) && !p.IsRemoteCluster {
 				// "proxy already claimed" is a fairly benign error, we should not
 				// spam the log with stack traces for it
-				p.logger.DebugContext(p.ctx, "Failed to connect agent", "error", err)
-			} else {
-				p.logger.DebugContext(p.ctx, "Failed to connect agent", "error", err)
+				level = slog.LevelDebug
+				err = trace.Unwrap(err)
 			}
+
+			p.logger.Log(p.ctx, level, "Failed to establish reverse tunnel", "error", err)
 		} else {
 			p.wg.Add(1)
 			p.active.add(agent)
@@ -568,7 +571,7 @@ func (p *AgentPool) handleLocalTransport(ctx context.Context, channel ssh.Channe
 	case <-ctx.Done():
 		go ssh.DiscardRequests(reqC)
 		return
-	case <-time.After(apidefaults.DefaultIOTimeout):
+	case <-time.After(defaults.DefaultIOTimeout):
 		go ssh.DiscardRequests(reqC)
 		p.logger.WarnContext(ctx, "Timed out waiting for transport dial request")
 		return

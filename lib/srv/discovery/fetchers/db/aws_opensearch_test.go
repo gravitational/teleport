@@ -19,6 +19,7 @@
 package db
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -45,19 +46,25 @@ func TestOpenSearchFetcher(t *testing.T) {
 
 	test, testDBs := makeOpenSearchDomain(t, tags, "os5", "us-east-1", "test")
 
+	// Make a few more.
+	os6, os6DBs := makeOpenSearchDomain(t, tags, "os6", "us-east-1", "test")
+	os7, os7DBs := makeOpenSearchDomain(t, tags, "os7", "us-east-1", "test")
+	os8, os8DBs := makeOpenSearchDomain(t, tags, "os8", "us-east-1", "test")
+	os9, os9DBs := makeOpenSearchDomain(t, tags, "os9", "us-east-1", "test")
+
 	tests := []awsFetcherTest{
 		{
 			name: "fetch all",
 			fetcherCfg: AWSFetcherFactoryConfig{
 				AWSClients: fakeAWSClients{
 					openSearchClient: &mocks.OpenSearchClient{
-						Domains:   []opensearchtypes.DomainStatus{prod, test},
+						Domains:   []opensearchtypes.DomainStatus{prod, test, os6, os7, os8, os9},
 						TagsByARN: tags,
 					},
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherOpenSearch, "us-east-1", wildcardLabels),
-			wantDatabases: append(append(types.Databases{}, prodDBs...), testDBs...),
+			wantDatabases: slices.Concat(prodDBs, testDBs, os6DBs, os7DBs, os8DBs, os9DBs),
 		},
 		{
 			name: "fetch prod",

@@ -16,40 +16,52 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ReactNode, useCallback } from 'react';
+import { PropsWithChildren, ReactNode } from 'react';
 
 import { Alert, Flex, P2 } from 'design';
 import { ActionButton } from 'design/Alert';
-import { AlertProps } from 'design/Alert/Alert';
+import { AlertKind } from 'design/Alert/Alert';
+import { Checks } from 'design/Icon';
+import { StatusIcon } from 'design/StatusIcon';
 import {
   CheckAttemptStatus,
   CheckReportStatus,
 } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import { hasReportFoundIssues } from 'teleterm/services/vnet/diag';
 import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 
 import { textSpacing } from './sliderStep';
 import { useVnetContext } from './vnetContext';
 
-export const DiagnosticsAlert = () => {
-  const { diagnosticsAttempt, runDiagnostics, resetDiagnosticsAttempt } =
-    useVnetContext();
-  const { workspacesService } = useAppContext();
+/**
+ * DiagnosticsAlert informs the user about the results of running VNet diagnostics.
+ * If there are no issues found, it shows a subtle text with a button to open the report.
+ * If the diag run found some issues, it shows a prominent alert which should also be reflected in
+ * other elements in the UI, like the warning indicators and a warning notification.
+ *
+ * Since we're worried about false positives, the user is able to dismiss the diagnostics alert. In
+ * that case, the alert disappears together with the warning indicators and the notification.
+ * Further periodic diagnostic runs will not cause those elements to show up again, until the user
+ * manually runs diagnostics from the VNet panel.
+ */
+export const DiagnosticsAlert = (props: {
+  runDiagnosticsFromVnetPanel: () => Promise<unknown>;
+}) => {
+  const {
+    diagnosticsAttempt,
+    dismissDiagnosticsAlert,
+    hasDismissedDiagnosticsAlert,
+    openReport,
+  } = useVnetContext();
   const { close: closeConnectionsPanel } = useConnectionsContext();
-  const rootClusterUri = useStoreSelector(
-    'workspacesService',
-    useCallback(state => state.rootClusterUri, [])
-  );
-  const onDismiss = () => {
-    // Reset the attempt, otherwise re-opening the panel would show the warning again.
-    resetDiagnosticsAttempt();
-  };
 
   if (
     diagnosticsAttempt.status === '' ||
-    diagnosticsAttempt.status === 'processing'
+    // If diagnostics are currently running, but there are results from the previous run, display
+    // the results from the previous run. Otherwise display nothing.
+    (diagnosticsAttempt.status === 'processing' && !diagnosticsAttempt.data) ||
+    hasDismissedDiagnosticsAlert
   ) {
     return null;
   }
@@ -59,7 +71,6 @@ export const DiagnosticsAlert = () => {
       <SliderStepAlert
         kind="danger"
         details={<P2>{diagnosticsAttempt.statusText}</P2>}
-        onDismiss={onDismiss}
       >
         Encountered an error while running diagnostics
       </SliderStepAlert>
@@ -67,40 +78,18 @@ export const DiagnosticsAlert = () => {
   }
 
   const report = diagnosticsAttempt.data;
-  const disabledOpenReportButtonProps = !rootClusterUri
+  const disabledOpenReportButtonProps = !openReport
     ? {
         disabled: true,
         title: 'Log in to a cluster to see the full report',
       }
     : {};
-  const openReport = () => {
-    if (!rootClusterUri) {
+  const openReportAndClosePanel = () => {
+    if (!openReport) {
       return;
     }
 
-    const docsService =
-      workspacesService.getWorkspaceDocumentService(rootClusterUri);
-
-    // Check for an existing doc first. It may be present if someone re-runs diagnostics from
-    // within a doc, then opens the VNet panel and clicks "Open Report". The report in the panel
-    // and the report in the doc are equal in that case, as they both come from
-    // diagnosticsAttempt.data.
-    const existingDoc = docsService.getDocuments().find(
-      d =>
-        d.kind === 'doc.vnet_diag_report' &&
-        // Reports don't have IDs, so createdAt is used as a good-enough approximation of an ID.
-        d.report?.createdAt === report.createdAt
-    );
-    if (existingDoc) {
-      docsService.open(existingDoc.uri);
-    } else {
-      const doc = docsService.createVnetDiagReportDocument({
-        rootClusterUri,
-        report,
-      });
-      docsService.add(doc);
-      docsService.open(doc.uri);
-    }
+    openReport(report);
     closeConnectionsPanel();
   };
 
@@ -112,39 +101,31 @@ export const DiagnosticsAlert = () => {
         checkAttempt.checkReport.status === CheckReportStatus.OK
     )
   ) {
-    // TODO(ravicious): Once we start automatically running checks, this alert needs to be shown
-    // only if the user manually requested diagnostics to be run. Alternatively, we can replace it
-    // with some kind of a smaller "Everything's okay" indicator, but the user needs to be able to
-    // open the report anyway.
     return (
-      <SliderStepAlert
-        kind="success"
-        onDismiss={onDismiss}
-        buttons={
-          <ActionButton
-            fill="border"
-            intent="neutral"
-            inputAlignment
-            action={{ content: 'Open Report', onClick: openReport }}
-            {...disabledOpenReportButtonProps}
-          />
-        }
-      >
-        No issues found.
-      </SliderStepAlert>
+      <Flex px={textSpacing} justifyContent="space-between" alignItems="center">
+        <Flex gap={1}>
+          <StatusIcon kind="neutral" customIcon={Checks} size="large" />
+          No issues found.
+        </Flex>
+
+        <ActionButton
+          fill="minimal"
+          intent="neutral"
+          inputAlignment
+          action={{
+            content: 'Open Diag Report',
+            onClick: openReportAndClosePanel,
+          }}
+          {...disabledOpenReportButtonProps}
+        />
+      </Flex>
     );
   }
 
   // If this default warningText is shown the user, it means we failed to account for a specific
   // state.
   let warningText = 'Unknown report status';
-  if (
-    report.checks.some(
-      checkAttempt =>
-        checkAttempt.status === CheckAttemptStatus.OK &&
-        checkAttempt.checkReport.status === CheckReportStatus.ISSUES_FOUND
-    )
-  ) {
+  if (hasReportFoundIssues(report)) {
     warningText = 'Other software on your device might interfere with VNet.';
   } else if (
     report.checks.some(
@@ -157,21 +138,27 @@ export const DiagnosticsAlert = () => {
   return (
     <SliderStepAlert
       kind="warning"
-      onDismiss={onDismiss}
+      onDismiss={dismissDiagnosticsAlert}
       buttons={
         <>
           <ActionButton
             fill="border"
             intent="neutral"
             inputAlignment
-            action={{ content: 'Open Report', onClick: openReport }}
+            action={{
+              content: 'Open Diag Report',
+              onClick: openReportAndClosePanel,
+            }}
             {...disabledOpenReportButtonProps}
           />
           <ActionButton
             fill="minimal"
             intent="neutral"
             inputAlignment
-            action={{ content: 'Retry', onClick: runDiagnostics }}
+            action={{
+              content: 'Retry',
+              onClick: props.runDiagnosticsFromVnetPanel,
+            }}
           />
         </>
       }
@@ -182,20 +169,24 @@ export const DiagnosticsAlert = () => {
 };
 
 const SliderStepAlert = (
-  props: (
-    | { buttons?: ReactNode; details?: never }
-    | { details?: ReactNode; buttons?: never }
-  ) &
-    Required<Pick<AlertProps, 'kind' | 'onDismiss' | 'children'>>
+  props: PropsWithChildren<{
+    kind: AlertKind;
+    onDismiss?: () => void;
+  }> &
+    (
+      | { buttons?: ReactNode; details?: never }
+      | { details?: ReactNode; buttons?: never }
+    )
 ) => {
-  const { buttons, details, ...alertProps } = props;
+  const { buttons, onDismiss } = props;
 
   return (
     <Alert
+      kind={props.kind}
       mt={0}
       mx={textSpacing}
       mb={textSpacing}
-      dismissible
+      {...(onDismiss ? { dismissible: true, onDismiss } : {})}
       alignItems={buttons ? 'flex-start' : 'center'}
       details={
         buttons ? (
@@ -203,10 +194,11 @@ const SliderStepAlert = (
             {buttons}
           </Flex>
         ) : (
-          details
+          props.details
         )
       }
-      {...alertProps}
-    />
+    >
+      {props.children}
+    </Alert>
   );
 };

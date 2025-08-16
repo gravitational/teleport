@@ -31,12 +31,16 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	apistream "github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
@@ -47,7 +51,11 @@ type PresenceService struct {
 	logger *slog.Logger
 	jitter retryutils.Jitter
 	backend.Backend
+
+	relayServers *generic.ServiceWrapper[*presencev1.RelayServer]
 }
+
+var _ services.PresenceInternal = (*PresenceService)(nil)
 
 // backendItemToResourceFunc defines a function that unmarshals a
 // `backend.Item` into the implementation of `types.Resource`.
@@ -55,33 +63,48 @@ type backendItemToResourceFunc func(item backend.Item) (types.ResourceWithLabels
 
 // NewPresenceService returns new presence service instance
 func NewPresenceService(b backend.Backend) *PresenceService {
+	relayServers, err := generic.NewServiceWrapper(generic.ServiceConfig[*presencev1.RelayServer]{
+		Backend:       b,
+		ResourceKind:  types.KindRelayServer,
+		BackendPrefix: backend.NewKey(relayServersPrefix),
+		MarshalFunc:   services.MarshalProtoResource[*presencev1.RelayServer],
+		UnmarshalFunc: services.UnmarshalProtoResource[*presencev1.RelayServer],
+		ValidateFunc:  services.ValidateRelayServer,
+	})
+	if err != nil {
+		panic("impossible: failed to construct relay_server service wrapper")
+	}
 	return &PresenceService{
 		logger:  slog.With(teleport.ComponentKey, "Presence"),
 		jitter:  retryutils.FullJitter,
 		Backend: b,
+
+		relayServers: relayServers,
 	}
 }
 
 // GetServerInfos returns a stream of ServerInfos.
-func (s *PresenceService) GetServerInfos(ctx context.Context) stream.Stream[types.ServerInfo] {
+func (s *PresenceService) GetServerInfos(ctx context.Context) apistream.Stream[types.ServerInfo] {
 	startKey := backend.ExactKey(serverInfoPrefix)
 	endKey := backend.RangeEnd(startKey)
-	items := backend.StreamRange(ctx, s, startKey, endKey, apidefaults.DefaultChunkSize)
-	return stream.FilterMap(items, func(item backend.Item) (types.ServerInfo, bool) {
-		si, err := services.UnmarshalServerInfo(
-			item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision),
-		)
-		if err != nil {
-			s.logger.WarnContext(ctx, "Failed to unmarshal server info",
-				"key", item.Key,
-				"error", err,
+	return stream.IntoLegacy(stream.FilterMap(
+		s.Backend.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey}),
+		func(item backend.Item) (types.ServerInfo, bool) {
+			si, err := services.UnmarshalServerInfo(
+				item.Value,
+				services.WithExpires(item.Expires),
+				services.WithRevision(item.Revision),
 			)
-			return nil, false
-		}
-		return si, true
-	})
+			if err != nil {
+				s.logger.WarnContext(ctx, "Failed to unmarshal server info",
+					"key", item.Key,
+					"error", err,
+				)
+				return nil, false
+			}
+			return si, true
+		},
+	))
 }
 
 // GetServerInfo returns a ServerInfo by name.
@@ -266,17 +289,12 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 		return nil, trace.Wrap(err)
 	}
 
-	rev := server.GetRevision()
-	value, err := services.MarshalServer(server)
+	item, err := itemFromNode(server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	_, err = s.Put(ctx, backend.Item{
-		Key:      backend.NewKey(nodesPrefix, server.GetNamespace(), server.GetName()),
-		Value:    value,
-		Expires:  server.Expiry(),
-		Revision: rev,
-	})
+
+	_, err = s.Put(ctx, *item)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -289,6 +307,19 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 	}, nil
 }
 
+func itemFromNode(server types.Server) (*backend.Item, error) {
+	value, err := services.MarshalServer(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &backend.Item{
+		Key:      backend.NewKey(nodesPrefix, server.GetNamespace(), server.GetName()),
+		Value:    value,
+		Expires:  server.Expiry(),
+		Revision: server.GetRevision(),
+	}, nil
+}
+
 // UpdateNode conditionally updates the provided server.
 func (s *PresenceService) UpdateNode(ctx context.Context, server types.Server) (types.Server, error) {
 	if server.GetNamespace() == "" {
@@ -298,17 +329,12 @@ func (s *PresenceService) UpdateNode(ctx context.Context, server types.Server) (
 		return nil, trace.Wrap(err)
 	}
 
-	rev := server.GetRevision()
-	value, err := services.MarshalServer(server)
+	item, err := itemFromNode(server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	lease, err := s.ConditionalUpdate(ctx, backend.Item{
-		Key:      backend.NewKey(nodesPrefix, server.GetNamespace(), server.GetName()),
-		Value:    value,
-		Expires:  server.Expiry(),
-		Revision: rev,
-	})
+
+	lease, err := s.ConditionalUpdate(ctx, *item)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -370,16 +396,7 @@ func (s *PresenceService) DeleteAllReverseTunnels(ctx context.Context) error {
 }
 
 // UpsertReverseTunnel upserts reverse tunnel entry
-func (s *PresenceService) UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) error {
-	_, err := s.UpsertReverseTunnelV2(ctx, tunnel)
-	return trace.Wrap(err)
-}
-
-// UpsertReverseTunnelV2 upserts reverse tunnel entry and returns the upserted
-// value.
-// TODO(noah): In v18, we can rename this to UpsertReverseTunnel and remove the
-// version which does not return the upserted value.
-func (s *PresenceService) UpsertReverseTunnelV2(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error) {
+func (s *PresenceService) UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error) {
 	if err := services.ValidateReverseTunnel(tunnel); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -413,35 +430,6 @@ func (s *PresenceService) GetReverseTunnel(ctx context.Context, name string) (ty
 		services.WithExpires(item.Expires),
 		services.WithRevision(item.Revision),
 	)
-}
-
-// GetReverseTunnels returns a list of registered servers
-// Deprecated: use ListReverseTunnels
-// TODO(noah): REMOVE IN 18.0.0 - replace with calls to ListReverseTunnels
-func (s *PresenceService) GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error) {
-	startKey := backend.ExactKey(reverseTunnelsPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tunnels := make([]types.ReverseTunnel, len(result.Items))
-	if len(result.Items) == 0 {
-		return tunnels, nil
-	}
-	for i, item := range result.Items {
-		tunnel, err := services.UnmarshalReverseTunnel(
-			item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tunnels[i] = tunnel
-	}
-	// sorting helps with tests and makes it all deterministic
-	sort.Sort(services.SortedReverseTunnels(tunnels))
-	return tunnels, nil
 }
 
 // DeleteReverseTunnel deletes reverse tunnel by its cluster name
@@ -522,7 +510,7 @@ func (s *PresenceService) AcquireSemaphore(ctx context.Context, req types.Acquir
 	key := backend.NewKey(semaphoresPrefix, req.SemaphoreKind, req.SemaphoreName)
 
 Acquire:
-	for i := int64(0); i < leaseRetryAttempts; i++ {
+	for i := range leaseRetryAttempts {
 		if i > 0 {
 			// Not our first attempt, apply backoff. If we knew that we were only in
 			// contention with one other acquire attempt we could retry immediately
@@ -699,7 +687,7 @@ func (s *PresenceService) CancelSemaphoreLease(ctx context.Context, lease types.
 		return trace.BadParameter("the lease %v has expired at %v", lease.LeaseID, lease.Expires)
 	}
 
-	for i := int64(0); i < leaseRetryAttempts; i++ {
+	for i := range leaseRetryAttempts {
 		if i > 0 {
 			// Not our first attempt, apply backoff. If we knew that we were only in
 			// contention with one other cancel attempt we could retry immediately
@@ -1254,6 +1242,26 @@ func (s *PresenceService) GetSAMLIdPServiceProviders(ctx context.Context, opts .
 	return serviceProviders, nil
 }
 
+// GetRelayServer implements [services.Presence].
+func (s *PresenceService) GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error) {
+	return s.relayServers.GetResource(ctx, name)
+}
+
+// ListRelayServers implements [services.Presence].
+func (s *PresenceService) ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error) {
+	return s.relayServers.ListResources(ctx, pageSize, pageToken)
+}
+
+// DeleteRelayServer implements [services.Presence].
+func (s *PresenceService) DeleteRelayServer(ctx context.Context, name string) error {
+	return s.relayServers.DeleteResource(ctx, name)
+}
+
+// UpsertRelayServer implements [services.PresenceInternal].
+func (s *PresenceService) UpsertRelayServer(ctx context.Context, relayServer *presencev1.RelayServer) (*presencev1.RelayServer, error) {
+	return s.relayServers.UpsertResource(ctx, relayServer)
+}
+
 // ListResources returns a paginated list of resources.
 // It implements various filtering for scenarios where the call comes directly
 // here (without passing through the RBAC).
@@ -1305,6 +1313,9 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindIdentityCenterAccountAssignment:
 		keyPrefix = []string{awsResourcePrefix, awsAccountAssignmentPrefix}
 		unmarshalItemFunc = backendItemToIdentityCenterAccountAssignment
+	case types.KindGitServer:
+		keyPrefix = []string{gitServerPrefix}
+		unmarshalItemFunc = backendItemToServer(types.KindGitServer)
 	default:
 		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
 	}
@@ -1325,45 +1336,35 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 		filter.PredicateExpression = expression
 	}
 
-	// Get most limit+1 results to determine if there will be a next key.
 	reqLimit := int(req.Limit)
-	maxLimit := reqLimit + 1
-	var resources []types.ResourceWithLabels
-	if err := backend.IterateRange(ctx, s.Backend, rangeStart, rangeEnd, maxLimit, func(items []backend.Item) (stop bool, err error) {
-		for _, item := range items {
-			if len(resources) == maxLimit {
-				break
-			}
-
-			resource, err := unmarshalItemFunc(item)
-			if err != nil {
-				return false, trace.Wrap(err)
-			}
-
-			switch match, err := services.MatchResourceByFilters(resource, filter, nil /* ignore dup matches */); {
-			case err != nil:
-				return false, trace.Wrap(err)
-			case match:
-				resources = append(resources, resource)
-			}
+	var resp types.ListResourcesResponse
+	for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
+		StartKey: rangeStart,
+		EndKey:   rangeEnd,
+	}) {
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
-		return len(resources) == maxLimit, nil
-	}); err != nil {
-		return nil, trace.Wrap(err)
+		resource, err := unmarshalItemFunc(item)
+		if err != nil {
+			continue
+		}
+
+		switch match, err := services.MatchResourceByFilters(resource, filter, nil /* ignore dup matches */); {
+		case err != nil:
+			return nil, trace.Wrap(err)
+		case match:
+			if len(resp.Resources) >= reqLimit {
+				resp.NextKey = backend.GetPaginationKey(resource)
+				return &resp, nil
+			}
+
+			resp.Resources = append(resp.Resources, resource)
+		}
 	}
 
-	var nextKey string
-	if len(resources) > reqLimit {
-		nextKey = backend.GetPaginationKey(resources[len(resources)-1])
-		// Truncate the last item that was used to determine next row existence.
-		resources = resources[:reqLimit]
-	}
-
-	return &types.ListResourcesResponse{
-		Resources: resources,
-		NextKey:   nextKey,
-	}, nil
+	return &resp, nil
 }
 
 // listResourcesWithSort supports sorting by falling back to retrieving all resources
@@ -1702,10 +1703,10 @@ func backendItemToIdentityCenterAccount(item backend.Item) (types.ResourceWithLa
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	resource := types.Resource153ToUnifiedResource(
+
+	return types.Resource153ToResourceWithLabels(
 		services.IdentityCenterAccount{Account: assignment},
-	)
-	return resource.(types.ResourceWithLabels), nil
+	), nil
 }
 
 func backendItemToIdentityCenterAccountAssignment(item backend.Item) (types.ResourceWithLabels, error) {
@@ -1717,9 +1718,52 @@ func backendItemToIdentityCenterAccountAssignment(item backend.Item) (types.Reso
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return types.Resource153ToUnifiedResource(
+	return types.Resource153ToResourceWithLabels(
 		services.IdentityCenterAccountAssignment{AccountAssignment: assignment},
 	), nil
+}
+
+func newRelayServerParser() resourceParser {
+	return relayServerParser{}
+}
+
+type relayServerParser struct{}
+
+// parse implements [resourceParser].
+func (relayServerParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return types.Resource153ToLegacy(&presencev1.RelayServer{
+			Kind:    types.KindRelayServer,
+			SubKind: "",
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: event.Item.Key.TrimPrefix(backend.ExactKey(relayServersPrefix)).String(),
+			},
+		}), nil
+	case types.OpPut:
+		r, err := services.UnmarshalProtoResource[*presencev1.RelayServer](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(r), nil
+	default:
+		return nil, trace.BadParameter("event %v is unknown or not supported (this is a bug)", event.Type)
+	}
+}
+
+// match implements [resourceParser].
+func (relayServerParser) match(key backend.Key) bool {
+	return key.HasPrefix(backend.ExactKey(relayServersPrefix))
+}
+
+// prefixes implements [resourceParser].
+func (relayServerParser) prefixes() []backend.Key {
+	return []backend.Key{backend.ExactKey(relayServersPrefix)}
 }
 
 const (
@@ -1743,4 +1787,5 @@ const (
 	loginTimePrefix              = "hostuser_interaction_time"
 	serverInfoPrefix             = "serverInfos"
 	cloudLabelsPrefix            = "cloudLabels"
+	relayServersPrefix           = "relay_servers"
 )

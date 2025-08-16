@@ -120,6 +120,9 @@ const (
 	// ComponentProxy is SSH proxy (SSH server forwarding connections)
 	ComponentProxy = "proxy"
 
+	// ComponentRelay is the component name for the relay service.
+	ComponentRelay = "relay"
+
 	// ComponentProxyPeer is the proxy peering component of the proxy service
 	ComponentProxyPeer = "proxy:peer"
 
@@ -298,6 +301,12 @@ const (
 	// ComponentForwardingGit represents the SSH proxy that forwards Git commands.
 	ComponentForwardingGit = "git:forward"
 
+	// ComponentMCP represents the MCP server handler.
+	ComponentMCP = "mcp"
+
+	// ComponentRecordingEncryption represents recording encryption
+	ComponentRecordingEncryption = "recording-encryption"
+
 	// VerboseLogsEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
@@ -394,6 +403,10 @@ const (
 	// S3UseVirtualStyleAddressing is an optional switch to use use a virtual-hosted–style URI.
 	S3UseVirtualStyleAddressing = "use_s3_virtual_style_addressing"
 
+	// S3CompleteInitiators is an optional allow list which configures the upload completer
+	// to only complete uploads from the specified set of initiators.
+	S3CompleteInitiators = "complete_initiators"
+
 	// SchemeFile configures local disk-based file storage for audit events
 	SchemeFile = "file"
 
@@ -417,14 +430,8 @@ const (
 	// LogsDir is a log subdirectory for events and logs
 	LogsDir = "log"
 
-	// Syslog is a mode for syslog logging
-	Syslog = "syslog"
-
 	// DebugLevel is a debug logging level name
 	DebugLevel = "debug"
-
-	// MinimumEtcdVersion is the minimum version of etcd supported by Teleport
-	MinimumEtcdVersion = "3.3.0"
 
 	// EnvVarAllowNoSecondFactor is used to allow disabling second factor auth
 	// todo(tross): DELETE WHEN ABLE TO
@@ -522,6 +529,9 @@ const (
 	// Machine ID bot instance, if any. This identifier is persisted through
 	// certificate renewals.
 	CertExtensionBotInstanceID = "bot-instance-id@goteleport.com"
+	// CertExtensionJoinToken is the name of the join token used to join this
+	// bot, if any.
+	CertExtensionJoinToken = "join-token@goteleport.com"
 
 	// CertCriticalOptionSourceAddress is a critical option that defines IP addresses (in CIDR notation)
 	// from which this certificate is accepted for authentication.
@@ -656,6 +666,10 @@ const (
 	// TraitInternalGitHubOrgs is the variable used to store allowed GitHub
 	// organizations for GitHub integrations.
 	TraitInternalGitHubOrgs = "{{internal.github_orgs}}"
+
+	// TraitInternalMCPTools is the variable used to store allowed MCP tools for
+	// MCP servers.
+	TraitInternalMCPTools = "{{internal.mcp_tools}}"
 )
 
 // SCP is Secure Copy.
@@ -737,9 +751,23 @@ const (
 	// credentials using any workload_identity resource. This exists to simplify
 	// Day 0 UX experience with workload identity.
 	PresetWildcardWorkloadIdentityIssuerRoleName = "wildcard-workload-identity-issuer"
+
+	// PresetAccessPluginRoleName is a name of a preset role that includes
+	// permissions required by self-hosted access request plugin.
+	PresetAccessPluginRoleName = "access-plugin"
+
+	// PresetListAccessRequestResourcesRoleName is a name of a preset role that
+	// includes permissions to read access request resources.
+	PresetListAccessRequestResourcesRoleName = "list-access-request-resources"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
+
+const (
+	// PresetDefaultHealthCheckConfigName is the name of a preset
+	// default health_check_config that enables health checks for all resources.
+	PresetDefaultHealthCheckConfigName = "default"
+)
 
 const (
 	// SystemAccessApproverUserName names a Teleport user that acts as
@@ -960,6 +988,13 @@ const (
 
 	// HostHeader is the name of the Host header.
 	HostHeader = "Host"
+
+	// XTeleportUsernameHeader is the name of the X-Teleport-Username header
+	// used to pass the username to the Access Graph service.
+	// This header is used to identify the user that is making the request
+	// so that the Access Graph service can store information about the
+	// user's preferences.
+	XTeleportUsernameHeader = "X-Teleport-Username"
 )
 
 // UserSingleUseCertTTL is a TTL for per-connection user certificates.

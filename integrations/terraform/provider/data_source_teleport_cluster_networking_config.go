@@ -57,12 +57,27 @@ func (r dataSourceTeleportClusterNetworkingConfig) Read(ctx context.Context, req
 		return
 	}
 
-    var state types.Object
+	var state types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	clusterNetworkingConfig := clusterNetworkingConfigI.(*apitypes.ClusterNetworkingConfigV2)
 	diags := tfschema.CopyClusterNetworkingConfigV2ToTerraform(ctx, clusterNetworkingConfig, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	// Todo: Remove after updating terraform-plugin to >=v1.5.0.
+	// terraform-plugin-testing version <1.5.0 requires data resources to
+	// implement the 'id' attribute.
+	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
+	v, ok := state.Attrs["id"]
+	if !ok || v.IsNull() {
+		id := clusterNetworkingConfig.GetName()
+		state.Attrs["id"] = types.String{Value: id}
 	}
 
 	diags = resp.State.Set(ctx, &state)

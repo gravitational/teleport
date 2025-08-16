@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package teleport.clusterconfig.v1;
 
+import "google/protobuf/timestamp.proto";
+
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1;clusterconfigv1";
 
 // AccessGraphConfig holds the information about the configured Access Graph service.
@@ -32,10 +34,20 @@ message AccessGraphConfig {
   bool insecure = 4;
   // secrets_scan_config is used to configure the parameters for the secrets scanning functionality.
   AccessGraphSecretsScanConfiguration secrets_scan_config = 5;
+  // audit_log_config sets up audit log event exporting.
+  AuditLogConfig audit_log_config = 6;
 }
 
 // AccessGraphSecretsScanConfiguration controls the secrets scanning service parameters.
 message AccessGraphSecretsScanConfiguration {
   // ssh_scan_enabled indicates if the SSH scan feature is enabled for the cluster.
   bool ssh_scan_enabled = 1;
+}
+
+// AuditLogConfig specifies the audit log event export setup.
+message AuditLogConfig {
+  // enbled indicates if Audit Log event exporting is enabled.
+  bool enabled = 1;
+  // start_date is the start date for exporting audit logs. It defaults to 90 days ago on the first export.
+  google.protobuf.Timestamp start_date = 2;
 }

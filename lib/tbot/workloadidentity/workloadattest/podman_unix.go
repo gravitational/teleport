@@ -68,9 +68,10 @@ func (a *PodmanAttestor) Attest(ctx context.Context, pid int) (*workloadidentity
 	attrs := &workloadidentityv1pb.WorkloadAttrsPodman{
 		Attested: true,
 		Container: &workloadidentityv1pb.WorkloadAttrsPodmanContainer{
-			Name:   container.Name,
-			Image:  container.Config.Image,
-			Labels: container.Config.Labels,
+			Name:        container.Name,
+			Image:       container.Config.Image,
+			Labels:      container.Config.Labels,
+			ImageDigest: container.ImageDigest,
 		},
 	}
 

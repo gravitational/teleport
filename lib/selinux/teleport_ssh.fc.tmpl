@@ -1,0 +1,5 @@
+{{ .BinaryPath }}            -- gen_context(system_u:object_r:teleport_ssh_exec_t,s0)
+/run/teleport.pid            -- gen_context(system_u:object_r:teleport_ssh_pid_t,s0)
+{{ .ConfigPath }}            -- gen_context(system_u:object_r:teleport_ssh_conf_t,s0)
+{{ .DataDir }}(/.*)?            gen_context(system_u:object_r:teleport_ssh_data_t,s0)
+{{ .UpgradeUnitDir }}(/.*)?     gen_context(system_u:object_r:teleport_ssh_upgrade_data_t,s0)

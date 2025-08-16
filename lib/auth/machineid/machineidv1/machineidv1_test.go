@@ -32,6 +32,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -40,8 +41,9 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -70,7 +72,7 @@ func TestCreateBot(t *testing.T) {
 	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
-	botCreator, _, err := auth.CreateUserAndRole(
+	botCreator, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
 		"bot-creator",
 		[]string{},
@@ -81,21 +83,35 @@ func TestCreateBot(t *testing.T) {
 			},
 		})
 	require.NoError(t, err)
-	testRole, err := auth.CreateRole(
+	botCreatorWhere, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"bot-creator-where",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindBot},
+				Verbs:     []string{types.VerbCreate},
+				Where:     `has_prefix(resource.metadata.name, "foo")`,
+			},
+		})
+	require.NoError(t, err)
+	testRole, err := authtest.CreateRole(
 		ctx, srv.Auth(), "test-role", types.RoleSpecV6{},
 	)
 	require.NoError(t, err)
-	unprivilegedUser, err := auth.CreateUser(
+	unprivilegedUser, err := authtest.CreateUser(
 		ctx, srv.Auth(), "no-perms", testRole,
 	)
 	require.NoError(t, err)
 
-	client, err := srv.NewClient(auth.TestAdmin())
+	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	preExistingBot, err := client.BotServiceClient().CreateBot(
 		ctx,
 		&machineidv1pb.CreateBotRequest{
 			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: "pre-existing",
 				},
@@ -123,6 +139,8 @@ func TestCreateBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.CreateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "success",
 						Labels: map[string]string{
@@ -142,6 +160,8 @@ func TestCreateBot(t *testing.T) {
 								Values: []string{},
 							},
 						},
+						// Note: Deliberately omitting MaxSessionTtl here to verify
+						// the default value.
 					},
 				},
 			},
@@ -165,6 +185,7 @@ func TestCreateBot(t *testing.T) {
 							Values: []string{"root"},
 						},
 					},
+					MaxSessionTtl: durationpb.New(libdefaults.DefaultBotMaxSessionTTL),
 				},
 				Status: &machineidv1pb.BotStatus{
 					UserName: "bot-success",
@@ -199,7 +220,7 @@ func TestCreateBot(t *testing.T) {
 			},
 			wantRole: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V7,
+				Version: types.V8,
 				Metadata: types.Metadata{
 					Name:      "bot-success",
 					Namespace: defaults.Namespace,
@@ -210,7 +231,7 @@ func TestCreateBot(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						MaxSessionTTL: types.Duration(12 * time.Hour),
+						MaxSessionTTL: types.Duration(libdefaults.DefaultBotMaxSessionTTL),
 					},
 					Allow: types.RoleConditions{
 						Impersonate: &types.ImpersonateConditions{
@@ -231,6 +252,8 @@ func TestCreateBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.CreateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "success-with-expiry",
 						Labels: map[string]string{
@@ -251,6 +274,8 @@ func TestCreateBot(t *testing.T) {
 								Values: []string{},
 							},
 						},
+						// Note: Deliberately omitting MaxSessionTtl here to
+						// validate the default value.
 					},
 				},
 			},
@@ -275,6 +300,7 @@ func TestCreateBot(t *testing.T) {
 							Values: []string{"root"},
 						},
 					},
+					MaxSessionTtl: durationpb.New(libdefaults.DefaultBotMaxSessionTTL),
 				},
 				Status: &machineidv1pb.BotStatus{
 					UserName: "bot-success-with-expiry",
@@ -310,7 +336,7 @@ func TestCreateBot(t *testing.T) {
 			},
 			wantRole: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V7,
+				Version: types.V8,
 				Metadata: types.Metadata{
 					Name:      "bot-success-with-expiry",
 					Namespace: defaults.Namespace,
@@ -322,7 +348,7 @@ func TestCreateBot(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						MaxSessionTTL: types.Duration(12 * time.Hour),
+						MaxSessionTTL: types.Duration(libdefaults.DefaultBotMaxSessionTTL),
 					},
 					Allow: types.RoleConditions{
 						Impersonate: &types.ImpersonateConditions{
@@ -339,22 +365,144 @@ func TestCreateBot(t *testing.T) {
 			},
 		},
 		{
+			name: "success with max ttl",
+			user: botCreator.GetName(),
+			req: &machineidv1pb.CreateBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Metadata: &headerv1.Metadata{
+						Name: "success-with-max-ttl",
+						Labels: map[string]string{
+							"my-label":       "my-value",
+							"my-other-label": "my-other-value",
+						},
+						Expires: timestamppb.New(expiry),
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles: []string{testRole.GetName()},
+						Traits: []*machineidv1pb.Trait{
+							{
+								Name:   constants.TraitLogins,
+								Values: []string{"root"},
+							},
+							{
+								Name:   constants.TraitKubeUsers,
+								Values: []string{},
+							},
+						},
+						MaxSessionTtl: durationpb.New(libdefaults.MaxRenewableCertTTL),
+					},
+				},
+			},
+			assertError: require.NoError,
+			want: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "success-with-max-ttl",
+					Labels: map[string]string{
+						"my-label":       "my-value",
+						"my-other-label": "my-other-value",
+					},
+					Expires: timestamppb.New(expiry),
+				},
+				Spec: &machineidv1pb.BotSpec{
+					Roles: []string{testRole.GetName()},
+					Traits: []*machineidv1pb.Trait{
+						{
+							Name:   constants.TraitLogins,
+							Values: []string{"root"},
+						},
+					},
+					MaxSessionTtl: durationpb.New(libdefaults.MaxRenewableCertTTL),
+				},
+				Status: &machineidv1pb.BotStatus{
+					UserName: "bot-success-with-max-ttl",
+					RoleName: "bot-success-with-max-ttl",
+				},
+			},
+			wantRole: &types.RoleV6{
+				Kind:    types.KindRole,
+				Version: types.V8,
+				Metadata: types.Metadata{
+					Name:      "bot-success-with-max-ttl",
+					Namespace: defaults.Namespace,
+					Labels: map[string]string{
+						types.BotLabel: "success-with-max-ttl",
+					},
+					Description: "Automatically generated role for bot success-with-max-ttl",
+					Expires:     &expiry,
+				},
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						MaxSessionTTL: types.Duration(libdefaults.MaxRenewableCertTTL),
+					},
+					Allow: types.RoleConditions{
+						Impersonate: &types.ImpersonateConditions{
+							Roles: []string{testRole.GetName()},
+						},
+						Rules: []types.Rule{
+							types.NewRule(
+								types.KindCertAuthority,
+								[]string{types.VerbReadNoSecrets},
+							),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "success with where on name",
+			user: botCreatorWhere.GetName(),
+			req: &machineidv1pb.CreateBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Metadata: &headerv1.Metadata{
+						Name:   "foo-xyzzy",
+						Labels: map[string]string{},
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles:  []string{testRole.GetName()},
+						Traits: []*machineidv1pb.Trait{},
+					},
+				},
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "failure with where on name",
+			user: botCreatorWhere.GetName(),
+			req: &machineidv1pb.CreateBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Metadata: &headerv1.Metadata{
+						Name:   "bar-xyzzy",
+						Labels: map[string]string{},
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles:  []string{testRole.GetName()},
+						Traits: []*machineidv1pb.Trait{},
+					},
+				},
+			},
+			assertError: require.Error,
+		},
+		{
 			name: "bot already exists",
 			user: botCreator.GetName(),
 			req: &machineidv1pb.CreateBotRequest{
 				Bot: preExistingBot,
 			},
 
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAlreadyExists(err), "error should be already exists")
 			},
 		},
 		{
 			name: "no permissions",
 			user: unprivilegedUser.GetName(),
-			req:  &machineidv1pb.CreateBotRequest{},
+			req: &machineidv1pb.CreateBotRequest{
+				Bot: preExistingBot,
+			},
 
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
@@ -364,7 +512,7 @@ func TestCreateBot(t *testing.T) {
 			req: &machineidv1pb.CreateBotRequest{
 				Bot: nil,
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "must be non-nil")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -374,13 +522,15 @@ func TestCreateBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.CreateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:     types.KindBot,
+					Version:  types.V1,
 					Metadata: nil,
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{testRole.GetName()},
 					},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "must be non-nil")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -390,13 +540,15 @@ func TestCreateBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.CreateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:     types.KindBot,
+					Version:  types.V1,
 					Metadata: &headerv1.Metadata{},
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{testRole.GetName()},
 					},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "must be non-empty")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -406,13 +558,15 @@ func TestCreateBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.CreateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "terminator",
 					},
 					Spec: nil,
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "spec: must be non-nil")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -422,6 +576,8 @@ func TestCreateBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.CreateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "empty-string-role",
 					},
@@ -431,7 +587,7 @@ func TestCreateBot(t *testing.T) {
 					},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "spec.roles: must not contain empty strings")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -439,7 +595,7 @@ func TestCreateBot(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(auth.TestUser(tt.user))
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
 			bot, err := client.BotServiceClient().CreateBot(ctx, tt.req)
@@ -482,25 +638,27 @@ func TestUpdateBot(t *testing.T) {
 	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
-	botUpdaterUser, _, err := auth.CreateUserAndRole(srv.Auth(), "bot-updater", []string{}, []types.Rule{
+	botUpdaterUser, _, err := authtest.CreateUserAndRole(srv.Auth(), "bot-updater", []string{}, []types.Rule{
 		{
 			Resources: []string{types.KindBot},
 			Verbs:     []string{types.VerbUpdate},
 		},
 	})
 	require.NoError(t, err)
-	beforeRole, err := auth.CreateRole(ctx, srv.Auth(), "before-role", types.RoleSpecV6{})
+	beforeRole, err := authtest.CreateRole(ctx, srv.Auth(), "before-role", types.RoleSpecV6{})
 	require.NoError(t, err)
-	afterRole, err := auth.CreateRole(ctx, srv.Auth(), "after-role", types.RoleSpecV6{})
+	afterRole, err := authtest.CreateRole(ctx, srv.Auth(), "after-role", types.RoleSpecV6{})
 	require.NoError(t, err)
-	unprivilegedUser, err := auth.CreateUser(ctx, srv.Auth(), "no-perms", beforeRole)
+	unprivilegedUser, err := authtest.CreateUser(ctx, srv.Auth(), "no-perms", beforeRole)
 	require.NoError(t, err)
 
 	// Create a pre-existing bot so we can check you can update an existing bot.
-	client, err := srv.NewClient(auth.TestAdmin())
+	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	preExistingBot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: "pre-existing",
 			},
@@ -544,6 +702,8 @@ func TestUpdateBot(t *testing.T) {
 			user: botUpdaterUser.GetName(),
 			req: &machineidv1pb.UpdateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: preExistingBot.Metadata.Name,
 					},
@@ -561,10 +721,11 @@ func TestUpdateBot(t *testing.T) {
 								},
 							},
 						},
+						MaxSessionTtl: durationpb.New(libdefaults.MaxRenewableCertTTL),
 					},
 				},
 				UpdateMask: &fieldmaskpb.FieldMask{
-					Paths: []string{"spec.roles", "spec.traits"},
+					Paths: []string{"spec.roles", "spec.traits", "spec.max_session_ttl"},
 				},
 			},
 
@@ -589,6 +750,7 @@ func TestUpdateBot(t *testing.T) {
 							},
 						},
 					},
+					MaxSessionTtl: durationpb.New(libdefaults.MaxRenewableCertTTL),
 				},
 				Status: &machineidv1pb.BotStatus{
 					UserName: preExistingBot.Status.UserName,
@@ -624,7 +786,7 @@ func TestUpdateBot(t *testing.T) {
 			},
 			wantRole: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V7,
+				Version: types.V8,
 				Metadata: types.Metadata{
 					Name:      preExistingBot.Status.RoleName,
 					Namespace: defaults.Namespace,
@@ -635,7 +797,7 @@ func TestUpdateBot(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						MaxSessionTTL: types.Duration(12 * time.Hour),
+						MaxSessionTTL: types.Duration(libdefaults.MaxRenewableCertTTL),
 					},
 					Allow: types.RoleConditions{
 						Impersonate: &types.ImpersonateConditions{
@@ -651,8 +813,19 @@ func TestUpdateBot(t *testing.T) {
 		{
 			name: "no permissions",
 			user: unprivilegedUser.GetName(),
-			req:  &machineidv1pb.UpdateBotRequest{},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			req: &machineidv1pb.UpdateBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: "valid-bot",
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles: []string{beforeRole.GetName()},
+					},
+				},
+			},
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
@@ -665,7 +838,7 @@ func TestUpdateBot(t *testing.T) {
 					Paths: []string{"spec.roles"},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "bot: must be non-nil")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -675,6 +848,8 @@ func TestUpdateBot(t *testing.T) {
 			user: botUpdaterUser.GetName(),
 			req: &machineidv1pb.UpdateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "bernard-lowe",
 					},
@@ -684,7 +859,7 @@ func TestUpdateBot(t *testing.T) {
 					Paths: []string{"spec.roles"},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "bot.spec: must be non-nil")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -694,6 +869,8 @@ func TestUpdateBot(t *testing.T) {
 			user: botUpdaterUser.GetName(),
 			req: &machineidv1pb.UpdateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{beforeRole.GetName()},
 					},
@@ -702,7 +879,7 @@ func TestUpdateBot(t *testing.T) {
 					Paths: []string{"spec.roles"},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "bot.metadata: must be non-nil")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -712,6 +889,8 @@ func TestUpdateBot(t *testing.T) {
 			user: botUpdaterUser.GetName(),
 			req: &machineidv1pb.UpdateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "",
 					},
@@ -723,7 +902,7 @@ func TestUpdateBot(t *testing.T) {
 					Paths: []string{"spec.roles"},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "bot.metadata.name: must be non-empty")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -733,6 +912,8 @@ func TestUpdateBot(t *testing.T) {
 			user: botUpdaterUser.GetName(),
 			req: &machineidv1pb.UpdateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "foo",
 					},
@@ -742,7 +923,7 @@ func TestUpdateBot(t *testing.T) {
 				},
 				UpdateMask: nil,
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "update_mask: must be non-nil")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -752,6 +933,8 @@ func TestUpdateBot(t *testing.T) {
 			user: botUpdaterUser.GetName(),
 			req: &machineidv1pb.UpdateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "foo",
 					},
@@ -763,7 +946,7 @@ func TestUpdateBot(t *testing.T) {
 					Paths: []string{},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "update_mask.paths: must be non-empty")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -773,6 +956,8 @@ func TestUpdateBot(t *testing.T) {
 			user: botUpdaterUser.GetName(),
 			req: &machineidv1pb.UpdateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: preExistingBot.Metadata.Name,
 					},
@@ -785,7 +970,7 @@ func TestUpdateBot(t *testing.T) {
 					Paths: []string{"spec.roles"},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "spec.roles: must not contain empty strings")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -793,7 +978,7 @@ func TestUpdateBot(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(auth.TestUser(tt.user))
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
 			bot, err := client.BotServiceClient().UpdateBot(ctx, tt.req)
@@ -846,23 +1031,33 @@ func TestUpsertBot(t *testing.T) {
 	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
-	botCreator, _, err := auth.CreateUserAndRole(srv.Auth(), "bot-creator", []string{}, []types.Rule{
+	botCreator, _, err := authtest.CreateUserAndRole(srv.Auth(), "bot-creator", []string{}, []types.Rule{
 		{
 			Resources: []string{types.KindBot},
 			Verbs:     []string{types.VerbCreate, types.VerbUpdate},
 		},
 	})
 	require.NoError(t, err)
-	testRole, err := auth.CreateRole(ctx, srv.Auth(), "test-role", types.RoleSpecV6{})
+	botWhereCreator, _, err := authtest.CreateUserAndRole(srv.Auth(), "bot-where-creator", []string{}, []types.Rule{
+		{
+			Resources: []string{types.KindBot},
+			Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+			Where:     `has_prefix(resource.metadata.name, "foo")`,
+		},
+	})
 	require.NoError(t, err)
-	unprivilegedUser, err := auth.CreateUser(ctx, srv.Auth(), "no-perms", testRole)
+	testRole, err := authtest.CreateRole(ctx, srv.Auth(), "test-role", types.RoleSpecV6{})
+	require.NoError(t, err)
+	unprivilegedUser, err := authtest.CreateUser(ctx, srv.Auth(), "no-perms", testRole)
 	require.NoError(t, err)
 
 	// Create a pre-existing bot so we can check you can upsert over an existing bot.
-	client, err := srv.NewClient(auth.TestAdmin())
+	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	preExistingBot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: "pre-existing",
 				Labels: map[string]string{
@@ -905,6 +1100,8 @@ func TestUpsertBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.UpsertBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "new",
 						Labels: map[string]string{
@@ -943,6 +1140,7 @@ func TestUpsertBot(t *testing.T) {
 							Values: []string{"root"},
 						},
 					},
+					MaxSessionTtl: durationpb.New(libdefaults.DefaultBotMaxSessionTTL),
 				},
 				Status: &machineidv1pb.BotStatus{
 					UserName: "bot-new",
@@ -974,7 +1172,7 @@ func TestUpsertBot(t *testing.T) {
 			},
 			wantRole: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V7,
+				Version: types.V8,
 				Metadata: types.Metadata{
 					Name:      "bot-new",
 					Namespace: defaults.Namespace,
@@ -985,7 +1183,7 @@ func TestUpsertBot(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						MaxSessionTTL: types.Duration(12 * time.Hour),
+						MaxSessionTTL: types.Duration(libdefaults.DefaultBotMaxSessionTTL),
 					},
 					Allow: types.RoleConditions{
 						Impersonate: &types.ImpersonateConditions{
@@ -1003,6 +1201,8 @@ func TestUpsertBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.UpsertBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "new-with-expiry",
 						Labels: map[string]string{
@@ -1043,6 +1243,7 @@ func TestUpsertBot(t *testing.T) {
 							Values: []string{"root"},
 						},
 					},
+					MaxSessionTtl: durationpb.New(libdefaults.DefaultBotMaxSessionTTL),
 				},
 				Status: &machineidv1pb.BotStatus{
 					UserName: "bot-new-with-expiry",
@@ -1075,7 +1276,7 @@ func TestUpsertBot(t *testing.T) {
 			},
 			wantRole: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V7,
+				Version: types.V8,
 				Metadata: types.Metadata{
 					Name:      "bot-new-with-expiry",
 					Namespace: defaults.Namespace,
@@ -1087,7 +1288,7 @@ func TestUpsertBot(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						MaxSessionTTL: types.Duration(12 * time.Hour),
+						MaxSessionTTL: types.Duration(libdefaults.DefaultBotMaxSessionTTL),
 					},
 					Allow: types.RoleConditions{
 						Impersonate: &types.ImpersonateConditions{
@@ -1132,7 +1333,7 @@ func TestUpsertBot(t *testing.T) {
 			},
 			wantRole: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V7,
+				Version: types.V8,
 				Metadata: types.Metadata{
 					Name:      "bot-pre-existing",
 					Namespace: defaults.Namespace,
@@ -1143,7 +1344,7 @@ func TestUpsertBot(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						MaxSessionTTL: types.Duration(12 * time.Hour),
+						MaxSessionTTL: types.Duration(libdefaults.DefaultBotMaxSessionTTL),
 					},
 					Allow: types.RoleConditions{
 						Impersonate: &types.ImpersonateConditions{
@@ -1160,11 +1361,147 @@ func TestUpsertBot(t *testing.T) {
 			},
 		},
 		{
+			name: "already exists with max session ttl",
+			user: botCreator.GetName(),
+			req: &machineidv1pb.UpsertBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Metadata: &headerv1.Metadata{
+						Name: "pre-existing",
+						Labels: map[string]string{
+							"my-label":       "my-value",
+							"my-other-label": "my-other-value",
+						},
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles:         []string{testRole.GetName()},
+						MaxSessionTtl: durationpb.New(libdefaults.MaxRenewableCertTTL),
+					},
+				},
+			},
+
+			assertError: require.NoError,
+			want: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "pre-existing",
+					Labels: map[string]string{
+						"my-label":       "my-value",
+						"my-other-label": "my-other-value",
+					},
+				},
+				Spec: &machineidv1pb.BotSpec{
+					Roles:         []string{testRole.GetName()},
+					MaxSessionTtl: durationpb.New(libdefaults.MaxRenewableCertTTL),
+				},
+				Status: &machineidv1pb.BotStatus{
+					UserName: "bot-pre-existing",
+					RoleName: "bot-pre-existing",
+				},
+			},
+			wantUser: &types.UserV2{
+				Kind:    types.KindUser,
+				Version: types.V2,
+				Metadata: types.Metadata{
+					Name:      "bot-pre-existing",
+					Namespace: defaults.Namespace,
+					Labels: map[string]string{
+						types.BotLabel:           "pre-existing",
+						types.BotGenerationLabel: "1337",
+						"my-label":               "my-value",
+						"my-other-label":         "my-other-value",
+					},
+				},
+				Spec: types.UserSpecV2{
+					CreatedBy: types.CreatedBy{
+						User: types.UserRef{Name: botCreator.GetName()},
+					},
+					Roles:  []string{"bot-pre-existing"},
+					Traits: nil,
+				},
+			},
+			wantRole: &types.RoleV6{
+				Kind:    types.KindRole,
+				Version: types.V8,
+				Metadata: types.Metadata{
+					Name:      "bot-pre-existing",
+					Namespace: defaults.Namespace,
+					Labels: map[string]string{
+						types.BotLabel: "pre-existing",
+					},
+					Description: "Automatically generated role for bot pre-existing",
+				},
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						MaxSessionTTL: types.Duration(libdefaults.MaxRenewableCertTTL),
+					},
+					Allow: types.RoleConditions{
+						Impersonate: &types.ImpersonateConditions{
+							Roles: []string{testRole.GetName()},
+						},
+						Rules: []types.Rule{
+							types.NewRule(
+								types.KindCertAuthority,
+								[]string{types.VerbReadNoSecrets},
+							),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "new with where",
+			user: botWhereCreator.GetName(),
+			req: &machineidv1pb.UpsertBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: "foo-new",
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles: []string{testRole.GetName()},
+					},
+				},
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "failed new with where",
+			user: botWhereCreator.GetName(),
+			req: &machineidv1pb.UpsertBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: "not-foo-new",
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles: []string{testRole.GetName()},
+					},
+				},
+			},
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
+			},
+		},
+		{
 			name: "no permissions",
 			user: unprivilegedUser.GetName(),
-			req:  &machineidv1pb.UpsertBotRequest{},
+			req: &machineidv1pb.UpsertBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: "not-foo-new",
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles: []string{testRole.GetName()},
+					},
+				},
+			},
 
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
@@ -1174,7 +1511,7 @@ func TestUpsertBot(t *testing.T) {
 			req: &machineidv1pb.UpsertBotRequest{
 				Bot: nil,
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "must be non-nil")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -1184,13 +1521,15 @@ func TestUpsertBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.UpsertBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:     types.KindBot,
+					Version:  types.V1,
 					Metadata: nil,
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{testRole.GetName()},
 					},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "must be non-nil")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -1200,13 +1539,15 @@ func TestUpsertBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.UpsertBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:     types.KindBot,
+					Version:  types.V1,
 					Metadata: &headerv1.Metadata{},
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{testRole.GetName()},
 					},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "must be non-empty")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -1216,6 +1557,8 @@ func TestUpsertBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.UpsertBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "empty-string-role",
 					},
@@ -1225,7 +1568,7 @@ func TestUpsertBot(t *testing.T) {
 					},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "spec.roles: must not contain empty strings")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -1233,7 +1576,7 @@ func TestUpsertBot(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(auth.TestUser(tt.user))
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
 			bot, err := client.BotServiceClient().UpsertBot(ctx, tt.req)
@@ -1275,7 +1618,7 @@ func TestGetBot(t *testing.T) {
 	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
-	botGetterUser, _, err := auth.CreateUserAndRole(
+	botGetterUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
 		"bot-getter",
 		[]string{},
@@ -1286,27 +1629,57 @@ func TestGetBot(t *testing.T) {
 			},
 		})
 	require.NoError(t, err)
-	testRole, err := auth.CreateRole(
+	botGetterWhereUser, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"bot-getter-where",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindBot},
+				Verbs:     []string{types.VerbRead},
+				Where:     `has_prefix(resource.metadata.name, "foo")`,
+			},
+		})
+	require.NoError(t, err)
+	testRole, err := authtest.CreateRole(
 		ctx, srv.Auth(), "test-role", types.RoleSpecV6{},
 	)
 	require.NoError(t, err)
-	unprivilegedUser, err := auth.CreateUser(
+	unprivilegedUser, err := authtest.CreateUser(
 		ctx, srv.Auth(), "no-perms", testRole,
 	)
 	require.NoError(t, err)
 
-	client, err := srv.NewClient(auth.TestAdmin())
+	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	preExistingBot, err := client.BotServiceClient().CreateBot(
 		ctx,
 		&machineidv1pb.CreateBotRequest{
 			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: "pre-existing",
 					Labels: map[string]string{
 						"my-label":       "my-value",
 						"my-other-label": "my-other-value",
 					},
+				},
+				Spec: &machineidv1pb.BotSpec{
+					Roles: []string{testRole.GetName()},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	preExistingBot2, err := client.BotServiceClient().CreateBot(
+		ctx,
+		&machineidv1pb.CreateBotRequest{
+			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "foo-pre-existing",
 				},
 				Spec: &machineidv1pb.BotSpec{
 					Roles: []string{testRole.GetName()},
@@ -1334,12 +1707,32 @@ func TestGetBot(t *testing.T) {
 			want:        preExistingBot,
 		},
 		{
+			name: "success with where",
+			user: botGetterWhereUser.GetName(),
+			req: &machineidv1pb.GetBotRequest{
+				BotName: preExistingBot2.Metadata.Name,
+			},
+
+			assertError: require.NoError,
+			want:        preExistingBot2,
+		},
+		{
+			name: "no permissions with where",
+			user: botGetterWhereUser.GetName(),
+			req: &machineidv1pb.GetBotRequest{
+				BotName: preExistingBot.Metadata.Name,
+			},
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsNotFound(err), "error should be not found")
+			},
+		},
+		{
 			name: "no permissions",
 			user: unprivilegedUser.GetName(),
 			req: &machineidv1pb.GetBotRequest{
 				BotName: preExistingBot.Metadata.Name,
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
@@ -1349,7 +1742,7 @@ func TestGetBot(t *testing.T) {
 			req: &machineidv1pb.GetBotRequest{
 				BotName: "",
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "must be non-empty")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -1360,14 +1753,14 @@ func TestGetBot(t *testing.T) {
 			req: &machineidv1pb.GetBotRequest{
 				BotName: "non-existent",
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsNotFound(err), "error should be bad parameter")
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(auth.TestUser(tt.user))
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
 			bot, err := client.BotServiceClient().GetBot(ctx, tt.req)
@@ -1386,7 +1779,7 @@ func TestListBots(t *testing.T) {
 	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
-	botListerUser, _, err := auth.CreateUserAndRole(
+	botListerUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
 		"bot-lister",
 		[]string{},
@@ -1397,21 +1790,35 @@ func TestListBots(t *testing.T) {
 			},
 		})
 	require.NoError(t, err)
-	testRole, err := auth.CreateRole(
+	botListWhereUser, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"bot-lister-where",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindBot},
+				Verbs:     []string{types.VerbList},
+				Where:     `has_prefix(resource.metadata.name, "foo")`,
+			},
+		})
+	require.NoError(t, err)
+	testRole, err := authtest.CreateRole(
 		ctx, srv.Auth(), "test-role", types.RoleSpecV6{},
 	)
 	require.NoError(t, err)
-	unprivilegedUser, err := auth.CreateUser(
+	unprivilegedUser, err := authtest.CreateUser(
 		ctx, srv.Auth(), "no-perms", testRole,
 	)
 	require.NoError(t, err)
 
-	client, err := srv.NewClient(auth.TestAdmin())
+	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	preExistingBot, err := client.BotServiceClient().CreateBot(
 		ctx,
 		&machineidv1pb.CreateBotRequest{
 			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: "pre-existing",
 					Labels: map[string]string{
@@ -1430,8 +1837,26 @@ func TestListBots(t *testing.T) {
 		ctx,
 		&machineidv1pb.CreateBotRequest{
 			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: "pre-existing-2",
+				},
+				Spec: &machineidv1pb.BotSpec{
+					Roles: []string{testRole.GetName()},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	preExistingBot3, err := client.BotServiceClient().CreateBot(
+		ctx,
+		&machineidv1pb.CreateBotRequest{
+			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "foo-pre-existing-2",
 				},
 				Spec: &machineidv1pb.BotSpec{
 					Roles: []string{testRole.GetName()},
@@ -1457,6 +1882,18 @@ func TestListBots(t *testing.T) {
 				Bots: []*machineidv1pb.Bot{
 					preExistingBot,
 					preExistingBot2,
+					preExistingBot3,
+				},
+			},
+		},
+		{
+			name:        "success with where",
+			user:        botListWhereUser.GetName(),
+			req:         &machineidv1pb.ListBotsRequest{},
+			assertError: require.NoError,
+			want: &machineidv1pb.ListBotsResponse{
+				Bots: []*machineidv1pb.Bot{
+					preExistingBot3,
 				},
 			},
 		},
@@ -1464,14 +1901,14 @@ func TestListBots(t *testing.T) {
 			name: "no permissions",
 			user: unprivilegedUser.GetName(),
 			req:  &machineidv1pb.ListBotsRequest{},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(auth.TestUser(tt.user))
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
 			res, err := client.BotServiceClient().ListBots(ctx, tt.req)
@@ -1497,7 +1934,7 @@ func TestDeleteBot(t *testing.T) {
 	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
-	botDeleterUser, _, err := auth.CreateUserAndRole(
+	botDeleterUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
 		"bot-deleter",
 		[]string{},
@@ -1508,32 +1945,46 @@ func TestDeleteBot(t *testing.T) {
 			},
 		})
 	require.NoError(t, err)
-	testRole, err := auth.CreateRole(
+	botWhereDeleterUser, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"bot-deleter-where",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindBot},
+				Verbs:     []string{types.VerbDelete},
+				Where:     `has_prefix(resource.metadata.name, "foo")`,
+			},
+		})
+	require.NoError(t, err)
+	testRole, err := authtest.CreateRole(
 		ctx, srv.Auth(), "test-role", types.RoleSpecV6{},
 	)
 	require.NoError(t, err)
-	unprivilegedUser, err := auth.CreateUser(
+	unprivilegedUser, err := authtest.CreateUser(
 		ctx, srv.Auth(), "no-perms", testRole,
 	)
 	require.NoError(t, err)
 
 	// Create a user/role with a bot-like name but that isn't a bot to ensure we
 	// don't delete it
-	_, err = auth.CreateUser(
+	_, err = authtest.CreateUser(
 		ctx, srv.Auth(), "bot-not-bot", testRole,
 	)
 	require.NoError(t, err)
-	_, err = auth.CreateRole(
+	_, err = authtest.CreateRole(
 		ctx, srv.Auth(), "bot-not-bot", types.RoleSpecV6{},
 	)
 	require.NoError(t, err)
 
-	client, err := srv.NewClient(auth.TestAdmin())
+	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	preExistingBot, err := client.BotServiceClient().CreateBot(
 		ctx,
 		&machineidv1pb.CreateBotRequest{
 			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: "pre-existing",
 				},
@@ -1548,8 +1999,42 @@ func TestDeleteBot(t *testing.T) {
 		ctx,
 		&machineidv1pb.CreateBotRequest{
 			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: "pre-existing-3",
+				},
+				Spec: &machineidv1pb.BotSpec{
+					Roles: []string{testRole.GetName()},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	preExistingBot4, err := client.BotServiceClient().CreateBot(
+		ctx,
+		&machineidv1pb.CreateBotRequest{
+			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "foo-pre-existing",
+				},
+				Spec: &machineidv1pb.BotSpec{
+					Roles: []string{testRole.GetName()},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	preExistingBot5, err := client.BotServiceClient().CreateBot(
+		ctx,
+		&machineidv1pb.CreateBotRequest{
+			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "not-foo-pre-existing",
 				},
 				Spec: &machineidv1pb.BotSpec{
 					Roles: []string{testRole.GetName()},
@@ -1576,12 +2061,31 @@ func TestDeleteBot(t *testing.T) {
 			checkResourcesDeleted: true,
 		},
 		{
+			name: "success with where",
+			user: botWhereDeleterUser.GetName(),
+			req: &machineidv1pb.DeleteBotRequest{
+				BotName: preExistingBot4.Metadata.Name,
+			},
+			assertError:           require.NoError,
+			checkResourcesDeleted: true,
+		},
+		{
+			name: "no permissions with where",
+			user: botWhereDeleterUser.GetName(),
+			req: &machineidv1pb.DeleteBotRequest{
+				BotName: preExistingBot5.Metadata.Name,
+			},
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
+			},
+		},
+		{
 			name: "no permissions",
 			user: unprivilegedUser.GetName(),
 			req: &machineidv1pb.DeleteBotRequest{
 				BotName: preExistingBot3.Metadata.Name,
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
@@ -1591,7 +2095,7 @@ func TestDeleteBot(t *testing.T) {
 			req: &machineidv1pb.DeleteBotRequest{
 				BotName: "does-not-exist",
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsNotFound(err), "error should be not found")
 			},
 		},
@@ -1601,7 +2105,7 @@ func TestDeleteBot(t *testing.T) {
 			req: &machineidv1pb.DeleteBotRequest{
 				BotName: "not-bot",
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "missing bot label matching bot name")
 			},
 		},
@@ -1611,7 +2115,7 @@ func TestDeleteBot(t *testing.T) {
 			req: &machineidv1pb.DeleteBotRequest{
 				BotName: "",
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "bot_name: must be non-empty")
 				require.True(t, trace.IsBadParameter(err), "error should be access denied")
 			},
@@ -1619,7 +2123,7 @@ func TestDeleteBot(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(auth.TestUser(tt.user))
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
 			_, err = client.BotServiceClient().DeleteBot(ctx, tt.req)
@@ -1634,15 +2138,15 @@ func TestDeleteBot(t *testing.T) {
 	}
 }
 
-func newTestTLSServer(t testing.TB) (*auth.TestTLSServer, *eventstest.MockRecorderEmitter) {
-	as, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+func newTestTLSServer(t testing.TB) (*authtest.TLSServer, *eventstest.MockRecorderEmitter) {
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
 	})
 	require.NoError(t, err)
 
 	emitter := &eventstest.MockRecorderEmitter{}
-	srv, err := as.NewTestTLSServer(func(config *auth.TestTLSServerConfig) {
+	srv, err := as.NewTestTLSServer(func(config *authtest.TLSServerConfig) {
 		config.APIConfig.Emitter = emitter
 	})
 	require.NoError(t, err)

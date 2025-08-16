@@ -18,15 +18,18 @@ package workloadidentityv1
 
 import (
 	"context"
-	"regexp"
+	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/expression"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -34,32 +37,36 @@ type decision struct {
 	templatedWorkloadIdentity *workloadidentityv1pb.WorkloadIdentity
 	shouldIssue               bool
 	reason                    error
+	sigstorePolicyResults     map[string]error
 }
 
 func decide(
 	ctx context.Context,
 	wi *workloadidentityv1pb.WorkloadIdentity,
 	attrs *workloadidentityv1pb.Attrs,
+	sigstore SigstorePolicyEvaluator,
 ) *decision {
 	d := &decision{
 		templatedWorkloadIdentity: proto.Clone(wi).(*workloadidentityv1pb.WorkloadIdentity),
+		sigstorePolicyResults:     make(map[string]error),
 	}
 
 	// First, evaluate the rules.
-	if err := evaluateRules(wi, attrs); err != nil {
+	err := evaluateRules(ctx, wi, attrs, sigstore, d.sigstorePolicyResults)
+	if err != nil {
 		d.reason = trace.Wrap(err, "attributes did not pass rule evaluation")
 		return d
 	}
 
 	// Now we can cook up some templating...
-	templated, err := templateString(wi.GetSpec().GetSpiffe().GetId(), attrs)
+	templated, err := expression.RenderTemplate(wi.GetSpec().GetSpiffe().GetId(), &expression.Environment{Attrs: attrs})
 	if err != nil {
 		d.reason = trace.Wrap(err, "templating spec.spiffe.id")
 		return d
 	}
 	d.templatedWorkloadIdentity.Spec.Spiffe.Id = templated
 
-	templated, err = templateString(wi.GetSpec().GetSpiffe().GetHint(), attrs)
+	templated, err = expression.RenderTemplate(wi.GetSpec().GetSpiffe().GetHint(), &expression.Environment{Attrs: attrs})
 	if err != nil {
 		d.reason = trace.Wrap(err, "templating spec.spiffe.hint")
 		return d
@@ -67,7 +74,7 @@ func decide(
 	d.templatedWorkloadIdentity.Spec.Spiffe.Hint = templated
 
 	for i, san := range wi.GetSpec().GetSpiffe().GetX509().GetDnsSans() {
-		templated, err = templateString(san, attrs)
+		templated, err = expression.RenderTemplate(san, &expression.Environment{Attrs: attrs})
 		if err != nil {
 			d.reason = trace.Wrap(err, "templating spec.spiffe.x509.dns_sans[%d]", i)
 			return d
@@ -87,7 +94,7 @@ func decide(
 	if st != nil {
 		dst := d.templatedWorkloadIdentity.Spec.Spiffe.X509.SubjectTemplate
 
-		templated, err = templateString(st.CommonName, attrs)
+		templated, err = expression.RenderTemplate(st.CommonName, &expression.Environment{Attrs: attrs})
 		if err != nil {
 			d.reason = trace.Wrap(
 				err,
@@ -97,7 +104,7 @@ func decide(
 		}
 		dst.CommonName = templated
 
-		templated, err = templateString(st.Organization, attrs)
+		templated, err = expression.RenderTemplate(st.Organization, &expression.Environment{Attrs: attrs})
 		if err != nil {
 			d.reason = trace.Wrap(
 				err,
@@ -107,7 +114,7 @@ func decide(
 		}
 		dst.Organization = templated
 
-		templated, err = templateString(st.OrganizationalUnit, attrs)
+		templated, err = expression.RenderTemplate(st.OrganizationalUnit, &expression.Environment{Attrs: attrs})
 		if err != nil {
 			d.reason = trace.Wrap(
 				err,
@@ -116,6 +123,18 @@ func decide(
 			return d
 		}
 		dst.OrganizationalUnit = templated
+	}
+
+	if ec := wi.GetSpec().GetSpiffe().GetJwt().GetExtraClaims(); ec != nil {
+		templated, err := templateExtraClaims(ec, attrs)
+		if err != nil {
+			d.reason = trace.Wrap(
+				err,
+				"templating spec.spiffe.jwt.extra_claims",
+			)
+			return d
+		}
+		d.templatedWorkloadIdentity.Spec.Spiffe.Jwt.ExtraClaims = templated
 	}
 
 	// Yay - made it to the end!
@@ -130,8 +149,8 @@ func decide(
 // The specified attribute must be a string field. If the attribute is not
 // found, an error is returned.
 //
-// TODO(noah): This function will be replaced by the Teleport predicate language
-// in a coming PR.
+// TODO: convert rules into predicate expressions, so we can evaluate them
+// using the expressions package (and remove this function).
 func getFieldStringValue(attrs *workloadidentityv1pb.Attrs, attr string) (string, error) {
 	attrParts := strings.Split(attr, ".")
 	message := attrs.ProtoReflect()
@@ -167,49 +186,59 @@ func getFieldStringValue(attrs *workloadidentityv1pb.Attrs, attr string) (string
 	return "", nil
 }
 
-// templateString takes a given input string and replaces any values within
-// {{ }} with values from the attribute set.
-//
-// If the specified value is not found in the attribute set, an error is
-// returned.
-//
-// TODO(noah): In a coming PR, this will be replaced by evaluating the values
-// within the handlebars as expressions.
-func templateString(in string, attrs *workloadidentityv1pb.Attrs) (string, error) {
-	if len(in) == 0 {
-		return in, nil
-	}
-
-	re := regexp.MustCompile(`\{\{([^{}]+?)\}\}`)
-	matches := re.FindAllStringSubmatch(in, -1)
-
-	for _, match := range matches {
-		attrKey := strings.TrimSpace(match[1])
-		value, err := getFieldStringValue(attrs, attrKey)
-		if err != nil {
-			return "", trace.Wrap(err, "fetching attribute value for %q", attrKey)
-		}
-		// We want to have an implicit rule here that if an attribute is
-		// included in the template, but is not set, we should refuse to issue
-		// the credential.
-		if value == "" {
-			return "", trace.NotFound("attribute %q unset", attrKey)
-		}
-		in = strings.Replace(in, match[0], value, 1)
-	}
-
-	return in, nil
-}
-
 func evaluateRules(
+	ctx context.Context,
 	wi *workloadidentityv1pb.WorkloadIdentity,
 	attrs *workloadidentityv1pb.Attrs,
+	sigstore SigstorePolicyEvaluator,
+	sigstorePolicyResults map[string]error,
 ) error {
 	if len(wi.GetSpec().GetRules().GetAllow()) == 0 {
 		return nil
 	}
+
+	sigstoreEvaluator := expression.SigstorePolicyEvaluatorFunc(func(policyNames []string) (bool, error) {
+		// Evaluate policies we haven't already evaluated.
+		var unevaluated []string
+		for _, name := range policyNames {
+			if _, evaluated := sigstorePolicyResults[name]; !evaluated {
+				unevaluated = append(unevaluated, name)
+			}
+		}
+		if len(unevaluated) != 0 {
+			resultMap, err := sigstore.Evaluate(ctx, unevaluated, attrs)
+			if err != nil {
+				return false, err
+			}
+			maps.Copy(sigstorePolicyResults, resultMap)
+		}
+
+		// If any of them resulted in an error, return false.
+		for _, name := range policyNames {
+			if sigstorePolicyResults[name] != nil {
+				return false, nil
+			}
+		}
+		return true, nil
+	})
+
 ruleLoop:
 	for _, rule := range wi.GetSpec().GetRules().GetAllow() {
+		if rule.GetExpression() != "" {
+			pass, err := expression.Evaluate(rule.GetExpression(), &expression.Environment{
+				Attrs:                   attrs,
+				SigstorePolicyEvaluator: sigstoreEvaluator,
+			})
+			if err != nil {
+				return err
+			}
+			if pass {
+				return nil
+			} else {
+				continue ruleLoop
+			}
+		}
+
 		for _, condition := range rule.GetConditions() {
 			val, err := getFieldStringValue(attrs, condition.Attribute)
 			if err != nil {
@@ -240,4 +269,68 @@ ruleLoop:
 	}
 	// TODO: Eventually, we'll need to work support for deny rules into here.
 	return trace.AccessDenied("no matching rule found")
+}
+
+func templateExtraClaims(templates *structpb.Struct, attrs *workloadidentityv1pb.Attrs) (*structpb.Struct, error) {
+	// render is called recursively on list elements and struct fields.
+	var render func(string, *structpb.Value, int) (*structpb.Value, error)
+
+	const maxDepth = 10
+	render = func(fieldName string, fieldValue *structpb.Value, depth int) (*structpb.Value, error) {
+		if depth >= maxDepth {
+			return nil, trace.BadParameter("extra_claims cannot contain more than %d levels of nesting", maxDepth)
+		}
+
+		switch value := fieldValue.GetKind().(type) {
+		// Numbers, booleans, and nulls can be emitted as-is.
+		case *structpb.Value_NumberValue, *structpb.Value_BoolValue, *structpb.Value_NullValue:
+			return fieldValue, nil
+
+		// We treat string values as templates.
+		case *structpb.Value_StringValue:
+			renderedString, err := expression.RenderTemplate(value.StringValue, &expression.Environment{Attrs: attrs})
+			if err != nil {
+				return nil, trace.Wrap(err, "templating claim: %s", fieldName)
+			}
+			return structpb.NewStringValue(renderedString), nil
+
+		// For struct values, we call render on each of their fields.
+		case *structpb.Value_StructValue:
+			result := &structpb.Struct{Fields: make(map[string]*structpb.Value)}
+			for structKey, structValue := range value.StructValue.GetFields() {
+				keyWithPrefix := structKey
+				if fieldName != "" {
+					keyWithPrefix = fmt.Sprintf("%s.%s", fieldName, structKey)
+				}
+				v, err := render(keyWithPrefix, structValue, depth+1)
+				if err != nil {
+					return nil, err
+				}
+				result.Fields[structKey] = v
+			}
+			return structpb.NewStructValue(result), nil
+
+		// For list values, we call render on each of their elements.
+		case *structpb.Value_ListValue:
+			result := new(structpb.ListValue)
+			for idx, val := range value.ListValue.GetValues() {
+				v, err := render(fmt.Sprintf("%s[%d]", fieldName, idx), val, depth+1)
+				if err != nil {
+					return nil, err
+				}
+				result.Values = append(result.Values, v)
+			}
+			return structpb.NewListValue(result), nil
+
+		// At the time of writing, there are no other possible value types.
+		default:
+			return nil, trace.Errorf("unsupported field type: %T", value)
+		}
+	}
+
+	result, err := render("", structpb.NewStructValue(templates), 0)
+	if err != nil {
+		return nil, err
+	}
+	return result.GetStructValue(), nil
 }

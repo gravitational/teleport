@@ -49,6 +49,7 @@ export const eventCodes = {
   ACCESS_REQUEST_UPDATED: 'T5001I',
   ACCESS_REQUEST_DELETED: 'T5003I',
   ACCESS_REQUEST_RESOURCE_SEARCH: 'T5004I',
+  ACCESS_REQUEST_EXPIRED: 'T5005I',
   APP_SESSION_CHUNK: 'T2008I',
   APP_SESSION_START: 'T2007I',
   APP_SESSION_END: 'T2011I',
@@ -238,6 +239,11 @@ export const eventCodes = {
   WORKLOAD_IDENTITY_CREATE: `WID001I`,
   WORKLOAD_IDENTITY_UPDATE: `WID002I`,
   WORKLOAD_IDENTITY_DELETE: `WID003I`,
+  WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_CREATE: `WID007I`,
+  WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_DELETE: `WID008I`,
+  SIGSTORE_POLICY_CREATE: `TSSP001I`,
+  SIGSTORE_POLICY_UPDATE: `TSSP002I`,
+  SIGSTORE_POLICY_DELETE: `TSSP003I`,
   LOGIN_RULE_CREATE: 'TLR00I',
   LOGIN_RULE_DELETE: 'TLR01I',
   SAML_IDP_AUTH_ATTEMPT: 'TSI000I',
@@ -315,6 +321,26 @@ export const eventCodes = {
   STABLE_UNIX_USER_CREATE: 'TSUU001I',
   AWS_IC_RESOURCE_SYNC_SUCCESS: 'TAIC001I',
   AWS_IC_RESOURCE_SYNC_FAILURE: 'TAIC001E',
+  AUTOUPDATE_CONFIG_CREATE: 'AUC001I',
+  AUTOUPDATE_CONFIG_UPDATE: 'AUC002I',
+  AUTOUPDATE_CONFIG_DELETE: 'AUC003I',
+  AUTOUPDATE_VERSION_CREATE: 'AUV001I',
+  AUTOUPDATE_VERSION_UPDATE: 'AUV002I',
+  AUTOUPDATE_VERSION_DELETE: 'AUV003I',
+  HEALTH_CHECK_CONFIG_CREATE: 'THCC001I',
+  HEALTH_CHECK_CONFIG_UPDATE: 'THCC002I',
+  HEALTH_CHECK_CONFIG_DELETE: 'THCC003I',
+  AUTOUPDATE_AGENT_ROLLOUT_TRIGGER: 'AUAR001I',
+  AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE: 'AUAR002I',
+  AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK: 'AUAR003I',
+  MCP_SESSION_START: 'TMCP001I',
+  MCP_SESSION_END: 'TMCP002I',
+  MCP_SESSION_REQUEST: 'TMCP003I',
+  MCP_SESSION_REQUEST_FAILURE: 'TMCP003E',
+  MCP_SESSION_NOTIFICATION: 'TMCP004I',
+  BOUND_KEYPAIR_RECOVERY: 'TBK001I',
+  BOUND_KEYPAIR_ROTATION: 'TBK002I',
+  BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED: 'TBK003W',
 } as const;
 
 /**
@@ -336,6 +362,9 @@ export type RawEvents = {
   [eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH]: RawEvent<
     typeof eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH,
     { resource_type: string; search_as_roles: string[] }
+  >;
+  [eventCodes.ACCESS_REQUEST_EXPIRED]: RawEventAccess<
+    typeof eventCodes.ACCESS_REQUEST_EXPIRED
   >;
   [eventCodes.AUTH_ATTEMPT_FAILURE]: RawEventAuthFailure<
     typeof eventCodes.AUTH_ATTEMPT_FAILURE
@@ -1263,7 +1292,7 @@ export type RawEvents = {
     typeof eventCodes.CERTIFICATE_CREATED,
     {
       cert_type: 'user';
-      identity: { user: string };
+      identity: { user: string; usage?: string[] };
     }
   >;
   [eventCodes.UPGRADE_WINDOW_UPDATED]: RawEvent<
@@ -1306,6 +1335,7 @@ export type RawEvents = {
     {
       bot_name: string;
       method: string;
+      token_name: string;
     }
   >;
   [eventCodes.BOT_JOIN_FAILURE]: RawEvent<
@@ -1313,6 +1343,7 @@ export type RawEvents = {
     {
       bot_name: string;
       method: string;
+      token_name: string;
     }
   >;
   [eventCodes.INSTANCE_JOIN]: RawEvent<
@@ -1344,6 +1375,26 @@ export type RawEvents = {
   >;
   [eventCodes.WORKLOAD_IDENTITY_DELETE]: RawEvent<
     typeof eventCodes.WORKLOAD_IDENTITY_DELETE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_CREATE]: RawEvent<
+    typeof eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_CREATE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_DELETE]: RawEvent<
+    typeof eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_DELETE,
+    HasName
+  >;
+  [eventCodes.SIGSTORE_POLICY_CREATE]: RawEvent<
+    typeof eventCodes.SIGSTORE_POLICY_CREATE,
+    HasName
+  >;
+  [eventCodes.SIGSTORE_POLICY_UPDATE]: RawEvent<
+    typeof eventCodes.SIGSTORE_POLICY_UPDATE,
+    HasName
+  >;
+  [eventCodes.SIGSTORE_POLICY_DELETE]: RawEvent<
+    typeof eventCodes.SIGSTORE_POLICY_DELETE,
     HasName
   >;
   [eventCodes.LOGIN_RULE_CREATE]: RawEvent<
@@ -1490,6 +1541,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_CREATE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1497,6 +1549,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_CREATE_FAILURE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1504,6 +1557,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_UPDATE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1511,6 +1565,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_UPDATE_FAILURE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1518,6 +1573,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_DELETE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1525,6 +1581,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_DELETE_FAILURE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1532,6 +1589,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_REVIEW,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1539,6 +1597,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_REVIEW_FAILURE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1564,6 +1623,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST,
     {
       access_list_name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1571,6 +1631,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE,
     {
       access_list_name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1578,6 +1639,7 @@ export type RawEvents = {
     typeof eventCodes.USER_LOGIN_INVALID_ACCESS_LIST,
     {
       access_list_name: string;
+      access_list_title: string;
       user: string;
       missing_roles: string[];
     }
@@ -1803,6 +1865,150 @@ export type RawEvents = {
   [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: RawEventAwsIcResourceSync<
     typeof eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE
   >;
+  [eventCodes.AUTOUPDATE_CONFIG_CREATE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_CONFIG_CREATE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.AUTOUPDATE_CONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_CONFIG_UPDATE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.AUTOUPDATE_CONFIG_DELETE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_CONFIG_DELETE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.AUTOUPDATE_VERSION_CREATE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_VERSION_CREATE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.AUTOUPDATE_VERSION_UPDATE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_VERSION_UPDATE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.AUTOUPDATE_VERSION_DELETE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_VERSION_DELETE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.HEALTH_CHECK_CONFIG_CREATE]: RawEvent<
+    typeof eventCodes.HEALTH_CHECK_CONFIG_CREATE,
+    HasName
+  >;
+  [eventCodes.HEALTH_CHECK_CONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.HEALTH_CHECK_CONFIG_UPDATE,
+    HasName
+  >;
+  [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: RawEvent<
+    typeof eventCodes.HEALTH_CHECK_CONFIG_DELETE,
+    HasName
+  >;
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER,
+    {
+      user: string;
+      groups: string[];
+    }
+  >;
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE,
+    {
+      user: string;
+      groups: string[];
+    }
+  >;
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK,
+    {
+      user: string;
+      groups: string[];
+    }
+  >;
+  [eventCodes.MCP_SESSION_START]: RawEvent<
+    typeof eventCodes.MCP_SESSION_START,
+    {
+      sid: string;
+      app_name: string;
+    }
+  >;
+  [eventCodes.MCP_SESSION_END]: RawEvent<
+    typeof eventCodes.MCP_SESSION_END,
+    {
+      sid: string;
+      app_name: string;
+    }
+  >;
+  [eventCodes.MCP_SESSION_REQUEST]: RawEvent<
+    typeof eventCodes.MCP_SESSION_REQUEST,
+    {
+      app_name: string;
+      message: {
+        method: string;
+        params?: {
+          name?: string;
+        };
+      };
+    }
+  >;
+  [eventCodes.MCP_SESSION_REQUEST_FAILURE]: RawEvent<
+    typeof eventCodes.MCP_SESSION_REQUEST_FAILURE,
+    {
+      app_name: string;
+      message: {
+        method: string;
+        params?: {
+          name?: string;
+        };
+      };
+    }
+  >;
+  [eventCodes.MCP_SESSION_NOTIFICATION]: RawEvent<
+    typeof eventCodes.MCP_SESSION_NOTIFICATION,
+    {
+      app_name: string;
+      message: {
+        method: string;
+      };
+    }
+  >;
+  [eventCodes.BOUND_KEYPAIR_RECOVERY]: RawEvent<
+    typeof eventCodes.BOUND_KEYPAIR_RECOVERY,
+    {
+      token_name: string;
+      bot_name: string;
+      success: boolean;
+      error: string;
+      recovery_count: number;
+    }
+  >;
+  [eventCodes.BOUND_KEYPAIR_ROTATION]: RawEvent<
+    typeof eventCodes.BOUND_KEYPAIR_ROTATION,
+    {
+      token_name: string;
+      bot_name: string;
+      success: boolean;
+      error: string;
+    }
+  >;
+  [eventCodes.BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED]: RawEvent<
+    typeof eventCodes.BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED,
+    {
+      token_name: string;
+      bot_name: string;
+      success: boolean;
+      error: string;
+    }
+  >;
 };
 
 /**
@@ -1945,6 +2151,7 @@ type RawEventAccessList<T extends EventCode> = RawEvent<
     access_list_name: string;
     members: { member_name: string }[];
     updated_by: string;
+    access_list_title: string;
   }
 >;
 

@@ -36,10 +36,11 @@ import (
 
 	"github.com/gravitational/teleport/lib/limiter/internal/ratelimit"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -64,23 +65,23 @@ func TestRateLimiter(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		require.NoError(t, limiter.RegisterRequest("token2"))
 	}
 
 	require.Error(t, limiter.RegisterRequest("token1"))
 
 	clock.Advance(10 * time.Millisecond)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
 	require.Error(t, limiter.RegisterRequest("token1"))
 
 	clock.Advance(10 * time.Millisecond)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
 	require.Error(t, limiter.RegisterRequest("token1"))
@@ -88,7 +89,7 @@ func TestRateLimiter(t *testing.T) {
 	clock.Advance(10 * time.Millisecond)
 	// the second rate is full
 	err = nil
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		err = limiter.RegisterRequest("token1")
 		if err != nil {
 			break
@@ -100,7 +101,7 @@ func TestRateLimiter(t *testing.T) {
 	// Now the second rate has free space
 	require.NoError(t, limiter.RegisterRequest("token1"))
 	err = nil
-	for i := 0; i < 15; i++ {
+	for range 15 {
 		err = limiter.RegisterRequest("token1")
 		if err != nil {
 			break
@@ -131,7 +132,7 @@ func TestCustomRate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Max out custom rate.
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		require.NoError(t, limiter.RegisterRequestWithCustomRate("token1", customRate))
 	}
 
@@ -139,7 +140,7 @@ func TestCustomRate(t *testing.T) {
 	require.Error(t, limiter.RegisterRequestWithCustomRate("token1", customRate))
 
 	// Test default rate still works.
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
 }
@@ -172,7 +173,7 @@ func TestLimiter_UnaryServerInterceptor(t *testing.T) {
 	serverInfo := &grpc.UnaryServerInfo{
 		FullMethod: "/method",
 	}
-	handler := func(context.Context, interface{}) (interface{}, error) { return nil, nil }
+	handler := func(context.Context, any) (any, error) { return nil, nil }
 
 	unaryInterceptor := limiter.UnaryServerInterceptor()
 
@@ -181,7 +182,7 @@ func TestLimiter_UnaryServerInterceptor(t *testing.T) {
 	require.NoError(t, err)
 
 	// should eventually fail, not testing the limiter behavior here
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		_, err = unaryInterceptor(ctx, req, serverInfo, handler)
 		if err != nil {
 			break
@@ -203,7 +204,7 @@ func TestLimiter_UnaryServerInterceptor(t *testing.T) {
 	require.NoError(t, err)
 
 	// should eventually fail, not testing the limiter behavior here
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		_, err = unaryInterceptor(ctx, req, serverInfo, handler)
 		if err != nil {
 			break
@@ -239,14 +240,14 @@ func TestLimiter_StreamServerInterceptor(t *testing.T) {
 		ctx: ctx,
 	}
 	info := &grpc.StreamServerInfo{}
-	handler := func(srv interface{}, stream grpc.ServerStream) error { return nil }
+	handler := func(srv any, stream grpc.ServerStream) error { return nil }
 
 	// pass at least once
 	err = limiter.StreamServerInterceptor(nil, ss, info, handler)
 	require.NoError(t, err)
 
 	// should eventually fail, not testing the limiter behavior here
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		err = limiter.StreamServerInterceptor(nil, ss, info, handler)
 		if err != nil {
 			break
@@ -353,7 +354,7 @@ func TestListener(t *testing.T) {
 
 			// open connections without closing to enforce limits
 			conns := make([]net.Conn, 0, connLimit)
-			for i := 0; i < connLimit; i++ {
+			for i := range connLimit {
 				conn, err := ln.Accept()
 				test.acceptAssertion(t, i, conn, err)
 
@@ -384,7 +385,7 @@ func TestListener(t *testing.T) {
 
 			// open connections again after closing to
 			// ensure that closing reset limits
-			for i := 0; i < 5; i++ {
+			for i := range 5 {
 				conn, err := ln.Accept()
 				test.acceptAssertion(t, i, conn, err)
 

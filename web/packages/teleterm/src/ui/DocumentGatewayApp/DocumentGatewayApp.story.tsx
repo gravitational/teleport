@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react';
+import { Meta } from '@storybook/react-vite';
 
 import { Flex } from 'design';
 import { usePromiseRejectedOnUnmount, wait } from 'shared/utils/wait';

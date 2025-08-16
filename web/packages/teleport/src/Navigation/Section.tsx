@@ -16,26 +16,39 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { PropsWithChildren, ReactNode } from 'react';
+import React, {
+  ComponentProps,
+  forwardRef,
+  PropsWithChildren,
+  ReactNode,
+  type JSX,
+} from 'react';
 import { NavLink } from 'react-router-dom';
 import styled, { css, useTheme } from 'styled-components';
 
 import { Box, ButtonIcon, Flex, P2, Text } from 'design';
-import { ArrowLineLeft } from 'design/Icon';
+import { ArrowLineLeft, ArrowSquareIn } from 'design/Icon';
 import { Theme } from 'design/theme';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 
+import { PoweredByTeleportLogo } from 'teleport/components/PoweredByTeleportLogo';
+import { SlidingSidePanel } from 'teleport/components/SlidingSidePanel';
 import cfg from 'teleport/config';
 
 import { CategoryIcon } from './CategoryIcon';
-import { NavigationSection, NavigationSubsection } from './Navigation';
+import {
+  NavigationSection,
+  NavigationSubsection,
+  useFloatingUiWithRestMs,
+} from './Navigation';
 import { zIndexMap } from './zIndexMap';
 
 type SharedSectionProps = {
   section: NavigationSection;
   $active: boolean;
   isExpanded: boolean;
-  onExpandSection: () => void;
+  onExpandSection?: () => void;
+  showPoweredByLogo?: boolean;
 };
 
 /**
@@ -53,6 +66,7 @@ export function DefaultSection({
   currentPageSection,
   currentView,
   onExpandSection,
+  showPoweredByLogo,
 }: SharedSectionProps & {
   currentView?: NavigationSubsection;
   onNavigationItemClick?: () => void;
@@ -61,24 +75,33 @@ export function DefaultSection({
   toggleStickyMode: () => void;
   previousExpandedSection: NavigationSection;
 }) {
+  const { refs, getReferenceProps, getFloatingProps } = useFloatingUiWithRestMs(
+    {
+      open: isExpanded,
+      onOpenChange: open => open && onExpandSection(),
+    }
+  );
+
   return (
     <>
       <CategoryButton
+        ref={refs.setReference}
         $active={$active}
-        onMouseEnter={onExpandSection}
-        onFocus={onExpandSection}
         isExpanded={isExpanded}
         tabIndex={section.standalone ? 0 : -1}
+        {...getReferenceProps()}
       >
         <CategoryIcon category={section.category} />
         {section.category}
       </CategoryButton>
 
       <RightPanel
+        ref={refs.setFloating}
         isVisible={isExpanded}
         skipAnimation={!!previousExpandedSection}
         id={`panel-${section.category}`}
         onFocus={onExpandSection}
+        {...getFloatingProps()}
       >
         <Flex
           flexDirection="column"
@@ -100,7 +123,10 @@ export function DefaultSection({
             {!section.standalone &&
               section.subsections.map(subsection => (
                 <SubsectionItem
-                  $active={currentView?.route === subsection.route}
+                  $active={
+                    currentView?.route === subsection.route &&
+                    !subsection.isHyperLink
+                  }
                   to={subsection.route}
                   exact={subsection.exact}
                   key={subsection.title}
@@ -110,11 +136,16 @@ export function DefaultSection({
                 >
                   <subsection.icon size={16} />
                   <P2>{subsection.title}</P2>
+                  {subsection.isHyperLink && (
+                    <ArrowSquareIn size={16} color="text.muted" />
+                  )}
                 </SubsectionItem>
               ))}
           </Box>
-          {cfg.edition === 'oss' && <AGPLFooter />}
-          {cfg.edition === 'community' && <CommunityFooter />}
+          <SectionFooter
+            showPoweredByLogo={showPoweredByLogo}
+            edition={cfg.edition}
+          />
         </Flex>
       </RightPanel>
     </>
@@ -124,21 +155,18 @@ export function DefaultSection({
 /**
  * CustomChildrenSection is a NavigationSection with custom children (e.g. search section).
  */
-export function CustomChildrenSection({
-  section,
-  $active,
-  isExpanded,
-  children,
-  onExpandSection,
-}: PropsWithChildren<SharedSectionProps>) {
+export const CustomChildrenSection = forwardRef<
+  HTMLButtonElement,
+  PropsWithChildren<SharedSectionProps & ComponentProps<typeof CategoryButton>>
+>(({ section, $active, isExpanded, children, ...props }, ref) => {
   return (
     <>
       <CategoryButton
+        ref={ref}
         $active={$active}
-        onMouseEnter={onExpandSection}
-        onFocus={onExpandSection}
         isExpanded={isExpanded}
         tabIndex={section.standalone ? 0 : -1}
+        {...props}
       >
         <CategoryIcon category={section.category} />
         {section.category}
@@ -146,7 +174,7 @@ export function CustomChildrenSection({
       {children}
     </>
   );
-}
+});
 
 /**
  * StandaloneSection is a section with no subsections, instead of expanding a drawer, the category button is clickable and takes you directly to a route.
@@ -170,39 +198,33 @@ export function StandaloneSection({
   );
 }
 
-export const rightPanelWidth = 236;
-
-export const RightPanel = styled(Box).attrs({ px: '5px' })<{
-  isVisible: boolean;
-  skipAnimation: boolean;
-}>`
-  position: fixed;
-  left: var(--sidenav-width);
-  height: 100%;
-  scrollbar-color: ${p => p.theme.colors.spotBackground[2]} transparent;
-  width: ${rightPanelWidth}px;
-  background: ${p => p.theme.colors.levels.surface};
-  z-index: ${zIndexMap.sideNavExpandedPanel};
-  border-right: 1px solid ${p => p.theme.colors.spotBackground[1]};
-
-  ${props =>
-    props.isVisible
-      ? `
-      ${props.skipAnimation ? '' : 'transition: transform .15s ease-out;'}
-      transform: translateX(0);
-      `
-      : `
-      ${props.skipAnimation ? '' : 'transition: transform .15s ease-in;'}
-      transform: translateX(-100%);
-      `}
-
-  top: ${p => p.theme.topBarHeight[0]}px;
-  padding-bottom: ${p => p.theme.topBarHeight[0] + p.theme.space[2]}px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
-    top: ${p => p.theme.topBarHeight[1]}px;
-    padding-bottom: ${p => p.theme.topBarHeight[1] + p.theme.space[2]}px;
-  }
-`;
+export const rightPanelWidth = 274;
+export const RightPanel = forwardRef<
+  HTMLDivElement,
+  PropsWithChildren<{
+    isVisible: boolean;
+    skipAnimation: boolean;
+    id: string;
+    onFocus: () => void;
+  }>
+>(({ isVisible, skipAnimation, id, onFocus, children }, ref) => {
+  return (
+    <SlidingSidePanel
+      ref={ref}
+      px="5px"
+      isVisible={isVisible}
+      skipAnimation={skipAnimation}
+      id={id}
+      onFocus={onFocus}
+      panelWidth={rightPanelWidth}
+      zIndex={zIndexMap.sideNavExpandedPanel}
+      slideFrom="left"
+      panelOffset="var(--sidenav-width)"
+    >
+      {children}
+    </SlidingSidePanel>
+  );
+});
 
 export function RightPanelHeader({
   title,
@@ -266,8 +288,8 @@ export const CategoryButton = styled.button<{
   $active: boolean;
   isExpanded?: boolean;
 }>`
-  min-height: 60px;
-  min-width: 60px;
+  height: 68px;
+  width: 68px;
   cursor: pointer;
   outline: hidden;
   border: none;
@@ -282,12 +304,16 @@ export const CategoryButton = styled.button<{
   justify-content: center;
   gap: ${props => props.theme.space[1]}px;
   font-family: ${props => props.theme.font};
+  padding: ${props => props.theme.space[2]}px ${props => props.theme.space[1]}px;
 
   font-size: ${props => props.theme.typography.body4.fontSize};
   font-weight: ${props => props.theme.typography.body4.fontWeight};
   letter-spacing: ${props => props.theme.typography.body4.letterSpacing};
-  line-height: ${props => props.theme.typography.body4.lineHeight};
+  line-height: 12px;
   text-decoration: none;
+  transition:
+    background 150ms ease,
+    color 150ms ease;
 
   ${props => getCategoryStyles(props.theme, props.$active, props.isExpanded)}
 `;
@@ -360,6 +386,7 @@ export function SubsectionItem({
       exact={exact}
       tabIndex={0}
       onClick={onClick}
+      data-testid={to}
     >
       {children}
     </StyledSubsectionItem>
@@ -381,6 +408,9 @@ export const StyledSubsectionItem = styled(NavLink)<{
   padding-right: ${props => props.theme.space[3]}px;
   border-radius: ${props => props.theme.radii[2]}px;
   cursor: pointer;
+  transition:
+    background 150ms ease,
+    color 150ms ease;
 
   ${props => getSubsectionStyles(props.theme, props.$active)}
 `;
@@ -493,6 +523,22 @@ function LicenseFooter({
       </Flex>
       <SubText>{subText}</SubText>
     </StyledFooterBox>
+  );
+}
+
+export function SectionFooter({
+  showPoweredByLogo = false,
+  edition,
+}: {
+  showPoweredByLogo: boolean;
+  edition: string;
+}) {
+  return (
+    <>
+      {showPoweredByLogo && <PoweredByTeleportLogo />}
+      {edition === 'oss' && !showPoweredByLogo && <AGPLFooter />}
+      {edition === 'community' && !showPoweredByLogo && <CommunityFooter />}
+    </>
   );
 }
 

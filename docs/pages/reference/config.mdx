@@ -4,6 +4,9 @@ h1: Teleport Configuration Reference
 description: The detailed guide and reference documentation for configuring Teleport for SSH and Kubernetes access.
 keywords: [config, file, reference, yaml, etc]
 tocDepth: 3
+labels:
+ - reference
+ - platform-wide
 ---
 
 Teleport uses the YAML file format for configuration. A full configuration
@@ -14,11 +17,11 @@ By default, Teleport reads its configuration from `/etc/teleport.yaml`.
 
 ## Before using this reference
 
-<Notice type="danger">
+<Admonition type="danger">
 
 Do not use this example configuration in production.
 
-</Notice>
+</Admonition>
 
 You must edit your configuration file to meet the needs of your environment.
 Using a copy of the reference configuration will have unintended effects. To
@@ -33,12 +36,12 @@ There are also `configure` commands available for the SSH Service and Database
 Service. See our documentation on `teleport node configure` and `teleport db
 configure` in the [Teleport CLI Reference](cli/teleport.mdx).
 
-<Notice type="warning">
+<Admonition type="warning">
 
 You should back up your configuration file before making changes. This will
 enable you to roll back to the previous configuration if you need to.
 
-</Notice>
+</Admonition>
 
 ## Enabling Teleport services
 
@@ -53,7 +56,7 @@ names are listed below):
 
 ```yaml
 service_name:
-  enabled: "no"
+  enabled: false
 ```
 
 Teleport supports the following services:
@@ -100,10 +103,10 @@ These settings apply to any `teleport` instance:
 
 Further reading:
 - [Joining Services to a
-  Cluster](../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx):
+  Cluster](../enroll-resources/agents/agents.mdx):
   Available join methods to help you configure `join_params`.
 - [Using a CA
-  Pin](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx):
+  Pin](../enroll-resources/agents/join-token.mdx):
   When to assign a value to `ca_pin`.
 - [Teleport Metrics Reference](monitoring/monitoring.mdx): Data to collect using
   `diag_addr`.
@@ -112,10 +115,10 @@ Further reading:
 
 These settings apply to the Teleport Proxy Service:
 
-<Notice type="tip">
+<Admonition type="tip">
 Teleport Enterprise Cloud manages the Proxy Service for you, so you do not need
 to specify these configuration settings.
-</Notice>
+</Admonition>
 
 ```yaml
 (!docs/pages/includes/config-reference/proxy-service.yaml!)
@@ -125,10 +128,10 @@ to specify these configuration settings.
 
 These settings apply to the Teleport Auth Service:
 
-<Notice type="tip">
+<Admonition type="tip">
 Teleport Enterprise Cloud manages the Auth Service for you, so you do not need
 to specify these configuration settings.
-</Notice>
+</Admonition>
 
 ```yaml
 (!docs/pages/includes/config-reference/auth-service.yaml!)
@@ -137,16 +140,16 @@ to specify these configuration settings.
 Further reading:
 - [Storage Backends](backends.mdx) reference: instructions on configuring DynamoDB, S3, etcd, and other highly available
   backends.
-- [Passwordless](../admin-guides/access-controls/guides/passwordless.mdx): More
+- [Passwordless](../zero-trust-access/access-controls/guides/passwordless.mdx): More
   information about the `passwordless` authentication option.
 - [Headless
-  WebAuthn](../admin-guides/access-controls/guides/headless.mdx): The
+  WebAuthn](../zero-trust-access/access-controls/guides/headless.mdx): The
   `headless` authentication option.
-- [Single Sign-On](../admin-guides/access-controls/sso/sso.mdx): Configuring SSO
+- [Single Sign-On](../zero-trust-access/sso/sso.mdx): Configuring SSO
   so you can configure Teleport to use a specific SSO authentication connector.
-- [Locking](../admin-guides/access-controls/guides/locking.mdx): Configuring the
+- [Locking](../identity-governance/locking.mdx): Configuring the
   `locking_mode` option.
-- [Device Trust](../admin-guides/access-controls/device-trust/device-trust.mdx): Configuring
+- [Device Trust](../identity-governance/device-trust/device-trust.mdx): Configuring
   the `device_trust` section.
 - [Recording Proxy Mode](architecture/session-recording.mdx): If you configure
   Recording Proxy Mode, consider enabling `proxy_checks_host_keys`.

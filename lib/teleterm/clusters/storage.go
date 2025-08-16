@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/client"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
@@ -43,13 +42,12 @@ func NewStorage(cfg Config) (*Storage, error) {
 
 // ListProfileNames returns just the names of profiles in s.Dir.
 func (s *Storage) ListProfileNames() ([]string, error) {
-	pfNames, err := profile.ListProfileNames(s.Dir)
-	return pfNames, trace.Wrap(err)
+	return s.ClientStore.ListProfiles()
 }
 
 // ListRootClusters reads root clusters from profiles.
 func (s *Storage) ListRootClusters() ([]*Cluster, error) {
-	pfNames, err := s.ListProfileNames()
+	pfNames, err := s.ClientStore.ListProfiles()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -112,11 +110,7 @@ func (s *Storage) ResolveCluster(resourceURI uri.ResourceURI) (*Cluster, *client
 
 // Remove removes a cluster
 func (s *Storage) Remove(ctx context.Context, profileName string) error {
-	if err := profile.RemoveProfile(s.Dir, profileName); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return s.ClientStore.DeleteProfile(profileName)
 }
 
 // Add adds a cluster
@@ -125,7 +119,7 @@ func (s *Storage) Remove(ctx context.Context, profileName string) error {
 // clusters.Cluster a regular struct with no extra behavior and a much smaller interface.
 // https://github.com/gravitational/teleport/issues/13278
 func (s *Storage) Add(ctx context.Context, webProxyAddress string) (*Cluster, *client.TeleportClient, error) {
-	profiles, err := profile.ListProfileNames(s.Dir)
+	profiles, err := s.ListProfileNames()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -141,7 +135,7 @@ func (s *Storage) Add(ctx context.Context, webProxyAddress string) (*Cluster, *c
 		}
 	}
 
-	cluster, clusterClient, err := s.addCluster(ctx, s.Dir, webProxyAddress)
+	cluster, clusterClient, err := s.addCluster(ctx, webProxyAddress)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -152,19 +146,15 @@ func (s *Storage) Add(ctx context.Context, webProxyAddress string) (*Cluster, *c
 // addCluster adds a new cluster. This makes the underlying profile .yaml file to be saved to the
 // tsh home dir without logging in the user yet. Adding a cluster makes it show up in the UI as the
 // list of clusters depends on the profiles in the home dir of tsh.
-func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (*Cluster, *client.TeleportClient, error) {
+func (s *Storage) addCluster(ctx context.Context, webProxyAddress string) (*Cluster, *client.TeleportClient, error) {
 	if webProxyAddress == "" {
 		return nil, nil, trace.BadParameter("cluster address is missing")
-	}
-
-	if dir == "" {
-		return nil, nil, trace.BadParameter("cluster directory is missing")
 	}
 
 	profileName := parseName(webProxyAddress)
 	clusterURI := uri.NewClusterURI(profileName)
 
-	cfg := s.makeDefaultClientConfig(clusterURI)
+	cfg := s.makeClientConfig()
 	cfg.WebProxyAddr = webProxyAddress
 
 	clusterClient, err := client.NewClient(cfg)
@@ -199,9 +189,9 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 		Name:          pingResponse.ClusterName,
 		ProfileName:   profileName,
 		clusterClient: clusterClient,
-		dir:           s.Dir,
 		clock:         s.Clock,
 		Logger:        clusterLog,
+		WebProxyAddr:  clusterClient.WebProxyAddr,
 	}, clusterClient, nil
 }
 
@@ -214,10 +204,8 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 	clusterNameForKey := profileName
 	clusterURI := uri.NewClusterURI(profileName)
 
-	profileStore := client.NewFSProfileStore(s.Dir)
-
-	cfg := s.makeDefaultClientConfig(clusterURI)
-	if err := cfg.LoadProfile(profileStore, profileName); err != nil {
+	cfg := s.makeClientConfig()
+	if err := cfg.LoadProfile(profileName); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
@@ -238,10 +226,10 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 		Name:          clusterClient.SiteName,
 		ProfileName:   profileName,
 		clusterClient: clusterClient,
-		dir:           s.Dir,
 		clock:         s.Clock,
 		statusError:   err,
 		Logger:        s.Logger.With("cluster", clusterURI),
+		WebProxyAddr:  clusterClient.WebProxyAddr,
 	}
 	if status != nil {
 		cluster.status = *status
@@ -278,15 +266,12 @@ func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportC
 	return status, nil
 }
 
-func (s *Storage) makeDefaultClientConfig(rootClusterURI uri.ResourceURI) *client.Config {
-	cfg := client.MakeDefaultConfig()
-
-	cfg.HomePath = s.Dir
-	cfg.KeysDir = s.Dir
+func (s *Storage) makeClientConfig() *client.Config {
+	cfg := &client.Config{}
 	cfg.InsecureSkipVerify = s.InsecureSkipVerify
 	cfg.AddKeysToAgent = s.AddKeysToAgent
 	cfg.WebauthnLogin = s.WebauthnLogin
-	cfg.CustomHardwareKeyPrompt = s.HardwareKeyPromptConstructor(rootClusterURI)
+	cfg.ClientStore = s.ClientStore
 	cfg.DTAuthnRunCeremony = dtauthn.NewCeremony().Run
 	cfg.DTAutoEnroll = dtenroll.AutoEnroll
 	return cfg

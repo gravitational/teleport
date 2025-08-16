@@ -16,27 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { StoryObj } from '@storybook/react';
+import { StoryObj } from '@storybook/react-vite';
 import { delay, http, HttpResponse } from 'msw';
-import { MemoryRouter } from 'react-router';
+import { PropsWithChildren } from 'react';
 import { withoutQuery } from 'web/packages/build/storybook';
 
-import { ContextProvider, Context as TeleportContext } from 'teleport';
 import cfg from 'teleport/config';
-import { ResourceKind } from 'teleport/Discover/Shared';
-import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
-import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import {
-  DiscoverContextState,
-  DiscoverProvider,
-} from 'teleport/Discover/useDiscover';
-import { getUserContext } from 'teleport/mocks/contexts';
+  RequiredDiscoverProviders,
+  resourceSpecSelfHostedKube,
+} from 'teleport/Discover/Fixtures/fixtures';
+import { ResourceKind } from 'teleport/Discover/Shared';
+import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
+import { AgentMeta } from 'teleport/Discover/useDiscover';
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
 import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
-import { DiscoverEventResource } from 'teleport/services/userEvent';
 
 import HelmChart from './HelmChart';
 
@@ -165,70 +162,31 @@ export const Failed: StoryObj = {
   },
 };
 
-const Provider = props => {
-  const discoverCtx: DiscoverContextState = {
-    agentMeta: {
-      awsIntegration: {
-        kind: IntegrationKind.AwsOidc,
-        name: 'some-name',
-        resourceType: 'integration',
-        spec: {
-          roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
-          issuerS3Bucket: '',
-          issuerS3Prefix: '',
-        },
-        statusCode: IntegrationStatusCode.Running,
-      },
+const agentMeta: AgentMeta = {
+  awsIntegration: {
+    kind: IntegrationKind.AwsOidc,
+    name: 'some-name',
+    resourceType: 'integration',
+    spec: {
+      roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
+      issuerS3Bucket: '',
+      issuerS3Prefix: '',
     },
-    currentStep: 0,
-    nextStep: () => null,
-    prevStep: () => null,
-    onSelectResource: () => null,
-    resourceSpec: {
-      name: 'kube',
-      kind: ResourceKind.Kubernetes,
-      icon: 'kube',
-      keywords: [],
-      event: DiscoverEventResource.Kubernetes,
-    },
-    exitFlow: () => null,
-    viewConfig: null,
-    indexedViews: [],
-    setResourceSpec: () => null,
-    updateAgentMeta: () => null,
-    emitErrorEvent: () => null,
-    emitEvent: () => null,
-    eventState: null,
-  };
-
-  return (
-    <MemoryRouter
-      initialEntries={[
-        { pathname: cfg.routes.discover, state: { entity: 'database' } },
-      ]}
-    >
-      <ContextProvider ctx={createTeleportContext()}>
-        <PingTeleportProvider
-          interval={props.interval || 100000}
-          resourceKind={ResourceKind.Kubernetes}
-        >
-          <DiscoverProvider mockCtx={discoverCtx}>
-            {props.children}
-          </DiscoverProvider>
-        </PingTeleportProvider>
-      </ContextProvider>
-    </MemoryRouter>
-  );
+    statusCode: IntegrationStatusCode.Running,
+  },
 };
 
-function createTeleportContext() {
-  const ctx = new TeleportContext();
-
-  ctx.isEnterprise = false;
-  ctx.storeUser.setState(getUserContext());
-
-  return ctx;
-}
+const Provider: React.FC<PropsWithChildren<{ interval?: number }>> = props => {
+  return (
+    <RequiredDiscoverProviders
+      interval={props.interval}
+      agentMeta={agentMeta}
+      resourceSpec={resourceSpecSelfHostedKube}
+    >
+      {props.children}
+    </RequiredDiscoverProviders>
+  );
+};
 
 const rawJoinToken = {
   id: 'some-id',

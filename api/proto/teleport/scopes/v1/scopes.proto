@@ -1,0 +1,49 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.scopes.v1;
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1;scopesv1";
+
+// Mode determines the mode of scoping when a query specifies a scope. When a query specifies a scope,
+// one of two questions is typically trying to be answered.  Either, what resources are "in" and/or "subject to"
+// a given scope, or what policies are "applicable to" a given scope.
+enum Mode {
+  // MODE_UNSPECIFIED indicates that no scope-based filtering has been specified.
+  MODE_UNSPECIFIED = 0;
+
+  // MODE_RESOURCES_SUBJECT_TO_SCOPE matches scopes by the resource subjugation rules. In the
+  // terminology of scope comparison, this means Equivalent and Descendant scopes. This is the mode that most
+  // user-facing scoped queries should use, as it intuitively answers the question of "what is the contents of
+  // scope X?". See the 'lib/scopes' package for more detailed discussion of scope comparison/heirarchy.
+  MODE_RESOURCES_SUBJECT_TO_SCOPE = 1;
+
+  // MODE_POLICIES_APPLICABLE_TO_SCOPE matches scopes by the policy application rules. In the
+  // terminology of scope comparison, this means Ancestor and Equivalent scopes. This is the mode that most caching
+  // and access-control related queries should use as it answers the question "what policies might affect access to
+  // this resource at scope X?". See the 'lib/scopes' package for more detailed discussion of scope comparison/heirarchy.
+  MODE_POLICIES_APPLICABLE_TO_SCOPE = 2;
+}
+
+// Filter is a query parameter that matches other scopes based on a specified scope and mode. Used for
+// filtering resources that are subject to or policies that apply to a given scope.
+message Filter {
+  // Scope is the scope value to match against.
+  string scope = 1;
+
+  // Mode determines the mode of matching.
+  Mode mode = 2;
+}

@@ -18,10 +18,12 @@
 
 import styled from 'styled-components';
 
-import { Box, ButtonIcon, ButtonSecondary, Flex } from 'design';
+import { ButtonIcon, ButtonSecondary, Flex } from 'design';
+import { buttonSizes } from 'design/ButtonIcon';
 import * as Icons from 'design/Icon';
 import { inputGeometry } from 'design/Input/Input';
 import { LabelContent } from 'design/LabelInput/LabelInput';
+import { ButtonWithAddIcon } from 'shared/components/ButtonWithAddIcon';
 import FieldInput from 'shared/components/FieldInput';
 import {
   useRule,
@@ -63,6 +65,37 @@ type LabelValidationResult = {
 
 export type LabelsRule = Rule<Label[], LabelListValidationResult>;
 
+const buttonIconSize = 0;
+
+export type LabelsInputProps = {
+  legend?: string;
+  tooltipContent?: string;
+  tooltipSticky?: boolean;
+  labels: Label[];
+  setLabels(l: Label[]): void;
+  disableBtns?: boolean;
+  autoFocus?: boolean;
+  adjective?: string;
+  labelKey?: LabelInputTexts;
+  labelVal?: LabelInputTexts;
+  /**
+   * Makes it so at least one label is required
+   */
+  required?: boolean;
+  /**
+   * A rule for validating the list of labels as a whole. Note that contrary to
+   * other input fields, the labels input will default to validating every
+   * input as required if this property is undefined.
+   */
+  rule?: LabelsRule;
+  /**
+   * Always show at least one row, even if the label list is empty. Caveat: the
+   * list input in this mode has no way to correctly represent a single label
+   * with empty key and value.
+   */
+  atLeastOneRow?: boolean;
+};
+
 export function LabelsInput({
   legend,
   tooltipContent,
@@ -75,36 +108,35 @@ export function LabelsInput({
   adjective = 'Label',
   labelKey = { fieldName: 'Key', placeholder: 'label key' },
   labelVal = { fieldName: 'Value', placeholder: 'label value' },
-  inputWidth = 200,
   rule = defaultRule,
-}: {
-  legend?: string;
-  tooltipContent?: string;
-  tooltipSticky?: boolean;
-  labels: Label[];
-  setLabels(l: Label[]): void;
-  disableBtns?: boolean;
-  autoFocus?: boolean;
-  adjective?: string;
-  labelKey?: LabelInputTexts;
-  labelVal?: LabelInputTexts;
-  inputWidth?: number;
-  /**
-   * Makes it so at least one label is required
-   */
-  required?: boolean;
-  /**
-   * A rule for validating the list of labels as a whole. Note that contrary to
-   * other input fields, the labels input will default to validating every
-   * input as required if this property is undefined.
-   */
-  rule?: LabelsRule;
-}) {
+  atLeastOneRow = false,
+}: LabelsInputProps) {
   const validator = useValidation() as Validator;
   const validationResult: LabelListValidationResult = useRule(rule(labels));
+  const unspecifiedGlobalValidationError =
+    hasUnspecifiedGlobalValidationError(validationResult);
+  const singleEmptyRow = atLeastOneRow && labels.length === 0;
+
+  if (singleEmptyRow) {
+    labels = [{ name: '', value: '' }];
+  }
+
+  function updateLabels(newList: Label[]) {
+    if (
+      atLeastOneRow &&
+      newList.length === 1 &&
+      newList[0].name === '' &&
+      newList[0].value === ''
+    ) {
+      // Collapse the single empty row into an empty model.
+      setLabels([]);
+    } else {
+      setLabels(newList);
+    }
+  }
 
   function addLabel() {
-    setLabels([...labels, { name: '', value: '' }]);
+    updateLabels([...labels, { name: '', value: '' }]);
   }
 
   function removeLabel(index: number) {
@@ -121,7 +153,7 @@ export function LabelsInput({
     }
     const newList = [...labels];
     newList.splice(index, 1);
-    setLabels(newList);
+    updateLabels(newList);
   }
 
   const handleChange = (
@@ -132,7 +164,7 @@ export function LabelsInput({
     const { value } = event.target;
     const newList = [...labels];
     newList[index] = { ...newList[index], [labelField]: value };
-    setLabels(newList);
+    updateLabels(newList);
   };
 
   const requiredKey = value => () => {
@@ -145,7 +177,6 @@ export function LabelsInput({
     };
   };
 
-  const width = `${inputWidth}px`;
   const inputSize = 'medium';
   return (
     <Fieldset>
@@ -160,107 +191,142 @@ export function LabelsInput({
           </LabelContent>
         </Legend>
       )}
-      {labels.length > 0 && (
-        <Flex mt={legend ? 1 : 0} mb={1}>
-          <Box width={width} mr="3">
-            <LabelContent required>{labelKey.fieldName}</LabelContent>
-          </Box>
-          <LabelContent required>{labelVal.fieldName}</LabelContent>
-        </Flex>
-      )}
-      <Box>
-        {labels.map((label, index) => {
-          const validationItem: LabelValidationResult | undefined =
-            validationResult.results?.[index];
-          return (
-            <Box mb={2} key={index}>
-              <Flex alignItems="start">
-                <FieldInput
-                  size={inputSize}
-                  rule={
-                    validationItem
-                      ? precomputed(validationItem.name)
-                      : requiredKey
-                  }
-                  autoFocus={autoFocus}
-                  value={label.name}
-                  placeholder={labelKey.placeholder}
-                  width={width}
-                  mr={3}
-                  mb={0}
-                  onChange={e => handleChange(e, index, 'name')}
-                  readonly={disableBtns}
-                />
-                <FieldInput
-                  size={inputSize}
-                  rule={
-                    validationItem
-                      ? precomputed(validationItem.value)
-                      : requiredField('required')
-                  }
-                  value={label.value}
-                  placeholder={labelVal.placeholder}
-                  width={width}
-                  mb={0}
-                  mr={2}
-                  onChange={e => handleChange(e, index, 'value')}
-                  readonly={disableBtns}
-                />
-                {/* Force the trash button container to be the same height as an
-                    input. We can't just set `alignItems="center"` on the parent
-                    flex container above, because the field can expand when
-                    showing a validation error. */}
-                <Flex
-                  alignItems="center"
-                  height={inputGeometry[inputSize].height}
-                >
-                  <ButtonIcon
-                    size={1}
-                    title={`Remove ${adjective}`}
-                    onClick={() => removeLabel(index)}
-                    css={`
-                      &:disabled {
-                        opacity: 0.65;
-                        pointer-events: none;
-                      }
-                    `}
-                    disabled={disableBtns}
+      <LabelTable>
+        <colgroup>
+          {/* Column elements (for styling purposes, see LabelTable styles) */}
+          <col />
+          <col />
+          <col />
+        </colgroup>
+        {labels.length > 0 && (
+          <thead>
+            <tr>
+              <th scope="col">
+                <LabelContent required>{labelKey.fieldName}</LabelContent>
+              </th>
+              <th scope="col">
+                <LabelContent required>{labelVal.fieldName}</LabelContent>
+              </th>
+            </tr>
+          </thead>
+        )}
+        <tbody>
+          {labels.map((label, index) => {
+            let validationItem: LabelValidationResult | undefined =
+              validationResult.results?.[index];
+            if (unspecifiedGlobalValidationError) {
+              validationItem = {
+                name: { valid: false },
+                value: { valid: false },
+              };
+            } else if (singleEmptyRow) {
+              // Special case: a single empty row in the "at least one row" mode
+              // is always valid.
+              validationItem = {
+                name: { valid: true },
+                value: { valid: true },
+              };
+            }
+            return (
+              <tr key={index}>
+                <td>
+                  <FieldInput
+                    size={inputSize}
+                    rule={
+                      validationItem
+                        ? precomputed(validationItem.name)
+                        : requiredKey
+                    }
+                    autoFocus={autoFocus}
+                    value={label.name}
+                    placeholder={labelKey.placeholder}
+                    mb={0}
+                    onChange={e => handleChange(e, index, 'name')}
+                    readonly={disableBtns}
+                  />
+                </td>
+                <td>
+                  <FieldInput
+                    size={inputSize}
+                    rule={
+                      validationItem
+                        ? precomputed(validationItem.value)
+                        : requiredField('required')
+                    }
+                    value={label.value}
+                    placeholder={labelVal.placeholder}
+                    mb={0}
+                    onChange={e => handleChange(e, index, 'value')}
+                    readonly={disableBtns}
+                  />
+                </td>
+                <td>
+                  {/* Force the trash button container to be the same height as an
+                      input. We can't just set center-align the cell, because the
+                      field can expand when showing a validation error. */}
+                  <Flex
+                    alignItems="center"
+                    height={inputGeometry[inputSize].height}
                   >
-                    <Icons.Trash size="medium" />
-                  </ButtonIcon>
-                </Flex>
-              </Flex>
-            </Box>
-          );
-        })}
-      </Box>
-      <ButtonSecondary
+                    <ButtonIcon
+                      size={buttonIconSize}
+                      title={`Remove ${adjective}`}
+                      onClick={() => removeLabel(index)}
+                      css={`
+                        &:disabled {
+                          opacity: 0.65;
+                        }
+                      `}
+                      disabled={disableBtns || singleEmptyRow}
+                    >
+                      <Icons.Cross color="text.muted" size="small" />
+                    </ButtonIcon>
+                  </Flex>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </LabelTable>
+      <ButtonWithAddIcon
+        Button={ButtonSecondary}
+        label={
+          labels.length > 0 ? `Add another ${adjective}` : `Add a ${adjective}`
+        }
         onClick={e => {
           e.preventDefault();
           addLabel();
         }}
         disabled={disableBtns}
-        gap={1}
-      >
-        <Icons.Add className="icon-add" disabled={disableBtns} size="small" />
-        {labels.length > 0 ? `Add another ${adjective}` : `Add a ${adjective}`}
-      </ButtonSecondary>
+        size="small"
+        pr={3}
+        compact={false}
+        inputAlignment
+      />
     </Fieldset>
   );
 }
 
 const defaultRule = () => () => ({ valid: true });
 
-export const nonEmptyLabels: LabelsRule = labels => () => {
-  const results = labels.map(label => ({
-    name: requiredField('required')(label.name)(),
-    value: requiredField('required')(label.value)(),
-  }));
-  return {
-    valid: results.every(r => r.name.valid && r.value.valid),
-    results: results,
+function hasUnspecifiedGlobalValidationError(llvr: LabelListValidationResult) {
+  return (
+    !llvr.valid &&
+    (!llvr.results || llvr.results.every(vr => vr.name.valid && vr.value.valid))
+  );
+}
+
+export const nonEmptyLabels: LabelsRule =
+  labels => (): LabelListValidationResult => {
+    const results = labels.map(label => ({
+      name: requiredField('required')(label.name)(),
+      value: requiredField('required')(label.value)(),
+    }));
+    return {
+      valid: results.every(r => r.name.valid && r.value.valid),
+      results: results,
+    };
   };
-};
 
 const Fieldset = styled.fieldset`
   border: none;
@@ -272,4 +338,41 @@ const Legend = styled.legend`
   margin: 0 0 ${props => props.theme.space[1]}px 0;
   padding: 0;
   ${props => props.theme.typography.body3}
+`;
+
+const LabelTable = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  /*
+   * Using fixed layout seems to be the only way to prevent the internal input
+   * padding from somehow influencing the column width. As the padding is
+   * variable (and reflects the error state), we'd rather avoid column width
+   * changes while editing.
+   */
+  table-layout: fixed;
+
+  & th {
+    padding: 0 0 ${props => props.theme.space[1]}px 0;
+  }
+
+  col:nth-child(3) {
+    /*
+     * The fixed layout is good for stability, but it forces us to explicitly
+     * define the width of the delete button column. Set it to the width of an
+     * icon button.
+     */
+    width: ${buttonSizes[buttonIconSize].width};
+  }
+
+  & td {
+    padding: 0;
+    /* Keep the inputs top-aligned to support error messages */
+    vertical-align: top;
+    padding-bottom: ${props => props.theme.space[2]}px;
+
+    &:nth-child(1),
+    &:nth-child(2) {
+      padding-right: ${props => props.theme.space[2]}px;
+    }
+  }
 `;

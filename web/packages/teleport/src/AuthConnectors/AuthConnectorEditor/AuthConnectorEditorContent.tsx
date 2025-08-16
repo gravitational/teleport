@@ -18,22 +18,20 @@
 
 import { Link as RouterLink } from 'react-router-dom';
 
-import { Link } from 'design';
 import { Alert } from 'design/Alert';
 import Box from 'design/Box';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
 import { ArrowBack } from 'design/Icon';
 import { Indicator } from 'design/Indicator';
-import { H1, H3 } from 'design/Text';
-import { P } from 'design/Text/Text';
+import { H1 } from 'design/Text';
+import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 import TextEditor from 'shared/components/TextEditor';
 import { Attempt } from 'shared/hooks/useAsync';
 
-import { DesktopDescription } from 'teleport/AuthConnectors/styles/AuthConnectors.styles';
 import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
 
-import { description } from '../AuthConnectors';
+import { InfoGuide } from '../AuthConnectors';
 
 /**
  * AuthConnectorEditorContent is a the content of an Auth Connector editor page.
@@ -53,17 +51,22 @@ export function AuthConnectorEditorContent({
   return (
     <FeatureBox>
       <FeatureHeaderTitle py={3} mb={2}>
-        <Flex alignItems="center">
-          <ArrowBack
-            as={RouterLink}
-            mr={2}
-            size="large"
-            color="text.main"
-            to={backButtonRoute}
+        <Flex alignItems="center" justifyContent="space-between">
+          <Flex alignItems="center">
+            <ArrowBack
+              as={RouterLink}
+              mr={2}
+              size="large"
+              color="text.main"
+              to={backButtonRoute}
+            />
+            <Box mr={4}>
+              <H1>{title}</H1>
+            </Box>
+          </Flex>
+          <InfoGuideButton
+            config={{ guide: <InfoGuide isGitHub={isGithub} /> }}
           />
-          <Box mr={4}>
-            <H1>{title}</H1>
-          </Box>
         </Flex>
       </FeatureHeaderTitle>
       {fetchAttempt.status === 'error' && (
@@ -85,15 +88,13 @@ export function AuthConnectorEditorContent({
             {saveAttempt.status === 'error' && (
               <Alert width="100%">{saveAttempt.statusText}</Alert>
             )}
-            <Flex height="600px" width="100%">
-              {content && (
-                <TextEditor
-                  bg="levels.deep"
-                  readOnly={false}
-                  data={[{ content, type: 'yaml' }]}
-                  onChange={setContent}
-                />
-              )}
+            <Flex height="100%" width="100%">
+              <TextEditor
+                bg="levels.deep"
+                readOnly={false}
+                data={[{ content, type: 'yaml' }]}
+                onChange={setContent}
+              />
             </Flex>
             <Box mt={3}>
               <ButtonPrimary disabled={isSaveDisabled} onClick={onSave} mr="3">
@@ -107,35 +108,6 @@ export function AuthConnectorEditorContent({
               </ButtonSecondary>
             </Box>
           </Flex>
-          <DesktopDescription>
-            <H3 mb={3}>Auth Connectors</H3>
-            <P mb={3}>{description}</P>
-            {isGithub ? (
-              <P mb={2}>
-                Please
-                <Link
-                  color="text.main"
-                  href="https://goteleport.com/docs/admin-guides/access-controls/sso/github-sso/"
-                  target="_blank"
-                >
-                  view our documentation
-                </Link>{' '}
-                on how to configure a GitHub connector.
-              </P>
-            ) : (
-              <P>
-                Please{' '}
-                <Link
-                  color="text.main"
-                  href="https://goteleport.com/docs/admin-guides/access-controls/sso/"
-                  target="_blank"
-                >
-                  view our documentation
-                </Link>{' '}
-                for samples of each connector.
-              </P>
-            )}
-          </DesktopDescription>
         </Flex>
       )}
     </FeatureBox>

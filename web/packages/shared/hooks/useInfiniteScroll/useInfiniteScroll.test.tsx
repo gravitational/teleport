@@ -21,7 +21,7 @@ import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 
 import { render, screen } from 'design/utils/testing';
 
-import { useInfiniteScroll } from './useInfiniteScroll';
+import { useInfiniteScroll } from '.';
 
 const mio = mockIntersectionObserver();
 
@@ -74,4 +74,29 @@ test('supports changing nodes', async () => {
   // Should register entering trigger2.
   act(() => mio.enterNode(trigger2));
   expect(props.fetch).toHaveBeenCalledTimes(2);
+});
+
+test('when there are multiple entries, only call fetch once on first encountered intersection', async () => {
+  const props = hookProps();
+  const { result } = renderHook(useInfiniteScroll, {
+    initialProps: props,
+  });
+  render(<div ref={result.current.setTrigger} data-testid="trigger" />);
+  const trigger = screen.getByTestId('trigger');
+  expect(props.fetch).toHaveBeenCalledTimes(0);
+
+  // Should not call a fetch because nothing has intersected.
+  mio.triggerNodes([
+    { node: trigger, desc: { isIntersecting: false, intersectionRatio: 0 } },
+    { node: trigger, desc: { isIntersecting: false, intersectionRatio: 0 } },
+  ]);
+  expect(props.fetch).toHaveBeenCalledTimes(0);
+
+  // Should call fetch only once, despite multiple entries being intersected.
+  mio.triggerNodes([
+    { node: trigger, desc: { isIntersecting: false, intersectionRatio: 0 } },
+    { node: trigger, desc: { isIntersecting: true, intersectionRatio: 1 } },
+    { node: trigger, desc: { isIntersecting: true, intersectionRatio: 1 } },
+  ]);
+  expect(props.fetch).toHaveBeenCalledTimes(1);
 });

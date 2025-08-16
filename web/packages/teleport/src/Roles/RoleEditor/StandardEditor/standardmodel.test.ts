@@ -23,6 +23,7 @@ import {
   GitHubPermission,
   KubernetesResource,
   Labels,
+  MCPPermissions,
   RequireMFAType,
   ResourceKind,
   Role,
@@ -31,6 +32,7 @@ import {
   Rule,
   SessionRecordingMode,
   SSHPortForwarding,
+  Verb,
 } from 'teleport/services/resources';
 
 import presetRoles from '../../../../../../../gen/preset-roles.json';
@@ -40,15 +42,17 @@ import {
   unsupportedValueWithReplacement,
 } from './errors';
 import {
+  allowedVerbsForResourceKinds,
   createDBUserModeOptionsMap,
   createHostUserModeOptionsMap,
   defaultRoleVersion,
   gitHubOrganizationsToModel,
   KubernetesAccess,
-  kubernetesResourceKindOptionsMap,
+  kubernetesResourceKindOptionsMapV7,
   kubernetesVerbOptionsMap,
   labelsModelToLabels,
   labelsToModel,
+  mcpToolsToModel,
   portForwardingOptionsToModel,
   requireMFATypeOptionsMap,
   resourceKindOptionsMap,
@@ -58,18 +62,20 @@ import {
   roleVersionOptionsMap,
   sessionRecordingModeOptionsMap,
   sshPortForwardingModeOptionsMap,
-  verbOptionsMap,
 } from './standardmodel';
 import { withDefaults } from './withDefaults';
 
-const minimalRole = () =>
-  withDefaults({ metadata: { name: 'foobar' }, version: defaultRoleVersion });
+const minimalRole = (roleVersion = defaultRoleVersion) =>
+  withDefaults({ metadata: { name: 'foobar' } }, roleVersion);
 
-const minimalRoleModel = (): RoleEditorModel => ({
+const minimalRoleModel = (
+  roleVersion = defaultRoleVersion
+): RoleEditorModel => ({
   metadata: {
     name: 'foobar',
+    nameCollision: false,
     labels: [],
-    version: roleVersionOptionsMap.get(defaultRoleVersion),
+    version: roleVersionOptionsMap.get(roleVersion),
   },
   resources: [],
   rules: [],
@@ -133,18 +139,18 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
   {
     name: 'metadata',
     role: {
-      ...minimalRole(),
+      ...minimalRole(RoleVersion.V6),
       metadata: {
         name: 'role-name',
         description: 'role-description',
         labels: { foo: 'bar' },
       },
-      version: RoleVersion.V6,
     },
     model: {
-      ...minimalRoleModel(),
+      ...minimalRoleModel(RoleVersion.V6),
       metadata: {
         name: 'role-name',
+        nameCollision: false,
         description: 'role-description',
         labels: [{ name: 'foo', value: 'bar' }],
         version: roleVersionOptionsMap.get(RoleVersion.V6),
@@ -175,6 +181,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             { label: 'cthulhu', value: 'cthulhu' },
             { label: 'sandman', value: 'sandman' },
           ],
+          hideValidationErrors: false,
         },
       ],
     },
@@ -221,6 +228,8 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             'account1@some-project.iam.gserviceaccount.com',
             'account2@some-project.iam.gserviceaccount.com',
           ],
+          mcpTools: [],
+          hideValidationErrors: false,
         },
       ],
     },
@@ -260,6 +269,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             { label: 'auditor', value: 'auditor' },
           ],
           dbServiceLabels: [{ name: 'foo', value: 'bar' }],
+          hideValidationErrors: false,
         },
       ],
     },
@@ -287,6 +297,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             { label: 'alice', value: 'alice' },
             { label: 'bob', value: 'bob' },
           ],
+          hideValidationErrors: false,
         },
       ],
     },
@@ -312,6 +323,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             { label: 'illuminati', value: 'illuminati' },
             { label: 'reptilians', value: 'reptilians' },
           ],
+          hideValidationErrors: false,
         },
       ],
     },
@@ -607,6 +619,44 @@ test.each<{
   ).toEqual(expected);
 });
 
+test.each<{
+  name: string;
+  permissions: MCPPermissions;
+  expected: ReturnType<typeof mcpToolsToModel>;
+}>([
+  {
+    name: 'empty permissions',
+    permissions: {},
+    expected: { model: [], conversionErrors: [] },
+  },
+  {
+    name: 'empty tools',
+    permissions: { tools: [] },
+    expected: { model: [], conversionErrors: [] },
+  },
+  {
+    name: 'some tools',
+    permissions: { tools: ['foo1', 'foo2'] },
+    expected: {
+      model: ['foo1', 'foo2'],
+      conversionErrors: [],
+    },
+  },
+  {
+    name: 'invalid fields',
+    permissions: { tools: ['foo'], unknownField: 123 } as MCPPermissions,
+    expected: {
+      model: ['foo'],
+      conversionErrors: simpleConversionErrors(
+        ConversionErrorType.UnsupportedField,
+        ['spec.allow.mcp.unknownField']
+      ),
+    },
+  },
+])('mcpToolsToModel(): $name', ({ permissions, expected }) => {
+  expect(mcpToolsToModel(permissions, 'spec.allow.mcp')).toEqual(expected);
+});
+
 describe('roleToRoleEditorModel', () => {
   const minRole = minimalRole();
   const minRoleModel = minimalRoleModel();
@@ -622,6 +672,7 @@ describe('roleToRoleEditorModel', () => {
     resources: [],
     users: [],
     roleVersion: defaultRoleVersion,
+    hideValidationErrors: false,
   });
 
   test('unknown and invalid fields are reported as conversion errors', () => {
@@ -637,8 +688,7 @@ describe('roleToRoleEditorModel', () => {
           ...minRole.spec.allow,
           allowUnknown: 123,
           kubernetes_resources: [
-            { kind: 'job', resUnknown: 123 } as KubernetesResource,
-            { kind: 'illegal' } as unknown as KubernetesResource,
+            { kind: 'jobs', resUnknown: 123 } as KubernetesResource,
             {
               kind: '*',
               verbs: ['illegal', 'get'],
@@ -650,13 +700,17 @@ describe('roleToRoleEditorModel', () => {
           rules: [
             { ruleUnknown: 123 } as Rule,
             { verbs: ['create', 'illegal'] } as Rule,
+            // These are all technically valid, but you can't rotate a node
+            // (though it might be fun).
+            { resources: ['node'], verbs: ['read', 'rotate'] } as Rule,
+            // Other verbs are unsupported along with a wildcard.
+            { resources: ['node'], verbs: ['*', 'read'] } as Rule,
           ],
         },
         deny: { ...minRole.spec.deny, denyUnknown: 123 },
         options: {
           ...minRole.spec.options,
           optionsUnknown: 123,
-          idp: { saml: { enabled: true, unknownField: 123 } },
           record_session: {
             ...minRole.spec.options.record_session,
             recordSessionUnknown: 123,
@@ -696,15 +750,16 @@ describe('roleToRoleEditorModel', () => {
         {
           type: ConversionErrorType.UnsupportedValue,
           errors: simpleConversionErrors(ConversionErrorType.UnsupportedValue, [
-            'spec.allow.kubernetes_resources[1]',
-            'spec.allow.kubernetes_resources[2].verbs[0]',
+            'spec.allow.kubernetes_resources[1].verbs[0]',
             'spec.allow.rules[1].verbs[1]',
+            'spec.allow.rules[2].verbs[1]',
             'spec.options.ssh_port_forwarding',
           ]),
         },
         {
           type: ConversionErrorType.UnsupportedValueWithReplacement,
           errors: [
+            unsupportedValueWithReplacement('spec.allow.rules[3].verbs', ['*']),
             unsupportedValueWithReplacement(
               'spec.options.cert_format',
               'standard'
@@ -721,9 +776,6 @@ describe('roleToRoleEditorModel', () => {
               'command',
               'network',
             ]),
-            unsupportedValueWithReplacement('spec.options.idp', {
-              saml: { enabled: true },
-            }),
             unsupportedValueWithReplacement(
               'spec.options.pin_source_ip',
               false
@@ -750,7 +802,7 @@ describe('roleToRoleEditorModel', () => {
           ...newKubeClusterResourceAccess(),
           resources: [
             expect.objectContaining({
-              kind: kubernetesResourceKindOptionsMap.get('job'),
+              kind: { value: 'jobs', label: 'jobs' },
             }),
             expect.objectContaining({
               verbs: [kubernetesVerbOptionsMap.get('get')],
@@ -760,12 +812,42 @@ describe('roleToRoleEditorModel', () => {
         {
           kind: 'git_server',
           organizations: [{ label: 'foo', value: 'foo' }],
+          hideValidationErrors: false,
         },
       ],
       rules: [
         expect.any(Object),
         expect.objectContaining({
-          verbs: [{ value: 'create', label: 'create' }],
+          allVerbs: false,
+          verbs: [
+            { verb: 'read', checked: false },
+            { verb: 'list', checked: false },
+            { verb: 'create', checked: true },
+            { verb: 'update', checked: false },
+            { verb: 'delete', checked: false },
+          ],
+        }),
+        expect.objectContaining({
+          resources: [{ label: 'node', value: 'node' }],
+          allVerbs: false,
+          verbs: [
+            { verb: 'read', checked: true },
+            { verb: 'list', checked: false },
+            { verb: 'create', checked: false },
+            { verb: 'update', checked: false },
+            { verb: 'delete', checked: false },
+          ],
+        }),
+        expect.objectContaining({
+          resources: [{ label: 'node', value: 'node' }],
+          allVerbs: true,
+          verbs: [
+            { verb: 'read', checked: true },
+            { verb: 'list', checked: true },
+            { verb: 'create', checked: true },
+            { verb: 'update', checked: true },
+            { verb: 'delete', checked: true },
+          ],
         }),
       ],
       options: {
@@ -790,12 +872,126 @@ describe('roleToRoleEditorModel', () => {
             {
               type: ConversionErrorType.UnsupportedValueWithReplacement,
               path: 'version',
-              replacement: '"v7"',
+              replacement: '"v8"',
             },
           ],
         },
       ],
     } as RoleEditorModel);
+  });
+
+  test('support custom resource', () => {
+    expect(
+      roleToRoleEditorModel({
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          allow: {
+            ...minRole.spec.allow,
+            kubernetes_resources: [
+              { kind: 'unknown', api_group: 'group.example.com' },
+              { kind: 'jobs', api_group: '*' },
+            ],
+          },
+        },
+      })
+    ).toEqual({
+      ...minRoleModel,
+      resources: [
+        {
+          ...newKubeClusterResourceAccess(),
+          resources: [
+            expect.objectContaining({
+              kind: { value: 'unknown', label: 'unknown' },
+              apiGroup: 'group.example.com',
+            }),
+            expect.objectContaining({
+              kind: { value: 'jobs', label: 'jobs' },
+              apiGroup: '*',
+            }),
+          ],
+        },
+      ],
+    });
+  });
+
+  test('not support custom resource', () => {
+    expect(
+      roleToRoleEditorModel({
+        ...minimalRole(RoleVersion.V7),
+        spec: {
+          ...minimalRole(RoleVersion.V7).spec,
+          allow: {
+            ...minimalRole(RoleVersion.V7).spec.allow,
+            kubernetes_resources: [
+              { kind: 'unknown', api_group: 'group.example.com' },
+              { kind: 'jobs', api_group: '*' },
+            ],
+          },
+          options: {
+            ...minimalRole(RoleVersion.V7).spec.options,
+            idp: { saml: { enabled: true } },
+          },
+        },
+      })
+    ).toEqual({
+      ...minimalRoleModel(RoleVersion.V7),
+      requiresReset: true,
+      resources: [],
+      conversionErrors: [
+        {
+          type: ConversionErrorType.UnsupportedValue,
+          errors: [
+            {
+              type: ConversionErrorType.UnsupportedValue,
+              path: 'spec.allow.kubernetes_resources[0].kind',
+            },
+            {
+              type: ConversionErrorType.UnsupportedValue,
+              path: 'spec.allow.kubernetes_resources[1].kind',
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  test('v8 not support v7 kind', () => {
+    expect(
+      roleToRoleEditorModel({
+        ...minimalRole(RoleVersion.V8),
+        spec: {
+          ...minRole.spec,
+          allow: {
+            ...minRole.spec.allow,
+            kubernetes_resources: [{ kind: 'job', api_group: '*' }],
+          },
+        },
+      })
+    ).toEqual({
+      ...minimalRoleModel(RoleVersion.V8),
+      requiresReset: true,
+      resources: [
+        {
+          ...newKubeClusterResourceAccess(),
+          resources: [
+            expect.objectContaining({ kind: { value: 'jobs', label: 'jobs' } }),
+          ],
+        },
+      ],
+      conversionErrors: [
+        {
+          type: ConversionErrorType.UnsupportedValueWithReplacement,
+          errors: [
+            {
+              type: ConversionErrorType.UnsupportedValueWithReplacement,
+              path: 'spec.allow.kubernetes_resources[0].kind',
+              replacement: '"jobs"',
+            },
+          ],
+        },
+      ],
+    });
   });
 
   it('revision change requires reset', () => {
@@ -815,13 +1011,10 @@ describe('roleToRoleEditorModel', () => {
       )
     ).toEqual({
       ...minimalRoleModel(),
-      metadata: {
-        name: 'role-name',
+      metadata: expect.objectContaining({
         // We need to preserve the original revision.
         revision: originalRev,
-        labels: [],
-        version: roleVersionOptionsMap.get(defaultRoleVersion),
-      },
+      }),
       requiresReset: true,
       conversionErrors: [
         {
@@ -851,14 +1044,14 @@ describe('roleToRoleEditorModel', () => {
             kubernetes_labels: { bar: 'foo' },
             kubernetes_resources: [
               {
-                kind: 'pod',
+                kind: 'pods',
                 name: 'some-pod',
                 namespace: '*',
                 verbs: ['get', 'update'],
               },
               {
                 // No namespace required for cluster-wide resources.
-                kind: 'kube_node',
+                kind: 'nodes',
                 name: 'some-node',
               },
             ],
@@ -879,7 +1072,7 @@ describe('roleToRoleEditorModel', () => {
           resources: [
             {
               id: expect.any(String),
-              kind: kubernetesResourceKindOptionsMap.get('pod'),
+              kind: { value: 'pods', label: 'pods' },
               name: 'some-pod',
               namespace: '*',
               verbs: [
@@ -890,7 +1083,7 @@ describe('roleToRoleEditorModel', () => {
             },
             {
               id: expect.any(String),
-              kind: kubernetesResourceKindOptionsMap.get('kube_node'),
+              kind: { value: 'nodes', label: 'nodes' },
               name: 'some-node',
               namespace: '',
               verbs: [],
@@ -902,6 +1095,7 @@ describe('roleToRoleEditorModel', () => {
             { label: 'bob', value: 'bob' },
           ],
           roleVersion: defaultRoleVersion,
+          hideValidationErrors: false,
         },
       ],
     } as RoleEditorModel);
@@ -929,6 +1123,8 @@ describe('roleToRoleEditorModel', () => {
           awsRoleARNs: [],
           azureIdentities: [],
           gcpServiceAccounts: [],
+          mcpTools: [],
+          hideValidationErrors: false,
         },
       ],
     } as RoleEditorModel);
@@ -946,7 +1142,7 @@ describe('roleToRoleEditorModel', () => {
                 resources: [ResourceKind.User, ResourceKind.DatabaseService],
                 verbs: ['read', 'list'],
               },
-              { resources: [ResourceKind.Lock], verbs: ['create'] },
+              { resources: [ResourceKind.Lock], verbs: ['*'] },
               {
                 resources: [ResourceKind.Session],
                 verbs: ['read', 'list'],
@@ -965,20 +1161,44 @@ describe('roleToRoleEditorModel', () => {
             resourceKindOptionsMap.get(ResourceKind.User),
             resourceKindOptionsMap.get(ResourceKind.DatabaseService),
           ],
-          verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+          allVerbs: false,
+          verbs: [
+            { verb: 'read', checked: true },
+            { verb: 'list', checked: true },
+            { verb: 'create', checked: false },
+            { verb: 'update', checked: false },
+            { verb: 'delete', checked: false },
+          ],
           where: '',
+          hideValidationErrors: false,
         },
         {
           id: expect.any(String),
           resources: [resourceKindOptionsMap.get(ResourceKind.Lock)],
-          verbs: [verbOptionsMap.get('create')],
+          allVerbs: true,
+          verbs: [
+            { verb: 'read', checked: true },
+            { verb: 'list', checked: true },
+            { verb: 'create', checked: true },
+            { verb: 'update', checked: true },
+            { verb: 'delete', checked: true },
+          ],
           where: '',
+          hideValidationErrors: false,
         },
         {
           id: expect.any(String),
           resources: [resourceKindOptionsMap.get(ResourceKind.Session)],
-          verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+          allVerbs: false,
+          verbs: [
+            { verb: 'read', checked: true },
+            { verb: 'list', checked: true },
+            { verb: 'create', checked: false },
+            { verb: 'update', checked: false },
+            { verb: 'delete', checked: false },
+          ],
           where: 'contains(session.participants, user.metadata.name)',
+          hideValidationErrors: false,
         },
       ],
     } as RoleEditorModel);
@@ -1005,6 +1225,7 @@ describe('roleToRoleEditorModel', () => {
             { label: 'foo', value: 'foo' },
             { label: 'bar', value: 'bar' },
           ],
+          hideValidationErrors: false,
         },
       ],
     } as RoleEditorModel);
@@ -1031,9 +1252,10 @@ describe('roleEditorModelToRole', () => {
   it('converts metadata', () => {
     expect(
       roleEditorModelToRole({
-        ...minimalRoleModel(),
+        ...minimalRoleModel(RoleVersion.V5),
         metadata: {
           name: 'dog-walker',
+          nameCollision: false,
           description: 'walks dogs',
           revision: 'e2a3ccf8-09b9-4d97-8e47-6dbe3d53c0e5',
           labels: [{ name: 'kind', value: 'occupation' }],
@@ -1041,7 +1263,7 @@ describe('roleEditorModelToRole', () => {
         },
       })
     ).toEqual({
-      ...minimalRole(),
+      ...minimalRole(RoleVersion.V5),
       metadata: {
         name: 'dog-walker',
         description: 'walks dogs',
@@ -1070,7 +1292,7 @@ describe('roleEditorModelToRole', () => {
             resources: [
               {
                 id: 'dummy-id-1',
-                kind: kubernetesResourceKindOptionsMap.get('pod'),
+                kind: kubernetesResourceKindOptionsMapV7.get('pod'),
                 name: 'some-pod',
                 namespace: '*',
                 verbs: [
@@ -1081,7 +1303,7 @@ describe('roleEditorModelToRole', () => {
               },
               {
                 id: 'dummy-id-2',
-                kind: kubernetesResourceKindOptionsMap.get('kube_node'),
+                kind: kubernetesResourceKindOptionsMapV7.get('kube_node'),
                 name: 'some-node',
                 namespace: '',
                 verbs: [],
@@ -1093,6 +1315,7 @@ describe('roleEditorModelToRole', () => {
               { label: 'bob', value: 'bob' },
             ],
             roleVersion: defaultRoleVersion,
+            hideValidationErrors: false,
           },
         ],
       })
@@ -1134,20 +1357,46 @@ describe('roleEditorModelToRole', () => {
               resourceKindOptionsMap.get(ResourceKind.User),
               resourceKindOptionsMap.get(ResourceKind.DatabaseService),
             ],
-            verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+            allVerbs: false,
+            verbs: [
+              { verb: 'read', checked: true },
+              { verb: 'list', checked: true },
+              { verb: 'create', checked: false },
+              { verb: 'update', checked: false },
+              { verb: 'delete', checked: false },
+            ],
             where: '',
+            hideValidationErrors: false,
           },
           {
             id: 'dummy-id-2',
             resources: [resourceKindOptionsMap.get(ResourceKind.Lock)],
-            verbs: [verbOptionsMap.get('create')],
+            allVerbs: true,
+            verbs: [
+              { verb: 'read', checked: false },
+              { verb: 'list', checked: false },
+              // Set one of these to `true` to make sure it's ignored and
+              // overridden by `allVerbs`. Shouldn't happen, but just in case.
+              { verb: 'create', checked: true },
+              { verb: 'update', checked: false },
+              { verb: 'delete', checked: false },
+            ],
             where: '',
+            hideValidationErrors: false,
           },
           {
-            id: expect.any(String),
+            id: 'dummy-id-3',
             resources: [resourceKindOptionsMap.get(ResourceKind.Session)],
-            verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+            allVerbs: false,
+            verbs: [
+              { verb: 'read', checked: true },
+              { verb: 'list', checked: true },
+              { verb: 'create', checked: false },
+              { verb: 'update', checked: false },
+              { verb: 'delete', checked: false },
+            ],
             where: 'contains(session.participants, user.metadata.name)',
+            hideValidationErrors: false,
           },
         ],
       })
@@ -1158,7 +1407,7 @@ describe('roleEditorModelToRole', () => {
         allow: {
           rules: [
             { resources: ['user', 'db_service'], verbs: ['read', 'list'] },
-            { resources: ['lock'], verbs: ['create'] },
+            { resources: ['lock'], verbs: ['*'] },
             {
               resources: ['session'],
               verbs: ['read', 'list'],
@@ -1187,4 +1436,41 @@ test('labelsModelToLabels', () => {
     doubleFoo: ['bar1', 'bar2'],
     tripleFoo: ['bar1', 'bar2', 'bar3'],
   } as Labels);
+});
+
+test.each<{ kinds: string[]; verbs: Verb[] }>([
+  // Typical case
+  {
+    kinds: [ResourceKind.Node],
+    verbs: ['read', 'list', 'create', 'update', 'delete'],
+  },
+  // Additional verbs
+  {
+    kinds: [ResourceKind.CertAuthority],
+    verbs: [
+      'read',
+      'list',
+      'create',
+      'update',
+      'delete',
+      'readnosecrets',
+      'rotate',
+    ],
+  },
+  // Combining verbs from more than one resource kind
+  {
+    kinds: [ResourceKind.SAMLConnector, ResourceKind.Device],
+    verbs: [
+      'read',
+      'list',
+      'create',
+      'update',
+      'delete',
+      'readnosecrets',
+      'create_enroll_token',
+      'enroll',
+    ],
+  },
+])('allowedVerbsForResourceKinds($kinds)', ({ kinds, verbs }) => {
+  expect(allowedVerbsForResourceKinds(kinds)).toEqual(verbs);
 });

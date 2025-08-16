@@ -188,8 +188,10 @@ type mockAuthClient struct {
 	reverseTunnelsErr error
 }
 
-func (c mockAuthClient) GetReverseTunnels(context.Context) ([]types.ReverseTunnel, error) {
-	return c.reverseTunnels, c.reverseTunnelsErr
+func (c mockAuthClient) ListReverseTunnels(
+	ctx context.Context, pageSize int, token string,
+) ([]types.ReverseTunnel, string, error) {
+	return c.reverseTunnels, "", c.reverseTunnelsErr
 }
 
 func mustNewReverseTunnel(t *testing.T, clusterName string, dialAddrs []string) types.ReverseTunnel {

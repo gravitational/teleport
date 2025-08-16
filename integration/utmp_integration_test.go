@@ -39,12 +39,13 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -65,7 +66,7 @@ var wildcardAllow = types.Labels{
 type SrvCtx struct {
 	srv        *regular.Server
 	signer     ssh.Signer
-	server     *auth.TestServer
+	server     *authtest.Server
 	clock      *clockwork.FakeClock
 	nodeClient *authclient.Client
 	nodeID     string
@@ -197,7 +198,7 @@ type upack struct {
 	key []byte
 
 	// pkey is parsed private SSH key
-	pkey interface{}
+	pkey any
 
 	// pub is a public user key
 	pub []byte
@@ -243,8 +244,8 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	tempdir := t.TempDir()
 
 	var err error
-	s.server, err = auth.NewTestServer(auth.TestServerConfig{
-		Auth: auth.TestAuthServerConfig{
+	s.server, err = authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
 			ClusterName: "localhost",
 			Dir:         tempdir,
 			Clock:       s.clock,
@@ -278,7 +279,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	require.NoError(t, err)
 
 	s.nodeID = uuid.New().String()
-	s.nodeClient, err = s.server.NewClient(auth.TestIdentity{
+	s.nodeClient, err = s.server.NewClient(authtest.TestIdentity{
 		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: s.nodeID,
@@ -345,6 +346,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		regular.SetUserAccountingPaths(utmpPath, wtmpPath, btmpPath),
 		regular.SetLockWatcher(lockWatcher),
 		regular.SetSessionController(nodeSessionController),
+		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 	s.srv = srv

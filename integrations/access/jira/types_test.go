@@ -64,7 +64,7 @@ func TestErrorResultUnmarshal(t *testing.T) {
 			name:           "malformed error",
 			input:          `{"errorMessages":["Foo"],"errors":"This is a single string"}`,
 			expectedOutput: ErrorResult{ErrorMessages: []string{"Foo"}},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "This is a single string")
 			},
 		},

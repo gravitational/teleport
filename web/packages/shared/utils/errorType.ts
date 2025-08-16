@@ -16,13 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// getErrMessage first checks if the error is of type Error
-// before attempting to access the error message field.
-// Used with try catch blocks, where the error caught
-// may not necessary be of type Error.
-export function getErrMessage(err: unknown) {
-  let message = 'something went wrong';
-  if (err instanceof Error) message = err.message;
-
-  return message;
-}
+export {
+  /** @deprecated Import `getErrorMessage` from 'shared/utils/error.ts' */
+  getErrorMessage as getErrMessage,
+} from './error';

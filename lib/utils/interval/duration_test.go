@@ -94,7 +94,7 @@ func TestVariableDurationIncDec(t *testing.T) {
 	var wg sync.WaitGroup
 	start := make(chan struct{})
 	wg.Add(100)
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		go func() {
 			defer wg.Done()
 			<-start
@@ -112,7 +112,7 @@ func TestVariableDurationIncDec(t *testing.T) {
 
 	start = make(chan struct{})
 	wg.Add(50)
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		go func() {
 			defer wg.Done()
 			<-start

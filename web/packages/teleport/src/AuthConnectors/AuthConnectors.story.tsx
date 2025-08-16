@@ -17,11 +17,9 @@
  */
 
 import { delay, http, HttpResponse } from 'msw';
-import { MemoryRouter } from 'react-router';
 
-import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import { TeleportProviderBasic } from 'teleport/mocks/providers';
 
 import { AuthConnectors } from './AuthConnectors';
 import { connectors } from './fixtures';
@@ -30,13 +28,28 @@ export default {
   title: 'Teleport/AuthConnectors',
 };
 
+export function Loaded() {
+  return (
+    <TeleportProviderBasic initialEntries={[cfg.routes.sso]}>
+      <AuthConnectors />
+    </TeleportProviderBasic>
+  );
+}
+Loaded.parameters = {
+  msw: {
+    handlers: [
+      http.get(cfg.getGithubConnectorsUrl(), () =>
+        HttpResponse.json({ connectors: [connectors[0], connectors[1]] })
+      ),
+    ],
+  },
+};
+
 export function Processing() {
   return (
-    <MemoryRouter initialEntries={[cfg.routes.sso]}>
-      <ContextWrapper>
-        <AuthConnectors />
-      </ContextWrapper>
-    </MemoryRouter>
+    <TeleportProviderBasic initialEntries={[cfg.routes.sso]}>
+      <AuthConnectors />
+    </TeleportProviderBasic>
   );
 }
 Processing.parameters = {
@@ -50,49 +63,26 @@ Processing.parameters = {
   },
 };
 
-export function Loaded() {
-  return (
-    <MemoryRouter initialEntries={[cfg.routes.sso]}>
-      <ContextWrapper>
-        <AuthConnectors />
-      </ContextWrapper>
-    </MemoryRouter>
-  );
-}
-Loaded.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getGithubConnectorsUrl(), () =>
-        HttpResponse.json([connectors[0], connectors[1]])
-      ),
-    ],
-  },
-};
-
 export function Empty() {
   return (
-    <MemoryRouter initialEntries={[cfg.routes.sso]}>
-      <ContextWrapper>
-        <AuthConnectors />
-      </ContextWrapper>
-    </MemoryRouter>
+    <TeleportProviderBasic initialEntries={[cfg.routes.sso]}>
+      <AuthConnectors />
+    </TeleportProviderBasic>
   );
 }
 Empty.parameters = {
   msw: {
     handlers: [
-      http.get(cfg.getGithubConnectorsUrl(), () => HttpResponse.json([])),
+      http.get(cfg.getGithubConnectorsUrl(), () => HttpResponse.json({})),
     ],
   },
 };
 
 export function Failed() {
   return (
-    <MemoryRouter initialEntries={[cfg.routes.sso]}>
-      <ContextWrapper>
-        <AuthConnectors />
-      </ContextWrapper>
-    </MemoryRouter>
+    <TeleportProviderBasic initialEntries={[cfg.routes.sso]}>
+      <AuthConnectors />
+    </TeleportProviderBasic>
   );
 }
 Failed.parameters = {
@@ -109,8 +99,3 @@ Failed.parameters = {
     ],
   },
 };
-
-function ContextWrapper({ children }: { children: JSX.Element }) {
-  const ctx = createTeleportContext();
-  return <ContextProvider ctx={ctx}>{children}</ContextProvider>;
-}

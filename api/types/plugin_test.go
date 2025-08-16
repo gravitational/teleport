@@ -512,6 +512,192 @@ func TestPluginJamfValidation(t *testing.T) {
 	}
 }
 
+func TestPluginIntuneValidation(t *testing.T) {
+	testCases := []struct {
+		name      string
+		settings  *PluginSpecV1_Intune
+		creds     *PluginCredentialsV1
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			name: "no settings",
+			settings: &PluginSpecV1_Intune{
+				Intune: nil,
+			},
+			creds: nil,
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "missing Intune settings")
+			},
+		},
+		{
+			name: "no tenant",
+			settings: &PluginSpecV1_Intune{
+				Intune: &PluginIntuneSettings{},
+			},
+			creds: nil,
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "tenant must be set")
+			},
+		},
+		{
+			name: "no credentials inner",
+			settings: &PluginSpecV1_Intune{
+				Intune: &PluginIntuneSettings{Tenant: "foo"},
+			},
+			creds: &PluginCredentialsV1{},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "must be used with the static credentials ref type")
+			},
+		},
+		{
+			name: "invalid credential type (oauth2)",
+			settings: &PluginSpecV1_Intune{
+				Intune: &PluginIntuneSettings{Tenant: "foo"},
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_Oauth2AccessToken{},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "must be used with the static credentials ref type")
+			},
+		},
+		{
+			name: "invalid credentials (static credentials)",
+			settings: &PluginSpecV1_Intune{
+				Intune: &PluginIntuneSettings{Tenant: "foo"},
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "labels must be specified")
+			},
+		},
+		{
+			name: "valid credentials (static credentials)",
+			settings: &PluginSpecV1_Intune{
+				Intune: &PluginIntuneSettings{Tenant: "foo"},
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "invalid login endpoint",
+			settings: &PluginSpecV1_Intune{
+				Intune: &PluginIntuneSettings{
+					Tenant:        "foo",
+					LoginEndpoint: "example.com",
+				},
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "login endpoint")
+			},
+		},
+		{
+			name: "valid login endpoint",
+			settings: &PluginSpecV1_Intune{
+				Intune: &PluginIntuneSettings{
+					Tenant:        "foo",
+					LoginEndpoint: "https://login.microsoftonline.us",
+				},
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "invalid graph endpoint",
+			settings: &PluginSpecV1_Intune{
+				Intune: &PluginIntuneSettings{
+					Tenant:        "foo",
+					GraphEndpoint: "example.com",
+				},
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "graph endpoint")
+			},
+		},
+		{
+			name: "valid graph endpoint",
+			settings: &PluginSpecV1_Intune{
+				Intune: &PluginIntuneSettings{
+					Tenant:        "foo",
+					GraphEndpoint: "https://graph.microsoft.us",
+				},
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.NoError(t, err)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			plugin := NewPluginV1(Metadata{Name: "foobar"}, PluginSpecV1{
+				Settings: tc.settings,
+			}, tc.creds)
+			tc.assertErr(t, plugin.CheckAndSetDefaults())
+		})
+	}
+}
+
 func TestPluginMattermostValidation(t *testing.T) {
 	defaultSettings := &PluginSpecV1_Mattermost{
 		Mattermost: &PluginMattermostSettings{
@@ -1034,11 +1220,17 @@ func TestPluginAWSICSettings(t *testing.T) {
 	validSettings := func() *PluginSpecV1_AwsIc {
 		return &PluginSpecV1_AwsIc{
 			AwsIc: &PluginAWSICSettings{
-				IntegrationName: "some-oidc-integration",
-				Region:          "ap-southeast-2",
-				Arn:             "arn:aws:sso:::instance/ssoins-1234567890",
+				Region: "ap-southeast-2",
+				Arn:    "arn:aws:sso:::instance/ssoins-1234567890",
 				ProvisioningSpec: &AWSICProvisioningSpec{
 					BaseUrl: "https://example.com/scim/v2",
+				},
+				Credentials: &AWSICCredentials{
+					Source: &AWSICCredentials_Oidc{
+						Oidc: &AWSICCredentialSourceOIDC{
+							IntegrationName: "some-oidc-integration",
+						},
+					},
 				},
 			},
 		}
@@ -1048,22 +1240,13 @@ func TestPluginAWSICSettings(t *testing.T) {
 		name           string
 		mutateSettings func(*PluginAWSICSettings)
 		assertErr      require.ErrorAssertionFunc
+		assertValue    func(*testing.T, *PluginAWSICSettings)
 	}{
 		{
 			name:      "valid settings pass",
 			assertErr: require.NoError,
-		}, {
-			name:           "missing oidc integration",
-			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.IntegrationName = "" },
-			assertErr:      requireNamedBadParameterError("integration name"),
-		}, {
-			name: "missing oidc integration is allowed with ambient creds",
-			mutateSettings: func(cfg *PluginAWSICSettings) {
-				cfg.IntegrationName = ""
-				cfg.CredentialsSource = AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_SYSTEM
-			},
-			assertErr: require.NoError,
-		}, {
+		},
+		{
 			name:           "missing instance region",
 			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.Region = "" },
 			assertErr:      requireNamedBadParameterError("region"),
@@ -1080,6 +1263,92 @@ func TestPluginAWSICSettings(t *testing.T) {
 			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.ProvisioningSpec.BaseUrl = "" },
 			assertErr:      requireNamedBadParameterError("base URL"),
 		},
+
+		// Legacy credentials validation and migration tests. Remove in Teleport
+		// 19, or when the CredentialsSource enum is retired
+		{
+			name: "(legacy) missing oidc integration (legacy)",
+			mutateSettings: func(cfg *PluginAWSICSettings) {
+				cfg.Credentials = nil
+				cfg.IntegrationName = ""
+			},
+			assertErr: requireNamedBadParameterError("integration name"),
+		},
+		{
+			name: "(legacy) missing oidc integration is allowed with ambient creds",
+			mutateSettings: func(cfg *PluginAWSICSettings) {
+				cfg.IntegrationName = ""
+				cfg.CredentialsSource = AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_SYSTEM
+			},
+			assertErr: require.NoError,
+		},
+		{
+			name: "(legacy) system credentials source migrated to AWSICCredentialSourceSystem",
+			mutateSettings: func(cfg *PluginAWSICSettings) {
+				cfg.Credentials = nil
+				cfg.CredentialsSource = AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_SYSTEM
+			},
+			assertErr: require.NoError,
+			assertValue: func(t *testing.T, cfg *PluginAWSICSettings) {
+				require.NotNil(t, cfg.Credentials.GetSystem())
+			},
+		},
+		{
+			name: "(legacy) OIDC credentials source migrated to AWSICCredentialSourceOidc",
+			mutateSettings: func(cfg *PluginAWSICSettings) {
+				cfg.Credentials = nil
+				cfg.CredentialsSource = AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC
+				cfg.IntegrationName = "some-legacy-integration"
+			},
+			assertErr: require.NoError,
+			assertValue: func(t *testing.T, cfg *PluginAWSICSettings) {
+				oidc := cfg.Credentials.GetOidc()
+				require.NotNil(t, oidc)
+				require.Equal(t, "some-legacy-integration", oidc.IntegrationName)
+			},
+		},
+		{
+			name: "(legacy) legacy IntegrationName does not overwrite OIDC Credentials",
+			mutateSettings: func(cfg *PluginAWSICSettings) {
+				cfg.IntegrationName = "some-legacy-integration"
+			},
+			assertErr: require.NoError,
+			assertValue: func(t *testing.T, cfg *PluginAWSICSettings) {
+				oidc := cfg.Credentials.GetOidc()
+				require.NotNil(t, oidc)
+				require.Equal(t, "some-oidc-integration", oidc.IntegrationName)
+			},
+		},
+		{
+			name: "(role sync mode) empty value is not an error",
+			mutateSettings: func(cfg *PluginAWSICSettings) {
+				cfg.RolesSyncMode = ""
+			},
+			assertErr: require.NoError,
+			assertValue: func(t *testing.T, cfg *PluginAWSICSettings) {
+				require.Empty(t, cfg.RolesSyncMode)
+			},
+		},
+		{
+			name: "(role sync mode) value is preserved",
+			mutateSettings: func(cfg *PluginAWSICSettings) {
+				cfg.RolesSyncMode = AWSICRolesSyncModeNone
+			},
+			assertErr: require.NoError,
+			assertValue: func(t *testing.T, cfg *PluginAWSICSettings) {
+				require.Equal(t, AWSICRolesSyncModeNone, cfg.RolesSyncMode)
+			},
+		},
+		{
+			// Technically, an invalid Role Sync Mode *is* an error, its just not
+			// enforced when deserializing the plugin record. Validation is
+			// required at time of use.
+			name: "(role sync mode) invalid value is not an error",
+			mutateSettings: func(cfg *PluginAWSICSettings) {
+				cfg.RolesSyncMode = "banana"
+			},
+			assertErr: require.NoError,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -1094,6 +1363,9 @@ func TestPluginAWSICSettings(t *testing.T) {
 				PluginSpecV1{Settings: settings},
 				nil)
 			tc.assertErr(t, plugin.CheckAndSetDefaults())
+			if tc.assertValue != nil {
+				tc.assertValue(t, plugin.Spec.GetAwsIc())
+			}
 		})
 	}
 }

@@ -21,6 +21,7 @@ package sso_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/web"
@@ -98,7 +100,7 @@ func TestRedirector(t *testing.T) {
 				http.Redirect(w, r, newErrorResponseURL(errors.New("login failed")), http.StatusPermanentRedirect)
 			},
 			expectRedirect: sso.LoginFailedRedirectURL,
-			assertErr: func(t require.TestingT, err error, v ...interface{}) {
+			assertErr: func(t require.TestingT, err error, v ...any) {
 				require.ErrorContains(t, err, "login failed", "expected login failed error but got %v", err)
 			},
 		},
@@ -114,7 +116,7 @@ func TestRedirector(t *testing.T) {
 				http.Redirect(w, r, proxyRedirectURL.String(), http.StatusPermanentRedirect)
 			},
 			expectRedirect: sso.LoginFailedBadCallbackRedirectURL,
-			assertErr: func(t require.TestingT, err error, v ...interface{}) {
+			assertErr: func(t require.TestingT, err error, v ...any) {
 				// The sso login will timeout due to the client callback never being redirected to.
 				require.ErrorIs(t, err, context.DeadlineExceeded)
 			},
@@ -128,7 +130,7 @@ func TestRedirector(t *testing.T) {
 				http.Redirect(w, r, newErrorResponseURL(err), http.StatusPermanentRedirect)
 			},
 			expectRedirect: sso.LoginClose,
-			assertErr: func(tt require.TestingT, err error, i ...interface{}) {
+			assertErr: func(tt require.TestingT, err error, i ...any) {
 				policy, err := keys.ParsePrivateKeyPolicyError(err)
 				require.NoError(t, err, "expected private key policy error but got %v", err)
 				require.Equal(t, keys.PrivateKeyPolicyHardwareKey, policy)
@@ -142,7 +144,7 @@ func TestRedirector(t *testing.T) {
 				http.Redirect(w, r, newErrorResponseURL(err), http.StatusPermanentRedirect)
 			},
 			expectRedirect: sso.LoginClose,
-			assertErr: func(tt require.TestingT, err error, i ...interface{}) {
+			assertErr: func(tt require.TestingT, err error, i ...any) {
 				policy, err := keys.ParsePrivateKeyPolicyError(err)
 				require.NoError(t, err, "expected private key policy error but got %v", err)
 				require.Equal(t, keys.PrivateKeyPolicyHardwareKeyTouch, policy)
@@ -156,7 +158,7 @@ func TestRedirector(t *testing.T) {
 				http.Redirect(w, r, newErrorResponseURL(err), http.StatusPermanentRedirect)
 			},
 			expectRedirect: sso.LoginTerminalRedirectURL,
-			assertErr: func(tt require.TestingT, err error, i ...interface{}) {
+			assertErr: func(tt require.TestingT, err error, i ...any) {
 				policy, err := keys.ParsePrivateKeyPolicyError(err)
 				require.NoError(t, err, "expected private key policy error but got %v", err)
 				require.Equal(t, keys.PrivateKeyPolicyHardwareKeyPIN, policy)
@@ -170,7 +172,7 @@ func TestRedirector(t *testing.T) {
 				http.Redirect(w, r, newErrorResponseURL(err), http.StatusPermanentRedirect)
 			},
 			expectRedirect: sso.LoginTerminalRedirectURL,
-			assertErr: func(tt require.TestingT, err error, i ...interface{}) {
+			assertErr: func(tt require.TestingT, err error, i ...any) {
 				policy, err := keys.ParsePrivateKeyPolicyError(err)
 				require.NoError(t, err, "expected private key policy error but got %v", err)
 				require.Equal(t, keys.PrivateKeyPolicyHardwareKeyTouchAndPIN, policy)
@@ -242,6 +244,259 @@ func TestRedirector(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateClientRedirect(t *testing.T) {
+	t.Run("StandardLocalhost", func(t *testing.T) {
+		for _, goodURL := range []string{
+			"http://127.0.0.1/callback",
+			"http://127.0.0.1:1234/callback",
+			"http://[::1]/callback",
+			"http://[::1]:1234/callback",
+			"http://localhost/callback",
+			"http://localhost:1234/callback",
+		} {
+			for name, ceremonyType := range map[string]sso.CeremonyType{
+				"Login": sso.CeremonyTypeLogin,
+				"MFA":   sso.CeremonyTypeMFA,
+				"Test":  sso.CeremonyTypeTest,
+			} {
+				t.Run(fmt.Sprintf("Ceremony%v", name), func(t *testing.T) {
+					var defaultSettings *types.SSOClientRedirectSettings
+					require.NoError(t, sso.ValidateClientRedirect(goodURL+"?secret_key=", ceremonyType, defaultSettings))
+				})
+			}
+		}
+	})
+
+	t.Run("InvalidLocalhostLike", func(t *testing.T) {
+		for _, badURL := range []string{
+			"http://127.0.0.1:12345/notcallback",
+			"http://127a0.0.1/callback",
+			"http://127a0.0.1:1234/callback",
+			"http://::1/callback",
+			"http://notlocalhost/callback",
+			"http://sub.localhost/callback",
+			"http://localhost.com/callback",
+			"http://127.0.0.1.example.com/callback",
+			"http://[::1].example.com/callback",
+			"http://username@127.0.0.1:12345/callback",
+			"http://@localhost:12345/callback",
+			"http://localhost@example.com/callback",
+			"http://127.0.0.1:12345@example.com/callback",
+			"https://127.0.0.1:12345/callback",
+			"https://localhost:12345/callback",
+			"https://localhost/callback",
+			"ftp://localhost/callback",
+			"ftp://127.0.0.1/callback",
+			"ftp://[::1]/callback",
+		} {
+			for name, ceremonyType := range map[string]sso.CeremonyType{
+				"Login": sso.CeremonyTypeLogin,
+				"MFA":   sso.CeremonyTypeMFA,
+				"Test":  sso.CeremonyTypeTest,
+			} {
+				t.Run(fmt.Sprintf("Ceremony%v", name), func(t *testing.T) {
+					var defaultSettings *types.SSOClientRedirectSettings
+					require.Error(t, sso.ValidateClientRedirect(badURL+"?secret_key=", ceremonyType, defaultSettings))
+				})
+			}
+		}
+	})
+
+	t.Run("BadQuery", func(t *testing.T) {
+		for _, badURL := range []string{
+			"http://127.0.0.1:12345/callback",
+			"http://127.0.0.1:12345/callback?secret=a",
+			"http://127.0.0.1:12345/callback?secret_key=a&foo=b",
+		} {
+			for name, ceremonyType := range map[string]sso.CeremonyType{
+				"Login": sso.CeremonyTypeLogin,
+				"MFA":   sso.CeremonyTypeMFA,
+				"Test":  sso.CeremonyTypeTest,
+			} {
+				t.Run(fmt.Sprintf("Ceremony%v", name), func(t *testing.T) {
+					var defaultSettings *types.SSOClientRedirectSettings
+					require.Error(t, sso.ValidateClientRedirect(badURL, ceremonyType, defaultSettings))
+				})
+			}
+		}
+	})
+
+	t.Run("AllowedHttpsHostnames", func(t *testing.T) {
+		for _, goodURL := range []string{
+			"https://allowed.domain.invalid/callback",
+			"https://foo.allowed.with.subdomain.invalid/callback",
+			"https://but.no.subsubdomain.invalid/callback",
+		} {
+			settings := &types.SSOClientRedirectSettings{
+				AllowedHttpsHostnames: []string{
+					"allowed.domain.invalid",
+					"*.allowed.with.subdomain.invalid",
+					"^[-a-zA-Z0-9]+.no.subsubdomain.invalid$",
+				},
+			}
+			for name, ceremonyType := range map[string]sso.CeremonyType{
+				"Login": sso.CeremonyTypeLogin,
+				"MFA":   sso.CeremonyTypeMFA,
+			} {
+				t.Run(fmt.Sprintf("Ceremony%v", name), func(t *testing.T) {
+					require.NoError(t, sso.ValidateClientRedirect(goodURL+"?secret_key=", ceremonyType, settings))
+				})
+			}
+		}
+
+		for _, badURL := range []string{
+			"https://allowed.domain.invalid/notcallback",
+			"https://allowed.domain.invalid:12345/callback",
+			"http://allowed.domain.invalid/callback",
+			"https://not.allowed.domain.invalid/callback",
+			"https://allowed.with.subdomain.invalid/callback",
+			"https://i.said.no.subsubdomain.invalid/callback",
+		} {
+			settings := &types.SSOClientRedirectSettings{
+				AllowedHttpsHostnames: []string{
+					"allowed.domain.invalid",
+					"*.allowed.with.subdomain.invalid",
+					"^[-a-zA-Z0-9]+.no.subsubdomain.invalid",
+				},
+			}
+			for name, ceremonyType := range map[string]sso.CeremonyType{
+				"Login": sso.CeremonyTypeLogin,
+				"MFA":   sso.CeremonyTypeMFA,
+			} {
+				t.Run(fmt.Sprintf("Ceremony%v", name), func(t *testing.T) {
+					require.Error(t, sso.ValidateClientRedirect(badURL+"?secret_key=", ceremonyType, settings))
+				})
+			}
+		}
+	})
+
+	t.Run("InsecureAllowedCidrRanges", func(t *testing.T) {
+		for _, goodURL := range []string{
+			"http://192.168.0.27/callback",
+			"https://192.168.0.27/callback",
+			"http://192.168.0.27:1337/callback",
+			"https://192.168.0.27:1337/callback",
+			"http://[2001:db8::aaaa:bbbb]/callback",
+			"https://[2001:db8::aaaa:bbbb]/callback",
+			"http://[2001:db8::aaaa:bbbb]:1337/callback",
+			"https://[2001:db8::aaaa:bbbb]:1337/callback",
+			"http://[2001:db8::1]/callback",
+			"https://[2001:db8::1]/callback",
+			"http://[2001:db8::1]:1337/callback",
+			"https://[2001:db8::1]:1337/callback",
+		} {
+			settings := &types.SSOClientRedirectSettings{
+				InsecureAllowedCidrRanges: []string{
+					"192.168.0.0/24",
+					"2001:db8::/96",
+				},
+			}
+			for name, ceremonyType := range map[string]sso.CeremonyType{
+				"Login": sso.CeremonyTypeLogin,
+				"MFA":   sso.CeremonyTypeMFA,
+			} {
+				t.Run(fmt.Sprintf("Ceremony%v", name), func(t *testing.T) {
+					require.NoError(t, sso.ValidateClientRedirect(goodURL+"?secret_key=", ceremonyType, settings))
+				})
+			}
+		}
+
+		for _, badURL := range []string{
+			"http://192.168.1.1/callback",
+			"https://192.168.1.1/callback",
+			"http://192.168.1.1:80/callback",
+			"https://192.168.1.1:443/callback",
+			"http://[2001:db8::1:aaaa:bbbb]/callback",
+			"https://[2001:db8::1:aaaa:bbbb]/callback",
+			"http://[2001:db8::1:aaaa:bbbb]:80/callback",
+			"https://[2001:db8::1:aaaa:bbbb]:443/callback",
+			"http://[2001:db9::]/callback",
+			"https://[2001:db9::]/callback",
+			"http://not.an.ip/callback",
+			"https://not.an.ip/callback",
+			"http://192.168.0.27/nocallback",
+			"https://192.168.0.27/nocallback",
+			"http://[2001:db8::1]/notacallback",
+			"https://[2001:db8::1]/notacallback",
+		} {
+			settings := &types.SSOClientRedirectSettings{
+				InsecureAllowedCidrRanges: []string{
+					"192.168.0.0/24",
+					"2001:db8::/96",
+				},
+			}
+			for name, ceremonyType := range map[string]sso.CeremonyType{
+				"Login": sso.CeremonyTypeLogin,
+				"MFA":   sso.CeremonyTypeMFA,
+			} {
+				t.Run(fmt.Sprintf("Ceremony%v", name), func(t *testing.T) {
+					require.Error(t, sso.ValidateClientRedirect(badURL+"?secret_key=", ceremonyType, settings))
+				})
+			}
+		}
+	})
+
+	t.Run("SSOTestFlow", func(t *testing.T) {
+		for _, goodURL := range []string{
+			"http://127.0.0.1:12345/callback",
+		} {
+			settings := &types.SSOClientRedirectSettings{
+				AllowedHttpsHostnames: []string{
+					"allowed.domain.invalid",
+				},
+			}
+			require.NoError(t, sso.ValidateClientRedirect(goodURL+"?secret_key=", sso.CeremonyTypeTest, settings))
+		}
+
+		for _, badURL := range []string{
+			"https://allowed.domain.invalid/callback",
+			"http://allowed.domain.invalid/callback",
+		} {
+			settings := &types.SSOClientRedirectSettings{
+				AllowedHttpsHostnames: []string{
+					"allowed.domain.invalid",
+				},
+			}
+			require.Error(t, sso.ValidateClientRedirect(badURL+"?secret_key=", sso.CeremonyTypeTest, settings))
+		}
+	})
+
+	t.Run("SSOMFAWeb", func(t *testing.T) {
+		settings := &types.SSOClientRedirectSettings{
+			AllowedHttpsHostnames: []string{
+				"allowed.domain.invalid",
+			},
+		}
+
+		// Only allow web mfa redirect as a relative path.
+		require.NoError(t, sso.ValidateClientRedirect(sso.WebMFARedirect+"?channel_id=", sso.CeremonyTypeMFA, settings))
+
+		for _, badURL := range []string{
+			"localhost:12345" + sso.WebMFARedirect,
+			"http://localhost:12345" + sso.WebMFARedirect,
+			"https://localhost:12345" + sso.WebMFARedirect,
+			"127.0.0.1:12345" + sso.WebMFARedirect,
+			"http://127.0.0.1:12345" + sso.WebMFARedirect,
+			"https://127.0.0.1:12345" + sso.WebMFARedirect,
+			"allowed.domain.invalid" + sso.WebMFARedirect,
+			"http://allowed.domain.invalid" + sso.WebMFARedirect,
+			"https://allowed.domain.invalid" + sso.WebMFARedirect,
+			"not.allowed.domain.invalid" + sso.WebMFARedirect,
+			"http://not.allowed.domain.invalid" + sso.WebMFARedirect,
+			"https://not.allowed.domain.invalid" + sso.WebMFARedirect,
+		} {
+			require.Error(t, sso.ValidateClientRedirect(badURL+"?channel_id=", sso.CeremonyTypeMFA, settings))
+		}
+
+		// channel_id query parameter must be set.
+		require.Error(t, sso.ValidateClientRedirect(sso.WebMFARedirect, sso.CeremonyTypeMFA, settings))
+
+		// Don't allow web mfa redirect for non-mfa ceremonies.
+		require.Error(t, sso.ValidateClientRedirect(sso.WebMFARedirect+"?channel_id=", sso.CeremonyTypeLogin, settings))
+		require.Error(t, sso.ValidateClientRedirect(sso.WebMFARedirect+"?channel_id=", sso.CeremonyTypeTest, settings))
+	})
 }
 
 // create a mock proxy server which echos the final proxy redirect destination page. e.g. sso success page.

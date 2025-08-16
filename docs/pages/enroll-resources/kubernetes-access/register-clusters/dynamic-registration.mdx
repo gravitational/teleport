@@ -1,6 +1,9 @@
 ---
 title: Dynamic Kubernetes Cluster Registration
 description: Register and unregister Kubernetes clusters without restarting a Teleport Kubernetes Service instance.
+labels:
+ - how-to
+ - zero-trust
 ---
 
 With dynamic Kubernetes cluster registration, you can manage the Kubernetes
@@ -15,26 +18,7 @@ In this guide, we will show you how to set up dynamic Kubernetes cluster
 registration, then create, list, update, and delete Kubernetes clusters via
 `tctl`.
 
-## Prerequisites
-
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
-
-- A Linux host where you will install the Teleport Kubernetes Service.
-
-  <Notice type="tip">
-
-  Our `teleport-kube-agent` Helm chart does not support dynamic Kubernetes
-  cluster registration.
-
-  </Notice>
-
-- A Kubernetes cluster to join to your Teleport cluster. You must have
-  permissions to create namespaces, secrets, service accounts, cluster roles,
-  and cluster role bindings in the cluster.
-
-- (!docs/pages/includes/tctl.mdx!)
-
-## Step 1/3. Set up the Teleport Kubernetes Service
+## How it works
 
 The Teleport Kubernetes Service proxies traffic from Teleport users to a
 Kubernetes API server so you can take advantage of passwordless authentication,
@@ -44,6 +28,30 @@ to manage access to Kubernetes.
 In this step, you will install the Teleport Kubernetes Service on a Linux host
 and configure it to access any Kubernetes cluster you register with your
 Teleport cluster. 
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- A Linux host where you will install the Teleport Kubernetes Service.
+
+  <Admonition type="tip">
+
+  Our `teleport-kube-agent` Helm chart does not support dynamic Kubernetes
+  cluster registration.
+
+  </Admonition>
+
+- A Kubernetes cluster to join to your Teleport cluster. You must have
+  permissions to create namespaces, secrets, service accounts, cluster roles,
+  and cluster role bindings in the cluster.
+
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/3. Set up the Teleport Kubernetes Service
+
+This step shows you how to install the Teleport Kubernetes Service on a Linux
+server.
 
 ### Get a join token
 
@@ -84,7 +92,7 @@ Edit your configuration file at `/etc/teleport.yaml` to include the following:
 
 ```yaml
 kubernetes_service:
-  enabled: "yes"
+  enabled: true
   resources:
   - labels:
       "*": "*"
@@ -96,7 +104,8 @@ Kubernetes clusters you register with your Teleport cluster. This is because the
 allows this Kubernetes Service instance to connect to Kubernetes cluster
 resources with any label key or value.
 
-<Details title="Selectively watching Kubernetes clusters">
+<details>
+<summary>Selectively watching Kubernetes clusters</summary>
 
 You can configure a Kubernetes Service instance to watch for a subset of
 Kubernetes clusters by including specific label keys and values instead of
@@ -129,7 +138,7 @@ When you create dynamic Kubernetes cluster resources later in this guide, you
 can assign them labels to ensure that only specific Kubernetes Service instances
 will watch for them.
 
-</Details>
+</details>
 
 ### Run the Teleport Kubernetes Service
 
@@ -287,7 +296,8 @@ definition using the following command:
 $ printf "    %s" $(cat kubeconfig | base64) >> kube_cluster.yaml
 ```
 
-<Details title="Add labels to your kube_cluster">
+<details>
+<summary>Add labels to your kube_cluster</summary>
 
 You can add labels to the `kube_cluster` resource, allowing you to manage access
 to specific clusters from your Teleport roles or Kubernetes Service instances.
@@ -341,7 +351,7 @@ element indicates an argument.
 Supported units are `ns`, `us` (or `µs`), `ms`, `s`, `m`, and `h`. The example
 above configures the Kubernetes Service to run the command every day.
 
-</Details>
+</details>
 
 To create the `kube_cluster` resource, run the following command:
 
@@ -424,13 +434,13 @@ $ tsh kube ls
  mycluster         env=test teleport.dev/origin=dynamic *
 ```
 
-<Notice type="warning">
+<Admonition type="warning">
 
 If the updated `kube_cluster` resource's labels no longer match the ones a Teleport
 Kubernetes Service instance is configured to watch, the instance will unregister
 and stop proxying the Kubernetes cluster.  
 
-</Notice>
+</Admonition>
 
 ### Delete Kubernetes cluster resources
 
@@ -459,6 +469,5 @@ clusters via Teleport, check out the following guides:
 - [Connect a Kubernetes Cluster to Teleport](../getting-started.mdx): How to use
   the `teleport-kube-agent` Helm chart to register a Kubernetes cluster with
   Teleport.
-- [Kubernetes Access from a Standalone Teleport
-  Cluster](./static-kubeconfig.mdx): How to use the Teleport Kubernetes
+- [Enroll a Kubernetes Cluster with a Static kubeconfig](./static-kubeconfig.mdx): How to use the Teleport Kubernetes
   Service's configuration file to register a Kubernetes cluster with Teleport.

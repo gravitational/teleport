@@ -21,7 +21,7 @@ function makePresets(test = false) {
     return [
       ['@babel/preset-env', { targets: { node: 'current' } }],
       ['@babel/preset-react', { runtime: 'automatic' }],
-      '@babel/preset-typescript',
+      ['@babel/preset-typescript'],
     ];
   }
 
@@ -34,7 +34,7 @@ function makePresets(test = false) {
       },
     ],
     ['@babel/preset-react', { runtime: 'automatic' }],
-    '@babel/preset-typescript',
+    ['@babel/preset-typescript'],
   ];
 }
 

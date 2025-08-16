@@ -42,8 +42,8 @@ installed, visit the Go [downloads page](https://go.dev/dl/).
 ```code
 $ git clone https://github.com/gravitational/teleport -b branch/v(=teleport.major_version=)
 $ cd teleport/integrations/access/{{ name }}
-$ git checkout (=teleport.plugin.version=)
-$ make
+$ git checkout v(=teleport.plugin.version=)
+$ make build/teleport-{{ name }}
 ```
 
 Move the `teleport-{{ name }}` binary into your PATH.

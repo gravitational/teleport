@@ -1,133 +1,56 @@
 ---
 h1: Introduction to Teleport
-title: "Introduction to the Teleport Access Platform: Zero Trust Security for Your Infrastructure"
+title: "The Teleport Infrastructure Identity Platform"
 description: Read an overview of the Teleport Access Platform. Learn how to implement Zero Trust Security across all your infrastructure for enhanced protection and streamlined access control.
 tocDepth: 3
+template: "landing-page"
+labels:
+ - get-started
+ - platform-wide
 ---
 
-Teleport is the easiest and most secure way to access and protect all your
-infrastructure.
+import DocsHeader, { DocsHeaderProps } from "@site/src/components/Pages/Homepage/DocsHeader";
 
-The Teleport Access Platform is a suite of software and managed services that
-delivers on-demand, least-privileged access to infrastructure on a foundation of
-cryptographic identity and Zero Trust, with built-in identity security and
-policy governance.
+<DocsHeader
+  quickActions={[
+    { 
+      label: "Enroll Kubernetes cluster", 
+      href: "./enroll-resources/kubernetes-access/getting-started/" 
+    },
+    { 
+      label: "Set up SSO with GitHub", 
+      href: "./zero-trust-access/sso/github-sso/" 
+    },
+    { 
+      label: "Set up Slack Access Request Plugin", 
+      href: "./identity-governance/access-request-plugins/ssh-approval-slack/" 
+    }
+  ]}
+/>
 
-## Use cases
+Teleport is the easiest, most secure way to access and protect all your infrastructure.
 
-Organizations use the Teleport Access Platform to:
+The Teleport Infrastructure Identity Platform implements trusted computing at
+scale, with unified cryptographic identities for humans, machines and workloads,
+endpoints, infrastructure assets, and AI agents. 
 
-- **Eliminate infrastructure and access silos:** Teleport provides a single
-  system for role-based access controls, audit, and access for all of your
-  infrastructure, from cloud provider APIs to Kubernetes clusters.
-- **Introduce Zero Trust with theft-resistant credentials:** Teleport
-  authenticates access to all of your infrastructure with short-lived
-  certificates, verified at every endpoint. You can roll out a Zero Trust
-  strategy for your organization by setting up Teleport alone.
-- **Address complex compliance needs:** Teleport allows you to satisfy
-  compliance frameworks like SOC 2, ISO 27001, and FedRAMP with no need for additional
-  tooling or process changes. 
+## Get started
 
-## Products
+You can quickly see how Teleport works by following our [Get
+Started](./get-started.mdx) guide to enroll your first resource with Teleport.
 
-The Teleport Access Platform consists of three products:
-
-- **Teleport Access** provides on-demand, least privileged access, on a
-  foundation of cryptographic identity and Zero Trust.
-- **Teleport Identity** hardens your infrastructure with identity governance and
-  security.
-- **Teleport Policy** unifies and controls access policies across all of your
-  infrastructure.  
-
-### Teleport Access
-
-**Teleport Access** provides Zero Trust connectivity to all of your
-infrastructure. You can enable users to access servers, databases, and other
-infrastructure components over the public internet, even if those components are
-protected behind a firewall. 
-
-All infrastructure resources belong to a unified inventory, with a single
-role-based access controls system to allow for least-privilege access. You can
-enable users to authenticate to resources using Single Sign-On providers like
-Okta, and Teleport itself can act as an identity provider for external services.
-Connectivity takes place through short-lived credentials that Teleport
-components verify through strong cryptographic techniques.
-
-Get started with Teleport Access:
-
-- [Enroll resources](enroll-resources/agents/introduction.mdx) to protect with Teleport using
-  cryptographic identity.
-- [Set up passwordless authentication](admin-guides/access-controls/guides/passwordless.mdx)
-  to enable users to access resources with hardware keys, including biometric
-  credentials like Touch ID and YubiKey Bio.
-- [Integrate your Single Sign-On provider](admin-guides/access-controls/sso/sso.mdx): Allow users
-  to access infrastructure resources with IdPs like Okta.
-- [Use Teleport as an identity provider](admin-guides/access-controls/idps/saml-guide.mdx) to
-  authenticate to external services.
-- [Issue and govern identities for automated
-  systems](enroll-resources/machine-id/introduction.mdx) using Machine ID.
-
-### Teleport Identity
-
-**Teleport Identity** is an add-on to Teleport Access that offers identity
-governance and security for all of your infrastructure. You can provide users
-with less-privileged roles by default, requiring any user who wants additional
-permissions to request them for a limited time. This approach leaves no
-permanent admin roles for attackers to target. 
-
-As an additional layer of protection against phishing and exfiltration, you can
-restrict access to users with trusted devices. And during active security
-incidents, you can lock down specific users, roles, infrastructure resources and
-more, letting you contain the security incident with minimal disruption. An
-audit log provides visibility into access patterns, so you can identify weak
-restrictions and potential security breaches.
-
-Get started with Teleport Identity:
-
-- [Access Requests](admin-guides/access-controls/access-requests/access-requests.mdx): Temporarily
-  provision minimal privileges to complete a task.
-- [Access Lists](admin-guides/access-controls/access-lists/access-lists.mdx): Regularly audit and
-  control membership to specific roles and traits, which then tie easily back
-  into Teleport's existing RBAC system.
-- [Device Trust](admin-guides/access-controls/device-trust/device-trust.mdx): Require an up-to-date,
-  registered device for each authentication by giving every device a
-  cryptographic identity. 
-- [Session & Identity Locks](admin-guides/access-controls/guides/locking.mdx): Lock
-  suspicious or compromised identities and stop all their activity across all
-  protocols and services.
-- [Access Monitoring](admin-guides/access-controls/access-monitoring.mdx): Detect overly
-  broad privileges and inspect sessions that are not using strong protection,
-  such as multi-factor authentication and Device Trust.
-
-### Teleport Policy
-
-**Teleport Policy** unifies and controls access policies across all your
-infrastructure. With Teleport Policy’s Access Graph feature, you gain insights
-into role-based access control policies within Teleport, your cloud providers,
-and critical infrastructure.
-
-- Get started with [Teleport
-  Policy](admin-guides/teleport-policy/teleport-policy.mdx).
-- Define [Crown Jewels](admin-guides/teleport-policy/crown-jewels.mdx) so you
-  can track changes to your most sensitive users and resources.
-- Enable [Teleport Policy
-  integrations](admin-guides/teleport-policy/integrations/integrations.mdx) so
-  you can identify [insecure SSH key
-  distributions](admin-guides/teleport-policy/integrations/ssh-keys-scan.mdx), and
-  import RBAC rules from AWS, Entra ID, and other sources to visualize your
-  entire RBAC configuration in on a single screen. 
+(!docs/pages/includes/homepage/products.mdx!)
 
 ## Architecture
 
-The Teleport Access Platform consists of a certificate authority and
+The Teleport Infrastructure Identity Platform consists of a certificate authority and
 identity-aware access proxy that run either on the Teleport-managed cloud or, in
 special cases, a self-hosted private network. 
 
 Teleport Agents, which can run on Linux servers or Kubernetes, proxy access to
 infrastructure resources and cloud provider APIs. Users authenticate to
 infrastructure resources through Teleport Agents using short-lived certificates.
-Certificates embed Teleport user attributes, allowing Teleport Agents to enforce
-role-based access controls.
+Teleport Agents enforce role-based access controls by using certificates that embed user attributes.
 
 Learn more:
 

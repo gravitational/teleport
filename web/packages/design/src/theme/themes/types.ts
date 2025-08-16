@@ -312,14 +312,25 @@ export type SharedStyles = {
   sidebarWidth: number;
   boxShadow: string[];
   breakpoints: {
-    mobile: number;
-    tablet: number;
-    desktop: number;
-    small: number;
-    medium: number;
-    large: number;
+    /** @deprecated Use the "small" breakpoint instead. */
+    mobile: string;
+    /** @deprecated Use the "medium" breakpoint instead. */
+    tablet: string;
+    /** @deprecated Use the "large" breakpoint instead. */
+    desktop: string;
+    small: string;
+    medium: string;
+    large: string;
+    700: string;
+    900: string;
+    1200: string;
   };
   topBarHeight: number[];
+  /**
+   *
+   * idx:    0  1  2   3   4   5   6   7   8   9  10  11
+   * space: [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80]
+   */
   space: number[];
   borders: (string | number)[];
   typography: typeof typography;

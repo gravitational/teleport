@@ -21,12 +21,16 @@ package scripts
 import (
 	"context"
 	_ "embed"
+	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils/teleportassets"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 )
@@ -50,11 +54,24 @@ const (
 	teleportUpdateDefaultCDN = teleportassets.TeleportReleaseCDN
 )
 
+func (style AutoupdateStyle) String() string {
+	switch style {
+	case PackageManagerAutoupdate:
+		return "package"
+	case UpdaterBinaryAutoupdate:
+		return "binary"
+	case NoAutoupdate:
+		return "none"
+	default:
+		return "unknown"
+	}
+}
+
 // InstallScriptOptions contains the Teleport installation options used to generate installation scripts.
 type InstallScriptOptions struct {
 	AutoupdateStyle AutoupdateStyle
 	// TeleportVersion that should be installed. Without the leading "v".
-	TeleportVersion string
+	TeleportVersion *semver.Version
 	// CDNBaseURL is the URL of the CDN hosting teleport tarballs.
 	// If left empty, the 'teleport-update' installer will pick the one to use.
 	// For example: "https://cdn.example.com"
@@ -69,6 +86,12 @@ type InstallScriptOptions struct {
 	// FIPS represents if the installed Teleport version should use Teleport
 	// binaries built for FIPS compliance.
 	FIPS bool
+	// Insecure disables TLS certificate verification on the teleport-update command.
+	// This is meant for testing purposes.
+	// This does not disable the TLS certificate verification when downloading
+	// the artifacts from the CDN.
+	// The agent install in insecure mode will not be able to automatically update.
+	Insecure bool
 }
 
 // Check validates that the minimal options are set.
@@ -85,7 +108,7 @@ func (o *InstallScriptOptions) Check() error {
 		return trace.BadParameter("Proxy address is required")
 	}
 
-	if o.TeleportVersion == "" {
+	if o.TeleportVersion == nil {
 		return trace.BadParameter("Teleport version is required")
 	}
 
@@ -108,25 +131,25 @@ func (o *InstallScriptOptions) Check() error {
 // oneOffParams returns the oneoff.OneOffScriptParams that will install Teleport
 // using the oneoff.sh script to download and execute 'teleport-update'.
 func (o *InstallScriptOptions) oneOffParams() (params oneoff.OneOffScriptParams) {
-	// We add the leading v if it's not here
-	version := o.TeleportVersion
-	if o.TeleportVersion[0] != 'v' {
-		version = "v" + o.TeleportVersion
-	}
-
 	args := []string{"enable", "--proxy", shsprintf.EscapeDefaultContext(o.ProxyAddr)}
 	// Pass the base-url override if the base url is set and is not the default one.
 	if o.CDNBaseURL != "" && o.CDNBaseURL != teleportUpdateDefaultCDN {
 		args = append(args, "--base-url", shsprintf.EscapeDefaultContext(o.CDNBaseURL))
 	}
 
+	successMessage := "Teleport successfully installed."
+	if o.Insecure {
+		args = append(args, "--insecure")
+		successMessage += " --insecure was used during installation, automatic updates will not work unless the Proxy Service presents a certificate trusted by the system."
+	}
+
 	return oneoff.OneOffScriptParams{
 		Entrypoint:      "teleport-update",
 		EntrypointArgs:  strings.Join(args, " "),
 		CDNBaseURL:      o.CDNBaseURL,
-		TeleportVersion: version,
+		TeleportVersion: "v" + o.TeleportVersion.String(),
 		TeleportFlavor:  o.TeleportFlavor,
-		SuccessMessage:  "Teleport successfully installed.",
+		SuccessMessage:  successMessage,
 		TeleportFIPS:    o.FIPS,
 	}
 }
@@ -148,12 +171,33 @@ func GetInstallScript(ctx context.Context, opts InstallScriptOptions) (string, e
 //go:embed install/install.sh
 var legacyInstallScript string
 
+var (
+	versionVar = regexp.MustCompile(`(?m)^TELEPORT_VERSION=""$`)
+	suffixVar  = regexp.MustCompile(`(?m)^TELEPORT_SUFFIX=""$`)
+	editionVar = regexp.MustCompile(`(?m)^TELEPORT_EDITION=""$`)
+)
+
 // getLegacyInstallScript returns the installation script that we have been serving at
 // "https://cdn.teleport.dev/install.sh". This script installs teleport via package manager
 // or by unpacking the tarball. Its usage should be phased out in favor of the updater-based
 // installation script served by getUpdaterInstallScript.
 func getLegacyInstallScript(ctx context.Context, opts InstallScriptOptions) (string, error) {
-	return legacyInstallScript, nil
+	tunedScript := versionVar.ReplaceAllString(legacyInstallScript, fmt.Sprintf(`TELEPORT_VERSION="%s"`, opts.TeleportVersion))
+	if opts.TeleportFlavor == types.PackageNameEnt {
+		tunedScript = suffixVar.ReplaceAllString(tunedScript, `TELEPORT_SUFFIX="-ent"`)
+	}
+
+	var edition string
+	if opts.AutoupdateStyle == PackageManagerAutoupdate {
+		edition = "cloud"
+	} else if opts.TeleportFlavor == types.PackageNameEnt {
+		edition = "enterprise"
+	} else {
+		edition = "oss"
+	}
+	tunedScript = editionVar.ReplaceAllString(tunedScript, fmt.Sprintf(`TELEPORT_EDITION="%s"`, edition))
+
+	return tunedScript, nil
 }
 
 // getUpdaterInstallScript returns an installation script that downloads teleport-update

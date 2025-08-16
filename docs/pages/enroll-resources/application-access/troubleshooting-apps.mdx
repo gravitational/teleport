@@ -1,6 +1,9 @@
 ---
 title: Troubleshooting Application Access
 description: Describes common issues and solutions for access to applications protected by Teleport.
+labels:
+ - how-to
+ - zero-trust
 ---
 
 This section describes common issues that you might encounter in managing access to applications
@@ -194,7 +197,10 @@ about a user's Teleport roles or traits, you can configure Teleport to omit
 this information from the JWT. This will result in a smaller JWT that is less
 likely to exceed the limit.
 
+{/* vale messaging.protocol-products = NO */}
 This configuration is available under the `jwt_claims` property of the
 application's `rewrite` configuration. See
 [Web Application Access](./guides/connecting-apps.mdx#configuring-the-jwt-token)
 for details.
+{/* vale messaging.protocol-products = YES */}
+

@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"math/rand/v2"
 	"net"
 	"net/http"
 	"time"
@@ -36,9 +35,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/kube/internal"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -179,7 +178,7 @@ func (f *Forwarder) newRemoteClusterTransport(clusterName string) (http.RoundTri
 
 	return instrumentedRoundtripper(
 		f.cfg.KubeServiceType,
-		auth.NewImpersonatorRoundTripper(h2Transport),
+		internal.NewImpersonatorRoundTripper(h2Transport),
 	), tlsConfig.Clone(), nil
 }
 
@@ -280,7 +279,7 @@ func (f *Forwarder) newLocalClusterTransport(kubeClusterName string) (http.Round
 
 	return instrumentedRoundtripper(
 		f.cfg.KubeServiceType,
-		auth.NewImpersonatorRoundTripper(h2Transport),
+		internal.NewImpersonatorRoundTripper(h2Transport),
 	), tlsConfig.Clone(), nil
 }
 
@@ -319,15 +318,12 @@ func (f *Forwarder) localClusterDialer(kubeClusterName string, opts ...contextDi
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// Shuffle the list of servers to avoid always connecting to the same
-		// server.
-		rand.Shuffle(len(kubeServers), func(i, j int) {
-			kubeServers[i], kubeServers[j] = kubeServers[j], kubeServers[i]
-		})
 
 		var errs []error
-		// Validate that the requested kube cluster is registered.
-		for _, s := range kubeServers {
+		// Shuffle the list of servers to avoid always connecting to the same
+		// server.
+		for _, s := range utils.ShuffleVisit(kubeServers) {
+			// Validate that the requested kube cluster is registered.
 			kubeCluster := s.GetCluster()
 			if kubeCluster.GetName() != kubeClusterName || !opt.matches(s.GetHostID()) {
 				continue

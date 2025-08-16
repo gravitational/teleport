@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // MakeTestClient returns SQL Server client used in tests.
@@ -55,7 +56,7 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*mssql
 		Database:   config.RouteToDatabase.Database,
 		Encryption: msdsn.EncryptionDisabled,
 		Protocols:  []string{"tcp"},
-	}, nil)
+	})
 
 	conn, err := connector.Connect(ctx)
 	if err != nil {
@@ -75,7 +76,7 @@ type TestConnector struct{}
 
 // Connect simulates successful connection to a SQL Server.
 func (c *TestConnector) Connect(ctx context.Context, sessionCtx *common.Session, loginPacket *protocol.Login7Packet) (io.ReadWriteCloser, []mssql.Token, error) {
-	host, port, err := net.SplitHostPort(sessionCtx.Database.GetURI())
+	host, port, err := getHostPort(sessionCtx.Database)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -97,7 +98,7 @@ func (c *TestConnector) Connect(ctx context.Context, sessionCtx *common.Session,
 		Port:         portI,
 		LoginOptions: options,
 		Protocols:    []string{"tcp"},
-	}, nil)
+	})
 
 	conn, err := connector.Connect(ctx)
 	if err != nil {
@@ -133,8 +134,7 @@ func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log := utils.NewSlogLoggerForTests().With(
-		teleport.ComponentKey, defaults.ProtocolSQLServer,
+	log := logtest.With(teleport.ComponentKey, defaults.ProtocolSQLServer,
 		"name", config.Name,
 	)
 	server := &TestServer{

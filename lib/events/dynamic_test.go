@@ -55,8 +55,8 @@ func TestDynamicTypeNotSet(t *testing.T) {
 	require.Equal(t, UnknownEvent, event.GetType())
 	require.Equal(t, UnknownCode, event.GetCode())
 	unknownEvent := event.(*events.Unknown)
-	require.Equal(t, "", unknownEvent.UnknownType)
-	require.Equal(t, "", unknownEvent.UnknownCode)
+	require.Empty(t, unknownEvent.UnknownType)
+	require.Empty(t, unknownEvent.UnknownCode)
 }
 
 // TestDynamicTypeUnknown checks that we correctly translate known events into the correct proto type.

@@ -173,8 +173,6 @@ type agent struct {
 	doneConnecting chan struct{}
 	// hbChannel is the channel heartbeats are sent over.
 	hbChannel *tracessh.Channel
-	// hbRequests are requests going over the heartbeat channel.
-	hbRequests <-chan *ssh.Request
 	// discoveryC receives new discovery channels.
 	discoveryC <-chan ssh.NewChannel
 	// transportC receives new tranport channels.
@@ -340,9 +338,11 @@ func (a *agent) Start(ctx context.Context) error {
 	a.drainWG.Add(1)
 	a.wg.Add(1)
 	go func() {
-		if err := a.handleDrainChannels(); err != nil {
+		drainWGDone := sync.OnceFunc(a.drainWG.Done)
+		if err := a.handleDrainChannels(drainWGDone); err != nil {
 			a.logger.DebugContext(a.ctx, "Failed to handle drainable channels", "error", err)
 		}
+		drainWGDone()
 		a.wg.Done()
 		a.Stop()
 	}()
@@ -412,9 +412,9 @@ func (a *agent) sendFirstHeartbeat(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	sshutils.DiscardChannelData(channel)
+	go ssh.DiscardRequests(requests)
 
 	a.hbChannel = channel
-	a.hbRequests = requests
 
 	// Send the first ping right away.
 	if _, err := a.hbChannel.SendRequest(ctx, "ping", false, nil); err != nil {
@@ -455,9 +455,8 @@ func (a *agent) Stop() error {
 func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.Request) error {
 	for {
 		select {
-		case r := <-requests:
-			// The request will be nil when the request channel is closing.
-			if r == nil {
+		case r, ok := <-requests:
+			if !ok {
 				return trace.Errorf("global request channel is closing")
 			}
 
@@ -502,59 +501,29 @@ func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.R
 	}
 }
 
-func (a *agent) isDraining() bool {
-	return a.drainCtx.Err() != nil
-}
-
-// signalDraining will signal one time when the draining context is canceled.
-func (a *agent) signalDraining() <-chan struct{} {
-	c := make(chan struct{})
-	a.wg.Add(1)
-	go func() {
-		<-a.drainCtx.Done()
-		close(c)
-		a.wg.Done()
-	}()
-
-	return c
-}
-
 // handleDrainChannels handles channels that should be stopped when the agent is draining.
-func (a *agent) handleDrainChannels() error {
+func (a *agent) handleDrainChannels(drainWGDone func()) error {
 	ticker := time.NewTicker(a.keepAlive)
 	defer ticker.Stop()
 
-	// once ensures drainWG.Done() is called one more time
-	// after no more transports will be created.
-	once := &sync.Once{}
-	drainWGDone := func() {
-		once.Do(func() {
-			a.drainWG.Done()
-		})
-	}
-	defer drainWGDone()
-	drainSignal := a.signalDraining()
+	drainCtxDone := a.drainCtx.Done()
 
 	for {
-		if a.isDraining() {
-			drainWGDone()
-		}
-
 		select {
 		case <-a.ctx.Done():
 			return nil
-		// Signal once when the drain context is canceled to ensure we unblock
-		// to call drainWG.Done().
-		case <-drainSignal:
-			continue
-		// Handle closed heartbeat channel.
-		case req := <-a.hbRequests:
-			if req == nil {
-				return trace.ConnectionProblem(nil, "heartbeat: connection closed")
-			}
+		case <-drainCtxDone:
+			// we synchronously do this here rather than using
+			// [context.AfterFunc] so we don't accidentally increase drainWG
+			// from 0 while something else might already be waiting
+			drainWGDone()
+			// don't re-enter this case of the select
+			drainCtxDone = nil
+			// for good measure
+			ticker.Stop()
 		// Send ping over heartbeat channel.
 		case <-ticker.C:
-			if a.isDraining() {
+			if a.drainCtx.Err() != nil {
 				continue
 			}
 			bytes, _ := a.clock.Now().UTC().MarshalText()
@@ -565,11 +534,16 @@ func (a *agent) handleDrainChannels() error {
 			}
 			a.logger.DebugContext(a.ctx, "Sent ping request", "target_addr", logutils.StringerAttr(a.client.RemoteAddr()))
 		// Handle transport requests.
-		case nch := <-a.transportC:
-			if nch == nil {
-				continue
+		case nch, ok := <-a.transportC:
+			if !ok {
+				return trace.ConnectionProblem(nil, "transport: connection closed")
 			}
-			if a.isDraining() {
+
+			// once drainWGDone is called we can't add to the drain waitgroup so
+			// we have to reject transport requests beforehand; it gets called
+			// in this loop after drainCtx is done, so checking for the context
+			// error here is a stronger condition
+			if a.drainCtx.Err() != nil {
 				err := nch.Reject(ssh.ConnectionFailed, "agent connection is draining")
 				if err != nil {
 					a.logger.WarnContext(a.ctx, "Failed to reject transport channel", "error", err)
@@ -602,9 +576,9 @@ func (a *agent) handleChannels() error {
 		case <-a.ctx.Done():
 			return nil
 		// new discovery request channel
-		case nch := <-a.discoveryC:
-			if nch == nil {
-				continue
+		case nch, ok := <-a.discoveryC:
+			if !ok {
+				return nil
 			}
 			a.logger.DebugContext(a.ctx, "Discovery request channel opened", "channel_type", nch.ChannelType())
 			ch, req, err := nch.Accept()

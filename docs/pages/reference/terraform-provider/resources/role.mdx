@@ -2,10 +2,16 @@
 title: Reference for the teleport_role Terraform resource
 sidebar_label: role
 description: This page describes the supported values of the teleport_role resource of the Teleport Terraform provider.
+labels:
+ - reference
+ - platform-wide
 ---
 
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
+
+This page describes the supported values of the teleport_role resource of the Teleport Terraform provider.
+
 
 
 
@@ -41,7 +47,7 @@ resource "teleport_role" "example" {
       client_idle_timeout     = "1h"
       disconnect_expired_cert = true
       permit_x11_forwarding   = false
-      request_access          = "denied"
+      request_access          = "optional"
     }
 
     allow = {
@@ -141,6 +147,7 @@ Optional:
 - `kubernetes_resources` (Attributes List) KubernetesResources is the Kubernetes Resources this Role grants access to. (see [below for nested schema](#nested-schema-for-specallowkubernetes_resources))
 - `kubernetes_users` (List of String) KubeUsers is an optional kubernetes users to impersonate
 - `logins` (List of String) Logins is a list of *nix system logins.
+- `mcp` (Attributes) MCPPermissions defines MCP servers related permissions. (see [below for nested schema](#nested-schema-for-specallowmcp))
 - `node_labels` (Map of List of String) NodeLabels is a map of node labels (used to dynamically grant access to nodes).
 - `node_labels_expression` (String) NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.
 - `request` (Attributes) (see [below for nested schema](#nested-schema-for-specallowrequest))
@@ -200,10 +207,18 @@ Optional:
 
 Optional:
 
+- `api_group` (String) APIGroup specifies the Kubernetes API group of the Kubernetes resource. It supports wildcards.
 - `kind` (String) Kind specifies the Kubernetes Resource type.
 - `name` (String) Name is the resource name. It supports wildcards.
 - `namespace` (String) Namespace is the resource namespace. It supports wildcards.
 - `verbs` (List of String) Verbs are the allowed Kubernetes verbs for the following resource.
+
+
+### Nested Schema for `spec.allow.mcp`
+
+Optional:
+
+- `tools` (List of String) Tools defines the list of tools allowed or denied for this role. Each entry can be a literal string, a glob pattern (e.g. "prefix_*"), or a regular expression (must start with '^' and end with '$'). If the list is empty, no tools are allowed.
 
 
 ### Nested Schema for `spec.allow.request`
@@ -233,6 +248,7 @@ Optional:
 
 Optional:
 
+- `api_group` (String) APIGroup specifies the Kubernetes Resource API group.
 - `kind` (String) kind specifies the Kubernetes Resource type.
 
 
@@ -339,6 +355,7 @@ Optional:
 - `kubernetes_resources` (Attributes List) KubernetesResources is the Kubernetes Resources this Role grants access to. (see [below for nested schema](#nested-schema-for-specdenykubernetes_resources))
 - `kubernetes_users` (List of String) KubeUsers is an optional kubernetes users to impersonate
 - `logins` (List of String) Logins is a list of *nix system logins.
+- `mcp` (Attributes) MCPPermissions defines MCP servers related permissions. (see [below for nested schema](#nested-schema-for-specdenymcp))
 - `node_labels` (Map of List of String) NodeLabels is a map of node labels (used to dynamically grant access to nodes).
 - `node_labels_expression` (String) NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.
 - `request` (Attributes) (see [below for nested schema](#nested-schema-for-specdenyrequest))
@@ -398,10 +415,18 @@ Optional:
 
 Optional:
 
+- `api_group` (String) APIGroup specifies the Kubernetes API group of the Kubernetes resource. It supports wildcards.
 - `kind` (String) Kind specifies the Kubernetes Resource type.
 - `name` (String) Name is the resource name. It supports wildcards.
 - `namespace` (String) Namespace is the resource namespace. It supports wildcards.
 - `verbs` (List of String) Verbs are the allowed Kubernetes verbs for the following resource.
+
+
+### Nested Schema for `spec.deny.mcp`
+
+Optional:
+
+- `tools` (List of String) Tools defines the list of tools allowed or denied for this role. Each entry can be a literal string, a glob pattern (e.g. "prefix_*"), or a regular expression (must start with '^' and end with '$'). If the list is empty, no tools are allowed.
 
 
 ### Nested Schema for `spec.deny.request`
@@ -431,6 +456,7 @@ Optional:
 
 Optional:
 
+- `api_group` (String) APIGroup specifies the Kubernetes Resource API group.
 - `kind` (String) kind specifies the Kubernetes Resource type.
 
 
@@ -533,7 +559,7 @@ Optional:
 - `pin_source_ip` (Boolean) PinSourceIP forces the same client IP for certificate generation and usage
 - `port_forwarding` (Boolean) Deprecated: Use SSHPortForwarding instead
 - `record_session` (Attributes) RecordDesktopSession indicates whether desktop access sessions should be recorded. It defaults to true unless explicitly set to false. (see [below for nested schema](#nested-schema-for-specoptionsrecord_session))
-- `request_access` (String) RequestAccess defines the request strategy (optional|note|always) where optional is the default.
+- `request_access` (String) RequestAccess defines the request strategy (optional|reason|always) where optional is the default.
 - `request_prompt` (String) RequestPrompt is an optional message which tells users what they aught to request.
 - `require_session_mfa` (Number) RequireMFAType is the type of MFA requirement enforced for this user. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".
 - `ssh_file_copy` (Boolean) SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.
@@ -591,4 +617,3 @@ Optional:
 Optional:
 
 - `enabled` (Boolean)
-

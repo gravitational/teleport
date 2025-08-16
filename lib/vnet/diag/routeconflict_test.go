@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/netip"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -129,7 +130,7 @@ func TestRouteConflictDiag(t *testing.T) {
 			routing := &FakeRouting{dests: test.dests}
 
 			routeConflictDiag, err := NewRouteConflictDiag(&RouteConflictConfig{
-				VnetIfaceName: vnetIface, Interfaces: interfaces, Routing: routing,
+				VnetIfaceName: vnetIface, Interfaces: interfaces, Routing: routing, RefetchRoutesDuration: time.Millisecond,
 			})
 			require.NoError(t, err)
 			report, err := routeConflictDiag.Run(context.Background())
@@ -137,6 +138,7 @@ func TestRouteConflictDiag(t *testing.T) {
 			rcs := report.GetRouteConflictReport().RouteConflicts
 
 			test.checkResult(t, test.dests, rcs)
+			require.Equal(t, 1, routing.getRouteDestinationsCallCount, "Unexpected number of calls to Routing.GetRouteDestinations")
 		})
 	}
 }
@@ -154,7 +156,7 @@ func TestRouteConflictDiag_RetriesOnUnstableIfaceError(t *testing.T) {
 	}}
 
 	routeConflictDiag, err := NewRouteConflictDiag(&RouteConflictConfig{
-		VnetIfaceName: vnetIface, Interfaces: interfaces, Routing: routing,
+		VnetIfaceName: vnetIface, Interfaces: interfaces, Routing: routing, RefetchRoutesDuration: time.Millisecond,
 	})
 	require.NoError(t, err)
 	_, err = routeConflictDiag.Run(context.Background())
@@ -176,11 +178,33 @@ func TestRouteConflictDiag_RetriesUpToThreeTimes(t *testing.T) {
 	}}
 
 	routeConflictDiag, err := NewRouteConflictDiag(&RouteConflictConfig{
-		VnetIfaceName: vnetIface, Interfaces: interfaces, Routing: routing,
+		VnetIfaceName: vnetIface, Interfaces: interfaces, Routing: routing, RefetchRoutesDuration: time.Millisecond,
 	})
 	require.NoError(t, err)
 	_, err = routeConflictDiag.Run(context.Background())
 	require.ErrorContains(t, err, "whoops something went wrong")
+
+	require.Equal(t, 3, routing.getRouteDestinationsCallCount, "Unexpected number of calls to Routing.GetRouteDestinations")
+}
+
+func TestRouteConflictDiag_RetriesOnNoVnetRouteDestinations(t *testing.T) {
+	interfaces := &FakeInterfaces{
+		ifaces: map[int]iface{
+			vnetIfaceIndex: {name: vnetIface},
+			quuxIfaceIndex: {name: quuxIface, app: "foobar"},
+		},
+	}
+	routing := &FakeRouting{dests: []RouteDest{
+		&RouteDestIP{ifaceIndex: quuxIfaceIndex, Addr: netip.AddrFrom4([4]byte{1, 2, 3, 4})},
+	}}
+
+	routeConflictDiag, err := NewRouteConflictDiag(&RouteConflictConfig{
+		VnetIfaceName: vnetIface, Interfaces: interfaces, Routing: routing, RefetchRoutesDuration: time.Millisecond,
+	})
+	require.NoError(t, err)
+	report, err := routeConflictDiag.Run(context.Background())
+	require.NoError(t, err)
+	require.Empty(t, report.GetRouteConflictReport().RouteConflicts)
 
 	require.Equal(t, 3, routing.getRouteDestinationsCallCount, "Unexpected number of calls to Routing.GetRouteDestinations")
 }

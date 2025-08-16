@@ -77,7 +77,6 @@ func (s *Server) reconcileAccessGraphAzure(
 	tokens := make(chan struct{}, 3)
 	accountIds := map[string]struct{}{}
 	for _, fetcher := range allFetchers {
-		fetcher := fetcher
 		accountIds[fetcher.GetSubscriptionID()] = struct{}{}
 		tokens <- struct{}{}
 		go func() {
@@ -92,7 +91,7 @@ func (s *Server) reconcileAccessGraphAzure(
 	// Collect the results from all fetchers.
 	results := make([]*azuresync.Resources, 0, len(allFetchers))
 	errs := make([]error, 0, len(allFetchers))
-	for i := 0; i < len(allFetchers); i++ {
+	for range allFetchers {
 		// Each fetcher can return an error and a result.
 		fetcherResult := <-resultsC
 		if fetcherResult.err != nil {
@@ -137,10 +136,7 @@ func azurePushUpsertInBatches(
 	upsert *accessgraphv1alpha.AzureResourceList,
 ) error {
 	for i := 0; i < len(upsert.Resources); i += batchSize {
-		end := i + batchSize
-		if end > len(upsert.Resources) {
-			end = len(upsert.Resources)
-		}
+		end := min(i+batchSize, len(upsert.Resources))
 		err := client.Send(
 			&accessgraphv1alpha.AzureEventsStreamRequest{
 				Operation: &accessgraphv1alpha.AzureEventsStreamRequest_Upsert{
@@ -163,10 +159,7 @@ func azurePushDeleteInBatches(
 	toDel *accessgraphv1alpha.AzureResourceList,
 ) error {
 	for i := 0; i < len(toDel.Resources); i += batchSize {
-		end := i + batchSize
-		if end > len(toDel.Resources) {
-			end = len(toDel.Resources)
-		}
+		end := min(i+batchSize, len(toDel.Resources))
 		err := client.Send(
 			&accessgraphv1alpha.AzureEventsStreamRequest{
 				Operation: &accessgraphv1alpha.AzureEventsStreamRequest_Delete{
@@ -377,7 +370,7 @@ func (s *Server) initTAGAzureWatchers(ctx context.Context, cfg *Config) error {
 			}
 			// Reset the Azure resources to force a full sync
 			if err := s.initializeAndWatchAzureAccessGraph(ctx, reloadCh); errors.Is(err, errTAGFeatureNotEnabled) {
-				s.Log.WarnContext(ctx, "Access Graph specified in config, but the license does not include Teleport Policy. Access graph sync will not be enabled.")
+				s.Log.WarnContext(ctx, "Access Graph specified in config, but the license does not include Teleport Identity Security. Access graph sync will not be enabled.")
 				break
 			} else if err != nil {
 				s.Log.WarnContext(ctx, "Error initializing and watching access graph", "error", err)

@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react';
+import { Meta } from '@storybook/react-vite';
 
 import { Box, Flex, Text } from 'design';
+import { HoverTooltip } from 'design/Tooltip';
 
 import {
   makeApp,
@@ -26,6 +27,7 @@ import {
   makeKube,
   makeRootCluster,
   makeServer,
+  makeWindowsDesktop,
 } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -38,6 +40,7 @@ import {
   ConnectDatabaseActionButton,
   ConnectKubeActionButton,
   ConnectServerActionButton,
+  ConnectWindowsDesktopActionButton,
 } from './ActionButtons';
 
 type StoryProps = {
@@ -83,7 +86,7 @@ export function Story(props: StoryProps) {
 
 function Buttons(props: StoryProps) {
   return (
-    <Flex gap={4}>
+    <Flex gap={4} flexWrap="wrap">
       <Flex gap={3} flexDirection="column">
         <Box>
           <Text>TCP app</Text>
@@ -101,6 +104,12 @@ function Buttons(props: StoryProps) {
           <Text>AWS console</Text>
           <AwsConsole />
         </Box>
+        <HoverTooltip tipContent="Connect doesn't support cloud apps properly yet and shows them as TCP apps instead.">
+          <Box>
+            <Text>Cloud app (GCP)</Text>
+            <CloudApp />
+          </Box>
+        </HoverTooltip>
         <Box>
           <Text>SAML app</Text>
           <SamlApp />
@@ -117,6 +126,10 @@ function Buttons(props: StoryProps) {
       <Box>
         <Text>Kube</Text>
         <Kube />
+      </Box>{' '}
+      <Box>
+        <Text>Windows desktop</Text>
+        <WindowsDesktop />
       </Box>
       <Flex gap={3} flexDirection="column">
         <Box>
@@ -218,6 +231,17 @@ function AwsConsole() {
   );
 }
 
+function CloudApp() {
+  return (
+    <ConnectAppActionButton
+      app={makeApp({
+        endpointUri: 'cloud://GCP',
+        uri: `${testCluster.uri}/apps/bar`,
+      })}
+    />
+  );
+}
+
 function SamlApp() {
   return (
     <ConnectAppActionButton
@@ -255,6 +279,16 @@ function Kube() {
     <ConnectKubeActionButton
       kube={makeKube({
         uri: `${testCluster.uri}/kubes/bar`,
+      })}
+    />
+  );
+}
+
+function WindowsDesktop() {
+  return (
+    <ConnectWindowsDesktopActionButton
+      windowsDesktop={makeWindowsDesktop({
+        uri: `${testCluster.uri}/windows_desktops/bar`,
       })}
     />
   );

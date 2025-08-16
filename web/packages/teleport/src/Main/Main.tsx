@@ -31,6 +31,12 @@ import styled from 'styled-components';
 
 import { Box, Flex, Indicator } from 'design';
 import { Failed } from 'design/CardError';
+import {
+  InfoGuidePanelProvider,
+  useInfoGuide,
+} from 'shared/components/SlidingSidePanel/InfoGuide';
+import { marginTransitionCss } from 'shared/components/SlidingSidePanel/InfoGuide/const';
+import { ToastNotifications } from 'shared/components/ToastNotification';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { BannerList } from 'teleport/components/BannerList';
@@ -38,6 +44,7 @@ import type { BannerType } from 'teleport/components/BannerList/BannerList';
 import { useAlerts } from 'teleport/components/BannerList/useAlerts';
 import { CatchError } from 'teleport/components/CatchError';
 import { Redirect, Route, Switch } from 'teleport/components/Router';
+import { InfoGuideSidePanel } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import cfg from 'teleport/config';
 import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
 import { Navigation } from 'teleport/Navigation';
@@ -47,7 +54,7 @@ import {
   LINK_TEXT_LABEL,
 } from 'teleport/services/alerts/alerts';
 import { storageService } from 'teleport/services/storageService';
-import { TopBar, TopBarProps } from 'teleport/TopBar';
+import { TopBar } from 'teleport/TopBar';
 import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
 import useTeleport from 'teleport/useTeleport';
@@ -60,8 +67,7 @@ export interface MainProps {
   customBanners?: ReactNode[];
   features: TeleportFeature[];
   billingBanners?: ReactNode[];
-  topBarProps?: TopBarProps;
-  inviteCollaboratorsFeedback?: ReactNode;
+  CustomLogo?: () => React.ReactElement;
 }
 
 export function Main(props: MainProps) {
@@ -179,35 +185,31 @@ export function Main(props: MainProps) {
 
   return (
     <FeaturesContextProvider value={features}>
-      <TopBar
-        CustomLogo={
-          props.topBarProps?.showPoweredByLogo
-            ? props.topBarProps.CustomLogo
-            : null
-        }
-      />
+      <TopBar CustomLogo={props.CustomLogo} />
       <Wrapper>
         <MainContainer>
-          <Navigation />
-          <ContentWrapper>
-            <ContentMinWidth>
-              <BannerList
-                banners={banners}
-                customBanners={props.customBanners}
-                billingBanners={featureFlags.billing && props.billingBanners}
-                onBannerDismiss={dismissAlert}
-              />
-              <Suspense fallback={null}>
-                <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
-              </Suspense>
-            </ContentMinWidth>
-          </ContentWrapper>
+          <Navigation showPoweredByLogo={!!props.CustomLogo} />
+          <InfoGuidePanelProvider>
+            <ContentWrapper>
+              <ContentMinWidth>
+                <BannerList
+                  banners={banners}
+                  customBanners={props.customBanners}
+                  billingBanners={featureFlags.billing && props.billingBanners}
+                  onBannerDismiss={dismissAlert}
+                />
+                <ToastNotifications />
+                <Suspense fallback={null}>
+                  <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
+                </Suspense>
+              </ContentMinWidth>
+            </ContentWrapper>
+          </InfoGuidePanelProvider>
         </MainContainer>
       </Wrapper>
       {displayOnboardDiscover && (
         <OnboardDiscover onClose={handleOnClose} onOnboard={handleOnboard} />
       )}
-      {props.inviteCollaboratorsFeedback}
     </FeaturesContextProvider>
   );
 }
@@ -302,6 +304,8 @@ export const useNoMinWidth = () => {
 
 export const ContentMinWidth = ({ children }: { children: ReactNode }) => {
   const [enforceMinWidth, setEnforceMinWidth] = useState(true);
+  const { infoGuideConfig, panelWidth } = useInfoGuide();
+  const infoGuideSidePanelOpened = infoGuideConfig != null;
 
   return (
     <ContentMinWidthContext.Provider value={{ setEnforceMinWidth }}>
@@ -312,10 +316,16 @@ export const ContentMinWidth = ({ children }: { children: ReactNode }) => {
           flex: 1;
           ${enforceMinWidth ? 'min-width: 1000px;' : ''}
           min-height: 0;
+          overflow-y: auto;
+          ${marginTransitionCss({
+            sidePanelOpened: infoGuideSidePanelOpened,
+            panelWidth: infoGuideConfig?.viewHasOwnSidePanel ? 0 : panelWidth,
+          })}
         `}
       >
         {children}
       </div>
+      <InfoGuideSidePanel />
     </ContentMinWidthContext.Provider>
   );
 };

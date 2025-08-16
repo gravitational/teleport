@@ -19,12 +19,14 @@
 import { ipcRenderer } from 'electron';
 
 import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
+import { AppUpdateEvent } from 'teleterm/services/appUpdater';
 import { createFileStorageClient } from 'teleterm/services/fileStorage';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { createConfigServiceClient } from '../services/config';
 import { openTabContextMenu } from './contextMenus/tabContextMenu';
 import { openTerminalContextMenu } from './contextMenus/terminalContextMenu';
+import { deserializeError } from './ipcSerializer';
 import {
   AgentProcessState,
   ChildProcessAddresses,
@@ -113,8 +115,8 @@ export default function createMainProcessClient(): MainProcessClient {
     removeKubeConfig(options) {
       return ipcRenderer.invoke('main-process-remove-kube-config', options);
     },
-    forceFocusWindow() {
-      return ipcRenderer.invoke('main-process-force-focus-window');
+    forceFocusWindow(args) {
+      return ipcRenderer.invoke(MainProcessIpc.ForceFocusWindow, args);
     },
     symlinkTshMacOs() {
       return ipcRenderer.invoke('main-process-symlink-tsh-macos');
@@ -189,6 +191,67 @@ export default function createMainProcessClient(): MainProcessClient {
     },
     refreshClusterList() {
       ipcRenderer.send(MainProcessIpc.RefreshClusterList);
+    },
+    selectDirectoryForDesktopSession(args: {
+      desktopUri: string;
+      login: string;
+    }) {
+      return ipcRenderer.invoke(
+        MainProcessIpc.SelectDirectoryForDesktopSession,
+        args
+      );
+    },
+    supportsAppUpdates() {
+      return ipcRenderer.sendSync(MainProcessIpc.SupportsAppUpdates);
+    },
+    checkForAppUpdates() {
+      return ipcRenderer.invoke(MainProcessIpc.CheckForAppUpdates);
+    },
+    downloadAppUpdate() {
+      return ipcRenderer.invoke(MainProcessIpc.DownloadAppUpdate);
+    },
+    cancelAppUpdateDownload() {
+      return ipcRenderer.invoke(MainProcessIpc.CancelAppUpdateDownload);
+    },
+    quitAndInstallAppUpdate() {
+      return ipcRenderer.invoke(MainProcessIpc.QuiteAndInstallAppUpdate);
+    },
+    changeAppUpdatesManagingCluster(clusterUri) {
+      return ipcRenderer.invoke(
+        MainProcessIpc.ChangeAppUpdatesManagingCluster,
+        {
+          clusterUri,
+        }
+      );
+    },
+    maybeRemoveAppUpdatesManagingCluster(clusterUri) {
+      return ipcRenderer.invoke(
+        MainProcessIpc.MaybeRemoveAppUpdatesManagingCluster,
+        {
+          clusterUri,
+        }
+      );
+    },
+    subscribeToAppUpdateEvents: listener => {
+      const ipcListener = (_, updateEvent: AppUpdateEvent) => {
+        if (updateEvent.kind === 'error') {
+          updateEvent.error = deserializeError(updateEvent.error);
+        }
+        listener(updateEvent);
+      };
+
+      ipcRenderer.addListener(RendererIpc.AppUpdateEvent, ipcListener);
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(RendererIpc.AppUpdateEvent, ipcListener),
+      };
+    },
+    subscribeToOpenAppUpdateDialog: listener => {
+      ipcRenderer.addListener(RendererIpc.OpenAppUpdateDialog, listener);
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(RendererIpc.OpenAppUpdateDialog, listener),
+      };
     },
   };
 }

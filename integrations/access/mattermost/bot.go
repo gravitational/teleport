@@ -98,7 +98,7 @@ type etagCacheCtxKey struct{}
 
 type etagCacheEntry struct {
 	etag  string
-	value interface{}
+	value any
 }
 
 func NewBot(conf Config, clusterName, webProxyAddr string) (Bot, error) {

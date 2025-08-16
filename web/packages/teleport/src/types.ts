@@ -58,6 +58,7 @@ export enum NavTitle {
   // Access Management
   Users = 'Users',
   Bots = 'Bots',
+  BotInstances = 'Bot Instances',
   Roles = 'Roles',
   JoinTokens = 'Join Tokens',
   AuthConnectors = 'Auth Connectors',
@@ -67,12 +68,14 @@ export enum NavTitle {
   EnrollNewIntegration = 'Integration',
   NewAccessList = 'Access List',
   NewBot = 'Bot',
+  NewBotShortcut = 'Enroll New Bot',
 
   // Identity Governance & Security
   AccessLists = 'Access Lists',
   SessionAndIdentityLocks = 'Session & Identity Locks',
   TrustedDevices = 'Trusted Devices',
   AccessMonitoring = 'Access Monitoring',
+  WorkloadIdentity = 'Workload Identity',
 
   // Resources Requests
   NewRequest = 'New Request',
@@ -81,6 +84,8 @@ export enum NavTitle {
   // Access Graph
   AccessGraphDashboard = 'Dashboard',
   AccessGraphBrowse = 'Browse',
+  AccessGraphAlerts = 'Alerts',
+  AccessGraphInvestigate = 'Investigate',
   AccessGraphCrownJewels = 'Crown Jewels',
   AccessGraphGraphExplorer = 'Graph Explorer',
   AccessGraphSQLEditor = 'SQL Editor',
@@ -145,6 +150,8 @@ export interface TeleportFeature {
   highlightKey?: string;
   /** showInDashboard is whether this page should be shown in the navigation for dashboard tenants. Any feature without this flag will not be shown for dashboards. */
   showInDashboard?: boolean;
+  /** isHyperLink is whether this subsection is merely a hyperlink/shortcut to another subsection. */
+  isHyperLink?: boolean;
 }
 
 export type StickyCluster = {
@@ -190,13 +197,17 @@ export interface FeatureFlags {
   enrollIntegrations: boolean;
   deviceTrust: boolean;
   locks: boolean;
-  newLocks: boolean;
-  tokens: boolean;
+  addLocks: boolean;
+  removeLocks: boolean;
+  createTokens: boolean;
+  listTokens: boolean;
   accessMonitoring: boolean;
   accessGraph: boolean;
   accessGraphIntegrations: boolean;
   externalAuditStorage: boolean;
   listBots: boolean;
+  readBots: boolean;
+  listBotInstances: boolean;
   addBots: boolean;
   editBots: boolean;
   removeBots: boolean;
@@ -226,4 +237,10 @@ export type WebsocketStatus = {
   type: string;
   status: string;
   message?: string;
+};
+
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonArray = JsonPrimitive[];
+export type JsonObject = {
+  [key: string]: JsonPrimitive | JsonArray | JsonObject;
 };

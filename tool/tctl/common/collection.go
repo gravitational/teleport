@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"slices"
 	"sort"
 	"strconv"
@@ -31,14 +32,17 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
@@ -66,6 +70,24 @@ import (
 type ResourceCollection interface {
 	writeText(w io.Writer, verbose bool) error
 	resources() []types.Resource
+}
+
+// namedResourceCollection is an implementation of [ResourceCollection] that
+// displays resources in a table as a list of names and nothing else.
+type namedResourceCollection []types.Resource
+
+// resources implements [ResourceCollection].
+func (c namedResourceCollection) resources() []types.Resource {
+	return c
+}
+
+// writeText implements [ResourceCollection].
+func (c namedResourceCollection) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"Name"})
+	for _, override := range c {
+		t.AddRow([]string{override.GetName()})
+	}
+	return trace.Wrap(t.WriteTo(w))
 }
 
 type roleCollection struct {
@@ -1593,12 +1615,17 @@ type pluginCollection struct {
 	plugins []types.Plugin
 }
 
+// pluginResourceWrapper provides custom JSON unmarshaling for Plugin resource
+// types. The Plugin resource uses structures generated from a protobuf `oneof`
+// directive, which the stdlib JSON unmarshaller can't handle, so we use this
+// custom wrapper to help.
 type pluginResourceWrapper struct {
 	types.PluginV1
 }
 
 func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
-
+	// If your plugin contains a `oneof` message, implement custom UnmarshalJSON/MarshalJSON
+	// using gogo/jsonpb for the type.
 	const (
 		credOauth2AccessToken             = "oauth2_access_token"
 		credBearerToken                   = "bearer_token"
@@ -1609,6 +1636,7 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		settingsOpenAI                    = "openai"
 		settingsOkta                      = "okta"
 		settingsJamf                      = "jamf"
+		settingsIntune                    = "intune"
 		settingsPagerDuty                 = "pager_duty"
 		settingsMattermost                = "mattermost"
 		settingsJira                      = "jira"
@@ -1618,11 +1646,16 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		settingsEntraID                   = "entra_id"
 		settingsDatadogIncidentManagement = "datadog_incident_management"
 		settingsEmailAccessPlugin         = "email_access_plugin"
+		settingsAWSIdentityCenter         = "aws_ic"
+		settingsNetIQ                     = "net_iq"
 	)
 	type unknownPluginType struct {
 		Spec struct {
 			Settings map[string]json.RawMessage `json:"Settings"`
 		} `json:"spec"`
+		Status struct {
+			Details map[string]json.RawMessage `json:"Details"`
+		} `json:"status"`
 		Credentials struct {
 			Credentials map[string]json.RawMessage `json:"Credentials"`
 		} `json:"credentials"`
@@ -1659,7 +1692,6 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 	}
 
 	for k := range unknownPlugin.Spec.Settings {
-
 		switch k {
 		case settingsSlackAccessPlugin:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_SlackAccessPlugin{}
@@ -1669,8 +1701,11 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Openai{}
 		case settingsOkta:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Okta{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_Okta{}
 		case settingsJamf:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Jamf{}
+		case settingsIntune:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Intune{}
 		case settingsPagerDuty:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_PagerDuty{}
 		case settingsMattermost:
@@ -1683,12 +1718,21 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_ServiceNow{}
 		case settingsGitlab:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Gitlab{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_Gitlab{}
 		case settingsEntraID:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_EntraId{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_EntraId{}
 		case settingsDatadogIncidentManagement:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Datadog{}
 		case settingsEmailAccessPlugin:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Email{}
+		case settingsAWSIdentityCenter:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_AwsIc{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_AwsIc{}
+		case settingsNetIQ:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_NetIq{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_NetIq{}
+
 		default:
 			return trace.BadParameter("unsupported plugin type: %v", k)
 		}
@@ -1727,7 +1771,7 @@ type botInstanceCollection struct {
 func (c *botInstanceCollection) resources() []types.Resource {
 	r := make([]types.Resource, 0, len(c.items))
 	for _, resource := range c.items {
-		r = append(r, types.Resource153ToLegacy(resource))
+		r = append(r, types.ProtoResource153ToLegacy(resource))
 	}
 	return r
 }
@@ -1997,6 +2041,54 @@ func (c *autoUpdateAgentRolloutCollection) writeText(w io.Writer, verbose bool) 
 	return trace.Wrap(err)
 }
 
+type autoUpdateAgentReportCollection struct {
+	reports []*autoupdatev1pb.AutoUpdateAgentReport
+}
+
+func (c *autoUpdateAgentReportCollection) resources() []types.Resource {
+	resources := make([]types.Resource, len(c.reports))
+	for i, report := range c.reports {
+		resources[i] = types.ProtoResource153ToLegacy(report)
+	}
+	return resources
+}
+
+func (c *autoUpdateAgentReportCollection) writeText(w io.Writer, verbose bool) error {
+	groupSet := make(map[string]any)
+	versionsSet := make(map[string]any)
+	for _, report := range c.reports {
+		for groupName, group := range report.GetSpec().GetGroups() {
+			groupSet[groupName] = struct{}{}
+			for versionName := range group.GetVersions() {
+				versionsSet[versionName] = struct{}{}
+			}
+		}
+	}
+
+	groupNames := slices.Collect(maps.Keys(groupSet))
+	versionNames := slices.Collect(maps.Keys(versionsSet))
+	slices.Sort(groupNames)
+	slices.Sort(versionNames)
+
+	t := asciitable.MakeTable(append([]string{"Auth Server ID", "Agent Version"}, groupNames...))
+	for _, report := range c.reports {
+		for i, versionName := range versionNames {
+			row := make([]string, len(groupNames)+2)
+			if i == 0 {
+				row[0] = report.GetMetadata().GetName()
+			}
+			row[1] = versionName
+			for j, groupName := range groupNames {
+				row[j+2] = strconv.Itoa(int(report.GetSpec().GetGroups()[groupName].GetVersions()[versionName].GetCount()))
+			}
+			t.AddRow(row)
+		}
+		t.AddRow(make([]string, len(versionNames)+2))
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
 type accessMonitoringRuleCollection struct {
 	items []*accessmonitoringrulesv1pb.AccessMonitoringRule
 }
@@ -2022,6 +2114,110 @@ func (c *accessMonitoringRuleCollection) writeText(w io.Writer, verbose bool) er
 
 	// stable sort by name.
 	t.SortRowsBy([]int{0}, true)
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type healthCheckConfigCollection struct {
+	items []*healthcheckconfigv1.HealthCheckConfig
+}
+
+func (c *healthCheckConfigCollection) resources() []types.Resource {
+	out := make([]types.Resource, 0, len(c.items))
+	for _, item := range c.items {
+		out = append(out, types.ProtoResource153ToLegacy(item))
+	}
+	return out
+}
+
+func (c *healthCheckConfigCollection) writeText(w io.Writer, verbose bool) error {
+	headers := []string{"Name", "Interval", "Timeout", "Healthy Threshold", "Unhealthy Threshold", "DB Labels", "DB Expression"}
+	var rows [][]string
+	for _, item := range c.items {
+		meta := item.GetMetadata()
+		spec := item.GetSpec()
+		rows = append(rows, []string{
+			meta.GetName(),
+			common.FormatDefault(spec.GetInterval().AsDuration(), defaults.HealthCheckInterval),
+			common.FormatDefault(spec.GetTimeout().AsDuration(), defaults.HealthCheckTimeout),
+			common.FormatDefault(spec.GetHealthyThreshold(), defaults.HealthCheckHealthyThreshold),
+			common.FormatDefault(spec.GetUnhealthyThreshold(), defaults.HealthCheckUnhealthyThreshold),
+			common.FormatMultiValueLabels(label.ToMap(spec.GetMatch().GetDbLabels()), verbose),
+			spec.GetMatch().GetDbLabelsExpression(),
+		})
+	}
+	var t asciitable.Table
+	if verbose {
+		t = asciitable.MakeTable(headers, rows...)
+	} else {
+		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "DB Labels")
+	}
+
+	// stable sort by name.
+	t.SortRowsBy([]int{0}, true)
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type scopedRoleCollection struct {
+	items []*scopedaccessv1.ScopedRole
+}
+
+func (c *scopedRoleCollection) resources() []types.Resource {
+	out := make([]types.Resource, 0, len(c.items))
+	for _, item := range c.items {
+		out = append(out, types.Resource153ToLegacy(item))
+	}
+	return out
+}
+
+func (c *scopedRoleCollection) writeText(w io.Writer, verbose bool) error {
+	headers := []string{"Scope", "Name"}
+	var rows [][]string
+	for _, item := range c.items {
+		rows = append(rows, []string{
+			item.GetScope(),
+			item.GetMetadata().GetName(),
+		})
+	}
+
+	t := asciitable.MakeTable(headers, rows...)
+
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type scopedRoleAssignmentCollection struct {
+	items []*scopedaccessv1.ScopedRoleAssignment
+}
+
+func (c *scopedRoleAssignmentCollection) resources() []types.Resource {
+	out := make([]types.Resource, 0, len(c.items))
+	for _, item := range c.items {
+		out = append(out, types.Resource153ToLegacy(item))
+	}
+	return out
+}
+
+func (c *scopedRoleAssignmentCollection) writeText(w io.Writer, verbose bool) error {
+	headers := []string{"Scope", "Name", "Assigns"}
+	var rows [][]string
+
+	for _, item := range c.items {
+		var assigns []string
+		for _, subAssignment := range item.GetSpec().GetAssignments() {
+			assigns = append(assigns, fmt.Sprintf("%s@%s", subAssignment.GetRole(), subAssignment.GetScope()))
+		}
+
+		rows = append(rows, []string{
+			item.GetScope(),
+			item.GetMetadata().GetName(),
+			strings.Join(assigns, ", "),
+		})
+	}
+
+	t := asciitable.MakeTable(headers, rows...)
+
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

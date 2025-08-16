@@ -33,7 +33,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
-	awsutil "github.com/gravitational/teleport/lib/utils/aws"
+	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 )
 
 // s3Client defines a subset of the AWS S3 client API.
@@ -90,7 +90,6 @@ func (a *Fetcher) fetchS3Buckets(ctx context.Context) ([]*accessgraphv1alpha.AWS
 
 	// Iterate over the buckets and fetch their inline and attached policies.
 	for _, bucket := range buckets {
-		bucket := bucket
 		eG.Go(func() error {
 			var failedReqs failedRequests
 			var errs []error
@@ -294,7 +293,7 @@ func isS3BucketNoTagSet(err error) bool {
 }
 
 func (a *Fetcher) listS3Buckets(ctx context.Context) ([]s3types.Bucket, func(*string) (string, error), error) {
-	region := awsutil.GetKnownRegions()[0]
+	region := awsregion.GetKnownRegions()[0]
 	if len(a.Regions) > 0 {
 		region = a.Regions[0]
 	}

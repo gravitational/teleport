@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestAWSIAM tests RDS, Aurora and Redshift IAM auto-configuration.
@@ -406,7 +405,7 @@ type mockAccessPoint struct {
 	authclient.DatabaseAccessPoint
 }
 
-func (m *mockAccessPoint) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
+func (m *mockAccessPoint) GetClusterName(_ context.Context) (types.ClusterName, error) {
 	return types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "cluster.local",
 		ClusterID:   "cluster-id",

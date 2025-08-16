@@ -16,6 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import EventEmitter from 'events';
+
+import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import { AgentProcessState } from 'teleterm/mainProcess/types';
 // createConfigService has to be imported directly from configService.ts.
 // teleterm/services/config/index.ts reexports the config service client which depends on electron.
@@ -26,12 +29,29 @@ import { MainProcessClient, RuntimeSettings } from 'teleterm/types';
 
 export class MockMainProcessClient implements MainProcessClient {
   configService: ReturnType<typeof createConfigService>;
+  private events: EventEmitter<{ 'deep-link-launch': [DeepLinkParseResult] }>;
+  private frontendAppInit: {
+    promise: Promise<void>;
+    resolve: () => void;
+    reject: (error: Error) => void;
+  };
 
   constructor(private runtimeSettings: Partial<RuntimeSettings> = {}) {
     this.configService = createConfigService({
       configFile: createMockFileStorage(),
       jsonSchemaFile: createMockFileStorage(),
       settings: this.getRuntimeSettings(),
+    });
+    this.events = new EventEmitter();
+    // Mirrors the implementation of frontendAppInit in WindowsManager.
+    this.frontendAppInit = {
+      promise: undefined,
+      resolve: undefined,
+      reject: undefined,
+    };
+    this.frontendAppInit.promise = new Promise((resolve, reject) => {
+      this.frontendAppInit.resolve = resolve;
+      this.frontendAppInit.reject = reject;
     });
   }
 
@@ -43,8 +63,15 @@ export class MockMainProcessClient implements MainProcessClient {
     return { cleanup: () => undefined };
   }
 
-  subscribeToDeepLinkLaunch() {
-    return { cleanup: () => undefined };
+  subscribeToDeepLinkLaunch(listener: (res: DeepLinkParseResult) => void) {
+    this.events.addListener('deep-link-launch', listener);
+    return {
+      cleanup: () => this.events.removeListener('deep-link-launch', listener),
+    };
+  }
+
+  launchDeepLink(res: DeepLinkParseResult) {
+    this.events.emit('deep-link-launch', res);
   }
 
   getRuntimeSettings(): RuntimeSettings {
@@ -82,7 +109,7 @@ export class MockMainProcessClient implements MainProcessClient {
     return Promise.resolve(undefined);
   }
 
-  forceFocusWindow() {}
+  async forceFocusWindow() {}
 
   async symlinkTshMacOs() {
     return true;
@@ -136,9 +163,40 @@ export class MockMainProcessClient implements MainProcessClient {
 
   async tryRemoveConnectMyComputerAgentBinary() {}
 
-  signalUserInterfaceReadiness() {}
+  signalUserInterfaceReadiness() {
+    this.frontendAppInit.resolve();
+  }
+
+  /** Mirrors the implementation of whenFrontendAppIsReady in WindowsManager. */
+  whenFrontendAppIsReady(): Promise<void> {
+    return this.frontendAppInit.promise;
+  }
 
   refreshClusterList() {}
+
+  async selectDirectoryForDesktopSession() {
+    return '';
+  }
+
+  supportsAppUpdates() {
+    return true;
+  }
+  async changeAppUpdatesManagingCluster() {}
+  async maybeRemoveAppUpdatesManagingCluster() {}
+  async checkForAppUpdates() {}
+  async downloadAppUpdate() {}
+  async cancelAppUpdateDownload() {}
+  async quitAndInstallAppUpdate() {}
+  subscribeToAppUpdateEvents(): {
+    cleanup: () => void;
+  } {
+    return { cleanup: () => undefined };
+  }
+  subscribeToOpenAppUpdateDialog(): {
+    cleanup: () => void;
+  } {
+    return { cleanup: () => undefined };
+  }
 }
 
 export const makeRuntimeSettings = (

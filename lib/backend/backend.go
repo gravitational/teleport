@@ -22,7 +22,6 @@ package backend
 import (
 	"context"
 	"fmt"
-	"io"
 	"iter"
 	"sort"
 	"time"
@@ -31,7 +30,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -67,6 +65,10 @@ type Backend interface {
 
 	// Get returns a single item or not found error
 	Get(ctx context.Context, key Key) (*Item, error)
+
+	// Items produces an iterator of backend items in the range, and order
+	// described in the provided [ItemsParams].
+	Items(ctx context.Context, params ItemsParams) iter.Seq2[Item, error]
 
 	// GetRange returns the items between the start and end keys, including both
 	// (if present).
@@ -114,9 +116,9 @@ type Backend interface {
 	CloseWatchers()
 }
 
-// IterateParams are parameters that are provided to
+// ItemsParams are parameters that are provided to
 // [BackendWithItems.Items] to alter the iteration behavior.
-type IterateParams struct {
+type ItemsParams struct {
 	// StartKey is the minimum key in the range yielded by the iteration. This key
 	// will be included in the results if it exists.
 	StartKey Key
@@ -129,17 +131,6 @@ type IterateParams struct {
 	Descending bool
 	// Limit is an optional maximum number of items to retrieve during iteration.
 	Limit int
-}
-
-// BackendWithItems is a temporary interface that will be added to [backend.Backend]
-// once all concrete backend implementations satisfy the new interface.
-// TODO(tross): REMEMBER TO DELETE THIS
-type BackendWithItems interface {
-	Backend
-
-	// Items produces an iterator of backend items in the range, and order
-	// described in the provided [IterateParams].
-	Items(ctx context.Context, params IterateParams) iter.Seq2[Item, error]
 }
 
 // New initializes a new [Backend] implementation based on the service config.
@@ -155,62 +146,6 @@ func New(ctx context.Context, backend string, params Params) (Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 	return bk, nil
-}
-
-// IterateRange is a helper for stepping over a range
-func IterateRange(ctx context.Context, bk Backend, startKey, endKey Key, limit int, fn func([]Item) (stop bool, err error)) error {
-	if limit == 0 || limit > 10_000 {
-		limit = 10_000
-	}
-	for {
-		// we load an extra item here so that we can be certain we have a correct
-		// start key for the next range.
-		rslt, err := bk.GetRange(ctx, startKey, endKey, limit+1)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		end := limit
-		if len(rslt.Items) < end {
-			end = len(rslt.Items)
-		}
-		stop, err := fn(rslt.Items[0:end])
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if stop || len(rslt.Items) <= limit {
-			return nil
-		}
-		startKey = rslt.Items[limit].Key
-	}
-}
-
-// StreamRange constructs a Stream for the given key range. This helper just
-// uses standard pagination under the hood, lazily loading pages as needed. Streams
-// are currently only used for periodic operations, but if they become more widely
-// used in the future, it may become worthwhile to optimize the streaming of backend
-// items further. Two potential improvements of note:
-//
-// 1. update this helper to concurrently load the next page in the background while
-// items from the current page are being yielded.
-//
-// 2. allow individual backends to expose custom streaming methods s.t. the most performant
-// impl for a given backend may be used.
-func StreamRange(ctx context.Context, bk Backend, startKey, endKey Key, pageSize int) stream.Stream[Item] {
-	return stream.PageFunc[Item](func() ([]Item, error) {
-		if startKey.components == nil {
-			return nil, io.EOF
-		}
-		rslt, err := bk.GetRange(ctx, startKey, endKey, pageSize)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if len(rslt.Items) < pageSize {
-			startKey = Key{}
-		} else {
-			startKey = nextKey(rslt.Items[pageSize-1].Key)
-		}
-		return rslt.Items, nil
-	})
 }
 
 // Lease represents a lease on the item that can be used
@@ -311,7 +246,7 @@ type Config struct {
 // Params type defines a flexible unified back-end configuration API.
 // It is just a map of key/value pairs which gets populated by `storage` section
 // in Teleport YAML config.
-type Params map[string]interface{}
+type Params map[string]any
 
 // GetString returns a string value stored in Params map, or an empty string
 // if nothing is found
@@ -327,10 +262,10 @@ func (p Params) GetString(key string) string {
 // NoLimit specifies no limits
 const NoLimit = 0
 
-// nextKey returns the next possible key.
-// If used with a key prefix, this will return
-// the end of the range for that key prefix.
-func nextKey(key Key) Key {
+const noEnd = "\x00"
+
+// RangeEnd returns end of the range for given key.
+func RangeEnd(key Key) Key {
 	end := make([]byte, len(key.s))
 	copy(end, key.s)
 	for i := len(end) - 1; i >= 0; i-- {
@@ -344,13 +279,6 @@ func nextKey(key Key) Key {
 	return Key{noEnd: true}
 }
 
-var noEnd = []byte{0}
-
-// RangeEnd returns end of the range for given key.
-func RangeEnd(key Key) Key {
-	return nextKey(key)
-}
-
 // HostID is a derivation of a KeyedItem that allows the host id
 // to be included in the key.
 type HostID interface {
@@ -361,20 +289,6 @@ type HostID interface {
 // KeyedItem represents an item from which a pagination key can be derived.
 type KeyedItem interface {
 	GetName() string
-}
-
-// NextPaginationKey returns the next pagination key.
-// For items that implement HostID, the next key will also
-// have the HostID part.
-func NextPaginationKey(ki KeyedItem) string {
-	var key Key
-	if h, ok := ki.(HostID); ok {
-		key = internalKey(h.GetHostID(), h.GetName())
-	} else {
-		key = NewKey(ki.GetName())
-	}
-
-	return nextKey(key).String()
 }
 
 // GetPaginationKey returns the pagination key given item.
@@ -393,7 +307,7 @@ func GetPaginationKey(ki KeyedItem) string {
 func MaskKeyName(keyName string) string {
 	maskedBytes := []byte(keyName)
 	hiddenBefore := int(0.75 * float64(len(keyName)))
-	for i := 0; i < hiddenBefore; i++ {
+	for i := range hiddenBefore {
 		maskedBytes[i] = '*'
 	}
 	return string(maskedBytes)

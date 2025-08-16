@@ -29,6 +29,7 @@ import {
   CreatableProps as SelectCreatableProps,
 } from '../Select';
 import { SelectCreatableAsync } from '../Select/Select';
+import { Rule } from '../Validation/rules';
 import {
   FieldProps,
   FieldSelectWrapper,
@@ -43,6 +44,7 @@ import {
  * @param {boolean} markAsError - manually mark the component as error.
  * @param {string} placeholder - placeholder value.
  * @param {string} formatCreateLabel - custom formatting for create label.
+ * @param {StylesConfig} stylesConfig - custom styles for the inner select component.
  * @returns SelectCreatable
  */
 export function FieldSelectCreatable<
@@ -127,7 +129,7 @@ type CreatableProps<
     autoFocus?: boolean;
     label?: string;
     toolTipContent?: React.ReactNode;
-    rule?: (options: OnChangeValue<Opt, IsMulti>) => () => unknown;
+    rule?: Rule<OnChangeValue<Opt, IsMulti>>;
     markAsError?: boolean;
     ariaLabel?: string;
   };

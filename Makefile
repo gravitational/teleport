@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=18.0.0-dev
+VERSION=19.0.0-dev
 
 DOCKER_IMAGE ?= teleport
 
@@ -36,6 +36,9 @@ TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
 CGOFLAG ?= CGO_ENABLED=1
 KUSTOMIZE_NO_DYNAMIC_PLUGIN ?= kustomize_disable_go_plugin_support
+KUBECTL_VERSION := $(shell go list -m -f '{{.Version}}' k8s.io/kubectl | sed 's/v0/v1/')
+KUBECTL_SETVERSION := -X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERSION)
+
 # RELEASE_DIR is where the release artifacts (tarballs, pacakges, etc) are put. It
 # should be an absolute directory as it is used by e/Makefile too, from the e/ directory.
 RELEASE_DIR := $(CURDIR)/$(BUILDDIR)/artifacts
@@ -64,6 +67,8 @@ ARCH ?= $(GO_ENV_ARCH)
 
 FIPS ?=
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
+RELEASE_TOOLS = teleport-tools-$(GITTAG)-$(OS)-$(ARCH)-bin
+RELEASE_UPDATE = teleport-update-$(GITTAG)-$(OS)-$(ARCH)-bin
 
 # If we're building inside the cross-compiling buildbox, include the
 # cross compilation definitions so we select the correct compilers and
@@ -248,6 +253,7 @@ BINS_darwin = teleport tctl tsh tbot fdpass-teleport
 BINS_windows = tsh tctl
 BINS = $(or $(BINS_$(OS)),$(BINS_default))
 BINARIES = $(addprefix $(BUILDDIR)/,$(BINS))
+UPDATE_BINARIES = $(addprefix $(BUILDDIR)/,teleport-update)
 
 # Joins elements of the list in arg 2 with the given separator.
 #   1. Element separator.
@@ -269,7 +275,7 @@ ifeq ("$(REPRODUCIBLE)","yes")
 TAR_FLAGS = --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu
 endif
 
-VERSRC = version.go gitref.go api/version.go
+VERSRC = gitref.go api/version.go
 
 KUBECONFIG ?=
 TEST_KUBE ?=
@@ -362,7 +368,7 @@ ifeq ("$(GITHUB_REPOSITORY_OWNER)","gravitational")
 # TELEPORT_LDFLAGS and TOOLS_LDFLAGS if appended will overwrite the previous LDFLAGS set in the BUILDFLAGS.
 # This is done here to prevent any changes to the (BUI)LDFLAGS passed to the other binaries
 TELEPORT_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
-TOOLS_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
+TOOLS_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) $(KUBECTL_SETVERSION) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
 endif
 
 # By making these 3 targets below (tsh, tctl and teleport) PHONY we are solving
@@ -387,8 +393,6 @@ $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 # NOTE: Any changes to the `tsh` build here must be copied to `build.assets/windows/build.ps1`
 # until we can use this Makefile for native Windows builds.
 .PHONY: $(BUILDDIR)/tsh
-$(BUILDDIR)/tsh: KUBECTL_VERSION ?= $(shell go run ./build.assets/kubectl-version/main.go)
-$(BUILDDIR)/tsh: KUBECTL_SETVERSION ?= -X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERSION)
 $(BUILDDIR)/tsh:
 	@if [[ "$(OS)" != "windows" && -z "$(LIBFIDO2_BUILD_TAG)" ]]; then \
 		echo 'Warning: Building tsh without libfido2. Install libfido2 to have access to MFA.' >&2; \
@@ -397,9 +401,10 @@ $(BUILDDIR)/tsh:
 
 .PHONY: $(BUILDDIR)/tbot
 # tbot is CGO-less by default except on Windows because lib/client/terminal/ wants CGO on this OS
-$(BUILDDIR)/tbot: TBOT_CGO_FLAGS ?= $(if $(filter windows,$(OS)),$(CGOFLAG))
+# We force cgo to be disabled, else the compiler might decide to enable it.
+$(BUILDDIR)/tbot: TBOT_CGO_FLAGS ?= $(if $(filter windows,$(OS)),$(CGOFLAG),CGO_ENABLED=0)
 # Build mode pie requires CGO
-$(BUILDDIR)/tbot: BUILDFLAGS_TBOT += $(if $(TBOT_CGO_FLAGS), -buildmode=pie)
+$(BUILDDIR)/tbot: BUILDFLAGS_TBOT += $(if $(findstring CGO_ENABLED=1,$(TBOT_CGO_FLAGS)), -buildmode=pie)
 $(BUILDDIR)/tbot:
 	GOOS=$(OS) GOARCH=$(ARCH) $(TBOT_CGO_FLAGS) go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) $(TOOLS_LDFLAGS) ./tool/tbot
 
@@ -535,7 +540,7 @@ endif
 	rm -f gitref.go
 	rm -rf build.assets/tooling/bin
 	# Clean up wasm-pack build artifacts
-	rm -rf web/packages/teleport/src/ironrdp/pkg/
+	rm -rf web/packages/shared/libs/ironrdp/pkg/
 
 .PHONY: clean-ui
 clean-ui:
@@ -604,6 +609,10 @@ build-archive: | $(RELEASE_DIR)
 		CHANGELOG.md \
 		build.assets/LICENSE-community \
 		teleport/
+	# add SELinux install script for Linux archives
+	$(if $(filter linux,$(OS)), \
+		cp assets/install-scripts/install-selinux.sh teleport/ \
+	)
 	echo $(GITTAG) > teleport/VERSION
 	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
 	cp $(RELEASE).tar.gz $(RELEASE_DIR)
@@ -615,18 +624,37 @@ build-archive: | $(RELEASE_DIR)
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
 
+.PHONY: build-update-archive
+build-update-archive: | $(RELEASE_DIR)
+	@echo "---> Creating OSS update release archive."
+	mkdir -p teleport
+	cp -rf $(UPDATE_BINARIES) \
+		CHANGELOG.md \
+		build.assets/LICENSE-community \
+		teleport/
+	echo $(GITTAG) > teleport/VERSION
+	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE_UPDATE).tar.gz
+	cp $(RELEASE_UPDATE).tar.gz $(RELEASE_DIR)
+	# linux-amd64 generates a centos7-compatible archive. Make a copy with the -centos7 label,
+	# for the releases page. We should probably drop that at some point.
+	$(if $(filter linux-amd64,$(OS)-$(ARCH)), \
+		cp $(RELEASE_UPDATE).tar.gz $(RELEASE_DIR)/$(subst amd64,amd64-centos7,$(RELEASE_UPDATE)).tar.gz \
+	)
+	rm -rf teleport
+	@echo "---> Created $(RELEASE_UPDATE).tar.gz."
+
 #
 # make release-unix - Produces binary release tarballs for both OSS and
 # Enterprise editions, containing teleport, tctl, tbot and tsh.
 #
 .PHONY: release-unix
-release-unix: clean full build-archive
+release-unix: clean full build-archive build-update-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 # release-unix-preserving-webassets cleans just the build and not the UI
 # allowing webassets to be built in a prior step before building the release.
 .PHONY: release-unix-preserving-webassets
-release-unix-preserving-webassets: clean-build full build-archive
+release-unix-preserving-webassets: clean-build full build-archive build-update-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 include darwin-signing.mk
@@ -769,13 +797,16 @@ release-connect: | $(RELEASE_DIR)
 	pnpm build-term
 	pnpm package-term -c.extraMetadata.version=$(VERSION) --$(ELECTRON_BUILDER_ARCH)
 	# Only copy proper builds with tsh.app to $(RELEASE_DIR)
-	# Drop -universal "arch" from dmg name when copying to $(RELEASE_DIR)
+	# Drop -universal "arch" from dmg and zip name when copying to $(RELEASE_DIR)
 	if [ -n "$$CONNECT_TSH_APP_PATH" ]; then \
-		TARGET_NAME="Teleport Connect-$(VERSION)-$(ARCH).dmg"; \
+		DMG_TARGET_NAME="Teleport Connect-$(VERSION)-$(ARCH).dmg"; \
+		ZIP_TARGET_NAME="Teleport Connect-$(VERSION)-$(ARCH)-mac.zip"; \
 		if [ "$(ARCH)" = 'universal' ]; then \
-			TARGET_NAME="$${TARGET_NAME/-universal/}"; \
+			DMG_TARGET_NAME="$${DMG_TARGET_NAME/-universal/}"; \
+			ZIP_TARGET_NAME="$${ZIP_TARGET_NAME/-universal/}"; \
 		fi; \
-		cp web/packages/teleterm/build/release/"Teleport Connect-$(VERSION)-$(ELECTRON_BUILDER_ARCH).dmg" "$(RELEASE_DIR)/$${TARGET_NAME}"; \
+		cp web/packages/teleterm/build/release/"Teleport Connect-$(VERSION)-$(ELECTRON_BUILDER_ARCH).dmg" "$(RELEASE_DIR)/$${DMG_TARGET_NAME}"; \
+		cp web/packages/teleterm/build/release/"Teleport Connect-$(VERSION)-$(ELECTRON_BUILDER_ARCH)-mac.zip" "$(RELEASE_DIR)/$${ZIP_TARGET_NAME}"; \
 	fi
 
 #
@@ -824,6 +855,17 @@ ensure-gotestsum:
  ifeq (, $(shell command -v gotestsum))
 	go install gotest.tools/gotestsum@latest
 endif
+
+#
+# Install goda to lint testing symbols
+#
+.PHONY: ensure-goda
+ensure-goda:
+# Install goda if it's not already installed
+ ifeq (, $(shell command -v goda))
+	go install github.com/loov/goda@latest
+endif
+
 
 DIFF_TEST := $(TOOLINGDIR)/bin/difftest
 $(DIFF_TEST): $(wildcard $(TOOLINGDIR)/cmd/difftest/*.go)
@@ -911,10 +953,11 @@ test-go-prepare: ensure-webassets bpf-bytecode $(TEST_LOG_DIR) ensure-gotestsum 
 
 # Runs base unit tests
 .PHONY: test-go-unit
+test-go-unit: rdpclient
 test-go-unit: FLAGS ?= -race -shuffle on
 test-go-unit: SUBJECT ?= $(shell go list ./... | grep -vE 'teleport/(e2e|integration|tool/tsh|integrations/operator|integrations/access|integrations/lib)')
 test-go-unit:
-	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) GOEXPERIMENT=synctest go test -cover -json -tags "enablesynctest $(PAM_TAG) $(RDPCLIENT_TAG) $(FIPS_TAG) $$(BPF_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG) $(ADDTAGS)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
 
@@ -1023,6 +1066,12 @@ test-operator:
 test-terraform-provider:
 	make -C integrations test-terraform-provider
 #
+# Runs Teleport MWI Terraform provider tests.
+#
+.PHONY: test-terraform-provider-mwi
+test-terraform-provider-mwi:
+	make -C integrations test-terraform-provider-mwi
+#
 # Runs Go tests on the integrations/kube-agent-updater module. These have to be run separately as the package name is different.
 #
 .PHONY: test-kube-agent-updater
@@ -1068,9 +1117,10 @@ FLAKY_RUNS ?= 3
 FLAKY_TIMEOUT ?= 1h
 FLAKY_TOP_N ?= 20
 FLAKY_SUMMARY_FILE ?= /tmp/flaky-report.txt
+test-go-flaky: rdpclient
 test-go-flaky: FLAGS ?= -race -shuffle on
 test-go-flaky: SUBJECT ?= $(shell go list ./... | grep -v -e e2e -e integration -e tool/tsh -e integrations/operator -e integrations/access -e integrations/lib )
-test-go-flaky: GO_BUILD_TAGS ?= $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(VNETDAEMON_TAG)
+test-go-flaky: GO_BUILD_TAGS ?= $(PAM_TAG) $(FIPS_TAG) $(RDPCLIENT_TAG) $(BPF_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(VNETDAEMON_TAG)
 test-go-flaky: RENDER_FLAGS ?= -report-by flakiness -summary-file $(FLAKY_SUMMARY_FILE) -top $(FLAKY_TOP_N)
 test-go-flaky: test-go-prepare $(RENDER_TESTS) $(RERUN)
 	$(CGOFLAG) $(RERUN) -n $(FLAKY_RUNS) -t $(FLAKY_TIMEOUT) \
@@ -1101,11 +1151,6 @@ test-sh:
 		exit 0; \
 	fi; \
 	bats $(BATSFLAGS) ./assets/aws/files/tests
-
-
-.PHONY: test-e2e
-test-e2e:
-	make -C e2e test
 
 .PHONY: run-etcd
 run-etcd:
@@ -1179,6 +1224,27 @@ lint-no-actions: lint-sh lint-license
 .PHONY: lint-tools
 lint-tools: lint-build-tooling lint-backport
 
+
+#
+# Checks that testing symbols and the testify library is not included in binaries.
+# 
+# 
+.PHONY: lint-test-symbols
+lint-test-symbols: ensure-goda
+	@testing_count=`goda tree "reach(github.com/gravitational/teleport/tool/...:all, testing)" | tee /dev/stderr | wc -l | tr -d ' '`; \
+	if [ "$$testing_count" -gt 0 ]; then \
+		echo ""; \
+		echo "FAIL: \"testing\" is included in binaries"; \
+	fi; \
+	testify_count=`goda tree "reach(github.com/gravitational/teleport/tool/...:all, github.com/stretchr/testify/...)" | tee /dev/stderr | wc -l | tr -d ' '`; \
+	if [ "$$testify_count" -gt 0 ]; then \
+		echo ""; \
+		echo "FAIL: \"github.com/stretchr/testify\" is included in binaries"; \
+	fi; \
+	if [ "$$testing_count" -gt 0 ] || [ "$$testify_count" -gt 0 ]; then \
+		exit 1; \
+	fi
+
 #
 # Runs the clippy linter and rustfmt on our rust modules
 # (a no-op if cargo and rustc are not installed)
@@ -1216,7 +1282,7 @@ fix-imports/host:
 		echo 'gci is not installed or is missing from PATH, consider installing it ("go install github.com/daixiang0/gci@latest") or use "make -C build.assets/ fix-imports"';\
 		exit 1;\
 	fi
-	gci write -s standard -s default  -s 'prefix(github.com/gravitational/teleport)' -s 'prefix(github.com/gravitational/teleport/integrations/terraform,github.com/gravitational/teleport/integrations/event-handler)' --skip-generated .
+	GOEXPERIMENT=synctest gci write -s standard -s default  -s 'prefix(github.com/gravitational/teleport)' -s 'prefix(github.com/gravitational/teleport/integrations/terraform,github.com/gravitational/teleport/integrations/event-handler)' --skip-generated .
 
 lint-build-tooling: GO_LINT_FLAGS ?=
 lint-build-tooling:
@@ -1311,9 +1377,8 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
 		-ignore 'lib/web/build/**' \
 		-ignore 'target/**' \
-		-ignore 'version.go' \
 		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
-		-ignore 'web/packages/teleport/src/ironrdp/**' \
+		-ignore 'web/packages/shared/libs/ironrdp/**' \
 		-ignore 'lib/limiter/internal/ratelimit/**' \
 		-ignore 'webassets/**' \
 		-ignore 'ignoreme'
@@ -1348,7 +1413,7 @@ update-version: version test-helm-update-snapshots
 version: $(VERSRC)
 
 # This rule triggers re-generation of version files specified if Makefile changes.
-$(VERSRC): Makefile
+$(VERSRC) &: Makefile version.mk
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
 
 # Pushes GITTAG and api/GITTAG to GitHub.
@@ -1506,27 +1571,38 @@ enter/arm:
 
 BUF := buf
 
+#
+# Install buf to lint, format and generate code from protobuf files.
+#
+.PHONY: ensure-buf
+ensure-buf: NEED_VERSION = $(shell $(MAKE) --no-print-directory -s -C build.assets print-buf-version)
+ensure-buf:
+# Install buf if it's not already installed.
+ifeq (, $(shell command -v $(BUF)))
+	go install github.com/bufbuild/buf/cmd/buf@$(NEED_VERSION)
+endif
+
 # protos/all runs build, lint and format on all protos.
 # Use `make grpc` to regenerate protos inside buildbox.
 .PHONY: protos/all
 protos/all: protos/build protos/lint protos/format
 
 .PHONY: protos/build
-protos/build: buf/installed
+protos/build: ensure-buf
 	$(BUF) build
 
 .PHONY: protos/format
-protos/format: buf/installed
+protos/format: ensure-buf
 	$(BUF) format -w
 
 .PHONY: protos/lint
-protos/lint: buf/installed
+protos/lint: ensure-buf
 	$(BUF) lint
 	$(BUF) lint --config=buf-legacy.yaml api/proto
 
 .PHONY: protos/breaking
 protos/breaking: BASE=origin/master
-protos/breaking: buf/installed
+protos/breaking: ensure-buf
 	@echo Checking compatibility against BASE=$(BASE)
 	buf breaking . --against '.git#branch=$(BASE)'
 
@@ -1535,13 +1611,6 @@ lint-protos: protos/lint
 
 .PHONY: lint-breaking
 lint-breaking: protos/breaking
-
-.PHONY: buf/installed
-buf/installed:
-	@if ! type -p $(BUF) >/dev/null; then \
-		echo 'Buf is required to build/format/lint protos. Follow https://docs.buf.build/installation.'; \
-		exit 1; \
-	fi
 
 GODERIVE := $(TOOLINGDIR)/bin/goderive
 # derive will generate derived functions for our API.
@@ -1598,7 +1667,7 @@ protos-up-to-date/host: must-start-clean/host grpc/host
 .PHONY: must-start-clean/host
 must-start-clean/host:
 	@if ! git diff --quiet; then \
-		@echo 'This must be run from a repo with no unstaged commits.'; \
+		echo 'This must be run from a repo with no unstaged commits.'; \
 		git diff; \
 		exit 1; \
 	fi
@@ -1606,7 +1675,7 @@ must-start-clean/host:
 # crds-up-to-date checks if the generated CRDs from the protobuf stubs are up to date.
 .PHONY: crds-up-to-date
 crds-up-to-date: must-start-clean/host
-	$(MAKE) -C integrations/operator manifests
+	$(MAKE) -C integrations/operator crd-manifests
 	@if ! git diff --quiet; then \
 		./build.assets/please-run.sh "operator CRD manifests" "make -C integrations/operator crd"; \
 		exit 1; \
@@ -1623,6 +1692,28 @@ terraform-resources-up-to-date: must-start-clean/host
 	$(MAKE) -C integrations/terraform docs
 	@if ! git diff --quiet; then \
 		./build.assets/please-run.sh "TF provider docs" "make -C integrations/terraform docs"; \
+		exit 1; \
+	fi
+
+# icons-up-to-date checks if icons were pre-processed before being added to the repo.
+.PHONY: icons-up-to-date
+icons-up-to-date: must-start-clean/host
+	pnpm process-icons
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "icons (see web/packages/design/src/Icon/README.md)" "pnpm process-icons"; \
+		exit 1; \
+	fi
+
+# go-generate will execute `go generate` and generate go code.
+.PHONY: go-generate
+go-generate:
+	go generate ./lib/...
+
+# go-generate-up-to-date checks if the generated code is up to date.
+.PHONY: go-generate-up-to-date
+go-generate-up-to-date: must-start-clean/host go-generate
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "go generate lib" "make go-generate"; \
 		exit 1; \
 	fi
 
@@ -1675,6 +1766,8 @@ endif
 .PHONY: pkg
 pkg: TELEPORT_PKG_UNSIGNED = $(BUILDDIR)/teleport-$(VERSION).unsigned.pkg
 pkg: TELEPORT_PKG_SIGNED = $(RELEASE_DIR)/teleport-$(VERSION).pkg
+pkg: TELEPORT_TOOLS_PKG_UNSIGNED = $(BUILDDIR)/teleport-tools-$(VERSION).unsigned.pkg
+pkg: TELEPORT_TOOLS_PKG_SIGNED = $(RELEASE_DIR)/teleport-tools-$(VERSION).pkg
 pkg: | $(RELEASE_DIR)
 	mkdir -p $(BUILDDIR)/
 
@@ -1696,6 +1789,10 @@ pkg: | $(RELEASE_DIR)
 	@echo Combining teleport-bin-$(VERSION).pkg and tsh-$(VERSION).pkg into teleport-$(VERSION).pkg
 	productbuild --package $(BUILDDIR)/tsh*.pkg --package $(BUILDDIR)/tctl*.pkg --package $(BUILDDIR)/teleport-bin*.pkg $(TELEPORT_PKG_UNSIGNED)
 	$(NOTARIZE_TELEPORT_PKG)
+
+	@echo Combining tsh-$(VERSION).pkg and tctl-$(VERSION).pkg into teleport-tools-$(VERSION).pkg
+	productbuild --package $(BUILDDIR)/tsh*.pkg --package $(BUILDDIR)/tctl*.pkg $(TELEPORT_TOOLS_PKG_UNSIGNED)
+	$(NOTARIZE_TELEPORT_TOOLS_PKG)
 
 	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
 
@@ -1779,12 +1876,55 @@ ensure-js-deps:
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
 	else $(MAKE) ensure-js-package-manager && pnpm install --frozen-lockfile; fi
 
+.PHONY: ensure-wasm-deps
+ifeq ($(WEBASSETS_SKIP_BUILD),1)
+ensure-wasm-deps:
+else
+ensure-wasm-deps: ensure-wasm-pack ensure-wasm-bindgen
+
+# Get the version of wasm-bindgen from cargo, as that is what wasm-pack is
+# going to do when it checks for the right version. The buildboxes do not
+# have jq installed (yet), so have a hacky awk version on standby.
+CARGO_GET_VERSION_JQ = cargo metadata --locked --format-version=1 | jq -r 'first(.packages[] | select(.name? == "$(1)") | .version)'
+CARGO_GET_VERSION_AWK = awk -F '[ ="]+' '/^name = "$(1)"$$/ {inpkg = 1} inpkg && $$1 == "version" {print $$2; exit}' Cargo.lock
+
+BIN_JQ = $(shell which jq 2>/dev/null)
+CARGO_GET_VERSION = $(if $(BIN_JQ),$(CARGO_GET_VERSION_JQ),$(CARGO_GET_VERSION_AWK))
+
+ensure-wasm-pack: NEED_VERSION = $(shell $(MAKE) --no-print-directory -s -C build.assets print-wasm-pack-version)
+ensure-wasm-pack: INSTALLED_VERSION = $(word 2,$(shell wasm-pack --version 2>/dev/null))
+ensure-wasm-pack:
+	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
+		cargo install wasm-pack --force --locked --version "$(NEED_VERSION)", \
+		@echo wasm-pack up-to-date: $(INSTALLED_VERSION) \
+	)
+
+# TODO: Use CARGO_GET_VERSION_AWK instead of hardcoded version
+#       On 386 Arch, calling the variable produces a malformed command that fails the build.
+#ensure-wasm-bindgen: NEED_VERSION = $(shell $(call CARGO_GET_VERSION,wasm-bindgen))
+ensure-wasm-bindgen: NEED_VERSION = 0.2.99
+ensure-wasm-bindgen: INSTALLED_VERSION = $(word 2,$(shell wasm-bindgen --version 2>/dev/null))
+ensure-wasm-bindgen:
+ifneq ($(CI)$(FORCE),)
+	@: $(or $(NEED_VERSION),$(error Unknown wasm-bindgen version. Is it in Cargo.lock?))
+	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
+		cargo install wasm-bindgen-cli --force --locked --version "$(NEED_VERSION)", \
+		@echo wasm-bindgen-cli up-to-date: $(INSTALLED_VERSION) \
+	)
+else
+	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
+		@echo "Wrong wasm-bindgen version. Want $(NEED_VERSION) have $(INSTALLED_VERSION)"; \
+		echo "Run 'make $@ FORCE=true' to force installation." \
+	)
+endif
+endif
+
 .PHONY: build-ui
-build-ui: ensure-js-deps
+build-ui: ensure-js-deps ensure-wasm-deps
 	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || pnpm build-ui-oss
 
 .PHONY: build-ui-e
-build-ui-e: ensure-js-deps
+build-ui-e: ensure-js-deps ensure-wasm-deps
 	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || pnpm build-ui-e
 
 .PHONY: docker-ui
@@ -1850,3 +1990,21 @@ go-mod-tidy-all:
 dump-preset-roles:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go run ./build.assets/dump-preset-roles/main.go
 	pnpm test web/packages/teleport/src/Roles/RoleEditor/StandardEditor/standardmodel.test.ts
+
+.PHONY: test-e2e
+test-e2e: ensure-webassets
+	(cd e2e && pnpm install) && $(CGOFLAG) go test -tags=webassets_embed ./e2e/web_e2e_test.go
+
+.PHONY: cli-docs-tsh
+cli-docs-tsh:
+	# Not executing go run since we don't want to redirect linker warnings
+	# along with the docs page content.
+	go build -o $(BUILDDIR)/tshdocs -tags docs ./tool/tsh && \
+	$(BUILDDIR)/tshdocs help 2>docs/pages/reference/cli/tsh.mdx && \
+	rm $(BUILDDIR)/tshdocs
+
+.PHONY: gen-docs
+gen-docs:
+	$(MAKE) -C integrations/terraform docs
+	$(MAKE) -C integrations/operator crd-docs
+	$(MAKE) -C examples/chart render-chart-ref

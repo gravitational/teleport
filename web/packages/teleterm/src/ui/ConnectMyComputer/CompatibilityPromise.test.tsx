@@ -105,8 +105,8 @@ test('compatibilityError shows app upgrade instructions', async () => {
 });
 
 test('compatibilityError shows cluster upgrade (and app downgrade) instructions', async () => {
-  const agentVersion = '15.0.0';
-  const proxyVersion = '14.0.0';
+  const agentVersion = '16.0.0';
+  const proxyVersion = '15.0.0';
   const appContext = new MockAppContext({ appVersion: agentVersion });
   const cluster = makeRootCluster({ proxyVersion });
   appContext.clustersService.setState(draftState => {
@@ -123,13 +123,13 @@ test('compatibilityError shows cluster upgrade (and app downgrade) instructions'
 
   await expect(
     screen.findByText(
-      /The cluster is on version 14.0.0 while Teleport Connect is on version 15.0.0./
+      /The cluster is on version 15.0.0 while Teleport Connect is on version 16.0.0./
     )
   ).resolves.toBeVisible();
   await expect(
-    screen.findByText(/downgrade the app to version 14.1.0/)
+    screen.findByText(/downgrade the app to version 15.x.x/)
   ).resolves.toBeVisible();
   await expect(
-    screen.findByText(/upgrade the cluster to version 15.x.x/)
+    screen.findByText(/upgrade the cluster to version 16.x.x/)
   ).resolves.toBeVisible();
 });

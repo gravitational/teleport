@@ -1,17 +1,13 @@
 {
-  "name": "teleport-e2e",
+  "name": "playwright-e2e-testing",
   "version": "1.0.0",
-  "description": "Teleport E2E tests",
-  "repository": "https://github.com/gravitational/teleport",
-  "license": "Apache-2.0",
-  "private": true,
-  "dependencies": {},
-  "devDependencies": {
-    "@playwright/test": "^1.35.1",
-    "typescript": "^5.1.6"
-  },
+  "description": "Playwright tests for e2e testing.",
   "scripts": {
-    "codegen": "playwright codegen https://localhost:3080",
-    "test": "playwright test"
+    "test": "playwright test --project=chromium",
+    "report": "playwright show-report"
+  },
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@playwright/test": "^1.51.1"
   }
 }

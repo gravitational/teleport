@@ -38,6 +38,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -82,7 +83,6 @@ func TestPrincipals(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -408,6 +408,19 @@ func TestIdentity_ToFromSubject(t *testing.T) {
 				assertStringOID(t, string(identity.UserType), UserTypeASN1ExtensionOID, subj, "User Type mismatch")
 			},
 		},
+		{
+			name: "aws credential process credentials on app",
+			identity: &Identity{
+				Username: "llama",                      // Required.
+				Groups:   []string{"editor", "viewer"}, // Required.
+				RouteToApp: RouteToApp{
+					AWSCredentialProcessCredentials: "my credential process credentials",
+				},
+			},
+			assertSubject: func(t *testing.T, identity *Identity, subj *pkix.Name) {
+				assertStringOID(t, "my credential process credentials", AppAWSCredentialProcessCredentialsASN1ExtensionOID, subj, "User Type mismatch")
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -537,6 +550,39 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 					CredentialId: "credentialid1",
 				},
 				UserKind: apievents.UserKind_USER_KIND_HUMAN,
+			},
+		},
+		{
+			name: "user metadata for auth system role",
+			identity: Identity{
+				Username: "system.teleport.name",
+				Groups:   []string{string(types.RoleAuth)},
+			},
+			want: apievents.UserMetadata{
+				User:     "system.teleport.name",
+				UserKind: apievents.UserKind_USER_KIND_SYSTEM,
+			},
+		},
+		{
+			name: "user metadata for discovery system role",
+			identity: Identity{
+				Username: "system.teleport.name",
+				Groups:   []string{string(types.RoleDiscovery)},
+			},
+			want: apievents.UserMetadata{
+				User:     "system.teleport.name",
+				UserKind: apievents.UserKind_USER_KIND_SYSTEM,
+			},
+		},
+		{
+			name: "user metadata for okta system role",
+			identity: Identity{
+				Username: "system.teleport.name",
+				Groups:   []string{string(types.RoleOkta)},
+			},
+			want: apievents.UserMetadata{
+				User:     "system.teleport.name",
+				UserKind: apievents.UserKind_USER_KIND_SYSTEM,
 			},
 		},
 	}

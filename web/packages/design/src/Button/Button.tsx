@@ -26,6 +26,8 @@ import {
   GapProps,
   height,
   HeightProps,
+  minWidth,
+  MinWidthProps,
   space,
   SpaceProps,
   width,
@@ -38,6 +40,7 @@ export type ButtonProps<E extends React.ElementType> =
   React.ComponentPropsWithoutRef<E> &
     SpaceProps &
     WidthProps &
+    MinWidthProps &
     HeightProps &
     AlignSelfProps &
     GapProps & {
@@ -75,7 +78,7 @@ export type ButtonProps<E extends React.ElementType> =
 
       size?: ButtonSize;
       children?: React.ReactNode;
-      setRef?: React.ForwardedRef<HTMLButtonElement>;
+      ref?: React.ForwardedRef<HTMLButtonElement>;
 
       /** If defined, changes the underlying component type. */
       as?: E;
@@ -92,7 +95,7 @@ export type ButtonSize = 'extra-large' | 'large' | 'medium' | 'small';
  */
 export const Button = <E extends React.ElementType = 'button'>({
   children,
-  setRef = undefined,
+  ref,
   size = 'medium',
   intent = 'primary',
   fill = 'filled',
@@ -101,7 +104,7 @@ export const Button = <E extends React.ElementType = 'button'>({
   return (
     <StyledButton
       {...otherProps}
-      ref={setRef}
+      ref={ref}
       size={size}
       intent={intent}
       fill={fill}
@@ -151,6 +154,7 @@ const themedStyles = <E extends React.ElementType>(
     ...size(props),
     ...space(props),
     ...width(props),
+    ...minWidth(props),
     ...block(props),
     ...height(props),
     ...textTransform(props),

@@ -122,7 +122,6 @@ type awsFetcherTest struct {
 func testAWSFetchers(t *testing.T, tests ...awsFetcherTest) {
 	t.Helper()
 	for _, test := range tests {
-		test := test
 		fakeSTS := &mocks.STSClient{}
 		require.Nil(t, test.fetcherCfg.AWSConfigProvider, "testAWSFetchers injects a fake AWSConfigProvider, but the test input had already configured it. This is a test configuration error.")
 		test.fetcherCfg.AWSConfigProvider = &mocks.AWSConfigProvider{
