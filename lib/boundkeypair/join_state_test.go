@@ -134,7 +134,7 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 		issue        func(t *testing.T, clock clockwork.Clock) string
 		verifyParams *JoinStateParams
 
-		clockMod func(clock *clockwork.FakeClock)
+		clockMod func(clock clockwork.FakeClock)
 
 		assertError   require.ErrorAssertionFunc
 		assertSuccess func(t *testing.T, s *JoinState)
@@ -189,7 +189,7 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 			name:         "issued too early",
 			issue:        makeIssuer(activeSigner, makeParams(withRecovery(0, 1))),
 			verifyParams: makeParams(withRecovery(0, 1)),
-			clockMod: func(clock *clockwork.FakeClock) {
+			clockMod: func(clock clockwork.FakeClock) {
 				clock.Advance(-10 * time.Minute)
 			},
 			assertError: func(tt require.TestingT, err error, i ...interface{}) {
