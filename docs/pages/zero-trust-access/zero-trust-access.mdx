@@ -3,4 +3,68 @@ title: Teleport Zero Trust Access
 description: Provides guides for the Teleport Zero Trust Access product.
 ---
 
-<DocCardList />
+Teleport Zero Trust Access provides on-demand, least-privileged access on a
+foundation of cryptographic identity. It enables organizations to set up
+role-based access control for infrastructure resources like servers, Kubernetes
+clusters, databases, web applications, and Windows desktops. 
+
+## Enroll resources
+
+You can enroll infrastructure resources with your Teleport cluster so you can
+consolidate all of your access management into a single platform. Teleport
+uses a single Proxy Service to route traffic into and out of your private
+networks, so you can control authentication and authorization for all client
+traffic to your infrastructure.
+
+[Learn more about enrolling
+resources.](../enroll-resources/enroll-resources.mdx)
+
+## Set up access controls
+
+Teleport enforces role-based access control (RBAC) for operations such as connections
+to infrastructure resources and managing cluster configurations. You can
+configure RBAC to provide least-privilege access across your organization.
+
+[Learn more about access
+controls.](access-controls/access-controls.mdx)
+
+## Connect your identity provider
+
+You can configure Teleport to sign in users with an external identity
+provider of your choice, allowing you to consolidate access to your
+infrastructure while allowing authentication with your existing solutions.
+
+[Learn more about single sign-on.](sso/sso.mdx)
+
+## Export audit events
+
+Teleport emits audit events when users authenticate, connect to an
+infrastructure resource, or otherwise interact with your cluster. You can export
+your audit events to a third-party solution so you can visualize them and set
+alerts.
+
+[Learn more about exporting audit
+events.](export-audit-events/export-audit-events.mdx)
+
+## Infrastructure as code
+
+You can manage your Teleport configuration with the same infrastructure as code
+tools you use to manage your infrastructure. Teleport exposes an API for
+performing operations on configuration resources using Terraform and a
+Kubernetes operator, as well as Teleport's own `tctl` client tool.
+
+[Learn more about infrastructure as code.](infrastructure-as-code/infrastructure-as-code.mdx)
+
+You can also manage Teleport configuration resources with a custom API client.
+[Learn more about using the Teleport
+API.](api/api.mdx)
+
+## Deploy a cluster
+
+While you can sign up for a Teleport Cloud account, in which Teleport manages
+the deployment of the Teleport Auth Service and Teleport Proxy Service for you,
+it is also possible to host these services yourself.
+
+[Learn more about deploying a self-hosted Teleport cluster.](deploy-a-cluster/deploy-a-cluster.mdx)
+
+
