@@ -4010,21 +4010,31 @@ func (process *TeleportProcess) initTracingService() error {
 		return trace.Wrap(err)
 	}
 	traceConf.Logger = process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentTracing, process.id))
-	traceConf.GetDelayedAttributes = func(ctx context.Context) ([]attribute.KeyValue, error) {
-		hostUUID, err := process.waitForHostID(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err, "waiting for host UUID")
-		}
-		return []attribute.KeyValue{
-			attribute.String(tracing.HostIDKey, hostUUID),
-		}, nil
-	}
+	// Host UUID is not ready at this point, it will be reported to the tracing
+	// provider in the goroutine below.
+	traceConf.WaitForDelayedResourceAttrs = true
 
 	provider, err := tracing.NewTraceProvider(process.ExitContext(), *traceConf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	process.TracingProvider = provider
+
+	go func() {
+		var delayedResourceAttrs []tracing.DelayedResourceAttr
+		hostUUID, err := process.waitForHostID(process.GracefulExitContext())
+		if err != nil {
+			logger.WarnContext(process.ExitContext(), "Failed to get host UUID, traces may be exported without host UUID attribute", "error", err)
+		} else {
+			delayedResourceAttrs = append(delayedResourceAttrs, tracing.DelayedResourceAttr{
+				Key:   tracing.HostIDKey,
+				Value: hostUUID,
+			})
+		}
+		if err := process.TracingProvider.ReportDelayedResourceAttrs(process.GracefulExitContext(), delayedResourceAttrs); err != nil {
+			logger.WarnContext(process.ExitContext(), "Failed to report delayed resource attributes to tracing provider", "error", err)
+		}
+	}()
 
 	process.OnExit("tracing.shutdown", func(payload any) {
 		if payload == nil {

@@ -84,10 +84,10 @@ type TracingConfig struct {
 // provided to the tracing_service
 func (t TracingConfig) Config(attrs ...attribute.KeyValue) (*tracing.Config, error) {
 	traceConf := &tracing.Config{
-		Service:          teleport.ComponentTeleport,
-		StaticAttributes: attrs,
-		ExporterURL:      t.ExporterURL,
-		SamplingRate:     t.SamplingRate,
+		Service:      teleport.ComponentTeleport,
+		Attributes:   attrs,
+		ExporterURL:  t.ExporterURL,
+		SamplingRate: t.SamplingRate,
 	}
 
 	tlsConfig := &tls.Config{}

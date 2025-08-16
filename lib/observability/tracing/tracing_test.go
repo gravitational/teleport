@@ -41,6 +41,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 )
 
 func generateTLSCertificate() (tls.Certificate, error) {
@@ -160,10 +161,11 @@ func TestNewExporter(t *testing.T) {
 	}()
 
 	cases := []struct {
-		name              string
-		config            Config
-		errAssertion      require.ErrorAssertionFunc
-		exporterAssertion require.ValueAssertionFunc
+		name                    string
+		config                  Config
+		errAssertion            require.ErrorAssertionFunc
+		exporterAssertion       require.ValueAssertionFunc
+		bufferedClientAssertion require.ValueAssertionFunc
 	}{
 		{
 			name: "invalid config",
@@ -171,7 +173,8 @@ func TestNewExporter(t *testing.T) {
 				require.Error(t, err, i...)
 				require.True(t, trace.IsBadParameter(err), i...)
 			},
-			exporterAssertion: require.Nil,
+			exporterAssertion:       require.Nil,
+			bufferedClientAssertion: require.Nil,
 		},
 		{
 			name: "invalid exporter url",
@@ -183,7 +186,8 @@ func TestNewExporter(t *testing.T) {
 				require.Error(t, err, i...)
 				require.True(t, trace.IsBadParameter(err), i...)
 			},
-			exporterAssertion: require.Nil,
+			exporterAssertion:       require.Nil,
+			bufferedClientAssertion: require.Nil,
 		},
 		{
 			name: "successful explicit grpc exporter",
@@ -192,8 +196,9 @@ func TestNewExporter(t *testing.T) {
 				ExporterURL: c.GRPCAddr(),
 				DialTimeout: time.Second,
 			},
-			errAssertion:      require.NoError,
-			exporterAssertion: require.NotNil,
+			errAssertion:            require.NoError,
+			exporterAssertion:       require.NotNil,
+			bufferedClientAssertion: require.Nil,
 		},
 		{
 			name: "successful inferred grpc exporter",
@@ -202,8 +207,9 @@ func TestNewExporter(t *testing.T) {
 				ExporterURL: c.GRPCAddr()[len("grpc://"):],
 				DialTimeout: time.Second,
 			},
-			errAssertion:      require.NoError,
-			exporterAssertion: require.NotNil,
+			errAssertion:            require.NoError,
+			exporterAssertion:       require.NotNil,
+			bufferedClientAssertion: require.Nil,
 		},
 		{
 			name: "successful http exporter",
@@ -212,8 +218,9 @@ func TestNewExporter(t *testing.T) {
 				ExporterURL: c.HTTPAddr(),
 				DialTimeout: time.Second,
 			},
-			errAssertion:      require.NoError,
-			exporterAssertion: require.NotNil,
+			errAssertion:            require.NoError,
+			exporterAssertion:       require.NotNil,
+			bufferedClientAssertion: require.Nil,
 		},
 		{
 			name: "file exporter",
@@ -221,19 +228,43 @@ func TestNewExporter(t *testing.T) {
 				Service:     "test",
 				ExporterURL: "file://" + t.TempDir(),
 			},
-			errAssertion:      require.NoError,
-			exporterAssertion: require.NotNil,
+			errAssertion:            require.NoError,
+			exporterAssertion:       require.NotNil,
+			bufferedClientAssertion: require.Nil,
+		},
+		{
+			name: "delayed resource attributes",
+			config: Config{
+				Service:                     "test",
+				ExporterURL:                 "file://" + t.TempDir(),
+				WaitForDelayedResourceAttrs: true,
+			},
+			errAssertion:            require.NoError,
+			exporterAssertion:       require.NotNil,
+			bufferedClientAssertion: require.NotNil,
+		},
+		{
+			name: "delayed client",
+			config: Config{
+				Service:              "test",
+				ExporterURL:          "file://" + t.TempDir(),
+				WaitForDelayedClient: true,
+			},
+			errAssertion:            require.NoError,
+			exporterAssertion:       require.NotNil,
+			bufferedClientAssertion: require.NotNil,
 		},
 	}
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			exporter, err := NewExporter(context.Background(), tt.config)
+			exporter, bufClient, err := NewExporter(context.Background(), tt.config)
 			if exporter != nil {
 				t.Cleanup(func() { require.NoError(t, exporter.Shutdown(context.Background())) })
 			}
 			tt.errAssertion(t, err)
 			tt.exporterAssertion(t, exporter)
+			tt.bufferedClientAssertion(t, bufClient)
 		})
 	}
 }
@@ -375,81 +406,122 @@ func TestTraceProvider(t *testing.T) {
 	}
 }
 
-// TestDelayedAttributes tests that all static and delayed attributes are
-// traced when GetDelayedAttributes is used.
-func TestDelayedAttributes(t *testing.T) {
-	collector, err := NewCollector(CollectorConfig{})
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer shutdownCancel()
-		require.NoError(t, collector.Shutdown(shutdownCtx))
-	})
-	go func() {
-		collector.Start()
-	}()
-
-	unblockDelayedAttributes := make(chan struct{})
-	cfg := Config{
-		Service:      "test",
-		SamplingRate: 1.0,
-		ExporterURL:  collector.GRPCAddr(),
-		DialTimeout:  time.Second,
-		StaticAttributes: []attribute.KeyValue{
-			{Key: "static", Value: attribute.IntValue(1)},
+func TestDelayed(t *testing.T) {
+	for _, tc := range []struct {
+		desc                 string
+		staticResourceAttrs  []attribute.KeyValue
+		delayedResourceAttrs []DelayedResourceAttr
+		delayClient          bool
+	}{
+		{
+			desc: "no delay",
+			staticResourceAttrs: []attribute.KeyValue{
+				attribute.String("static", "true"),
+			},
 		},
-		GetDelayedAttributes: func(ctx context.Context) ([]attribute.KeyValue, error) {
-			<-unblockDelayedAttributes
-			return []attribute.KeyValue{
-				{Key: "delayed", Value: attribute.IntValue(1)},
-			}, nil
+		{
+			desc: "delayed resource attributes",
+			staticResourceAttrs: []attribute.KeyValue{
+				attribute.String("static", "true"),
+			},
+			delayedResourceAttrs: []DelayedResourceAttr{
+				{Key: "delayed", Value: "true"},
+			},
 		},
-	}
-	provider, err := NewTraceProvider(t.Context(), cfg)
-	require.NoError(t, err)
-	tracer := provider.Tracer("test")
+		{
+			desc: "delayed client",
+			staticResourceAttrs: []attribute.KeyValue{
+				attribute.String("static", "true"),
+			},
+			delayClient: true,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			collector, err := NewCollector(CollectorConfig{})
+			require.NoError(t, err)
 
-	expectedSpans := make(map[string]struct{})
+			t.Cleanup(func() {
+				shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 3*time.Second)
+				defer shutdownCancel()
+				require.NoError(t, collector.Shutdown(shutdownCtx))
+			})
+			go func() {
+				assert.NoError(t, collector.Start())
+			}()
 
-	// Spans created before GetDelayedAttributes returns will not be exported.
-	for i := range 4 {
-		spanName := fmt.Sprintf("unready%d", i)
-		_, span := tracer.Start(t.Context(), spanName)
-		span.End()
-	}
-
-	unblockDelayedAttributes <- struct{}{}
-	<-provider.ready
-
-	// Spans created after GetDelayedAttributes returns and the real provider
-	// is created must be exported.
-	for i := range 4 {
-		spanName := fmt.Sprintf("ready%d", i)
-		_, span := tracer.Start(t.Context(), spanName)
-		span.End()
-		expectedSpans[spanName] = struct{}{}
-	}
-
-	require.NoError(t, provider.Shutdown(t.Context()))
-
-	expectedResourceAttrs := map[string]struct{}{
-		"delayed": {},
-		"static":  {},
-	}
-	resourceSpans := collector.ResourceSpans()
-	for _, resourceSpan := range resourceSpans {
-		for _, attr := range resourceSpan.Resource.Attributes {
-			delete(expectedResourceAttrs, attr.Key)
-		}
-		for _, scopeSpan := range resourceSpan.ScopeSpans {
-			for _, span := range scopeSpan.Spans {
-				delete(expectedSpans, span.Name)
+			cfg := Config{
+				Service:                     "test",
+				SamplingRate:                1.0,
+				ExporterURL:                 collector.GRPCAddr(),
+				DialTimeout:                 time.Second,
+				Attributes:                  tc.staticResourceAttrs,
+				WaitForDelayedResourceAttrs: len(tc.delayedResourceAttrs) > 0,
+				WaitForDelayedClient:        tc.delayClient,
 			}
-		}
+
+			var delayedClient ClosableClient
+			if tc.delayClient {
+				clt, err := NewClient(cfg)
+				require.NoError(t, err)
+				delayedClient = &closeableClient{clt}
+				cfg.ExporterURL = ""
+			}
+
+			ctx := context.Background()
+			provider, err := NewTraceProvider(ctx, cfg)
+			require.NoError(t, err)
+
+			tracer := provider.Tracer("test")
+			const spanCount = 4
+
+			for i := range spanCount / 2 {
+				_, span := tracer.Start(ctx, fmt.Sprintf("test%d", i))
+				span.End()
+			}
+
+			if len(tc.delayedResourceAttrs) > 0 {
+				require.NoError(t, provider.ReportDelayedResourceAttrs(t.Context(), tc.delayedResourceAttrs))
+			}
+			if tc.delayClient {
+				require.NoError(t, provider.ReportDelayedClient(t.Context(), delayedClient))
+			}
+
+			for i := range spanCount / 2 {
+				_, span := tracer.Start(ctx, fmt.Sprintf("test%d", spanCount/2+i))
+				span.End()
+			}
+
+			require.NoError(t, provider.Shutdown(t.Context()))
+
+			resourceSpans := collector.ResourceSpans()
+			totalSpans := 0
+			for _, resourceSpan := range resourceSpans {
+				expectedResourceAttrs := make(map[string]struct{})
+				for _, attr := range tc.staticResourceAttrs {
+					expectedResourceAttrs[string(attr.Key)] = struct{}{}
+				}
+				for _, attr := range tc.delayedResourceAttrs {
+					expectedResourceAttrs[attr.Key] = struct{}{}
+				}
+				for _, attr := range resourceSpan.Resource.Attributes {
+					delete(expectedResourceAttrs, attr.Key)
+				}
+				assert.Empty(t, expectedResourceAttrs)
+				for _, scopeSpan := range resourceSpan.ScopeSpans {
+					totalSpans += len(scopeSpan.Spans)
+				}
+			}
+			assert.Equal(t, spanCount, totalSpans)
+		})
 	}
-	assert.Empty(t, expectedResourceAttrs, "traced resource attributes did not contain all expected attributes")
-	assert.Empty(t, expectedSpans, "not all expected spans were exported")
+}
+
+type closeableClient struct {
+	otlptrace.Client
+}
+
+func (c *closeableClient) Close() error {
+	return nil
 }
 
 func TestConfig_CheckAndSetDefaults(t *testing.T) {
