@@ -956,7 +956,8 @@ func TestValidateTokenWithOIDC(t *testing.T) {
 
 			issuer := fmt.Sprintf("http://%s", idp.server.Listener.Addr().String())
 
-			result, err := ValidateTokenWithOIDC(ctx, issuer, tt.audience, tt.token)
+			validator := NewKubernetesOIDCTokenValidator()
+			result, err := validator.ValidateToken(ctx, issuer, tt.audience, tt.token)
 			tt.assertError(t, err)
 
 			require.Empty(t, cmp.Diff(
