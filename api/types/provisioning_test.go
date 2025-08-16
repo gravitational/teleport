@@ -1369,6 +1369,54 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			desc: "minimal bound keypair with pregenerated key",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodBoundKeypair,
+					BoundKeypair: &ProvisionTokenSpecV2BoundKeypair{
+						Onboarding: &ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
+							InitialPublicKey: "asdf",
+						},
+					},
+				},
+			},
+			expected: &ProvisionTokenV2{
+				Kind:    "token",
+				Version: "v2",
+				Metadata: Metadata{
+					Name:      "test",
+					Namespace: "default",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodBoundKeypair,
+					BoundKeypair: &ProvisionTokenSpecV2BoundKeypair{
+						Onboarding: &ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
+							InitialPublicKey: "asdf",
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "bound keypair missing onboarding config",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:        []SystemRole{RoleNode},
+					JoinMethod:   JoinMethodBoundKeypair,
+					BoundKeypair: &ProvisionTokenSpecV2BoundKeypair{},
+				},
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tc := range testcases {

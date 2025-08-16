@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"crypto"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
@@ -246,6 +247,16 @@ func (a *Server) SetGHAIDTokenValidator(validator ghaIDTokenValidator) {
 
 func (a *Server) SetGHAIDTokenJWKSValidator(validator ghaIDTokenJWKSValidator) {
 	a.ghaIDTokenJWKSValidator = validator
+}
+
+type BoundKeypairValidator = boundKeypairValidator
+
+type CreateBoundKeypairValidator func(subject string, clusterName string, publicKey crypto.PublicKey) (BoundKeypairValidator, error)
+
+func (a *Server) SetCreateBoundKeypairValidator(validator CreateBoundKeypairValidator) {
+	a.createBoundKeypairValidator = func(subject, clusterName string, publicKey crypto.PublicKey) (boundKeypairValidator, error) {
+		return validator(subject, clusterName, publicKey)
+	}
 }
 
 func (a *Server) AuthenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, services.AccessChecker, error) {
