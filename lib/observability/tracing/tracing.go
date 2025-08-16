@@ -21,6 +21,7 @@ package tracing
 import (
 	"context"
 	"crypto/tls"
+	"io"
 	"log/slog"
 	"net"
 	"net/url"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -79,6 +81,18 @@ type Config struct {
 	// tracing provider. It should **NOT** be closed by the caller.
 	Client *tracing.Client
 
+	// WaitForDelayedClient indicates that the client is not available at the
+	// time the Provider is being created. If this is set to true,
+	// ReportDelayedClient is expected to be called on the Provider. Spans will
+	// be buffered in memory until ReportDelayedClient is called.
+	WaitForDelayedClient bool
+	// WaitForDelayedResourceAttrs indicates that some resource attributes are
+	// not available at the time the Provider is being created.
+	// If this is set to true, ReportDelayedResourceAttrs is expected to be
+	// called on the Provider. Spans will be buffered in memory until
+	// ReportDelayedResourceAttrs is called.
+	WaitForDelayedResourceAttrs bool
+
 	// exporterURL is the parsed value of ExporterURL that is populated
 	// by CheckAndSetDefaults
 	exporterURL *url.URL
@@ -90,10 +104,6 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("service name cannot be empty")
 	}
 
-	if c.Client == nil && c.ExporterURL == "" {
-		return trace.BadParameter("exporter URL cannot be empty")
-	}
-
 	if c.DialTimeout <= 0 {
 		c.DialTimeout = DefaultExporterDialTimeout
 	}
@@ -102,7 +112,10 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Logger = slog.With(teleport.ComponentKey, teleport.ComponentTracing)
 	}
 
-	if c.Client != nil {
+	if c.Client == nil && !c.WaitForDelayedClient && c.ExporterURL == "" {
+		return trace.BadParameter("exporter URL cannot be empty")
+	}
+	if c.ExporterURL == "" {
 		return nil
 	}
 
@@ -144,7 +157,8 @@ func (c *Config) Endpoint() string {
 
 // Provider wraps the OpenTelemetry tracing provider to provide common tags for all tracers.
 type Provider struct {
-	provider *sdktrace.TracerProvider
+	provider       *sdktrace.TracerProvider
+	bufferedClient *bufferedClient
 
 	embedded.TracerProvider
 }
@@ -187,7 +201,7 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	exporter, err := NewExporter(ctx, cfg)
+	exporter, bufClient, err := NewExporter(ctx, cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -228,9 +242,46 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 			sdktrace.WithResource(res),
 			sdktrace.WithSpanProcessor(sdktrace.NewBatchSpanProcessor(exporter)),
 		),
+		bufferedClient: bufClient,
 	}
 
 	otel.SetTracerProvider(provider)
 
 	return provider, nil
+}
+
+// DelayedResourceAttr represents a resource attribute that is not available
+// until after the tracing provider has been created.
+type DelayedResourceAttr struct {
+	Key   string
+	Value string
+}
+
+// ReportDelayedResourceAttrs reports resource attributes that were not
+// available when the Provider was created. The context may be used to upload
+// buffered spans to the upstream client.
+func (p *Provider) ReportDelayedResourceAttrs(ctx context.Context, attrs []DelayedResourceAttr) error {
+	if p.bufferedClient == nil {
+		return trace.BadParameter("ReportDelayedResourceAttrs called without setting cfg.WaitForDelayedAttributes")
+	}
+	p.bufferedClient.reportDelayedResourceAttrs(ctx, attrs)
+	return nil
+}
+
+// ClosableClient is an [otlptrace.Client] implementation that can also be closed.
+type ClosableClient interface {
+	otlptrace.Client
+	io.Closer
+}
+
+// ReportDelayedClient reports a tracing client to the Provider that was not
+// available when the Provider was created. Ownership is transferred to the
+// Provider, it should not be closed by the caller. The context may be used to
+// upload buffered spans to the client.
+func (p *Provider) ReportDelayedClient(ctx context.Context, clt ClosableClient) error {
+	if p.bufferedClient == nil {
+		return trace.BadParameter("ReportDelayedClient called without setting cfg.WaitForDelayedClient")
+	}
+	p.bufferedClient.reportDelayedClient(ctx, clt)
+	return nil
 }
