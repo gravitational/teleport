@@ -256,6 +256,88 @@ func TestAccessListIsMember_RequirementsAndExpiry(t *testing.T) {
 	require.ErrorIs(t, err, trace.AccessDenied("User '%s's membership in Access List '%s' has expired", u.GetName(), acl.GetName()))
 }
 
+func TestAccessListIsMember_NestedListExpiry(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	ctx := context.Background()
+
+	rootAcl := newAccessList(t, "root", clock)
+	acl0 := newAccessList(t, "acl-0", clock)
+	acl1 := newAccessList(t, "acl-1", clock)
+
+	rootToZero := newAccessListMember(t, rootAcl.GetName(), acl0.GetName(), accesslist.MembershipKindList, clock)
+	acl0.Status.MemberOf = append(acl0.Status.MemberOf, rootAcl.GetName())
+
+	zeroToOne := newAccessListMember(t, acl0.GetName(), acl1.GetName(), accesslist.MembershipKindList, clock)
+	acl1.Status.MemberOf = append(acl1.Status.MemberOf, acl0.GetName())
+
+	oneToUser := newAccessListMember(t, acl1.GetName(), "userU", accesslist.MembershipKindUser, clock)
+
+	getter := &mockAccessListAndMembersGetter{
+		accessLists: map[string]*accesslist.AccessList{
+			rootAcl.GetName(): rootAcl,
+			acl0.GetName():    acl0,
+			acl1.GetName():    acl1,
+		},
+		members: map[string][]*accesslist.AccessListMember{
+			rootAcl.GetName(): {rootToZero},
+			acl0.GetName():    {zeroToOne},
+			acl1.GetName():    {oneToUser},
+		},
+	}
+
+	u, err := types.NewUser("userU")
+	require.NoError(t, err)
+	u.SetRoles([]string{"mrole1", "mrole2"})
+	u.SetTraits(map[string][]string{
+		"mtrait1": {"mvalue1", "mvalue2"},
+		"mtrait2": {"mvalue3", "mvalue4"},
+	})
+
+	members, err := GetMembersFor(ctx, rootAcl.GetName(), getter, clock)
+	require.NoError(t, err)
+	require.Len(t, members, 1)
+	typ, err := IsAccessListMember(ctx, u, rootAcl, getter, nil, clock)
+	require.NoError(t, err)
+	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, typ)
+
+	// Expire root -> acl-0 edge, should be no error and 0 members
+	rootToZero.Spec.Expires = clock.Now().Add(-time.Hour)
+	members, err = GetMembersFor(ctx, rootAcl.GetName(), getter, clock)
+	require.NoError(t, err)
+	require.Empty(t, members)
+	typ, err = IsAccessListMember(ctx, u, rootAcl, getter, nil, clock)
+	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, typ)
+	require.NoError(t, err)
+
+	// Only acl-0 -> acl-1 edge expired, should be no error and 0 members
+	rootToZero.Spec.Expires = clock.Now().Add(24 * time.Hour)
+	zeroToOne.Spec.Expires = clock.Now().Add(-time.Hour)
+	members, err = GetMembersFor(ctx, rootAcl.GetName(), getter, clock)
+	require.NoError(t, err)
+	require.Empty(t, members)
+	typ, err = IsAccessListMember(ctx, u, rootAcl, getter, nil, clock)
+	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, typ)
+	require.NoError(t, err)
+
+	// Only acl-1 -> user edge expired, should be AccessDenied and 1 member
+	zeroToOne.Spec.Expires = clock.Now().Add(24 * time.Hour)
+	oneToUser.Spec.Expires = clock.Now().Add(-time.Hour)
+	members, err = GetMembersFor(ctx, rootAcl.GetName(), getter, clock)
+	require.NoError(t, err)
+	require.Len(t, members, 1)
+	typ, err = IsAccessListMember(ctx, u, rootAcl, getter, nil, clock)
+	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, typ)
+	require.ErrorIs(t, err, trace.AccessDenied("User '%s's membership in Access List '%s' has expired", u.GetName(), acl1.GetName()))
+
+	oneToUser.Spec.Expires = clock.Now().Add(24 * time.Hour)
+	members, err = GetMembersFor(ctx, rootAcl.GetName(), getter, clock)
+	require.NoError(t, err)
+	require.Len(t, members, 1)
+	typ, err = IsAccessListMember(ctx, u, rootAcl, getter, nil, clock)
+	require.NoError(t, err)
+	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, typ)
+}
+
 func TestGetOwners(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
@@ -314,7 +396,7 @@ func TestGetOwners(t *testing.T) {
 	}
 
 	// Test GetOwners for acl1
-	owners, err := GetOwnersFor(ctx, acl1, accessListAndMembersGetter)
+	owners, err := GetOwnersFor(ctx, acl1, accessListAndMembersGetter, clock)
 	require.NoError(t, err)
 
 	// Expected owners:
@@ -336,7 +418,7 @@ func TestGetOwners(t *testing.T) {
 	require.Equal(t, expectedOwners, actualOwners, "Owners do not match expected owners")
 
 	// Test GetOwners for acl2
-	owners, err = GetOwnersFor(ctx, acl2, accessListAndMembersGetter)
+	owners, err = GetOwnersFor(ctx, acl2, accessListAndMembersGetter, clock)
 	require.NoError(t, err)
 
 	// Expected owners:
@@ -440,7 +522,7 @@ func TestGetMembersFor_FlattensAndStopsOnCycles(t *testing.T) {
 		},
 	}
 
-	members, err := GetMembersFor(ctx, "A", getter)
+	members, err := GetMembersFor(ctx, "A", getter, clock)
 	require.NoError(t, err)
 
 	names := make([]string, 0, len(members))
