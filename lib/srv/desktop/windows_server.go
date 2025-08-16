@@ -396,7 +396,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if _, err := s.startDynamicReconciler(ctx); err != nil {
+	if err := s.startDynamicReconciler(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
