@@ -21,7 +21,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gravitational/vt10x"
+	"github.com/hinshun/vt10x"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,7 +32,7 @@ func TestTerminalStateToSVG_BasicText(t *testing.T) {
 	vt.Write([]byte("Hello, World!"))
 
 	state := vt.DumpState()
-	svg := terminalStateToSVG(state)
+	svg := TerminalStateToSVG(state)
 
 	assert.Contains(t, svg, `<svg xmlns="http://www.w3.org/2000/svg"`)
 	assert.Contains(t, svg, `font-size="14"`)
@@ -47,7 +47,7 @@ func TestTerminalStateToSVG_Colors(t *testing.T) {
 	vt.Write([]byte("\x1b[31mRed\x1b[0m \x1b[42mGreen BG\x1b[0m"))
 
 	state := vt.DumpState()
-	svg := terminalStateToSVG(state)
+	svg := TerminalStateToSVG(state)
 
 	assert.Contains(t, svg, `class="fg-1"`)
 	assert.Contains(t, svg, "Red")
@@ -62,7 +62,7 @@ func TestTerminalStateToSVG_256Colors(t *testing.T) {
 	vt.Write([]byte("\x1b[48;5;21m BG 21 \x1b[0m"))
 
 	state := vt.DumpState()
-	svg := terminalStateToSVG(state)
+	svg := TerminalStateToSVG(state)
 
 	assert.Contains(t, svg, `style="fill:#ff0000"`)
 	assert.Contains(t, svg, "Color 196")
@@ -76,7 +76,7 @@ func TestTerminalStateToSVG_RGBColors(t *testing.T) {
 	vt.Write([]byte("\x1b[38;2;255;128;64mRGB Text\x1b[0m"))
 
 	state := vt.DumpState()
-	svg := terminalStateToSVG(state)
+	svg := TerminalStateToSVG(state)
 
 	assert.Contains(t, svg, `style="fill:#ff8040"`)
 	assert.Contains(t, svg, "RGB Text")
@@ -91,7 +91,7 @@ func TestTerminalStateToSVG_TextAttributes(t *testing.T) {
 	vt.Write([]byte("\x1b[5mBlink\x1b[0m"))
 
 	state := vt.DumpState()
-	svg := terminalStateToSVG(state)
+	svg := TerminalStateToSVG(state)
 
 	assert.Contains(t, svg, `class="b"`)
 	assert.Contains(t, svg, "Bold")
@@ -111,7 +111,7 @@ func TestTerminalStateToSVG_CursorPosition(t *testing.T) {
 	vt.Write([]byte("At 5,10"))
 
 	state := vt.DumpState()
-	svg := terminalStateToSVG(state)
+	svg := TerminalStateToSVG(state)
 
 	assert.Contains(t, svg, "Line 1")
 	assert.Contains(t, svg, "Line 2")
@@ -126,7 +126,7 @@ func TestTerminalStateToSVG_AlternateScreen(t *testing.T) {
 	vt.Write([]byte("Alternate buffer text"))
 
 	state := vt.DumpState()
-	svg := terminalStateToSVG(state)
+	svg := TerminalStateToSVG(state)
 
 	assert.Contains(t, svg, "Alternate buffer text")
 	assert.True(t, state.AltScreen)
@@ -146,7 +146,7 @@ func TestTerminalStateToSVG_AlternateScreenSwitch(t *testing.T) {
 	vt.Write([]byte("\x1b[?1049l"))
 
 	state := vt.DumpState()
-	svg := terminalStateToSVG(state)
+	svg := TerminalStateToSVG(state)
 
 	assert.False(t, state.AltScreen)
 	assert.Contains(t, svg, "Main screen")
@@ -159,7 +159,7 @@ func TestTerminalStateToSVG_SpecialCharacters(t *testing.T) {
 	vt.Write([]byte(`<tag> & "quotes" 'apostrophes'`))
 
 	state := vt.DumpState()
-	svg := terminalStateToSVG(state)
+	svg := TerminalStateToSVG(state)
 
 	assert.Contains(t, svg, "&lt;tag&gt;")
 	assert.Contains(t, svg, "&amp;")
@@ -174,7 +174,7 @@ func TestTerminalStateToSVG_ReverseVideo(t *testing.T) {
 	vt.Write([]byte(" Normal"))
 
 	state := vt.DumpState()
-	svg := terminalStateToSVG(state)
+	svg := TerminalStateToSVG(state)
 
 	require.Contains(t, svg, "Reversed text")
 	require.Contains(t, svg, "Normal")
@@ -196,7 +196,7 @@ func TestTerminalStateToSVG_MultilineWithColors(t *testing.T) {
 	}
 
 	state := vt.DumpState()
-	svg := terminalStateToSVG(state)
+	svg := TerminalStateToSVG(state)
 
 	for i, expectedColor := range []string{"fg-1", "fg-2", "fg-3", "fg-4", "fg-5"} {
 		assert.Contains(t, svg, expectedColor)
@@ -214,7 +214,7 @@ func TestTerminalStateToSVG_EmptyGlyphs(t *testing.T) {
 	vt.Write([]byte("C"))
 
 	state := vt.DumpState()
-	svg := terminalStateToSVG(state)
+	svg := TerminalStateToSVG(state)
 
 	assert.Contains(t, svg, "A")
 	assert.Contains(t, svg, "B")
@@ -234,7 +234,7 @@ func TestTerminalStateToSVG_ComplexBufferSwap(t *testing.T) {
 	vt.Write([]byte("\x1b[5;20H"))
 
 	altState := vt.DumpState()
-	svgAlt := terminalStateToSVG(altState)
+	svgAlt := TerminalStateToSVG(altState)
 
 	assert.True(t, altState.AltScreen)
 	assert.Contains(t, svgAlt, `class="fg-2"`)
@@ -243,7 +243,7 @@ func TestTerminalStateToSVG_ComplexBufferSwap(t *testing.T) {
 	vt.Write([]byte("\x1b[?1049l"))
 
 	mainState := vt.DumpState()
-	svgMain := terminalStateToSVG(mainState)
+	svgMain := TerminalStateToSVG(mainState)
 
 	assert.False(t, mainState.AltScreen)
 	assert.Contains(t, svgMain, `class="fg-1"`)
@@ -324,7 +324,7 @@ func TestTerminalStateToSVG_SVGStructure(t *testing.T) {
 	vt.Write([]byte("Test"))
 
 	state := vt.DumpState()
-	svg := terminalStateToSVG(state)
+	svg := TerminalStateToSVG(state)
 
 	assert.Contains(t, svg, `<svg xmlns="http://www.w3.org/2000/svg"`)
 	assert.Contains(t, svg, `width="`)
@@ -346,7 +346,7 @@ func TestTerminalStateToSVG_BackgroundRects(t *testing.T) {
 	vt.Write([]byte("\x1b[41mRed BG\x1b[0m \x1b[42mGreen BG\x1b[0m"))
 
 	state := vt.DumpState()
-	svg := terminalStateToSVG(state)
+	svg := TerminalStateToSVG(state)
 
 	assert.Contains(t, svg, `<rect`)
 	assert.Contains(t, svg, `class="bg-1"`)
@@ -359,7 +359,7 @@ func TestTerminalStateToSVG_ExtendedBackgroundColors(t *testing.T) {
 	vt.Write([]byte("\x1b[48;5;196mExtended BG\x1b[0m"))
 
 	state := vt.DumpState()
-	svg := terminalStateToSVG(state)
+	svg := TerminalStateToSVG(state)
 
 	assert.Contains(t, svg, `style="fill:#ff0000"`)
 	assert.Contains(t, svg, "Extended BG")
@@ -371,7 +371,7 @@ func TestTerminalStateToSVG_CombinedAttributes(t *testing.T) {
 	vt.Write([]byte("\x1b[1;3;4mBold Italic Underline\x1b[0m"))
 
 	state := vt.DumpState()
-	svg := terminalStateToSVG(state)
+	svg := TerminalStateToSVG(state)
 
 	assert.Contains(t, svg, `class="b i u"`)
 	assert.Contains(t, svg, "Bold Italic Underline")
@@ -383,7 +383,7 @@ func TestTerminalStateToSVG_EmptyLines(t *testing.T) {
 	vt.Write([]byte("First line\n\n\nFourth line"))
 
 	state := vt.DumpState()
-	svg := terminalStateToSVG(state)
+	svg := TerminalStateToSVG(state)
 
 	assert.Contains(t, svg, "First line")
 	assert.Contains(t, svg, "Fourth line")
@@ -399,7 +399,7 @@ func TestTerminalStateToSVG_SpacedText(t *testing.T) {
 	vt.Write([]byte("C"))
 
 	state := vt.DumpState()
-	svg := terminalStateToSVG(state)
+	svg := TerminalStateToSVG(state)
 
 	assert.Contains(t, svg, "A")
 	assert.Contains(t, svg, "B")

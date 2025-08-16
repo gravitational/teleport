@@ -38,11 +38,15 @@ type UploadHandler interface {
 	UploadSummary(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
 	// DownloadSummary downloads a session summary and writes it to a writer.
 	DownloadSummary(ctx context.Context, sessionID session.ID, writer RandomAccessWriter) error
-
+	// UploadThumbnail uploads a session thumbnail and returns a URL with uploaded
+	// file in case of success.
 	UploadThumbnail(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
+	// DownloadThumbnail downloads a session thumbnail and writes it to a writer.
 	DownloadThumbnail(ctx context.Context, sessionID session.ID, writer RandomAccessWriter) error
-
+	// UploadMetadata uploads session metadata and returns a URL with uploaded
+	// file in case of success.
 	UploadMetadata(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
+	// DownloadMetadata downloads session metadata and writes it to a writer.
 	DownloadMetadata(ctx context.Context, sessionID session.ID, writer RandomAccessWriter) error
 }
 

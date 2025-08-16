@@ -30,7 +30,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/vt10x"
+	"github.com/hinshun/vt10x"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/metadata"

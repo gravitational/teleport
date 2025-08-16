@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gravitational/vt10x"
+	"github.com/hinshun/vt10x"
 )
 
 // Default SVG rendering settings

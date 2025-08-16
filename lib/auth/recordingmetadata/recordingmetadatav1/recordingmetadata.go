@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/vt10x"
+	"github.com/hinshun/vt10x"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
