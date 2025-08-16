@@ -78,15 +78,18 @@ func (m *mockAuthClient) GenerateDatabaseCert(ctx context.Context, request *prot
 }
 
 func (m *mockAuthClient) GenerateWindowsDesktopCert(ctx context.Context, request *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
-	return nil, trace.NotImplemented("GenerateWindowsDesktopCert")
+	return nil, trace.NotImplemented("GenerateWindowsDesktopCert not implemented")
 }
 
 func (m *mockAuthClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
-	return nil, trace.NotImplemented("GetCertAuthority")
+	return nil, trace.NotImplemented("GetCertAuthority not implemented")
 }
 
 func (m *mockAuthClient) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
-	return nil, trace.NotImplemented("GetClusterName")
+	return types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: "test",
+		ClusterID:   "AAAA",
+	})
 }
 
 func TestTLSConfigForLDAP(t *testing.T) {
@@ -95,6 +98,8 @@ func TestTLSConfigForLDAP(t *testing.T) {
 	connector := newLDAPConnector(ldapConnectorConfig{
 		authClient: &mockAuthClient{
 			generateDatabaseCert: func(ctx context.Context, request *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+				require.NotEmpty(t, request.CRLDomain)
+
 				csr, err := tlsca.ParseCertificateRequestPEM(request.CSR)
 				if err != nil {
 					return nil, trace.Wrap(err)
