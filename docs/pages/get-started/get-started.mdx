@@ -1,0 +1,131 @@
+---
+title: "Get Started with Teleport"
+description: "Learn how to deploy a cluster, connect infrastructure, set up access controls, and review audit logs."
+tocDepth: 2
+labels:
+  - get-started
+---
+
+import Button from '@site/src/components/Button';
+
+# Get Started with Teleport
+
+**Welcome to Teleport!**
+
+Teleport is an identity-based access platform that secures servers, Kubernetes clusters, databases, internal applications, and desktops using short-lived certificates, detailed audit logging, and fine-grained role-based access controls tied to your SSO provider (e.g., Okta, GitHub, Google).
+
+This guide walks you through four essential steps to get you up and running.
+
+But before we get started, let's first look at the different editions of Teleport and help you decide which is the best fit for your setup.
+
+## Choose your Teleport edition
+
+At the heart of Teleport is the **cluster**. It's the core component that secures access to your infrastructure.
+
+A Teleport cluster acts as a centralized control plane issuing short-lived certificates, enforcing access policies, and recording all user activity. Every action Teleport takes (login, access, audit) happens through a running Teleport cluster.
+
+### What's your use case?
+
+There are three editions of Teleport. Before choosing one, ask yourself:
+
+- Am I looking to evaluate Teleport quickly or explore the full feature set without provisioning infrastructure? → **Enterprise Cloud**
+- Do I need to deploy and manage Teleport in my own environment for compliance reasons? → **Enterprise Self-Hosted**
+- Do I prefer to self-host Teleport locally to test features or use it for free? → **Community Edition**
+
+Your answers will help determine which of one of these deployment paths is right for you:
+
+<Tabs id="editions">
+  <TabItem value="cloud" label="Enterprise Cloud" default>
+    <div style={{ background: '#f9f9f9', borderRadius: '10px', padding: '30px' }}>
+      > **A fully managed, hosted deployment of Teleport.**
+
+Teleport Enterprise Cloud is a managed deployment of the Teleport Auth Service and Proxy Service, hosted by the Teleport team. We handle all infrastructure, upgrades, and certificate management for you—so you can focus on securing access to your resources without managing servers.
+
+Each customer is provisioned a dedicated tenant with a unique `.teleport.sh` subdomain (e.g., `example.teleport.sh`).
+
+<div style={{ display: 'flex', justifyContent: 'center', gap: '20px' }}>
+  <div style={{ flex: 1 }}>
+  **Pros:**
+
+  * No infrastructure to provision or maintain
+  * Fastest way to evaluate the full feature set
+  * Secure defaults and automatic updates
+  * Scales automatically as your team grows
+  </div>
+  <div style={{ flex: 1 }}>
+  **Cons:**
+
+    * Less control over deployment environment and architecture
+    * Requires internet connectivity
+  </div>
+</div>
+
+<div style={{ marginTop: '20px' }}>
+  <Button as="link" href="./deploy-cloud" variant="primary" shape="lg">Step 1 - Deploy a cluster <Icon name="arrowRight" inline size="md"/></Button>
+</div>
+
+</div>
+</TabItem>
+    <TabItem value="selfhosted" label="Enterprise Self-Hosted">
+    <div style={{ background: '#f9f9f9', borderRadius: '10px', padding: '30px' }}>
+      > **The full enterprise feature set, hosted in your own infrastructure.**
+
+Teleport Enterprise Self-Hosted is a paid plan that includes all features of the Community Edition, plus advanced features for organizations with advanced security needs, such as support for Federal Information Processing Standards (FIPS) and a hardware security module (HSM). It's designed for organizations that need full control over their infrastructure due to internal, privacy, or compliance requirements.
+
+You deploy and operate the Teleport Auth Service and Proxy Service within your own environment and manage your own updates and certificates.
+
+<div style={{ display: 'flex', justifyContent: 'center', gap: '20px' }}>
+  <div style={{ flex: 1 }}>
+  **Pros:**
+
+  * Full control over infrastructure and deployment
+  * No reliance on third-party hosted services
+  * Suitable for large-scale production environments
+  </div>
+  <div style={{ flex: 1 }}>
+  **Cons:**
+
+  * Requires infrastructure provisioning and ongoing maintenance
+  * More complex setup process
+  * Must contact sales to get started
+  </div>
+</div>
+
+<div style={{ marginTop: '20px' }}>
+  <Button as="link" href="../zero-trust-access/deploy-a-cluster" variant="primary" shape="lg">Step 1 - Deploy a cluster <Icon name="arrowRight" inline size="md"/> </Button>
+</div>
+
+</div>
+</TabItem>
+<TabItem value="community" label="Community Edition">
+    <div style={{ background: '#f9f9f9', borderRadius: '10px', padding: '30px' }}>
+      > **A free, open source version of Teleport that you can self-host.**
+
+Teleport Community Edition is a self-hosted, open source distribution that anyone can download and deploy in their own environment. It includes core features like secure access to SSH servers, Kubernetes, databases, and internal applications using identity-based access and session recording.
+
+Community Edition is ideal for hobbyists, homelab users, or small teams ([under 100 employees](https://goteleport.com/blog/teleport-community-license/)) looking to explore Teleport or secure small-scale infrastructure.
+
+<div style={{ display: 'flex', justifyContent: 'center', gap: '20px' }}>
+  <div style={{ flex: 1 }}>
+  **Pros:**
+
+  * Free and open source. Licensed for companies consisting of 100 employees or less and less than US $10 million in revenue
+  * Great for testing, learning, or small-scale use
+  * Active open-source community
+  </div>
+  <div style={{ flex: 1 }}>
+  **Cons:**
+
+  * Does not include enterprise-only features
+  * No commercial support or SLA
+  * Requires self-hosting and manual updates
+  </div>
+</div>
+
+<div style={{ marginTop: '20px' }}>
+  <Button as="link" href="./deploy-community" variant="primary" shape="lg">Step 1 - Deploy a cluster <Icon name="arrowRight" inline size="md"/> </Button>
+</div>
+
+</div>
+</TabItem>
+</Tabs>
