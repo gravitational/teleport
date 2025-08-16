@@ -652,6 +652,62 @@ Match users that end in "@example.com" or weren't matched to any other connector
 user_matchers: ['*', '*@example.com']
 ```
 
+## Using an OIDC provider with arbitrary non-standard JSON claims
+
+Standard OIDC claims consist of string values and lists. However, it is also
+possible to have provider that returns non-standard JSON claims. By default,
+Teleport will not attempt to read these claims for `claims_to_roles` mappings
+or for the user's Teleport traits.
+
+In order to consume these JSON claims, an administrator must create a [login rule](../access-controls/login-rules/login-rules.mdx)
+with a [JSONPath](https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html)
+expression.
+
+For example, imagine a custom distributed IdP that aggregates claims for a user
+from multiple different provider sources. The claims set might look like a JSON object of the following format:
+
+```json
+{
+  "aggregated_claims": {
+    "okta": {
+      "groups": "okta_dev"
+    },
+    "auth0": {
+      "groups": "auth0_devops"
+    }
+  }
+}
+```
+
+The following JSONPath expression will take these claims and interpolate them
+into a standard groups claim:
+
+```yaml
+kind: login_rule
+version: v1
+metadata:
+  name: set_logins
+spec:
+  priority: 1
+  traits_expression: |
+    external.put("groups", jsonpath("$.aggregated_claims.*.groups"))
+```
+
+A user logging in with the claims and login rule above will be treated as if
+they have the following claims:
+
+```json
+{
+  "groups": [
+    "okta_dev", 
+    "auth0_devops"
+  ]
+}
+```
+
+These interpolated claims can be used in claims to roles mappings, and they are
+kept as Teleport traits like any standard claims would be.
+
 ## Troubleshooting
 
 Troubleshooting SSO configuration can be challenging. Usually a Teleport administrator
