@@ -97,7 +97,7 @@ func TestSummarizerService_CreateInferenceModel(t *testing.T) {
 		))
 	})
 	t.Run("invalid", func(t *testing.T) {
-		m := newInferenceModel("dummy-model")
+		m := newInferenceModel("invalid-model")
 		m.Spec.GetOpenai().OpenaiModelId = ""
 		_, err := service.CreateInferenceModel(
 			ctx,
@@ -324,7 +324,7 @@ func TestSummarizerService_CreateInferenceSecret(t *testing.T) {
 		))
 	})
 	t.Run("invalid", func(t *testing.T) {
-		s := newInferenceSecret("dummy-secret")
+		s := newInferenceSecret("invalid-secret")
 		s.Spec.Value = ""
 		_, err := service.CreateInferenceSecret(
 			ctx,
@@ -551,14 +551,14 @@ func TestSummarizerService_CreateInferencePolicy(t *testing.T) {
 		))
 	})
 	t.Run("invalid", func(t *testing.T) {
-		p := newInferencePolicy("dummy-policy")
-		p.Spec.Kinds = nil
+		p := newInferencePolicy("invalid-policy")
+		p.Spec.Filter = "$%^@$"
 		_, err := service.CreateInferencePolicy(
 			ctx,
 			proto.Clone(p).(*summarizerv1.InferencePolicy),
 		)
 		require.Error(t, err)
-		assert.ErrorIs(t, err, trace.BadParameter("spec.kinds are required"))
+		assert.ErrorContains(t, err, "spec.filter has to be a valid predicate")
 	})
 	t.Run("no upsert", func(t *testing.T) {
 		res := newInferencePolicy("no-upsert")
