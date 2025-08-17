@@ -100,6 +100,7 @@ export const SortMenu = <T extends object>({
               dir: current.dir === 'ASC' ? 'DESC' : 'ASC',
             })
           }
+          aria-label="Sort direction"
           textTransform="none"
           css={`
             border-top-left-radius: 0;
