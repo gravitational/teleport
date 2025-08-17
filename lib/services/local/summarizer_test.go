@@ -96,6 +96,16 @@ func TestSummarizerService_CreateInferenceModel(t *testing.T) {
 			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		))
 	})
+	t.Run("invalid", func(t *testing.T) {
+		m := newInferenceModel("dummy-model")
+		m.Spec.GetOpenai().OpenaiModelId = ""
+		_, err := service.CreateInferenceModel(
+			ctx,
+			proto.Clone(m).(*summarizerv1.InferenceModel),
+		)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, trace.BadParameter("spec.openai.openai_model_id is required"))
+	})
 	t.Run("no upsert", func(t *testing.T) {
 		res := newInferenceModel("no-upsert")
 		_, err := service.CreateInferenceModel(
@@ -313,6 +323,16 @@ func TestSummarizerService_CreateInferenceSecret(t *testing.T) {
 			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		))
 	})
+	t.Run("invalid", func(t *testing.T) {
+		s := newInferenceSecret("dummy-secret")
+		s.Spec.Value = ""
+		_, err := service.CreateInferenceSecret(
+			ctx,
+			proto.Clone(s).(*summarizerv1.InferenceSecret),
+		)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, trace.BadParameter("spec.value is required"))
+	})
 	t.Run("no upsert", func(t *testing.T) {
 		res := newInferenceSecret("no-upsert")
 		_, err := service.CreateInferenceSecret(
@@ -529,6 +549,16 @@ func TestSummarizerService_CreateInferencePolicy(t *testing.T) {
 			protocmp.Transform(),
 			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		))
+	})
+	t.Run("invalid", func(t *testing.T) {
+		p := newInferencePolicy("dummy-policy")
+		p.Spec.Kinds = nil
+		_, err := service.CreateInferencePolicy(
+			ctx,
+			proto.Clone(p).(*summarizerv1.InferencePolicy),
+		)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, trace.BadParameter("spec.kinds are required"))
 	})
 	t.Run("no upsert", func(t *testing.T) {
 		res := newInferencePolicy("no-upsert")
