@@ -25,6 +25,7 @@ import (
 
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/summarizer"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -259,6 +260,7 @@ func NewSummarizerService(b backend.Backend) (*SummarizerService, error) {
 			BackendPrefix: backend.NewKey(inferenceModelPrefix),
 			MarshalFunc:   services.MarshalProtoResource[*summarizerv1.InferenceModel],
 			UnmarshalFunc: services.UnmarshalProtoResource[*summarizerv1.InferenceModel],
+			ValidateFunc:  summarizer.ValidateInferenceModel,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -271,6 +273,7 @@ func NewSummarizerService(b backend.Backend) (*SummarizerService, error) {
 			BackendPrefix: backend.NewKey(inferenceSecretPrefix),
 			MarshalFunc:   services.MarshalProtoResource[*summarizerv1.InferenceSecret],
 			UnmarshalFunc: services.UnmarshalProtoResource[*summarizerv1.InferenceSecret],
+			ValidateFunc:  summarizer.ValidateInferenceSecret,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -283,6 +286,7 @@ func NewSummarizerService(b backend.Backend) (*SummarizerService, error) {
 			BackendPrefix: backend.NewKey(inferencePolicyPrefix),
 			MarshalFunc:   services.MarshalProtoResource[*summarizerv1.InferencePolicy],
 			UnmarshalFunc: services.UnmarshalProtoResource[*summarizerv1.InferencePolicy],
+			ValidateFunc:  summarizer.ValidateInferencePolicy,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
