@@ -286,7 +286,7 @@ func NewSummarizerService(b backend.Backend) (*SummarizerService, error) {
 			BackendPrefix: backend.NewKey(inferencePolicyPrefix),
 			MarshalFunc:   services.MarshalProtoResource[*summarizerv1.InferencePolicy],
 			UnmarshalFunc: services.UnmarshalProtoResource[*summarizerv1.InferencePolicy],
-			ValidateFunc:  summarizer.ValidateInferencePolicy,
+			ValidateFunc:  services.ValidateInferencePolicy,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

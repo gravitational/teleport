@@ -23,7 +23,6 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // NewInferenceModel creates a new InferenceModel resource with the given name
@@ -39,6 +38,7 @@ func NewInferenceModel(name string, spec *summarizerv1.InferenceModelSpec) *summ
 	}
 }
 
+// ValidateInferenceModel validates an InferenceModel.
 func ValidateInferenceModel(m *summarizerv1.InferenceModel) error {
 	switch {
 	case m == nil:
@@ -96,6 +96,7 @@ func NewInferenceSecret(name string, spec *summarizerv1.InferenceSecretSpec) *su
 	}
 }
 
+// ValidateInferenceSecret validates an inference secret.
 func ValidateInferenceSecret(s *summarizerv1.InferenceSecret) error {
 	switch {
 	case s == nil:
@@ -136,6 +137,10 @@ func NewInferencePolicy(name string, spec *summarizerv1.InferencePolicySpec) *su
 	}
 }
 
+// ValidateInferencePolicy validates an InferencePolicy. This function doesn't
+// validate the Filter field, as it's unable to access the lib/services
+// package; to fully validate a policy, use
+// lib/services.ValidateInferencePolicy.
 func ValidateInferencePolicy(p *summarizerv1.InferencePolicy) error {
 	switch {
 	case p == nil:
@@ -156,14 +161,11 @@ func ValidateInferencePolicy(p *summarizerv1.InferencePolicy) error {
 
 	case p.GetSpec() == nil:
 		return trace.BadParameter("spec is required")
-	}
-
-	s := p.GetSpec()
-	if s.GetModel() == "" {
+	case p.GetSpec().GetModel() == "":
 		return trace.BadParameter("spec.model is required")
 	}
 
-	kinds := s.GetKinds()
+	kinds := p.GetSpec().GetKinds()
 	if len(kinds) == 0 {
 		return trace.BadParameter("spec.kinds are required")
 	}
@@ -178,17 +180,6 @@ func ValidateInferencePolicy(p *summarizerv1.InferencePolicy) error {
 				"unsupported kind in spec.kinds: %s, supported: %v",
 				kind, strings.Join(supportedKinds, ", "),
 			)
-		}
-	}
-
-	if s.GetFilter() != "" {
-		parser, err := services.NewWhereParser(&services.Context{})
-		if err != nil {
-			return trace.Wrap(err, "spec.filter has to be a valid predicate")
-		}
-		_, err = parser.Parse(s.Filter)
-		if err != nil {
-			return trace.Wrap(err, "spec.filter has to be a valid predicate")
 		}
 	}
 
