@@ -131,6 +131,9 @@ func (cfg *AuthServerConfig) CheckAndSetDefaults() error {
 			SecondFactor: constants.SecondFactorOff,
 		}
 	}
+	if cfg.UploadHandler == nil {
+		cfg.UploadHandler = eventstest.NewMemoryUploader()
+	}
 	return nil
 }
 
@@ -268,11 +271,6 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	// Wrap backend in sanitizer like in production.
 	srv.Backend = backend.NewSanitizer(b)
 
-	uploadHandler := cfg.UploadHandler
-	if uploadHandler == nil {
-		uploadHandler = eventstest.NewMemoryUploader()
-	}
-
 	if cfg.AuditLog != nil {
 		srv.AuditLog = cfg.AuditLog
 	} else {
@@ -280,7 +278,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 			DataDir:       cfg.Dir,
 			ServerID:      cfg.ClusterName,
 			Clock:         cfg.Clock,
-			UploadHandler: uploadHandler,
+			UploadHandler: cfg.UploadHandler,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -333,7 +331,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		AccessLists:               accessLists,
 		FIPS:                      cfg.FIPS,
 		KeyStoreConfig:            cfg.KeystoreConfig,
-		MultipartHandler:          uploadHandler,
+		MultipartHandler:          cfg.UploadHandler,
 		SessionSummarizerProvider: cfg.SessionSummarizerProvider,
 	},
 		WithClock(cfg.Clock),
@@ -962,12 +960,22 @@ type TestIdentity struct {
 	Generation     uint64
 }
 
-// TestUser returns TestIdentity for local user
+// TestUser returns TestIdentity for local user. Note that this constructor only produces a
+// test identity suitable for use with the `NewClient` methods defined in this file, as those helpers
+// auto-populate roles.  Prefer using TestUserWithRoles for most usecases.
 func TestUser(username string) TestIdentity {
+	return TestUserWithRoles(username, nil)
+}
+
+// TestUserWithRoles returns a local user TestIdentity with the specified username and roles.
+func TestUserWithRoles(username string, roles []string) TestIdentity {
 	return TestIdentity{
 		I: authz.LocalUser{
 			Username: username,
-			Identity: tlsca.Identity{Username: username},
+			Identity: tlsca.Identity{
+				Username: username,
+				Groups:   roles,
+			},
 		},
 	}
 }
@@ -1158,6 +1166,15 @@ func (t *TLSServer) NewClientWithCert(clientCert tls.Certificate) (*authclient.C
 
 // NewClient returns new client to test server authenticated with identity
 func (t *TLSServer) NewClient(identity TestIdentity) (*authclient.Client, error) {
+	if localUser, ok := identity.I.(authz.LocalUser); ok && len(localUser.Identity.Groups) == 0 {
+		user, err := t.AuthServer.AuthServer.GetUser(context.TODO(), localUser.Username, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		localUser.Identity.Groups = user.GetRoles()
+		identity.I = localUser
+	}
 	tlsConfig, err := t.ClientTLSConfig(identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1444,7 +1461,7 @@ func WithRoleMutator(mutate ...func(role types.Role)) CreateUserAndRoleOption {
 	}
 }
 
-// CreateUserAndRole creates user and role and assigns role to a user, used in tests
+// CreateUserAndRole creates user and role and assigns role to a user, used in tests.
 // If allowRules is nil, the role has admin privileges.
 // If allowRules is not-nil, then the rules associated with the role will be
 // replaced with those specified.

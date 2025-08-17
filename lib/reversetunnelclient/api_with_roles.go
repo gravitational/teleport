@@ -57,13 +57,13 @@ type TunnelWithRoles struct {
 }
 
 // GetSites returns a list of connected remote sites
-func (t *TunnelWithRoles) GetSites() ([]RemoteSite, error) {
+func (t *TunnelWithRoles) GetSites() ([]Cluster, error) {
 	ctx := context.TODO()
 	clusters, err := t.tunnel.GetSites()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out := make([]RemoteSite, 0, len(clusters))
+	out := make([]Cluster, 0, len(clusters))
 	for _, cluster := range clusters {
 		if t.localCluster == cluster.GetName() {
 			out = append(out, cluster)
@@ -89,7 +89,7 @@ func (t *TunnelWithRoles) GetSites() ([]RemoteSite, error) {
 }
 
 // GetSite returns remote site this node belongs to
-func (t *TunnelWithRoles) GetSite(clusterName string) (RemoteSite, error) {
+func (t *TunnelWithRoles) GetSite(clusterName string) (Cluster, error) {
 	ctx := context.TODO()
 	cluster, err := t.tunnel.GetSite(clusterName)
 	if err != nil {

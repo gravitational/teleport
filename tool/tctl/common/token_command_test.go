@@ -79,7 +79,9 @@ func TestTokens(t *testing.T) {
 	}
 
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	// Test all output formats of "tokens add".
 	buf, err := runTokensCommand(t, clt, []string{"add", "--type=node"})

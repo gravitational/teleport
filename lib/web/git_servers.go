@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
-func (h *Handler) gitServerCreateOrUpsert(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) gitServerCreateOrUpsert(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	var req *ui.CreateGitServerRequest
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -49,7 +49,7 @@ func (h *Handler) gitServerCreateOrUpsert(_ http.ResponseWriter, r *http.Request
 		return nil, trace.Wrap(err)
 	}
 
-	userClient, err := sctx.GetUserClient(r.Context(), site)
+	userClient, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -64,13 +64,13 @@ func (h *Handler) gitServerCreateOrUpsert(_ http.ResponseWriter, r *http.Request
 	return created, trace.Wrap(err)
 }
 
-func (h *Handler) gitServerGet(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) gitServerGet(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	name := p.ByName("name")
 	if name == "" {
 		return nil, trace.BadParameter("git server name is required")
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -79,16 +79,16 @@ func (h *Handler) gitServerGet(_ http.ResponseWriter, r *http.Request, p httprou
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ui.MakeGitServer(site.GetName(), gitServer, false), nil
+	return ui.MakeGitServer(cluster.GetName(), gitServer, false), nil
 }
 
-func (h *Handler) gitServerDelete(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) gitServerDelete(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	name := p.ByName("name")
 	if name == "" {
 		return nil, trace.BadParameter("git server name is required")
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

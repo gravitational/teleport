@@ -38,7 +38,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"maps"
 	mathrand "math/rand/v2"
 	"net"
 	"os"
@@ -81,6 +80,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -114,6 +114,7 @@ import (
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/inventory"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
@@ -138,6 +139,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/lib/versioncontrol/github"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
@@ -2973,7 +2975,7 @@ func (a *Server) AugmentWebSessionCertificates(ctx context.Context, opts *Augmen
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(*x509Identity, a)
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(*x509Identity)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3563,10 +3565,10 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
-	// Generate AWS credential process credentials if the user is trying to access an App with an AWS Roles Anywhere Integration.
-	awsCredentialProcessCredentials, err := generateAWSConfigCredentialProcessCredentials(ctx, a, req, notAfter)
+	// Generate AWS client side credentials if the user is trying to access an AWS App with an AWS Roles Anywhere Integration.
+	awsCredentialProcessCredentials, err := generateAWSClientSideCredentials(ctx, a, req, notAfter)
 	switch {
-	case errors.Is(err, errNotIntegrationApp):
+	case errors.Is(err, errAppWithoutAWSClientSideCredentials):
 	case err != nil:
 		return nil, trace.Wrap(err)
 	}
@@ -4663,7 +4665,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		return nil, trace.NotFound("web session has expired")
 	}
 
-	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(identity, a)
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5340,9 +5342,20 @@ func (a *Server) DeleteToken(ctx context.Context, token string) (err error) {
 
 // GetTokens returns all tokens (machine provisioning ones and user tokens). Machine
 // tokens usually have "node roles", like auth,proxy,node and user invitation tokens have 'signup' role
-func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) (tokens []types.ProvisionToken, err error) {
+// Deprecated: Use [ListProvisionTokens], [ListUserTokens], and [GetStaticTokens] instead.
+// TODO(hugoShaka): DELETE IN 21.0.0
+func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]types.ProvisionToken, error) {
 	// get node tokens:
-	tokens, err = a.Services.GetTokens(ctx)
+	tokens, err := iterstream.Collect(
+		clientutils.Resources(
+			ctx,
+			// ListProvisionTokens take too many arguments for [clientutils.Resources]
+			// so we wrap it to get the usual paginated signature.
+			func(ctx context.Context, pageSize int, pageKey string) ([]types.ProvisionToken, string, error) {
+				return a.Services.ListProvisionTokens(ctx, pageSize, pageKey, nil, "")
+			},
+		),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5355,9 +5368,9 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 		tokens = append(tokens, tkns.GetStaticTokens()...)
 	}
 	// get user tokens:
-	userTokens, err := a.GetUserTokens(ctx)
+	userTokens, err := iterstream.Collect(clientutils.Resources(ctx, a.Services.ListUserTokens))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "retrieving user tokens")
 	}
 	// convert user tokens to machine tokens:
 	for _, t := range userTokens {
@@ -5617,7 +5630,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 // appendImplicitlyRequiredResources examines the set of requested resources and adds
 // any extra resources that are implicitly required by the request.
 func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resources []types.ResourceID) ([]types.ResourceID, error) {
-	addedApps := utils.NewSet[string]()
+	addedApps := set.New[string]()
 	var userGroups []types.ResourceID
 	var accountAssignments []types.ResourceID
 
@@ -5651,7 +5664,7 @@ func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resource
 		}
 	}
 
-	icAccounts := utils.NewSet[string]()
+	icAccounts := set.New[string]()
 	for _, resource := range accountAssignments {
 		// The UI needs access to the account associated with an Account Assignment
 		// in order to display the enclosing Account, otherwise the user will not
@@ -5713,7 +5726,7 @@ func updateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.A
 	}
 
 	// For promotions, add in access list owners as additional suggested reviewers
-	additionalReviewers := map[string]struct{}{}
+	additionalReviewers := set.New[string]()
 
 	// Iterate through the promotions, adding the owners of the corresponding access lists as reviewers.
 	for _, promotion := range promotions.Promotions {
@@ -5724,13 +5737,13 @@ func updateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.A
 		}
 
 		for _, owner := range allOwners {
-			additionalReviewers[owner.Name] = struct{}{}
+			additionalReviewers.Add(owner.Name)
 		}
 	}
 
 	// Only modify the original request if additional reviewers were found.
-	if len(additionalReviewers) > 0 {
-		req.SetSuggestedReviewers(append(req.GetSuggestedReviewers(), slices.Collect(maps.Keys(additionalReviewers))...))
+	if additionalReviewers.Len() > 0 {
+		req.SetSuggestedReviewers(append(req.GetSuggestedReviewers(), additionalReviewers.Elements()...))
 	}
 }
 
@@ -6638,11 +6651,10 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 			}
 		}
 
-		// Create a map of identifiers for quick lookup
-		identifiersMap := make(map[string]struct{})
+		accessListIDs := set.New[string]()
 		for _, id := range identifiers {
 			// id.Spec.UniqueIdentifier is the access list ID
-			identifiersMap[id.Spec.UniqueIdentifier] = struct{}{}
+			accessListIDs.Add(id.Spec.UniqueIdentifier)
 		}
 
 		// owners is the combined list of owners for relevant access lists we are creating the notification for.
@@ -6659,7 +6671,7 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 				return
 			}
 
-			if _, exists := identifiersMap[accessList.GetName()]; !exists {
+			if !accessListIDs.Contains(accessList.GetName()) {
 				needsNotification = true
 				// Create a unique identifier for this access list so that we know it has been accounted for.
 				// Note that if the auth server crashes between creating this identifier and creating the notification,
@@ -6755,6 +6767,9 @@ func (a *Server) createAccessListReminderNotification(ctx context.Context, owner
 }
 
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
+//
+// WARNING: This is not safe for use in clusters using HSMs or KMS for private key material.
+// Instead, you should prefer using the CRLs that are already present in the certificate_authority resource.
 func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
 	// Generate a CRL for the current cluster CA.
 	clusterName, err := a.GetClusterName(ctx)
@@ -6769,10 +6784,8 @@ func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.Cert
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(awly): this will only create a CRL for an active signer.
-	// If there are multiple signers (multiple HSMs), we won't have the full CRL coverage.
-	// Generate a CRL per signer and return all of them separately.
-
+	// Note: this will only create a CRL for a single active signer.
+	// If there are multiple signers (HSMs), we won't have the full CRL coverage.
 	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ctx, ca)
 	if trace.IsNotFound(err) {
 		// If there is no local TLS signer found in the host CA ActiveKeys, this
