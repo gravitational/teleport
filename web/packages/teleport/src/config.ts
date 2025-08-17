@@ -499,6 +499,13 @@ const cfg = {
       parse: '/v1/webapi/yaml/parse/:kind',
       stringify: '/v1/webapi/yaml/stringify/:kind',
     },
+
+    sessionRecording: {
+      metadata:
+        '/v1/webapi/sites/:clusterId/session-recording/:sessionId/metadata',
+      thumbnail:
+        '/v1/webapi/sites/:clusterId/session-recording/:sessionId/thumbnail',
+    },
   },
 
   playable_db_protocols: [],
@@ -872,6 +879,20 @@ const cfg = {
     }
 
     return route;
+  },
+
+  getSessionRecordingMetadataUrl(clusterId: string, sessionId: string) {
+    return generatePath(cfg.api.sessionRecording.metadata, {
+      clusterId,
+      sessionId,
+    });
+  },
+
+  getSessionRecordingThumbnailUrl(clusterId: string, sessionId: string) {
+    return generatePath(cfg.api.sessionRecording.thumbnail, {
+      clusterId,
+      sessionId,
+    });
   },
 
   getConnectionDiagnosticUrl() {
