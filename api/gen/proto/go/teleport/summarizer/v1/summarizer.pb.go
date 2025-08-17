@@ -180,25 +180,9 @@ type InferenceModelSpec struct {
 	// Types that are valid to be assigned to Provider:
 	//
 	//	*InferenceModelSpec_Openai
-	Provider isInferenceModelSpec_Provider `protobuf_oneof:"provider"`
-	// MaxSessionLengthBytes is the maximum session length that can be sent to
-	// inference provider. Currently, it's determined by the size of model's
-	// context window; future versions of Teleport will allow summarizing larger
-	// sessions by splitting them.
-	//
-	// Inference providers will reject requests that are larger than given
-	// model's context window. Since context windows are usually sized in tokens,
-	// this value is an approximation. Assuming 2 bytes per input token should be
-	// safe.
-	//
-	// Currently, Teleport will outright reject sessions larger than this limit;
-	// future versions will split sessions in chunks, treating this size as a
-	// maximum.
-	//
-	// If unset or set to 0, defaults to 1MB.
-	MaxSessionLengthBytes int64 `protobuf:"varint,2,opt,name=max_session_length_bytes,json=maxSessionLengthBytes,proto3" json:"max_session_length_bytes,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	Provider      isInferenceModelSpec_Provider `protobuf_oneof:"provider"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *InferenceModelSpec) Reset() {
@@ -245,13 +229,6 @@ func (x *InferenceModelSpec) GetOpenai() *OpenAIProvider {
 		}
 	}
 	return nil
-}
-
-func (x *InferenceModelSpec) GetMaxSessionLengthBytes() int64 {
-	if x != nil {
-		return x.MaxSessionLengthBytes
-	}
-	return 0
 }
 
 type isInferenceModelSpec_Provider interface {
@@ -752,10 +729,9 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12>\n" +
-	"\x04spec\x18\x05 \x01(\v2*.teleport.summarizer.v1.InferenceModelSpecR\x04spec\"\x9b\x01\n" +
+	"\x04spec\x18\x05 \x01(\v2*.teleport.summarizer.v1.InferenceModelSpecR\x04spec\"b\n" +
 	"\x12InferenceModelSpec\x12@\n" +
-	"\x06openai\x18\x01 \x01(\v2&.teleport.summarizer.v1.OpenAIProviderH\x00R\x06openai\x127\n" +
-	"\x18max_session_length_bytes\x18\x02 \x01(\x03R\x15maxSessionLengthBytesB\n" +
+	"\x06openai\x18\x01 \x01(\v2&.teleport.summarizer.v1.OpenAIProviderH\x00R\x06openaiB\n" +
 	"\n" +
 	"\bprovider\"\xa2\x01\n" +
 	"\x0eOpenAIProvider\x12&\n" +
