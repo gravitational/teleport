@@ -41,6 +41,9 @@ type Kube struct {
 	URI uri.ResourceURI
 
 	KubernetesCluster types.KubeCluster
+
+	// TargetHealth describes the health status of the kube cluster.
+	TargetHealth types.TargetHealth
 }
 
 // reissueKubeCert issue new certificates for kube cluster and saves them to disk.
