@@ -728,12 +728,12 @@ func (c *ConnectionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var text string
 		switch {
 		case errors.Is(err, services.ErrTrustedDeviceRequired):
-			text = `Access to this app requires a trusted device.
+			text = `A trusted device is required to access this resource but this device has not been registered as a trusted device; use 'tsh device enroll' to register as a trusted device.
 
 See https://goteleport.com/docs/admin-guides/access-controls/device-trust/device-management/#troubleshooting for help.
 `
 		case errors.Is(err, services.ErrSessionMFARequired):
-			text = `Access to this app requires multi-factor authentication (MFA), but user has no MFA devices; see Account Settings in the Web UI or use 'tsh mfa add' to register MFA devices.
+			text = `Multi-factor authentication (MFA) is required to access this resource but the current user has no supported MFA devices enrolled; see Account Settings in the Web UI or use 'tsh mfa add' to register an MFA device.
 
 See https://goteleport.com/docs/zero-trust-access/access-controls/guides/per-session-mfa/ for help.
 `
