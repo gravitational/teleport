@@ -233,7 +233,7 @@ func TestTerminalStateToSVG_ComplexBufferSwap(t *testing.T) {
 	vt.Write([]byte("\x1b[5;20H"))
 
 	altState := vt.DumpState()
-	svgAlt := VtStateToSvg(&altState)
+	svgAlt := string(VtStateToSvg(&altState))
 
 	assert.True(t, altState.AltScreen)
 	assert.Contains(t, svgAlt, `class="fg-2"`)
@@ -242,7 +242,7 @@ func TestTerminalStateToSVG_ComplexBufferSwap(t *testing.T) {
 	vt.Write([]byte("\x1b[?1049l"))
 
 	mainState := vt.DumpState()
-	svgMain := VtStateToSvg(&mainState)
+	svgMain := string(VtStateToSvg(&mainState))
 
 	assert.False(t, mainState.AltScreen)
 	assert.Contains(t, svgMain, `class="fg-1"`)
