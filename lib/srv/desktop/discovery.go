@@ -373,7 +373,7 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) error {
 	go func() {
 		s.cfg.Logger.DebugContext(ctx, "Starting dynamic desktop resource watcher.")
 		watcher, err := services.NewDynamicWindowsDesktopWatcher(ctx, services.DynamicWindowsDesktopWatcherConfig{
-			DynamicWindowsDesktopGetter: s.cfg.AuthClient.DynamicDesktopClient(), // is this not using the cache?
+			DynamicWindowsDesktopGetter: s.cfg.AccessPoint, // is this not using the cache?
 			ResourceWatcherConfig: services.ResourceWatcherConfig{
 				Component: teleport.ComponentWindowsDesktop,
 				Client:    s.cfg.AccessPoint,
