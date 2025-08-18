@@ -488,6 +488,12 @@ message AWS {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "docdb,omitempty"
   ];
+
+  // ElastiCacheServerless contains Amazon ElastiCache Serverless metadata.
+  ElastiCacheServerless ElastiCacheServerless = 17 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "elasticache_serverless,omitempty"
+  ];
 }
 
 // SecretStore contains secret store configurations.
@@ -542,6 +548,12 @@ message ElastiCache {
   bool TransitEncryptionEnabled = 3 [(gogoproto.jsontag) = "transit_encryption_enabled,omitempty"];
   // EndpointType is the type of the endpoint.
   string EndpointType = 4 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
+}
+
+// ElastiCacheServerless contains Amazon ElastiCache Serverless metadata.
+message ElastiCacheServerless {
+  // CacheName is an ElastiCache Serverless cache name.
+  string CacheName = 1 [(gogoproto.jsontag) = "cache_name,omitempty"];
 }
 
 // MemoryDB contains AWS MemoryDB specific metadata.
