@@ -165,32 +165,41 @@ const (
 type ConfigFormat string
 
 const (
+	// ConfigFormatUnspecified represents an unspecified format.
+	ConfigFormatUnspecified ConfigFormat = ""
 	// ConfigFormatClaude represents the Claude desktop and Claude Code formats.
 	ConfigFormatClaude ConfigFormat = "claude"
-	// ConfigFormatCursor respresents the Cursor format.
-	ConfigFormatCursor ConfigFormat = "cursor"
 	// ConfigFormatVSCode represents the VSCode format.
 	ConfigFormatVSCode ConfigFormat = "vscode"
 )
+
+// DefaultConfigFormat determines the dafault config format. This can be used
+// in cases where the format wasn't specified.
+const DefaultConfigFormat = ConfigFormatClaude
 
 // ParseConfigFormat parses configuration format from string.
 func ParseConfigFormat(s string) (ConfigFormat, error) {
 	switch ConfigFormat(s) {
 	case ConfigFormatClaude:
 		return ConfigFormatClaude, nil
-	case ConfigFormatCursor:
-		return ConfigFormatCursor, nil
 	case ConfigFormatVSCode:
 		return ConfigFormatVSCode, nil
+	case ConfigFormatUnspecified:
+		return ConfigFormatUnspecified, nil
 	}
 
-	return ConfigFormat(""), trace.BadParameter("unsupported config format")
+	return ConfigFormatUnspecified, trace.BadParameter("unsupported %q config format", s)
+}
+
+// IsSpecified returns whether the config format was specified or not.
+func (cf ConfigFormat) IsSpecified() bool {
+	return cf != ConfigFormatUnspecified
 }
 
 // serversKey returns the MCP servers JSON key for the format.
 func (cf ConfigFormat) serversKey() string {
 	switch cf {
-	case ConfigFormatClaude, ConfigFormatCursor:
+	case ConfigFormatClaude:
 		return claudeServersKey
 	case ConfigFormatVSCode:
 		return vsCodeServersKey
@@ -206,9 +215,9 @@ func ConfigFormatFromPath(configPath string) ConfigFormat {
 		return ConfigFormatVSCode
 	case pathContains(configPath, cursorProjectDir):
 		// Works for both, global and projects settings.
-		return ConfigFormatCursor
+		return ConfigFormatClaude // Cursor uses the same format as Claude.
 	default:
-		return ConfigFormatClaude
+		return DefaultConfigFormat
 	}
 }
 

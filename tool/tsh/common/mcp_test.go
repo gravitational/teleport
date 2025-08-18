@@ -22,6 +22,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	mcpconfig "github.com/gravitational/teleport/lib/client/mcp/config"
 )
 
 func Test_getLoggingOptsWithDefault(t *testing.T) {
@@ -91,6 +93,60 @@ func Test_getLoggingOptsWithDefault(t *testing.T) {
 			opts := getLoggingOptsForMCPServer(tt.cf)
 			tt.checkDebug(t, opts.debug)
 			tt.checkOSLog(t, opts.osLog)
+		})
+	}
+}
+
+func Test_getMCPConfigFormat(t *testing.T) {
+	for name, tc := range map[string]struct {
+		clientConfig   string
+		format         string
+		expectedFormat mcpconfig.ConfigFormat
+		expectedErr    require.ErrorAssertionFunc
+	}{
+		"client config set and no format": {
+			clientConfig:   "/path/to/.vscode/mcp.json", // This path indicates VSCode format.
+			expectedFormat: mcpconfig.ConfigFormatVSCode,
+			expectedErr:    require.NoError,
+		},
+		"only format set": {
+			format:         string(mcpconfig.ConfigFormatVSCode),
+			expectedFormat: mcpconfig.ConfigFormatVSCode,
+			expectedErr:    require.NoError,
+		},
+		"client config and format mismatch": {
+			clientConfig: "/path/to/.vscode/mcp.json", // This path indicates VSCode format.
+			format:       string(mcpconfig.ConfigFormatClaude),
+			expectedErr:  require.Error,
+		},
+		"client config alias and format mismatch": {
+			clientConfig: mcpClientConfigClaude,
+			format:       string(mcpconfig.ConfigFormatVSCode),
+			expectedErr:  require.Error,
+		},
+		"client config and format alias mismatch": {
+			clientConfig: "/path/to/.vscode/mcp.json", // This path indicates VSCode format.
+			format:       cursorConfigFormatAlias,
+			expectedErr:  require.Error,
+		},
+		"invalid format value": {
+			format:      "random-value",
+			expectedErr: require.Error,
+		},
+		"empty values": {
+			expectedFormat: mcpconfig.DefaultConfigFormat,
+			expectedErr:    require.NoError,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			flags := &mcpClientConfigFlags{
+				clientConfig: tc.clientConfig,
+				configFormat: tc.format,
+			}
+
+			res, err := flags.format()
+			tc.expectedErr(t, err)
+			require.Equal(t, tc.expectedFormat, res)
 		})
 	}
 }

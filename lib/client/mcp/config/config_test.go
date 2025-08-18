@@ -134,7 +134,7 @@ func TestFileConfig_sampleFile(t *testing.T) {
 }
 
 func TestConfig_Write(t *testing.T) {
-	for _, format := range []ConfigFormat{ConfigFormatClaude, ConfigFormatCursor, ConfigFormatVSCode} {
+	for _, format := range []ConfigFormat{ConfigFormatClaude, ConfigFormatVSCode} {
 		t.Run(format.serversKey(), func(t *testing.T) {
 			config := NewConfig(format)
 

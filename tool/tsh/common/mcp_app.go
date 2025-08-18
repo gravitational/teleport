@@ -404,7 +404,12 @@ func (c *mcpConfigCommand) printInstructions(w io.Writer) error {
 		return trace.Wrap(err)
 	}
 
-	config := mcpconfig.NewConfig(c.clientConfig.format())
+	configFormat, err := c.clientConfig.format()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	config := mcpconfig.NewConfig(configFormat)
 	if err := c.addMCPServersToConfig(config); err != nil {
 		return trace.Wrap(err)
 	}
