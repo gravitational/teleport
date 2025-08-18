@@ -713,9 +713,9 @@ func makeTestResources(t *testing.T, ctx context.Context, fixture *ictest.Fixtur
 			ARN:            fmt.Sprintf("arn:aws:iam::%s:account/Account%02d", accountID, i),
 			PermissionSets: slices.Values(permissionSets),
 		}.Build()
-		ceated, err := fixture.Auth.CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{Account: account})
+		ceated, err := fixture.Auth.CreateIdentityCenterAccount2(ctx, account)
 		require.NoError(t, err)
-		accounts[i] = ceated.Account
+		accounts[i] = ceated
 
 		for _, ps := range permissionSets {
 			key := assignment{accountID: accountID, permissionSetARN: ps.Spec.Arn}
@@ -728,9 +728,9 @@ func makeTestResources(t *testing.T, ctx context.Context, fixture *ictest.Fixtur
 				PermissionSetName: ps.Spec.Name,
 				PermissionSetARN:  ps.Spec.Arn,
 			}.Build()
-			created, err := fixture.Auth.CreateAccountAssignment(ctx, services.IdentityCenterAccountAssignment{AccountAssignment: assignment})
+			created, err := fixture.Auth.CreateIdentityCenterAccountAssignment(ctx, assignment)
 			require.NoError(t, err)
-			accountAssignments[key] = created.AccountAssignment
+			accountAssignments[key] = created
 
 			role, err := fixture.Auth.Services.Access.CreateRole(ctx,
 				ictest.AccountAssignmentRole{

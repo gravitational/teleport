@@ -13,90 +13,24 @@ import (
 	usersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 type permissionSetLister interface {
-	ListPermissionSets(context.Context, int, *pagination.PageRequestToken) ([]*identitycenterv1.PermissionSet, pagination.NextPageToken, error)
+	ListPermissionSets2(context.Context, int, string) ([]*identitycenterv1.PermissionSet, string, error)
 }
 
 func allPermissionSets(ctx context.Context, src permissionSetLister) iter.Seq2[*identitycenterv1.PermissionSet, error] {
-	const pageSize = 50
-
-	return func(yield func(*identitycenterv1.PermissionSet, error) bool) {
-		var pageToken pagination.PageRequestToken
-		for {
-			pss, nextPage, err := src.ListPermissionSets(ctx, pageSize, &pageToken)
-			if err != nil {
-				yield(nil, trace.Wrap(err, "iterating over all permission sets"))
-				return
-			}
-
-			for _, ps := range pss {
-				if !yield(ps, nil) {
-					return
-				}
-			}
-
-			if nextPage == pagination.EndOfList {
-				break
-			}
-			pageToken.Update(nextPage)
-		}
-	}
+	return clientutils.Resources(ctx, src.ListPermissionSets2)
 }
 
 func allAccountAssignments(ctx context.Context, src services.IdentityCenterAccountAssignments) iter.Seq2[*identitycenterv1.AccountAssignment, error] {
-	const pageSize = 100
-
-	return func(yield func(*identitycenterv1.AccountAssignment, error) bool) {
-		var pageToken pagination.PageRequestToken
-		for {
-			pageItems, nextPage, err := src.ListAccountAssignments(ctx, pageSize, &pageToken)
-			if err != nil {
-				yield(nil, trace.Wrap(err, "enumerating identity center account assignment resources"))
-				return
-			}
-
-			for _, asmt := range pageItems {
-				if !yield(asmt.AccountAssignment, nil) {
-					return
-				}
-			}
-
-			if nextPage == pagination.EndOfList {
-				break
-			}
-			pageToken.Update(nextPage)
-		}
-	}
+	return clientutils.Resources(ctx, src.ListIdentityCenterAccountAssignments)
 }
 
 func allAccounts(ctx context.Context, src services.IdentityCenterAccounts) iter.Seq2[*identitycenterv1.Account, error] {
-	const pageSize = 100
-
-	return func(yield func(*identitycenterv1.Account, error) bool) {
-		var pageToken pagination.PageRequestToken
-		for {
-			pageItems, nextPage, err := src.ListIdentityCenterAccounts(ctx, pageSize, &pageToken)
-			if err != nil {
-				yield(nil, trace.Wrap(err, "enumerating identity center account resources"))
-				return
-			}
-
-			for _, asmt := range pageItems {
-				if !yield(asmt.Account, nil) {
-					return
-				}
-			}
-
-			if nextPage == pagination.EndOfList {
-				break
-			}
-			pageToken.Update(nextPage)
-		}
-	}
+	return clientutils.Resources(ctx, src.ListIdentityCenterAccounts2)
 }
 
 // listTeleportUsers returns a map with a key containing username for each users

@@ -21,7 +21,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 	"github.com/gravitational/teleport/lib/utils/set"
 )
 
@@ -48,12 +47,11 @@ type RolesGetter interface {
 // AccountAssignmentGetter is an abstraction over fetching and listing
 // Account Assignments
 type AccountAssignmentGetter interface {
-	// GetAccountAssignment fetches a specific Identity Center Account Assignment
-	GetAccountAssignment(context.Context, services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error)
+	// GetIdentityCenterAccountAssignment fetches a specific Identity Center Account Assignment
+	GetIdentityCenterAccountAssignment(context.Context, string) (*identitycenterv1.AccountAssignment, error)
 
-	// ListAccountAssignments lists all IdentityCenterAccountAssignment record
-	// known to the service
-	ListAccountAssignments(context.Context, int, *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error)
+	// ListIdentityCenterAccountAssignments lists a page of IdentityCenterAccountAssignment records.
+	ListIdentityCenterAccountAssignments(context.Context, int, string) ([]*identitycenterv1.AccountAssignment, string, error)
 }
 
 type Config struct {
@@ -227,7 +225,7 @@ func accountAssignmentResources(
 			continue
 		}
 
-		asmt, err := assignmentSvc.GetAccountAssignment(ctx, services.IdentityCenterAccountAssignmentID(id.Name))
+		asmt, err := assignmentSvc.GetIdentityCenterAccountAssignment(ctx, id.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/clocki"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 // Fixture holds resources for constructing and testing an
@@ -371,16 +370,14 @@ func createAccessListsMembers(t *testing.T, ctx context.Context, accessListClien
 func createICAccount(t *testing.T, ctx context.Context, icService services.IdentityCenter, accountNames []string) {
 	t.Helper()
 	for _, n := range accountNames {
-		_, err := icService.CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
-			Account: &identitycenterv1.Account{
-				Kind:     types.KindIdentityCenterAccount,
-				Version:  types.V1,
-				Metadata: &headerv1.Metadata{Name: n},
-				Spec: &identitycenterv1.AccountSpec{
-					Id:          "aws-account-id-" + n,
-					Arn:         fmt.Sprintf("arn:aws:sso::%s:", n),
-					Description: "Test account " + n,
-				},
+		_, err := icService.CreateIdentityCenterAccount2(ctx, &identitycenterv1.Account{
+			Kind:     types.KindIdentityCenterAccount,
+			Version:  types.V1,
+			Metadata: &headerv1.Metadata{Name: n},
+			Spec: &identitycenterv1.AccountSpec{
+				Id:          "aws-account-id-" + n,
+				Arn:         fmt.Sprintf("arn:aws:sso::%s:", n),
+				Description: "Test account " + n,
 			},
 		})
 		require.NoError(t, err)
@@ -390,16 +387,14 @@ func createICAccount(t *testing.T, ctx context.Context, icService services.Ident
 func createICAccountAssignment(t *testing.T, ctx context.Context, icService services.IdentityCenter, accountAssignmentNames []string) {
 	t.Helper()
 	for _, n := range accountAssignmentNames {
-		_, err := icService.CreateAccountAssignment(ctx, services.IdentityCenterAccountAssignment{
-			AccountAssignment: &identitycenterv1.AccountAssignment{
-				Kind:     types.KindIdentityCenterAccountAssignment,
-				Version:  types.V1,
-				Metadata: &headerv1.Metadata{Name: n},
-				Spec: &identitycenterv1.AccountAssignmentSpec{
-					Display:     "Some-Permission-set on Some-AWS-account",
-					AccountName: "Some Account Name",
-					AccountId:   "some account id",
-				},
+		_, err := icService.CreateIdentityCenterAccountAssignment(ctx, &identitycenterv1.AccountAssignment{
+			Kind:     types.KindIdentityCenterAccountAssignment,
+			Version:  types.V1,
+			Metadata: &headerv1.Metadata{Name: n},
+			Spec: &identitycenterv1.AccountAssignmentSpec{
+				Display:     "Some-Permission-set on Some-AWS-account",
+				AccountName: "Some Account Name",
+				AccountId:   "some account id",
 			},
 		})
 		require.NoError(t, err)
@@ -492,23 +487,23 @@ func CheckAllICResourcesAreConditionallyDeleted(t *testing.T, ctx context.Contex
 		require.ErrorContains(t, err, "doesn't exist")
 		require.Nil(t, i)
 	}
-	accountFromDB, _, err := args.TestClient.ICService.ListIdentityCenterAccounts(ctx, apidefaults.DefaultChunkSize, &pagination.PageRequestToken{})
+	accountFromDB, _, err := args.TestClient.ICService.ListIdentityCenterAccounts2(ctx, apidefaults.DefaultChunkSize, "")
 	require.NoError(t, err)
 	require.Empty(t, accountFromDB)
 
-	accountAssignmentFromDB, _, err := args.TestClient.ICService.ListAccountAssignments(ctx, apidefaults.DefaultChunkSize, &pagination.PageRequestToken{})
+	accountAssignmentFromDB, _, err := args.TestClient.ICService.ListIdentityCenterAccountAssignments(ctx, apidefaults.DefaultChunkSize, "")
 	require.NoError(t, err)
 	require.Empty(t, accountAssignmentFromDB)
 
-	principalAssignmentFromDB, _, err := args.TestClient.ICService.ListPrincipalAssignments(ctx, apidefaults.DefaultChunkSize, &pagination.PageRequestToken{})
+	principalAssignmentFromDB, _, err := args.TestClient.ICService.ListPrincipalAssignments2(ctx, apidefaults.DefaultChunkSize, "")
 	require.NoError(t, err)
 	require.Empty(t, principalAssignmentFromDB)
 
-	permSetsFromDB, _, err := args.TestClient.ICService.ListPermissionSets(ctx, apidefaults.DefaultChunkSize, &pagination.PageRequestToken{})
+	permSetsFromDB, _, err := args.TestClient.ICService.ListPermissionSets2(ctx, apidefaults.DefaultChunkSize, "")
 	require.NoError(t, err)
 	require.Empty(t, permSetsFromDB)
 
-	provisioningStateFromDB, _, err := args.TestClient.ProvisioningStateService.ListProvisioningStates(ctx, services.DownstreamID(args.DownstreamID), apidefaults.DefaultChunkSize, &pagination.PageRequestToken{})
+	provisioningStateFromDB, _, err := args.TestClient.ProvisioningStateService.ListProvisioningStates2(ctx, services.DownstreamID(args.DownstreamID), apidefaults.DefaultChunkSize, "")
 	require.NoError(t, err)
 	require.Empty(t, provisioningStateFromDB)
 

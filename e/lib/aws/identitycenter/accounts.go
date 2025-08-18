@@ -38,12 +38,12 @@ func (svc *Service) reconcileAccounts(ctx context.Context, oldAccounts, newAccou
 	result := maps.Clone(oldAccounts)
 
 	createAccount := func(ctx context.Context, acct *identitycenterv1.Account) error {
-		createdAcct, err := svc.icSvc.CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{Account: acct})
+		createdAcct, err := svc.icSvc.CreateIdentityCenterAccount2(ctx, acct)
 		if err != nil {
 			return trace.Wrap(err, "creating Identity Center Account record")
 		}
 
-		result[getAccountID(createdAcct.Account)] = createdAcct.Account
+		result[getAccountID(createdAcct)] = createdAcct
 		return nil
 	}
 
@@ -52,11 +52,11 @@ func (svc *Service) reconcileAccounts(ctx context.Context, oldAccounts, newAccou
 		// the conditional update in the Identity Center data service
 		newAcct.Metadata.Revision = oldAcct.Metadata.Revision
 
-		updatedAcct, err := svc.icSvc.UpdateIdentityCenterAccount(ctx, services.IdentityCenterAccount{Account: newAcct})
+		updatedAcct, err := svc.icSvc.UpdateIdentityCenterAccount2(ctx, newAcct)
 		if err != nil {
 			return trace.Wrap(err, "updating Identity Center Account record")
 		}
-		result[getAccountID(updatedAcct.Account)] = updatedAcct.Account
+		result[getAccountID(updatedAcct)] = updatedAcct
 		return nil
 	}
 

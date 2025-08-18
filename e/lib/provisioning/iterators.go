@@ -10,8 +10,8 @@ import (
 	usersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 // allProvisioningStates returns a sequence of (User, error) pairs that walks
@@ -54,29 +54,9 @@ func allUsers(ctx context.Context, users UsersService) iter.Seq2[*types.UserV2, 
 // service. A non-nil error value indicates an error reading from the data
 // service, and no further PrincipalStates will be yielded.
 func allProvisioningStates(ctx context.Context, src services.DownstreamProvisioningStates, downstreamID services.DownstreamID) iter.Seq2[*provisioningv1.PrincipalState, error] {
-	const pageSize = 50
-
-	return func(yield func(*provisioningv1.PrincipalState, error) bool) {
-		var pageToken pagination.PageRequestToken
-		for {
-			page, nextPage, err := src.ListProvisioningStates(ctx, downstreamID, pageSize, &pageToken)
-			if err != nil {
-				yield(nil, trace.Wrap(err, "scanning principal states"))
-				return
-			}
-
-			for _, state := range page {
-				if !yield(state, nil) {
-					return
-				}
-			}
-
-			if nextPage == pagination.EndOfList {
-				break
-			}
-			pageToken.Update(nextPage)
-		}
-	}
+	return clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]*provisioningv1.PrincipalState, string, error) {
+		return src.ListProvisioningStates2(ctx, downstreamID, pageSize, pageToken)
+	})
 }
 
 // allAccessLists returns a sequence of (AccessList, error) pairs. A non-nil

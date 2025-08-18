@@ -51,21 +51,21 @@ func (svc *Service) reconcileAccountAssignments(ctx context.Context, oldAssignme
 	}
 
 	createAssignment := func(ctx context.Context, asmt *identitycenterv1.AccountAssignment) error {
-		createdAsmt, err := svc.icSvc.CreateAccountAssignment(ctx, services.IdentityCenterAccountAssignment{AccountAssignment: asmt})
+		createdAsmt, err := svc.icSvc.CreateIdentityCenterAccountAssignment(ctx, asmt)
 		if err != nil {
 			return trace.Wrap(err, "creating Identity Center Account Assignment record")
 		}
 
-		result[getAccountAssignmentID(createdAsmt.AccountAssignment)] = createdAsmt.AccountAssignment
+		result[getAccountAssignmentID(createdAsmt)] = createdAsmt
 		return nil
 	}
 
 	updateAssignment := func(ctx context.Context, asmt, old *identitycenterv1.AccountAssignment) error {
-		updatedAsmt, err := svc.icSvc.UpdateAccountAssignment(ctx, services.IdentityCenterAccountAssignment{AccountAssignment: asmt})
+		updatedAsmt, err := svc.icSvc.UpdateIdentityCenterAccountAssignment(ctx, asmt)
 		if err != nil {
 			return trace.Wrap(err, "updating Identity Center Account Assignment record")
 		}
-		result[getAccountAssignmentID(updatedAsmt.AccountAssignment)] = updatedAsmt.AccountAssignment
+		result[getAccountAssignmentID(updatedAsmt)] = updatedAsmt
 		return nil
 	}
 

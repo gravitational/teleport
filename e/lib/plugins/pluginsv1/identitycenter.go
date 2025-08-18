@@ -15,7 +15,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 // identityCenterNeedsCleanup will return an error if Teleport cluster has resources
@@ -128,29 +127,29 @@ func checkIdentityCenterResourceDeleteAccess(authCtx *authz.Context) error {
 func listAllIdentityCenterResources(ctx context.Context, icService services.IdentityCenter, provisioningService services.ProvisioningStates) ([]*types.ResourceID, error) {
 	var allResources []*types.ResourceID
 
-	accounts := stream.FilterMap(clientutils.Resources(ctx, adaptPageTokenLister(icService.ListIdentityCenterAccounts)),
-		func(a services.IdentityCenterAccount) (*types.ResourceID, bool) {
+	accounts := stream.FilterMap(clientutils.Resources(ctx, icService.ListIdentityCenterAccounts2),
+		func(a *identitycenterv1.Account) (*types.ResourceID, bool) {
 			return &types.ResourceID{Kind: types.KindIdentityCenterAccount, Name: a.GetMetadata().GetName()}, true
 		})
 
-	assignments := stream.FilterMap(clientutils.Resources(ctx, adaptPageTokenLister(icService.ListAccountAssignments)),
-		func(a services.IdentityCenterAccountAssignment) (*types.ResourceID, bool) {
+	assignments := stream.FilterMap(clientutils.Resources(ctx, icService.ListIdentityCenterAccountAssignments),
+		func(a *identitycenterv1.AccountAssignment) (*types.ResourceID, bool) {
 			return &types.ResourceID{Kind: types.KindIdentityCenterAccountAssignment, Name: a.GetMetadata().GetName()}, true
 		})
 
-	principalAssignments := stream.FilterMap(clientutils.Resources(ctx, adaptPageTokenLister(icService.ListPrincipalAssignments)),
+	principalAssignments := stream.FilterMap(clientutils.Resources(ctx, icService.ListPrincipalAssignments2),
 		func(a *identitycenterv1.PrincipalAssignment) (*types.ResourceID, bool) {
 			return &types.ResourceID{Kind: types.KindIdentityCenterPrincipalAssignment, Name: a.GetMetadata().GetName()}, true
 		})
 
-	permissionSets := stream.FilterMap(clientutils.Resources(ctx, adaptPageTokenLister(icService.ListPermissionSets)),
+	permissionSets := stream.FilterMap(clientutils.Resources(ctx, icService.ListPermissionSets2),
 		func(ps *identitycenterv1.PermissionSet) (*types.ResourceID, bool) {
 			return &types.ResourceID{Kind: types.KindIdentityCenterPermissionSet, Name: ps.GetMetadata().GetName()}, true
 		})
 
-	provisioningStates := stream.FilterMap(clientutils.Resources(ctx, adaptPageTokenLister(func(ctx context.Context, pageSize int, page *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error) {
-		return provisioningService.ListProvisioningStates(ctx, identitycenter.IdentityCenterDownstreamID, pageSize, page)
-	})), func(ps *provisioningv1.PrincipalState) (*types.ResourceID, bool) {
+	provisioningStates := stream.FilterMap(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, page string) ([]*provisioningv1.PrincipalState, string, error) {
+		return provisioningService.ListProvisioningStates2(ctx, identitycenter.IdentityCenterDownstreamID, pageSize, page)
+	}), func(ps *provisioningv1.PrincipalState) (*types.ResourceID, bool) {
 		return &types.ResourceID{Kind: types.KindProvisioningPrincipalState, Name: ps.GetMetadata().GetName()}, true
 	})
 
@@ -160,24 +159,6 @@ func listAllIdentityCenterResources(ctx context.Context, icService services.Iden
 	}
 
 	return allResources, nil
-}
-
-type tokenLister[T any] func(context.Context, int, string) ([]T, string, error)
-
-// ListerWithPageToken is a function that lists resources with a page token.
-type listerWithPageToken[T any] func(context.Context, int, *pagination.PageRequestToken) ([]T, pagination.NextPageToken, error)
-
-// AdaptPageTokenLister adapts a listener with page token to a lister.
-func adaptPageTokenLister[T any](listFn listerWithPageToken[T]) tokenLister[T] {
-	return func(ctx context.Context, pageSize int, pageToken string) ([]T, string, error) {
-		var pageRequestToken pagination.PageRequestToken
-		pageRequestToken.Update(pagination.NextPageToken(pageToken))
-		resources, nextPageToken, err := listFn(ctx, pageSize, &pageRequestToken)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		return resources, string(nextPageToken), nil
-	}
 }
 
 func deleteIdentityCenterResources(ctx context.Context, icService services.IdentityCenter, provisioningService services.ProvisioningStates) error {

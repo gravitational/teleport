@@ -4,18 +4,15 @@ import (
 	"context"
 	"iter"
 
-	"github.com/gravitational/trace"
-
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/pagination"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 )
 
 // AccountAssignmentLister is an abstraction over listing Account Assignments
 type AccountAssignmentLister interface {
-	// ListAccountAssignments lists all IdentityCenterAccountAssignment record
+	// ListIdentityCenterAccountAssignments lists all IdentityCenterAccountAssignment record
 	// known to the service
-	ListAccountAssignments(context.Context, int, *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error)
+	ListIdentityCenterAccountAssignments(context.Context, int, string) ([]*identitycenterv1.AccountAssignment, string, error)
 }
 
 // AllAccountAssignments yields a sequence of (IdentityCenterAccountAssignment, error)
@@ -23,27 +20,5 @@ type AccountAssignmentLister interface {
 // sequence will yield a non-nil error value and the sequence will end
 // immediately.
 func AllAccountAssignments(ctx context.Context, svc AccountAssignmentLister) iter.Seq2[*identitycenterv1.AccountAssignment, error] {
-	const pageSize = 20
-
-	return func(yield func(*identitycenterv1.AccountAssignment, error) bool) {
-		var pageToken pagination.PageRequestToken
-		for {
-			page, nextPage, err := svc.ListAccountAssignments(ctx, pageSize, &pageToken)
-			if err != nil {
-				yield(nil, trace.Wrap(err))
-				return
-			}
-
-			for _, accountAssignment := range page {
-				if !yield(accountAssignment.AccountAssignment, nil) {
-					return
-				}
-			}
-
-			if nextPage == pagination.EndOfList {
-				break
-			}
-			pageToken.Update(nextPage)
-		}
-	}
+	return clientutils.Resources(ctx, svc.ListIdentityCenterAccountAssignments)
 }
