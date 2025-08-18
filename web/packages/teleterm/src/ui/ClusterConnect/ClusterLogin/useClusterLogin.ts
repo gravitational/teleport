@@ -44,7 +44,7 @@ export default function useClusterLogin(props: Props) {
     return Promise.all([
       tshd.getAuthSettings({ clusterUri }).then(({ response }) => response),
       mainProcessClient.checkForAppUpdates(),
-    ]).then(r => r[0]);
+    ]).then(([authSettings]) => authSettings);
   });
 
   const [loginAttempt, login, setAttempt] = useAsync(
