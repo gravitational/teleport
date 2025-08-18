@@ -58,11 +58,12 @@ type mcpClientConfigFlags struct {
 }
 
 const (
-	mcpClientConfigClaude     = "claude"
-	mcpClientConfigClaudeCode = "claude-code"
-	mcpClientConfigCursor     = "cursor"
-	mcpClientConfigVSCode     = "vscode"
+	mcpClientConfigClaude = "claude"
+	mcpClientConfigCursor = "cursor"
 )
+
+// cursorConfigFormatAlias is an alias for Cursor config format.
+const cursorConfigFormatAlias = "cursor"
 
 func (m *mcpClientConfigFlags) addToCmd(cmd *kingpin.CmdClause) {
 	cmd.Flag(
@@ -91,12 +92,12 @@ func (m *mcpClientConfigFlags) addToCmd(cmd *kingpin.CmdClause) {
 	cmd.Flag(
 		"format",
 		fmt.Sprintf(
-			"Format specifies the configuration format. It can be used to generate proper configuration for the client without directly updating the file. Use %q for Claude and Claude Code format, or %q for VSCode format. Defaults to %s. If --client-config is specified, this flag will have not effect.",
+			"Format specifies the configuration format (%s, %s, %s). If not provided it will assume format from the configuration file, When no configuration file is provided it defaults to %q.",
 			mcpconfig.ConfigFormatClaude,
 			mcpconfig.ConfigFormatVSCode,
-			mcpconfig.ConfigFormatClaude,
+			cursorConfigFormatAlias,
+			mcpconfig.DefaultConfigFormat,
 		)).
-		Default(string(mcpconfig.ConfigFormatClaude)).
 		StringVar(&m.configFormat)
 }
 
@@ -125,29 +126,69 @@ func (m *mcpClientConfigFlags) printFooterNotes(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-func (m *mcpClientConfigFlags) format() mcpconfig.ConfigFormat {
+func (m *mcpClientConfigFlags) format() (mcpconfig.ConfigFormat, error) {
+	var (
+		configFormat mcpconfig.ConfigFormat
+		flagFormat   mcpconfig.ConfigFormat
+	)
+
 	if m.clientConfig != "" {
-		return mcpconfig.ConfigFormatFromPath(m.clientConfig)
+		configFormat = mcpconfig.ConfigFormatFromPath(m.clientConfig)
 	}
-	if format, err := mcpconfig.ParseConfigFormat(m.configFormat); err == nil {
-		return format
+
+	if m.configFormat != "" {
+		// Solve alias.
+		if m.configFormat == cursorConfigFormatAlias {
+			m.configFormat = string(mcpconfig.ConfigFormatClaude)
+		}
+
+		var err error
+		flagFormat, err = mcpconfig.ParseConfigFormat(m.configFormat)
+		if err != nil {
+			return mcpconfig.ConfigFormatUnspecified, trace.Wrap(err)
+		}
 	}
-	// In case it is empty or a unknown format, defaults to Claude format.
-	return mcpconfig.ConfigFormatClaude
+
+	// If both the format and config file path are presented, we must ensure
+	// both have the same format.
+	if configFormat.IsSpecified() && flagFormat.IsSpecified() {
+		if configFormat == flagFormat {
+			return configFormat, nil
+		}
+
+		return mcpconfig.ConfigFormatUnspecified, trace.BadParameter(
+			"Configuration format mismatch. --client-config=%s option uses %q config format, but --format=%s was set. You can drop one of the flags or adjust the values to match.",
+			m.clientConfig,
+			configFormat,
+			m.configFormat,
+		)
+	}
+
+	if configFormat.IsSpecified() {
+		return configFormat, nil
+	}
+
+	if flagFormat.IsSpecified() {
+		return flagFormat, nil
+	}
+
+	// In case of unspecified format, use default value.
+	return mcpconfig.DefaultConfigFormat, nil
 }
 
 // runMCPConfig runs the MCP config based on flags.
 func runMCPConfig(cf *CLIConf, flags *mcpClientConfigFlags, exec mcpConfigExec) error {
-	switch flags.clientConfig {
-	case "", mcpClientConfigVSCode, mcpClientConfigClaudeCode:
-		return trace.Wrap(exec.printInstructions(cf.Stdout()))
-	default:
-		config, err := flags.loadConfig()
-		if err != nil {
-			return trace.BadParameter("failed to load mcp configuration file at %q: %v", flags.clientConfig, err)
-		}
-		return trace.Wrap(exec.updateConfig(cf.Stdout(), config))
+	// Ensure the format options are correct, otherwise return error to the
+	// user instead of ignoring the values.
+	if _, err := flags.format(); err != nil {
+		return trace.Wrap(err)
 	}
+
+	config, err := flags.loadConfig()
+	if err != nil {
+		return trace.BadParameter("failed to load mcp configuration file at %q: %v", flags.clientConfig, err)
+	}
+	return trace.Wrap(exec.updateConfig(cf.Stdout(), config))
 }
 
 // mcpConfig defines a subset of functions from mcpconfig.Config.
@@ -159,8 +200,6 @@ type mcpConfig interface {
 // mcpConfigExec defines the interface for generating install instructions and
 // directly updating the MCP config.
 type mcpConfigExec interface {
-	// printInstructions prints instructions on how to configure the MCP server.
-	printInstructions(io.Writer) error
 	// updateConfig directly updates the client config. It might also print
 	// information.
 	updateConfig(io.Writer, *mcpconfig.FileConfig) error
