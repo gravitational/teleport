@@ -32,15 +32,15 @@ func terminalStateToANSI(state vt10x.TerminalState) string {
 	var buf bytes.Buffer
 
 	// Initialize the terminal
-	buf.WriteString("\x1b[!p") // Soft reset (DECSTR)
-	buf.WriteString("\x1b[2J") // Clear screen
-	buf.WriteString("\x1b[H")  // Home cursor
+	fmt.Fprintf(&buf, "\x1b[!p") // Soft reset (DECSTR)
+	fmt.Fprintf(&buf, "\x1b[2J") // Clear screen
+	fmt.Fprintf(&buf, "\x1b[H")  // Home cursor
 
 	// Set terminal size
-	buf.WriteString(fmt.Sprintf("\x1b[8;%d;%dt", state.Rows, state.Cols))
+	fmt.Fprintf(&buf, "\x1b[8;%d;%dt", state.Rows, state.Cols)
 
 	if state.Title != "" {
-		buf.WriteString(fmt.Sprintf("\x1b]0;%s\x07", state.Title))
+		fmt.Fprintf(&buf, "\x1b]0;%s\x07", state.Title)
 	}
 
 	// Apply terminal mode settings
@@ -50,15 +50,15 @@ func terminalStateToANSI(state vt10x.TerminalState) string {
 	writeMode(&buf, "?5", state.ReverseVideo) // Reverse video
 
 	// Configure tab stops
-	buf.WriteString("\x1b[3g") // Clear all tab stops
+	fmt.Fprintf(&buf, "\x1b[3g") // Clear all tab stops
 	for _, col := range state.TabStops {
-		buf.WriteString(fmt.Sprintf("\x1b[%dG", col+1))
-		buf.WriteString("\x1bH")
+		fmt.Fprintf(&buf, "\x1b[%dG", col+1)
+		fmt.Fprintf(&buf, "\x1bH")
 	}
 
 	// Set scroll region (if not default)
 	if state.ScrollTop != 0 || state.ScrollBottom != state.Rows-1 {
-		buf.WriteString(fmt.Sprintf("\x1b[%d;%dr", state.ScrollTop+1, state.ScrollBottom+1))
+		fmt.Fprintf(&buf, "\x1b[%d;%dr", state.ScrollTop+1, state.ScrollBottom+1)
 	}
 
 	// Handle alternate screen mode
@@ -67,12 +67,12 @@ func terminalStateToANSI(state vt10x.TerminalState) string {
 		renderBuffer(&buf, state.AlternateBuffer)
 
 		// Save the current cursor position
-		buf.WriteString(fmt.Sprintf("\x1b[%d;%dH", state.SavedCursorY+1, state.SavedCursorX+1))
+		fmt.Fprintf(&buf, "\x1b[%d;%dH", state.SavedCursorY+1, state.SavedCursorX+1)
 
 		// Switch to alternate screen
-		buf.WriteString("\x1b[?1049h")
-		buf.WriteString("\x1b[2J") // Clear the alternate screen
-		buf.WriteString("\x1b[H")  // Home cursor
+		fmt.Fprintf(&buf, "\x1b[?1049h")
+		fmt.Fprintf(&buf, "\x1b[2J") // Clear the alternate screen
+		fmt.Fprintf(&buf, "\x1b[H")  // Home cursor
 
 		// Render the primary buffer on the alternate screen
 		renderBuffer(&buf, state.PrimaryBuffer)
@@ -81,7 +81,7 @@ func terminalStateToANSI(state vt10x.TerminalState) string {
 	}
 
 	// Set cursor position and visibility
-	buf.WriteString(fmt.Sprintf("\x1b[%d;%dH", state.CursorY+1, state.CursorX+1))
+	fmt.Fprintf(&buf, "\x1b[%d;%dH", state.CursorY+1, state.CursorX+1)
 	writeMode(&buf, "?25", state.CursorVisible)
 
 	return buf.String()
@@ -89,14 +89,14 @@ func terminalStateToANSI(state vt10x.TerminalState) string {
 
 func writeMode(buf *bytes.Buffer, mode string, enabled bool) {
 	if enabled {
-		buf.WriteString(fmt.Sprintf("\x1b[%sh", mode))
+		fmt.Fprintf(buf, "\x1b[%sh", mode)
 	} else {
-		buf.WriteString(fmt.Sprintf("\x1b[%sl", mode))
+		fmt.Fprintf(buf, "\x1b[%sl", mode)
 	}
 }
 
 func renderBuffer(buf *bytes.Buffer, buffer [][]vt10x.Glyph) {
-	buf.WriteString("\x1b[0m") // Reset all attributes
+	fmt.Fprintf(buf, "\x1b[0m") // Reset all attributes
 
 	// Track last rendered attributes to minimize escape sequences
 	lastFG := vt10x.DefaultFG
@@ -117,7 +117,7 @@ func renderBuffer(buf *bytes.Buffer, buffer [][]vt10x.Glyph) {
 			continue
 		}
 
-		buf.WriteString(fmt.Sprintf("\x1b[%d;1H", y+1))
+		fmt.Fprintf(buf, "\x1b[%d;1H", y+1)
 
 		for x := 0; x < len(buffer[y]); x++ {
 			glyph := buffer[y][x]
@@ -181,9 +181,7 @@ func renderBuffer(buf *bytes.Buffer, buffer [][]vt10x.Glyph) {
 
 			// Emit escape sequence if any attributes changed
 			if len(codes) > 0 {
-				buf.WriteString("\x1b[")
-				buf.WriteString(strings.Join(codes, ";"))
-				buf.WriteString("m")
+				fmt.Fprintf(buf, "\x1b[%sm", strings.Join(codes, ";"))
 			}
 
 			// Write character (space for null character)
@@ -195,7 +193,7 @@ func renderBuffer(buf *bytes.Buffer, buffer [][]vt10x.Glyph) {
 		}
 	}
 
-	buf.WriteString("\x1b[0m") // Reset attributes at end
+	fmt.Fprintf(buf, "\x1b[0m") // Reset attributes at end
 }
 
 func colorToANSI(color vt10x.Color, isForeground bool) []string {
