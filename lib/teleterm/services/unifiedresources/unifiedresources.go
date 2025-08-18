@@ -125,6 +125,7 @@ func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListU
 				Kube: &clusters.Kube{
 					URI:               cluster.URI.AppendKube(kubeCluster.GetName()),
 					KubernetesCluster: kubeCluster,
+					TargetHealth:      r.GetTargetHealth(),
 				},
 				RequiresRequest: requiresRequest,
 			})

@@ -58,6 +58,14 @@ type KubeServer interface {
 	SetCluster(KubeCluster) error
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
+	// GetTargetHealth returns the kube server's target health.
+	GetTargetHealth() TargetHealth
+	// SetTargetHealth sets the kube server's target health.
+	SetTargetHealth(h TargetHealth)
+	// GetTargetHealthStatus returns target health status.
+	GetTargetHealthStatus() TargetHealthStatus
+	// SetTargetHealthStatus sets target health status.
+	SetTargetHealthStatus(status TargetHealthStatus)
 }
 
 // NewKubernetesServerV3 creates a new kube server instance.
@@ -299,6 +307,38 @@ func (s *KubernetesServerV3) CloneResource() ResourceWithLabels {
 // match against the list of search values.
 func (s *KubernetesServerV3) MatchSearch(values []string) bool {
 	return MatchSearch(nil, values, nil)
+}
+
+// GetTargetHealth returns the kube server's target health.
+func (s *KubernetesServerV3) GetTargetHealth() TargetHealth {
+	if s.Status.TargetHealth == nil {
+		return TargetHealth{}
+	}
+	return *s.Status.TargetHealth
+}
+
+// SetTargetHealth sets the kube server's target health status.
+func (s *KubernetesServerV3) SetTargetHealth(h TargetHealth) {
+	if s.Status == nil {
+		s.Status = &KubernetesServerStatusV3{}
+	}
+	s.Status.TargetHealth = &h
+}
+
+// GetTargetHealthStatus returns target health status.
+func (s *KubernetesServerV3) GetTargetHealthStatus() TargetHealthStatus {
+	if s.Status.TargetHealth == nil {
+		return ""
+	}
+	return TargetHealthStatus(s.Status.TargetHealth.Status)
+}
+
+// SetTargetHealthStatus sets target health status.
+func (s *KubernetesServerV3) SetTargetHealthStatus(status TargetHealthStatus) {
+	if s.Status.TargetHealth == nil {
+		s.Status.TargetHealth = &TargetHealth{}
+	}
+	s.Status.TargetHealth.Status = string(status)
 }
 
 // IsEqual determines if two kube server resources are equivalent to one another.

@@ -67,6 +67,11 @@ func newAPIKube(kube clusters.Kube) *api.Kube {
 		Name:   kube.KubernetesCluster.GetName(),
 		Uri:    kube.URI.String(),
 		Labels: apiLabels,
+		TargetHealth: &api.TargetHealth{
+			Status:  kube.TargetHealth.Status,
+			Error:   kube.TargetHealth.TransitionError,
+			Message: kube.TargetHealth.Message,
+		},
 	}
 }
 

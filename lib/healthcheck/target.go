@@ -39,6 +39,8 @@ type Target struct {
 	GetResource func() types.ResourceWithLabels
 	// ResolverFn resolves the target endpoint(s).
 	ResolverFn EndpointsResolverFunc
+	// Checks the health of a target resource.
+	CheckHealth func(ctx context.Context) error
 
 	// -- test fields below --
 

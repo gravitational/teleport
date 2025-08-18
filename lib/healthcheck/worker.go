@@ -225,10 +225,6 @@ func (w *worker) run() {
 		case newCfg := <-w.healthCheckConfigUpdateCh:
 			w.updateHealthCheckConfig(w.closeContext, newCfg)
 		case <-w.closeContext.Done():
-			w.mu.RLock()
-			targetHealthStatus := w.targetHealth.Status
-			w.mu.RUnlock()
-			w.decrementPreviousMetric(targetHealthStatus)
 			return
 		}
 	}
@@ -277,17 +273,26 @@ func (w *worker) nextHealthCheck() <-chan time.Time {
 // target health.
 func (w *worker) checkHealth(ctx context.Context) {
 	initializing := w.lastResultCount == 0
-	dialErr := w.dialEndpoints(ctx)
+	var curErr error
+	if w.target.CheckHealth != nil {
+		// Kubernetes health check
+		ctx, cancel := context.WithTimeout(ctx, w.healthCheckCfg.timeout)
+		defer cancel()
+		curErr = w.target.CheckHealth(ctx)
+	} else {
+		// Database health check
+		curErr = w.dialEndpoints(ctx)
+	}
 	if ctx.Err() == context.Canceled {
 		return
 	}
-	if (dialErr == nil) == (w.lastResultErr == nil) {
+	if (curErr == nil) == (w.lastResultErr == nil) {
 		w.lastResultCount++
 	} else {
 		// the passing/failing result streak has ended, so reset the count
 		w.lastResultCount = 1
 	}
-	w.lastResultErr = dialErr
+	w.lastResultErr = curErr
 
 	if w.lastResultErr != nil {
 		w.log.DebugContext(ctx, "Failed health check",
