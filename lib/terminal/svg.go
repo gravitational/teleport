@@ -53,7 +53,7 @@ func writeSVGHeader(buf *bytes.Buffer, width, height int, fontSize float64) {
 	x := 1.0 * 100.0 / (float64(width) / fontSize / 0.6)
 	y := 0.5 * 100.0 / (float64(height) / fontSize / lineHeight)
 
-	fmt.Fprintf(buf, `<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" font-size="%.0f" font-family="%s" class="terminal">`,
+	fmt.Fprintf(buf, `<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" font-size="%.0f" class="terminal">`,
 		width, height, fontSize)
 
 	buf.WriteString("<style>")
@@ -169,7 +169,7 @@ func renderText(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int, charW
 		var spans []span
 		var currentSpan *span
 
-		var lastX int = -1
+		var lastX = -1
 		for x := 0; x < len(buffer[y]); x++ {
 			glyph := buffer[y][x]
 
