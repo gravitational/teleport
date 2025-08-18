@@ -250,22 +250,14 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 	return provider, nil
 }
 
-// DelayedResourceAttr represents a resource attribute that is not available
-// until after the tracing provider has been created.
-type DelayedResourceAttr struct {
-	Key   string
-	Value string
-}
-
 // ReportDelayedResourceAttrs reports resource attributes that were not
 // available when the Provider was created. The context may be used to upload
 // buffered spans to the upstream client.
-func (p *Provider) ReportDelayedResourceAttrs(ctx context.Context, attrs []DelayedResourceAttr) error {
+func (p *Provider) ReportDelayedResourceAttrs(ctx context.Context, attrs []attribute.KeyValue) error {
 	if p.bufferedClient == nil {
 		return trace.BadParameter("ReportDelayedResourceAttrs called without setting cfg.WaitForDelayedAttributes")
 	}
-	p.bufferedClient.reportDelayedResourceAttrs(ctx, attrs)
-	return nil
+	return trace.Wrap(p.bufferedClient.reportDelayedResourceAttrs(ctx, attrs))
 }
 
 // ClosableClient is an [otlptrace.Client] implementation that can also be closed.
@@ -282,6 +274,5 @@ func (p *Provider) ReportDelayedClient(ctx context.Context, clt ClosableClient) 
 	if p.bufferedClient == nil {
 		return trace.BadParameter("ReportDelayedClient called without setting cfg.WaitForDelayedClient")
 	}
-	p.bufferedClient.reportDelayedClient(ctx, clt)
-	return nil
+	return trace.Wrap(p.bufferedClient.reportDelayedClient(ctx, clt))
 }

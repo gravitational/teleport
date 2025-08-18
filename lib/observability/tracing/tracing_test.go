@@ -410,7 +410,7 @@ func TestDelayed(t *testing.T) {
 	for _, tc := range []struct {
 		desc                 string
 		staticResourceAttrs  []attribute.KeyValue
-		delayedResourceAttrs []DelayedResourceAttr
+		delayedResourceAttrs []attribute.KeyValue
 		delayClient          bool
 	}{
 		{
@@ -424,14 +424,26 @@ func TestDelayed(t *testing.T) {
 			staticResourceAttrs: []attribute.KeyValue{
 				attribute.String("static", "true"),
 			},
-			delayedResourceAttrs: []DelayedResourceAttr{
-				{Key: "delayed", Value: "true"},
+			delayedResourceAttrs: []attribute.KeyValue{
+				attribute.String("delayed", "true"),
+				attribute.Int("delayed_int", 3),
 			},
 		},
 		{
 			desc: "delayed client",
 			staticResourceAttrs: []attribute.KeyValue{
 				attribute.String("static", "true"),
+			},
+			delayClient: true,
+		},
+		{
+			desc: "both delayed",
+			staticResourceAttrs: []attribute.KeyValue{
+				attribute.String("static", "true"),
+			},
+			delayedResourceAttrs: []attribute.KeyValue{
+				attribute.String("delayed", "true"),
+				attribute.Int("delayed_int", 3),
 			},
 			delayClient: true,
 		},
@@ -501,12 +513,12 @@ func TestDelayed(t *testing.T) {
 					expectedResourceAttrs[string(attr.Key)] = struct{}{}
 				}
 				for _, attr := range tc.delayedResourceAttrs {
-					expectedResourceAttrs[attr.Key] = struct{}{}
+					expectedResourceAttrs[string(attr.Key)] = struct{}{}
 				}
 				for _, attr := range resourceSpan.Resource.Attributes {
 					delete(expectedResourceAttrs, attr.Key)
 				}
-				assert.Empty(t, expectedResourceAttrs)
+				assert.Empty(t, expectedResourceAttrs, "some expected resource attributes were not included in this span")
 				for _, scopeSpan := range resourceSpan.ScopeSpans {
 					totalSpans += len(scopeSpan.Spans)
 				}

@@ -29,7 +29,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/lib/observability/tracing/internal/tracetransform"
+
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
@@ -328,23 +331,14 @@ func (b *bufferedClient) uploadTracesToClient(ctx context.Context, protoSpans []
 	return trace.Wrap(b.client.UploadTraces(ctx, protoSpans))
 }
 
-func (b *bufferedClient) reportDelayedResourceAttrs(ctx context.Context, attrs []DelayedResourceAttr) error {
+func (b *bufferedClient) reportDelayedResourceAttrs(ctx context.Context, attrs []attribute.KeyValue) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if !b.waitingForDelayedResourceAttrs {
 		return trace.BadParameter("delayed resource attributes cannot be set more than once")
 	}
 	// Transform the attributes to the format required for use in uploadTracesToClient.
-	for _, attr := range attrs {
-		b.delayedResourceAttrs = append(b.delayedResourceAttrs, &otlpcommon.KeyValue{
-			Key: attr.Key,
-			Value: &otlpcommon.AnyValue{
-				Value: &otlpcommon.AnyValue_StringValue{
-					StringValue: attr.Value,
-				},
-			},
-		})
-	}
+	b.delayedResourceAttrs = tracetransform.KeyValues(attrs)
 	b.waitingForDelayedResourceAttrs = false
 	b.uploadBufferedSpansIfReady(ctx)
 	return nil
