@@ -2283,6 +2283,21 @@ func (g *GRPCServer) ListRoles(ctx context.Context, req *authpb.ListRolesRequest
 	return rsp, nil
 }
 
+// ListRequestableRoles is a paginated requestable role getter.
+func (g *GRPCServer) ListRequestableRoles(ctx context.Context, req *authpb.ListRequestableRolesRequest) (*authpb.ListRequestableRolesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, err := auth.ServerWithRoles.ListRequestableRoles(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rsp, nil
+}
+
 // CreateRole creates a new role.
 func (g *GRPCServer) CreateRole(ctx context.Context, req *authpb.CreateRoleRequest) (*types.RoleV6, error) {
 	auth, err := g.authenticate(ctx)
@@ -3253,6 +3268,8 @@ func (g *GRPCServer) GetToken(ctx context.Context, req *types.ResourceRequest) (
 }
 
 // GetTokens retrieves all tokens.
+// Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
+// TODO(hugoShaka): DELETE IN 21.0.0
 func (g *GRPCServer) GetTokens(ctx context.Context, _ *emptypb.Empty) (*types.ProvisionTokenV2List, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {

@@ -57,9 +57,9 @@ func TestE2E_ApplicationTunnelService(t *testing.T) {
 
 	// Make a new auth server.
 	appName := "my-test-app"
-	process := testenv.MakeTestServer(
-		t,
-		defaultTestServerOpts(t, log),
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		defaultTestServerOpts(log),
 		testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Apps.Enabled = true
 			cfg.Apps.Apps = []servicecfg.App{
@@ -70,7 +70,14 @@ func TestE2E_ApplicationTunnelService(t *testing.T) {
 			}
 		}),
 	)
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	// Create role that allows the bot to access the app.
 	role, err := types.NewRole("app-access", types.RoleSpecV6{

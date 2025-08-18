@@ -105,9 +105,7 @@ func TestAliasLoginWithUpdater(t *testing.T) {
 	cmd = exec.CommandContext(ctx, tshPath, "version")
 	out, err = cmd.Output()
 	require.NoError(t, err)
-	matches := pattern.FindStringSubmatch(string(out))
-	require.Len(t, matches, 2)
-	require.Equal(t, testVersions[1], matches[1])
+	matchVersion(t, string(out), testVersions[1])
 
 	// Verifies that version commands shows version re-executed from.
 	require.Contains(t, string(out), fmt.Sprintf("Re-executed from version: %s", testVersions[0]))
@@ -152,9 +150,7 @@ func TestLoginWithUpdaterAndProfile(t *testing.T) {
 	cmd = exec.CommandContext(ctx, tshPath, "version")
 	out, err := cmd.Output()
 	require.NoError(t, err)
-	matches := pattern.FindStringSubmatch(string(out))
-	require.Len(t, matches, 2)
-	require.Equal(t, testVersions[1], matches[1])
+	matchVersion(t, string(out), testVersions[1])
 }
 
 // TestLoginWithDisabledUpdateInProfile runs test cluster with enabled managed updates for client tools,
@@ -188,9 +184,7 @@ func TestLoginWithDisabledUpdateInProfile(t *testing.T) {
 	out, err := cmd.Output()
 	require.NoError(t, err)
 	// Check the version.
-	matches := pattern.FindStringSubmatch(string(out))
-	require.Len(t, matches, 2)
-	require.Equal(t, testVersions[1], matches[1])
+	matchVersion(t, string(out), testVersions[1])
 	// Unset the version after update process.
 	require.NoError(t, os.Unsetenv("TELEPORT_TOOLS_VERSION"))
 
@@ -208,10 +202,7 @@ func TestLoginWithDisabledUpdateInProfile(t *testing.T) {
 	out, err = cmd.Output()
 	require.NoError(t, err)
 	// Check the version.
-	matches = pattern.FindStringSubmatch(string(out))
-	require.Len(t, matches, 2)
-	fmt.Println(string(out))
-	require.Equal(t, testVersions[0], matches[1])
+	matchVersion(t, string(out), testVersions[0])
 }
 
 // TestLoginWithDisabledUpdateForcedByEnv verifies that on disabled cluster we are still
@@ -253,10 +244,7 @@ func TestLoginWithDisabledUpdateForcedByEnv(t *testing.T) {
 	out, err := cmd.Output()
 	require.NoError(t, err)
 	// Check that version is used that requested from env variable.
-	matches := pattern.FindStringSubmatch(string(out))
-	require.Len(t, matches, 2)
-	fmt.Println(string(out))
-	require.Equal(t, testVersions[1], matches[1])
+	matchVersion(t, string(out), testVersions[1])
 	// Unset the version after update process.
 	require.NoError(t, os.Unsetenv("TELEPORT_TOOLS_VERSION"))
 
@@ -266,10 +254,39 @@ func TestLoginWithDisabledUpdateForcedByEnv(t *testing.T) {
 	cmd = exec.CommandContext(ctx, tshPath, "version")
 	out, err = cmd.Output()
 	require.NoError(t, err)
-	matches = pattern.FindStringSubmatch(string(out))
-	require.Len(t, matches, 2)
-	fmt.Println(string(out))
-	require.Equal(t, testVersions[0], matches[1])
+	matchVersion(t, string(out), testVersions[0])
+}
+
+// TestMigratedUpdateNotReExec verifies that the version is migrated without errors,
+// and that the previous version of the updated tools is ignored.
+func TestMigratedUpdateNotReExec(t *testing.T) {
+	testToolsDir := t.TempDir()
+	t.Setenv(types.HomeEnvVar, testToolsDir)
+	ctx := context.Background()
+
+	// Fetch compiled test binary with updater logic and install to $TELEPORT_HOME.
+	updater := tools.NewUpdater(
+		testToolsDir,
+		testVersions[0],
+		tools.WithBaseURL(baseURL),
+	)
+	err := updater.Update(ctx, testVersions[0])
+	require.NoError(t, err)
+
+	tshPath, err := updater.ToolPath("tsh", testVersions[0])
+	require.NoError(t, err)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(testToolsDir, "bin"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(testToolsDir, "bin", "tsh"), []byte("#!/bin/sh\n echo 'Teleport v5.5.5 git'\n"), 0755))
+
+	// Verify that the installed version is equal to requested one.
+	cmd := exec.CommandContext(ctx, tshPath, "version")
+	out, err := cmd.Output()
+	require.NoError(t, err)
+
+	require.NotContains(t, string(out), "version check failed")
+
+	matchVersion(t, string(out), testVersions[0])
 }
 
 func bootstrapTestServer(t *testing.T) (*service.TeleportProcess, string, string) {
@@ -295,11 +312,17 @@ func bootstrapTestServer(t *testing.T) (*service.TeleportProcess, string, string
 	})
 	require.NoError(t, err)
 
-	rootServer := testserver.MakeTestServer(t,
+	rootServer, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithBootstrap(alice),
-		testserver.WithClusterName(t, "root"),
+		testserver.WithClusterName("root"),
 		testserver.WithAuthPreference(ap),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, rootServer.Close())
+		require.NoError(t, rootServer.Wait())
+	})
+
 	authService := rootServer.GetAuthServer()
 
 	// Set password for the cluster login.
