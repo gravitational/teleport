@@ -2020,6 +2020,8 @@ type DatabaseAWS struct {
 	RDS DatabaseAWSRDS `yaml:"rds"`
 	// ElastiCache contains ElastiCache specific settings.
 	ElastiCache DatabaseAWSElastiCache `yaml:"elasticache"`
+	// ElastiCacheServerless contains ElastiCache Serverless specific settings.
+	ElastiCacheServerless DatabaseAWSElastiCacheServerless `yaml:"elasticache_serverless"`
 	// SecretStore contains settings for managing secrets.
 	SecretStore SecretStore `yaml:"secret_store"`
 	// MemoryDB contains MemoryDB specific settings.
@@ -2054,6 +2056,13 @@ type DatabaseAWSRDS struct {
 type DatabaseAWSElastiCache struct {
 	// ReplicationGroupID is the ElastiCache replication group ID.
 	ReplicationGroupID string `yaml:"replication_group_id,omitempty"`
+}
+
+// DatabaseAWSElastiCacheServerless contains settings for ElastiCache Serverless
+// databases.
+type DatabaseAWSElastiCacheServerless struct {
+	// CacheName is the ElastiCache Serverless cache name.
+	CacheName string `yaml:"cache_name,omitempty"`
 }
 
 // DatabaseAWSMemoryDB contains settings for MemoryDB databases.
