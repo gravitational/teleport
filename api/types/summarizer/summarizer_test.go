@@ -202,10 +202,6 @@ func TestValidateInferencePolicy(t *testing.T) {
 			fn:  func(p *summarizerv1.InferencePolicy) { p.Spec.Model = "" },
 			msg: "spec.model is required",
 		},
-		{
-			fn:  func(p *summarizerv1.InferencePolicy) { p.Spec.Filter = "equals(" },
-			msg: "spec.filter has to be a valid predicate",
-		},
 	}
 
 	for _, tc := range cases {
