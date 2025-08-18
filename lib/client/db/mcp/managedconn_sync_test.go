@@ -182,6 +182,51 @@ func TestManagedConnCloseWhileInUse(t *testing.T) {
 	})
 }
 
+// TestManagedConnCloseBusy given a managed connection that has a long
+// running execution, and another execution waiting. When the Close context is
+// done, and the waiting execution should return is closed error.
+func TestManagedConnCloseBusy(t *testing.T) {
+	synctest.Run(func() {
+		maxIdleTime := time.Minute
+		managedConn, err := NewManagedConn(&ManagedConnConfig{MaxIdleTime: maxIdleTime}, func(ctx context.Context) (*fakeConn, error) {
+			return &fakeConn{}, nil
+		})
+		require.NoError(t, err)
+
+		// First execution will init new connection.
+		_, err = Exec(t.Context(), managedConn, fakeConnExec(0))
+		require.NoError(t, err)
+
+		// Long running execution will take place.
+		go func() {
+			_, err := Exec(t.Context(), managedConn, fakeConnExec(time.Minute))
+			assert.Error(t, err)
+			assert.ErrorIs(t, err, context.Canceled)
+		}()
+
+		synctest.Wait()
+
+		// Start another execution, this will be in waiting state (since there
+		// is one execution running). We'll trigger the close before it gets
+		// a chance to get executed, so we expect it to return error.
+		go func() {
+			_, err := Exec(t.Context(), managedConn, fakeConnExec(time.Minute))
+			assert.Error(t, err)
+			assert.ErrorIs(t, err, ErrConnClosed)
+		}()
+
+		synctest.Wait()
+
+		// Close should cancel executions and terminate connections.
+		require.NoError(t, managedConn.Close(t.Context()))
+		require.NotNil(t, managedConn.active)
+		require.True(t, managedConn.active.closed.Load(), "expected connection to be closed")
+
+		_, err = Exec(t.Context(), managedConn, fakeConnExec(0))
+		require.Error(t, err, "expected executions with closed connection to return error")
+	})
+}
+
 func fakeConnExec(d time.Duration) func(context.Context, *fakeConn) (any, error) {
 	return func(ctx context.Context, conn *fakeConn) (any, error) {
 		if conn.Exec() {

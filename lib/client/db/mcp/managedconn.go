@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 	"time"
@@ -9,23 +10,30 @@ import (
 	"github.com/gravitational/trace"
 )
 
+var ErrConnClosed = errors.New("connection closed")
+
 // ManagedConn manages a database connection, providing a way to keep a single
 // active connection per database, and also closing the connection once it
 // becomes inactive.
 //
 // Managed connections are always used with Exec function.
+//
+// We require two definitions of the same type (one regular and another as
+// pointer) due to the necessity of having the `conn` interface definition on
+// the types constraint. For callers that want to store the managed connections
+// we can expect a definition like `ManagedConn[MyDbConn, *MyDbConn]`.
 type ManagedConn[T any, C conn[T]] struct {
 	mu   sync.Mutex
-	cond sync.Cond
+	cond *sync.Cond
 
 	cfg      *ManagedConnConfig
-	newFunc  func(context.Context) (*T, error)
+	newFunc  func(context.Context) (C, error)
 	active   C
 	closed   bool
 	watchdog *time.Timer
 
-	// cancelExec is the context cancelation function of a execution. It will
-	// only be set when there is a running execution, so it can be used to
+	// cancelExec will cancel currently executed query when invoked. It will
+	// only be set when there is a running execution, so it can be also used to
 	// indicate the connection is in use.
 	cancelExec context.CancelFunc
 }
@@ -59,7 +67,7 @@ type conn[T any] interface {
 }
 
 // NewManagedConn creates a new managed connection.
-func NewManagedConn[T any, C conn[T]](cfg *ManagedConnConfig, newFunc func(context.Context) (*T, error)) (*ManagedConn[T, C], error) {
+func NewManagedConn[T any, C conn[T]](cfg *ManagedConnConfig, newFunc func(context.Context) (C, error)) (*ManagedConn[T, C], error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -68,7 +76,7 @@ func NewManagedConn[T any, C conn[T]](cfg *ManagedConnConfig, newFunc func(conte
 		newFunc: newFunc,
 		cfg:     cfg,
 	}
-	c.cond = *sync.NewCond(&c.mu)
+	c.cond = sync.NewCond(&c.mu)
 	c.watchdog = time.AfterFunc(cfg.MaxIdleTime, func() {
 		c.closeActive(context.Background())
 	})
@@ -76,6 +84,9 @@ func NewManagedConn[T any, C conn[T]](cfg *ManagedConnConfig, newFunc func(conte
 }
 
 // Exec executes the provided function with an active connection.
+//
+// Execution result (`R`) can be anytype and is not managed or used by the
+// managed connection.
 //
 // Note: There is no guarantee the connection still open. Callers should handle
 // the scenarios where the connection was closed outside the managed connection.
@@ -98,12 +109,12 @@ func (m *ManagedConn[T, C]) acquire(ctx context.Context, cancel context.CancelFu
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.closed {
-		return nil, trace.AccessDenied("connection closed")
+	for m.cancelExec != nil && !m.closed {
+		m.cond.Wait()
 	}
 
-	for m.cancelExec != nil {
-		m.cond.Wait()
+	if m.closed {
+		return nil, trace.Wrap(ErrConnClosed)
 	}
 
 	if m.active == nil || m.active.IsClosed() {
