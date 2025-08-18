@@ -351,9 +351,9 @@ func claimsToIdentifiers(tokenClaims *accessTokenClaims) (subscriptionID, resour
 		return "", "", trace.Wrap(err, "failed to parse resource id from claims")
 	}
 
-	supportedResourceTypes := []string{azureVirtualMachine, azureVirtualMachineScaleSet}
 	for _, resourceType := range resourceID.ResourceType.Types {
-		if slices.Contains(supportedResourceTypes, resourceType) {
+		switch resourceType {
+		case azureVirtualMachine, azureVirtualMachineScaleSet:
 			return resourceID.SubscriptionID, resourceID.ResourceGroupName, nil
 		}
 	}
