@@ -666,6 +666,10 @@ func (a *dbAuth) GetElastiCacheRedisToken(ctx context.Context, database types.Da
 		region:       meta.Region,
 		credProvider: awsCfg.Credentials,
 		clock:        a.cfg.Clock,
+		isServerless: database.IsElastiCacheServerless(),
+	}
+	if tokenReq.isServerless {
+		tokenReq.targetID = meta.ElastiCacheServerless.CacheName
 	}
 	token, err := tokenReq.toSignedRequestURI(ctx)
 	return token, trace.Wrap(err)
@@ -1267,10 +1271,12 @@ func externalIDForChainedAssumeRole(meta types.AWS) string {
 type awsRedisIAMTokenRequest struct {
 	// userID is the ElastiCache user ID.
 	userID string
-	// targetID is the ElastiCache replication group ID or the MemoryDB cluster name.
+	// targetID is the ElastiCache replication group ID or the MemoryDB cluster name or a serverless cache ID.
 	targetID string
 	// region is the AWS region.
 	region string
+	// isServerless is true if the request is for ElastiCache serverless.
+	isServerless bool
 	// credProvider are used to presign with AWS SigV4.
 	credProvider aws.CredentialsProvider
 	// clock is the clock implementation.
@@ -1331,6 +1337,10 @@ func (r *awsRedisIAMTokenRequest) getSignableRequest() (*http.Request, error) {
 		"Action":        {"connect"},
 		"User":          {r.userID},
 		"X-Amz-Expires": {"900"},
+	}
+	if r.isServerless {
+		// https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/auth-iam.html
+		query.Add("ResourceType", "ServerlessCache")
 	}
 	reqURI := url.URL{
 		Scheme:   "http",
