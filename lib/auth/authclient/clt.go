@@ -1728,10 +1728,6 @@ type ClientI interface {
 	// StableUNIXUsersClient returns a client for the stable UNIX users API.
 	StableUNIXUsersClient() stableunixusersv1.StableUNIXUsersServiceClient
 
-	// SummarizerServiceClient returns a client for the session recording
-	// summarizer service.
-	SummarizerServiceClient() summarizerv1.SummarizerServiceClient
-
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
 
@@ -1783,4 +1779,8 @@ type ClientI interface {
 
 	// ListRequestableRoles is a paginated requestable role getter.
 	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
+
+	// SummarizerServiceClient returns a client for the session recording
+	// summarizer service.
+	SummarizerServiceClient() summarizerv1.SummarizerServiceClient
 }
