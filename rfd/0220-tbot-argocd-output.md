@@ -67,6 +67,9 @@ the issue.
 > For the initial version, configurations where the Teleport proxy is behind a
 > TLS-terminating load balancer will not be supported, as this would require
 > running a local proxy to apply our ALPN upgrade workaround.
+>
+> We will make this limitation clear in the documentation, and if we detect this
+> we will log an explicit error rather than generating unusable configuration.
 
 ### Service configuration
 
