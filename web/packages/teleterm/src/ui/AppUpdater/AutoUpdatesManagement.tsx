@@ -131,7 +131,7 @@ function ManagingClusterSelector({
         >
           <Stack gap={0}>
             <H3>Updates source</H3>
-            <P3>Multiple clusters can manage Teleport Connect version.</P3>
+            <P3>Choose which cluster to follow for updates.</P3>
           </Stack>
           <RadioGroup
             gap={2}
@@ -164,9 +164,9 @@ function makeOptions({
   onRetry(): void;
 }) {
   const highestCompatible = {
-    label: 'Use highest compatible version from your clusters',
+    label: 'Use the highest compatible version from your clusters',
     helperText: !highestCompatibleVersion ? (
-      <TextWithWarning text="No cluster provides version compatible with all other clusters." />
+      <TextWithWarning text="No cluster provides a version compatible with all other clusters." />
     ) : (
       `Teleport Connect ${highestCompatibleVersion} · Compatible with all clusters.`
     ),
@@ -186,7 +186,7 @@ function makeOptions({
 
       return {
         disabled,
-        label: `Use version from cluster ${getClusterName(c.clusterUri)}`,
+        label: getClusterName(c.clusterUri),
         helperText: [`Teleport Connect ${c.toolsVersion}`, compatibility]
           .filter(Boolean)
           .join(' · '),
@@ -199,7 +199,7 @@ function makeOptions({
     .map(c => {
       return {
         disabled,
-        label: `Use version from cluster ${getClusterName(c.clusterUri)}`,
+        label: getClusterName(c.clusterUri),
         helperText: (
           <>
             Teleport Connect {c.toolsVersion}
@@ -214,7 +214,7 @@ function makeOptions({
   const unreachableClusters = status.options.unreachableClusters.map(
     cluster => ({
       disabled,
-      label: `Use version from cluster ${getClusterName(cluster.clusterUri)}`,
+      label: getClusterName(cluster.clusterUri),
       helperText: (
         <UnreachableClusterHelper
           onRetry={onRetry}
