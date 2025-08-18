@@ -318,6 +318,11 @@ presets in an older cluster that failed to be updated.
 New clusters being registered will be provisioned with the expected resources,
 either by auto-discovery, provision script or Helm chart.
 
+### Backport
+
+As the new presets do not require the new features offered in Role V8, they
+will be created as Role V7 to allow backporting to Teleport 16 and 17.
+
 ### User flow
 
 #### Current flow
