@@ -305,6 +305,19 @@ The error messages when using `kubectl` will be improved to include a link to
 the documentation and more details on what is expected. This will help with
 initial custom setups that skipped the provided provisioning scripts.
 
+### Rollout
+
+As the proposed changes are about presets and documentation, they can be
+rolled out without waiting a new major version.
+
+We assume that existing clusters are already working, we will attempt to apply
+the new RBAC resources on a best effort basis. The healthcheck and error
+messages will help users understand the issue if they try to use the new
+presets in an older cluster that failed to be updated.
+
+New clusters being registered will be provisioned with the expected resources,
+either by auto-discovery, provision script or Helm chart.
+
 ### User flow
 
 #### Current flow
