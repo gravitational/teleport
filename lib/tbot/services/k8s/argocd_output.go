@@ -31,13 +31,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	corev1 "k8s.io/api/core/v1"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
@@ -331,7 +331,7 @@ func (s *ArgoCDOutput) renderSecret(cluster *argoClusterCredentials) (*corev1.Se
 		TLSClientConfig argoTLSClientConfig `json:"tlsClientConfig"`
 	}{cluster.tlsClientConfig})
 	if err != nil {
-		return nil, trace.Wrap(err, "marshalling cluster credentials")
+		return nil, trace.Wrap(err, "marshaling cluster credentials")
 	}
 
 	data := map[string][]byte{

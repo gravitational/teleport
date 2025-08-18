@@ -22,10 +22,11 @@ import (
 	"cmp"
 	"os"
 
-	"github.com/gravitational/teleport/lib/tbot/bot"
-	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 	"github.com/gravitational/trace"
 	"k8s.io/apimachinery/pkg/api/validation"
+
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
 const ArgoCDOutputServiceType = "kubernetes/argo-cd"
