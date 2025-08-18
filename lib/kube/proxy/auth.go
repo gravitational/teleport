@@ -34,6 +34,7 @@ import (
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
+
 	// Load kubeconfig auth plugins for gcp and azure.
 	// Without this, users can't provide a kubeconfig using those.
 	//
@@ -164,6 +165,12 @@ func (f *Forwarder) getKubeDetails(ctx context.Context) error {
 
 func extractKubeCreds(ctx context.Context, component string, cluster string, clientCfg *rest.Config, log *slog.Logger, checkPermissions servicecfg.ImpersonationPermissionsChecker) (*staticKubeCreds, error) {
 	log = log.With("cluster", cluster)
+
+	// TODO(rana): REMOVE IF NOT NEEDED
+	// Increase rate limit to support health checks.
+	// clientCfg.RateLimiter = flowcontrol.NewFakeAlwaysRateLimiter()
+	// clientCfg.QPS = 50
+	// clientCfg.Burst = 5 //100
 
 	log.DebugContext(ctx, "Checking Kubernetes impersonation permissions")
 	client, err := kubernetes.NewForConfig(clientCfg)

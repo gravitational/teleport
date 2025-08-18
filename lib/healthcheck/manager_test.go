@@ -179,19 +179,22 @@ func TestManager(t *testing.T) {
 	require.NoError(t, err)
 
 	var endpointMu sync.Mutex
+
 	prodDialer := fakeDialer{}
 	err = mgr.AddTarget(Target{
+		HealthChecker: &TargetDialer{
+			Resolver: func(ctx context.Context) ([]string, error) {
+				endpointMu.Lock()
+				defer endpointMu.Unlock()
+				return []string{prodDB.GetURI()}, nil
+			},
+			dial: prodDialer.DialContext,
+		},
 		GetResource: func() types.ResourceWithLabels {
 			endpointMu.Lock()
 			defer endpointMu.Unlock()
 			return prodDB
 		},
-		ResolverFn: func(ctx context.Context) ([]string, error) {
-			endpointMu.Lock()
-			defer endpointMu.Unlock()
-			return []string{prodDB.GetURI()}, nil
-		},
-		dialFn: prodDialer.DialContext,
 		onHealthCheck: func(lastResultErr error) {
 			eventsCh <- lastResultTestEvent(prodDB.GetName(), lastResultErr)
 		},
@@ -205,18 +208,20 @@ func TestManager(t *testing.T) {
 	require.NoError(t, err)
 
 	devDialer := fakeDialer{}
-	err = mgr.AddTarget(Target{
+	devTarget := Target{
+		HealthChecker: &TargetDialer{
+			Resolver: func(ctx context.Context) ([]string, error) {
+				endpointMu.Lock()
+				defer endpointMu.Unlock()
+				return []string{devDB.GetURI()}, nil
+			},
+			dial: devDialer.DialContext,
+		},
 		GetResource: func() types.ResourceWithLabels {
 			endpointMu.Lock()
 			defer endpointMu.Unlock()
 			return devDB
 		},
-		ResolverFn: func(ctx context.Context) ([]string, error) {
-			endpointMu.Lock()
-			defer endpointMu.Unlock()
-			return []string{devDB.GetURI()}, nil
-		},
-		dialFn: devDialer.DialContext,
 		onHealthCheck: func(lastResultErr error) {
 			eventsCh <- lastResultTestEvent(devDB.GetName(), lastResultErr)
 		},
@@ -226,21 +231,27 @@ func TestManager(t *testing.T) {
 		onClose: func() {
 			eventsCh <- closedTestEvent(devDB.GetName())
 		},
-	})
+	}
+	err = mgr.AddTarget(devTarget)
 	require.NoError(t, err)
 
 	t.Run("duplicate target is an error", func(t *testing.T) {
-		err = mgr.AddTarget(Target{
-			GetResource: func() types.ResourceWithLabels { return devDB },
-			ResolverFn:  func(ctx context.Context) ([]string, error) { return nil, nil },
-		})
+		err = mgr.AddTarget(devTarget)
 		require.Error(t, err)
 		require.IsType(t, trace.AlreadyExists(""), err)
 	})
 	t.Run("unsupported target resource is an error", func(t *testing.T) {
 		err = mgr.AddTarget(Target{
-			GetResource: func() types.ResourceWithLabels { return &fakeResource{kind: "node"} },
-			ResolverFn:  func(ctx context.Context) ([]string, error) { return nil, nil },
+			HealthChecker: &TargetDialer{
+				Resolver: func(ctx context.Context) ([]string, error) {
+					endpointMu.Lock()
+					defer endpointMu.Unlock()
+					return nil, nil
+				},
+			},
+			GetResource: func() types.ResourceWithLabels {
+				return &fakeResource{kind: "node"}
+			},
 		})
 		require.Error(t, err)
 		require.IsType(t, trace.BadParameter(""), err)

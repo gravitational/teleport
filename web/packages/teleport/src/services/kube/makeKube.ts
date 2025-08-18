@@ -19,7 +19,7 @@
 import { Kube, KubeResource } from './types';
 
 export function makeKube(json): Kube {
-  const { name, requiresRequest } = json;
+  const { name, requiresRequest, targetHealth } = json;
   const labels = json.labels || [];
 
   return {
@@ -29,6 +29,11 @@ export function makeKube(json): Kube {
     users: json.kubernetes_users || [],
     groups: json.kubernetes_groups || [],
     requiresRequest,
+    targetHealth: targetHealth && {
+      status: targetHealth.status,
+      error: targetHealth.transition_error,
+      message: targetHealth.message,
+    },
   };
 }
 
