@@ -202,6 +202,28 @@ func AlgorithmForPublicKey(pub crypto.PublicKey) (jose.SignatureAlgorithm, error
 	return "", trace.BadParameter("unsupported public key type %T", pub)
 }
 
+// SigningKeyFromPrivateKey creates a jose.SigningKey from the given signer,
+// wrapping it in an opaque signer if necessary.
+func SigningKeyFromPrivateKey(priv crypto.Signer) (jose.SigningKey, error) {
+	// Create a signer with configured private key and algorithm.
+	var signer any
+	switch priv.(type) {
+	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
+		signer = priv
+	default:
+		signer = cryptosigner.Opaque(priv)
+	}
+	algorithm, err := AlgorithmForPublicKey(priv.Public())
+	if err != nil {
+		return jose.SigningKey{}, trace.Wrap(err)
+	}
+
+	return jose.SigningKey{
+		Algorithm: algorithm,
+		Key:       signer,
+	}, nil
+}
+
 func (k *Key) Sign(p SignParams) (string, error) {
 	if err := p.Check(); err != nil {
 		return "", trace.Wrap(err)
