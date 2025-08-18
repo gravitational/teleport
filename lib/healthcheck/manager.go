@@ -29,11 +29,13 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
@@ -144,6 +146,7 @@ func (m *manager) Start(ctx context.Context) error {
 // supportedTargetKinds is a list of resource kinds that support health checks.
 var supportedTargetKinds = []string{
 	types.KindDatabase,
+	types.KindKubernetesCluster,
 }
 
 // AddTarget adds a new target health checker and starts the health checker.
@@ -326,6 +329,10 @@ func (m *manager) updateWorkersLocked(ctx context.Context) {
 // getConfigLocked gets a matching config for the the given resource or returns
 // nil if no config matches.
 func (m *manager) getConfigLocked(ctx context.Context, r types.ResourceWithLabels) *healthCheckConfig {
+	if m.configs == nil {
+		m.logger.WarnContext(ctx, "Health check config unavailable")
+		return nil
+	}
 	for _, cfg := range m.configs {
 		matched, _, err := services.CheckLabelsMatch(
 			types.Allow,
@@ -347,3 +354,52 @@ func (m *manager) getConfigLocked(ctx context.Context, r types.ResourceWithLabel
 	}
 	return nil
 }
+
+func init() {
+	metrics.RegisterPrometheusCollectors(
+		resourceHealthyGauge,
+		resourceUnhealthyGauge,
+		resourceUnknownGauge,
+	)
+}
+
+// prometheusLabel returns a Prometheus label
+// for use with GaugeVec "type".
+//
+// TODO(rana): Return an error for unsupported targetKind.
+func prometheusLabel(targetKind string) string {
+	if targetKind == types.KindDatabase {
+		return types.KindDatabase
+	}
+	return "kubernetes"
+}
+
+var (
+	resourceHealthyGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: teleport.MetricResourcesHealthStatus,
+			Name:      teleport.MetricHealthy,
+			Help:      "Number of healthy resources",
+		},
+		[]string{teleport.TagType}, // db|k8s|etc
+	)
+	resourceUnhealthyGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: teleport.MetricResourcesHealthStatus,
+			Name:      teleport.MetricUnhealthy,
+			Help:      "Number of unhealthy resources",
+		},
+		[]string{teleport.TagType}, // db|k8s|etc
+	)
+	resourceUnknownGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: teleport.MetricResourcesHealthStatus,
+			Name:      teleport.MetricUnknown,
+			Help:      "Number of resources in an unknown health state",
+		},
+		[]string{teleport.TagType}, // db|k8s|etc
+	)
+)

@@ -102,6 +102,7 @@ export interface UnifiedResourceKube {
   name: string;
   labels: ResourceLabel[];
   requiresRequest?: boolean;
+  targetHealth?: ResourceTargetHealth;
 }
 
 export type UnifiedResourceDesktop = {

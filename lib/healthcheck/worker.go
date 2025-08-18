@@ -361,6 +361,14 @@ func (w *worker) dialEndpoints(ctx context.Context) error {
 }
 
 func (w *worker) dialEndpoint(ctx context.Context, endpoint string) error {
+	// TODO(rana): HTTP AUTH TO RESOLVE "403 Forbidden"
+	// DEBU [KUBERNETE] kube health check: getTargetHealth pid:40600.1 !BADKEY:Protocol:"HTTP" Status:"unknown" TransitionTimestamp:<seconds:1755473706 nanos:770699000 > TransitionReason:"initialized" Message:"Health checker initialized"  proxy/server.go:584
+	// WARN [KUBERNETE] Denying proxy access to unauthenticated user - this can sometimes be caused by inadvertently using an HTTP load balancer instead of a TCP load balancer on the Kubernetes port pid:40600.1 user_type:authz.BuiltinRole proxy/forwarder.go:558
+	// DEBU [KUBERNETE] Failed health check target_name:colima target_kind:kube_cluster target_origin: error:[
+
+	// if w.healthCheckCfg.protocol == types.TargetHealthProtocolTCP {
+
+	// Check TCP.
 	conn, err := w.target.dialFn(ctx, "tcp", endpoint)
 	if err != nil {
 		return trace.Wrap(err)
@@ -368,6 +376,56 @@ func (w *worker) dialEndpoint(ctx context.Context, endpoint string) error {
 	// an error while closing the connection could indicate an RST packet from
 	// the endpoint - that's a health check failure.
 	return trace.Wrap(conn.Close())
+	// } else {
+	// 	// Check HTTP.
+
+	// // TODO(rana): REMOVE- FOR TESTING UI
+	// content, err := os.ReadFile("/Users/rana.ian/src/wrk/env.txt") // 0 or 1
+	// if err != nil {
+	// 	content = []byte("0")
+	// }
+	// kubeHealth, err := strconv.ParseBool(string(content))
+	// if err != nil {
+	// 	kubeHealth = false
+	// }
+	// if kubeHealth {
+	// 	return nil
+	// } else {
+	// 	return fmt.Errorf("Health error for testing")
+	// }
+
+	// // TODO(rana): move url construction
+	// // Kube HTTP check /readyz endpoint.
+	// req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("https://%s/readyz", endpoint), nil)
+	// if err != nil {
+	// 	return trace.Wrap(err)
+	// }
+
+	// // KubeAPI accepts TLS traffic.
+	// client := &http.Client{
+	// 	Transport: &http.Transport{
+	// 		TLSClientConfig: &tls.Config{
+	// 			InsecureSkipVerify: true,
+	// 		},
+	// 	},
+	// }
+	// res, err := client.Do(req)
+	// if res != nil {
+	// 	io.Copy(io.Discard, res.Body)
+	// 	if bodyErr := res.Body.Close(); bodyErr != nil {
+	// 		w.log.ErrorContext(ctx, "Error closing response body", "error", bodyErr)
+	// 	}
+	// }
+	// if err != nil {
+	// 	return trace.Wrap(err)
+	// }
+	// if res.StatusCode != http.StatusOK {
+	// 	return trace.Errorf("HTTP status code %q", res.StatusCode)
+	// 	// TODO(rana): CALL /readyz?verbose
+	// }
+	// return nil
+
+	// }
 }
 
 // getThreshold returns the appropriate threshold to compare against the last
@@ -436,17 +494,21 @@ func (w *worker) setTargetHealthStatus(ctx context.Context, newStatus types.Targ
 			"reason", reason,
 			"message", message,
 		)
+		resourceHealthyGauge.WithLabelValues(prometheusLabel(w.GetTargetResource().GetKind())).Inc()
 	case types.TargetHealthStatusUnhealthy:
 		w.log.WarnContext(ctx, "Target became unhealthy",
 			"reason", reason,
 			"message", message,
 		)
+		resourceUnhealthyGauge.WithLabelValues(prometheusLabel(w.GetTargetResource().GetKind())).Inc()
 	case types.TargetHealthStatusUnknown:
 		w.log.DebugContext(ctx, "Target health status is unknown",
 			"reason", reason,
 			"message", message,
 		)
+		resourceUnknownGauge.WithLabelValues(prometheusLabel(w.GetTargetResource().GetKind())).Inc()
 	}
+	decrementPreviousGauge(types.TargetHealthStatus(oldHealth.Status), prometheusLabel(w.GetTargetResource().GetKind()))
 	now := w.clock.Now()
 	w.targetHealth = types.TargetHealth{
 		Address:             strings.Join(w.lastResolvedEndpoints, ","),
@@ -460,6 +522,19 @@ func (w *worker) setTargetHealthStatus(ctx context.Context, newStatus types.Targ
 	}
 	if w.healthCheckCfg != nil {
 		w.targetHealth.Protocol = string(w.healthCheckCfg.protocol)
+	}
+}
+
+// decrementPreviousGauge decrements a Prometheus gauge for
+// a previous health state.
+func decrementPreviousGauge(previousHealth types.TargetHealthStatus, prometheusLabel string) {
+	switch previousHealth {
+	case types.TargetHealthStatusHealthy:
+		resourceHealthyGauge.WithLabelValues(prometheusLabel).Dec()
+	case types.TargetHealthStatusUnhealthy:
+		resourceUnhealthyGauge.WithLabelValues(prometheusLabel).Dec()
+	case types.TargetHealthStatusUnknown:
+		resourceUnknownGauge.WithLabelValues(prometheusLabel).Dec()
 	}
 }
 

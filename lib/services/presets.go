@@ -846,6 +846,11 @@ func NewPresetHealthCheckConfig() *healthcheckconfigv1.HealthCheckConfig {
 					Name:   types.Wildcard,
 					Values: []string{types.Wildcard},
 				}},
+				// match all kubernetes clusters
+				KubernetesLabels: []*labelv1.Label{{
+					Name:   types.Wildcard,
+					Values: []string{types.Wildcard},
+				}},
 			},
 		},
 	}
