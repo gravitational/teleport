@@ -89,6 +89,52 @@ func UploadDownloadSummary(t *testing.T, handler events.MultipartHandler) {
 	require.Equal(t, string(data), val)
 }
 
+// UploadDownloadMetadata tests metadata uploads and downloads
+func UploadDownloadMetadata(t *testing.T, handler events.MultipartHandler) {
+	val := "this is the metadata file"
+	id := session.NewID()
+	_, err := handler.UploadMetadata(t.Context(), id, bytes.NewBuffer([]byte(val)))
+	require.NoError(t, err)
+
+	f, err := os.CreateTemp("", string(id))
+	require.NoError(t, err)
+	defer os.Remove(f.Name())
+	defer f.Close()
+
+	err = handler.DownloadMetadata(context.TODO(), id, f)
+	require.NoError(t, err)
+
+	_, err = f.Seek(0, 0)
+	require.NoError(t, err)
+
+	data, err := io.ReadAll(f)
+	require.NoError(t, err)
+	require.Equal(t, string(data), val)
+}
+
+// UploadDownloadThumbnail tests thumbnail uploads and downloads
+func UploadDownloadThumbnail(t *testing.T, handler events.MultipartHandler) {
+	val := "thumbnail"
+	id := session.NewID()
+	_, err := handler.UploadThumbnail(t.Context(), id, bytes.NewBuffer([]byte(val)))
+	require.NoError(t, err)
+
+	f, err := os.CreateTemp("", string(id))
+	require.NoError(t, err)
+	defer os.Remove(f.Name())
+	defer f.Close()
+
+	err = handler.DownloadThumbnail(context.TODO(), id, f)
+	require.NoError(t, err)
+
+	_, err = f.Seek(0, 0)
+	require.NoError(t, err)
+
+	data, err := io.ReadAll(f)
+	require.NoError(t, err)
+	require.Equal(t, string(data), val)
+}
+
 // DownloadNotFound tests handling of the scenario when download is not found
 func DownloadNotFound(t *testing.T, handler events.MultipartHandler) {
 	id := session.NewID()

@@ -202,7 +202,7 @@ func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *Upd
 		}
 	}
 
-	return &UpdateResponse{Version: toolsVersion, ReExec: true}, nil
+	return &UpdateResponse{Version: toolsVersion, ReExec: false}, nil
 }
 
 // CheckRemote first checks the version set by the environment variable. If not set or disabled,

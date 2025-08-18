@@ -43,13 +43,21 @@ var allAuthTypes = []string{
 	oauthAuthType,
 }
 
+var supportedConnectors = []string{
+	types.KindOIDC,
+	types.KindSAML,
+}
+
 func (p *PluginsCommand) initInstallSCIM(parent *kingpin.CmdClause) {
 	p.install.scim.cmd = parent.Command("scim", "Install a Teleport SCIM plugin.")
 	cmd := p.install.scim.cmd
 
-	cmd.Flag("connector", "Name of the Teleport SAML connector to use.").
+	cmd.Flag("connector", "Name of the Teleport connector to use.").
 		Required().
-		StringVar(&p.install.scim.samlConnector)
+		StringVar(&p.install.scim.connector)
+
+	cmd.Flag("connector-type", "Type of the Teleport connector to use.").
+		EnumVar(&p.install.scim.connectorType, supportedConnectors...)
 
 	cmd.Flag("auth", "Plugin Authentication type.").
 		Default(oauthAuthType).
@@ -73,7 +81,10 @@ func (p *PluginsCommand) InstallSCIM(ctx context.Context, args installPluginArgs
 		Spec: types.PluginSpecV1{
 			Settings: &types.PluginSpecV1_Scim{
 				Scim: &types.PluginSCIMSettings{
-					SamlConnectorName: scimArgs.samlConnector,
+					ConnectorInfo: &types.PluginSCIMSettings_ConnectorInfo{
+						Name: scimArgs.connector,
+						Type: scimArgs.connectorType,
+					},
 				},
 			},
 		},

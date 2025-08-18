@@ -1,0 +1,37 @@
+---
+title: Server Auto-Discovery for Amazon EC2
+description: How to configure Teleport to automatically enroll EC2 instances.
+labels:
+ - how-to
+ - zero-trust
+---
+
+This guide shows you how to configure Teleport to automatically enroll EC2
+instances in your cluster.
+
+## How it works
+
+In the setup we describe in this guide, the Teleport Discovery Service connects
+to Amazon EC2 and reconciles the servers enrolled on the Auth Service backend
+with servers it lists from the EC2 API. If an EC2 instance matches a configured
+label and is not enrolled in your cluster, the Discovery Service executes a
+script on these discovered instances using AWS Systems Manager that installs
+Teleport, starts it and joins the cluster using the [IAM join method](
+../../../agents/aws-iam.mdx).
+
+The Teleport Discovery Service uses an IAM invite token with a long time-to-live
+(TTL), so that new instances can be discovered and added to the Teleport cluster
+for the lifetime of the token.
+
+## Choosing guided or manual EC2 auto-discovery configuration
+
+In the guided EC2 auto-discovery configuration process, Teleport generates
+its own policies and SSM documents for the Discovery Service to use.
+
+If you want to have more control over the policies and SSM documents used,
+manual configuration may be suitable for you.
+
+## Guides
+
+- [Guided EC2 Auto-Discovery Configuration](ec2-discovery-guided.mdx)
+- [Manual EC2 Auto-Discovery Configuration](ec2-discovery-manual.mdx)
