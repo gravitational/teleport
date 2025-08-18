@@ -58,11 +58,48 @@ $ tctl bots update example --add-roles example-role
 
 ## Step 2/3. Configure `tbot`
 
-## Step 3/3. Connect your Agent
+## Step 3/3. Connect your MCP client
+
+You can now configure your MCP client to use the credentials produced by `tbot`
+to access MCP servers. The exact steps you need to take will depend on the
+MCP client you are using.
+
+<Tabs>
+    <TabItem label="LangGraph">
+        For compatability with LangGraph, use the `langchain-mcp-adapters`
+        package. This package implements an MCP client and exposes the tools
+        from an MCP server in the same way as tools defined natively in Python.
+
+        ```python
+            from langchain_mcp_adapters.client import MultiServerMCPClient
+            client = MultiServerMCPClient({
+                "my-mcp-server": {
+                    "command": "tsh"
+                    "args": [
+                        "mcp",
+                        "connect",
+                        "-i", "/path",
+                        "--proxy", "example.teleport.sh:443",
+                        "my-mcp-server",
+                    ],
+                    "transport": "stdio",
+                },
+            })
+            tools = await client.get_tools()
+        ```
+
+        See the [LangChain documentation](https://langchain-ai.github.io/langgraph/agents/mcp/)
+        for further details.
+    </TabItem>
+    <TabItem label="Claude">
+    </TabItem>
+    <TabITem lablel="Other">
+    </TabITem>
+</Tabs>
 
 ## Next steps
 
 - Read the [MCP access documentation](../../../enroll-resources/mcp-access/mcp-access.mdx)
-to learn more about Teleport's MCP integration.
+to learn more about Teleport's MCP integration and RBAC controls.
 - Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
-all the available configuration options.
+all the available configuration options for `tbot`.
