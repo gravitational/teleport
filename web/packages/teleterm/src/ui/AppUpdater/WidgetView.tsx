@@ -18,7 +18,15 @@
 
 import { ComponentType } from 'react';
 
-import { ButtonPrimary, ButtonSecondary, Flex, P3, Stack, Text } from 'design';
+import {
+  ButtonBorder,
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
+  P3,
+  Stack,
+  Text,
+} from 'design';
 import { Alert } from 'design/Alert';
 import { Info } from 'design/Icon';
 import { IconProps } from 'design/Icon/Icon';
@@ -78,11 +86,13 @@ export function WidgetView({
       <Alert
         kind="danger"
         mb={0}
-        details={issueRequiringAttention}
-        secondaryAction={{
-          content: 'Resolve',
-          onClick: onMore,
-        }}
+        details={
+          <Stack gap={2}>
+            {issueRequiringAttention}
+            {/*TODO(gzdunek): Allow Alert to show buttons at the bottom. */}
+            <ButtonBorder onClick={onMore}>Resolve</ButtonBorder>
+          </Stack>
+        }
       >
         App updates are disabled
       </Alert>
@@ -95,12 +105,14 @@ export function WidgetView({
       <Alert
         kind="danger"
         mb={0}
-        details={updateEvent.error.message}
-        secondaryAction={{
-          content: 'More',
-          onClick: onMore,
-        }}
         {...rest}
+        details={
+          <Stack gap={2}>
+            {updateEvent.error.message}
+            {/*TODO(gzdunek): Allow Alert to show buttons at the bottom. */}
+            <ButtonBorder onClick={onMore}>More</ButtonBorder>
+          </Stack>
+        }
       >
         Unable to check for app updates
       </Alert>
