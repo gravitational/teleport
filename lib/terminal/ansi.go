@@ -32,9 +32,9 @@ func terminalStateToANSI(state vt10x.TerminalState) string {
 	var buf bytes.Buffer
 
 	// Initialize the terminal
-	fmt.Fprintf(&buf, "\x1b[!p") // Soft reset (DECSTR)
-	fmt.Fprintf(&buf, "\x1b[2J") // Clear screen
-	fmt.Fprintf(&buf, "\x1b[H")  // Home cursor
+	buf.WriteString("\x1b[!p") // Soft reset (DECSTR)
+	buf.WriteString("\x1b[2J") // Clear screen
+	buf.WriteString("\x1b[H")  // Home cursor
 
 	// Set terminal size
 	fmt.Fprintf(&buf, "\x1b[8;%d;%dt", state.Rows, state.Cols)
@@ -50,10 +50,10 @@ func terminalStateToANSI(state vt10x.TerminalState) string {
 	writeMode(&buf, "?5", state.ReverseVideo) // Reverse video
 
 	// Configure tab stops
-	fmt.Fprintf(&buf, "\x1b[3g") // Clear all tab stops
+	buf.WriteString("\x1b[3g") // Clear all tab stops
 	for _, col := range state.TabStops {
 		fmt.Fprintf(&buf, "\x1b[%dG", col+1)
-		fmt.Fprintf(&buf, "\x1bH")
+		buf.WriteString("\x1bH")
 	}
 
 	// Set scroll region (if not default)
@@ -70,9 +70,9 @@ func terminalStateToANSI(state vt10x.TerminalState) string {
 		fmt.Fprintf(&buf, "\x1b[%d;%dH", state.SavedCursorY+1, state.SavedCursorX+1)
 
 		// Switch to alternate screen
-		fmt.Fprintf(&buf, "\x1b[?1049h")
-		fmt.Fprintf(&buf, "\x1b[2J") // Clear the alternate screen
-		fmt.Fprintf(&buf, "\x1b[H")  // Home cursor
+		buf.WriteString("\x1b[?1049h")
+		buf.WriteString("\x1b[2J") // Clear the alternate screen
+		buf.WriteString("\x1b[H")  // Home cursor
 
 		// Render the primary buffer on the alternate screen
 		renderBuffer(&buf, state.PrimaryBuffer)
@@ -96,7 +96,7 @@ func writeMode(buf *bytes.Buffer, mode string, enabled bool) {
 }
 
 func renderBuffer(buf *bytes.Buffer, buffer [][]vt10x.Glyph) {
-	fmt.Fprintf(buf, "\x1b[0m") // Reset all attributes
+	buf.WriteString("\x1b[0m") // Reset all attributes
 
 	// Track last rendered attributes to minimize escape sequences
 	lastFG := vt10x.DefaultFG
@@ -117,7 +117,7 @@ func renderBuffer(buf *bytes.Buffer, buffer [][]vt10x.Glyph) {
 			continue
 		}
 
-		fmt.Fprintf(buf, "\x1b[%d;1H", y+1)
+		fmt.Fprintf(&buf, "\x1b[%d;1H", y+1)
 
 		for x := 0; x < len(buffer[y]); x++ {
 			glyph := buffer[y][x]
@@ -181,7 +181,9 @@ func renderBuffer(buf *bytes.Buffer, buffer [][]vt10x.Glyph) {
 
 			// Emit escape sequence if any attributes changed
 			if len(codes) > 0 {
-				fmt.Fprintf(buf, "\x1b[%sm", strings.Join(codes, ";"))
+				buf.WriteString("\x1b[")
+				buf.WriteString(strings.Join(codes, ";"))
+				buf.WriteString("m")
 			}
 
 			// Write character (space for null character)
@@ -193,7 +195,7 @@ func renderBuffer(buf *bytes.Buffer, buffer [][]vt10x.Glyph) {
 		}
 	}
 
-	fmt.Fprintf(buf, "\x1b[0m") // Reset attributes at end
+	buf.WriteString("\x1b[0m") // Reset attributes at end
 }
 
 func colorToANSI(color vt10x.Color, isForeground bool) []string {
