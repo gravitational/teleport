@@ -111,11 +111,10 @@ func ValidateInferencePolicy(p *summarizerv1.InferencePolicy) error {
 	if s.GetFilter() != "" {
 		parser, err := NewWhereParser(&Context{})
 		if err != nil {
-			return trace.Wrap(err, "spec.filter has to be a valid predicate")
+			return trace.Wrap(err)
 		}
 
-		_, err = parser.Parse(s.GetFilter())
-		if err != nil {
+		if _, err = parser.Parse(s.GetFilter()); err != nil {
 			return trace.Wrap(err, "spec.filter has to be a valid predicate")
 		}
 	}
