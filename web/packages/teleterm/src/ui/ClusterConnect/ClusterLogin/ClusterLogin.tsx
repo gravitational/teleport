@@ -54,7 +54,18 @@ export function ClusterLogin(props: Props & { reason: ClusterConnectReason }) {
 export const ClusterLoginPresentation = (
   props: ClusterLoginPresentationProps
 ) => {
-  return <StepSlider flows={loginViews} currFlow="default" {...props} />;
+  return (
+    <StepSlider
+      flows={loginViews}
+      currFlow="default"
+      css={`
+        // Prevents displaying a scrollbar by the slider.
+        // Instead, the entire dialog should be scrollable.
+        flex-shrink: 0;
+      `}
+      {...props}
+    />
+  );
 };
 
 export type ClusterLoginPresentationProps = State & {
