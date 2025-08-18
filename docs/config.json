@@ -827,7 +827,7 @@
     },
     {
       "source": "/admin-guides/teleport-policy/",
-      "destination": "/identity-security/teleport-policy/",
+      "destination": "/identity-security/",
       "permanent": true
     },
     {
@@ -1543,6 +1543,11 @@
     {
       "source": "/admin-guides/migrate-plans/",
       "destination": "/migrate-plans/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-security/teleport-policy/",
+      "destination": "/identity-security/",
       "permanent": true
     }
   ]
