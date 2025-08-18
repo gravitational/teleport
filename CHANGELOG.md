@@ -19,10 +19,10 @@
 * Fixed access denied error messages not being displayed in the Teleport web UI PostgreSQL client. [#57569](https://github.com/gravitational/teleport/pull/57569)
 * Use the bot details page to view and edit bot configuration, and see active instances with their upgrade status. [#57543](https://github.com/gravitational/teleport/pull/57543)
 * Fix a bug in the default discovery script that can happen discovering instances whose PATH doesn't contain `/usr/local/bin`. [#57531](https://github.com/gravitational/teleport/pull/57531)
-* Fix a race condition in the Teraform Provider potentially causing "does not exist" errors the following resources: `auth_preference`, `autoupdate_config`, `autoupdate_version`, `cluster_maintenance_config`, `cluster_network_config`, and `session_recording_config`. [#57528](https://github.com/gravitational/teleport/pull/57528)
+* Fix a race condition in the Terraform Provider potentially causing "does not exist" errors the following resources: `auth_preference`, `autoupdate_config`, `autoupdate_version`, `cluster_maintenance_config`, `cluster_network_config`, and `session_recording_config`. [#57528](https://github.com/gravitational/teleport/pull/57528)
 * Fix a Terraform provider bug causing resource creation to be retried more times than the MaxRetries setting. [#57528](https://github.com/gravitational/teleport/pull/57528)
 * Make it easier to identify Windows desktop certificate issuance on the audit log page. [#57520](https://github.com/gravitational/teleport/pull/57520)
-* Fix a bug in the TF provider happening when `auroupdate_version` or `autoupdate_config` have non-empty metadata. [#57517](https://github.com/gravitational/teleport/pull/57517)
+* Fix a bug in the TF provider happening when `autoupdate_version` or `autoupdate_config` have non-empty metadata. [#57517](https://github.com/gravitational/teleport/pull/57517)
 * Fix a bug on Windows where a forwarded SSH agent would become dysfunctional after a single connection using the agent. [#57512](https://github.com/gravitational/teleport/pull/57512)
 * Machine and Workload ID: Add experimental implementation of new `bound_keypair` join method for improved bot joining in on-prem environments. [#55037](https://github.com/gravitational/teleport/pull/55037)
 
