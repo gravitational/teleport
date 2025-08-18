@@ -218,6 +218,8 @@ const cfg = {
     integrationStatusResources:
       '/web/integrations/status/:type/:name/resources/:resourceKind',
     integrationEnroll: '/web/integrations/new/:type?/:subPage?',
+    integrationEnrollChild:
+      '/web/integrations/new/:type/:name/child/:subType/:subPage?',
     locks: '/web/locks',
     newLock: '/web/locks/new',
     requests: '/web/requests/:requestId?',
@@ -411,6 +413,14 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/usertask?integration=:name?&state=:state?',
     userTaskPath: '/v1/webapi/sites/:clusterId/usertask/:name',
     resolveUserTaskPath: '/v1/webapi/sites/:clusterId/usertask/:name/state',
+
+    awsRolesAnywhere: {
+      generate:
+        '/v1/webapi/scripts/integrations/configure/awsra-trust-anchor.sh?integrationName=:integrationName?&trustAnchor=:trustAnchor?&syncRole=:syncRole?&syncProfile=:syncProfile',
+      ping: '/v1/webapi/sites/:clusterId/integrations/aws-ra/:integrationName/ping',
+      profiles:
+        '/v1/webapi/sites/:clusterId/integrations/aws-ra/:integrationName/listprofiles',
+    },
 
     thumbprintPath: '/v1/webapi/thumbprint',
     pingAwsOidcIntegrationPath:
@@ -1502,6 +1512,42 @@ const cfg = {
         ...params,
       })
     );
+  },
+
+  getAwsRolesAnywhereGenerateUrl(
+    integrationName: string,
+    trustAnchor: string,
+    syncRole: string,
+    syncProfile: string
+  ) {
+    const path = cfg.api.awsRolesAnywhere.generate;
+    return (
+      cfg.baseUrl +
+      generatePath(path, {
+        integrationName,
+        trustAnchor,
+        syncRole,
+        syncProfile,
+      })
+    );
+  },
+
+  getAwsRolesAnywherePingUrl(integrationName: string) {
+    const path = cfg.api.awsRolesAnywhere.ping;
+    const clusterId = cfg.proxyCluster;
+    return generatePath(path, {
+      clusterId,
+      integrationName,
+    });
+  },
+
+  getAwsRolesAnywhereProfilesUrl(integrationName: string) {
+    const path = cfg.api.awsRolesAnywhere.profiles;
+    const clusterId = cfg.proxyCluster;
+    return generatePath(path, {
+      clusterId,
+      integrationName,
+    });
   },
 
   getBotTokenUrl() {

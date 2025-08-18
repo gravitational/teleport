@@ -3565,10 +3565,10 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
-	// Generate AWS credential process credentials if the user is trying to access an App with an AWS Roles Anywhere Integration.
-	awsCredentialProcessCredentials, err := generateAWSConfigCredentialProcessCredentials(ctx, a, req, notAfter)
+	// Generate AWS client side credentials if the user is trying to access an AWS App with an AWS Roles Anywhere Integration.
+	awsCredentialProcessCredentials, err := generateAWSClientSideCredentials(ctx, a, req, notAfter)
 	switch {
-	case errors.Is(err, errNotIntegrationApp):
+	case errors.Is(err, errAppWithoutAWSClientSideCredentials):
 	case err != nil:
 		return nil, trace.Wrap(err)
 	}
