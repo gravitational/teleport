@@ -117,7 +117,7 @@ func renderBuffer(buf *bytes.Buffer, buffer [][]vt10x.Glyph) {
 			continue
 		}
 
-		fmt.Fprintf(&buf, "\x1b[%d;1H", y+1)
+		fmt.Fprintf(buf, "\x1b[%d;1H", y+1)
 
 		for x := 0; x < len(buffer[y]); x++ {
 			glyph := buffer[y][x]
