@@ -733,10 +733,8 @@ func (c *ConnectionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 See https://goteleport.com/docs/admin-guides/access-controls/device-trust/device-management/#troubleshooting for help.
 `
 		case errors.Is(err, services.ErrSessionMFARequired):
-			text = `Multi-factor authentication (MFA) is required to access this resource but the current user has no supported MFA devices enrolled; see Account Settings in the Web UI or use 'tsh mfa add' to register an MFA device.
+			text = authclient.ErrNoMFADevices.Error()
 
-See https://goteleport.com/docs/zero-trust-access/access-controls/guides/per-session-mfa/ for help.
-`
 		default:
 			text = http.StatusText(code)
 		}

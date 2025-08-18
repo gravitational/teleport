@@ -417,7 +417,7 @@ func (h *Handler) performSessionMFACeremony(
 				}
 
 				if chal.WebauthnChallenge == nil && chal.SSOChallenge == nil {
-					return nil, trace.WrapWithMessage(authclient.ErrNoMFADevices, "Only WebAuthn and SSO MFA methods are supported for desktop access")
+					return nil, trace.Wrap(authclient.ErrNoMFADevices)
 				}
 
 				// Send the challenge over the socket.
