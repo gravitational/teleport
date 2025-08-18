@@ -77,12 +77,16 @@ func Test_newHealthCheckConfig(t *testing.T) {
 				interval:           time.Second * 43,
 				healthyThreshold:   7,
 				unhealthyThreshold: 8,
-				protocol:           types.TargetHealthProtocolTCP,
 				databaseLabelMatchers: types.LabelMatchers{
 					Labels: types.Labels{
 						"foo": utils.Strings{"bar", "baz"},
 					},
 					Expression: `labels["qux"] == "*"`,
+				},
+				kubernetesLabelMatchers: types.LabelMatchers{
+					Labels: types.Labels{},
+					// TODO(rana):
+					// Expression: `labels["qux"] == "*"`,
 				},
 			},
 		},
@@ -95,10 +99,14 @@ func Test_newHealthCheckConfig(t *testing.T) {
 				interval:           defaults.HealthCheckInterval,
 				healthyThreshold:   defaults.HealthCheckHealthyThreshold,
 				unhealthyThreshold: defaults.HealthCheckUnhealthyThreshold,
-				protocol:           types.TargetHealthProtocolTCP,
 				databaseLabelMatchers: types.LabelMatchers{
 					Labels:     types.Labels{},
 					Expression: `labels["*"] == "*"`,
+				},
+				kubernetesLabelMatchers: types.LabelMatchers{
+					Labels: types.Labels{},
+					// TODO(rana):
+					// Expression: `labels["*"] == "*"`,
 				},
 			},
 		},
@@ -139,7 +147,6 @@ func TestHealthCheckConfig_equivalent(t *testing.T) {
 			desc: "all fields equal",
 			a: &healthCheckConfig{
 				name:               "test",
-				protocol:           "http",
 				interval:           time.Second,
 				timeout:            500 * time.Millisecond,
 				healthyThreshold:   3,
@@ -147,7 +154,6 @@ func TestHealthCheckConfig_equivalent(t *testing.T) {
 			},
 			b: &healthCheckConfig{
 				name:               "test",
-				protocol:           "http",
 				interval:           time.Second,
 				timeout:            500 * time.Millisecond,
 				healthyThreshold:   3,
@@ -159,7 +165,6 @@ func TestHealthCheckConfig_equivalent(t *testing.T) {
 			desc: "all fields equal ignoring labels",
 			a: &healthCheckConfig{
 				name:                  "test",
-				protocol:              "http",
 				interval:              time.Second,
 				timeout:               500 * time.Millisecond,
 				healthyThreshold:      3,
@@ -168,7 +173,6 @@ func TestHealthCheckConfig_equivalent(t *testing.T) {
 			},
 			b: &healthCheckConfig{
 				name:                  "test",
-				protocol:              "http",
 				interval:              time.Second,
 				timeout:               500 * time.Millisecond,
 				healthyThreshold:      3,
@@ -184,16 +188,6 @@ func TestHealthCheckConfig_equivalent(t *testing.T) {
 			},
 			b: &healthCheckConfig{
 				name: "test2",
-			},
-			want: false,
-		},
-		{
-			desc: "different protocol",
-			a: &healthCheckConfig{
-				protocol: "http",
-			},
-			b: &healthCheckConfig{
-				protocol: "tcp",
 			},
 			want: false,
 		},

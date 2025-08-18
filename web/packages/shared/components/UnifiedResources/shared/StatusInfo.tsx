@@ -170,6 +170,15 @@ export function StatusInfoHeader({
         </Box>
       </Flex>
     );
+  } else if (resource.kind === 'kube_cluster') {
+    return (
+      <Flex gap={3}>
+        <ResourceIcon name={'kube'} width="45px" height="45px" />
+        <Box>
+          <H2>{resource.name}</H2>
+        </Box>
+      </Flex>
+    );
   }
 }
 
@@ -183,6 +192,13 @@ function ConnectionHeader({
       <Flex gap={2} my={3}>
         <WarningIcon size={16} />
         <H3>DB Connection Issue</H3>
+      </Flex>
+    );
+  } else if (resource.kind === 'kube_cluster') {
+    return (
+      <Flex gap={2} my={3}>
+        <WarningIcon size={16} />
+        <H3>Kubernetes Cluster Issue</H3>
       </Flex>
     );
   }
@@ -246,8 +262,11 @@ function unknownStatus(numServers: number) {
 }
 
 function getTroubleShootingLink(resource: UnifiedResourceDefinition) {
-  if (resource.kind == 'db') {
-    return 'https://goteleport.com/docs/enroll-resources/database-access/troubleshooting';
+  switch (resource.kind) {
+    case 'db':
+      return 'https://goteleport.com/docs/enroll-resources/database-access/troubleshooting';
+    case 'kube_cluster':
+      return 'https://goteleport.com/docs/enroll-resources/kubernetes-access/troubleshooting';
   }
 }
 
@@ -255,6 +274,8 @@ function getAffectedResourceKind(resource: UnifiedResourceDefinition) {
   switch (resource.kind) {
     case 'db':
       return 'database services';
+    case 'kube_cluster':
+      return 'kubernetes clusters';
   }
 }
 
@@ -332,7 +353,7 @@ export function openStatusInfoPanel({
   guide: JSX.Element;
   isEnterprise?: boolean;
 }) {
-  if (resource.kind === 'db') {
+  if (resource.kind === 'db' || resource.kind === 'kube_cluster') {
     setInfoGuideConfig({
       guide,
       id: getResourceId(resource),

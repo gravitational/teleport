@@ -58,6 +58,14 @@ type KubeServer interface {
 	SetCluster(KubeCluster) error
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
+	// GetTargetHealth gets health details for a target Kubernetes cluster.
+	GetTargetHealth() TargetHealth
+	// SetTargetHealth sets health details for a target Kubernetes cluster.
+	SetTargetHealth(h TargetHealth)
+	// GetTargetHealthStatus gets the health status of a target Kubernetes cluster.
+	GetTargetHealthStatus() TargetHealthStatus
+	// SetTargetHealthStatus sets the health status of a target Kubernetes cluster.
+	SetTargetHealthStatus(status TargetHealthStatus)
 }
 
 // NewKubernetesServerV3 creates a new kube server instance.
@@ -299,6 +307,38 @@ func (s *KubernetesServerV3) CloneResource() ResourceWithLabels {
 // match against the list of search values.
 func (s *KubernetesServerV3) MatchSearch(values []string) bool {
 	return MatchSearch(nil, values, nil)
+}
+
+// GetTargetHealth gets health details for a target Kubernetes cluster.
+func (s *KubernetesServerV3) GetTargetHealth() TargetHealth {
+	if s.Status.TargetHealth == nil {
+		return TargetHealth{}
+	}
+	return *s.Status.TargetHealth
+}
+
+// SetTargetHealth sets health details for a target Kubernetes cluster.
+func (s *KubernetesServerV3) SetTargetHealth(h TargetHealth) {
+	if s.Status == nil {
+		s.Status = &KubernetesServerStatusV3{}
+	}
+	s.Status.TargetHealth = &h
+}
+
+// GetTargetHealthStatus gets the health status of a target Kubernetes cluster.
+func (s *KubernetesServerV3) GetTargetHealthStatus() TargetHealthStatus {
+	if s.Status.TargetHealth == nil {
+		return ""
+	}
+	return TargetHealthStatus(s.Status.TargetHealth.Status)
+}
+
+// SetTargetHealthStatus sets the health status of a target Kubernetes cluster.
+func (s *KubernetesServerV3) SetTargetHealthStatus(status TargetHealthStatus) {
+	if s.Status.TargetHealth == nil {
+		s.Status.TargetHealth = &TargetHealth{}
+	}
+	s.Status.TargetHealth.Status = string(status)
 }
 
 // IsEqual determines if two kube server resources are equivalent to one another.
