@@ -315,7 +315,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		}
 
 		// Open the PAM context.
-		pamContext, err := pam.Open(&servicecfg.PAMConfig{
+		pamCfg := &pam.Config{PAMConfig: &servicecfg.PAMConfig{
 			ServiceName: c.PAMConfig.ServiceName,
 			UsePAMAuth:  c.PAMConfig.UsePAMAuth,
 			Login:       c.Login,
@@ -326,7 +326,17 @@ func RunCommand() (errw io.Writer, code int, err error) {
 			Stdin:  stdin,
 			Stdout: stdout,
 			Stderr: stderr,
-		})
+		},
+			RemoteAddr: &c.UaccMetadata.RemoteAddr,
+		}
+		if tty != nil {
+			ttyName, err := uacc.TTYName(tty)
+			if err != nil {
+				return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+			}
+			pamCfg.TTYName = ttyName
+		}
+		pamContext, err := pam.Open(pamCfg)
 		if err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
@@ -607,7 +617,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 	var pamEnvironment []string
 	if c.PAMConfig != nil {
 		// Open the PAM context.
-		pamContext, err := pam.Open(&servicecfg.PAMConfig{
+		pamContext, err := pam.Open(&pam.Config{PAMConfig: &servicecfg.PAMConfig{
 			ServiceName: c.PAMConfig.ServiceName,
 			Login:       c.Login,
 			Stdin:       os.Stdin,
@@ -617,7 +627,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 			// like pam_script.so can pick up to potentially customize the
 			// account/session.
 			Env: c.PAMConfig.Environment,
-		})
+		}})
 		if err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}

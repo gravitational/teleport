@@ -64,7 +64,7 @@ func TestEcho(t *testing.T) {
 	username := currentUser(t)
 
 	var buf bytes.Buffer
-	pamContext, err := Open(&servicecfg.PAMConfig{
+	pamContext, err := Open(&Config{PAMConfig: &servicecfg.PAMConfig{
 		Enabled:     true,
 		ServiceName: "teleport-acct-echo",
 		Login:       username,
@@ -77,7 +77,7 @@ func TestEcho(t *testing.T) {
 		Stdout:     &buf,
 		Stderr:     &buf,
 		UsePAMAuth: true,
-	})
+	}})
 	require.NoError(t, err)
 	defer pamContext.Close()
 
@@ -105,14 +105,14 @@ func TestEnvironment(t *testing.T) {
 	username := currentUser(t)
 
 	var buf bytes.Buffer
-	pamContext, err := Open(&servicecfg.PAMConfig{
+	pamContext, err := Open(&Config{PAMConfig: &servicecfg.PAMConfig{
 		Enabled:     true,
 		ServiceName: "teleport-session-environment",
 		Login:       username,
 		Stdin:       &discardReader{},
 		Stdout:      &buf,
 		Stderr:      &buf,
-	})
+	}})
 	require.NoError(t, err)
 	defer pamContext.Close()
 
@@ -125,7 +125,7 @@ func TestSuccess(t *testing.T) {
 	username := currentUser(t)
 
 	var buf bytes.Buffer
-	pamContext, err := Open(&servicecfg.PAMConfig{
+	pamContext, err := Open(&Config{PAMConfig: &servicecfg.PAMConfig{
 		Enabled:     true,
 		ServiceName: "teleport-success",
 		Login:       username,
@@ -133,7 +133,7 @@ func TestSuccess(t *testing.T) {
 		Stdout:      &buf,
 		Stderr:      &buf,
 		UsePAMAuth:  true,
-	})
+	}})
 	require.NoError(t, err)
 	defer pamContext.Close()
 
@@ -150,14 +150,14 @@ func TestAccountFailure(t *testing.T) {
 	username := currentUser(t)
 
 	var buf bytes.Buffer
-	_, err := Open(&servicecfg.PAMConfig{
+	_, err := Open(&Config{PAMConfig: &servicecfg.PAMConfig{
 		Enabled:     true,
 		ServiceName: "teleport-acct-failure",
 		Login:       username,
 		Stdin:       &discardReader{},
 		Stdout:      &buf,
 		Stderr:      &buf,
-	})
+	}})
 	require.Error(t, err)
 }
 
@@ -167,7 +167,7 @@ func TestAuthFailure(t *testing.T) {
 	username := currentUser(t)
 
 	var buf bytes.Buffer
-	_, err := Open(&servicecfg.PAMConfig{
+	_, err := Open(&Config{PAMConfig: &servicecfg.PAMConfig{
 		Enabled:     true,
 		ServiceName: "teleport-auth-failure",
 		Login:       username,
@@ -175,7 +175,7 @@ func TestAuthFailure(t *testing.T) {
 		Stdout:      &buf,
 		Stderr:      &buf,
 		UsePAMAuth:  true,
-	})
+	}})
 	require.Error(t, err)
 }
 
@@ -185,7 +185,7 @@ func TestAuthDisabled(t *testing.T) {
 	username := currentUser(t)
 
 	var buf bytes.Buffer
-	pamContext, err := Open(&servicecfg.PAMConfig{
+	pamContext, err := Open(&Config{PAMConfig: &servicecfg.PAMConfig{
 		Enabled:     true,
 		ServiceName: "teleport-auth-failure",
 		Login:       username,
@@ -193,7 +193,7 @@ func TestAuthDisabled(t *testing.T) {
 		Stdout:      &buf,
 		Stderr:      &buf,
 		UsePAMAuth:  false,
-	})
+	}})
 	require.NoError(t, err)
 	defer pamContext.Close()
 
@@ -209,14 +209,14 @@ func TestSessionFailure(t *testing.T) {
 	username := currentUser(t)
 
 	var buf bytes.Buffer
-	_, err := Open(&servicecfg.PAMConfig{
+	_, err := Open(&Config{PAMConfig: &servicecfg.PAMConfig{
 		Enabled:     true,
 		ServiceName: "teleport-session-failure",
 		Login:       username,
 		Stdin:       &discardReader{},
 		Stdout:      &buf,
 		Stderr:      &buf,
-	})
+	}})
 	require.Error(t, err)
 }
 

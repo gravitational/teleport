@@ -75,7 +75,7 @@ type Session struct {
 // OpenSession opens a new login session. It will succeed if at least one backend succeeds.
 func (uacc *UserAccountHandler) OpenSession(tty *os.File, username string, remote net.Addr) (*Session, error) {
 	loginTime := time.Now()
-	ttyFullName, err := os.Readlink(tty.Name())
+	ttyFullName, err := TTYName(tty)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -153,4 +153,12 @@ func (uacc *UserAccountHandler) FailedLogin(username string, remote net.Addr) er
 	}
 	// wtmpdb doesn't log failed logins.
 	return nil
+}
+
+func TTYName(tty *os.File) (string, error) {
+	ttyFullName, err := os.Readlink(tty.Name())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return ttyFullName, nil
 }

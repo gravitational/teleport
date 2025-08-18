@@ -34,6 +34,7 @@ package pam
 // extern int _pam_start(void *, const char *, const char *, const struct pam_conv *, pam_handle_t **);
 // extern int _pam_putenv(void *, pam_handle_t *, const char *);
 // extern int _pam_end(void *, pam_handle_t *, int);
+// extern int _pam_set_item(void *, pam_handle_t *, int, const char *);
 // extern int _pam_authenticate(void *, pam_handle_t *, int);
 // extern int _pam_acct_mgmt(void *, pam_handle_t *, int);
 // extern int _pam_open_session(void *, pam_handle_t *, int);
@@ -59,7 +60,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -277,6 +278,9 @@ type PAM struct {
 	// login is the *nix login that that is being used.
 	login *C.char
 
+	tty  *C.char
+	host *C.char
+
 	// handlerIndex is the index to the package level handler map.
 	handlerIndex int
 
@@ -287,7 +291,7 @@ type PAM struct {
 
 // Open creates a PAM context and initiates a PAM transaction to check the
 // account and then opens a session.
-func Open(config *servicecfg.PAMConfig) (*PAM, error) {
+func Open(config *Config) (*PAM, error) {
 	if config == nil {
 		return nil, trace.BadParameter("PAM configuration is required.")
 	}
@@ -308,6 +312,11 @@ func Open(config *servicecfg.PAMConfig) (*PAM, error) {
 	// memory must be released (and will be on the call to the Close method).
 	p.service_name = C.CString(config.ServiceName)
 	p.login = C.CString(config.Login)
+	p.tty = C.CString(config.TTYName)
+	if config.RemoteAddr != nil {
+		remote := utils.FromAddr(config.RemoteAddr)
+		p.host = C.CString(remote.Host())
+	}
 
 	// C code does not know that this PAM context exists. To ensure the
 	// conversation function can get messages to the right context, a handle
@@ -320,6 +329,19 @@ func Open(config *servicecfg.PAMConfig) (*PAM, error) {
 	// allocate pamh if needed and the pam_end function will release any
 	// allocated memory.
 	p.retval = C._pam_start(pamHandle, p.service_name, p.login, p.conv, &p.pamh)
+	if p.retval != C.PAM_SUCCESS {
+		return nil, p.codeToError(p.retval)
+	}
+
+	p.retval = C._pam_set_item(pamHandle, p.pamh, C.PAM_RUSER, p.login)
+	if p.retval != C.PAM_SUCCESS {
+		return nil, p.codeToError(p.retval)
+	}
+	p.retval = C._pam_set_item(pamHandle, p.pamh, C.PAM_RHOST, p.host)
+	if p.retval != C.PAM_SUCCESS {
+		return nil, p.codeToError(p.retval)
+	}
+	p.retval = C._pam_set_item(pamHandle, p.pamh, C.PAM_TTY, p.tty)
 	if p.retval != C.PAM_SUCCESS {
 		return nil, p.codeToError(p.retval)
 	}

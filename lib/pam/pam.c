@@ -162,6 +162,18 @@ int _pam_end(void *handle, pam_handle_t *pamh, int pam_status)
     return (f)(pamh, pam_status);
 }
 
+int _pam_set_item(void *handle, pam_handle_t *pamh, int item_type, const char *item)
+{
+    int (*f)(pam_handle_t *, int, const void *);
+
+    f = dlsym(handle, "pam_set_item");
+    if (f == NULL) {
+        return PAM_ABORT;
+    }
+
+    return (f)(pamh, item_type, (void*)(item));
+}
+
 int _pam_putenv(void *handle, pam_handle_t *pamh, const char *name_value)
 {
     int (*f)(pam_handle_t *, const char *);
