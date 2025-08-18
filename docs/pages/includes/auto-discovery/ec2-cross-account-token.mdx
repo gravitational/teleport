@@ -1,0 +1,17 @@
+Add a new entry to `spec.allow` in `token.yaml` and set `aws_account` to the
+account number of the new account.
+
+```diff
+# token.yaml
+kind: token
+version: v2
+metadata:
+  name: aws-discovery-iam-token
+spec:
+  roles: [Node]
+  join_method: iam
+  allow:
+  - aws_account: "123456789012"
+    # Existing entry...
++ - aws_account: "<Var name="destination AWS account ID" />"
+```

@@ -2975,7 +2975,7 @@ func (a *Server) AugmentWebSessionCertificates(ctx context.Context, opts *Augmen
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(*x509Identity, a)
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(*x509Identity)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3565,10 +3565,10 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
-	// Generate AWS credential process credentials if the user is trying to access an App with an AWS Roles Anywhere Integration.
-	awsCredentialProcessCredentials, err := generateAWSConfigCredentialProcessCredentials(ctx, a, req, notAfter)
+	// Generate AWS client side credentials if the user is trying to access an AWS App with an AWS Roles Anywhere Integration.
+	awsCredentialProcessCredentials, err := generateAWSClientSideCredentials(ctx, a, req, notAfter)
 	switch {
-	case errors.Is(err, errNotIntegrationApp):
+	case errors.Is(err, errAppWithoutAWSClientSideCredentials):
 	case err != nil:
 		return nil, trace.Wrap(err)
 	}
@@ -4665,7 +4665,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		return nil, trace.NotFound("web session has expired")
 	}
 
-	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(identity, a)
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -6767,6 +6767,9 @@ func (a *Server) createAccessListReminderNotification(ctx context.Context, owner
 }
 
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
+//
+// WARNING: This is not safe for use in clusters using HSMs or KMS for private key material.
+// Instead, you should prefer using the CRLs that are already present in the certificate_authority resource.
 func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
 	// Generate a CRL for the current cluster CA.
 	clusterName, err := a.GetClusterName(ctx)
@@ -6781,10 +6784,8 @@ func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.Cert
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(awly): this will only create a CRL for an active signer.
-	// If there are multiple signers (multiple HSMs), we won't have the full CRL coverage.
-	// Generate a CRL per signer and return all of them separately.
-
+	// Note: this will only create a CRL for a single active signer.
+	// If there are multiple signers (HSMs), we won't have the full CRL coverage.
 	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ctx, ca)
 	if trace.IsNotFound(err) {
 		// If there is no local TLS signer found in the host CA ActiveKeys, this

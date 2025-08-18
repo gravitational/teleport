@@ -2615,6 +2615,10 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				!cfg.Auth.SessionRecordingConfig.GetProxyChecksHostKeys() {
 				return trace.BadParameter("non-FIPS compliant proxy settings: \"proxy_checks_host_keys\" must be true")
 			}
+
+			if err := services.ValidateSessionRecordingConfig(cfg.Auth.SessionRecordingConfig, clf.FIPS, modules.GetModules().Features().Cloud); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 

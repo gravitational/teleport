@@ -3088,7 +3088,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 	// considering new or dropped access requests. This will include roles from
 	// currently assumed role access requests, and allowed resources from
 	// currently assumed resource access requests.
-	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(currentIdentity, a.authServer)
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(currentIdentity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -6082,7 +6082,7 @@ func (a *ServerWithRoles) GetLocks(ctx context.Context, inForceOnly bool, target
 	if err := a.authorizeAction(types.KindLock, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetLocks(ctx, inForceOnly, targets...)
+	return a.authServer.Cache.GetLocks(ctx, inForceOnly, targets...)
 }
 
 // UpsertLock upserts a lock.
