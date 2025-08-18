@@ -16,6 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// TODO(ravicious): Pass a function to assetsInlineLimit so that we don't have to remember about
+// adding the ?no-inline suffix.
+// https://vite.dev/config/build-options.html#build-assetsinlinelimit
 export { default as activemq } from './assets/activemq.svg';
 export { default as adobe } from './assets/adobe.svg';
 export { default as adobecreativecloudDark } from './assets/adobecreativecloud-dark.svg';
