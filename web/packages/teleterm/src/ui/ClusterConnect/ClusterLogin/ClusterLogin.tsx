@@ -54,13 +54,7 @@ export function ClusterLogin(props: Props & { reason: ClusterConnectReason }) {
 export const ClusterLoginPresentation = (
   props: ClusterLoginPresentationProps
 ) => {
-  return (
-    <StepSlider<typeof loginViews>
-      flows={loginViews}
-      currFlow="default"
-      {...props}
-    />
-  );
+  return <StepSlider flows={loginViews} currFlow="default" {...props} />;
 };
 
 export type ClusterLoginPresentationProps = State & {
