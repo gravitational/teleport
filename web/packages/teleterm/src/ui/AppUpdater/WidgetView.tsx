@@ -22,6 +22,7 @@ import { ButtonPrimary, ButtonSecondary, Flex, P3, Stack, Text } from 'design';
 import { Alert } from 'design/Alert';
 import { Info } from 'design/Icon';
 import { IconProps } from 'design/Icon/Icon';
+import { SpaceProps } from 'design/system';
 import { UnreachableCluster } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
 
 import { Platform } from 'teleterm/mainProcess/types';
@@ -49,17 +50,23 @@ import {
  * Hidden for `update-not-available` and `checking-for-update` events,
  * unless there's an issue that prevents autoupdates from working.
  */
-export function WidgetView(props: {
+export function WidgetView({
+  clusterGetter,
+  onDownload,
+  onInstall,
+  onMore,
+  platform,
+  updateEvent,
+  ...rest
+}: {
   updateEvent: AppUpdateEvent;
   platform: Platform;
   clusterGetter: ClusterGetter;
-  mx?: string | number;
   onMore(): void;
   onDownload(): void;
   onInstall(): void;
-}) {
-  const getClusterName = clusterNameGetter(props.clusterGetter);
-  const { updateEvent } = props;
+} & SpaceProps) {
+  const getClusterName = clusterNameGetter(clusterGetter);
   const { autoUpdatesStatus } = updateEvent;
 
   const issueRequiringAttention =
@@ -71,11 +78,10 @@ export function WidgetView(props: {
       <Alert
         kind="danger"
         mb={0}
-        mx={props.mx}
         details={issueRequiringAttention}
         secondaryAction={{
           content: 'Resolve',
-          onClick: props.onMore,
+          onClick: onMore,
         }}
       >
         App updates are disabled
@@ -89,12 +95,12 @@ export function WidgetView(props: {
       <Alert
         kind="danger"
         mb={0}
-        mx={props.mx}
         details={updateEvent.error.message}
         secondaryAction={{
           content: 'More',
-          onClick: props.onMore,
+          onClick: onMore,
         }}
+        {...rest}
       >
         Unable to check for app updates
       </Alert>
@@ -110,8 +116,8 @@ export function WidgetView(props: {
 
   const { description, button } = makeUpdaterContent({
     updateEvent,
-    onDownload: props.onDownload,
-    onInstall: props.onInstall,
+    onDownload,
+    onInstall,
   });
 
   const unreachableClusters =
@@ -124,21 +130,30 @@ export function WidgetView(props: {
   return (
     <AvailableUpdate
       version={updateEvent.update.version}
-      platform={props.platform}
+      platform={platform}
       description={description}
       unreachableClusters={unreachableClusters}
       downloadHost={downloadBaseUrl}
-      onMore={props.onMore}
+      onMore={onMore}
       getClusterName={getClusterName}
       primaryButton={
         button ? { name: button.name, onClick: button.action } : undefined
       }
-      mx={props.mx}
+      {...rest}
     />
   );
 }
 
-function AvailableUpdate(props: {
+function AvailableUpdate({
+  description,
+  downloadHost,
+  onMore,
+  platform,
+  primaryButton,
+  unreachableClusters,
+  version,
+  ...rest
+}: {
   version: string;
   description: string;
   unreachableClusters: UnreachableCluster[];
@@ -150,11 +165,10 @@ function AvailableUpdate(props: {
     name: string;
     onClick(): void;
   };
-  mx: string | number | undefined;
-}) {
-  const hasUnreachableClusters = !!props.unreachableClusters.length;
+} & SpaceProps) {
+  const hasUnreachableClusters = !!unreachableClusters.length;
   const isNonTeleportServer =
-    props.downloadHost && !isTeleportDownloadHost(props.downloadHost);
+    downloadHost && !isTeleportDownloadHost(downloadHost);
 
   return (
     // Mimics a neutral alert.
@@ -167,12 +181,12 @@ function AvailableUpdate(props: {
       `}
       borderRadius={3}
       px={3}
-      mx={props.mx}
       py="12px"
+      {...rest}
     >
       <Flex width="100%" alignItems="center" justifyContent="space-between">
         <Flex gap={1} alignItems="center" width="100%">
-          {props.platform === 'darwin' ? (
+          {platform === 'darwin' ? (
             <img alt="App icon" height="50px" src={iconMac} />
           ) : (
             <img
@@ -183,17 +197,17 @@ function AvailableUpdate(props: {
             />
           )}
           <Stack gap={0}>
-            <Text bold>Teleport Connect {props.version}</Text>
-            <P3>{props.description}</P3>
+            <Text bold>Teleport Connect {version}</Text>
+            <P3>{description}</P3>
           </Stack>
         </Flex>
         <Flex gap={2}>
-          {props.primaryButton && (
-            <ButtonPrimary size="small" onClick={props.primaryButton.onClick}>
-              {props.primaryButton.name}
+          {primaryButton && (
+            <ButtonPrimary size="small" onClick={primaryButton.onClick}>
+              {primaryButton.name}
             </ButtonPrimary>
           )}
-          <ButtonSecondary size="small" onClick={props.onMore}>
+          <ButtonSecondary size="small" onClick={onMore}>
             More
           </ButtonSecondary>
         </Flex>
@@ -209,7 +223,7 @@ function AvailableUpdate(props: {
           {isNonTeleportServer && (
             <IconAndText
               Icon={Info}
-              text={`Using ${props.downloadHost} as the update server.`}
+              text={`Using ${downloadHost} as the update server.`}
             />
           )}
         </Stack>
