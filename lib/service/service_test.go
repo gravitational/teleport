@@ -61,7 +61,6 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -79,7 +78,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/hostid"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -1071,154 +1069,6 @@ func testVersionCheck(t *testing.T, nodeCfg *servicecfg.Config, skipVersionCheck
 	supervisor, ok := nodeProc.Supervisor.(*LocalSupervisor)
 	require.True(t, ok)
 	supervisor.signalExit()
-}
-
-func Test_readOrGenerateHostID(t *testing.T) {
-	var (
-		id          = uuid.New().String()
-		hostUUIDKey = "/host_uuid"
-	)
-	type args struct {
-		kubeBackend   *fakeKubeBackend
-		hostIDContent string
-		identity      []*state.Identity
-	}
-	tests := []struct {
-		name             string
-		args             args
-		wantFunc         func(string) bool
-		wantKubeItemFunc func(*backend.Item) bool
-	}{
-		{
-			name: "load from storage without kube backend",
-			args: args{
-				kubeBackend:   nil,
-				hostIDContent: id,
-			},
-			wantFunc: func(receivedID string) bool {
-				return receivedID == id
-			},
-		},
-		{
-			name: "Kube Backend is available with key. Load from kube storage",
-			args: args{
-				kubeBackend: &fakeKubeBackend{
-					getData: &backend.Item{
-						Key:   backend.KeyFromString(hostUUIDKey),
-						Value: []byte(id),
-					},
-					getErr: nil,
-				},
-			},
-			wantFunc: func(receivedID string) bool {
-				return receivedID == id
-			},
-			wantKubeItemFunc: func(i *backend.Item) bool {
-				return i == nil
-			},
-		},
-		{
-			name: "No hostID available. Generate one and store it into Kube and Local Storage",
-			args: args{
-				kubeBackend: &fakeKubeBackend{
-					getData: nil,
-					getErr:  fmt.Errorf("key not found"),
-				},
-			},
-			wantFunc: func(receivedID string) bool {
-				_, err := uuid.Parse(receivedID)
-				return err == nil
-			},
-			wantKubeItemFunc: func(i *backend.Item) bool {
-				_, err := uuid.Parse(string(i.Value))
-				return err == nil && i.Key.String() == hostUUIDKey
-			},
-		},
-		{
-			name: "No hostID available. Generate one and store it into Local Storage",
-			args: args{
-				kubeBackend: nil,
-			},
-			wantFunc: func(receivedID string) bool {
-				_, err := uuid.Parse(receivedID)
-				return err == nil
-			},
-			wantKubeItemFunc: nil,
-		},
-		{
-			name: "No hostID available. Grab from provided static identity",
-			args: args{
-				kubeBackend: &fakeKubeBackend{
-					getData: nil,
-					getErr:  fmt.Errorf("key not found"),
-				},
-
-				identity: []*state.Identity{
-					{
-						ID: state.IdentityID{
-							HostUUID: id,
-						},
-					},
-				},
-			},
-			wantFunc: func(receivedID string) bool {
-				return receivedID == id
-			},
-			wantKubeItemFunc: func(i *backend.Item) bool {
-				_, err := uuid.Parse(string(i.Value))
-				return err == nil && i.Key.String() == hostUUIDKey
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			dataDir := t.TempDir()
-			// write host_uuid file to temp dir.
-			if len(tt.args.hostIDContent) > 0 {
-				err := hostid.WriteFile(dataDir, tt.args.hostIDContent)
-				require.NoError(t, err)
-			}
-
-			cfg := &servicecfg.Config{
-				DataDir:    dataDir,
-				Logger:     slog.Default(),
-				JoinMethod: types.JoinMethodToken,
-				Identities: tt.args.identity,
-			}
-
-			var kubeBackend kubernetesBackend
-			if tt.args.kubeBackend != nil {
-				kubeBackend = tt.args.kubeBackend
-			}
-
-			err := readOrGenerateHostID(context.Background(), cfg, kubeBackend)
-			require.NoError(t, err)
-
-			require.True(t, tt.wantFunc(cfg.HostUUID))
-
-			if tt.args.kubeBackend != nil {
-				require.True(t, tt.wantKubeItemFunc(tt.args.kubeBackend.putData))
-			}
-		})
-	}
-}
-
-type fakeKubeBackend struct {
-	putData *backend.Item
-	getData *backend.Item
-	getErr  error
-}
-
-// Put puts value into backend (creates if it does not
-// exists, updates it otherwise)
-func (f *fakeKubeBackend) Put(ctx context.Context, i backend.Item) (*backend.Lease, error) {
-	f.putData = &i
-	return &backend.Lease{}, nil
-}
-
-// Get returns a single item or not found error
-func (f *fakeKubeBackend) Get(ctx context.Context, key backend.Key) (*backend.Item, error) {
-	return f.getData, f.getErr
 }
 
 func TestProxyGRPCServers(t *testing.T) {

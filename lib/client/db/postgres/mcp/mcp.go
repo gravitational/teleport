@@ -46,6 +46,20 @@ var queryTool = mcp.NewTool(dbmcp.ToolName(defaults.ProtocolPostgres, "query"),
 	),
 )
 
+// queryToolForCockroachDB is same as queryTool but promotes CockroachDB instead
+// of PostgreSQL.
+var queryToolForCockroachDB = mcp.NewTool(dbmcp.ToolName(defaults.ProtocolCockroachDB, "query"),
+	mcp.WithDescription("Execute SQL query against CockroachDB database connected using Teleport"),
+	mcp.WithString(queryToolDatabaseParam,
+		mcp.Required(),
+		mcp.Description("Teleport database resource URI where the query will be executed"),
+	),
+	mcp.WithString(queryToolQueryParam,
+		mcp.Required(),
+		mcp.Description("CockroachDB SQL query to execute"),
+	),
+)
+
 type database struct {
 	name string
 	conn *dbmcp.ManagedConn[pgconn.PgConn, *pgconn.PgConn]
@@ -61,6 +75,21 @@ type Server struct {
 // NewServer initializes a PostgreSQL MCP server, creating the database
 // configurations and registering Server tools into the root server.
 func NewServer(ctx context.Context, cfg *dbmcp.NewServerConfig) (dbmcp.Server, error) {
+	return newServer(ctx, queryTool, cfg)
+}
+
+// NewServerForCockroachDB initializes a CockroachDB MCP server, creating the
+// database configurations and registering Server tools into the root server.
+//
+// Teleport differentiates CockroachDB and PostgreSQL as different protocols but
+// uses the same db engine under the hood. Here we use the same PostgreSQL
+// MCP server implementation as well, except for a slightly different tool
+// name and description.
+func NewServerForCockroachDB(ctx context.Context, cfg *dbmcp.NewServerConfig) (dbmcp.Server, error) {
+	return newServer(ctx, queryToolForCockroachDB, cfg)
+}
+
+func newServer(ctx context.Context, queryTool mcp.Tool, cfg *dbmcp.NewServerConfig) (*Server, error) {
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
 		// Given that the connection might have been dropped (e.g., due to net
 		// work interruption). We should retry immediately.

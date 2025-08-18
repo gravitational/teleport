@@ -131,8 +131,8 @@ func (s *ClusterConfigurationService) UpsertClusterName(c types.ClusterName) err
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
-func (s *ClusterConfigurationService) GetStaticTokens() (types.StaticTokens, error) {
-	item, err := s.Get(context.TODO(), backend.NewKey(clusterConfigPrefix, staticTokensPrefix))
+func (s *ClusterConfigurationService) GetStaticTokens(ctx context.Context) (types.StaticTokens, error) {
+	item, err := s.Get(ctx, backend.NewKey(clusterConfigPrefix, staticTokensPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("static tokens not found")

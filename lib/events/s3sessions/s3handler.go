@@ -332,6 +332,20 @@ func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reade
 	return h.uploadFile(ctx, h.summaryPath(sessionID), reader)
 }
 
+// UploadMetadata reads the content of a session's metadata from a reader and
+// uploads it to an S3 bucket. If successful, it returns URL of the uploaded
+// object.
+func (h *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return h.uploadFile(ctx, h.metadataPath(sessionID), reader)
+}
+
+// UploadThumbnail reads the content of a session's thumbnail from a reader and
+// uploads it to an S3 bucket. If successful, it returns URL of the uploaded
+// object.
+func (h *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return h.uploadFile(ctx, h.thumbnailPath(sessionID), reader)
+}
+
 func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader) (string, error) {
 	uploadInput := &s3.PutObjectInput{
 		Bucket: aws.String(h.Bucket),
@@ -366,6 +380,20 @@ func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer eve
 // found.
 func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	return h.downloadFile(ctx, h.summaryPath(sessionID), writer)
+}
+
+// DownloadMetadata downloads a session's metadata from an S3 bucket and writes the
+// results into a writer. Returns trace.NotFound error if the metadata is not
+// found.
+func (h *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return h.downloadFile(ctx, h.metadataPath(sessionID), writer)
+}
+
+// DownloadThumbnail downloads a session's thumbnail from an S3 bucket and writes the
+// results into a writer. Returns trace.NotFound error if the thumbnail is not
+// found.
+func (h *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return h.downloadFile(ctx, h.thumbnailPath(sessionID), writer)
 }
 
 func (h *Handler) downloadFile(ctx context.Context, path string, writer events.RandomAccessWriter) error {
@@ -474,6 +502,20 @@ func (h *Handler) summaryPath(sessionID session.ID) string {
 		return string(sessionID) + ".summary.json"
 	}
 	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".summary.json"), "/")
+}
+
+func (h *Handler) metadataPath(sessionID session.ID) string {
+	if h.Path == "" {
+		return string(sessionID) + ".metadata"
+	}
+	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".metadata"), "/")
+}
+
+func (h *Handler) thumbnailPath(sessionID session.ID) string {
+	if h.Path == "" {
+		return string(sessionID) + ".thumbnail"
+	}
+	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".thumbnail"), "/")
 }
 
 func (h *Handler) fromPath(p string) session.ID {

@@ -625,7 +625,7 @@ By default, Teleport will accept the PROXY line but will prevent connections
 with IP pinning enabled. IP pinning users will need to explicitly enable/disable
 proxy protocol like explained above.
 
-See more details in our [documentation](docs/pages/admin-guides/management/security/proxy-protocol.mdx).
+See more details in our [documentation](docs/pages/zero-trust-access/management/security/proxy-protocol.mdx).
 
 #### Legacy deb/rpm package repositories are deprecated
 
@@ -3036,7 +3036,7 @@ if err = clt.CreateAccessRequest(ctx, accessRequest); err != nil {
 
 ### Upgrade Notes
 
-Please follow our [standard upgrade procedure](docs/pages/admin-guides/management/admin/admin.mdx) to upgrade your cluster.
+Please follow our [standard upgrade procedure](docs/pages/zero-trust-access/management/admin/admin.mdx) to upgrade your cluster.
 
 Note, for clusters using GitHub SSO and Trusted Clusters, when upgrading SSO users will lose connectivity to leaf clusters. Local users will not be affected.
 
@@ -3260,7 +3260,7 @@ Learn more about [Teleport's RBAC Resources](docs/pages/zero-trust-access/access
 
 ##### Cluster Labels
 
-Teleport 5.0 also adds the ability to set labels on Trusted Clusters. The labels are set when creating a trusted cluster invite token. This lets teams use the same RBAC controls used on nodes to approve or deny access to clusters. This can be especially useful for MSPs that connect hundreds of customers' clusters - when combined with access workflows, cluster access can be delegated. Learn more by reviewing our [Truster Cluster Setup & RBAC Docs](docs/pages/admin-guides/management/admin/trustedclusters.mdx)
+Teleport 5.0 also adds the ability to set labels on Trusted Clusters. The labels are set when creating a trusted cluster invite token. This lets teams use the same RBAC controls used on nodes to approve or deny access to clusters. This can be especially useful for MSPs that connect hundreds of customers' clusters - when combined with access workflows, cluster access can be delegated. Learn more by reviewing our [Truster Cluster Setup & RBAC Docs](docs/pages/zero-trust-access/management/admin/trustedclusters.mdx)
 
 Creating a trusted cluster join token for a production environment:
 
@@ -3317,7 +3317,7 @@ Enterprise Only:
 
 #### Documentation
 
-We've added an [API Guide](docs/pages/admin-guides/api/api.mdx) to simply developing applications against Teleport.
+We've added an [API Guide](docs/pages/zero-trust-access/api/api.mdx) to simply developing applications against Teleport.
 
 #### Upgrade Notes
 
@@ -3598,7 +3598,7 @@ teleport:
 ```
 
 Rotate the cluster CA, following [these
-docs](docs/pages/admin-guides/management/operations/ca-rotation.mdx).
+docs](docs/pages/zero-trust-access/management/operations/ca-rotation.mdx).
 
 ##### Web UI
 
@@ -3629,7 +3629,7 @@ the “prefix” config value when storing data. Upgrading from 4.2 to 4.3 will
 migrate the data as needed at startup. Make sure you follow our Teleport
 [upgrade guidance](docs/pages/upgrading/upgrading.mdx).
 
-**Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](docs/pages/admin-guides/management/operations/backup-restore.mdx) into the downgraded cluster.**
+**Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](docs/pages/zero-trust-access/management/operations/backup-restore.mdx) into the downgraded cluster.**
 
 ## 4.2.12
 
@@ -3751,7 +3751,7 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 
 * Alpha: Enhanced Session Recording lets you know what's really happening during a Teleport Session. [#2948](https://github.com/gravitational/teleport/issues/2948)
 * Alpha: Workflows API lets admins escalate RBAC roles in response to user requests. [Read the docs](docs/pages/identity-governance/access-requests/access-requests.mdx). [#3006](https://github.com/gravitational/teleport/issues/3006)
-* Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](docs/pages/admin-guides/deploy-a-cluster/deployments/gcp.mdx). [#2821](https://github.com/gravitational/teleport/pull/2821)
+* Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](docs/pages/zero-trust-access/deploy-a-cluster/deployments/gcp.mdx). [#2821](https://github.com/gravitational/teleport/pull/2821)
 * Remote tctl execution is now possible. [Read the docs](./docs/pages/reference/cli/tctl.mdx). [#1525](https://github.com/gravitational/teleport/issues/1525) [#2991](https://github.com/gravitational/teleport/issues/2991)
 
 ### Fixes
@@ -3760,7 +3760,7 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 
 ### Documentation
 
-* Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](docs/pages/admin-guides/management/admin/trustedclusters.mdx).
+* Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](docs/pages/zero-trust-access/management/admin/trustedclusters.mdx).
 * Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](docs/pages/zero-trust-access/compliance-frameworks/fedramp.mdx).
 
 ## 4.1.11
@@ -3992,7 +3992,7 @@ With this release of Teleport, we have built out the foundation to help Teleport
 
 ### Improvements
 
-* Teleport now support 10,000 remote connections to a single Teleport cluster. [Using our recommend hardware setup.](docs/pages/admin-guides/management/operations/scaling.mdx)
+* Teleport now support 10,000 remote connections to a single Teleport cluster. [Using our recommend hardware setup.](docs/pages/zero-trust-access/management/operations/scaling.mdx)
 * Added ability to delete node using `tctl rm`. [#2685](https://github.com/gravitational/teleport/pull/2685)
 * Output of `tsh ls` is now sorted by node name. [#2534](https://github.com/gravitational/teleport/pull/2534)
 

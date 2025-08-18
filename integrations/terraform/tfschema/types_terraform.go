@@ -1607,6 +1607,22 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 							Description: "Allow is a list of Rules, nodes using this token must match one allow rule to use this token.",
 							Optional:    true,
 						},
+						"oidc": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"insecure_allow_http_issuer": {
+									Description: "InsecureAllowHTTPIssuer is a flag that, if set, disables the requirement that the issuer must use HTTPS.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+								"issuer": {
+									Description: "Issuer is the URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/oidc-configuration` endpoint. This should be a valid URL and must exactly match the `issuer` field in a service account JWT. For example: https://oidc.eks.us-west-2.amazonaws.com/id/12345...",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "OIDCConfig configures the `oidc` type.",
+							Optional:    true,
+						},
 						"static_jwks": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"jwks": {
 								Description: "JWKS should be the JSON Web Key Set formatted public keys of that the Kubernetes Cluster uses to sign service account tokens. This can be fetched from /openid/v1/jwks on the Kubernetes API Server.",
@@ -1617,7 +1633,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 							Optional:    true,
 						},
 						"type": {
-							Description: "Type controls which behavior should be used for validating the Kubernetes Service Account token. Support values: - `in_cluster` - `static_jwks` If unset, this defaults to `in_cluster`.",
+							Description: "Type controls which behavior should be used for validating the Kubernetes Service Account token. Support values: - `in_cluster` - `static_jwks` - `oidc` If unset, this defaults to `in_cluster`.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -2141,7 +2157,7 @@ func GenSchemaSessionRecordingConfigV2(ctx context.Context) (github_com_hashicor
 		"status": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"encryption_keys": {
 				Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"public_key": {
-					Description: "PublicKey is a Bech32 encoded age X25519 public key.",
+					Description: "A PEM encoded public key used for key wrapping during age encryption. Expected to be RSA 4096.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				}}),
@@ -4164,6 +4180,11 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 					Description: "RedirectURLs is a list of callback URLs which the identity provider can use to redirect the client back to the Teleport Proxy to complete authentication. This list should match the URLs on the provider's side. The URL used for a given auth request will be chosen to match the requesting Proxy's public address. If there is no match, the first url in the list will be used.",
 					Optional:    true,
 				}),
+				"request_object_mode": {
+					Description: "RequestObjectMode determines how JWT-Secured Authorization Requests will be used for authorization requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality for authorization request parameters.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
 				"scope": {
 					Description: "Scope specifies additional scopes set by provider.",
 					Optional:    true,
@@ -14968,6 +14989,58 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["oidc"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.OIDC = nil
+												if !v.Null && !v.Unknown {
+													tf := v
+													obj.OIDC = &github_com_gravitational_teleport_api_types.ProvisionTokenSpecV2Kubernetes_OIDCConfig{}
+													obj := obj.OIDC
+													{
+														a, ok := tf.Attrs["issuer"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC.Issuer"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC.Issuer", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.Issuer = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["insecure_allow_http_issuer"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC.InsecureAllowHTTPIssuer"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC.InsecureAllowHTTPIssuer", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+															} else {
+																var t bool
+																if !v.Null && !v.Unknown {
+																	t = bool(v.Value)
+																}
+																obj.InsecureAllowHTTPIssuer = t
+															}
+														}
+													}
+												}
+											}
+										}
+									}
 								}
 							}
 						}
@@ -18044,6 +18117,82 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 												}
 												v.Unknown = false
 												tf.Attrs["static_jwks"] = v
+											}
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["oidc"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["oidc"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+												if !ok {
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
+												}
+												if obj.OIDC == nil {
+													v.Null = true
+												} else {
+													obj := obj.OIDC
+													tf := &v
+													{
+														t, ok := tf.AttrTypes["issuer"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC.Issuer"})
+														} else {
+															v, ok := tf.Attrs["issuer"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.Kubernetes.OIDC.Issuer", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC.Issuer", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.Issuer) == ""
+															}
+															v.Value = string(obj.Issuer)
+															v.Unknown = false
+															tf.Attrs["issuer"] = v
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["insecure_allow_http_issuer"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC.InsecureAllowHTTPIssuer"})
+														} else {
+															v, ok := tf.Attrs["insecure_allow_http_issuer"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.Kubernetes.OIDC.InsecureAllowHTTPIssuer", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Kubernetes.OIDC.InsecureAllowHTTPIssuer", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																}
+																v.Null = bool(obj.InsecureAllowHTTPIssuer) == false
+															}
+															v.Value = bool(obj.InsecureAllowHTTPIssuer)
+															v.Unknown = false
+															tf.Attrs["insecure_allow_http_issuer"] = v
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["oidc"] = v
 											}
 										}
 									}
@@ -41469,6 +41618,23 @@ func CopyOIDCConnectorV3FromTerraform(_ context.Context, tf github_com_hashicorp
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["request_object_mode"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"OIDCConnectorV3.Spec.RequestObjectMode"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.RequestObjectMode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+							} else {
+								var t string
+								if !v.Null && !v.Unknown {
+									t = string(v.Value)
+								}
+								obj.RequestObjectMode = t
+							}
+						}
+					}
 				}
 			}
 		}
@@ -42649,6 +42815,28 @@ func CopyOIDCConnectorV3ToTerraform(ctx context.Context, obj *github_com_gravita
 								c.Unknown = false
 								tf.Attrs["user_matchers"] = c
 							}
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["request_object_mode"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Spec.RequestObjectMode"})
+						} else {
+							v, ok := tf.Attrs["request_object_mode"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"OIDCConnectorV3.Spec.RequestObjectMode", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.RequestObjectMode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
+								v.Null = string(obj.RequestObjectMode) == ""
+							}
+							v.Value = string(obj.RequestObjectMode)
+							v.Unknown = false
+							tf.Attrs["request_object_mode"] = v
 						}
 					}
 				}

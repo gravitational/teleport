@@ -49,11 +49,18 @@ import (
 func TestClientToolsAutoUpdateCommands(t *testing.T) {
 	ctx := context.Background()
 	log := logtest.NewLogger()
-	process := testenv.MakeTestServer(t, testenv.WithLogger(log))
-	authClient := testenv.MakeDefaultAuthClient(t, process)
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(log))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	authClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = authClient.Close() })
 
 	// Check that AutoUpdateConfig and AutoUpdateVersion are not created.
-	_, err := authClient.GetAutoUpdateConfig(ctx)
+	_, err = authClient.GetAutoUpdateConfig(ctx)
 	require.True(t, trace.IsNotFound(err))
 	_, err = authClient.GetAutoUpdateVersion(ctx)
 	require.True(t, trace.IsNotFound(err))
