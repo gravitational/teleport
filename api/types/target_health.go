@@ -25,8 +25,10 @@ import (
 type TargetHealthProtocol string
 
 const (
-	// TargetHealthProtocolTCP is a target health check protocol.
+	// TargetHealthProtocolTCP is the TCP target health check protocol.
 	TargetHealthProtocolTCP TargetHealthProtocol = "TCP"
+	// TargetHealthProtocolHTTP is the HTTP target health check protocol.
+	TargetHealthProtocolHTTP TargetHealthProtocol = "HTTP"
 )
 
 // TargetHealthStatus is a target resource's health status.

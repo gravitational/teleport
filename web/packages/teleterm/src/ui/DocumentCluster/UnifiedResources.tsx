@@ -570,6 +570,11 @@ const mapToSharedResource = (
           labels: kube.labels,
           name: kube.name,
           requiresRequest: resource.requiresRequest,
+          targetHealth: kube.targetHealth && {
+            status: kube.targetHealth.status as ResourceHealthStatus,
+            error: kube.targetHealth.error,
+            message: kube.targetHealth.message,
+          },
         },
         ui: {
           ActionButton: <ConnectKubeActionButton kube={kube} />,

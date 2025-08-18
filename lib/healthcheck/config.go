@@ -33,13 +33,14 @@ import (
 // healthCheckConfig is an internal health check config type converted from a
 // [*healthcheckconfigv1.HealthCheckConfig] with defaults set.
 type healthCheckConfig struct {
-	name                  string
-	protocol              types.TargetHealthProtocol
-	interval              time.Duration
-	timeout               time.Duration
-	healthyThreshold      uint32
-	unhealthyThreshold    uint32
-	databaseLabelMatchers types.LabelMatchers
+	name                    string
+	protocol                types.TargetHealthProtocol
+	interval                time.Duration
+	timeout                 time.Duration
+	healthyThreshold        uint32
+	unhealthyThreshold      uint32
+	databaseLabelMatchers   types.LabelMatchers
+	kubernetesLabelMatchers types.LabelMatchers
 }
 
 // newHealthCheckConfig converts a health check config protobuf message into a
@@ -47,6 +48,10 @@ type healthCheckConfig struct {
 func newHealthCheckConfig(cfg *healthcheckconfigv1.HealthCheckConfig) *healthCheckConfig {
 	spec := cfg.GetSpec()
 	match := spec.GetMatch()
+	// TODO(rana): Reconsider protocol selection design.
+	// What happens if both db & kube matchers are present?
+	// Determine whether protocol is specified, and when both matchers present.
+
 	return &healthCheckConfig{
 		name:               cfg.GetMetadata().GetName(),
 		timeout:            cmp.Or(spec.GetTimeout().AsDuration(), defaults.HealthCheckTimeout),
@@ -55,8 +60,11 @@ func newHealthCheckConfig(cfg *healthcheckconfigv1.HealthCheckConfig) *healthChe
 		unhealthyThreshold: cmp.Or(spec.GetUnhealthyThreshold(), defaults.HealthCheckUnhealthyThreshold),
 		// we only support plain TCP health checks currently, but eventually we
 		// may add support for other protocols such as TLS or HTTP
-		protocol:              types.TargetHealthProtocolTCP,
-		databaseLabelMatchers: newLabelMatchers(match.GetDbLabelsExpression(), match.GetDbLabels()),
+		// TODO(rana): RE-DESIGN PROTOCOL SPECIFICATION/SELECTION
+		// protocol:                types.TargetHealthProtocolHTTP,
+		protocol:                types.TargetHealthProtocolTCP,
+		databaseLabelMatchers:   newLabelMatchers(match.GetDbLabelsExpression(), match.GetDbLabels()),
+		kubernetesLabelMatchers: newLabelMatchers(match.GetKubernetesLabelsExpression(), match.GetKubernetesLabels()),
 	}
 }
 
@@ -79,6 +87,8 @@ func (h *healthCheckConfig) getLabelMatchers(kind string) types.LabelMatchers {
 	switch kind {
 	case types.KindDatabase:
 		return h.databaseLabelMatchers
+	case types.KindKubernetesCluster:
+		return h.kubernetesLabelMatchers
 	}
 	// unreachable since we enforce a list of supported target resource kinds,
 	// but empty matchers do the right thing anyway: don't match anything.

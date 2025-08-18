@@ -30,6 +30,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	authzapi "k8s.io/api/authorization/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/version"
@@ -261,6 +263,29 @@ func (k *kubeDetails) getObjectGVK(resource apiResource) *schema.GroupVersionKin
 		apiGroup: resource.apiGroup,
 		version:  resource.apiGroupVersion,
 	}]
+}
+
+// checkHealth checks the health of a Kubernetes cluster.
+func (k *kubeDetails) checkHealth(ctx context.Context) error {
+	client := k.getKubeClient().AuthorizationV1().SelfSubjectAccessReviews()
+	if err := checkImpersonationPermissions(ctx, k.kubeCluster.GetName(), client); err != nil {
+		return err
+	}
+	resp, err := client.Create(ctx, &authzapi.SelfSubjectAccessReview{
+		Spec: authzapi.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &authzapi.ResourceAttributes{
+				Verb:     "get",
+				Resource: "pods",
+			},
+		},
+	}, metav1.CreateOptions{})
+	if err != nil {
+		return trace.Wrap(err, "failed 'get pods' SelfSubjectAccessReview in Kubernetes cluster: %s", err)
+	} // ClusterRole
+	if !resp.Status.Allowed {
+		return trace.AccessDenied("access denied to 'get pods' SelfSubjectAccessReview in Kubernetes cluster")
+	}
+	return nil
 }
 
 // getKubeClusterCredentials generates kube credentials for dynamic clusters.
