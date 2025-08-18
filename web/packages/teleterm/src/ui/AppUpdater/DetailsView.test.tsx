@@ -118,16 +118,16 @@ test('when there are multiple clusters available, managing cluster can be select
 
   expect(radioOptions.at(0).closest('label')).toHaveTextContent(
     // The cluster name and the helper text are normally in separate lines.
-    'Use highest compatible version from your clusters⚠︎︎ No cluster provides version compatible with all other clusters.'
+    'Use the highest compatible version from your clusters⚠︎︎ No cluster provides a version compatible with all other clusters.'
   );
   expect(radioOptions.at(1).closest('label')).toHaveTextContent(
-    'Use version from cluster fooTeleport Connect 16.0.0'
+    'fooTeleport Connect 16.0.0'
   );
   expect(radioOptions.at(2).closest('label')).toHaveTextContent(
-    'Use version from cluster barTeleport Connect 18.0.0⚠︎︎ Automatic client tools updates are disabled on this cluster.'
+    'barTeleport Connect 18.0.0⚠︎︎ Automatic client tools updates are disabled on this cluster.'
   );
   expect(radioOptions.at(3).closest('label')).toHaveTextContent(
-    'Use version from cluster baz⚠︎︎ Version unavailable · Cluster is unreachable.Show MoreRetry'
+    'baz⚠︎︎ Version unavailable · Cluster is unreachable.Show MoreRetry'
   );
 
   await userEvent.click(radioOptions.at(1));
