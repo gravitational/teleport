@@ -188,62 +188,62 @@ A [summary of what IAM Roles Anywhere is](https://docs.aws.amazon.com/rolesanywh
 ![setup step 1](./assets/0204-setup-step1.png)
 
 ```
- Access flow                                                                       
-       ┌──────────────────────────┐             ┌────────────────┐                 
-       │ Teleport                 │             │  User          │                 
-       │                          │  App Login  │ ┌─────┐        │                 
-       │┌──────────┐Issues┌─────┐ ◄─────────────┼─┤ tsh │        │                 
-       ││ AWSRA-CA ┼──────►X.509│ │ Credentials │ │     │        │                 
-       │└────────▲─┘      └─────┘ ├─────────────┼─►     │        │                 
-       │         │                │             │ │     │        │                 
-       └─────────┼────────────────┘             │ └─▲──┬┘        │                 
-                 │                              │   │  │         │                 
-                 │                              │ ┌─┴──▼───────┐ │                 
-                 │                              │ │   aws cli  │ │                 
-                 │                              │ └──────┬─────┘ │                 
-                 │Trusts                        └────────┼───────┘                 
-                 │                                       │                         
-┌────────────────┼─────────────────────────────────┐     │                         
-│ AWS            │                                 │     │                         
-│ ┌──────────────┼───────────────────────────────┐ │     │Calls AWS APIs           
-│ │ AWS Account  │                               │ │     │                         
-│ │ ┌────────────┼──────────┐ ┌────────────────┐ │ │     │                         
-│ │ │ Region     │          │ │  IAM Roles     │ │ │     │                         
-│ │ │ ┌──────────┴───────┐  │ │                │ │ │     │                         
-│ │ │ │ RA Trust Anchor  │  │ │                │ │ ◄─────┘                         
-│ │ │ └──────────────────┘  │ │  ┌───────────┐ │ │ │                               
-│ │ │                   ┌───┼─┼──►   Role1   │ │ │ │                               
-│ │ │                   │   │ │  └───────────┘ │ │ │                               
-│ │ │ ┌──────────────┐  │   │ │  ┌───────────┐ │ │ │                               
-│ │ │ │ RA Profile1  ├──┴───┼─┼──►   Role2   │ │ │ │                               
-│ │ │ └──────────────┘      │ │  └───────────┘ │ │ │                               
-│ │ │                       │ │                │ │ │                               
-│ │ │ ┌──────────────┐      │ │  ┌───────────┐ │ │ │                               
-│ │ │ │ RA Profile2  ├──────┼─┼──►   Role3   │ │ │ │                               
-│ │ │ └──────────────┘      │ │  └───────────┘ │ │ │                               
-│ │ └───────────────────────┘ └────────────────┘ │ │                               
-│ └──────────────────────────────────────────────┘ │                               
-└──────────────────────────────────────────────────┘                               
-                                                                                   
- Sync process                                                                      
-┌────────────────────────────────────────────┐ ┌──────────────────────────────────┐
-│ AWS                                        │ │ Teleport                         │
-│ ┌────────────────────────────────────────┐ │ │                                  │
-│ │ AWS Account                            │ │ │ ┌────────────┐ ┌───────────────┐ │
-│ │ ┌─────────────────┐ ┌────────────────┐ │ │ │ │App Service │ │Access List    │ │
-│ │ │ Region          │ │  IAM Roles     │ │ │ │ │ RA Profile1│ │ RA Profile1   │ │
-│ │ │┌─────────────┐  │ │ ┌───────────┐  │ │ │ │ │            │ │ AWS Role ARNs:│ │
-│ │ ││ RA Profile1 ┼─┬┼─┼─►   Role1   │  │ │ │ │ │            │ │ - Role1       │ │
-│ │ │└─────────────┘ ││ │ └───────────┘  │ │ │ │ │            │ │ - Role2       │ │
-│ │ │                ││ │ ┌───────────┐  │ │ │ │ └────────────┘ └───────────────┘ │
-│ │ │                └┼─┼─►   Role2   │  │ │ │ │ ┌────────────┐ ┌───────────────┐ │
-│ │ │                 │ │ └───────────┘  │ │ │ │ │App Service │ │Access List    │ │
-│ │ │┌──────────────┐ │ │ ┌───────────┐  │ │ │ │ │ RA Profile2│ │ RA Profile2   │ │
-│ │ ││ RA Profile2  ┼─┼─┼─►   Role3   │  │ │ │ │ │            │ │ AWS Role ARNs:│ │
-│ │ │└──────────────┘ │ │ └───────────┘  │ │ │ │ │            │ │ - Role3       │ │
-│ │ └─────────────────┘ └────────────────┘ │ │ │ └────────────┘ └───────────────┘ │
-│ └────────────────────────────────────────┘ │ │                                  │
-└────────────────────────────────────────────┘ └──────────────────────────────────┘
+  Sync process                                                          
+ ┌────────────────────────────────────────────┐ ┌────────────────┐      
+ │ AWS                                        │ │ Teleport       │      
+ │ ┌────────────────────────────────────────┐ │ │                │      
+ │ │ AWS Account                            │ │ │ ┌────────────┐ │      
+ │ │ ┌─────────────────┐ ┌────────────────┐ │ │ │ │App Service │ │      
+ │ │ │ Region          │ │  IAM Roles     │ │ │ │ │ RA Profile1│ │      
+ │ │ │┌─────────────┐  │ │ ┌───────────┐  │ │ │ │ │            │ │      
+ │ │ ││ RA Profile1 ┼─┬┼─┼─►   Role1   │  │ │ │ │ │            │ │      
+ │ │ │└─────────────┘ ││ │ └───────────┘  │ │ │ │ │            │ │      
+ │ │ │                ││ │ ┌───────────┐  │ │ │ │ └────────────┘ │      
+ │ │ │                └┼─┼─►   Role2   │  │ │ │ │ ┌────────────┐ │      
+ │ │ │                 │ │ └───────────┘  │ │ │ │ │App Service │ │      
+ │ │ │┌──────────────┐ │ │ ┌───────────┐  │ │ │ │ │ RA Profile2│ │      
+ │ │ ││ RA Profile2  ┼─┼─┼─►   Role3   │  │ │ │ │ │            │ │      
+ │ │ │└──────────────┘ │ │ └───────────┘  │ │ │ │ │            │ │      
+ │ │ └─────────────────┘ └────────────────┘ │ │ │ └────────────┘ │      
+ │ └────────────────────────────────────────┘ │ │                │      
+ └────────────────────────────────────────────┘ └────────────────┘      
+                                                                        
+ Access flow                                                            
+       ┌──────────────────────────┐             ┌────────────────┐      
+       │ Teleport                 │             │  User          │      
+       │                          │  App Login  │ ┌─────┐        │      
+       │┌──────────┐Issues┌─────┐ ◄─────────────┼─┤ tsh │        │      
+       ││ AWSRA-CA ┼──────►X.509│ │ Credentials │ │     │        │      
+       │└────────▲─┘      └─────┘ ├─────────────┼─►     │        │      
+       │         │                │             │ │     │        │      
+       └─────────┼────────────────┘             │ └─▲──┬┘        │      
+                 │                              │   │  │         │      
+                 │                              │ ┌─┴──▼───────┐ │      
+                 │                              │ │   aws cli  │ │      
+                 │                              │ └──────┬─────┘ │      
+                 │Trusts                        └────────┼───────┘      
+                 │                                       │              
+┌────────────────┼─────────────────────────────────┐     │              
+│ AWS            │                                 │     │              
+│ ┌──────────────┼───────────────────────────────┐ │     │Calls AWS APIs
+│ │ AWS Account  │                               │ │     │              
+│ │ ┌────────────┼──────────┐ ┌────────────────┐ │ │     │              
+│ │ │ Region     │          │ │  IAM Roles     │ │ │     │              
+│ │ │ ┌──────────┴───────┐  │ │                │ │ │     │              
+│ │ │ │ RA Trust Anchor  │  │ │                │ │ ◄─────┘              
+│ │ │ └──────────────────┘  │ │  ┌───────────┐ │ │ │                    
+│ │ │                   ┌───┼─┼──►   Role1   │ │ │ │                    
+│ │ │                   │   │ │  └───────────┘ │ │ │                    
+│ │ │ ┌──────────────┐  │   │ │  ┌───────────┐ │ │ │                    
+│ │ │ │ RA Profile1  ├──┴───┼─┼──►   Role2   │ │ │ │                    
+│ │ │ └──────────────┘      │ │  └───────────┘ │ │ │                    
+│ │ │                       │ │                │ │ │                    
+│ │ │ ┌──────────────┐      │ │  ┌───────────┐ │ │ │                    
+│ │ │ │ RA Profile2  ├──────┼─┼──►   Role3   │ │ │ │                    
+│ │ │ └──────────────┘      │ │  └───────────┘ │ │ │                    
+│ │ └───────────────────────┘ └────────────────┘ │ │                    
+│ └──────────────────────────────────────────────┘ │                    
+└──────────────────────────────────────────────────┘                    
 ```
 
 ##### How IAM Roles Anywhere work with Teleport
@@ -264,8 +264,6 @@ AWS validates that only Profile's allowed Roles are accessible and Teleport vali
 In order to assume a given Role, it must be present on both:
 - Profile's allowed IAM Roles
 - Teleport's `aws_role_arn` list for the User.
-
-Teleport Roles with those required values (`app_labels` and `aws_role_arn`) are automatically created when synchronizing the Profiles.
 
 As an example, assuming the following IAM Roles Anywhere Profile:
 ```yaml
@@ -306,35 +304,6 @@ spec:
       uri: https://console.aws.amazon.com
     version: v3
 version: v3
-```
-
-And the following Teleport Access List is automatically created:
-```yaml
-kind: access_list
-metadata:
-  description: AWS ProfileA Access
-  name: <uuid-correlated-profile-arn>
-spec:
-  grants:
-    roles:
-    - aws-roles-anywhere-profile-access-template
-    traits:
-      iam-roles-anywhere-profile-arn:
-      - <profile.arn>
-      iam-roles:
-      - <profile.roles...>
-```
-
-With the following IAM Role:
-```yaml
-kind: role
-metadata:
-  name: aws-roles-anywhere-profile-access-template
-spec:
-  allow:
-    app_labels:
-      - 'teleport.dev/aws-roles-anywhere-profile-arn': '{{external["iam-roles-anywhere-profile-arn"]}}'
-    aws_role_arns: '{{external["iam-roles"]}}'
 ```
 
 ##### New Resources
