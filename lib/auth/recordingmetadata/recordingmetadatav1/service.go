@@ -143,6 +143,11 @@ func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStre
 	}
 
 	if err := stream.Send(metadataChunk); err != nil {
+		if !errors.Is(err, io.EOF) {
+			r.logger.ErrorContext(stream.Context(), "Failed to send session recording metadata",
+				"session_id", req.SessionId, "error", err)
+		}
+
 		return trace.Wrap(err)
 	}
 
