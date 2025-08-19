@@ -21,7 +21,6 @@ package tbot
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"runtime"
 	"sync"
@@ -122,7 +121,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	defer func() { apitracing.EndSpan(span, err) }()
 	b.log.InfoContext(
 		ctx, "Initializing tbot",
-		"version", versionString(),
+		"version", versionLogValue(),
 	)
 
 	if err := metrics.RegisterPrometheusCollectors(
@@ -371,11 +370,10 @@ func checkDestinations(ctx context.Context, cfg *config.BotConfig) error {
 	return nil
 }
 
-func versionString() string {
-	return fmt.Sprintf(
-		"v%s git:%s %s\n",
-		teleport.Version,
-		teleport.Gitref,
-		runtime.Version(),
+func versionLogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("teleport", teleport.Version),
+		slog.String("teleport_git", teleport.Gitref),
+		slog.String("go", runtime.Version()),
 	)
 }
