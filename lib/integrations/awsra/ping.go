@@ -80,8 +80,10 @@ func Ping(ctx context.Context, clt PingClient) (*PingResponse, error) {
 	profileCounter := 0
 	var nextToken *string
 	for {
-		const useAPIDefaultPageSize = 0
-		profiles, nextPageToken, err := listRolesAnywhereProfilesPage(ctx, clt, nextToken, useAPIDefaultPageSize)
+		listReq := listRolesAnywhereProfilesRequest{
+			nextPage: nextToken,
+		}
+		profiles, nextPageToken, err := listRolesAnywhereProfilesPage(ctx, clt, listReq)
 		if err != nil {
 			errs = append(errs, err)
 			break
