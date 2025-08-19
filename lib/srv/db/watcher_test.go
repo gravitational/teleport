@@ -217,6 +217,9 @@ func TestWatcherDynamicResource(t *testing.T) {
 					return trace.BadParameter("bad db")
 				},
 				"db5": func(_ context.Context, db types.Database) error {
+					if db.GetURI() == "evil-llama.com" {
+						return trace.BadParameter("bad database URI")
+					}
 					// Validate AssumeRoleARN and ExternalID matches above
 					// services.ResourceMatcherAWS,
 					meta := db.GetAWS()
@@ -323,7 +326,7 @@ func TestWatcherDynamicResource(t *testing.T) {
 		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5, db6})
 	})
 
-	t.Run("discovery resource - fail check", func(t *testing.T) {
+	t.Run("discovery resource - fail check on create", func(t *testing.T) {
 		// Created a discovery service created database resource that fails the
 		// fakeDiscoveryResourceChecker.
 		dbFailCheck, err := makeDiscoveryDatabase("db-fail-check", map[string]string{"group": "a"}, withRDSURL)
@@ -331,6 +334,15 @@ func TestWatcherDynamicResource(t *testing.T) {
 		require.NoError(t, testCtx.authServer.CreateDatabase(ctx, dbFailCheck))
 
 		// dbFailCheck should not be proxied.
+		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5, db6})
+	})
+
+	t.Run("discovery resource - fail check on update", func(t *testing.T) {
+		badDB := db5.Copy()
+		badDB.SetURI("evil-llama.com")
+		err = testCtx.authServer.UpdateDatabase(ctx, badDB)
+		require.NoError(t, err)
+		// update is rejected for failed URI check.
 		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5, db6})
 	})
 }
