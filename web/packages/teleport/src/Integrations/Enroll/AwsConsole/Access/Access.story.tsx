@@ -24,9 +24,9 @@ import { CollapsibleInfoSection as CollapsibleInfoSectionComponent } from 'desig
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import cfg from 'teleport/config';
+import { ContextProvider } from 'teleport/index';
 import { Access } from 'teleport/Integrations/Enroll/AwsConsole/Access/Access';
-import { makeAwsOidcStatusContextState } from 'teleport/Integrations/status/AwsOidc/testHelpers/makeAwsOidcStatusContextState';
-import { MockAwsOidcStatusProvider } from 'teleport/Integrations/status/AwsOidc/testHelpers/mockAwsOidcStatusProvider';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import { IntegrationKind } from 'teleport/services/integrations';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 
@@ -35,27 +35,29 @@ export default {
 };
 
 const raName = 'test-ra';
+const ctx = createTeleportContext();
 
 const initialEntries = [
   {
-    pathname: cfg.getIntegrationEnrollRoute(IntegrationKind.AWSRa, 'access'),
+    pathname: cfg.getIntegrationEnrollRoute(IntegrationKind.AwsRa, 'access'),
     state: {
+      syncProfileArn: 'arn:aws:sync-profile',
+      syncRoleArn: 'arn:aws:sync-profile',
       integrationName: raName,
-      trustAnchorArn: 'trust-anchor-arn',
-      syncRoleArn: 'sync-role-arn',
-      syncProfileArn: 'sync-profile-arn',
+      trustAnchorArn:
+        'arn:aws:rolesanywhere:us-east-2:012345678901:trust-anchor/00000000-0000-0000-0000-000000000000',
     },
   },
 ];
 
 export const NoProfiles = () => (
-  <MockAwsOidcStatusProvider value={makeAwsOidcStatusContextState()} path="">
+  <ContextProvider ctx={ctx}>
     <InfoGuidePanelProvider>
       <MemoryRouter initialEntries={initialEntries}>
         <Access />
       </MemoryRouter>
     </InfoGuidePanelProvider>
-  </MockAwsOidcStatusProvider>
+  </ContextProvider>
 );
 NoProfiles.parameters = {
   msw: {
@@ -70,7 +72,7 @@ NoProfiles.parameters = {
 };
 
 export const WithProfiles = () => (
-  <MockAwsOidcStatusProvider value={makeAwsOidcStatusContextState()} path="">
+  <ContextProvider ctx={ctx}>
     <InfoGuidePanelProvider>
       <MemoryRouter initialEntries={initialEntries}>
         <CollapsibleInfoSectionComponent openLabel="Devs Instructions">
@@ -90,7 +92,7 @@ export const WithProfiles = () => (
         <Access />
       </MemoryRouter>
     </InfoGuidePanelProvider>
-  </MockAwsOidcStatusProvider>
+  </ContextProvider>
 );
 WithProfiles.parameters = {
   msw: {
@@ -117,7 +119,7 @@ WithProfiles.parameters = {
           ],
         });
       }),
-      http.post(cfg.getIntegrationsUrl(), () => {
+      http.put(cfg.getIntegrationsUrl(raName), () => {
         return HttpResponse.json(
           {
             error: { message: 'Filter baz invalid.' },
@@ -129,47 +131,243 @@ WithProfiles.parameters = {
   },
 };
 
+export const Edit = () => (
+  <ContextProvider ctx={ctx}>
+    <InfoGuidePanelProvider>
+      <MemoryRouter
+        initialEntries={[
+          {
+            pathname: cfg.getIntegrationEnrollRoute(
+              IntegrationKind.AwsRa,
+              'access'
+            ),
+            state: {
+              edit: true,
+              integrationName: raName,
+              trustAnchorArn:
+                'arn:aws:rolesanywhere:us-east-2:012345678901:trust-anchor/00000000-0000-0000-0000-000000000000',
+            },
+          },
+        ]}
+      >
+        <Access />
+      </MemoryRouter>
+    </InfoGuidePanelProvider>
+  </ContextProvider>
+);
+Edit.parameters = {
+  msw: {
+    handlers: [
+      http.get(cfg.getIntegrationsUrl(raName), () => {
+        return HttpResponse.json({
+          name: raName,
+          kind: IntegrationKind,
+          subKind: IntegrationKind.AwsRa,
+          awsra: {
+            trustAnchorArn: 'foo',
+            profileSyncConfig: {
+              profileNameFilters: ['test-*', 'dev-*', 'staging-*'],
+            },
+          },
+        });
+      }),
+      http.post(cfg.getAwsRolesAnywhereProfilesUrl(raName), () => {
+        return HttpResponse.json({
+          profiles: [
+            {
+              arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo',
+              enabled: true,
+              name: raName,
+              acceptRoleSessionName: false,
+              tags: [{ foo: 'bar' }, { baz: 'qux' }, { TagA: 1 }],
+              roles: ['RoleA', 'RoleC'],
+            },
+            {
+              arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/bar',
+              enabled: true,
+              name: raName,
+              acceptRoleSessionName: false,
+              tags: [{ foo2: 'bar2' }, { baz2: 'qux2' }, { TagA: 2 }],
+              roles: ['RoleB', 'RoleB'],
+            },
+          ],
+        });
+      }),
+    ],
+  },
+};
+
+export const EditError = () => (
+  <ContextProvider ctx={ctx}>
+    <InfoGuidePanelProvider>
+      <MemoryRouter
+        initialEntries={[
+          {
+            pathname: cfg.getIntegrationEnrollRoute(
+              IntegrationKind.AwsRa,
+              'access'
+            ),
+            state: {
+              edit: true,
+              integrationName: raName,
+              trustAnchorArn:
+                'arn:aws:rolesanywhere:us-east-2:012345678901:trust-anchor/00000000-0000-0000-0000-000000000000',
+            },
+          },
+        ]}
+      >
+        <Access />
+      </MemoryRouter>
+    </InfoGuidePanelProvider>
+  </ContextProvider>
+);
+EditError.parameters = {
+  msw: {
+    handlers: [
+      http.get(cfg.getIntegrationsUrl(raName), () => {
+        return HttpResponse.json(
+          {
+            error: { message: 'Generic Bad Request' },
+          },
+          { status: 400 }
+        );
+      }),
+      http.post(cfg.getAwsRolesAnywhereProfilesUrl(raName), () => {
+        return HttpResponse.json({
+          profiles: [
+            {
+              arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo',
+              enabled: true,
+              name: raName,
+              acceptRoleSessionName: false,
+              tags: [{ foo: 'bar' }, { baz: 'qux' }, { TagA: 1 }],
+              roles: ['RoleA', 'RoleC'],
+            },
+            {
+              arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/bar',
+              enabled: true,
+              name: raName,
+              acceptRoleSessionName: false,
+              tags: [{ foo2: 'bar2' }, { baz2: 'qux2' }, { TagA: 2 }],
+              roles: ['RoleB', 'RoleB'],
+            },
+          ],
+        });
+      }),
+      http.put(cfg.getIntegrationsUrl(raName), () => {
+        return HttpResponse.json(
+          {
+            error: { message: 'Filter baz invalid.' },
+          },
+          { status: 400 }
+        );
+      }),
+    ],
+  },
+};
+
+export const NotFound = () => (
+  <ContextProvider ctx={ctx}>
+    <InfoGuidePanelProvider>
+      <MemoryRouter initialEntries={initialEntries}>
+        <CollapsibleInfoSectionComponent openLabel="Devs Instructions">
+          <Info
+            kind="info"
+            details="(Devs) During enrollment, a 404 can occur if the integration created on the previous page is not yet ready. Open the network tab, this component should be retrying /listprofiles every 2 seconds."
+          >
+            404 Error
+          </Info>
+        </CollapsibleInfoSectionComponent>
+        <Access />
+      </MemoryRouter>
+    </InfoGuidePanelProvider>
+  </ContextProvider>
+);
+NotFound.parameters = {
+  msw: {
+    handlers: [
+      http.post(cfg.getAwsRolesAnywhereProfilesUrl(raName), () => {
+        return HttpResponse.json(
+          {
+            error: { message: 'Hidden 404 message' },
+          },
+          { status: 404 }
+        );
+      }),
+    ],
+  },
+};
+
+export const BadRequest = () => (
+  <ContextProvider ctx={ctx}>
+    <InfoGuidePanelProvider>
+      <MemoryRouter initialEntries={initialEntries}>
+        <CollapsibleInfoSectionComponent openLabel="Devs Instructions">
+          <Info
+            kind="info"
+            details="(Devs) Non-404 errors should not refetch. Open the network tab, you should not see retries to /listprofiles"
+          >
+            Non-404 Error
+          </Info>
+        </CollapsibleInfoSectionComponent>
+        <Access />
+      </MemoryRouter>
+    </InfoGuidePanelProvider>
+  </ContextProvider>
+);
+BadRequest.parameters = {
+  msw: {
+    handlers: [
+      http.post(cfg.getAwsRolesAnywhereProfilesUrl(raName), () => {
+        return HttpResponse.json(
+          {
+            error: { message: 'Generic Bad Request' },
+          },
+          { status: 400 }
+        );
+      }),
+    ],
+  },
+};
+
 export const WithoutAccess = () => {
-  const acl = makeAcl({
-    integrations: {
-      ...defaultAccess,
-    },
+  const noCtx = createTeleportContext({
+    customAcl: makeAcl({
+      integrations: {
+        ...defaultAccess,
+      },
+    }),
   });
 
   return (
-    <MockAwsOidcStatusProvider
-      value={makeAwsOidcStatusContextState()}
-      path=""
-      customAcl={acl}
-    >
+    <ContextProvider ctx={noCtx}>
       <InfoGuidePanelProvider>
         <MemoryRouter initialEntries={initialEntries}>
           <Access />
         </MemoryRouter>
       </InfoGuidePanelProvider>
-    </MockAwsOidcStatusProvider>
+    </ContextProvider>
   );
 };
 
 const missingState = [
   {
-    pathname: cfg.getIntegrationEnrollRoute(IntegrationKind.AWSRa, 'access'),
+    pathname: cfg.getIntegrationEnrollRoute(IntegrationKind.AwsRa, 'access'),
     state: {
-      integrationName: raName,
-      syncRoleArn: 'sync-role-arn',
-      syncProfileArn: 'sync-profile-arn',
+      integrationName: undefined,
+      trustAnchorArn: undefined,
     },
   },
 ];
 
 export const MissingState = () => (
-  <MockAwsOidcStatusProvider value={makeAwsOidcStatusContextState()} path="">
+  <ContextProvider ctx={ctx}>
     <InfoGuidePanelProvider>
       <MemoryRouter initialEntries={missingState}>
         <Access />
       </MemoryRouter>
     </InfoGuidePanelProvider>
-  </MockAwsOidcStatusProvider>
+  </ContextProvider>
 );
 MissingState.parameters = {
   msw: {

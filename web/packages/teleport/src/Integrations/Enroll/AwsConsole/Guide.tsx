@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box, Link } from 'design';
+import { Box } from 'design';
 import {
   InfoParagraph,
   InfoTitle,
@@ -30,18 +30,13 @@ const GuideReferenceLinks = {
   },
 };
 
-export const Guide = ({ resourcesRoute }: { resourcesRoute: string }) => (
+export const Guide = () => (
   <Box>
     <InfoTitle>How to Access Profiles as Resources</InfoTitle>
     <InfoParagraph>
       Teleport will periodically sync Roles Anywhere Profiles as AWS Access
-      applications. You can import all Profiles, or use a filter to only import
-      a subset of Profiles. You can access AWS by going to the{' '}
-      <Link href={resourcesRoute} target="_blank">
-        Resources page
-      </Link>{' '}
-      and select the Profile and IAM Role that you want to use. Other users can
-      use the Profile and IAM Role by requesting access to it.
+      applications. You can create Roles which allow access to multiple Profiles
+      and IAM Roles, and use them to grant AWS access to Teleport users.
     </InfoParagraph>
     <ReferenceLinks links={Object.values(GuideReferenceLinks)} />
   </Box>

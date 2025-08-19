@@ -34,7 +34,8 @@ export type IntegrationUpdateResult<T extends IntegrationUpdateRequest> =
 export type Integration =
   | IntegrationGitHub
   | IntegrationAwsOidc
-  | IntegrationAzureOidc;
+  | IntegrationAzureOidc
+  | IntegrationAwsRa;
 
 /**
  * type Integration v. type Plugin:
@@ -78,7 +79,7 @@ export type IntegrationTemplate<
 export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
   /* AWS Roles Anywhere */
-  AWSRa = 'aws-ra',
+  AwsRa = 'aws-ra',
   AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',
   GitHub = 'github',
@@ -110,6 +111,36 @@ export enum IntegrationAudience {
   AwsIdentityCenter = 'aws-identity-center',
 }
 
+/**
+ * RolesAnywhereProfileSync contains the summary for the AWS Roles Anywhere Profile Sync.
+ */
+export type RolesAnywhereProfileSync = {
+  /**
+   * enabled indicates whether the profile sync is enabled.
+   */
+  enabled: boolean;
+  /**
+   * status is the string representation of the profile sync status, either ERROR or SUCCESS.
+   */
+  status: string;
+  /**
+   * errorMessage is the error message from the last sync when the Status is ERROR.
+   */
+  errorMessage: string;
+  /**
+   * syncedProfiles is the number of profiles that were imported into Teleport.
+   */
+  syncedProfiles: number;
+  /**
+   * syncStartTime is the time when the profile sync started.
+   */
+  syncStartTime: number;
+  /**
+   * syncEndTime is the time when the profile/sync ended.
+   */
+  syncEndTime: number;
+};
+
 export type IntegrationSpecAwsOidc = {
   roleArn: string;
   issuerS3Prefix?: string;
@@ -121,8 +152,9 @@ export type IntegrationSpecAwsOidc = {
   audience?: IntegrationAudience;
 };
 
+// IntegrationSpecAwsRa contain the specific fields for the `aws-ra` subkind integration. [go struct ui.IntegrationAWSRASpec]
 export type IntegrationSpecAwsRa = {
-  trustAnchorArn: string;
+  trustAnchorARN: string; // ARN per API json tag
   profileSyncConfig: AwsRolesAnywhereProfileSyncConfig;
 };
 /**
@@ -138,10 +170,6 @@ type AwsRolesAnywhereProfileSyncConfig = {
    * ProfileARN is the ARN of the Roles Anywhere Profile used to generate credentials to access the AWS APIs.
    */
   profileArn: string;
-  /**
-   * ProfileAcceptsRoleSessionName indicates whether the profile accepts a custom Role Session name.
-   */
-  profileAcceptsRoleSessionName: boolean;
   /**
    * RoleARN is the ARN of the IAM Role to assume when accessing the AWS APIs.
    */
@@ -161,13 +189,19 @@ type AwsRolesAnywhereProfileSyncConfig = {
    *	^profile.*$
    *	^.*name.*$
    */
-  profileNameFilters: string[];
+  filters: string[];
 };
 
 export type IntegrationAwsOidc = IntegrationTemplate<
   'integration',
   IntegrationKind.AwsOidc,
   IntegrationSpecAwsOidc
+>;
+
+export type IntegrationAwsRa = IntegrationTemplate<
+  'integration',
+  IntegrationKind.AwsRa,
+  IntegrationSpecAwsRa
 >;
 
 export type AwsOidcPingRequest = {
@@ -443,7 +477,7 @@ type IntegrationCreateAwsOidcRequest = {
 
 type IntegrationCreateAwsRaRequest = {
   name: string;
-  subKind: IntegrationKind.AWSRa;
+  subKind: IntegrationKind.AwsRa;
   awsRa: IntegrationSpecAwsRa;
 };
 
@@ -463,6 +497,8 @@ export type IntegrationWithSummary = {
   subKind: string;
   // unresolvedUserTasks contains the count of unresolved user tasks related to this integration.
   unresolvedUserTasks: number;
+  // awsra contains the fields for `aws-ra` subkind integration.
+  awsra: IntegrationSpecAwsRa;
   // awsoidc contains the fields for `aws-oidc` subkind integration.
   awsoidc: IntegrationSpecAwsOidc;
   // awsec2 contains the summary for the AWS EC2 resources for this integration.
@@ -471,6 +507,8 @@ export type IntegrationWithSummary = {
   awsrds: ResourceTypeSummary;
   // awseks contains the summary for the AWS EKS resources for this integration.
   awseks: ResourceTypeSummary;
+  // rolesAnywhereProfileSync contains the summary for the AWS Roles Anywhere Profile Sync.
+  rolesAnywhereProfileSync: RolesAnywhereProfileSync;
 };
 
 // IntegrationDiscoveryRules contains the list of discovery rules for a given Integration.
@@ -880,6 +918,11 @@ export type UpdateIntegrationAwsOidc = {
   };
 };
 
+export type UpdateIntegrationAwsRa = {
+  kind: IntegrationKind.AwsRa;
+  awsRa: IntegrationSpecAwsRa;
+};
+
 export type UpdateIntegrationGithub = {
   kind: IntegrationKind.GitHub;
   oauth: IntegrationOAuthCredentials;
@@ -888,6 +931,7 @@ export type UpdateIntegrationGithub = {
 
 export type IntegrationUpdateRequest =
   | UpdateIntegrationAwsOidc
+  | UpdateIntegrationAwsRa
   | UpdateIntegrationGithub;
 
 export type AwsOidcDeployServiceRequest = {

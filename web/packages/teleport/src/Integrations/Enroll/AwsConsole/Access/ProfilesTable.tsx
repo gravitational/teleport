@@ -68,7 +68,7 @@ export function ProfilesTable({
           render: row => <Cell>{row.roles.join(', ')}</Cell>,
         },
       ]}
-      emptyText="No Profiles Found"
+      emptyText={fetchStatus === 'loading' ? 'Refreshing' : 'No Profiles Found'}
       pagination={{ pageSize: 20, CustomTable }}
       fetching={{
         fetchStatus,
