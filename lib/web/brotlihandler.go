@@ -37,8 +37,9 @@ var compressedFileExtensions = []string{
 func makeBrotliHandler(handler http.Handler, fs http.FileSystem) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ext := path.Ext(r.URL.Path)
-		if !slices.Contains(compressedFileExtensions, ext) ||
-			!strings.Contains(r.Header.Get("Accept-Encoding"), "br") {
+		isRequestForCompressedFile := slices.Contains(compressedFileExtensions, ext)
+		clientAcceptsBrotli := strings.Contains(r.Header.Get("Accept-Encoding"), "br")
+		if !isRequestForCompressedFile || !clientAcceptsBrotli {
 			handler.ServeHTTP(w, r)
 			return
 		}
