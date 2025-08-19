@@ -1533,7 +1533,13 @@ var _ executor[types.DatabaseService, noReader] = databaseServiceExecutor{}
 type databaseExecutor struct{}
 
 func (databaseExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Database, error) {
-	return cache.Databases.GetDatabases(ctx)
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.Databases.ListDatabases))
+	// TODO(lokraszewski): DELETE IN v21.0.0
+	if trace.IsNotImplemented(err) {
+		out, err := cache.Databases.GetDatabases(ctx)
+		return out, trace.Wrap(err)
+	}
+	return out, trace.Wrap(err)
 }
 
 func (databaseExecutor) upsert(ctx context.Context, cache *Cache, resource types.Database) error {
