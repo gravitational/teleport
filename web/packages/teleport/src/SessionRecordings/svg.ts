@@ -29,7 +29,7 @@ export function useThumbnailSvg(svg: string) {
 }
 
 export function injectSVGStyles(svg: string, theme: DefaultTheme) {
-  const styles = generateTerminalSVGStyles(theme);
+  const styles = generateTerminalSVGStyleTag(theme);
   const styleTag = `<style>${styles}</style>`;
 
   if (svg.includes('<style>')) {
@@ -39,7 +39,7 @@ export function injectSVGStyles(svg: string, theme: DefaultTheme) {
   return svg.replace(/<svg[^>]*>/, match => `${match}${styleTag}`);
 }
 
-function generateTerminalSVGStyles(theme: DefaultTheme) {
+function generateTerminalSVGStyleTag(theme: DefaultTheme): string {
   const colorMap = [
     theme.colors.terminal.black,
     theme.colors.terminal.red,
@@ -64,7 +64,7 @@ function generateTerminalSVGStyles(theme: DefaultTheme) {
     `.bg-default { fill: ${theme.colors.terminal.background}; }`,
   ];
 
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < colorMap.length; i++) {
     rules.push(`.fg-${i} { fill: ${colorMap[i]}; }`);
     rules.push(`.bg-${i} { fill: ${colorMap[i]}; }`);
   }
@@ -72,6 +72,8 @@ function generateTerminalSVGStyles(theme: DefaultTheme) {
   return rules.join('\n');
 }
 
+// svgToDataURIBase64 converts an SVG string to a Base64-encoded data URI, providing
+// a way to load SVG images in the code.
 function svgToDataURIBase64(svg: string) {
   const encoded = encodeURIComponent(svg.replace('<?xml version="1.0"?>', ''));
 
