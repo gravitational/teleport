@@ -1483,6 +1483,8 @@ type ClientI interface {
 	types.WebTokensGetter
 
 	DynamicDesktopClient() *dynamicwindows.Client
+	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
+	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
 
 	// TrustClient returns a client to the Trust service.
 	TrustClient() trustpb.TrustServiceClient
