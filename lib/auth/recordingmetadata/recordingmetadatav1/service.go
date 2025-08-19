@@ -40,7 +40,7 @@ type Service struct {
 
 	authorizer    Authorizer
 	streamer      player.Streamer
-	uploadHandler events.UploadHandler
+	uploadHandler UploadHandler
 	logger        *slog.Logger
 }
 
@@ -50,6 +50,14 @@ type Authorizer interface {
 	Authorize(context.Context, string) error
 }
 
+// UploadHandler uploads and downloads session recording metadata and thumbnails.
+type UploadHandler interface {
+	// DownloadMetadata downloads session metadata and writes it to a writer.
+	DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error
+	// DownloadThumbnail downloads a session thumbnail and writes it to a writer.
+	DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error
+}
+
 // ServiceConfig holds the configuration for the recording metadata service.
 type ServiceConfig struct {
 	// Authorizer is used to check if the user has permission to access the session recording.
@@ -57,10 +65,8 @@ type ServiceConfig struct {
 	// Streamer is used to stream session recordings.
 	Streamer player.Streamer
 	// UploadHandler is used to handle uploads and downloads of session recording metadata and thumbnails.
-	UploadHandler events.UploadHandler
+	UploadHandler UploadHandler
 }
-
-var _ pb.RecordingMetadataServiceServer = (*Service)(nil)
 
 // NewService creates a new instance of the recording metadata service.
 func NewService(cfg ServiceConfig) (*Service, error) {
