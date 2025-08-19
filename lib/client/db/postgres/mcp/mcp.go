@@ -31,6 +31,7 @@ import (
 	dbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
 	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // queryTool is the run query MCP tool definition.
@@ -201,7 +202,7 @@ func (s *Server) runQuery(ctx context.Context, request mcp.CallToolRequest) (*mc
 			res, err := conn.Exec(ctx, sql).ReadAll()
 			return res, trace.Wrap(err)
 		})
-		if queryErr == nil {
+		if queryErr == nil || !utils.IsUseOfClosedNetworkError(err) {
 			break
 		}
 

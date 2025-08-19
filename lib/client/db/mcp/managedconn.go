@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// ErrConnClosed is the error returned when the managed connection is closed.
 var ErrConnClosed = errors.New("connection closed")
 
 // ManagedConn manages a database connection, providing a way to keep a single
