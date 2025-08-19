@@ -40,7 +40,7 @@ func VtStateToSvg(state *vt10x.TerminalState) []byte {
 	pixelWidth := int((float64(cols) + 2.0) * (fontSize * 0.6))
 	pixelHeight := int((float64(rows) + 1.0) * rowHeight)
 
-	closeHeader := writeSVGHeader(&buf, pixelWidth, pixelHeight, fontSize)
+	closeHeader := writeSVGHeader(&buf, pixelWidth, pixelHeight)
 	renderBackgrounds(&buf, state.PrimaryBuffer, cols, rows, charWidth, rowHeight)
 	renderText(&buf, state.PrimaryBuffer, cols, rows, charWidth)
 
@@ -51,7 +51,7 @@ func VtStateToSvg(state *vt10x.TerminalState) []byte {
 
 // writeSVGHeader writes the SVG header and styles to the buffer.
 // It returns a function that closes the SVG tags when called.
-func writeSVGHeader(buf *bytes.Buffer, width, height int, fontSize float64) func() string {
+func writeSVGHeader(buf *bytes.Buffer, width, height int) func() string {
 	x := 1.0 * 100.0 / (float64(width) / fontSize / 0.6)
 	y := 0.5 * 100.0 / (float64(height) / fontSize / lineHeight)
 
