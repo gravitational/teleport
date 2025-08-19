@@ -46,6 +46,7 @@ type Service struct {
 
 // Authorizer is an interface that defines the method for authorizing access to session recordings.
 type Authorizer interface {
+	// Authorize checks if the user has permission to access the session recording, called with the session ID.
 	Authorize(context.Context, string) error
 }
 
