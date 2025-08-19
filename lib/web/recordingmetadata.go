@@ -59,30 +59,18 @@ func (h *Handler) getSessionRecordingMetadata(
 	r *http.Request,
 	p httprouter.Params,
 	sctx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	cluster reversetunnelclient.Cluster,
+	ws *websocket.Conn,
 ) (interface{}, error) {
 	sessionID := p.ByName("session_id")
 	if sessionID == "" {
 		return nil, trace.BadParameter("missing session ID in request URL")
 	}
 
-	h.logger.DebugContext(r.Context(), "upgrading to websocket")
-	upgrader := websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-		CheckOrigin: func(r *http.Request) bool {
-			return true
-		},
-	}
-	ws, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		h.logger.WarnContext(r.Context(), "failed upgrade", "error", err)
-		return nil, nil
-	}
 	defer ws.Close()
 
 	ctx := r.Context()
-	clt, err := sctx.GetUserClient(ctx, site)
+	clt, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
 		sendMessage(ws, recordingErrorMessageType, sessionRecordingErrorResponse{
 			Error: err.Error(),
