@@ -502,7 +502,7 @@ const cfg = {
 
     sessionRecording: {
       metadata:
-        '/v1/webapi/sites/:clusterId/session-recording/:sessionId/metadata',
+        '/v1/webapi/sites/:clusterId/session-recording/:sessionId/metadata/ws',
       thumbnail:
         '/v1/webapi/sites/:clusterId/session-recording/:sessionId/thumbnail',
     },
