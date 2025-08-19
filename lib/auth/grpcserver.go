@@ -4031,6 +4031,34 @@ func (g *GRPCServer) GetDatabases(ctx context.Context, _ *emptypb.Empty) (*types
 	}, nil
 }
 
+// ListDatabases returns a page of database resources.
+func (g *GRPCServer) ListDatabases(ctx context.Context, req *authpb.ListDatabasesRequest) (*authpb.ListDatabasesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	databases, next, err := auth.ListDatabases(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListDatabasesResponse{
+		Databases:     make([]*types.DatabaseV3, 0, len(databases)),
+		NextPageToken: next,
+	}
+
+	for _, database := range databases {
+		databaseV3, ok := database.(*types.DatabaseV3)
+		if !ok {
+			return nil, trace.BadParameter("unsupported database type %T", database)
+		}
+		resp.Databases = append(resp.Databases, databaseV3)
+	}
+
+	return resp, nil
+}
+
 // DeleteDatabase removes the specified database.
 func (g *GRPCServer) DeleteDatabase(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
