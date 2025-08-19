@@ -2,6 +2,10 @@
 
 ## 17.7.2 (08/18/25)
 
+* Fixed an issue that could cause some hosts not to register dynamic Windows desktops. [#58062](https://github.com/gravitational/teleport/pull/58062)
+* Improve error message when a User without any MFA devices enrolled attempts to access a resource that requires MFA. [#58044](https://github.com/gravitational/teleport/pull/58044)
+* Add TELEPORT_UNSTABLE_GRPC_RECV_SIZE env var which can be set to overwrite client side max grpc message size. [#58028](https://github.com/gravitational/teleport/pull/58028)
+* Add support for JWT-Secured Authorization Requests to OIDC Connector. [#58013](https://github.com/gravitational/teleport/pull/58013)
 * Fixed an issue that could cause revocation checks to fail in Windows environments. [#57879](https://github.com/gravitational/teleport/pull/57879)
 * Fixed the case where the auto-updated client tools did not use the intended version. [#57871](https://github.com/gravitational/teleport/pull/57871)
 * Fix database PKINIT issues caused missing CDP information in the certificate. [#57851](https://github.com/gravitational/teleport/pull/57851)
