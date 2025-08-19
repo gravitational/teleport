@@ -29,8 +29,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/lib/observability/tracing/internal/tracetransform"
-
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
@@ -41,6 +39,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/encoding/protojson"
+
+	"github.com/gravitational/teleport/lib/observability/tracing/internal/tracetransform"
 )
 
 type noopClient struct{}
