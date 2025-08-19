@@ -18,237 +18,251 @@
 package terminal
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/hinshun/vt10x"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
-func TestTerminalStateToSVG_BasicText(t *testing.T) {
-	vt := vt10x.New(vt10x.WithSize(80, 24))
+func TestTerminalStateToSVG(t *testing.T) {
+	tests := []struct {
+		name   string
+		setup  func(vt vt10x.Terminal)
+		width  int
+		height int
+	}{
+		{
+			name:   "BasicText",
+			width:  80,
+			height: 24,
+			setup: func(vt vt10x.Terminal) {
+				vt.Write([]byte("Hello, World!"))
+			},
+		},
+		{
+			name:   "Colors",
+			width:  80,
+			height: 24,
+			setup: func(vt vt10x.Terminal) {
+				vt.Write([]byte("\x1b[31mRed\x1b[0m \x1b[42mGreen BG\x1b[0m"))
+			},
+		},
+		{
+			name:   "256Colors",
+			width:  80,
+			height: 24,
+			setup: func(vt vt10x.Terminal) {
+				vt.Write([]byte("\x1b[38;5;196mColor 196\x1b[0m"))
+				vt.Write([]byte("\x1b[48;5;21m BG 21 \x1b[0m"))
+			},
+		},
+		{
+			name:   "RGBColors",
+			width:  80,
+			height: 24,
+			setup: func(vt vt10x.Terminal) {
+				vt.Write([]byte("\x1b[38;2;255;128;64mRGB Text\x1b[0m"))
+			},
+		},
+		{
+			name:   "TextAttributes",
+			width:  80,
+			height: 24,
+			setup: func(vt vt10x.Terminal) {
+				vt.Write([]byte("\x1b[1mBold\x1b[0m "))
+				vt.Write([]byte("\x1b[3mItalic\x1b[0m "))
+				vt.Write([]byte("\x1b[4mUnderline\x1b[0m "))
+				vt.Write([]byte("\x1b[5mBlink\x1b[0m"))
+			},
+		},
+		{
+			name:   "CursorPosition",
+			width:  80,
+			height: 24,
+			setup: func(vt vt10x.Terminal) {
+				vt.Write([]byte("Line 1\n"))
+				vt.Write([]byte("Line 2\n"))
+				vt.Write([]byte("\x1b[5;10H"))
+				vt.Write([]byte("At 5,10"))
+			},
+		},
+		{
+			name:   "AlternateScreen",
+			width:  80,
+			height: 24,
+			setup: func(vt vt10x.Terminal) {
+				vt.Write([]byte("Primary buffer text"))
+				vt.Write([]byte("\x1b[?1049h"))
+				vt.Write([]byte("Alternate buffer text"))
+			},
+		},
+		{
+			name:   "AlternateScreenSwitch",
+			width:  80,
+			height: 24,
+			setup: func(vt vt10x.Terminal) {
+				vt.Write([]byte("Main screen\n"))
+				vt.Write([]byte("\x1b[2;5H"))
+				vt.Write([]byte("Position saved"))
 
-	vt.Write([]byte("Hello, World!"))
+				vt.Write([]byte("\x1b[?1049h"))
+				vt.Write([]byte("\x1b[2J\x1b[H"))
+				vt.Write([]byte("Alt screen content"))
 
-	state := vt.DumpState()
-	svg := string(VtStateToSvg(&state))
+				vt.Write([]byte("\x1b[?1049l"))
+			},
+		},
+		{
+			name:   "SpecialCharacters",
+			width:  80,
+			height: 24,
+			setup: func(vt vt10x.Terminal) {
+				vt.Write([]byte(`<tag> & "quotes" 'apostrophes'`))
+			},
+		},
+		{
+			name:   "ReverseVideo",
+			width:  80,
+			height: 24,
+			setup: func(vt vt10x.Terminal) {
+				vt.Write([]byte("\x1b[7mReversed text\x1b[0m"))
+				vt.Write([]byte(" Normal"))
+			},
+		},
+		{
+			name:   "MultilineWithColors",
+			width:  80,
+			height: 10,
+			setup: func(vt vt10x.Terminal) {
+				lines := []string{
+					"\x1b[31mLine 1 Red\x1b[0m",
+					"\x1b[32mLine 2 Green\x1b[0m",
+					"\x1b[33mLine 3 Yellow\x1b[0m",
+					"\x1b[34mLine 4 Blue\x1b[0m",
+					"\x1b[35mLine 5 Magenta\x1b[0m",
+				}
 
-	assert.Contains(t, svg, `<svg xmlns="http://www.w3.org/2000/svg"`)
-	assert.Contains(t, svg, `font-size="14"`)
-	assert.Contains(t, svg, `class="terminal"`)
-	assert.Contains(t, svg, "Hello, World!")
-}
-
-func TestTerminalStateToSVG_Colors(t *testing.T) {
-	vt := vt10x.New(vt10x.WithSize(80, 24))
-
-	vt.Write([]byte("\x1b[31mRed\x1b[0m \x1b[42mGreen BG\x1b[0m"))
-
-	state := vt.DumpState()
-	svg := string(VtStateToSvg(&state))
-
-	assert.Contains(t, svg, `class="fg-1"`)
-	assert.Contains(t, svg, "Red")
-	assert.Contains(t, svg, `class="bg-2"`)
-	assert.Contains(t, svg, "Green BG")
-}
-
-func TestTerminalStateToSVG_256Colors(t *testing.T) {
-	vt := vt10x.New(vt10x.WithSize(80, 24))
-
-	vt.Write([]byte("\x1b[38;5;196mColor 196\x1b[0m"))
-	vt.Write([]byte("\x1b[48;5;21m BG 21 \x1b[0m"))
-
-	state := vt.DumpState()
-	svg := string(VtStateToSvg(&state))
-
-	assert.Contains(t, svg, `style="fill:#ff0000"`)
-	assert.Contains(t, svg, "Color 196")
-	assert.Contains(t, svg, `style="fill:#0000ff"`)
-	assert.Contains(t, svg, " BG 21 ")
-}
-
-func TestTerminalStateToSVG_RGBColors(t *testing.T) {
-	vt := vt10x.New(vt10x.WithSize(80, 24))
-
-	vt.Write([]byte("\x1b[38;2;255;128;64mRGB Text\x1b[0m"))
-
-	state := vt.DumpState()
-	svg := string(VtStateToSvg(&state))
-
-	assert.Contains(t, svg, `style="fill:#ff8040"`)
-	assert.Contains(t, svg, "RGB Text")
-}
-
-func TestTerminalStateToSVG_TextAttributes(t *testing.T) {
-	vt := vt10x.New(vt10x.WithSize(80, 24))
-
-	vt.Write([]byte("\x1b[1mBold\x1b[0m "))
-	vt.Write([]byte("\x1b[3mItalic\x1b[0m "))
-	vt.Write([]byte("\x1b[4mUnderline\x1b[0m "))
-	vt.Write([]byte("\x1b[5mBlink\x1b[0m"))
-
-	state := vt.DumpState()
-	svg := string(VtStateToSvg(&state))
-
-	assert.Contains(t, svg, `class="b"`)
-	assert.Contains(t, svg, "Bold")
-	assert.Contains(t, svg, `class="i"`)
-	assert.Contains(t, svg, "Italic")
-	assert.Contains(t, svg, `class="u"`)
-	assert.Contains(t, svg, "Underline")
-	assert.Contains(t, svg, "Blink")
-}
-
-func TestTerminalStateToSVG_CursorPosition(t *testing.T) {
-	vt := vt10x.New(vt10x.WithSize(80, 24))
-
-	vt.Write([]byte("Line 1\n"))
-	vt.Write([]byte("Line 2\n"))
-	vt.Write([]byte("\x1b[5;10H"))
-	vt.Write([]byte("At 5,10"))
-
-	state := vt.DumpState()
-	svg := string(VtStateToSvg(&state))
-
-	assert.Contains(t, svg, "Line 1")
-	assert.Contains(t, svg, "Line 2")
-	assert.Contains(t, svg, "At 5,10")
-}
-
-func TestTerminalStateToSVG_AlternateScreen(t *testing.T) {
-	vt := vt10x.New(vt10x.WithSize(80, 24))
-
-	vt.Write([]byte("Primary buffer text"))
-	vt.Write([]byte("\x1b[?1049h"))
-	vt.Write([]byte("Alternate buffer text"))
-
-	state := vt.DumpState()
-	svg := string(VtStateToSvg(&state))
-
-	assert.Contains(t, svg, "Alternate buffer text")
-	assert.True(t, state.AltScreen)
-}
-
-func TestTerminalStateToSVG_AlternateScreenSwitch(t *testing.T) {
-	vt := vt10x.New(vt10x.WithSize(80, 24))
-
-	vt.Write([]byte("Main screen\n"))
-	vt.Write([]byte("\x1b[2;5H"))
-	vt.Write([]byte("Position saved"))
-
-	vt.Write([]byte("\x1b[?1049h"))
-	vt.Write([]byte("\x1b[2J\x1b[H"))
-	vt.Write([]byte("Alt screen content"))
-
-	vt.Write([]byte("\x1b[?1049l"))
-
-	state := vt.DumpState()
-	svg := string(VtStateToSvg(&state))
-
-	assert.False(t, state.AltScreen)
-	assert.Contains(t, svg, "Main screen")
-	assert.Contains(t, svg, "Position saved")
-}
-
-func TestTerminalStateToSVG_SpecialCharacters(t *testing.T) {
-	vt := vt10x.New(vt10x.WithSize(80, 24))
-
-	vt.Write([]byte(`<tag> & "quotes" 'apostrophes'`))
-
-	state := vt.DumpState()
-	svg := string(VtStateToSvg(&state))
-
-	assert.Contains(t, svg, "&lt;tag&gt;")
-	assert.Contains(t, svg, "&amp;")
-	assert.Contains(t, svg, "&quot;quotes&quot;")
-	assert.Contains(t, svg, "&#39;apostrophes&#39;")
-}
-
-func TestTerminalStateToSVG_ReverseVideo(t *testing.T) {
-	vt := vt10x.New(vt10x.WithSize(80, 24))
-
-	vt.Write([]byte("\x1b[7mReversed text\x1b[0m"))
-	vt.Write([]byte(" Normal"))
-
-	state := vt.DumpState()
-	svg := string(VtStateToSvg(&state))
-
-	require.Contains(t, svg, "Reversed text")
-	require.Contains(t, svg, "Normal")
-}
-
-func TestTerminalStateToSVG_MultilineWithColors(t *testing.T) {
-	vt := vt10x.New(vt10x.WithSize(80, 10))
-
-	lines := []string{
-		"\x1b[31mLine 1 Red\x1b[0m",
-		"\x1b[32mLine 2 Green\x1b[0m",
-		"\x1b[33mLine 3 Yellow\x1b[0m",
-		"\x1b[34mLine 4 Blue\x1b[0m",
-		"\x1b[35mLine 5 Magenta\x1b[0m",
+				for _, line := range lines {
+					vt.Write([]byte(line + "\n"))
+				}
+			},
+		},
+		{
+			name:   "EmptyGlyphs",
+			width:  10,
+			height: 5,
+			setup: func(vt vt10x.Terminal) {
+				vt.Write([]byte("A"))
+				vt.Write([]byte("\x1b[1;5H"))
+				vt.Write([]byte("B"))
+				vt.Write([]byte("\x1b[3;3H"))
+				vt.Write([]byte("C"))
+			},
+		},
+		{
+			name:   "ComplexBufferSwap",
+			width:  80,
+			height: 24,
+			setup: func(vt vt10x.Terminal) {
+				vt.Write([]byte("\x1b[31mRed text in main\x1b[0m\n"))
+				vt.Write([]byte("\x1b[1mBold main text\x1b[0m\n"))
+				vt.Write([]byte("\x1b[3;15H"))
+				vt.Write([]byte("\x1b[?1049h"))
+				vt.Write([]byte("\x1b[2J\x1b[H"))
+				vt.Write([]byte("\x1b[32mGreen in alt\x1b[0m\n"))
+				vt.Write([]byte("\x1b[4mUnderlined alt\x1b[0m\n"))
+				vt.Write([]byte("\x1b[5;20H"))
+			},
+		},
+		{
+			name:   "SVGStructure",
+			width:  80,
+			height: 24,
+			setup: func(vt vt10x.Terminal) {
+				vt.Write([]byte("Test"))
+			},
+		},
+		{
+			name:   "BackgroundRects",
+			width:  80,
+			height: 24,
+			setup: func(vt vt10x.Terminal) {
+				vt.Write([]byte("\x1b[41mRed BG\x1b[0m \x1b[42mGreen BG\x1b[0m"))
+			},
+		},
+		{
+			name:   "ExtendedBackgroundColors",
+			width:  80,
+			height: 24,
+			setup: func(vt vt10x.Terminal) {
+				vt.Write([]byte("\x1b[48;5;196mExtended BG\x1b[0m"))
+			},
+		},
+		{
+			name:   "CombinedAttributes",
+			width:  80,
+			height: 24,
+			setup: func(vt vt10x.Terminal) {
+				vt.Write([]byte("\x1b[1;3;4mBold Italic Underline\x1b[0m"))
+			},
+		},
+		{
+			name:   "EmptyLines",
+			width:  80,
+			height: 5,
+			setup: func(vt vt10x.Terminal) {
+				vt.Write([]byte("First line\n\n\nFourth line"))
+			},
+		},
+		{
+			name:   "SpacedText",
+			width:  80,
+			height: 24,
+			setup: func(vt vt10x.Terminal) {
+				vt.Write([]byte("A"))
+				vt.Write([]byte("\x1b[1;10H"))
+				vt.Write([]byte("B"))
+				vt.Write([]byte("\x1b[1;20H"))
+				vt.Write([]byte("C"))
+			},
+		},
+		{
+			name:   "ComplexBufferSwapMain",
+			width:  80,
+			height: 24,
+			setup: func(vt vt10x.Terminal) {
+				vt.Write([]byte("\x1b[31mRed text in main\x1b[0m\n"))
+				vt.Write([]byte("\x1b[1mBold main text\x1b[0m\n"))
+				vt.Write([]byte("\x1b[3;15H"))
+				vt.Write([]byte("\x1b[?1049h"))
+				vt.Write([]byte("\x1b[2J\x1b[H"))
+				vt.Write([]byte("\x1b[32mGreen in alt\x1b[0m\n"))
+				vt.Write([]byte("\x1b[4mUnderlined alt\x1b[0m\n"))
+				vt.Write([]byte("\x1b[5;20H"))
+				vt.Write([]byte("\x1b[?1049l")) // Switch back to main
+			},
+		},
 	}
 
-	for _, line := range lines {
-		vt.Write([]byte(line + "\n"))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vt := vt10x.New(vt10x.WithSize(tt.width, tt.height))
+
+			tt.setup(vt)
+
+			state := vt.DumpState()
+			svg := string(VtStateToSvg(&state))
+
+			if golden.ShouldSet() {
+				golden.Set(t, []byte(svg))
+			}
+
+			require.Equal(t, string(golden.Get(t)), svg)
+		})
 	}
-
-	state := vt.DumpState()
-	svg := string(VtStateToSvg(&state))
-
-	for i, expectedColor := range []string{"fg-1", "fg-2", "fg-3", "fg-4", "fg-5"} {
-		assert.Contains(t, svg, expectedColor)
-		assert.Contains(t, svg, strings.TrimSuffix(lines[i][5:], "\x1b[0m"))
-	}
-}
-
-func TestTerminalStateToSVG_EmptyGlyphs(t *testing.T) {
-	vt := vt10x.New(vt10x.WithSize(10, 5))
-
-	vt.Write([]byte("A"))
-	vt.Write([]byte("\x1b[1;5H"))
-	vt.Write([]byte("B"))
-	vt.Write([]byte("\x1b[3;3H"))
-	vt.Write([]byte("C"))
-
-	state := vt.DumpState()
-	svg := string(VtStateToSvg(&state))
-
-	assert.Contains(t, svg, "A")
-	assert.Contains(t, svg, "B")
-	assert.Contains(t, svg, "C")
-}
-
-func TestTerminalStateToSVG_ComplexBufferSwap(t *testing.T) {
-	vt := vt10x.New(vt10x.WithSize(80, 24))
-
-	vt.Write([]byte("\x1b[31mRed text in main\x1b[0m\n"))
-	vt.Write([]byte("\x1b[1mBold main text\x1b[0m\n"))
-	vt.Write([]byte("\x1b[3;15H"))
-	vt.Write([]byte("\x1b[?1049h"))
-	vt.Write([]byte("\x1b[2J\x1b[H"))
-	vt.Write([]byte("\x1b[32mGreen in alt\x1b[0m\n"))
-	vt.Write([]byte("\x1b[4mUnderlined alt\x1b[0m\n"))
-	vt.Write([]byte("\x1b[5;20H"))
-
-	altState := vt.DumpState()
-	svgAlt := string(VtStateToSvg(&altState))
-
-	assert.True(t, altState.AltScreen)
-	assert.Contains(t, svgAlt, `class="fg-2"`)
-	assert.Contains(t, svgAlt, "Green in alt")
-
-	vt.Write([]byte("\x1b[?1049l"))
-
-	mainState := vt.DumpState()
-	svgMain := string(VtStateToSvg(&mainState))
-
-	assert.False(t, mainState.AltScreen)
-	assert.Contains(t, svgMain, `class="fg-1"`)
-	assert.Contains(t, svgMain, "Red text in main")
-	assert.Contains(t, svgMain, `class="b"`)
-	assert.Contains(t, svgMain, "Bold main text")
 }
 
 func TestColorToHex(t *testing.T) {
@@ -315,93 +329,4 @@ func TestColorToHex(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
-}
-
-func TestTerminalStateToSVG_SVGStructure(t *testing.T) {
-	vt := vt10x.New(vt10x.WithSize(80, 24))
-
-	vt.Write([]byte("Test"))
-
-	state := vt.DumpState()
-	svg := string(VtStateToSvg(&state))
-
-	assert.Contains(t, svg, `<svg xmlns="http://www.w3.org/2000/svg"`)
-	assert.Contains(t, svg, `width="`)
-	assert.Contains(t, svg, `height="`)
-	assert.Contains(t, svg, `<style>`)
-	assert.Contains(t, svg, `.b{font-weight:bold}`)
-	assert.Contains(t, svg, `.i{font-style:italic}`)
-	assert.Contains(t, svg, `.u{text-decoration:underline}`)
-	assert.Contains(t, svg, `</style>`)
-	assert.Contains(t, svg, `<rect width="100%" height="100%" class="bg-default"/>`)
-	assert.Contains(t, svg, `<text>`)
-	assert.Contains(t, svg, `</text>`)
-	assert.Contains(t, svg, `</svg></svg>`)
-}
-
-func TestTerminalStateToSVG_BackgroundRects(t *testing.T) {
-	vt := vt10x.New(vt10x.WithSize(80, 24))
-
-	vt.Write([]byte("\x1b[41mRed BG\x1b[0m \x1b[42mGreen BG\x1b[0m"))
-
-	state := vt.DumpState()
-	svg := string(VtStateToSvg(&state))
-
-	assert.Contains(t, svg, `<rect`)
-	assert.Contains(t, svg, `class="bg-1"`)
-	assert.Contains(t, svg, `class="bg-2"`)
-}
-
-func TestTerminalStateToSVG_ExtendedBackgroundColors(t *testing.T) {
-	vt := vt10x.New(vt10x.WithSize(80, 24))
-
-	vt.Write([]byte("\x1b[48;5;196mExtended BG\x1b[0m"))
-
-	state := vt.DumpState()
-	svg := string(VtStateToSvg(&state))
-
-	assert.Contains(t, svg, `style="fill:#ff0000"`)
-	assert.Contains(t, svg, "Extended BG")
-}
-
-func TestTerminalStateToSVG_CombinedAttributes(t *testing.T) {
-	vt := vt10x.New(vt10x.WithSize(80, 24))
-
-	vt.Write([]byte("\x1b[1;3;4mBold Italic Underline\x1b[0m"))
-
-	state := vt.DumpState()
-	svg := string(VtStateToSvg(&state))
-
-	assert.Contains(t, svg, `class="b i u"`)
-	assert.Contains(t, svg, "Bold Italic Underline")
-}
-
-func TestTerminalStateToSVG_EmptyLines(t *testing.T) {
-	vt := vt10x.New(vt10x.WithSize(80, 5))
-
-	vt.Write([]byte("First line\n\n\nFourth line"))
-
-	state := vt.DumpState()
-	svg := string(VtStateToSvg(&state))
-
-	assert.Contains(t, svg, "First line")
-	assert.Contains(t, svg, "Fourth line")
-}
-
-func TestTerminalStateToSVG_SpacedText(t *testing.T) {
-	vt := vt10x.New(vt10x.WithSize(80, 24))
-
-	vt.Write([]byte("A"))
-	vt.Write([]byte("\x1b[1;10H"))
-	vt.Write([]byte("B"))
-	vt.Write([]byte("\x1b[1;20H"))
-	vt.Write([]byte("C"))
-
-	state := vt.DumpState()
-	svg := string(VtStateToSvg(&state))
-
-	assert.Contains(t, svg, "A")
-	assert.Contains(t, svg, "B")
-	assert.Contains(t, svg, "C")
-	assert.Contains(t, svg, `<tspan x="`)
 }
