@@ -92,6 +92,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 
 // GetThumbnail retrieves the thumbnail for a session recording.
 func (r *Service) GetThumbnail(ctx context.Context, req *pb.GetThumbnailRequest) (*pb.GetThumbnailResponse, error) {
+	// Authorize will have checked the session end event to ensure the user has access to the session recording.
 	if err := r.authorizer.Authorize(ctx, req.SessionId); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -114,6 +115,7 @@ func (r *Service) GetThumbnail(ctx context.Context, req *pb.GetThumbnailRequest)
 // GetMetadata retrieves the metadata for a session recording, streaming it back in chunks (one for metadata and one
 // for each frame).
 func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStreamingServer[pb.GetMetadataResponseChunk]) error {
+	// Authorize will have checked the session end event to ensure the user has access to the session recording.
 	if err := r.authorizer.Authorize(stream.Context(), req.SessionId); err != nil {
 		return trace.Wrap(err)
 	}
