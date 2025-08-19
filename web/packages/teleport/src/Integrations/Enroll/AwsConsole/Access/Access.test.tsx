@@ -21,11 +21,10 @@ import { screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
 import { fireEvent, render, userEvent } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { ContextProvider } from 'teleport/index';
 import { Access } from 'teleport/Integrations/Enroll/AwsConsole/Access/Access';
-import { makeAwsOidcStatusContextState } from 'teleport/Integrations/status/AwsOidc/testHelpers/makeAwsOidcStatusContextState';
-import { MockAwsOidcStatusProvider } from 'teleport/Integrations/status/AwsOidc/testHelpers/mockAwsOidcStatusProvider';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { integrationService } from 'teleport/services/integrations';
 
@@ -48,9 +47,21 @@ const initialEntries = [
   },
 ];
 
-test('flows through profiles configuration', async () => {
-  const user = userEvent.setup();
+jest.mock('react-router', () => ({
+  ...jest.requireActual('react-router'),
+  useHistory: () => ({
+    goBack: jest.fn(),
+    push: jest.fn(),
+  }),
+}));
 
+beforeEach(() => {
+  jest
+    .spyOn(integrationService, 'fetchIntegration')
+    .mockResolvedValue({} as any);
+  jest
+    .spyOn(integrationService, 'updateIntegration')
+    .mockResolvedValue({} as any);
   jest.spyOn(integrationService, 'awsRolesAnywhereProfiles').mockResolvedValue({
     profiles: [
       {
@@ -71,26 +82,28 @@ test('flows through profiles configuration', async () => {
       },
     ],
   } as any);
-  const createSpy = jest
-    .spyOn(integrationService, 'createIntegration')
-    .mockResolvedValue({} as any);
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
+test('flows through profiles configuration', async () => {
+  const user = userEvent.setup();
 
   render(
     <ContextProvider ctx={createTeleportContext()}>
       <QueryClientProvider client={queryClient}>
-        <MockAwsOidcStatusProvider
-          value={makeAwsOidcStatusContextState()}
-          path=""
-        >
+        <InfoGuidePanelProvider>
           <MemoryRouter initialEntries={initialEntries}>
             <Access />
           </MemoryRouter>
-        </MockAwsOidcStatusProvider>
+        </InfoGuidePanelProvider>
       </QueryClientProvider>
     </ContextProvider>
   );
 
-  await screen.findByText('Import All Profiles');
+  await screen.findByText('Import All');
   expect(screen.getByText('Configure Access')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Enable Sync' })).toBeEnabled();
   expect(screen.queryByText('Filter by Profile Name')).not.toBeInTheDocument();
@@ -104,19 +117,18 @@ test('flows through profiles configuration', async () => {
   });
   await user.click(screen.getByRole('button', { name: 'Enable Sync' }));
 
-  expect(createSpy).toHaveBeenCalledTimes(1);
-  expect(createSpy).toHaveBeenCalledWith({
+  expect(integrationService.fetchIntegration).not.toHaveBeenCalled();
+  expect(integrationService.updateIntegration).toHaveBeenCalledTimes(1);
+  expect(integrationService.updateIntegration).toHaveBeenCalledWith('test', {
     awsRa: {
+      trustAnchorARN: 'trust-anchor-arn',
       profileSyncConfig: {
         enabled: true,
-        profileAcceptsRoleSessionName: false,
+        filters: ['test-*'],
         profileArn: 'sync-profile-arn',
-        profileNameFilters: ['test-*'],
         roleArn: 'sync-role-arn',
       },
-      trustAnchorArn: 'trust-anchor-arn',
     },
-    name: 'test',
-    subKind: 'aws-ra',
+    kind: 'aws-ra',
   });
 });

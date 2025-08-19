@@ -16,6 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+
 import { Box, Flex, Indicator } from 'design';
 import { Danger } from 'design/Alert';
 
@@ -28,11 +31,38 @@ import {
 } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { TaskAlert } from 'teleport/Integrations/status/AwsOidc/Tasks/TaskAlert';
 import { useAwsOidcStatus } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
+import {
+  IntegrationKind,
+  integrationService,
+} from 'teleport/services/integrations';
+import useTeleport from 'teleport/useTeleport';
+
+import { ConsoleCardEnroll } from './Cards/ConsoleCard';
 
 export function AwsOidcDashboard() {
+  const ctx = useTeleport();
+  const integrationsAccess = ctx.storeUser.getIntegrationsAccess();
+  const canList = integrationsAccess.list;
   const { statsAttempt, integrationAttempt } = useAwsOidcStatus();
+  const [enrolledCli, setEnrolledCli] = useState(false);
+
+  // Get the list of integrations and see if roles anywhere as been enrolled.
+  // If not, show an enrollment card below. If yes, or in the case of an error: show nothing
+  const { status: listStatus } = useQuery({
+    enabled: canList,
+    queryKey: ['integrations'],
+    gcTime: 0,
+    queryFn: () =>
+      integrationService.fetchIntegrations().then(data => {
+        if (data.items.some(i => i.kind === IntegrationKind.AwsRa)) {
+          setEnrolledCli(true);
+        }
+        return data;
+      }),
+  });
 
   if (
+    listStatus === 'pending' ||
     statsAttempt.status === 'processing' ||
     integrationAttempt.status === 'processing'
   ) {
@@ -87,6 +117,11 @@ export function AwsOidcDashboard() {
             summary={awseks}
           />
         </Flex>
+        {listStatus === 'success' && !enrolledCli && (
+          <Flex>
+            <ConsoleCardEnroll />
+          </Flex>
+        )}
       </FeatureBox>
     </>
   );
