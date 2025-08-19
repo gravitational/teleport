@@ -1034,7 +1034,7 @@ func (c *PluginIntuneSettings) Validate() error {
 		return trace.BadParameter("tenant must be set")
 	}
 
-	if err := ValidateIntuneAPIEndpoints(c.LoginEndpoint, c.GraphEndpoint); err != nil {
+	if err := ValidateMSGraphEndpoints(c.LoginEndpoint, c.GraphEndpoint); err != nil {
 		return trace.Wrap(err)
 	}
 
