@@ -5298,6 +5298,33 @@ message OIDCConnectorSpecV3 {
   // requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality
   // for authorization request parameters.
   string RequestObjectMode = 22 [(gogoproto.jsontag) = "request_object_mode,omitempty"];
+  // EntraIDGroupsProvider configures out-of-band user groups provider.
+  EntraIDGroupsProvider entra_id_groups_provider = 23;
+}
+
+// EntraIDGroupsProvider configures groups provider for Entra ID,
+// based on the Microsoft Graph API.
+message EntraIDGroupsProvider {
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    // If enabled, groups provider should honour groups
+    // claim source.
+    STATE_ENABLED = 1;
+    // Disabled is the default behavior.
+    // User may wish to always disable the groups provider
+    // if they are using integrations such as SCIM or similar
+    // groups importer. Connector based role mapping may be
+    // not needed in such a scenario.
+    STATE_DISABLED = 2;
+  }
+
+  // State is a groups provider enabled/disabled state.
+  State state = 1;
+  // GroupType configures group filter behavior.
+  // Value can be "security-groups", "directory-roles", "all-groups".
+  string group_type = 2;
+  // Optional Microsoft Graph API endpoint. Defaults to "graph.microsoft.com".
+  string graph_endpoint = 3;
 }
 
 // MaxAge allows the max_age parameter to be nullable to preserve backwards
