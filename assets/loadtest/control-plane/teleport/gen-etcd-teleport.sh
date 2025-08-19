@@ -13,8 +13,8 @@ chartMode: standalone
 clusterName: ${CLUSTER_NAME}.${ROUTE53_ZONE}      # Name of your cluster. Use the FQDN you intend to configure in DNS below.
 
 extraArgs: ['--debug']
-image: "public.ecr.aws/gravitational-staging/teleport-distroless-debug"
-enterpriseImage: "public.ecr.aws/gravitational-staging/teleport-ent-distroless-debug"
+image: "public.ecr.aws/gravitational/teleport-distroless-debug"
+enterpriseImage: "public.ecr.aws/gravitational/teleport-ent-distroless-debug"
 
 persistence:
     enabled: false
