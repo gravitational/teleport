@@ -40,16 +40,18 @@ func VtStateToSvg(state *vt10x.TerminalState) []byte {
 	pixelWidth := int((float64(cols) + 2.0) * (fontSize * 0.6))
 	pixelHeight := int((float64(rows) + 1.0) * rowHeight)
 
-	writeSVGHeader(&buf, pixelWidth, pixelHeight, fontSize)
+	closeHeader := writeSVGHeader(&buf, pixelWidth, pixelHeight, fontSize)
 	renderBackgrounds(&buf, state.PrimaryBuffer, cols, rows, charWidth, rowHeight)
 	renderText(&buf, state.PrimaryBuffer, cols, rows, charWidth)
 
-	buf.WriteString("</svg></svg>")
+	buf.WriteString(closeHeader())
 
 	return buf.Bytes()
 }
 
-func writeSVGHeader(buf *bytes.Buffer, width, height int, fontSize float64) {
+// writeSVGHeader writes the SVG header and styles to the buffer.
+// It returns a function that closes the SVG tags when called.
+func writeSVGHeader(buf *bytes.Buffer, width, height int, fontSize float64) func() string {
 	x := 1.0 * 100.0 / (float64(width) / fontSize / 0.6)
 	y := 0.5 * 100.0 / (float64(height) / fontSize / lineHeight)
 
@@ -64,6 +66,10 @@ func writeSVGHeader(buf *bytes.Buffer, width, height int, fontSize float64) {
 
 	fmt.Fprintf(buf, `<rect width="100%%" height="100%%" class="bg-default"/><svg x="%.3f%%" y="%.3f%%">`,
 		x, y)
+
+	return func() string {
+		return "</svg></svg>"
+	}
 }
 
 func renderBackgrounds(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int, charWidth, rowHeight float64) {
