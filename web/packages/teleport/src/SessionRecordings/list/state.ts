@@ -81,6 +81,8 @@ export function searchParamsToState(
     sortDirection: 'DESC',
   };
 
+  // if the user is using a predefined range, we grab it from the URL params
+  // otherwise we use the custom range defined by the user
   const timeframe = params.get('timeframe');
 
   if (timeframe) {
@@ -214,12 +216,24 @@ export function stateToSearchParams(state: RecordingsListState) {
   return urlParams.toString();
 }
 
+function sortArray(array: string[]) {
+  return array.toSorted((a, b) => a.localeCompare(b));
+}
+
+function arraysAreEqual(a: string[], b: string[]) {
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  return JSON.stringify(sortArray(a)) === JSON.stringify(sortArray(b));
+}
+
 function filtersAreEqual(a: RecordingsListFilters, b: RecordingsListFilters) {
   return (
     a.hideNonInteractive === b.hideNonInteractive &&
-    a.resources.join(',') === b.resources.join(',') &&
-    a.types.join(',') === b.types.join(',') &&
-    a.users.join(',') === b.users.join(',')
+    arraysAreEqual(a.types, b.types) &&
+    arraysAreEqual(a.users, b.users) &&
+    arraysAreEqual(a.resources, b.resources)
   );
 }
 
@@ -284,8 +298,10 @@ export function useRecordingsListState(
 
     if (
       history.location.search.length === 0 &&
-      currentSearch.current.length === 1
+      currentSearch.current.length === 1 // empty, i.e. just '?'
     ) {
+      // the current search is empty, and the state is also empty,
+      // so we don't need to update the URL
       return;
     }
 

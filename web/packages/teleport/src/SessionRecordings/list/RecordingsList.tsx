@@ -372,31 +372,29 @@ function filterRecordings(
   search: string
 ): Recording[] {
   return recordings.filter(recording => {
-    const matchesResource = filters.resources.length
-      ? filters.resources.includes(recording.hostname)
-      : true;
+    if (
+      filters.resources.length &&
+      !filters.resources.includes(recording.hostname)
+    ) {
+      return false;
+    }
 
-    const matchesType = filters.types.length
-      ? filters.types.includes(recording.recordingType)
-      : true;
+    if (
+      filters.types.length &&
+      !filters.types.includes(recording.recordingType)
+    ) {
+      return false;
+    }
 
-    const matchesUser = filters.users.length
-      ? filters.users.includes(recording.user)
-      : true;
+    if (filters.users.length && !filters.users.includes(recording.user)) {
+      return false;
+    }
 
-    const matchesNonInteractive = filters.hideNonInteractive
-      ? recording.playable
-      : true;
+    if (filters.hideNonInteractive && !recording.playable) {
+      return false;
+    }
 
-    const matchesSearch = searchMatcher(search, recording);
-
-    return (
-      matchesResource &&
-      matchesType &&
-      matchesUser &&
-      matchesNonInteractive &&
-      matchesSearch
-    );
+    return searchMatcher(search, recording);
   });
 }
 
@@ -428,11 +426,11 @@ function createRecordingsSortFunction(
       return direction === 'ASC' ? 1 : -1;
     }
 
-    switch (key) {
-      case 'type': // sort by date if types are equal
-        return direction === 'ASC'
-          ? a.createdDate.getTime() - b.createdDate.getTime()
-          : b.createdDate.getTime() - a.createdDate.getTime();
+    if (key === 'type') {
+      // If types are equal, sort by date
+      return direction === 'ASC'
+        ? a.createdDate.getTime() - b.createdDate.getTime()
+        : b.createdDate.getTime() - a.createdDate.getTime();
     }
 
     return 0;

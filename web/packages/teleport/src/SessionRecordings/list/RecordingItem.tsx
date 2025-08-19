@@ -50,7 +50,119 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import { RecordingThumbnail } from './RecordingThumbnail';
 import { Density, ViewMode } from './ViewSwitcher';
 
+// ActionSlot is a function that takes a sessionId and returns a ReactNode, for placing
+// a button on each session recording.
 export type ActionSlot = (sessionId: string) => ReactNode;
+
+export interface RecordingItemProps {
+  actionSlot?: ActionSlot;
+  density: Density;
+  recording: Recording;
+  viewMode: ViewMode;
+}
+
+export function RecordingItem({
+  actionSlot,
+  density,
+  recording,
+  viewMode,
+}: RecordingItemProps) {
+  const { clusterId } = useStickyClusterId();
+
+  const { icon: Icon, label } = useMemo(
+    () => getRecordingTypeInfo(recording.recordingType),
+    [recording.recordingType]
+  );
+
+  const duration = useMemo(
+    () => formatDuration(recording.duration),
+    [recording.duration]
+  );
+
+  const url = cfg.getPlayerRoute(
+    { clusterId, sid: recording.sid },
+    {
+      recordingType: recording.recordingType,
+      durationMs: recording.duration,
+    }
+  );
+
+  const actions = useMemo(
+    () => (actionSlot ? actionSlot(recording.sid) : null),
+    [actionSlot, recording.sid]
+  );
+
+  return (
+    <RecordingItemContainer
+      data-testid="recording-item"
+      to={recording.playable ? url : '#'}
+      target="_blank"
+      playable={recording.playable}
+      density={density}
+      viewMode={viewMode}
+    >
+      <ThumbnailContainer density={density} viewMode={viewMode}>
+        {recording.playable ? (
+          <ErrorBoundary
+            fallback={<ThumbnailError>Thumbnail not available</ThumbnailError>}
+          >
+            <Suspense fallback={<ThumbnailLoading />}>
+              <RecordingThumbnail
+                clusterId={clusterId}
+                sessionId={recording.sid}
+              />
+            </Suspense>
+          </ErrorBoundary>
+        ) : (
+          <ThumbnailError>
+            Non-interactive session, no playback available
+          </ThumbnailError>
+        )}
+
+        <Duration viewMode={viewMode}>{duration}</Duration>
+      </ThumbnailContainer>
+
+      <Flex width="100%">
+        <RecordingDetails density={density} viewMode={viewMode}>
+          <Flex gap={2} width="100%">
+            <Icon size="small" />
+
+            <Text fontWeight="500">{label}</Text>
+
+            <Box flex={1} justifySelf="stretch" alignSelf="stretch" />
+
+            <Text color="text.slightlyMuted" fontSize="small" pr={1}>
+              {format(recording.createdDate, 'MMM dd, yyyy HH:mm')}
+            </Text>
+          </Flex>
+          <Flex alignItems="center" gap={2}>
+            <ItemSpan>
+              <User size="small" color="pink" />
+
+              <Text>{recording.user}</Text>
+            </ItemSpan>
+
+            <ArrowRight size="small" color="text.slightlyMuted" />
+
+            <ItemSpan>
+              <Server size="small" color="cyan" />
+
+              <Text>{recording.hostname}</Text>
+            </ItemSpan>
+          </Flex>
+          <Box flex={1} justifySelf="stretch" alignSelf="stretch" />
+          <Flex alignItems="flex-end" justifyContent="space-between">
+            <Text color="text.slightlyMuted" fontSize="12px" fontFamily="mono">
+              {recording.sid}
+            </Text>
+
+            {actions}
+          </Flex>
+        </RecordingDetails>
+      </Flex>
+    </RecordingItemContainer>
+  );
+}
 
 const RecordingItemContainer = styled(Link).withConfig({
   // We need to specify this when wrapping non-styled components
@@ -168,116 +280,6 @@ const ItemSpan = styled.span`
   font-size: 13px;
   gap: ${p => p.theme.space[1]}px;
 `;
-
-export interface RecordingItemProps {
-  actionSlot?: ActionSlot;
-  density: Density;
-  recording: Recording;
-  viewMode: ViewMode;
-}
-
-export function RecordingItem({
-  actionSlot,
-  density,
-  recording,
-  viewMode,
-}: RecordingItemProps) {
-  const { clusterId } = useStickyClusterId();
-
-  const { icon: Icon, label } = useMemo(
-    () => getRecordingTypeInfo(recording.recordingType),
-    [recording.recordingType]
-  );
-
-  const duration = useMemo(
-    () => formatDuration(recording.duration),
-    [recording.duration]
-  );
-
-  const url = cfg.getPlayerRoute(
-    { clusterId, sid: recording.sid },
-    {
-      recordingType: recording.recordingType,
-      durationMs: recording.duration,
-    }
-  );
-
-  const actions = useMemo(
-    () => (actionSlot ? actionSlot(recording.sid) : null),
-    [actionSlot, recording.sid]
-  );
-
-  return (
-    <RecordingItemContainer
-      data-testid="recording-item"
-      to={recording.playable ? url : '#'}
-      target="_blank"
-      playable={recording.playable}
-      density={density}
-      viewMode={viewMode}
-    >
-      <ThumbnailContainer density={density} viewMode={viewMode}>
-        {recording.playable ? (
-          <ErrorBoundary
-            fallback={<ThumbnailError>Thumbnail not available</ThumbnailError>}
-          >
-            <Suspense fallback={<ThumbnailLoading />}>
-              <RecordingThumbnail
-                clusterId={clusterId}
-                sessionId={recording.sid}
-              />
-            </Suspense>
-          </ErrorBoundary>
-        ) : (
-          <ThumbnailError>
-            Non-interactive session, no playback available
-          </ThumbnailError>
-        )}
-
-        <Duration viewMode={viewMode}>{duration}</Duration>
-      </ThumbnailContainer>
-
-      <Flex width="100%">
-        <RecordingDetails density={density} viewMode={viewMode}>
-          <Flex gap={2} width="100%">
-            <Icon size="small" />
-
-            <Text fontWeight="500">{label}</Text>
-
-            <Box flex={1} justifySelf="stretch" alignSelf="stretch" />
-
-            <Text color="text.slightlyMuted" fontSize="small" pr={1}>
-              {format(recording.createdDate, 'MMM dd, yyyy HH:mm')}
-            </Text>
-          </Flex>
-          <Flex alignItems="center" gap={2}>
-            <ItemSpan>
-              <User size="small" color="pink" />
-
-              <Text>{recording.user}</Text>
-            </ItemSpan>
-
-            <ArrowRight size="small" color="text.slightlyMuted" />
-
-            <ItemSpan>
-              <Server size="small" color="cyan" />
-
-              <Text>{recording.hostname}</Text>
-            </ItemSpan>
-          </Flex>
-          <Box flex={1} justifySelf="stretch" alignSelf="stretch" />
-          <Flex alignItems="flex-end" justifyContent="space-between">
-            <Text color="text.slightlyMuted" fontSize="12px" fontFamily="mono">
-              {recording.sid}
-            </Text>
-
-            {actions}
-          </Flex>
-        </RecordingDetails>
-      </Flex>
-    </RecordingItemContainer>
-  );
-}
 
 const Spin = styled(Box)`
   line-height: 12px;

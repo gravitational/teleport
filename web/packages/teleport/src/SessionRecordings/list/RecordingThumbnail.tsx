@@ -28,6 +28,8 @@ interface RecordingThumbnailProps {
   sessionId: string;
 }
 
+// zoomLevel determines how far the thumbnail is zoomed in.
+// A higher zoom level means the thumbnail is more zoomed in, showing a smaller area of the recording.
 const zoomLevel = 5;
 
 export function RecordingThumbnail({
@@ -45,6 +47,7 @@ export function RecordingThumbnail({
     }
   );
 
+  // calculate the background position based on the cursor position and zoom level
   const { bgPosX, bgPosY } = useMemo(() => {
     const visibleWidthPercent = 100 / zoomLevel;
     const visibleHeightPercent = 100 / zoomLevel;
