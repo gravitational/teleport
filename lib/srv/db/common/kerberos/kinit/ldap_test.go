@@ -96,7 +96,7 @@ func TestTLSConfigForLDAP(t *testing.T) {
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			require.Equal(t, "CN=test-user", csr.Subject.String())
+			require.Equal(t, "CN=test-user@example.com", csr.Subject.String())
 			require.Len(t, csr.Extensions, 3)
 			return generateDatabaseCert(ctx, request)
 		},

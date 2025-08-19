@@ -182,7 +182,7 @@ func TestGetCertificate(t *testing.T) {
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			require.Equal(t, "CN=alice", csr.Subject.String())
+			require.Equal(t, "CN=alice@example.com", csr.Subject.String())
 			require.Len(t, csr.Extensions, 3)
 			return generateDatabaseCert(ctx, request)
 		},

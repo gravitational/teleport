@@ -74,6 +74,8 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	// Also important: rdpclient expects the private key to be in PKCS1 format.
 	keyDER := x509.MarshalPKCS1PrivateKey(rsaKey.(*rsa.PrivateKey))
 
+	// Assume the user belongs to req.Domain, unless the
+	// username provided is a full UPN (user@domain)
 	upn := req.Username
 	if !strings.Contains(upn, "@") {
 		upn = fmt.Sprintf("%v@%v", upn, req.Domain)
@@ -335,7 +337,7 @@ func subjectAltNameExtension(userPrincipalName string) (pkix.Extension, error) {
 		SubjectAltName[UPN]{
 			OtherName: otherName[UPN]{
 				OID: UPNOtherNameOID,
-				Value: upn{
+				Value: UPN{
 					Value: userPrincipalName,
 				},
 			},

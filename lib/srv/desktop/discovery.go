@@ -161,7 +161,7 @@ func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
 		attrs = append(attrs, computerAttributes...)
 		attrs = append(attrs, discoveryConfig.LabelAttributes...)
 
-		entries, err := ldapClient.ReadWithFilter(discoveryConfig.BaseDN, filter, attrs)
+		entries, err := ldapClient.ReadWithFilter(s.closeCtx, discoveryConfig.BaseDN, filter, attrs)
 		if err != nil {
 			s.cfg.Logger.WarnContext(s.closeCtx, "could not discover Windows Desktops", "error", err)
 			return nil
