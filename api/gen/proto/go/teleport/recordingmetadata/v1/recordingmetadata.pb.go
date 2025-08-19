@@ -396,62 +396,6 @@ func (x *SessionRecordingMetadata) GetClusterName() string {
 	return ""
 }
 
-// SessionRecordingMetadataWithFrames contains metadata and frames for a session recording.
-// This is used to store the metadata and frames together in a single message.
-type SessionRecordingMetadataWithFrames struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Metadata is the metadata of the session recording.
-	Metadata *SessionRecordingMetadata `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	// Frames is the frames captured during the session recording.
-	Frames        []*SessionRecordingThumbnail `protobuf:"bytes,2,rep,name=frames,proto3" json:"frames,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SessionRecordingMetadataWithFrames) Reset() {
-	*x = SessionRecordingMetadataWithFrames{}
-	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SessionRecordingMetadataWithFrames) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SessionRecordingMetadataWithFrames) ProtoMessage() {}
-
-func (x *SessionRecordingMetadataWithFrames) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SessionRecordingMetadataWithFrames.ProtoReflect.Descriptor instead.
-func (*SessionRecordingMetadataWithFrames) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *SessionRecordingMetadataWithFrames) GetMetadata() *SessionRecordingMetadata {
-	if x != nil {
-		return x.Metadata
-	}
-	return nil
-}
-
-func (x *SessionRecordingMetadataWithFrames) GetFrames() []*SessionRecordingThumbnail {
-	if x != nil {
-		return x.Frames
-	}
-	return nil
-}
-
 // SessionRecordingThumbnail is a thumbnail of a session recording.
 type SessionRecordingThumbnail struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -475,7 +419,7 @@ type SessionRecordingThumbnail struct {
 
 func (x *SessionRecordingThumbnail) Reset() {
 	*x = SessionRecordingThumbnail{}
-	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[6]
+	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -487,7 +431,7 @@ func (x *SessionRecordingThumbnail) String() string {
 func (*SessionRecordingThumbnail) ProtoMessage() {}
 
 func (x *SessionRecordingThumbnail) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[6]
+	mi := &file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -500,7 +444,7 @@ func (x *SessionRecordingThumbnail) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionRecordingThumbnail.ProtoReflect.Descriptor instead.
 func (*SessionRecordingThumbnail) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP(), []int{6}
+	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *SessionRecordingThumbnail) GetSvg() []byte {
@@ -583,10 +527,7 @@ const file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc = "" +
 	"\n" +
 	"start_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
 	"\bend_time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\aendTime\x12!\n" +
-	"\fcluster_name\x18\a \x01(\tR\vclusterName\"\xcb\x01\n" +
-	"\"SessionRecordingMetadataWithFrames\x12S\n" +
-	"\bmetadata\x18\x01 \x01(\v27.teleport.recordingmetadata.v1.SessionRecordingMetadataR\bmetadata\x12P\n" +
-	"\x06frames\x18\x02 \x03(\v28.teleport.recordingmetadata.v1.SessionRecordingThumbnailR\x06frames\"\x83\x02\n" +
+	"\fcluster_name\x18\a \x01(\tR\vclusterName\"\x83\x02\n" +
 	"\x19SessionRecordingThumbnail\x12\x10\n" +
 	"\x03svg\x18\x01 \x01(\fR\x03svg\x12\x12\n" +
 	"\x04cols\x18\x02 \x01(\x05R\x04cols\x12\x12\n" +
@@ -609,37 +550,34 @@ func file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP() []
 	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescData
 }
 
-var file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_teleport_recordingmetadata_v1_recordingmetadata_proto_goTypes = []any{
-	(*SessionRecordingEvent)(nil),              // 0: teleport.recordingmetadata.v1.SessionRecordingEvent
-	(*SessionRecordingInactivityEvent)(nil),    // 1: teleport.recordingmetadata.v1.SessionRecordingInactivityEvent
-	(*SessionRecordingJoinEvent)(nil),          // 2: teleport.recordingmetadata.v1.SessionRecordingJoinEvent
-	(*SessionRecordingResizeEvent)(nil),        // 3: teleport.recordingmetadata.v1.SessionRecordingResizeEvent
-	(*SessionRecordingMetadata)(nil),           // 4: teleport.recordingmetadata.v1.SessionRecordingMetadata
-	(*SessionRecordingMetadataWithFrames)(nil), // 5: teleport.recordingmetadata.v1.SessionRecordingMetadataWithFrames
-	(*SessionRecordingThumbnail)(nil),          // 6: teleport.recordingmetadata.v1.SessionRecordingThumbnail
-	(*durationpb.Duration)(nil),                // 7: google.protobuf.Duration
-	(*timestamppb.Timestamp)(nil),              // 8: google.protobuf.Timestamp
+	(*SessionRecordingEvent)(nil),           // 0: teleport.recordingmetadata.v1.SessionRecordingEvent
+	(*SessionRecordingInactivityEvent)(nil), // 1: teleport.recordingmetadata.v1.SessionRecordingInactivityEvent
+	(*SessionRecordingJoinEvent)(nil),       // 2: teleport.recordingmetadata.v1.SessionRecordingJoinEvent
+	(*SessionRecordingResizeEvent)(nil),     // 3: teleport.recordingmetadata.v1.SessionRecordingResizeEvent
+	(*SessionRecordingMetadata)(nil),        // 4: teleport.recordingmetadata.v1.SessionRecordingMetadata
+	(*SessionRecordingThumbnail)(nil),       // 5: teleport.recordingmetadata.v1.SessionRecordingThumbnail
+	(*durationpb.Duration)(nil),             // 6: google.protobuf.Duration
+	(*timestamppb.Timestamp)(nil),           // 7: google.protobuf.Timestamp
 }
 var file_teleport_recordingmetadata_v1_recordingmetadata_proto_depIdxs = []int32{
-	7,  // 0: teleport.recordingmetadata.v1.SessionRecordingEvent.start_offset:type_name -> google.protobuf.Duration
-	7,  // 1: teleport.recordingmetadata.v1.SessionRecordingEvent.end_offset:type_name -> google.protobuf.Duration
+	6,  // 0: teleport.recordingmetadata.v1.SessionRecordingEvent.start_offset:type_name -> google.protobuf.Duration
+	6,  // 1: teleport.recordingmetadata.v1.SessionRecordingEvent.end_offset:type_name -> google.protobuf.Duration
 	1,  // 2: teleport.recordingmetadata.v1.SessionRecordingEvent.inactivity:type_name -> teleport.recordingmetadata.v1.SessionRecordingInactivityEvent
 	2,  // 3: teleport.recordingmetadata.v1.SessionRecordingEvent.join:type_name -> teleport.recordingmetadata.v1.SessionRecordingJoinEvent
 	3,  // 4: teleport.recordingmetadata.v1.SessionRecordingEvent.resize:type_name -> teleport.recordingmetadata.v1.SessionRecordingResizeEvent
-	7,  // 5: teleport.recordingmetadata.v1.SessionRecordingMetadata.duration:type_name -> google.protobuf.Duration
+	6,  // 5: teleport.recordingmetadata.v1.SessionRecordingMetadata.duration:type_name -> google.protobuf.Duration
 	0,  // 6: teleport.recordingmetadata.v1.SessionRecordingMetadata.events:type_name -> teleport.recordingmetadata.v1.SessionRecordingEvent
-	8,  // 7: teleport.recordingmetadata.v1.SessionRecordingMetadata.start_time:type_name -> google.protobuf.Timestamp
-	8,  // 8: teleport.recordingmetadata.v1.SessionRecordingMetadata.end_time:type_name -> google.protobuf.Timestamp
-	4,  // 9: teleport.recordingmetadata.v1.SessionRecordingMetadataWithFrames.metadata:type_name -> teleport.recordingmetadata.v1.SessionRecordingMetadata
-	6,  // 10: teleport.recordingmetadata.v1.SessionRecordingMetadataWithFrames.frames:type_name -> teleport.recordingmetadata.v1.SessionRecordingThumbnail
-	7,  // 11: teleport.recordingmetadata.v1.SessionRecordingThumbnail.start_offset:type_name -> google.protobuf.Duration
-	7,  // 12: teleport.recordingmetadata.v1.SessionRecordingThumbnail.end_offset:type_name -> google.protobuf.Duration
-	13, // [13:13] is the sub-list for method output_type
-	13, // [13:13] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	7,  // 7: teleport.recordingmetadata.v1.SessionRecordingMetadata.start_time:type_name -> google.protobuf.Timestamp
+	7,  // 8: teleport.recordingmetadata.v1.SessionRecordingMetadata.end_time:type_name -> google.protobuf.Timestamp
+	6,  // 9: teleport.recordingmetadata.v1.SessionRecordingThumbnail.start_offset:type_name -> google.protobuf.Duration
+	6,  // 10: teleport.recordingmetadata.v1.SessionRecordingThumbnail.end_offset:type_name -> google.protobuf.Duration
+	11, // [11:11] is the sub-list for method output_type
+	11, // [11:11] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_teleport_recordingmetadata_v1_recordingmetadata_proto_init() }
@@ -658,7 +596,7 @@ func file_teleport_recordingmetadata_v1_recordingmetadata_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc), len(file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

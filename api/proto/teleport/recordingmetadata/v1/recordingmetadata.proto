@@ -74,15 +74,6 @@ message SessionRecordingMetadata {
   string cluster_name = 7;
 }
 
-// SessionRecordingMetadataWithFrames contains metadata and frames for a session recording.
-// This is used to store the metadata and frames together in a single message.
-message SessionRecordingMetadataWithFrames {
-  // Metadata is the metadata of the session recording.
-  SessionRecordingMetadata metadata = 1;
-  // Frames is the frames captured during the session recording.
-  repeated SessionRecordingThumbnail frames = 2;
-}
-
 // SessionRecordingThumbnail is a thumbnail of a session recording.
 message SessionRecordingThumbnail {
   // SVG is the SVG image of the thumbnail.
