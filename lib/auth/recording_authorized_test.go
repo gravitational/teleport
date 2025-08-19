@@ -109,7 +109,7 @@ func TestSessionRecordingAuthorized_RBAC(t *testing.T) {
 			authorizer := &mockAuthorizer{
 				ctx: authContext,
 			}
-			sessionAuth := auth.NewSessionRecordingAuthorized(authServer, authorizer)
+			sessionAuth := auth.NewSessionRecordingAuthorizer(authServer, authorizer)
 
 			err = sessionAuth.Authorize(t.Context(), string(session1))
 			if tc.session1 {

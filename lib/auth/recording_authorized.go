@@ -27,24 +27,24 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 )
 
-// NewSessionRecordingAuthorized creates a new session recording authorizer.
-func NewSessionRecordingAuthorized(authServer *Server, authorizer authz.Authorizer) *sessionRecordingAuthorized {
-	return &sessionRecordingAuthorized{
+// NewSessionRecordingAuthorizer creates a new session recording authorizer.
+func NewSessionRecordingAuthorizer(authServer *Server, authorizer authz.Authorizer) *SessionRecordingAuthorizer {
+	return &SessionRecordingAuthorizer{
 		authServer: authServer,
 		authorizer: authorizer,
 	}
 }
 
-// sessionRecordingAuthorized is a struct that implements the Authorizer interface
+// SessionRecordingAuthorizer is a struct that implements the Authorizer interface
 // for session recordings. It uses the provided authServer and authorizer to
 // check if the user has permission to access a session recording.
-type sessionRecordingAuthorized struct {
+type SessionRecordingAuthorizer struct {
 	authServer *Server
 	authorizer authz.Authorizer
 }
 
 // Authorize checks if the user has permission to access the session recording.
-func (a *sessionRecordingAuthorized) Authorize(ctx context.Context, sessionID string) error {
+func (a *SessionRecordingAuthorizer) Authorize(ctx context.Context, sessionID string) error {
 	userCtx, err := a.authorizer.Authorize(ctx)
 	if err != nil {
 		return trace.Wrap(err)

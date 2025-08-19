@@ -5949,7 +5949,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 
 	recordingMetadataService, err := recordingmetadatav1.NewService(recordingmetadatav1.ServiceConfig{
-		Authorizer: NewSessionRecordingAuthorized(
+		Authorizer: NewSessionRecordingAuthorizer(
 			cfg.AuthServer,
 			cfg.Authorizer,
 		),
