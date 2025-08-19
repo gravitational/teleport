@@ -46,11 +46,11 @@ var (
 // https://learn.microsoft.com/en-us/graph/deployments
 func ValidateMSGraphEndpoints(loginEndpoint, graphEndpoint string) error {
 	if loginEndpoint != "" && !slices.Contains(validLoginEndpoints, loginEndpoint) {
-		return trace.BadParameter("login endpoint is not one of the supported Microsoft Entra ID endpoints (see https://learn.microsoft.com/en-us/graph/deployments)")
+		return trace.BadParameter("expected login endpoints %q, got %q", validLoginEndpoints, loginEndpoint)
 	}
 
 	if graphEndpoint != "" && !slices.Contains(validGraphEndpoints, graphEndpoint) {
-		return trace.BadParameter("graph endpoint is not one of the official Microsoft Graph endpoints (see https://learn.microsoft.com/en-us/graph/deployments)")
+		return trace.BadParameter("expected graph endpoints %q, got %q", validGraphEndpoints, graphEndpoint)
 	}
 
 	return nil
