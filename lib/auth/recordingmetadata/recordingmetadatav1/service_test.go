@@ -19,6 +19,7 @@
 package recordingmetadatav1
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -30,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/encoding/protodelim"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -167,14 +169,14 @@ func TestService_GetMetadata(t *testing.T) {
 
 	metadata := newMetadata()
 
-	metadata.Frames = []*recordingmetadatav1pb.SessionRecordingThumbnail{
+	frames := []*recordingmetadatav1pb.SessionRecordingThumbnail{
 		newThumbnail(),
 		newThumbnail(),
 	}
 
-	metadata.Metadata.ClusterName = "test-cluster"
+	metadata.ClusterName = "test-cluster"
 
-	err := uploadMetadata(ctx, uploader, session.ID("test-session"), metadata)
+	err := uploadMetadata(ctx, uploader, session.ID("test-session"), metadata, frames)
 	require.NoError(t, err, "failed to upload metadata")
 
 	service := &Service{
@@ -198,7 +200,7 @@ func TestService_GetMetadata(t *testing.T) {
 		require.NotNil(t, chunk, "expected non-nil chunk")
 
 		require.NotNil(t, chunk.GetMetadata(), "expected metadata in chunk")
-		require.Equal(t, metadata.Metadata.ClusterName, chunk.GetMetadata().ClusterName, "metadata cluster name does not match expected value")
+		require.Equal(t, metadata.ClusterName, chunk.GetMetadata().ClusterName, "metadata cluster name does not match expected value")
 	}
 
 	{
@@ -209,7 +211,7 @@ func TestService_GetMetadata(t *testing.T) {
 		require.NotNil(t, chunk, "expected non-nil chunk")
 
 		require.NotNil(t, chunk.GetFrame(), "expected frame in chunk")
-		require.Equal(t, metadata.Frames[0].Svg, chunk.GetFrame().Svg,
+		require.Equal(t, frames[0].Svg, chunk.GetFrame().Svg,
 			"first frame SVG does not match expected value")
 	}
 
@@ -221,7 +223,7 @@ func TestService_GetMetadata(t *testing.T) {
 		require.NotNil(t, chunk, "expected non-nil chunk")
 
 		require.NotNil(t, chunk.GetFrame(), "expected frame in chunk")
-		require.Equal(t, metadata.Frames[1].Svg, chunk.GetFrame().Svg,
+		require.Equal(t, frames[1].Svg, chunk.GetFrame().Svg,
 			"second frame SVG does not match expected value")
 	}
 }
@@ -259,15 +261,15 @@ func TestService_GetMetadataAuthorized(t *testing.T) {
 	uploader := eventstest.NewMemoryUploader()
 
 	allowedSessionMetadata := newMetadata()
-	err := uploadMetadata(context.Background(), uploader, session.ID("allowed-session"), allowedSessionMetadata)
+	err := uploadMetadata(context.Background(), uploader, session.ID("allowed-session"), allowedSessionMetadata, nil)
 	require.NoError(t, err, "failed to upload metadata for allowed session")
 
 	deniedSessionMetadata := newMetadata()
-	err = uploadMetadata(context.Background(), uploader, session.ID("denied-session"), deniedSessionMetadata)
+	err = uploadMetadata(context.Background(), uploader, session.ID("denied-session"), deniedSessionMetadata, nil)
 	require.NoError(t, err, "failed to upload metadata for denied session")
 
 	testSessionMetadata := newMetadata()
-	err = uploadMetadata(context.Background(), uploader, session.ID("test-session"), testSessionMetadata)
+	err = uploadMetadata(context.Background(), uploader, session.ID("test-session"), testSessionMetadata, nil)
 	require.NoError(t, err, "failed to upload metadata for test session")
 
 	service := &Service{
@@ -358,16 +360,14 @@ func newThumbnail() *recordingmetadatav1pb.SessionRecordingThumbnail {
 	}
 }
 
-func newMetadata() *recordingmetadatav1pb.SessionRecordingMetadataWithFrames {
-	return &recordingmetadatav1pb.SessionRecordingMetadataWithFrames{
-		Metadata: &recordingmetadatav1pb.SessionRecordingMetadata{
-			Duration:    durationpb.New(60),
-			StartCols:   80,
-			StartRows:   24,
-			StartTime:   timestamppb.New(time.Now().Add(-time.Minute)),
-			EndTime:     timestamppb.New(time.Now()),
-			ClusterName: "test-cluster",
-		},
+func newMetadata() *recordingmetadatav1pb.SessionRecordingMetadata {
+	return &recordingmetadatav1pb.SessionRecordingMetadata{
+		Duration:    durationpb.New(60),
+		StartCols:   80,
+		StartRows:   24,
+		StartTime:   timestamppb.New(time.Now().Add(-time.Minute)),
+		EndTime:     timestamppb.New(time.Now()),
+		ClusterName: "test-cluster",
 	}
 }
 
@@ -384,13 +384,25 @@ func uploadThumbnail(ctx context.Context, uploader events.UploadHandler, session
 	return nil
 }
 
-func uploadMetadata(ctx context.Context, uploader events.UploadHandler, sessionID session.ID, metadata *recordingmetadatav1pb.SessionRecordingMetadataWithFrames) error {
-	data, err := proto.Marshal(metadata)
-	if err != nil {
+func uploadMetadata(ctx context.Context, uploader events.UploadHandler, sessionID session.ID, metadata *recordingmetadatav1pb.SessionRecordingMetadata, frames []*recordingmetadatav1pb.SessionRecordingThumbnail) error {
+	buf := &bytes.Buffer{}
+	writer := bufio.NewWriter(buf)
+
+	if _, err := protodelim.MarshalTo(writer, metadata); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if _, err := uploader.UploadMetadata(ctx, sessionID, bytes.NewReader(data)); err != nil {
+	for _, frame := range frames {
+		if _, err := protodelim.MarshalTo(writer, frame); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if err := writer.Flush(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := uploader.UploadMetadata(ctx, sessionID, buf); err != nil {
 		return trace.Wrap(err)
 	}
 

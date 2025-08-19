@@ -19,11 +19,15 @@
 package recordingmetadatav1
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"io"
 	"log/slog"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/encoding/protodelim"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
@@ -119,15 +123,17 @@ func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStre
 		return trace.Wrap(err)
 	}
 
-	metadata := &pb.SessionRecordingMetadataWithFrames{}
-	err = proto.Unmarshal(buf.Bytes(), metadata)
+	reader := bufio.NewReader(bytes.NewReader(buf.Bytes()))
+
+	metadata := &pb.SessionRecordingMetadata{}
+	err = protodelim.UnmarshalFrom(reader, metadata)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	metadataChunk := &pb.GetMetadataResponseChunk{
 		Chunk: &pb.GetMetadataResponseChunk_Metadata{
-			Metadata: metadata.Metadata,
+			Metadata: metadata,
 		},
 	}
 
@@ -135,7 +141,16 @@ func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStre
 		return trace.Wrap(err)
 	}
 
-	for _, frame := range metadata.Frames {
+	for {
+		frame := &pb.SessionRecordingThumbnail{}
+		err := protodelim.UnmarshalFrom(reader, frame)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		frameChunk := &pb.GetMetadataResponseChunk{
 			Chunk: &pb.GetMetadataResponseChunk_Frame{
 				Frame: frame,
