@@ -2,7 +2,7 @@ module teleport-desktop-registration
 
 go 1.24.6
 
-require github.com/gravitational/teleport/api v0.0.0-20250813020053-3df242da2a4a
+require github.com/gravitational/teleport/api v0.0.0-20250818183108-571669ac0707
 
 require (
 	github.com/beevik/etree v1.5.0 // indirect
