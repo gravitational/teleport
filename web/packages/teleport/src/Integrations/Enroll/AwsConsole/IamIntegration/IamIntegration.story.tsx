@@ -24,29 +24,22 @@ import { CollapsibleInfoSection as CollapsibleInfoSectionComponent } from 'desig
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import cfg from 'teleport/config';
+import { ContextProvider } from 'teleport/index';
 import { IamIntegration } from 'teleport/Integrations/Enroll/AwsConsole/IamIntegration/IamIntegration';
-import { makeAwsOidcStatusContextState } from 'teleport/Integrations/status/AwsOidc/testHelpers/makeAwsOidcStatusContextState';
-import { MockAwsOidcStatusProvider } from 'teleport/Integrations/status/AwsOidc/testHelpers/mockAwsOidcStatusProvider';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 
 export default {
   title: 'Teleport/Integrations/Enroll/AwsConsole/IamIntegration',
 };
 
+const ctx = createTeleportContext();
+
 export const Loaded = () => (
-  <MockAwsOidcStatusProvider value={makeAwsOidcStatusContextState()} path="">
+  <ContextProvider ctx={ctx}>
     <InfoGuidePanelProvider>
       <MemoryRouter>
         <CollapsibleInfoSectionComponent openLabel="Devs Instructions">
-          <Info
-            kind="info"
-            details={`(Devs) use any valid CloudShell output and click submit to see a success message, for instance:
-arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo
-arn:aws:rolesanywhere:eu-west-2:123456789012:profile/bar
-arn:aws:iam::123456789012:role/baz`}
-          >
-            Step 3
-          </Info>
           <Info
             kind="success"
             details="(Devs) step 1: use test as the integration name"
@@ -65,15 +58,44 @@ arn:aws:iam::123456789012:role/baz`}
           >
             Case: Test error
           </Info>
+          <Info
+            kind="info"
+            details={`(Devs) use any valid CloudShell output and click submit to see a success message, for instance:
+arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo
+arn:aws:rolesanywhere:eu-west-2:123456789012:profile/bar
+arn:aws:iam::123456789012:role/baz`}
+          >
+            Step 3
+          </Info>
         </CollapsibleInfoSectionComponent>
         <IamIntegration />
       </MemoryRouter>
     </InfoGuidePanelProvider>
-  </MockAwsOidcStatusProvider>
+  </ContextProvider>
 );
 Loaded.parameters = {
   msw: {
     handlers: [
+      http.post(cfg.getValidateAWSRolesAnywhereIntegrationUrl('test'), () => {
+        return HttpResponse.json({});
+      }),
+      http.post(cfg.getValidateAWSRolesAnywhereIntegrationUrl('zero'), () => {
+        return HttpResponse.json({});
+      }),
+      http.post(cfg.getValidateAWSRolesAnywhereIntegrationUrl('error'), () => {
+        return HttpResponse.json({});
+      }),
+      http.post(
+        cfg.getValidateAWSRolesAnywhereIntegrationUrl('duplicate'),
+        () => {
+          return HttpResponse.json(
+            {
+              message: 'Integration name already exists',
+            },
+            { status: 400 }
+          );
+        }
+      ),
       http.post(cfg.getAwsRolesAnywherePingUrl('test'), () => {
         return HttpResponse.json({
           profileCount: 3,
@@ -98,28 +120,29 @@ Loaded.parameters = {
           { status: 500 }
         );
       }),
+      http.post(cfg.getIntegrationsUrl(), () => {
+        return HttpResponse.json({ status: 200 });
+      }),
     ],
   },
 };
 
 export const WithoutAccess = () => {
-  const acl = makeAcl({
-    integrations: {
-      ...defaultAccess,
-    },
+  const noCtx = createTeleportContext({
+    customAcl: makeAcl({
+      integrations: {
+        ...defaultAccess,
+      },
+    }),
   });
 
   return (
-    <MockAwsOidcStatusProvider
-      value={makeAwsOidcStatusContextState()}
-      path=""
-      customAcl={acl}
-    >
+    <ContextProvider ctx={noCtx}>
       <InfoGuidePanelProvider>
         <MemoryRouter>
           <IamIntegration />
         </MemoryRouter>
       </InfoGuidePanelProvider>
-    </MockAwsOidcStatusProvider>
+    </ContextProvider>
   );
 };

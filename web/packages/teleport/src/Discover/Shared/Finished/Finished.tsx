@@ -30,14 +30,20 @@ import celebratePamPng from './celebrate-pam.png';
 type Message = {
   title?: string;
   resourceText?: string;
-  redirect?: string;
+  primaryButtonText?: string;
+  primaryButtonAction?: () => void;
+  secondaryButtonText?: string;
+  secondaryButtonAction?: () => void;
 };
 
 export function Finished(props: AgentStepProps & Message) {
   let title = 'Resource Successfully Added';
   let resourceText =
     'You can start accessing this resource right away or add another resource.';
-  let redirect = cfg.routes.root;
+  let primaryButtonText = 'Browse Existing Resources';
+  let primaryButtonAction = () => history.push(cfg.routes.root, true);
+  let secondaryButtonText = 'Add Another Resource';
+  let secondaryButtonAction = () => history.reload();
 
   if (props.agentMeta) {
     if (props.agentMeta.autoDiscovery) {
@@ -55,8 +61,17 @@ export function Finished(props: AgentStepProps & Message) {
   if (props.resourceText) {
     resourceText = props.resourceText;
   }
-  if (props.redirect) {
-    redirect = props.redirect;
+  if (props.primaryButtonText) {
+    primaryButtonText = props.primaryButtonText;
+  }
+  if (props.primaryButtonAction) {
+    primaryButtonAction = props.primaryButtonAction;
+  }
+  if (props.secondaryButtonText) {
+    secondaryButtonText = props.secondaryButtonText;
+  }
+  if (props.secondaryButtonAction) {
+    secondaryButtonAction = props.secondaryButtonAction;
   }
 
   return (
@@ -70,17 +85,17 @@ export function Finished(props: AgentStepProps & Message) {
         <ButtonPrimary
           width="270px"
           size="large"
-          onClick={() => history.push(redirect, true)}
+          onClick={primaryButtonAction}
           mr={3}
         >
-          Browse Existing Resources
+          {primaryButtonText}
         </ButtonPrimary>
         <ButtonSecondary
           width="270px"
           size="large"
-          onClick={() => history.reload()}
+          onClick={secondaryButtonAction}
         >
-          Add Another Resource
+          {secondaryButtonText}
         </ButtonSecondary>
       </Flex>
     </Container>
