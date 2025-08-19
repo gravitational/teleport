@@ -20,9 +20,12 @@ package local
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -31,14 +34,19 @@ import (
 // DatabaseService manages database resources in the backend.
 type DatabaseService struct {
 	backend.Backend
+	logger *slog.Logger
 }
 
 // NewDatabasesService creates a new DatabasesService.
 func NewDatabasesService(backend backend.Backend) *DatabaseService {
-	return &DatabaseService{Backend: backend}
+	return &DatabaseService{
+		Backend: backend,
+		logger:  slog.With(teleport.ComponentKey, "DatabaseService"),
+	}
 }
 
 // GetDatabases returns all database resources.
+// Deprecated: Prefer paginated variant such as [ListDatabases]
 func (s *DatabaseService) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	startKey := backend.ExactKey(databasesPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
@@ -55,6 +63,45 @@ func (s *DatabaseService) GetDatabases(ctx context.Context) ([]types.Database, e
 		databases[i] = database
 	}
 	return databases, nil
+}
+
+// ListDatabases returns a page of database resources.
+func (s *DatabaseService) ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error) {
+	// Adjust page size, so it can't be too large.
+	if limit <= 0 || limit > defaults.DefaultChunkSize {
+		limit = defaults.DefaultChunkSize
+	}
+
+	var out []types.Database
+
+	rangeStart := backend.NewKey(databasesPrefix, startKey)
+	rangeEnd := backend.RangeEnd(backend.ExactKey(databasesPrefix))
+
+	result, err := s.Backend.GetRange(ctx, rangeStart, rangeEnd, limit+1)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	for _, item := range result.Items {
+		db, err := services.UnmarshalDatabase(item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision))
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to unmarshal database",
+				"key", item.Key,
+				"error", err,
+			)
+			continue
+		}
+
+		if len(out) >= limit {
+			return out, db.GetName(), nil
+		}
+
+		out = append(out, db)
+	}
+
+	return out, "", nil
 }
 
 // GetDatabase returns the specified database resource.

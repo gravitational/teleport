@@ -2654,6 +2654,7 @@ func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts .
 }
 
 // GetDatabases returns all database resources.
+// Deprecated: Prefer paginated variant such as [ListDatabases]
 func (c *Cache) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabases")
 	defer span.End()
@@ -2664,6 +2665,19 @@ func (c *Cache) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	}
 	defer rg.Release()
 	return rg.reader.GetDatabases(ctx)
+}
+
+// ListDatabases returns a page of database resources.
+func (c *Cache) ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListDatabases")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.databases)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListDatabases(ctx, limit, startKey)
 }
 
 func (c *Cache) GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1.DatabaseObject, error) {
