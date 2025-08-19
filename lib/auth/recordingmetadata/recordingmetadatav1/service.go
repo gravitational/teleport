@@ -22,6 +22,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 
@@ -128,6 +129,8 @@ func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStre
 	metadata := &pb.SessionRecordingMetadata{}
 	err = protodelim.UnmarshalFrom(reader, metadata)
 	if err != nil {
+		r.logger.ErrorContext(stream.Context(), "Failed to unmarshal session recording metadata",
+			"session_id", req.SessionId, "error", err)
 		return trace.Wrap(err)
 	}
 
@@ -144,10 +147,12 @@ func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStre
 	for {
 		frame := &pb.SessionRecordingThumbnail{}
 		err := protodelim.UnmarshalFrom(reader, frame)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
+			r.logger.ErrorContext(stream.Context(), "Failed to unmarshal session recording frame",
+				"session_id", req.SessionId, "error", err)
 			return trace.Wrap(err)
 		}
 
@@ -157,6 +162,10 @@ func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStre
 			},
 		}
 		if err := stream.Send(frameChunk); err != nil {
+			if !errors.Is(err, io.EOF) {
+				r.logger.ErrorContext(stream.Context(), "Failed to send session recording frame",
+					"session_id", req.SessionId, "error", err)
+			}
 			return trace.Wrap(err)
 		}
 	}
