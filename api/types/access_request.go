@@ -135,8 +135,16 @@ type AccessRequest interface {
 	GetDryRunEnrichment() *AccessRequestDryRunEnrichment
 	// SetDryRunEnrichment sets the dry run enrichment data.
 	SetDryRunEnrichment(*AccessRequestDryRunEnrichment)
+	// GetRequestKind gets the kind of request.
+	GetRequestKind() AccessRequestKind
+	// SetRequestKind sets the kind (short/long-term) of request.
+	SetRequestKind(AccessRequestKind)
 	// Copy returns a copy of the access request resource.
 	Copy() AccessRequest
+	// GetLongTermResourceGrouping gets the long-term resource grouping, if present.
+	GetLongTermResourceGrouping() *LongTermResourceGrouping
+	// SetLongTermResourceGrouping sets the long-term resource grouping.
+	SetLongTermResourceGrouping(*LongTermResourceGrouping)
 }
 
 // NewAccessRequest assembles an AccessRequest resource.
@@ -526,6 +534,36 @@ func (r *AccessRequestV3) GetDryRunEnrichment() *AccessRequestDryRunEnrichment {
 // SetDryRunEnrichment sets the dry run enrichment data.
 func (r *AccessRequestV3) SetDryRunEnrichment(enrichment *AccessRequestDryRunEnrichment) {
 	r.Spec.DryRunEnrichment = enrichment
+}
+
+// GetRequestKind gets the kind of request.
+func (r *AccessRequestV3) GetRequestKind() AccessRequestKind {
+	return r.Spec.RequestKind
+}
+
+// SetRequestKind sets the kind (short/long-term) of request.
+func (r *AccessRequestV3) SetRequestKind(kind AccessRequestKind) {
+	r.Spec.RequestKind = kind
+}
+
+// GetLongTermResourceGrouping gets the long-term resource grouping, if present.
+func (r *AccessRequestV3) GetLongTermResourceGrouping() *LongTermResourceGrouping {
+	return r.Spec.LongTermGrouping
+}
+
+// SetLongTermResourceGrouping sets the long-term resource grouping suggestion.
+func (r *AccessRequestV3) SetLongTermResourceGrouping(grouping *LongTermResourceGrouping) {
+	r.Spec.LongTermGrouping = grouping
+}
+
+// IsLongTerm checks if the request kind is long-term.
+func (a AccessRequestKind) IsLongTerm() bool {
+	return a == AccessRequestKind_LONG_TERM
+}
+
+// IsShortTerm checks if the request kind is explicitly short-term, or is undefined.
+func (a AccessRequestKind) IsShortTerm() bool {
+	return a != AccessRequestKind_LONG_TERM
 }
 
 // Copy returns a copy of the access request resource.
