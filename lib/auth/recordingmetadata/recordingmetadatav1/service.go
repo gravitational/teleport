@@ -129,7 +129,7 @@ func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStre
 	reader := bufio.NewReader(bytes.NewReader(buf.Bytes()))
 
 	metadata := &pb.SessionRecordingMetadata{}
-	err = protodelim.UnmarshalFrom(reader, metadata)
+	err = protodelim.UnmarshalOptions{MaxSize: -1}.UnmarshalFrom(reader, metadata)
 	if err != nil {
 		r.logger.ErrorContext(stream.Context(), "Failed to unmarshal session recording metadata",
 			"session_id", req.SessionId, "error", err)
