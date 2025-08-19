@@ -18,6 +18,7 @@ syntax = "proto3";
 package teleport.recordingmetadata.v1;
 
 import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1;recordingmetadatav1";
 
@@ -65,6 +66,12 @@ message SessionRecordingMetadata {
   int32 start_cols = 3;
   // StartRows is the number of rows in the terminal at the start of the session.
   int32 start_rows = 4;
+  // StartTime is the start time of the session recording.
+  google.protobuf.Timestamp start_time = 5;
+  // EndTime is the end time of the session recording.
+  google.protobuf.Timestamp end_time = 6;
+  // ClusterName is the name of the cluster where the session recording took place.
+  string cluster_name = 7;
 }
 
 // SessionRecordingMetadataWithFrames contains metadata and frames for a session recording.
