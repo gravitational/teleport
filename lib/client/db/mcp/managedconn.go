@@ -33,12 +33,7 @@ var ErrConnClosed = errors.New("connection closed")
 // becomes inactive.
 //
 // Managed connections are always used with Exec function.
-//
-// We require two definitions of the same type (one regular and another as
-// pointer) due to the necessity of having the `conn` interface definition on
-// the types constraint. For callers that want to store the managed connections
-// we can expect a definition like `ManagedConn[MyDbConn, *MyDbConn]`.
-type ManagedConn[T any, C conn[T]] struct {
+type ManagedConn[C conn] struct {
 	mu   sync.Mutex
 	cond *sync.Cond
 
@@ -74,8 +69,8 @@ func (c *ManagedConnConfig) CheckAndSetDefaults() error {
 }
 
 // conn represents the database connection.
-type conn[T any] interface {
-	*T
+type conn interface {
+	comparable
 	// Close closes the connection.
 	Close(context.Context) error
 	// IsClosed returns true if the connection is closed.
@@ -83,12 +78,12 @@ type conn[T any] interface {
 }
 
 // NewManagedConn creates a new managed connection.
-func NewManagedConn[T any, C conn[T]](cfg *ManagedConnConfig, newFunc func(context.Context) (C, error)) (*ManagedConn[T, C], error) {
+func NewManagedConn[C conn](cfg *ManagedConnConfig, newFunc func(context.Context) (C, error)) (*ManagedConn[C], error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	c := &ManagedConn[T, C]{
+	c := &ManagedConn[C]{
 		newFunc: newFunc,
 		cfg:     cfg,
 	}
@@ -107,7 +102,7 @@ func NewManagedConn[T any, C conn[T]](cfg *ManagedConnConfig, newFunc func(conte
 // Note: There is no guarantee the connection still open. Callers should handle
 // the scenarios where the connection was closed outside the managed connection.
 // For example, if there is network interruption.
-func Exec[T any, C conn[T], R any](ctx context.Context, conn *ManagedConn[T, C], fn func(context.Context, *T) (R, error)) (R, error) {
+func Exec[C conn, R any](ctx context.Context, conn *ManagedConn[C], fn func(context.Context, C) (R, error)) (R, error) {
 	var empty R
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -121,7 +116,7 @@ func Exec[T any, C conn[T], R any](ctx context.Context, conn *ManagedConn[T, C],
 	return fn(ctx, active)
 }
 
-func (m *ManagedConn[T, C]) acquire(ctx context.Context, cancel context.CancelFunc) (*T, error) {
+func (m *ManagedConn[C]) acquire(ctx context.Context, cancel context.CancelFunc) (C, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -129,15 +124,16 @@ func (m *ManagedConn[T, C]) acquire(ctx context.Context, cancel context.CancelFu
 		m.cond.Wait()
 	}
 
+	var zero C
 	if m.closed {
-		return nil, trace.Wrap(ErrConnClosed)
+		return zero, trace.Wrap(ErrConnClosed)
 	}
 
-	if m.active == nil || m.active.IsClosed() {
+	if m.active == zero || m.active.IsClosed() {
 		var err error
 		m.active, err = m.newFunc(ctx)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return zero, trace.Wrap(err)
 		}
 	}
 
@@ -146,7 +142,7 @@ func (m *ManagedConn[T, C]) acquire(ctx context.Context, cancel context.CancelFu
 	return m.active, nil
 }
 
-func (m *ManagedConn[T, C]) release() {
+func (m *ManagedConn[C]) release() {
 	m.mu.Lock()
 	m.cancelExec = nil
 	m.watchdog.Reset(m.cfg.MaxIdleTime)
@@ -154,10 +150,11 @@ func (m *ManagedConn[T, C]) release() {
 	m.cond.Broadcast()
 }
 
-func (m *ManagedConn[T, C]) closeActive(ctx context.Context) error {
+func (m *ManagedConn[C]) closeActive(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.active == nil {
+	var zero C
+	if m.active == zero {
 		return nil
 	}
 
@@ -165,12 +162,12 @@ func (m *ManagedConn[T, C]) closeActive(ctx context.Context) error {
 	if err := m.active.Close(ctx); err != nil {
 		m.cfg.Logger.WarnContext(ctx, "error while closing connection", "error", err)
 	}
-	m.active = nil
+	m.active = zero
 	return nil
 }
 
 // Close closes the managed connection.
-func (m *ManagedConn[T, C]) Close(ctx context.Context) error {
+func (m *ManagedConn[C]) Close(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.closed = true
@@ -183,7 +180,8 @@ func (m *ManagedConn[T, C]) Close(ctx context.Context) error {
 		m.cond.Wait()
 	}
 
-	if m.active == nil {
+	var zero C
+	if m.active == zero {
 		return nil
 	}
 

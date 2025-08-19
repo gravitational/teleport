@@ -62,7 +62,7 @@ var queryToolForCockroachDB = mcp.NewTool(dbmcp.ToolName(defaults.ProtocolCockro
 
 type database struct {
 	name string
-	conn *dbmcp.ManagedConn[pgconn.PgConn, *pgconn.PgConn]
+	conn *dbmcp.ManagedConn[*pgconn.PgConn]
 }
 
 // Server handles PostgreSQL-specific MCP tools requests.
