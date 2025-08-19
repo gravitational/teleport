@@ -285,6 +285,159 @@ func TestGenerateAccessRequestPromotions(t *testing.T) {
 
 }
 
+const testClusterName = "test-cluster"
+
+func TestGenerateLongTermResourceGrouping(t *testing.T) {
+	ctx := context.Background()
+
+	testCases := []struct {
+		name               string
+		currentResources   []testNodeDesc
+		currentRoles       []testRoleDesc
+		currentUsers       []testUserDesc
+		currentAccessLists []testAccessListDesc
+		requestedIDs       []types.ResourceID
+		expectedCanProceed bool
+		expectedMessage    string
+	}{
+		{
+			name: "only one resource is covered by a valid access list",
+			currentResources: []testNodeDesc{
+				{name: "dev-node", labels: map[string]string{"env": "dev"}},
+				{name: "prod-node", labels: map[string]string{"env": "prod"}},
+			},
+			currentRoles: []testRoleDesc{
+				{name: "dev-access", allow: types.RoleConditions{NodeLabels: types.Labels{"env": []string{"dev"}}}},
+			},
+			currentUsers: []testUserDesc{
+				{name: "user1", roles: []string{}},
+			},
+			currentAccessLists: []testAccessListDesc{
+				{
+					name:         "dev-list",
+					owners:       []string{"admin"},
+					grantedRoles: []string{"dev-access"},
+				},
+			},
+			requestedIDs: []types.ResourceID{
+				{ClusterName: testClusterName, Kind: types.KindNode, Name: "dev-node"},
+				{ClusterName: testClusterName, Kind: types.KindNode, Name: "prod-node"},
+			},
+			expectedCanProceed: false,
+			expectedMessage:    "Long-term access is not available for some selected resources",
+		},
+		{
+			name: "all resources covered by same access list",
+			currentResources: []testNodeDesc{
+				{name: "dev-node", labels: map[string]string{"env": "dev"}},
+				{name: "dev-node-2", labels: map[string]string{"env": "dev"}},
+			},
+			currentRoles: []testRoleDesc{
+				{name: "dev-access", allow: types.RoleConditions{NodeLabels: types.Labels{"env": []string{"dev"}}}},
+			},
+			currentUsers: []testUserDesc{
+				{name: "user1", roles: []string{}},
+			},
+			currentAccessLists: []testAccessListDesc{
+				{
+					name:         "dev-list",
+					owners:       []string{"admin"},
+					grantedRoles: []string{"dev-access"},
+				},
+			},
+			requestedIDs: []types.ResourceID{
+				{ClusterName: testClusterName, Kind: types.KindNode, Name: "dev-node"},
+				{ClusterName: testClusterName, Kind: types.KindNode, Name: "dev-node-2"},
+			},
+			expectedCanProceed: true,
+			expectedMessage:    "",
+		},
+		{
+			name: "resources split across multiple access lists",
+			currentResources: []testNodeDesc{
+				{name: "dev-node", labels: map[string]string{"env": "dev"}},
+				{name: "qa-node", labels: map[string]string{"env": "qa"}},
+			},
+			currentRoles: []testRoleDesc{
+				{name: "dev-access", allow: types.RoleConditions{NodeLabels: types.Labels{"env": []string{"dev"}}}},
+				{name: "qa-access", allow: types.RoleConditions{NodeLabels: types.Labels{"env": []string{"qa"}}}},
+			},
+			currentUsers: []testUserDesc{
+				{name: "user1", roles: []string{}},
+			},
+			currentAccessLists: []testAccessListDesc{
+				{
+					name:         "dev-list",
+					owners:       []string{"admin"},
+					grantedRoles: []string{"dev-access"},
+				},
+				{
+					name:         "qa-list",
+					owners:       []string{"admin"},
+					grantedRoles: []string{"qa-access"},
+				},
+			},
+			requestedIDs: []types.ResourceID{
+				{ClusterName: testClusterName, Kind: types.KindNode, Name: "dev-node"},
+				{ClusterName: testClusterName, Kind: types.KindNode, Name: "qa-node"},
+			},
+			expectedCanProceed: false,
+			expectedMessage:    "Selected resources cannot be grouped for long-term access",
+		},
+		{
+			name: "resources split across multiple clusters",
+			currentResources: []testNodeDesc{
+				{name: "prod-node", labels: map[string]string{"env": "prod"}},
+			},
+			currentRoles: []testRoleDesc{
+				{name: "prod-access", allow: types.RoleConditions{NodeLabels: types.Labels{"env": []string{"prod"}}}},
+			},
+			currentUsers: []testUserDesc{
+				{name: "user1", roles: []string{}},
+			},
+			currentAccessLists: []testAccessListDesc{
+				{
+					name:         "prod-access",
+					owners:       []string{"admin"},
+					grantedRoles: []string{"prod-access"},
+				},
+			},
+			requestedIDs: []types.ResourceID{
+				// This node won't exist, but we shouldn't ever get far enough for that to matter.
+				{ClusterName: "dev-cluster", Kind: types.KindNode, Name: "dev-node"},
+				{ClusterName: testClusterName, Kind: types.KindNode, Name: "prod-node"},
+			},
+			expectedCanProceed: false,
+			expectedMessage:    "Long-term access is not available for resources in different clusters",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := &mockAccessResourcesGetter{}
+			testSetupNodes(t, g, tc.currentResources)
+			testSetupRoles(t, g, tc.currentRoles)
+			testSetupUsers(t, g, tc.currentUsers)
+			testSetupAccessListsWithMembers(t, g, tc.currentAccessLists)
+
+			// All we need is a user and requested IDs
+			stubRequest := &types.AccessRequestV3{
+				Spec: types.AccessRequestSpecV3{
+					User:                 "user1",
+					RequestedResourceIDs: tc.requestedIDs,
+				},
+			}
+
+			suggestion, err := GenerateLongTermResourceGrouping(ctx, g, stubRequest)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedCanProceed, suggestion.CanProceed)
+			if !tc.expectedCanProceed {
+				require.Equal(t, tc.expectedMessage, suggestion.ValidationMessage)
+			}
+		})
+	}
+}
+
 type testAccessRequestDesc struct {
 	name             string
 	user             string
@@ -458,7 +611,7 @@ type mockAccessResourcesGetter struct {
 }
 
 func (g *mockAccessResourcesGetter) ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error) {
-	panic("not implemented: mockAccessResourcesGetter.ListAccessLists")
+	return slices.Collect(maps.Values(g.accessLists)), "", nil
 }
 
 func (g *mockAccessResourcesGetter) ListResources(_ context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {

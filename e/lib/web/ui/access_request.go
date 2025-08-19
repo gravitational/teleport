@@ -56,6 +56,11 @@ type AccessRequest struct {
 	// ReasonPrompts is a sorted and deduplicated list of reason prompts for this Access
 	// Request.
 	ReasonPrompts []string `json:"reasonPrompts"`
+	// RequestKind indicates the kind (short/long-term) of request.
+	RequestKind types.AccessRequestKind `json:"requestKind"`
+	// LongTermResourceGrouping contains information about how requested resources
+	// can be grouped for long-term access.
+	LongTermResourceGrouping *LongTermResourceGrouping `json:"longTermResourceGrouping,omitempty"`
 }
 
 // AccessRequestReview defines fields of a review applied to a request.
@@ -170,7 +175,7 @@ func NewAccessRequest(request types.AccessRequest, opts ...NewAccessRequestOptio
 		}
 	}
 
-	return &AccessRequest{
+	uiReq := &AccessRequest{
 		ID:                      request.GetMetadata().Name,
 		State:                   request.GetState().String(),
 		ResolveReason:           request.GetResolveReason(),
@@ -190,7 +195,20 @@ func NewAccessRequest(request types.AccessRequest, opts ...NewAccessRequestOptio
 		AssumeStartTime:         request.GetAssumeStartTime(),
 		ReasonMode:              string(dryRunEnrichment.ReasonMode),
 		ReasonPrompts:           dryRunEnrichment.ReasonPrompts,
-	}, nil
+		RequestKind:             request.GetRequestKind(),
+	}
+
+	longTermGrouping := request.GetLongTermResourceGrouping()
+	if longTermGrouping != nil {
+		uiReq.LongTermResourceGrouping = &LongTermResourceGrouping{
+			CanProceed:            longTermGrouping.CanProceed,
+			ValidationMessage:     longTermGrouping.ValidationMessage,
+			RecommendedAccessList: longTermGrouping.RecommendedAccessList,
+			AccessListToResources: convertResourceIDs(longTermGrouping.AccessListToResources),
+		}
+	}
+
+	return uiReq, nil
 }
 
 func newAccessReview(review types.AccessReview) AccessRequestReview {
@@ -208,4 +226,46 @@ func newAccessReview(review types.AccessReview) AccessRequestReview {
 // SuggestedAccessLists is a list of suggested access lists for a given access request.
 type SuggestedAccessLists struct {
 	AccessLists []*accesslist.AccessList `json:"accessLists,omitempty"`
+}
+
+// LongTermResourceGrouping contains information about how resources can be grouped
+// based on Access List promotions for long-term Access Requests.
+type LongTermResourceGrouping struct {
+	// CanProceed represents the validity of the long-term grouping. If all requested
+	// resources cannot be grouped together, this will be false.
+	CanProceed bool `json:"canProceed"`
+	// ValidationMessage is a user-friendly message explaining any grouping error, if CanProceed is false.
+	ValidationMessage string `json:"validationMessage,omitempty"`
+	// RecommendedAccessList is the name of the Access List that would provide
+	// access to the most resources. If multiple Access Lists provide the same
+	// number of resources, the first one found will be used.
+	RecommendedAccessList string `json:"recommendedAccessList,omitempty"`
+	// AccessListToResources maps applicable Access List names to the resources they can grant,
+	// including the optimal grouping.
+	AccessListToResources map[string][]ResourceID `json:"accessListToResources"`
+}
+
+// convertResourceIDs converts a map[string]types.ResourceIDList to map[string[]ui.ResourceID
+func convertResourceIDs(groups map[string]types.ResourceIDList) map[string][]ResourceID {
+	result := make(map[string][]ResourceID)
+	if len(groups) == 0 {
+		return result
+	}
+	for name, group := range groups {
+		result[name] = make([]ResourceID, 0, len(group.ResourceIds))
+		for _, id := range group.ResourceIds {
+			result[name] = append(result[name], convertResourceID(id))
+		}
+	}
+	return result
+}
+
+// convertResourceID converts a single types.ResourceID to ui.ResourceID
+func convertResourceID(id types.ResourceID) ResourceID {
+	return ResourceID{
+		Kind:            id.Kind,
+		Name:            id.Name,
+		ClusterName:     id.ClusterName,
+		SubResourceName: id.SubResourceName,
+	}
 }

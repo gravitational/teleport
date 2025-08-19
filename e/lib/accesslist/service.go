@@ -62,6 +62,7 @@ type AuthServer interface {
 
 	GetUser(ctx context.Context, userName string, withSecrets bool) (types.User, error)
 	GetRole(ctx context.Context, name string) (types.Role, error)
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
 // ServiceConfig is the service config for the Access Lists gRPC service.

@@ -102,33 +102,37 @@ func createAccessRequest(ctx context.Context, clt accessRequestGetCreator, reque
 
 	req.SetRequestReason(request.Reason)
 	req.SetSuggestedReviewers(request.SuggestedReviewers)
+	req.SetDryRun(request.DryRun)
+	req.SetRequestKind(request.RequestKind)
 	req.SetExpiry(request.RequestTTL)
 	req.SetMaxDuration(request.MaxDuration)
-	req.SetDryRun(request.DryRun)
 
 	if request.AssumeStartTime != nil {
 		req.SetAssumeStartTime(*request.AssumeStartTime)
 	}
 
-	// If the request is a dry run, then we need to use the V2 API to get the
-	// response with the resource details. Otherwise, we can use the V1 API
-	// for backwards compatibility.
-	if req.GetDryRun() {
-		resp, err := clt.CreateAccessRequestV2(ctx, req)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		usResp, err := ui.NewAccessRequest(resp)
-		return usResp, trace.Wrap(err)
-	}
-
-	req, err = clt.CreateAccessRequestV2(ctx, req)
+	resp, err := clt.CreateAccessRequestV2(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return getAccessRequest(ctx, clt, req.GetMetadata().Name, opts...)
+	if req.GetDryRun() {
+		return ui.NewAccessRequest(resp)
+	}
+
+	uiResp, err := getAccessRequest(ctx, clt, resp.GetMetadata().Name, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO(kiosion): Remove and rely on getAccessRequest to handle adding this info.
+	if request.RequestKind.IsLongTerm() {
+		if r, err := ui.NewAccessRequest(resp); err == nil && r.LongTermResourceGrouping != nil {
+			uiResp.LongTermResourceGrouping = r.LongTermResourceGrouping
+		}
+	}
+
+	return uiResp, nil
 }
 
 func (p *Plugin) getResourceRequestRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
@@ -205,6 +209,7 @@ func getAccessRequest(ctx context.Context, clt accessRequestGetter, requestID st
 	}
 	req := reqs[0]
 
+	// TODO(kiosion): Handle generating long-term resource groupings similar to getResourceDetails.
 	resourceDetails, err := getResourceDetails(ctx, req, cfg)
 	if err != nil {
 		// This error is unexpected, but we don't want to break the API filling
@@ -404,6 +409,7 @@ func (p *Plugin) getAccessRequestsHandle(w http.ResponseWriter, r *http.Request,
 type accessRequestGetter interface {
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
 	ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error)
+	GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 }
 
 type AccessRequestsPage struct {
@@ -612,6 +618,8 @@ type accessRequestParameters struct {
 	PromotedAccessListTitle string `json:"promotedAccessListTitle,omitempty"`
 	// AssumeStartTime is the time the requested roles can be assumed.
 	AssumeStartTime *time.Time `json:"assumeStartTime"`
+	// RequestKind is the kind of request (short/long-term).
+	RequestKind types.AccessRequestKind `json:"requestKind"`
 }
 
 func (p *Plugin) getSuggestedAccessListsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (any, error) {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -90,6 +91,773 @@ func TestCreateAccessRequest_SearchBased(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, req.ID)
 	require.Equal(t, types.RequestState_PENDING.String(), req.State)
+}
+
+func TestCreateAccessRequest_LongTerm(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			AdvancedAccessWorkflows: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+		GenerateAccessRequestPromotionsFn:  accessrequest.GenerateAccessRequestPromotions,
+		GenerateLongTermResourceGroupingFn: accessrequest.GenerateLongTermResourceGrouping,
+	})
+
+	clock := clockwork.NewRealClock()
+	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond))
+	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
+	t.Cleanup(cancel)
+
+	authClient := s.newAdminAuthClient(ctx, t)
+	accessListClient := authClient.AccessListClient()
+
+	_, err := authtest.CreateRole(ctx, authClient, "prod-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				"env": []string{"prod"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = authtest.CreateRole(ctx, authClient, "dev-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				"env": []string{"dev"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = authtest.CreateRole(ctx, authClient, "requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{"prod-access", "dev-access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	node1, err := types.NewServerWithLabels(
+		"prod-node",
+		types.KindNode,
+		types.ServerSpecV2{},
+		map[string]string{"env": "prod"},
+	)
+	require.NoError(t, err)
+	_, err = authClient.UpsertNode(ctx, node1)
+	require.NoError(t, err)
+
+	node2, err := types.NewServerWithLabels(
+		"dev-node",
+		types.KindNode,
+		types.ServerSpecV2{},
+		map[string]string{"env": "dev"},
+	)
+	require.NoError(t, err)
+	_, err = authClient.UpsertNode(ctx, node2)
+	require.NoError(t, err)
+
+	user, err := types.NewUser("testuser")
+	require.NoError(t, err)
+	user.SetRoles([]string{"requester"})
+	_, err = authClient.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name         string
+		request      accessRequestParameters
+		createProdAL bool
+		createDevAL  bool
+		expectError  bool
+		errorMsg     string
+		assertions   func(*testing.T, *ui.AccessRequest)
+	}{
+		{
+			name: "successful long-term request for production node",
+			request: accessRequestParameters{
+				Reason:      "need long term access to prod",
+				RequestKind: types.AccessRequestKind_LONG_TERM,
+				ResourceIDs: []ui.ResourceID{
+					{Name: "prod-node", Kind: types.KindNode},
+				},
+			},
+			createProdAL: true,
+			createDevAL:  true,
+			expectError:  false,
+			assertions: func(t *testing.T, req *ui.AccessRequest) {
+				require.NotNil(t, req.LongTermResourceGrouping)
+				require.True(t, req.LongTermResourceGrouping.CanProceed)
+				require.Len(t, req.LongTermResourceGrouping.AccessListToResources[req.LongTermResourceGrouping.RecommendedAccessList], 1)
+				require.Equal(t, "prod-node", req.LongTermResourceGrouping.AccessListToResources[req.LongTermResourceGrouping.RecommendedAccessList][0].Name)
+				require.Contains(t, req.LongTermResourceGrouping.AccessListToResources, "prod-servers")
+			},
+		},
+		{
+			name: "long-term dry run request",
+			request: accessRequestParameters{
+				Reason:      "testing long term access",
+				RequestKind: types.AccessRequestKind_LONG_TERM,
+				DryRun:      true,
+				ResourceIDs: []ui.ResourceID{
+					{Name: "dev-node", Kind: types.KindNode},
+				},
+			},
+			createProdAL: true,
+			createDevAL:  true,
+			expectError:  false,
+			assertions: func(t *testing.T, req *ui.AccessRequest) {
+				require.NotNil(t, req.LongTermResourceGrouping)
+				require.True(t, req.LongTermResourceGrouping.CanProceed)
+				require.Contains(t, req.LongTermResourceGrouping.AccessListToResources, "dev-servers")
+			},
+		},
+		{
+			name: "long-term request where only one of the requested resources is grantable",
+			request: accessRequestParameters{
+				Reason:      "attempt mixed access with missing access list",
+				RequestKind: types.AccessRequestKind_LONG_TERM,
+				ResourceIDs: []ui.ResourceID{
+					{Name: "dev-node", Kind: types.KindNode},  // valid
+					{Name: "prod-node", Kind: types.KindNode}, // invalid — no access list grants it
+				},
+			},
+			createProdAL: false,
+			createDevAL:  true,
+			expectError:  true,
+			errorMsg:     "Long-term access is not available for some selected resources",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.createProdAL {
+				prodAccessList, err := accesslist.NewAccessList(
+					header.Metadata{Name: "prod-servers"},
+					accesslist.Spec{
+						Title:  "Production Servers",
+						Audit:  accesslist.Audit{NextAuditDate: s.clock.Now().Add(24 * time.Hour)},
+						Owners: []accesslist.Owner{{Name: "admin", Description: "admin"}},
+						MembershipRequires: accesslist.Requires{
+							Roles: []string{"requester"},
+						},
+						Grants: accesslist.Grants{
+							Roles: []string{"prod-access"},
+						},
+					},
+				)
+				require.NoError(t, err)
+				_, err = accessListClient.UpsertAccessList(ctx, prodAccessList)
+				require.NoError(t, err)
+			}
+			if tt.createDevAL {
+				devAccessList, err := accesslist.NewAccessList(
+					header.Metadata{Name: "dev-servers"},
+					accesslist.Spec{
+						Title:  "Development Servers",
+						Audit:  accesslist.Audit{NextAuditDate: s.clock.Now().Add(24 * time.Hour)},
+						Owners: []accesslist.Owner{{Name: "admin", Description: "admin"}},
+						MembershipRequires: accesslist.Requires{
+							Roles: []string{"requester"},
+						},
+						Grants: accesslist.Grants{
+							Roles: []string{"dev-access"},
+						},
+					},
+				)
+				require.NoError(t, err)
+				_, err = accessListClient.UpsertAccessList(ctx, devAccessList)
+				require.NoError(t, err)
+			}
+
+			req, err := createAccessRequest(ctx, authClient, tt.request, "testuser")
+
+			if tt.expectError {
+				require.Error(t, err)
+				if tt.errorMsg != "" {
+					require.Contains(t, err.Error(), tt.errorMsg)
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, req)
+
+			if tt.assertions != nil {
+				tt.assertions(t, req)
+			}
+
+			if tt.createProdAL {
+				err := accessListClient.DeleteAccessList(ctx, "prod-servers")
+				require.NoError(t, err)
+			}
+			if tt.createDevAL {
+				err := accessListClient.DeleteAccessList(ctx, "dev-servers")
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestCreateAccessRequest_LongTerm_ValidationErrors(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			AdvancedAccessWorkflows: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+		GenerateAccessRequestPromotionsFn:  accessrequest.GenerateAccessRequestPromotions,
+		GenerateLongTermResourceGroupingFn: accessrequest.GenerateLongTermResourceGrouping,
+	})
+
+	clock := clockwork.NewRealClock()
+	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond))
+	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
+	t.Cleanup(cancel)
+
+	authClient := s.newAdminAuthClient(ctx, t)
+	accessListClient := authClient.AccessListClient()
+
+	// role that doesn't grant access to anything useful
+	_, err := authtest.CreateRole(ctx, authClient, "no-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				"nonexistent": []string{"label"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// requester role
+	_, err = authtest.CreateRole(ctx, authClient, "limited-requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{"no-access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// node that won't be accessible by the no-access role
+	node, err := types.NewServerWithLabels(
+		"inaccessible-node",
+		types.KindNode,
+		types.ServerSpecV2{},
+		map[string]string{"access": "denied"},
+	)
+	require.NoError(t, err)
+	_, err = authClient.UpsertNode(ctx, node)
+	require.NoError(t, err)
+
+	// user with limited access
+	user, err := types.NewUser("limiteduser")
+	require.NoError(t, err)
+	user.SetRoles([]string{"limited-requester"})
+	_, err = authClient.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	// access list that grants the no-access role (which can't access our node)
+	noAccessList, err := accesslist.NewAccessList(
+		header.Metadata{Name: "no-access-list"},
+		accesslist.Spec{
+			Title:  "No Access List",
+			Audit:  accesslist.Audit{NextAuditDate: s.clock.Now().Add(24 * time.Hour)},
+			Owners: []accesslist.Owner{{Name: "admin", Description: "admin"}},
+			MembershipRequires: accesslist.Requires{
+				Roles: []string{"limited-requester"},
+			},
+			Grants: accesslist.Grants{
+				Roles: []string{"no-access"},
+			},
+		},
+	)
+	require.NoError(t, err)
+	_, err = accessListClient.UpsertAccessList(ctx, noAccessList)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		request     accessRequestParameters
+		user        string
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name: "long-term request with no suitable access lists",
+			request: accessRequestParameters{
+				Reason:      "need access to inaccessible resource",
+				RequestKind: types.AccessRequestKind_LONG_TERM,
+				ResourceIDs: []ui.ResourceID{
+					{Name: "inaccessible-node", Kind: types.KindNode},
+				},
+			},
+			user:        "limiteduser",
+			expectError: true,
+			errorMsg:    "Long-term access is not available",
+		},
+		{
+			name: "long-term request with nonexistent resource",
+			request: accessRequestParameters{
+				Reason:      "need access to nonexistent resource",
+				RequestKind: types.AccessRequestKind_LONG_TERM,
+				ResourceIDs: []ui.ResourceID{
+					{Name: "nonexistent-node", Kind: types.KindNode},
+				},
+			},
+			user:        "limiteduser",
+			expectError: true,
+			errorMsg:    "Long-term access is not available",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := createAccessRequest(ctx, authClient, tt.request, tt.user)
+
+			if tt.expectError {
+				require.Error(t, err)
+				if tt.errorMsg != "" {
+					require.Contains(t, err.Error(), tt.errorMsg)
+				}
+				require.Nil(t, req)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, req)
+		})
+	}
+}
+
+func TestCreateAccessRequest_LongTerm_ConflictingResources(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			AdvancedAccessWorkflows: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+		GenerateAccessRequestPromotionsFn:  accessrequest.GenerateAccessRequestPromotions,
+		GenerateLongTermResourceGroupingFn: accessrequest.GenerateLongTermResourceGrouping,
+	})
+
+	clock := clockwork.NewRealClock()
+	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond))
+	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
+	t.Cleanup(cancel)
+
+	authClient := s.newAdminAuthClient(ctx, t)
+	accessListClient := authClient.AccessListClient()
+
+	_, err := authtest.CreateRole(ctx, authClient, "prod-only", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				"env": []string{"prod"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = authtest.CreateRole(ctx, authClient, "dev-only", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				"env": []string{"dev"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = authtest.CreateRole(ctx, authClient, "multi-requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{"prod-only", "dev-only"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	prodNode, err := types.NewServerWithLabels(
+		"prod-server",
+		types.KindNode,
+		types.ServerSpecV2{},
+		map[string]string{"env": "prod"},
+	)
+	require.NoError(t, err)
+	_, err = authClient.UpsertNode(ctx, prodNode)
+	require.NoError(t, err)
+
+	devNode, err := types.NewServerWithLabels(
+		"dev-server",
+		types.KindNode,
+		types.ServerSpecV2{},
+		map[string]string{"env": "dev"},
+	)
+	require.NoError(t, err)
+	_, err = authClient.UpsertNode(ctx, devNode)
+	require.NoError(t, err)
+
+	user, err := types.NewUser("multiuser")
+	require.NoError(t, err)
+	user.SetRoles([]string{"multi-requester"})
+	_, err = authClient.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	prodOnlyList, err := accesslist.NewAccessList(
+		header.Metadata{Name: "prod-only-list"},
+		accesslist.Spec{
+			Title:  "Production Only Access",
+			Audit:  accesslist.Audit{NextAuditDate: s.clock.Now().Add(24 * time.Hour)},
+			Owners: []accesslist.Owner{{Name: "admin", Description: "admin"}},
+			MembershipRequires: accesslist.Requires{
+				Roles: []string{"multi-requester"},
+			},
+			Grants: accesslist.Grants{
+				Roles: []string{"prod-only"},
+			},
+		},
+	)
+	require.NoError(t, err)
+	_, err = accessListClient.UpsertAccessList(ctx, prodOnlyList)
+	require.NoError(t, err)
+
+	devOnlyList, err := accesslist.NewAccessList(
+		header.Metadata{Name: "dev-only-list"},
+		accesslist.Spec{
+			Title:  "Development Only Access",
+			Audit:  accesslist.Audit{NextAuditDate: s.clock.Now().Add(24 * time.Hour)},
+			Owners: []accesslist.Owner{{Name: "admin", Description: "admin"}},
+			MembershipRequires: accesslist.Requires{
+				Roles: []string{"multi-requester"},
+			},
+			Grants: accesslist.Grants{
+				Roles: []string{"dev-only"},
+			},
+		},
+	)
+	require.NoError(t, err)
+	_, err = accessListClient.UpsertAccessList(ctx, devOnlyList)
+	require.NoError(t, err)
+
+	request := accessRequestParameters{
+		Reason:      "need access to both prod and dev",
+		RequestKind: types.AccessRequestKind_LONG_TERM,
+		ResourceIDs: []ui.ResourceID{
+			{Name: "prod-server", Kind: types.KindNode},
+			{Name: "dev-server", Kind: types.KindNode},
+		},
+	}
+
+	req, err := createAccessRequest(ctx, authClient, request, "multiuser")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "Selected resources cannot be grouped for long-term access")
+	require.Nil(t, req)
+}
+
+func TestCreateAccessRequest_LongTerm_OptimalSelection(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			AdvancedAccessWorkflows: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+		GenerateAccessRequestPromotionsFn:  accessrequest.GenerateAccessRequestPromotions,
+		GenerateLongTermResourceGroupingFn: accessrequest.GenerateLongTermResourceGrouping,
+	})
+
+	clock := clockwork.NewRealClock()
+	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond))
+	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
+	t.Cleanup(cancel)
+
+	authClient := s.newAdminAuthClient(ctx, t)
+	accessListClient := authClient.AccessListClient()
+
+	_, err := authtest.CreateRole(ctx, authClient, "web-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				"service": []string{"web"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = authtest.CreateRole(ctx, authClient, "db-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				"service": []string{"db"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = authtest.CreateRole(ctx, authClient, "full-stack-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				"service": []string{"web", "db"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = authtest.CreateRole(ctx, authClient, "stack-requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{"web-access", "db-access", "full-stack-access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	webNode, err := types.NewServerWithLabels(
+		"web-server",
+		types.KindNode,
+		types.ServerSpecV2{},
+		map[string]string{"service": "web"},
+	)
+	require.NoError(t, err)
+	_, err = authClient.UpsertNode(ctx, webNode)
+	require.NoError(t, err)
+
+	dbNode, err := types.NewServerWithLabels(
+		"db-server",
+		types.KindNode,
+		types.ServerSpecV2{},
+		map[string]string{"service": "db"},
+	)
+	require.NoError(t, err)
+	_, err = authClient.UpsertNode(ctx, dbNode)
+	require.NoError(t, err)
+
+	user, err := types.NewUser("stackuser")
+	require.NoError(t, err)
+	user.SetRoles([]string{"stack-requester"})
+	_, err = authClient.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	// list that only grants web access
+	webOnlyList, err := accesslist.NewAccessList(
+		header.Metadata{Name: "web-only-list"},
+		accesslist.Spec{
+			Title:  "Web Only Access",
+			Audit:  accesslist.Audit{NextAuditDate: s.clock.Now().Add(24 * time.Hour)},
+			Owners: []accesslist.Owner{{Name: "admin", Description: "admin"}},
+			MembershipRequires: accesslist.Requires{
+				Roles: []string{"stack-requester"},
+			},
+			Grants: accesslist.Grants{
+				Roles: []string{"web-access"},
+			},
+		},
+	)
+	require.NoError(t, err)
+	_, err = accessListClient.UpsertAccessList(ctx, webOnlyList)
+	require.NoError(t, err)
+
+	// list that only grants db access
+	dbOnlyList, err := accesslist.NewAccessList(
+		header.Metadata{Name: "db-only-list"},
+		accesslist.Spec{
+			Title:  "Database Only Access",
+			Audit:  accesslist.Audit{NextAuditDate: s.clock.Now().Add(24 * time.Hour)},
+			Owners: []accesslist.Owner{{Name: "admin", Description: "admin"}},
+			MembershipRequires: accesslist.Requires{
+				Roles: []string{"stack-requester"},
+			},
+			Grants: accesslist.Grants{
+				Roles: []string{"db-access"},
+			},
+		},
+	)
+	require.NoError(t, err)
+	_, err = accessListClient.UpsertAccessList(ctx, dbOnlyList)
+	require.NoError(t, err)
+
+	// list that grants full stack access (optimal choice)
+	fullStackList, err := accesslist.NewAccessList(
+		header.Metadata{Name: "full-stack-list"},
+		accesslist.Spec{
+			Title:  "Full Stack Access",
+			Audit:  accesslist.Audit{NextAuditDate: s.clock.Now().Add(24 * time.Hour)},
+			Owners: []accesslist.Owner{{Name: "admin", Description: "admin"}},
+			MembershipRequires: accesslist.Requires{
+				Roles: []string{"stack-requester"},
+			},
+			Grants: accesslist.Grants{
+				Roles: []string{"full-stack-access"},
+			},
+		},
+	)
+	require.NoError(t, err)
+	_, err = accessListClient.UpsertAccessList(ctx, fullStackList)
+	require.NoError(t, err)
+
+	// request for access to both web and db servers
+	// should succeed and choose the full-stack access list as optimal
+	request := accessRequestParameters{
+		Reason:      "need access to full stack",
+		RequestKind: types.AccessRequestKind_LONG_TERM,
+		ResourceIDs: []ui.ResourceID{
+			{Name: "web-server", Kind: types.KindNode},
+			{Name: "db-server", Kind: types.KindNode},
+		},
+	}
+
+	req, err := createAccessRequest(ctx, authClient, request, "stackuser")
+	require.NoError(t, err)
+	require.NotNil(t, req)
+
+	require.NotNil(t, req.LongTermResourceGrouping)
+	require.True(t, req.LongTermResourceGrouping.CanProceed)
+
+	// should have the full-stack access list as optimal
+	require.Equal(t, "full-stack-list", req.LongTermResourceGrouping.RecommendedAccessList)
+	require.Len(t, req.LongTermResourceGrouping.AccessListToResources[req.LongTermResourceGrouping.RecommendedAccessList], 2)
+
+	// optimal grouping should contain both servers
+	nodeNames := make([]string, len(req.LongTermResourceGrouping.AccessListToResources[req.LongTermResourceGrouping.RecommendedAccessList]))
+	for i, resource := range req.LongTermResourceGrouping.AccessListToResources[req.LongTermResourceGrouping.RecommendedAccessList] {
+		nodeNames[i] = resource.Name
+	}
+	require.ElementsMatch(t, []string{"web-server", "db-server"}, nodeNames)
+
+	// should also show other access lists are available but cover fewer resources
+	require.Contains(t, req.LongTermResourceGrouping.AccessListToResources, "web-only-list")
+	require.Contains(t, req.LongTermResourceGrouping.AccessListToResources, "db-only-list")
+
+	// the web-only and db-only lists should only cover one resource each
+	require.Len(t, req.LongTermResourceGrouping.AccessListToResources["web-only-list"], 1)
+	require.Len(t, req.LongTermResourceGrouping.AccessListToResources["db-only-list"], 1)
+}
+
+func TestCreateAccessRequest_LongTerm_InheritedAccessListMembership(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			AdvancedAccessWorkflows: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+		GenerateAccessRequestPromotionsFn:  accessrequest.GenerateAccessRequestPromotions,
+		GenerateLongTermResourceGroupingFn: accessrequest.GenerateLongTermResourceGrouping,
+	})
+
+	clock := clockwork.NewRealClock()
+	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond))
+	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
+	t.Cleanup(cancel)
+
+	authClient := s.newAdminAuthClient(ctx, t)
+	accessListClient := authClient.AccessListClient()
+
+	_, err := authtest.CreateRole(ctx, authClient, "test-role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabelsExpression: `labels["env"] == "prod" && contains(user.spec.traits["teams"], labels["team"])`,
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = authtest.CreateRole(ctx, authClient, "full-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				"env": []string{"prod"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = authtest.CreateRole(ctx, authClient, "requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{"full-access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	node, err := types.NewServerWithLabels(
+		"shared-node",
+		types.KindNode,
+		types.ServerSpecV2{},
+		map[string]string{"env": "prod", "team": "ipsum"},
+	)
+	require.NoError(t, err)
+	_, err = authClient.UpsertNode(ctx, node)
+	require.NoError(t, err)
+
+	user, err := types.NewUser("test-user")
+	require.NoError(t, err)
+	user.SetRoles([]string{"requester"})
+	_, err = authClient.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	// parent list that grants trait required for role
+	parentList, err := accesslist.NewAccessList(
+		header.Metadata{Name: "parent-list"},
+		accesslist.Spec{
+			Title:  "Parent List",
+			Audit:  accesslist.Audit{NextAuditDate: s.clock.Now().Add(24 * time.Hour)},
+			Owners: []accesslist.Owner{{Name: "admin", Description: "admin"}},
+			Grants: accesslist.Grants{Traits: map[string][]string{"teams": {"ipsum"}}},
+			MembershipRequires: accesslist.Requires{
+				Roles: []string{"requester"},
+			},
+		},
+	)
+	require.NoError(t, err)
+	_, err = accessListClient.UpsertAccessList(ctx, parentList)
+	require.NoError(t, err)
+
+	// child list that grants role
+	childList, err := accesslist.NewAccessList(
+		header.Metadata{Name: "child-list"},
+		accesslist.Spec{
+			Title:  "Child List",
+			Audit:  accesslist.Audit{NextAuditDate: s.clock.Now().Add(24 * time.Hour)},
+			Owners: []accesslist.Owner{{Name: "admin", Description: "admin"}},
+			Grants: accesslist.Grants{Roles: []string{"test-role"}},
+		},
+	)
+	require.NoError(t, err)
+	_, err = accessListClient.UpsertAccessList(ctx, childList)
+	require.NoError(t, err)
+
+	// add child-list as a member of parent-list, so child now grants required role as well
+	childMember, err := accesslist.NewAccessListMember(
+		header.Metadata{Name: "child-list"},
+		accesslist.AccessListMemberSpec{
+			AccessList:     "parent-list",
+			Name:           "child-list",
+			MembershipKind: accesslist.MembershipKindList,
+			Joined:         time.Now().Add(-1 * time.Hour),
+			AddedBy:        "admin",
+		},
+	)
+	require.NoError(t, err)
+	_, err = accessListClient.UpsertAccessListMember(ctx, childMember)
+	require.NoError(t, err)
+
+	req, err := createAccessRequest(ctx, authClient, accessRequestParameters{
+		Reason:      "request with inherited grants",
+		RequestKind: types.AccessRequestKind_LONG_TERM,
+		ResourceIDs: []ui.ResourceID{
+			{Name: "shared-node", Kind: types.KindNode},
+		},
+	}, "test-user")
+	require.NoError(t, err)
+	require.NotNil(t, req)
+	require.NotNil(t, req.LongTermResourceGrouping)
+	require.True(t, req.LongTermResourceGrouping.CanProceed)
+	require.Contains(t, req.LongTermResourceGrouping.AccessListToResources, "child-list")
+	require.NotContains(t, req.LongTermResourceGrouping.AccessListToResources, "parent-list")
 }
 
 type mockAuthClient struct {
@@ -526,9 +1294,42 @@ type mockedAccessRequestAPIGetter struct {
 	mockGetAccessRequests   func(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
 	mockListAccessRequests  func(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error)
 	mockSubmitAccessReview  func(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error)
+
+	mockGetAccessRequestAllowedPromotions func(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
+	mockGetUser                           func(ctx context.Context, userName string, withSecrets bool) (types.User, error)
+	mockGetRole                           func(ctx context.Context, name string) (types.Role, error)
+	mockListResources                     func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
-func (m *mockedAccessRequestAPIGetter) GetAccessRequestAllowedPromotions(_ context.Context, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
+func (m *mockedAccessRequestAPIGetter) GetUser(ctx context.Context, userName string, withSecrets bool) (types.User, error) {
+	if m.mockGetUser != nil {
+		return m.mockGetUser(ctx, userName, withSecrets)
+	}
+
+	return nil, trace.NotImplemented("mockGetUser not implemented")
+}
+
+func (m *mockedAccessRequestAPIGetter) GetRole(ctx context.Context, name string) (types.Role, error) {
+	if m.mockGetRole != nil {
+		return m.mockGetRole(ctx, name)
+	}
+
+	return nil, trace.NotImplemented("mockGetRole not implemented")
+}
+
+func (m *mockedAccessRequestAPIGetter) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	if m.mockListResources != nil {
+		return m.mockListResources(ctx, req)
+	}
+
+	return nil, trace.NotImplemented("mockListResources not implemented")
+}
+
+func (m *mockedAccessRequestAPIGetter) GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
+	if m.mockGetAccessRequestAllowedPromotions != nil {
+		return m.mockGetAccessRequestAllowedPromotions(ctx, req)
+	}
+
 	return &types.AccessRequestAllowedPromotions{Promotions: []*types.AccessRequestAllowedPromotion{}}, nil
 }
 

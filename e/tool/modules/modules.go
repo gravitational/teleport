@@ -220,6 +220,10 @@ func (p *enterpriseModules) AttestHardwareKey(ctx context.Context, serverI any, 
 	return ehardwarekey.AttestHardwareKey(ctx, server, att, pub, sessionTTL)
 }
 
+func (p *enterpriseModules) GenerateLongTermResourceGrouping(ctx context.Context, clt modules.AccessResourcesGetter, req types.AccessRequest) (*types.LongTermResourceGrouping, error) {
+	return accessrequest.GenerateLongTermResourceGrouping(ctx, clt, req)
+}
+
 func (p *enterpriseModules) GenerateAccessRequestPromotions(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessRequest types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	return accessrequest.GenerateAccessRequestPromotions(ctx, accessListGetter, accessRequest)
 }

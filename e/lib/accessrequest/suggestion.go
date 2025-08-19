@@ -34,6 +34,277 @@ type AccessListLister interface {
 	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
 }
 
+// GenerateLongTermResourceGrouping analyzes how resources can be grouped into access lists
+// and returns information about optimal groupings for long-term access. This helps users
+// understand which resources can be requested together for long-term access.
+func GenerateLongTermResourceGrouping(ctx context.Context, clt modules.AccessResourcesGetter, request types.AccessRequest) (*types.LongTermResourceGrouping, error) {
+	resourceIDs := request.GetRequestedResourceIDs()
+	if len(resourceIDs) == 0 {
+		return nil, trace.BadParameter("no resources provided for long-term access suggestion")
+	}
+
+	requester, err := clt.GetUser(ctx, request.GetUser(), false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	suggestion := &types.LongTermResourceGrouping{
+		AccessListToResources: make(map[string]types.ResourceIDList),
+		RecommendedAccessList: "",
+		CanProceed:            true,
+		ValidationMessage:     "",
+	}
+
+	// We don't allow long-term requests where the resources are in different clusters.
+	// This is to match the current behavior of request Promotions, which are not available
+	// for resources in different clusters.
+	if err := validateResourcesAreFromSameCluster(resourceIDs); err != nil {
+		suggestion.CanProceed = false
+		suggestion.ValidationMessage = err.Error()
+		return suggestion, nil
+	}
+
+	// Get the actual resources from the backend to ensure we're using verified data
+	resources, err := accessrequest.GetResourcesByResourceIDs(ctx, clt, resourceIDs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessListToResources := make(map[string]types.ResourceIDList)
+	var recommendedList string
+
+	analysisInput := accessListAnalysisInput{
+		Clock:       clockwork.NewRealClock(),
+		Clt:         clt,
+		Requester:   requester,
+		ResourceIDs: resourceIDs,
+		Resources:   resources,
+	}
+
+	allAccessLists, err := clt.GetAccessLists(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// For each access list, analyze which resources would be covered
+	maxResources := 0
+	for _, accessList := range allAccessLists {
+		analysisInput.AccessList = accessList
+		covered, err := analyzeAccessListForLongTermAccess(ctx, analysisInput)
+		if err != nil {
+			slog.Log(ctx, slog.LevelDebug, "failed to analyze access list for long-term access", "error", err)
+			continue
+		}
+		if len(covered) == 0 {
+			continue
+		}
+
+		accessListToResources[accessList.GetName()] = types.ResourceIDList{ResourceIds: covered}
+
+		// Update the recommended list if this one covers more resources
+		if len(covered) > maxResources {
+			maxResources = len(covered)
+			recommendedList = accessList.GetName()
+			// Elif this access list covers the same number of resources,
+			// and we don't have a recommended list yet, choose this one
+		} else if len(covered) == maxResources && recommendedList == "" {
+			recommendedList = accessList.GetName()
+		}
+	}
+
+	suggestion.AccessListToResources = accessListToResources
+	suggestion.RecommendedAccessList = recommendedList
+
+	// If no access lists are available for any of these resources
+	if len(accessListToResources) == 0 || recommendedList == "" || len(accessListToResources[recommendedList].ResourceIds) == 0 {
+		suggestion.CanProceed = false
+		suggestion.ValidationMessage = "Long-term access is not available for any selected resources"
+		return suggestion, nil
+	}
+
+	// If any resources are uncovered
+	if uncovered := findUncoveredResources(resourceIDs, accessListToResources); len(uncovered) > 0 {
+		suggestion.CanProceed = false
+		suggestion.ValidationMessage = "Long-term access is not available for some selected resources"
+		return suggestion, nil
+	}
+
+	// If any resources are somehow covered, but not by the recommended list's grouping
+	if conflicting := findConflictingResources(resourceIDs, accessListToResources, recommendedList); len(conflicting) > 0 {
+		suggestion.CanProceed = false
+		suggestion.ValidationMessage = "Selected resources cannot be grouped for long-term access"
+	}
+
+	return suggestion, nil
+}
+
+// findConflictingResources checks which resources are not covered by the recommended access list's resource grouping.
+func findConflictingResources(resourceIDs []types.ResourceID, accessListToResources map[string]types.ResourceIDList, recommendedList string) (conflicting []types.ResourceID) {
+	if len(accessListToResources) == 0 {
+		return conflicting
+	}
+	optimalSet := buildResourceIDSet(accessListToResources[recommendedList].ResourceIds)
+	for _, r := range resourceIDs {
+		if _, ok := optimalSet[types.ResourceIDToString(r)]; !ok {
+			conflicting = append(conflicting, r)
+		}
+	}
+	return conflicting
+}
+
+// findUncoveredResources checks which resources are not covered by any access list in the grouping.
+func findUncoveredResources(resourceIDs []types.ResourceID, accessListToResources map[string]types.ResourceIDList) (uncovered []types.ResourceID) {
+	if len(accessListToResources) == 0 {
+		return resourceIDs
+	}
+	coveredSet := make(map[string]struct{})
+	for _, resources := range accessListToResources {
+		for _, r := range resources.ResourceIds {
+			coveredSet[types.ResourceIDToString(r)] = struct{}{}
+		}
+	}
+	for _, r := range resourceIDs {
+		if _, ok := coveredSet[types.ResourceIDToString(r)]; !ok {
+			uncovered = append(uncovered, r)
+		}
+	}
+	return uncovered
+}
+
+type accessListAnalysisInput struct {
+	Clock       clockwork.Clock
+	Clt         modules.AccessResourcesGetter
+	Requester   types.User
+	ResourceIDs []types.ResourceID
+	Resources   []types.ResourceWithLabels
+	AccessList  *accesslist.AccessList
+}
+
+// analyzeAccessListForLongTermAccess checks requester membership and requirements for the access list,
+// then checks which resources the access list would cover if the requester were to be assigned to it.
+func analyzeAccessListForLongTermAccess(ctx context.Context, in accessListAnalysisInput) (covered []types.ResourceID, err error) {
+	canUse, err := validateCanUseAccessList(ctx, in.AccessList, in.Requester, in.Clt, in.Clock)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !canUse {
+		return nil, nil
+	}
+
+	// Create an access checker for this access list's grants (incl. inherited)
+	grants, err := getInheritedGrants(ctx, in.AccessList, in.Clt)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting inherited grants for access list")
+	}
+
+	checker, err := services.NewAccessChecker(&services.AccessInfo{
+		Roles:  grants.Roles,
+		Traits: map[string][]string(grants.Traits),
+	}, "", in.Clt)
+	if err != nil {
+		return nil, trace.Wrap(err, "initializing accessChecker for access list")
+	}
+
+	// Check which resources this access list would grant access to
+	for _, res := range in.Resources {
+		if err := checker.CheckAccess(res, services.AccessState{MFAVerified: true}); err != nil {
+			continue
+		}
+		for _, rid := range in.ResourceIDs {
+			// TODO(kiosion): Should be some helper for this check; single 'source-of-truth' for ResourceID->Resource mapping
+			if rid.Name == res.GetName() && rid.Kind == res.GetKind() {
+				covered = append(covered, rid)
+				break
+			}
+		}
+	}
+
+	if len(covered) == 0 {
+		return nil, nil
+	}
+
+	return covered, nil
+}
+
+// validateCanUseAccessList checks if the requester can be assigned as a member of the access list.
+func validateCanUseAccessList(ctx context.Context, al *accesslist.AccessList, user types.User, clt modules.AccessResourcesGetter, clock clockwork.Clock) (bool, error) {
+	// Check if the user is already a member or doesn't meet requirements
+	membershipType, err := accesslists.IsAccessListMember(ctx, user, al, clt, nil, clock)
+	if err != nil && !trace.IsAccessDenied(err) {
+		return false, trace.Wrap(err, "checking access list membership")
+	}
+	if membershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
+		return false, nil
+	}
+
+	// Ensure the user meets the requirements, including any inherited requires
+	requires, err := accesslists.GetInheritedMembershipRequires(ctx, al, clt)
+	if err != nil {
+		return false, trace.Wrap(err, "getting inherited membershipRequires for access list")
+	}
+
+	if !accesslists.UserMeetsRequirements(user, *requires) {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+// validateResourcesAreFromSameCluster checks that all provided resource IDs are from the same cluster.
+func validateResourcesAreFromSameCluster(resourceIDs []types.ResourceID) error {
+	if len(resourceIDs) == 0 {
+		return trace.BadParameter("No resources provided for long-term access suggestion")
+	}
+	firstClusterName := resourceIDs[0].ClusterName
+	for _, rid := range resourceIDs[1:] {
+		if rid.ClusterName != "" && rid.ClusterName != firstClusterName {
+			return trace.BadParameter("Long-term access is not available for resources in different clusters")
+		}
+	}
+	return nil
+}
+
+// getInheritedGrants combines an access list's own grants with those inherited from ancestor lists it has membership in.
+func getInheritedGrants(ctx context.Context, a *accesslist.AccessList, clt modules.AccessResourcesGetter) (*accesslist.Grants, error) {
+	inherited, err := accesslists.GetInheritedGrants(ctx, a, clt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ownGrants := a.GetGrants()
+	combinedRoles := append(ownGrants.Roles, inherited.Roles...)
+	slices.Sort(combinedRoles)
+	combinedRoles = slices.Compact(combinedRoles)
+	combinedTraits := mergeTraits(ownGrants.Traits, inherited.Traits)
+
+	return &accesslist.Grants{
+		Roles:  combinedRoles,
+		Traits: combinedTraits,
+	}, nil
+}
+
+func buildResourceIDSet(resources []types.ResourceID) map[string]struct{} {
+	set := make(map[string]struct{}, len(resources))
+	for _, r := range resources {
+		set[types.ResourceIDToString(r)] = struct{}{}
+	}
+	return set
+}
+
+func mergeTraits(t1, t2 map[string][]string) map[string][]string {
+	out := make(map[string][]string)
+	for _, traits := range []map[string][]string{t1, t2} {
+		for key, values := range traits {
+			out[key] = append(out[key], values...)
+		}
+	}
+	for key, values := range out {
+		slices.Sort(values)
+		out[key] = slices.Compact(values)
+	}
+	return out
+}
+
 // GetSuggestedAccessLists returns a list of access lists that are suggested for a given request.
 func GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt modules.AccessListSuggestionClient,
 	accessListGetter modules.AccessListAndMembersGetter, requestID string,

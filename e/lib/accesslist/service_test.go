@@ -776,6 +776,10 @@ func (u *usageReporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable)
 
 type fakeAuth struct{}
 
+func (a *fakeAuth) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	return &types.ListResourcesResponse{}, nil
+}
+
 func (a *fakeAuth) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
 	return &accesslist.AccessList{}, nil
 }
