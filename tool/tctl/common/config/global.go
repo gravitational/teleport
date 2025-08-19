@@ -20,6 +20,8 @@ package config
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"log/slog"
 	"path/filepath"
 	"runtime"
@@ -36,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
 // GlobalCLIFlags keeps the CLI flags that apply to all tctl commands
@@ -155,6 +158,20 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 	}
 
 	authConfig := new(authclient.Config)
+	// read the host UUID file only to test for existence and permission errors.
+	_, err = hostid.ReadFile(cfg.DataDir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, trace.Wrap(err, "Could not load Teleport host UUID file at %s. "+
+				"Please make sure that a Teleport Auth Service instance is running on this host prior to using tctl or provide credentials by logging in with tsh first.",
+				filepath.Join(cfg.DataDir, hostid.FileName))
+		} else if errors.Is(err, fs.ErrPermission) {
+			return nil, trace.Wrap(err, "Teleport does not have permission to read Teleport host UUID file at %s. "+
+				"Ensure that you are running as a user with appropriate permissions or provide credentials by logging in with tsh first.",
+				filepath.Join(cfg.DataDir, hostid.FileName))
+		}
+		return nil, trace.Wrap(err)
+	}
 	identity, err := storage.ReadLocalIdentityForRole(filepath.Join(cfg.DataDir, teleport.ComponentProcess), types.RoleAdmin)
 	if err != nil {
 		// The "admin" identity is not present? This means the tctl is running
