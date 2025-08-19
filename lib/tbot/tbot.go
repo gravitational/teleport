@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"runtime"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -118,6 +119,10 @@ func (b *Bot) getClient() *apiclient.Client {
 func (b *Bot) Run(ctx context.Context) (err error) {
 	ctx, span := tracer.Start(ctx, "Bot/Run")
 	defer func() { apitracing.EndSpan(span, err) }()
+	b.log.InfoContext(
+		ctx, "Initializing tbot",
+		"version", versionLogValue(),
+	)
 
 	if err := metrics.RegisterPrometheusCollectors(
 		metrics.BuildCollector(),
@@ -363,4 +368,12 @@ func checkDestinations(ctx context.Context, cfg *config.BotConfig) error {
 	}
 
 	return nil
+}
+
+func versionLogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("teleport", teleport.Version),
+		slog.String("teleport_git", teleport.Gitref),
+		slog.String("go", runtime.Version()),
+	)
 }
