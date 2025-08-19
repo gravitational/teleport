@@ -271,6 +271,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	// Wrap backend in sanitizer like in production.
 	srv.Backend = backend.NewSanitizer(b)
 
+	uploadHandler := eventstest.NewMemoryUploader()
 	if cfg.AuditLog != nil {
 		srv.AuditLog = cfg.AuditLog
 	} else {

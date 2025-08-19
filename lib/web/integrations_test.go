@@ -171,9 +171,10 @@ func TestIntegrationsCRUDRolesAnywhere(t *testing.T) {
 		AWSRA: &ui.IntegrationAWSRASpec{
 			TrustAnchorARN: updatedTrustAnchor,
 			ProfileSyncConfig: ui.AWSRAProfileSync{
-				Enabled:    true,
-				ProfileARN: syncProfileARN,
-				RoleARN:    syncRoleARN,
+				Enabled:            true,
+				ProfileARN:         syncProfileARN,
+				RoleARN:            syncRoleARN,
+				ProfileNameFilters: []string{"ExposedProfile-*"},
 			},
 		},
 	}
@@ -197,6 +198,8 @@ func TestIntegrationsCRUDRolesAnywhere(t *testing.T) {
 	require.True(t, integrationObject.AWSRA.ProfileSyncConfig.Enabled)
 	require.Equal(t, syncProfileARN, integrationObject.AWSRA.ProfileSyncConfig.ProfileARN)
 	require.Equal(t, syncRoleARN, integrationObject.AWSRA.ProfileSyncConfig.RoleARN)
+	require.Len(t, integrationObject.AWSRA.ProfileSyncConfig.ProfileNameFilters, 1)
+	require.Equal(t, "ExposedProfile-*", integrationObject.AWSRA.ProfileSyncConfig.ProfileNameFilters[0])
 
 	// Delete Integration
 	err = wPack.server.Auth().DeleteIntegration(ctx, integrationName)

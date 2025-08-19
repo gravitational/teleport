@@ -448,6 +448,7 @@
     "deletecollection",
     "demodb",
     "deregisters",
+    "desync",
     "devel",
     "develnode",
     "devicetrust",
