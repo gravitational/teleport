@@ -61,7 +61,6 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -79,7 +78,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/hostid"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -1073,154 +1071,6 @@ func testVersionCheck(t *testing.T, nodeCfg *servicecfg.Config, skipVersionCheck
 	supervisor.signalExit()
 }
 
-func Test_readOrGenerateHostID(t *testing.T) {
-	var (
-		id          = uuid.New().String()
-		hostUUIDKey = "/host_uuid"
-	)
-	type args struct {
-		kubeBackend   *fakeKubeBackend
-		hostIDContent string
-		identity      []*state.Identity
-	}
-	tests := []struct {
-		name             string
-		args             args
-		wantFunc         func(string) bool
-		wantKubeItemFunc func(*backend.Item) bool
-	}{
-		{
-			name: "load from storage without kube backend",
-			args: args{
-				kubeBackend:   nil,
-				hostIDContent: id,
-			},
-			wantFunc: func(receivedID string) bool {
-				return receivedID == id
-			},
-		},
-		{
-			name: "Kube Backend is available with key. Load from kube storage",
-			args: args{
-				kubeBackend: &fakeKubeBackend{
-					getData: &backend.Item{
-						Key:   backend.KeyFromString(hostUUIDKey),
-						Value: []byte(id),
-					},
-					getErr: nil,
-				},
-			},
-			wantFunc: func(receivedID string) bool {
-				return receivedID == id
-			},
-			wantKubeItemFunc: func(i *backend.Item) bool {
-				return i == nil
-			},
-		},
-		{
-			name: "No hostID available. Generate one and store it into Kube and Local Storage",
-			args: args{
-				kubeBackend: &fakeKubeBackend{
-					getData: nil,
-					getErr:  fmt.Errorf("key not found"),
-				},
-			},
-			wantFunc: func(receivedID string) bool {
-				_, err := uuid.Parse(receivedID)
-				return err == nil
-			},
-			wantKubeItemFunc: func(i *backend.Item) bool {
-				_, err := uuid.Parse(string(i.Value))
-				return err == nil && i.Key.String() == hostUUIDKey
-			},
-		},
-		{
-			name: "No hostID available. Generate one and store it into Local Storage",
-			args: args{
-				kubeBackend: nil,
-			},
-			wantFunc: func(receivedID string) bool {
-				_, err := uuid.Parse(receivedID)
-				return err == nil
-			},
-			wantKubeItemFunc: nil,
-		},
-		{
-			name: "No hostID available. Grab from provided static identity",
-			args: args{
-				kubeBackend: &fakeKubeBackend{
-					getData: nil,
-					getErr:  fmt.Errorf("key not found"),
-				},
-
-				identity: []*state.Identity{
-					{
-						ID: state.IdentityID{
-							HostUUID: id,
-						},
-					},
-				},
-			},
-			wantFunc: func(receivedID string) bool {
-				return receivedID == id
-			},
-			wantKubeItemFunc: func(i *backend.Item) bool {
-				_, err := uuid.Parse(string(i.Value))
-				return err == nil && i.Key.String() == hostUUIDKey
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			dataDir := t.TempDir()
-			// write host_uuid file to temp dir.
-			if len(tt.args.hostIDContent) > 0 {
-				err := hostid.WriteFile(dataDir, tt.args.hostIDContent)
-				require.NoError(t, err)
-			}
-
-			cfg := &servicecfg.Config{
-				DataDir:    dataDir,
-				Logger:     slog.Default(),
-				JoinMethod: types.JoinMethodToken,
-				Identities: tt.args.identity,
-			}
-
-			var kubeBackend kubernetesBackend
-			if tt.args.kubeBackend != nil {
-				kubeBackend = tt.args.kubeBackend
-			}
-
-			err := readOrGenerateHostID(context.Background(), cfg, kubeBackend)
-			require.NoError(t, err)
-
-			require.True(t, tt.wantFunc(cfg.HostUUID))
-
-			if tt.args.kubeBackend != nil {
-				require.True(t, tt.wantKubeItemFunc(tt.args.kubeBackend.putData))
-			}
-		})
-	}
-}
-
-type fakeKubeBackend struct {
-	putData *backend.Item
-	getData *backend.Item
-	getErr  error
-}
-
-// Put puts value into backend (creates if it does not
-// exists, updates it otherwise)
-func (f *fakeKubeBackend) Put(ctx context.Context, i backend.Item) (*backend.Lease, error) {
-	f.putData = &i
-	return &backend.Lease{}, nil
-}
-
-// Get returns a single item or not found error
-func (f *fakeKubeBackend) Get(ctx context.Context, key backend.Key) (*backend.Item, error) {
-	return f.getData, f.getErr
-}
-
 func TestProxyGRPCServers(t *testing.T) {
 	hostID := uuid.NewString()
 	// Create a test auth server to extract the server identity (SSH and TLS
@@ -2151,4 +2001,182 @@ func makeTempDir(t *testing.T) string {
 	require.NoError(t, err, "os.MkdirTemp() failed")
 	t.Cleanup(func() { os.RemoveAll(tempDir) })
 	return tempDir
+}
+
+// TestInstanceCertReissue tests the reissuance of an instance certificate when
+// the instance has malformed system roles using pre-constructed data directories
+// generated by an older teleport version that permitted token mix-and-match.
+func TestInstanceCertReissue(t *testing.T) {
+	t.Setenv("_insecuredevmode_no_parallel", "1") // panic if the test is or will become parallel
+	t.Setenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK", "1")
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	var eg errgroup.Group
+	defer func() { require.NoError(t, eg.Wait()) }()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create temporary directories for the auth and agent data directories.
+	authDir, agentDir := t.TempDir(), t.TempDir()
+
+	// Write the instance assets to the temporary directories to set up pre-existing
+	// state for our teleport instances to use.
+	require.NoError(t, basicDirCopy("testdata/auth", authDir))
+	require.NoError(t, basicDirCopy("testdata/agent", agentDir))
+
+	authCfg := servicecfg.MakeDefaultConfig()
+	authCfg.Version = defaults.TeleportConfigVersionV3
+	authCfg.DataDir = authDir
+	authCfg.Auth.Enabled = true
+	authCfg.Auth.ListenAddr.Addr = newListener(t, ListenerAuth, &authCfg.FileDescriptors)
+	authCfg.SetAuthServerAddress(authCfg.Auth.ListenAddr)
+	// ensure auth server is using the pre-constructed sqlite db
+	authCfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(authDir, defaults.BackendDir)}
+	var err error
+	authCfg.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "auth-server",
+	})
+	require.NoError(t, err)
+	authCfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+
+	authCfg.Proxy.Enabled = true
+	authCfg.Proxy.DisableWebInterface = true
+	proxyAddr := newListener(t, ListenerProxyWeb, &authCfg.FileDescriptors)
+	authCfg.Proxy.WebAddr.Addr = proxyAddr
+
+	authCfg.SSH.Enabled = true
+	authCfg.SSH.Addr.Addr = "localhost:0"
+	authCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	authCfg.Logger = logtest.NewLogger()
+	authCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+
+	authProc, err := NewTeleport(authCfg)
+	require.NoError(t, err)
+	require.NoError(t, authProc.Start())
+	eg.Go(func() error { return authProc.WaitForSignals(ctx, nil) })
+
+	authIdentity, err := authProc.getIdentity(types.RoleInstance)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{string(types.RoleAuth), string(types.RoleProxy)}, authIdentity.SystemRoles)
+
+	authEventCh := make(chan Event)
+	authProc.ListenForEvents(ctx, TeleportCredentialsUpdatedEvent, authEventCh)
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	_, err = authProc.WaitForEvent(timeoutCtx, TeleportCredentialsUpdatedEvent)
+	require.NoError(t, err, "timed out waiting for second auth identity")
+
+	authIdentity, err = authProc.getIdentity(types.RoleInstance)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{string(types.RoleAuth), string(types.RoleProxy), string(types.RoleNode)}, authIdentity.SystemRoles)
+
+	agentCfg := servicecfg.MakeDefaultConfig()
+	agentCfg.Version = defaults.TeleportConfigVersionV3
+	agentCfg.DataDir = agentDir
+	agentCfg.ProxyServer = utils.NetAddr{
+		AddrNetwork: "tcp",
+		Addr:        proxyAddr,
+	}
+
+	agentCfg.Auth.Enabled = false
+	agentCfg.Proxy.Enabled = false
+	agentCfg.SSH.Enabled = true
+
+	agentCfg.WindowsDesktop.Enabled = true
+	agentCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	agentCfg.Logger = logtest.NewLogger()
+	agentCfg.MaxRetryPeriod = time.Second
+	agentCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+
+	agentProc, err := NewTeleport(agentCfg)
+	require.NoError(t, err)
+	require.NoError(t, agentProc.Start())
+	eg.Go(func() error { return agentProc.WaitForSignals(ctx, nil) })
+
+	agentIdentity, err := agentProc.getIdentity(types.RoleInstance)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{string(types.RoleNode)}, agentIdentity.SystemRoles)
+
+	_, err = agentProc.WaitForEvent(timeoutCtx, TeleportCredentialsUpdatedEvent)
+	require.NoError(t, err, "timed out waiting for second agent identity")
+
+	agentIdentity, err = agentProc.getIdentity(types.RoleInstance)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{string(types.RoleNode), string(types.RoleWindowsDesktop)}, agentIdentity.SystemRoles)
+}
+
+// newListener creates a new TCP listener on 127.0.0.1:0, adds it to the
+// FileDescriptor slice (with the specified type) and returns its actual local
+// address as a string (for use in configuration). The idea is to subvert
+// Teleport's file-descriptor injection mechanism (used to share ports between
+// parent and child processes) to inject preconfigured listeners to Teleport
+// instances under test. The ports are allocated and bound at runtime, so there
+// should be no issues with port clashes on parallel tests.
+//
+// The resulting file descriptor is added to the `fds` slice, which can then be
+// given to a teleport instance on startup in order to suppl
+func newListener(t *testing.T, ty ListenerType, fds *[]*servicecfg.FileDescriptor) string {
+	t.Helper()
+
+	l, err := net.Listen("tcp", net.JoinHostPort("localhost", "0"))
+	require.NoError(t, err)
+	defer l.Close()
+
+	// File() returns a dup of the listener's file descriptor as an *os.File, so
+	// the original net.Listener still needs to be closed.
+	lf, err := l.(*net.TCPListener).File()
+	require.NoError(t, err)
+	fd := &servicecfg.FileDescriptor{
+		Type:    string(ty),
+		Address: l.Addr().String(),
+		File:    lf,
+	}
+
+	// If the file descriptor slice ends up being passed to a TeleportProcess
+	// that successfully starts, listeners will either get "imported" and used
+	// or discarded and closed, this is just an extra safety measure that closes
+	// the listener at the end of the test anyway (the finalizer would do that
+	// anyway, in principle).
+	t.Cleanup(func() { require.NoError(t, fd.Close()) })
+
+	*fds = append(*fds, fd)
+	return l.Addr().String()
+}
+
+// basicDirCopy performs a very simplistic recursive copy from one directory to another. this helper was
+// written specifically for setting up teleport data directories for testing purposes and may not be
+// suitable for other applications.
+func basicDirCopy(src string, dst string) error {
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := os.MkdirAll(dst, teleport.PrivateDirMode); err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			if err := basicDirCopy(filepath.Join(src, entry.Name()), filepath.Join(dst, entry.Name())); err != nil {
+				return trace.Wrap(err)
+			}
+			continue
+		}
+
+		data, err := os.ReadFile(filepath.Join(src, entry.Name()))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := os.WriteFile(filepath.Join(dst, entry.Name()), data, teleport.PrivateDirMode); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
 }

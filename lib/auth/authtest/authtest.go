@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"net"
 	"strings"
 	"testing"
@@ -40,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -47,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/auth/summarizer"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -56,11 +59,11 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -83,10 +86,16 @@ type AuthServerConfig struct {
 	// ClusterNetworkingConfig allows a test to change the default
 	// networking configuration.
 	ClusterNetworkingConfig types.ClusterNetworkingConfig
+	// UploadHandler allows a test to set its own upload handler. This setting is
+	// propagated to AuditLog, but only if they are not customized here.
+	UploadHandler events.MultipartHandler
 	// Streamer allows a test to set its own session recording streamer.
 	Streamer events.Streamer
 	// AuditLog allows a test to configure its own audit log.
 	AuditLog events.AuditLogSessionStreamer
+	// SessionSummarizerProvider allows a test to configure its own session
+	// summarizer provider.
+	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 	// TraceClient allows a test to configure the trace client
 	TraceClient otlptrace.Client
 	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
@@ -121,6 +130,9 @@ func (cfg *AuthServerConfig) CheckAndSetDefaults() error {
 			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOff,
 		}
+	}
+	if cfg.UploadHandler == nil {
+		cfg.UploadHandler = eventstest.NewMemoryUploader()
 	}
 	return nil
 }
@@ -266,7 +278,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 			DataDir:       cfg.Dir,
 			ServerID:      cfg.ClusterName,
 			Clock:         cfg.Clock,
-			UploadHandler: eventstest.NewMemoryUploader(),
+			UploadHandler: cfg.UploadHandler,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -302,23 +314,25 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	}
 
 	srv.AuthServer, err = auth.NewServer(&auth.InitConfig{
-		DataDir:                cfg.Dir,
-		Backend:                srv.Backend,
-		VersionStorage:         NewFakeTeleportVersion(),
-		Authority:              authority.NewWithClock(cfg.Clock),
-		Access:                 access,
-		Identity:               identity,
-		AuditLog:               srv.AuditLog,
-		Streamer:               cfg.Streamer,
-		SkipPeriodicOperations: true,
-		Emitter:                emitter,
-		TraceClient:            cfg.TraceClient,
-		Clock:                  cfg.Clock,
-		ClusterName:            clusterName,
-		HostUUID:               uuid.New().String(),
-		AccessLists:            accessLists,
-		FIPS:                   cfg.FIPS,
-		KeyStoreConfig:         cfg.KeystoreConfig,
+		DataDir:                   cfg.Dir,
+		Backend:                   srv.Backend,
+		VersionStorage:            NewFakeTeleportVersion(),
+		Authority:                 authority.NewWithClock(cfg.Clock),
+		Access:                    access,
+		Identity:                  identity,
+		AuditLog:                  srv.AuditLog,
+		Streamer:                  cfg.Streamer,
+		SkipPeriodicOperations:    true,
+		Emitter:                   emitter,
+		TraceClient:               cfg.TraceClient,
+		Clock:                     cfg.Clock,
+		ClusterName:               clusterName,
+		HostUUID:                  uuid.New().String(),
+		AccessLists:               accessLists,
+		FIPS:                      cfg.FIPS,
+		KeyStoreConfig:            cfg.KeystoreConfig,
+		MultipartHandler:          cfg.UploadHandler,
+		SessionSummarizerProvider: cfg.SessionSummarizerProvider,
 	},
 		WithClock(cfg.Clock),
 		// Reduce auth.Server bcrypt costs when testing.
@@ -401,7 +415,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 
 	// Setup certificate and signing authorities.
 	for _, caType := range types.CertAuthTypes {
-		if err = srv.AuthServer.UpsertCertAuthority(ctx, suite.NewTestCAWithConfig(suite.TestCAConfig{
+		if err = srv.AuthServer.UpsertCertAuthority(ctx, NewTestCAWithConfig(TestCAConfig{
 			Type:        caType,
 			ClusterName: srv.ClusterName,
 			Clock:       cfg.Clock,
@@ -946,12 +960,22 @@ type TestIdentity struct {
 	Generation     uint64
 }
 
-// TestUser returns TestIdentity for local user
+// TestUser returns TestIdentity for local user. Note that this constructor only produces a
+// test identity suitable for use with the `NewClient` methods defined in this file, as those helpers
+// auto-populate roles.  Prefer using TestUserWithRoles for most usecases.
 func TestUser(username string) TestIdentity {
+	return TestUserWithRoles(username, nil)
+}
+
+// TestUserWithRoles returns a local user TestIdentity with the specified username and roles.
+func TestUserWithRoles(username string, roles []string) TestIdentity {
 	return TestIdentity{
 		I: authz.LocalUser{
 			Username: username,
-			Identity: tlsca.Identity{Username: username},
+			Identity: tlsca.Identity{
+				Username: username,
+				Groups:   roles,
+			},
 		},
 	}
 }
@@ -1142,6 +1166,15 @@ func (t *TLSServer) NewClientWithCert(clientCert tls.Certificate) (*authclient.C
 
 // NewClient returns new client to test server authenticated with identity
 func (t *TLSServer) NewClient(identity TestIdentity) (*authclient.Client, error) {
+	if localUser, ok := identity.I.(authz.LocalUser); ok && len(localUser.Identity.Groups) == 0 {
+		user, err := t.AuthServer.AuthServer.GetUser(context.TODO(), localUser.Username, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		localUser.Identity.Groups = user.GetRoles()
+		identity.I = localUser
+	}
 	tlsConfig, err := t.ClientTLSConfig(identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1428,7 +1461,7 @@ func WithRoleMutator(mutate ...func(role types.Role)) CreateUserAndRoleOption {
 	}
 }
 
-// CreateUserAndRole creates user and role and assigns role to a user, used in tests
+// CreateUserAndRole creates user and role and assigns role to a user, used in tests.
 // If allowRules is nil, the role has admin privileges.
 // If allowRules is not-nil, then the rules associated with the role will be
 // replaced with those specified.
@@ -1544,4 +1577,138 @@ func FlushCache(t *testing.T, clt Flusher) {
 			t.Fatal("Time out waiting for role to be replicated")
 		}
 	}
+}
+
+// TestCAConfig defines the configuration for generating
+// a test certificate authority
+type TestCAConfig struct {
+	Type        types.CertAuthType
+	PrivateKeys [][]byte
+	Clock       clockwork.Clock
+	ClusterName string
+	// the below string fields default to ClusterName if left empty
+	ResourceName        string
+	SubjectOrganization string
+}
+
+// NewTestCA returns new test authority with a test key as a public and
+// signing key
+func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte) *types.CertAuthorityV2 {
+	return NewTestCAWithConfig(TestCAConfig{
+		Type:        caType,
+		ClusterName: clusterName,
+		PrivateKeys: privateKeys,
+		Clock:       clockwork.NewRealClock(),
+	})
+}
+
+// NewTestCAWithConfig generates a new certificate authority with the specified
+// configuration
+// Keep this function in-sync with lib/auth/auth.go:newKeySet().
+// TODO(jakule): reuse keystore.KeyStore interface to match newKeySet().
+func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
+	var keyPEM []byte
+	var key *keys.PrivateKey
+
+	if config.ResourceName == "" {
+		config.ResourceName = config.ClusterName
+	}
+	if config.SubjectOrganization == "" {
+		config.SubjectOrganization = config.ClusterName
+	}
+
+	switch config.Type {
+	case types.DatabaseCA, types.SAMLIDPCA, types.OIDCIdPCA:
+		// These CAs only support RSA.
+		keyPEM = fixtures.PEMBytes["rsa"]
+	case types.DatabaseClientCA:
+		// The db client CA also only supports RSA, but some tests rely on it
+		// being different than the DB CA.
+		keyPEM = fixtures.PEMBytes["rsa-db-client"]
+	}
+	if len(config.PrivateKeys) > 0 {
+		// Allow test to override the private key.
+		keyPEM = config.PrivateKeys[0]
+	}
+
+	if keyPEM != nil {
+		var err error
+		key, err = keys.ParsePrivateKey(keyPEM)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		// If config.PrivateKeys was not set and this CA does not exclusively
+		// support RSA, generate an ECDSA key. Signatures are ~10x faster than
+		// RSA and generating a new key is actually faster than parsing a PEM
+		// fixture.
+		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		if err != nil {
+			panic(err)
+		}
+		key, err = keys.NewPrivateKey(signer)
+		if err != nil {
+			panic(err)
+		}
+		keyPEM = key.PrivateKeyPEM()
+	}
+
+	ca := &types.CertAuthorityV2{
+		Kind:    types.KindCertAuthority,
+		SubKind: string(config.Type),
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      config.ResourceName,
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.CertAuthoritySpecV2{
+			Type:        config.Type,
+			ClusterName: config.ClusterName,
+		},
+	}
+
+	// Add SSH keys if necessary.
+	switch config.Type {
+	case types.UserCA, types.HostCA, types.OpenSSHCA:
+		ca.Spec.ActiveKeys.SSH = []*types.SSHKeyPair{{
+			PrivateKey: keyPEM,
+			PublicKey:  key.MarshalSSHPublicKey(),
+		}}
+	}
+
+	// Add TLS keys if necessary.
+	switch config.Type {
+	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
+		cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+			Signer: key.Signer,
+			Entity: pkix.Name{
+				CommonName:   config.ClusterName,
+				Organization: []string{config.SubjectOrganization},
+			},
+			TTL:   defaults.CATTL,
+			Clock: config.Clock,
+		})
+		if err != nil {
+			panic(err)
+		}
+		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{
+			Key:  keyPEM,
+			Cert: cert,
+		}}
+	}
+
+	// Add JWT keys if necessary.
+	switch config.Type {
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA, types.BoundKeypairCA:
+		pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
+		if err != nil {
+			panic(err)
+		}
+		ca.Spec.ActiveKeys.JWT = []*types.JWTKeyPair{{
+			PrivateKey: keyPEM,
+			PublicKey:  pubKeyPEM,
+		}}
+	}
+
+	return ca
 }

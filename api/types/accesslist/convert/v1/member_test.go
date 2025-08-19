@@ -109,6 +109,43 @@ func TestMemberFromProtoNils(t *testing.T) {
 	}
 }
 
+func TestMemberTimeConversion(t *testing.T) {
+	t.Run("when zero converts to proto nil", func(t *testing.T) {
+		member := newAccessListMember(t, "test_member")
+		member.Spec.Expires = time.Time{}
+		member.Spec.Joined = time.Time{}
+
+		proto := ToMemberProto(member)
+		require.Nil(t, proto.Spec.Expires)
+		require.Nil(t, proto.Spec.Joined)
+	})
+	t.Run("when non-zero converts to proto time", func(t *testing.T) {
+		member := newAccessListMember(t, "test_member")
+		expires, err := time.Parse(time.RFC3339, "2025-10-09T15:00:00Z")
+		require.NoError(t, err)
+		joined, err := time.Parse(time.RFC3339, "2025-08-07T15:00:00Z")
+		require.NoError(t, err)
+		member.Spec.Expires = expires
+		member.Spec.Joined = joined
+
+		proto := ToMemberProto(member)
+		require.NotNil(t, proto.Spec.Expires)
+		require.NotNil(t, proto.Spec.Joined)
+		require.True(t, proto.Spec.Expires.AsTime().Equal(expires))
+		require.True(t, proto.Spec.Joined.AsTime().Equal(joined))
+	})
+	t.Run("proto nil converts to zero time", func(t *testing.T) {
+		proto := ToMemberProto(newAccessListMember(t, "test_member"))
+		proto.Spec.Expires = nil
+		proto.Spec.Joined = nil
+
+		member, err := FromMemberProto(proto)
+		require.NoError(t, err)
+		require.True(t, member.Spec.Expires.IsZero())
+		require.True(t, member.Spec.Joined.IsZero())
+	})
+}
+
 func newAccessListMember(t *testing.T, name string) *accesslist.AccessListMember {
 	t.Helper()
 

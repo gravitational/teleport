@@ -6,6 +6,8 @@ labels:
  - identity-governance
 ---
 
+{/* lint disable page-structure remark-lint */}
+
 Okta user sync imports Okta users as Teleport users via a continuous
 reconciliation loop. User sync works in tandem with the Teleport [SCIM
 integration](./scim-integration.mdx#how-it-works). 
@@ -26,7 +28,7 @@ integration enrollment flow.
 
 - An Okta authentication connector. 
 
-  <Admonition>
+  <Admonition type="important">
   Before following the guided user sync integration flow, you must have
   completed the [guided Okta single sign-on flow](./guided-sso.mdx).
   </Admonition>

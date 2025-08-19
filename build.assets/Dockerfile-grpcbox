@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM docker.io/golang:1.24.5
+FROM docker.io/golang:1.24.6
 
 # Image layers go from less likely to most likely to change.
 RUN apt-get update && \
@@ -40,6 +40,12 @@ RUN \
   go -C /teleport-module run -exec true google.golang.org/grpc/cmd/protoc-gen-go-grpc && \
   go -C /teleport-module run -exec true google.golang.org/protobuf/cmd/protoc-gen-go && \
   rm -rf /teleport-module
+
+# Pre-cache buf plugin
+COPY build.assets/tooling /tooling-tmp/
+RUN \
+  go -C /tooling-tmp  run -exec true ./cmd/buf-plugin-linters &&  \
+  rm -rf /tooling-tmp
 
   ARG UID
   ARG GID

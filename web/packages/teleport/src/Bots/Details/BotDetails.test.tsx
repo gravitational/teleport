@@ -39,6 +39,7 @@ import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { EditBotRequest } from 'teleport/services/bot/types';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
+import { listBotInstancesSuccess } from 'teleport/test/helpers/botInstances';
 import {
   editBotSuccess,
   getBotError,
@@ -72,15 +73,15 @@ describe('BotDetails', () => {
   it('should show a page error state', async () => {
     withFetchError();
     renderComponent();
-    await waitForLoading();
+    await waitForLoadingBot();
 
-    expect(screen.getByText('Error: something went wrong')).toBeInTheDocument();
+    expect(screen.getByText('something went wrong')).toBeInTheDocument();
   });
 
   it('should show a not found error state', async () => {
     withFetchError(404, 'not_found');
     renderComponent();
-    await waitForLoading();
+    await waitForLoadingBot();
 
     expect(
       screen.getByText('Bot test-bot-name does not exist')
@@ -95,8 +96,9 @@ describe('BotDetails', () => {
 
     withFetchSuccess();
     withFetchJoinTokensSuccess();
+    withFetchInstancesSuccess();
     renderComponent({ history });
-    await waitForLoading();
+    await waitForLoadingBot();
 
     const backButton = screen.getByLabelText('back');
     fireEvent.click(backButton);
@@ -107,8 +109,9 @@ describe('BotDetails', () => {
   it('should show page title', async () => {
     withFetchSuccess();
     withFetchJoinTokensSuccess();
+    withFetchInstancesSuccess();
     renderComponent();
-    await waitForLoading();
+    await waitForLoadingBot();
 
     const pageHeader = screen.getByTestId('page-header');
     expect(pageHeader).toBeInTheDocument();
@@ -119,8 +122,9 @@ describe('BotDetails', () => {
   it('should show bot metadata', async () => {
     withFetchSuccess();
     withFetchJoinTokensSuccess();
+    withFetchInstancesSuccess();
     renderComponent();
-    await waitForLoading();
+    await waitForLoadingBot();
 
     const panel = screen
       .getByRole('heading', { name: 'Metadata' })
@@ -134,8 +138,9 @@ describe('BotDetails', () => {
   it('should show bot roles', async () => {
     withFetchSuccess();
     withFetchJoinTokensSuccess();
+    withFetchInstancesSuccess();
     renderComponent();
-    await waitForLoading();
+    await waitForLoadingBot();
 
     const panel = screen
       .getByRole('heading', { name: 'Roles' })
@@ -149,8 +154,9 @@ describe('BotDetails', () => {
   it('should show bot traits', async () => {
     withFetchSuccess();
     withFetchJoinTokensSuccess();
+    withFetchInstancesSuccess();
     renderComponent();
-    await waitForLoading();
+    await waitForLoadingBot();
 
     const panel = screen
       .getByRole('heading', { name: 'Traits' })
@@ -166,8 +172,10 @@ describe('BotDetails', () => {
   it('should show bot join tokens', async () => {
     withFetchSuccess();
     withFetchJoinTokensSuccess();
+    withFetchInstancesSuccess();
     renderComponent();
-    await waitForLoading();
+    await waitForLoadingBot();
+    await waitForLoadingTokens();
 
     const panel = screen
       .getByRole('heading', { name: 'Join Tokens' })
@@ -182,8 +190,10 @@ describe('BotDetails', () => {
   it('should show bot join tokens outdated proxy warning', async () => {
     withFetchSuccess();
     withFetchJoinTokensOutdatedProxy();
+    withFetchInstancesSuccess();
     renderComponent();
-    await waitForLoading();
+    await waitForLoadingBot();
+    await waitForLoadingTokens();
 
     const panel = screen
       .getByRole('heading', { name: 'Join Tokens' })
@@ -192,7 +202,7 @@ describe('BotDetails', () => {
 
     expect(
       within(panel!).getByText(
-        'Error: We could not complete your request. Your proxy (v18.0.0) may be behind the minimum required version (v19.0.0) to support this request. Ensure all proxies are upgraded and try again.'
+        'We could not complete your request. Your proxy (v18.0.0) may be behind the minimum required version (v19.0.0) to support this request. Ensure all proxies are upgraded and try again.'
       )
     ).toBeInTheDocument();
   });
@@ -200,8 +210,10 @@ describe('BotDetails', () => {
   it('should show bot join tokens mfa message', async () => {
     withFetchSuccess();
     withFetchJoinTokensMfaError();
+    withFetchInstancesSuccess();
     renderComponent();
-    await waitForLoading();
+    await waitForLoadingBot();
+    await waitForLoadingTokens();
 
     const panel = screen
       .getByRole('heading', { name: 'Join Tokens' })
@@ -212,6 +224,24 @@ describe('BotDetails', () => {
       within(panel!).getByText(
         'Multi-factor authentication is required to view join tokens'
       )
+    ).toBeInTheDocument();
+  });
+
+  it('should show bot instances', async () => {
+    withFetchSuccess();
+    withFetchJoinTokensSuccess();
+    withFetchInstancesSuccess();
+    renderComponent();
+    await waitForLoadingBot();
+    await waitForLoadingInstances();
+
+    const panel = screen
+      .getByRole('heading', { name: 'Active Instances' })
+      .closest('section');
+    expect(panel).toBeInTheDocument();
+
+    expect(
+      within(panel!).getByText('c11250e0-00c2-4f52-bcdf-b367f80b9461')
     ).toBeInTheDocument();
   });
 
@@ -235,6 +265,7 @@ describe('BotDetails', () => {
     it('should disable edit action if no edit permission', async () => {
       withFetchSuccess();
       withFetchJoinTokensSuccess();
+      withFetchInstancesSuccess();
       renderComponent({
         customAcl: makeAcl({
           bots: {
@@ -243,7 +274,7 @@ describe('BotDetails', () => {
           },
         }),
       });
-      await waitForLoading();
+      await waitForLoadingBot();
 
       expect(screen.getByText('Edit Bot')).toBeDisabled();
       expect(screen.getByText('Edit')).toBeDisabled();
@@ -252,8 +283,9 @@ describe('BotDetails', () => {
     it('should show edit form on edit action', async () => {
       withFetchSuccess();
       withFetchJoinTokensSuccess();
+      withFetchInstancesSuccess();
       renderComponent();
-      await waitForLoading();
+      await waitForLoadingBot();
 
       withFetchRolesSuccess();
       const editButton = screen.getByRole('button', { name: 'Edit Bot' });
@@ -274,8 +306,9 @@ describe('BotDetails', () => {
     it("should update the bot's details on edit success", async () => {
       withFetchSuccess();
       withFetchJoinTokensSuccess();
+      withFetchInstancesSuccess();
       renderComponent();
-      await waitForLoading();
+      await waitForLoadingBot();
 
       let configPanel = screen
         .getByRole('heading', { name: 'Metadata' })
@@ -358,8 +391,18 @@ const renderComponent = (options?: {
   });
 };
 
-const waitForLoading = async () => {
-  await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
+const waitForLoadingBot = async () => {
+  await waitForElementToBeRemoved(() => screen.queryByTestId('loading-bot'));
+};
+
+const waitForLoadingTokens = async () => {
+  await waitForElementToBeRemoved(() => screen.queryByTestId('loading-tokens'));
+};
+
+const waitForLoadingInstances = async () => {
+  await waitForElementToBeRemoved(() =>
+    screen.queryByTestId('loading-instances')
+  );
 };
 
 const withFetchError = (status = 500, message = 'something went wrong') => {
@@ -391,6 +434,25 @@ const withFetchJoinTokensOutdatedProxy = () => {
     })
   );
 };
+
+function withFetchInstancesSuccess() {
+  server.use(
+    listBotInstancesSuccess({
+      bot_instances: [
+        {
+          bot_name: 'ansible-worker',
+          instance_id: 'c11250e0-00c2-4f52-bcdf-b367f80b9461',
+          active_at_latest: '2025-07-22T10:54:00Z',
+          host_name_latest: 'svr-lon-01-ab23cd',
+          join_method_latest: 'github',
+          os_latest: 'linux',
+          version_latest: '4.4.16',
+        },
+      ],
+      next_page_token: '',
+    })
+  );
+}
 
 const withSaveSuccess = (
   version: 1 | 2 = 2,
@@ -427,6 +489,10 @@ function makeWrapper(options?: {
         list: true,
       },
       tokens: {
+        ...defaultAccess,
+        list: true,
+      },
+      botInstances: {
         ...defaultAccess,
         list: true,
       },

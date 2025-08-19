@@ -83,7 +83,7 @@ var (
 	// ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
 	// complete the challenge with.
 	ErrNoMFADevices = &trace.AccessDeniedError{
-		Message: "MFA is required to access this resource but user has no MFA devices; see Account Settings in the Web UI or use 'tsh mfa add' to register MFA devices",
+		Message: "Multi-factor authentication (MFA) is required to access this resource but the current user has no supported MFA devices enrolled; see Account Settings in the Web UI or use 'tsh mfa add' to register an MFA device",
 	}
 	// InvalidUserPassError is the error for when either the provided username or
 	// password is incorrect.
@@ -667,8 +667,8 @@ func (c *Client) DeleteStaticTokens() error {
 }
 
 // GetStaticTokens returns a list of static register tokens
-func (c *Client) GetStaticTokens() (types.StaticTokens, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
+func (c *Client) GetStaticTokens(ctx context.Context) (types.StaticTokens, error) {
+	return c.APIClient.GetStaticTokens(ctx)
 }
 
 // SetStaticTokens sets a list of static register tokens
@@ -1105,6 +1105,8 @@ type IdentityService interface {
 
 	// GetResetPasswordToken returns a reset password token.
 	GetResetPasswordToken(ctx context.Context, username string) (types.UserToken, error)
+	// ListResetPasswordTokens returns a page of user tokens.
+	ListResetPasswordTokens(ctx context.Context, pageSize int, nextKey string) ([]types.UserToken, string, error)
 
 	// GetMFADevices fetches all MFA devices registered for the calling user.
 	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
@@ -1157,6 +1159,8 @@ type IdentityService interface {
 // of adding new nodes, auth servers and proxies to the cluster
 type ProvisioningService interface {
 	// GetTokens returns a list of active invitation tokens for nodes and users
+	// Deprecated: use [ListProvisionTokens] istead.
+	// TODO(hugoShaka): DELETE IN 19.0.0
 	GetTokens(ctx context.Context) (tokens []types.ProvisionToken, err error)
 
 	// GetToken returns provisioning token
@@ -1692,12 +1696,6 @@ type ClientI interface {
 	// "not implemented" errors (as per the default gRPC behavior).
 	ExternalAuditStorageClient() *externalauditstorage.Client
 
-	// WorkloadIdentityServiceClient returns a workload identity service client.
-	// Clients connecting to  older Teleport versions, still get a client
-	// when calling this method, but all RPCs will return "not implemented" errors
-	// (as per the default gRPC behavior).
-	WorkloadIdentityServiceClient() machineidv1pb.WorkloadIdentityServiceClient
-
 	// WorkloadIdentityIssuanceClient returns a workload identity issuance service client.
 	// Clients connecting to  older Teleport versions, still get a client
 	// when calling this method, but all RPCs will return "not implemented" errors
@@ -1777,4 +1775,7 @@ type ClientI interface {
 
 	// GitServerReadOnlyClient returns the read-only client for Git servers.
 	GitServerReadOnlyClient() gitserver.ReadOnlyClient
+
+	// ListRequestableRoles is a paginated requestable role getter.
+	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
 }

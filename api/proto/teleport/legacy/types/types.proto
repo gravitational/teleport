@@ -1269,9 +1269,9 @@ message EncryptionKeyPair {
   uint32 hash = 4 [(gogoproto.jsontag) = "hash,omitempty"];
 }
 
-// AgeEncryptionKey is a Bech32 encoded age X25519 public key.
+// A public key to be used as a recipient during age encryption of session recordings.
 message AgeEncryptionKey {
-  // PublicKey is a Bech32 encoded age X25519 public key.
+  // A PEM encoded public key used for key wrapping during age encryption. Expected to be RSA 4096.
   bytes public_key = 1 [(gogoproto.jsontag) = "public_key"];
 }
 
@@ -1841,6 +1841,18 @@ message ProvisionTokenSpecV2Kubernetes {
     // This can be fetched from /openid/v1/jwks on the Kubernetes API Server.
     string JWKS = 1 [(gogoproto.jsontag) = "jwks,omitempty"];
   }
+  message OIDCConfig {
+    // Issuer is the URI of the OIDC issuer. It must have an accessible and
+    // OIDC-compliant `/.well-known/oidc-configuration` endpoint. This should
+    // be a valid URL and must exactly match the `issuer` field in a service
+    // account JWT. For example:
+    // https://oidc.eks.us-west-2.amazonaws.com/id/12345...
+    string Issuer = 1 [(gogoproto.jsontag) = "issuer,omitempty"];
+
+    // InsecureAllowHTTPIssuer is a flag that, if set, disables the requirement
+    // that the issuer must use HTTPS.
+    bool InsecureAllowHTTPIssuer = 2 [(gogoproto.jsontag) = "insecure_allow_http_issuer"];
+  }
   // Rule is a set of properties the Kubernetes-issued token might have to be
   // allowed to use this ProvisionToken
   message Rule {
@@ -1855,6 +1867,7 @@ message ProvisionTokenSpecV2Kubernetes {
   // Service Account token. Support values:
   // - `in_cluster`
   // - `static_jwks`
+  // - `oidc`
   // If unset, this defaults to `in_cluster`.
   string Type = 2 [
     (gogoproto.jsontag) = "type,omitempty",
@@ -1862,6 +1875,8 @@ message ProvisionTokenSpecV2Kubernetes {
   ];
   // StaticJWKS is the configuration specific to the `static_jwks` type.
   StaticJWKSConfig StaticJWKS = 3 [(gogoproto.jsontag) = "static_jwks,omitempty"];
+  // OIDCConfig configures the `oidc` type.
+  OIDCConfig OIDC = 4 [(gogoproto.jsontag) = "oidc,omitempty"];
 }
 
 // ProvisionTokenSpecV2Azure contains the Azure-specific part of the
@@ -2464,11 +2479,34 @@ message SessionRecordingConfigV2 {
   ];
 }
 
+// KeyLabel combines a label that can be used to identify one or more keys with a keystore type that
+// determines where the keys can be found.
+message KeyLabel {
+  // Type represents which keystore should be searched when looking up keys by label.
+  string type = 1 [(gogoproto.jsontag) = "type"];
+  // Label is a value that can be used with the related keystore in order to find relevant keys.
+  string label = 2 [(gogoproto.jsontag) = "label"];
+}
+
+// ManualKeyManagementConfig defines whether or not recording encryption keys should be managed externally
+// and how to query those keys.
+message ManualKeyManagementConfig {
+  // Enabled controls whether or recording encryption keys should be managed externally.
+  bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
+  // ActiveKeys describe which keys should be queried for active recording encryption and replay.
+  repeated KeyLabel active_keys = 2 [(gogoproto.jsontag) = "active_key,omitempty"];
+  // RotatedKeys describe which keys should be queried for historical replay.
+  repeated KeyLabel rotated_keys = 3 [(gogoproto.jsontag) = "rotated_key,omitempty"];
+}
+
 // SessionRecordingEncryptionConfig configures if and how session recordings
 // should be encrypted.
 message SessionRecordingEncryptionConfig {
   // Enabled controls whether or not session recordings should be encrypted.
-  bool enabled = 1 [(gogoproto.jsontag) = "enabled"];
+  bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
+  // ManualKeyManagement defines whether or not recording encryption keys should be managed externally
+  // and how to query those keys.
+  ManualKeyManagementConfig manual_key_management = 2 [(gogoproto.jsontag) = "manual_key_management,omitempty"];
 }
 
 // SessionRecordingConfigSpecV2 is the actual data we care about
@@ -4206,6 +4244,8 @@ message BoolValue {
 message UserFilter {
   // SearchKeywords is a list of search keywords to match against resource field values.
   repeated string SearchKeywords = 1 [(gogoproto.jsontag) = "search_keywords,omitempty"];
+  // SkipSystemUsers filters out teleport system users from the results.
+  bool SkipSystemUsers = 2 [(gogoproto.jsontag) = "skip_system_users,omitempty"];
 }
 
 // UserV2 is version 2 resource spec of the user
@@ -5291,6 +5331,10 @@ message OIDCConnectorSpecV3 {
   // UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should
   // match for identifier-first login.
   repeated string UserMatchers = 21 [(gogoproto.jsontag) = "user_matchers,omitempty"];
+  // RequestObjectMode determines how JWT-Secured Authorization Requests will be used for authorization
+  // requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality
+  // for authorization request parameters.
+  string RequestObjectMode = 22 [(gogoproto.jsontag) = "request_object_mode,omitempty"];
 }
 
 // MaxAge allows the max_age parameter to be nullable to preserve backwards
@@ -6951,6 +6995,8 @@ message PluginSpecV1 {
     PluginNetIQSettings net_iq = 19;
     // Settings for the GitHub plugin.
     PluginGithubSettings github = 20;
+    // Settings for the Intune plugin.
+    PluginIntuneSettings intune = 21;
 
     // Note: If you add a new settings type, please also update the custom JSON for oneof filed
     // in the `tctl get/edit plugin` plugin command. You can find it in:
@@ -7087,6 +7133,29 @@ message PluginJamfSettings {
   option (gogoproto.equal) = true;
   // Jamf service spec
   JamfSpecV1 jamf_spec = 1;
+}
+
+// Defines settings for Intune plugin.
+message PluginIntuneSettings {
+  option (gogoproto.equal) = true;
+
+  // Tenant is the primary domain name (e.g. contoso.onmicrosoft.com) or the tenant ID (e.g.
+  // 38d49456-54d4-455d-a8d6-c383c71e0a6d) of an organization within Microsoft Entra ID.
+  //
+  // https://learn.microsoft.com/en-us/partner-center/account-settings/find-ids-and-domain-names#find-the-microsoft-entra-tenant-id-and-primary-domain-name
+  string tenant = 1;
+
+  // login_endpoint points to one of the national deployments of Microsoft Entra ID.
+  // Optional, defaults to "https://login.microsoftonline.com".
+  //
+  // https://learn.microsoft.com/en-us/graph/deployments
+  string login_endpoint = 2;
+
+  // graph_endpoint points to one of the national deployments of Microsoft Graph.
+  // Optional, defaults to "https://graph.microsoft.com".
+  //
+  // https://learn.microsoft.com/en-us/graph/deployments
+  string graph_endpoint = 3;
 }
 
 // Defines settings for the Okta plugin.
@@ -7293,11 +7362,28 @@ message PluginSCIMSettings {
 
   // SamlConnectorName is the name of the SAML Connector that users provisioned
   // by this SCIM plugin will use to log in to Teleport.
-  string saml_connector_name = 1;
+  // DEPRECATED: Use ConnectorInfo instead.
+  // This is old field added when the Okta SCIM plugin was created
+  // and was limited usage to SAML connectors only.
+  string saml_connector_name = 1 [deprecated = true];
 
   // DefaultRole is the default role assigned to users provisioned by this
   // plugin.
-  string default_role = 2;
+  string default_role = 2 [deprecated = true];
+
+  message ConnectorInfo {
+    option (gogoproto.equal) = true;
+    // Name is the name of the connector.
+    string name = 1 [(gogoproto.jsontag) = "name"];
+    // Type is the type of the connector: types.KindSAML, types.KindOIDC, etc.
+    // Note: The name of the connect is not unique across types.
+    string type = 2 [(gogoproto.jsontag) = "type"];
+  }
+
+  // ConnectorInfo contains information about the user's origin as provided
+  // by the SCIM plugin. It enables matching a SAML/OIDC external user
+  // with a SCIM-persisted user, allowing the ephemeral user entry to be updated to SCIM user.
+  ConnectorInfo connector_info = 3 [(gogoproto.jsontag) = "connector_info"];
 }
 
 // PluginDatadogAccessSettings defines the settings for a Datadog Incident Management plugin

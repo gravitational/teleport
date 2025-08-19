@@ -40,6 +40,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.cluster.clusterId;
   }
 
+  getClusterAuthVersion() {
+    return this.state.cluster.authVersion;
+  }
+
   getEventAccess() {
     return this.state.acl.events;
   }

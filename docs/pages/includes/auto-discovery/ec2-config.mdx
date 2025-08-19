@@ -1,0 +1,49 @@
+If you are running the Discovery Service on its own host, the service requires a
+valid invite token to connect to the cluster. Generate one by running the
+following command against your Teleport Auth Service:
+
+```code
+$ tctl tokens add --type=discovery
+```
+
+Save the generated token in `/tmp/token` on the Node (EC2 instance) that will
+run the Discovery Service.
+
+In order to enable EC2 instance discovery the `discovery_service.aws` section
+of `teleport.yaml` must include at least one entry:
+
+(!docs/pages/includes/discovery/discovery-group.mdx!)
+
+```yaml
+# teleport.yaml
+version: v3
+teleport:
+  join_params:
+    token_name: "/tmp/token"
+    method: token
+  proxy_server: "<Var name="teleport.example.com:443" />"
+auth_service:
+  enabled: false
+proxy_service:
+  enabled: false
+ssh_service:
+  enabled: false
+discovery_service:
+  enabled: true
+  discovery_group: "aws-prod"
+  aws:
+   - types: ["ec2"]
+     regions: ["us-east-1","us-west-1"]
+     install:
+        join_params:
+          token_name: aws-discovery-iam-token
+          method: iam
+     tags:
+       "env": "prod" # Match EC2 instances where tag:env=prod
+```
+
+- Edit the `teleport.proxy_server` key to match your Proxy Service's URI
+  and port.
+- Adjust the keys under `discovery_service.aws` to match your EC2 environment,
+  specifically the regions and tags you want to associate with the Discovery
+  Service.
