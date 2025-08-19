@@ -157,8 +157,6 @@ loop:
 				}
 
 			case *apievents.SessionEnd:
-				metadata.Duration = durationpb.New(e.EndTime.Sub(e.StartTime))
-
 				if !lastActivityTime.IsZero() && e.Time.Sub(lastActivityTime) > inactivityThreshold {
 					addInactivityEvent(lastActivityTime, e.Time)
 				}
@@ -242,10 +240,7 @@ loop:
 		})
 	}
 
-	if metadata.Duration == nil {
-		metadata.Duration = durationpb.New(lastEvent.GetTime().Sub(startTime))
-	}
-
+	metadata.Duration = durationpb.New(lastEvent.GetTime().Sub(startTime))
 	metadata.StartTime = timestamppb.New(startTime)
 	metadata.EndTime = timestamppb.New(lastEvent.GetTime())
 
