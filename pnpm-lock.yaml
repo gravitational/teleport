@@ -277,6 +277,9 @@ importers:
       typescript-eslint:
         specifier: ^8.32.0
         version: 8.32.0(eslint@9.26.0)(typescript@5.8.3)
+      vite-plugin-compression:
+        specifier: ^0.5.1
+        version: 0.5.1(vite@6.3.5(@types/node@22.15.16)(yaml@2.7.1))
       vite-plugin-wasm:
         specifier: ^3.4.1
         version: 3.4.1(vite@6.3.5(@types/node@22.15.16)(yaml@2.7.1))
@@ -6549,6 +6552,11 @@ packages:
   verror@1.10.1:
     resolution: {integrity: sha512-veufcmxri4e3XSrT0xwfUR7kguIkaxBeosDg00yDWhk49wdwkSUrvvsm7nc75e1PUyvIeZj6nS8VQRYz2/S4Xg==}
     engines: {node: '>=0.6.0'}
+
+  vite-plugin-compression@0.5.1:
+    resolution: {integrity: sha512-5QJKBDc+gNYVqL/skgFAP81Yuzo9R+EAf19d+EtsMF/i8kFUpNi3J/H01QD3Oo8zBQn+NzoCIFkpPLynoOzaJg==}
+    peerDependencies:
+      vite: '>=2.0.0'
 
   vite-plugin-wasm@3.4.1:
     resolution: {integrity: sha512-ja3nSo2UCkVeitltJGkS3pfQHAanHv/DqGatdI39ja6McgABlpsZ5hVgl6wuR8Qx5etY3T5qgDQhOWzc5RReZA==}
@@ -14091,6 +14099,15 @@ snapshots:
       core-util-is: 1.0.2
       extsprintf: 1.4.1
     optional: true
+
+  vite-plugin-compression@0.5.1(vite@6.3.5(@types/node@22.15.16)(yaml@2.7.1)):
+    dependencies:
+      chalk: 4.1.2
+      debug: 4.4.0
+      fs-extra: 10.1.0
+      vite: 6.3.5(@types/node@22.15.16)(yaml@2.7.1)
+    transitivePeerDependencies:
+      - supports-color
 
   vite-plugin-wasm@3.4.1(vite@6.3.5(@types/node@22.15.16)(yaml@2.7.1)):
     dependencies:
