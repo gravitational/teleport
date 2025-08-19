@@ -55,6 +55,8 @@ const (
 	azureUserAgent = "teleport"
 	// azureVirtualMachine specifies the Azure virtual machine resource type.
 	azureVirtualMachine = "virtualMachines"
+	// azureVirtualMachineScaleSet specifies the Azure virtual machine scale set resource type.
+	azureVirtualMachineScaleSet = "virtualMachineScaleSets"
 )
 
 // Structs for unmarshaling attested data. Schema can be found at
@@ -343,10 +345,14 @@ func claimsToIdentifiers(tokenClaims *accessTokenClaims) (subscriptionID, resour
 	if err != nil {
 		return "", "", trace.Wrap(err, "failed to parse resource id from claims")
 	}
-	if !slices.Contains(resourceID.ResourceType.Types, azureVirtualMachine) {
-		return "", "", trace.BadParameter("unexpected resource type: %q", resourceID.ResourceType.Type)
+
+	for _, resourceType := range resourceID.ResourceType.Types {
+		switch resourceType {
+		case azureVirtualMachine, azureVirtualMachineScaleSet:
+			return resourceID.SubscriptionID, resourceID.ResourceGroupName, nil
+		}
 	}
-	return resourceID.SubscriptionID, resourceID.ResourceGroupName, nil
+	return "", "", trace.BadParameter("unexpected resource type: %q", resourceID.ResourceType.Type)
 }
 
 func checkAzureAllowRules(vmID string, attrs *workloadidentityv1pb.JoinAttrsAzure, token *types.ProvisionTokenV2) error {
