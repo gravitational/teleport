@@ -20,20 +20,12 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// ValidateIntuneAPIEndpoints checks if API endpoints point to one of the official deployments of
-// the Microsoft identity platform and Microsoft Graph.
-// https://learn.microsoft.com/en-us/graph/deployments
-func ValidateIntuneAPIEndpoints(loginEndpoint, graphEndpoint string) error {
-	if loginEndpoint != "" && !slices.Contains(validLoginEndpoints, loginEndpoint) {
-		return trace.BadParameter("login endpoint is not one of the official Microsoft Entra ID endpoints (see https://learn.microsoft.com/en-us/graph/deployments)")
-	}
-
-	if graphEndpoint != "" && !slices.Contains(validGraphEndpoints, graphEndpoint) {
-		return trace.BadParameter("graph endpoint is not one of the official Microsoft Graph endpoints (see https://learn.microsoft.com/en-us/graph/deployments)")
-	}
-
-	return nil
-}
+const (
+	// MSGraphDefaultLoginEndpoint is the endpoint under which Microsoft identity platform APIs are available.
+	MSGraphDefaultLoginEndpoint = "https://login.microsoftonline.com"
+	// MSDefaultGraphEndpoint is the endpoint under which Microsoft Graph API is available.
+	MSGraphDefaultEndpoint = "https://graph.microsoft.com"
+)
 
 var (
 	validLoginEndpoints = []string{
@@ -48,3 +40,18 @@ var (
 		"https://microsoftgraph.chinacloudapi.cn",
 	}
 )
+
+// ValidateMSGraphEndpoints checks if API endpoints point to one of the official deployments of
+// the Microsoft identity platform and Microsoft Graph.
+// https://learn.microsoft.com/en-us/graph/deployments
+func ValidateMSGraphEndpoints(loginEndpoint, graphEndpoint string) error {
+	if loginEndpoint != "" && !slices.Contains(validLoginEndpoints, loginEndpoint) {
+		return trace.BadParameter("login endpoint is not one of the supported Microsoft Entra ID endpoints (see https://learn.microsoft.com/en-us/graph/deployments)")
+	}
+
+	if graphEndpoint != "" && !slices.Contains(validGraphEndpoints, graphEndpoint) {
+		return trace.BadParameter("graph endpoint is not one of the official Microsoft Graph endpoints (see https://learn.microsoft.com/en-us/graph/deployments)")
+	}
+
+	return nil
+}
