@@ -98,11 +98,12 @@ to manage updates, you can manually choose the cluster in the
 Like the CLI tools, Teleport Connect respects the `TELEPORT_CDN_BASE_URL` and
 `TELEPORT_TOOLS_VERSION` environment variables.
 
-* `TELEPORT_CDN_BASE_URL` lets you use custom builds or mirror the CDN in a private
+`TELEPORT_CDN_BASE_URL` lets you use custom builds or mirror the CDN in a private
 network (for example `https://example.com`).
-* `TELEPORT_TOOLS_VERSION` controls client tool updates:
-* Set to `off` to completely disable managed updates.
-* Set to a specific version (e.g. `18.0.1`) to override the cluster-provided version
+
+`TELEPORT_TOOLS_VERSION` controls client tool updates:
+- Set to `off` to completely disable managed updates.
+- Set to a specific version (e.g. `18.0.1`) to override the cluster-provided version
 (for example, to work around a known issue).
 
 To use an environment variable with Teleport Connect, open your terminal and launch
@@ -114,25 +115,25 @@ For a permanent setup, follow the instructions below:
 <Tabs>
   <TabItem label="macOS">
     To set the variable for your current login session, open the Terminal and type:
-    ```console
-    launchctl set env TELEPORT_TOOLS_VERSION X.Y.Z
+    ```code
+    $ launchctl set env TELEPORT_TOOLS_VERSION X.Y.Z
     ```
     Then run Teleport Connect as usual. This setting persists until you log out.
   </TabItem>
   <TabItem label="Windows">
     To set the variable permanently for your user account, open the Command Prompt and type:
-    ```console
-    setx TELEPORT_TOOLS_VERSION X.Y.Z
+    ```code
+    $ setx TELEPORT_TOOLS_VERSION X.Y.Z
     ```
     Then run Teleport Connect as usual. To clear it, use:
-    ```console
-    setx TELEPORT_TOOLS_VERSION ""
+    ```code
+    $ setx TELEPORT_TOOLS_VERSION ""
     ```
   </TabItem>
   <TabItem label="Linux">
     To set the variable permanently for the app, prepend the environment variable to
     the `Exec=` line in  `usr/share/applications/teleport-connect.desktop` file:
-    ```console
+    ```text
     Exec=env TELEPORT_TOOLS_VERSION=X.Y.Z "/opt/Teleport Connect/teleport-connect" %U
     ```
   </TabItem>
