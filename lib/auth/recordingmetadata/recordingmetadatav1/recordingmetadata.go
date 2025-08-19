@@ -165,18 +165,6 @@ loop:
 
 				recordThumbnail(e.EndTime)
 
-				for user, userStartOffset := range activeUsers {
-					metadata.Events = append(metadata.Events, &pb.SessionRecordingEvent{
-						StartOffset: durationpb.New(userStartOffset),
-						EndOffset:   durationpb.New(e.EndTime.Sub(startTime)),
-						Event: &pb.SessionRecordingEvent_Join{
-							Join: &pb.SessionRecordingJoinEvent{
-								User: user,
-							},
-						},
-					})
-				}
-
 			case *apievents.SessionJoin:
 				activeUsers[e.User] = e.Time.Sub(startTime)
 
@@ -239,6 +227,19 @@ loop:
 
 	if lastEvent == nil {
 		return trace.Errorf("could not find any events for session %v", sessionID)
+	}
+
+	// Finish off any remaining activity events
+	for user, userStartOffset := range activeUsers {
+		metadata.Events = append(metadata.Events, &pb.SessionRecordingEvent{
+			StartOffset: durationpb.New(userStartOffset),
+			EndOffset:   durationpb.New(lastEvent.GetTime().Sub(startTime)),
+			Event: &pb.SessionRecordingEvent_Join{
+				Join: &pb.SessionRecordingJoinEvent{
+					User: user,
+				},
+			},
+		})
 	}
 
 	if metadata.Duration == nil {
