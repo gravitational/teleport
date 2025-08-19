@@ -63,19 +63,12 @@ type Config struct {
 	GraphEndpoint string
 }
 
-const (
-	// DefaultLoginEndpoint is the endpoint under which Microsoft identity platform APIs are available.
-	DefaultLoginEndpoint = "https://login.microsoftonline.com"
-	// DefaultGraphEndpoint is the endpoint under which Microsoft Graph is available.
-	DefaultGraphEndpoint = "https://graph.microsoft.com"
-)
-
 func NewClient(ctx context.Context, config ClientConfig) (*Client, error) {
 	if err := ValidateAppCredentials(config.APIConfig.AppCredentials); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := types.ValidateIntuneAPIEndpoints(config.APIConfig.LoginEndpoint, config.APIConfig.GraphEndpoint); err != nil {
+	if err := types.ValidateMSGraphEndpoints(config.APIConfig.LoginEndpoint, config.APIConfig.GraphEndpoint); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -84,8 +77,8 @@ func NewClient(ctx context.Context, config ClientConfig) (*Client, error) {
 	}
 
 	config.Clock = cmp.Or(config.Clock, clockwork.NewRealClock())
-	config.APIConfig.LoginEndpoint = cmp.Or(config.APIConfig.LoginEndpoint, DefaultLoginEndpoint)
-	config.APIConfig.GraphEndpoint = cmp.Or(config.APIConfig.GraphEndpoint, DefaultGraphEndpoint)
+	config.APIConfig.LoginEndpoint = cmp.Or(config.APIConfig.LoginEndpoint, types.MSGraphDefaultLoginEndpoint)
+	config.APIConfig.GraphEndpoint = cmp.Or(config.APIConfig.GraphEndpoint, types.MSGraphDefaultEndpoint)
 	loginURL, err := url.Parse(config.APIConfig.LoginEndpoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
