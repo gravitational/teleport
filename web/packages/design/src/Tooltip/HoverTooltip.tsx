@@ -178,6 +178,7 @@ export const HoverTooltip = ({
       {isMounted && (
         <FloatingPortal>
           <StyledTooltip
+            data-testid="tooltip"
             ref={refs.setFloating}
             style={{
               position: strategy,
