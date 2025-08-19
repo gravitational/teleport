@@ -131,6 +131,15 @@ spec:
                         nullable: true
                         type: array
                     type: object
+                  elasticache_serverless:
+                    description: ElastiCacheServerless contains Amazon ElastiCache
+                      Serverless metadata.
+                    properties:
+                      cache_name:
+                        description: CacheName is an ElastiCache Serverless cache
+                          name.
+                        type: string
+                    type: object
                   external_id:
                     description: ExternalID is an optional AWS external ID used to
                       enable assuming an AWS role across accounts.
